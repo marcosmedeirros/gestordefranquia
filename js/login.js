@@ -57,8 +57,11 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
             body: JSON.stringify(data)
         });
         
-        showMessage('register-message', 'Cadastro realizado! Verifique seu e-mail para ativar sua conta.', 'success');
-        e.target.reset();
+        showMessage('register-message', 'Cadastro realizado! Redirecionando para configuração...', 'success');
+        // Redireciona para onboarding
+        setTimeout(() => {
+            window.location.href = '/onboarding.php';
+        }, 1500);
     } catch (err) {
         showMessage('register-message', err.error || 'Erro ao cadastrar', 'danger');
     }

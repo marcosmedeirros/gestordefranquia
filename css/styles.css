@@ -3,10 +3,11 @@
 	--fba-orange-light: #ff8c1a;
 	--fba-black: #000000;
 	--fba-dark: #0a0a0a;
-	--fba-panel: #121212;
-	--fba-border: #2a2a2a;
+	--fba-panel: #1a1a1a;
+	--fba-border: #333333;
 	--fba-text: #ffffff;
-	--fba-gray: #b0b0b0;
+	--fba-gray: #cccccc;
+	--fba-light-gray: #dddddd;
 }
 
 * {
@@ -240,4 +241,208 @@ pre {
 	background: rgba(248, 113, 113, 0.2);
 	color: #ff6b6b;
 	border: 1px solid #ff6b6b;
+}
+
+/* Login Page Styles */
+.login-page {
+	background: var(--fba-black);
+	overflow: hidden;
+}
+
+.bg-gradient-dark {
+	background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%);
+}
+
+.text-light-gray {
+	color: var(--fba-light-gray) !important;
+}
+
+.text-orange {
+	color: var(--fba-orange) !important;
+}
+
+.form-control, .form-select {
+	background-color: var(--fba-panel) !important;
+	border: 1px solid var(--fba-border) !important;
+	color: var(--fba-text) !important;
+}
+
+.form-control:focus, .form-select:focus {
+	background-color: var(--fba-panel) !important;
+	border-color: var(--fba-orange) !important;
+	box-shadow: 0 0 0 0.25rem rgba(241, 117, 7, 0.25);
+	color: var(--fba-text) !important;
+}
+
+.form-control::placeholder {
+	color: var(--fba-gray);
+}
+
+/* Sidebar Dashboard */
+.dashboard-sidebar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	width: 280px;
+	background: var(--fba-panel);
+	border-right: 2px solid var(--fba-orange);
+	padding: 20px;
+	overflow-y: auto;
+	z-index: 1000;
+}
+
+.dashboard-content {
+	margin-left: 280px;
+	padding: 30px;
+	min-height: 100vh;
+}
+
+.team-avatar {
+	width: 120px;
+	height: 120px;
+	border-radius: 50%;
+	border: 3px solid var(--fba-orange);
+	object-fit: cover;
+	margin: 0 auto 15px;
+	display: block;
+	background: var(--fba-dark);
+}
+
+.sidebar-menu {
+	list-style: none;
+	padding: 0;
+	margin: 30px 0 0 0;
+}
+
+.sidebar-menu li {
+	margin-bottom: 10px;
+}
+
+.sidebar-menu a {
+	display: flex;
+	align-items: center;
+	padding: 12px 15px;
+	color: var(--fba-light-gray);
+	text-decoration: none;
+	border-radius: 8px;
+	transition: all 0.3s;
+}
+
+.sidebar-menu a:hover, .sidebar-menu a.active {
+	background: linear-gradient(135deg, var(--fba-orange), var(--fba-orange-light));
+	color: white;
+	transform: translateX(5px);
+}
+
+.sidebar-menu i {
+	margin-right: 10px;
+	font-size: 1.2rem;
+}
+
+/* Onboarding Steps */
+.onboarding-container {
+	max-width: 800px;
+	margin: 0 auto;
+}
+
+.step-indicator {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 40px;
+	position: relative;
+}
+
+.step-indicator::before {
+	content: '';
+	position: absolute;
+	top: 20px;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: var(--fba-border);
+	z-index: -1;
+}
+
+.step {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: var(--fba-panel);
+	border: 2px solid var(--fba-border);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: bold;
+	color: var(--fba-gray);
+	position: relative;
+	z-index: 1;
+}
+
+.step.active {
+	background: var(--fba-orange);
+	border-color: var(--fba-orange);
+	color: white;
+}
+
+.step.completed {
+	background: #28a745;
+	border-color: #28a745;
+	color: white;
+}
+
+.step-content {
+	display: none;
+}
+
+.step-content.active {
+	display: block;
+	animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; transform: translateY(20px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stats Cards */
+.stat-card {
+	background: var(--fba-panel);
+	border: 1px solid var(--fba-border);
+	border-radius: 12px;
+	padding: 20px;
+	transition: all 0.3s;
+}
+
+.stat-card:hover {
+	border-color: var(--fba-orange);
+	transform: translateY(-5px);
+	box-shadow: 0 10px 30px rgba(241, 117, 7, 0.2);
+}
+
+.stat-value {
+	font-size: 2.5rem;
+	font-weight: bold;
+	color: var(--fba-orange);
+}
+
+.stat-label {
+	color: var(--fba-light-gray);
+	font-size: 0.9rem;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+@media (max-width: 992px) {
+	.dashboard-sidebar {
+		width: 100%;
+		height: auto;
+		position: relative;
+		border-right: none;
+		border-bottom: 2px solid var(--fba-orange);
+	}
+	
+	.dashboard-content {
+		margin-left: 0;
+	}
 }

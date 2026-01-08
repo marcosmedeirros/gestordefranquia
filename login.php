@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - FBA Manager Control</title>
+    <title>FBA Manager Control - Sistema de Gestão de Franquias</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,105 +11,127 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
-<body class="d-flex align-items-center min-vh-100">
+<body class="login-page">
     <?php
-    error_reporting(E_ALL);
-    ini_set('display_errors', 0);
-    
-    try {
-        // Mensagens de verificação
-        if (isset($_GET['verified']) && $_GET['verified'] == '1') {
-            echo '<div class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999;">
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i>E-mail verificado com sucesso! Faça login.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            </div>';
-        }
-    } catch (Exception $e) {
-        error_log('Erro no login.php: ' . $e->getMessage());
+    if (isset($_GET['verified']) && $_GET['verified'] == '1') {
+        echo '<div class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999;">
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>E-mail verificado com sucesso! Faça login.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>';
     }
     ?>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-10 col-lg-8">
-                <div class="text-center mb-4">
-                    <img src="/img/fba-logo.png" alt="FBA" height="80" class="mb-3">
-                    <h1 class="display-5 fw-bold text-white">FBA Manager Control</h1>
-                    <p class="text-light-gray">Gerencie sua franquia de basquete fantasy</p>
-                </div>
-
-                <div class="row g-4">
-                    <!-- Login Card -->
-                    <div class="col-lg-6">
-                        <div class="card bg-dark-panel border-orange h-100">
-                            <div class="card-header bg-transparent border-orange">
-                                <h4 class="mb-0"><i class="bi bi-box-arrow-in-right me-2 text-orange"></i>Login</h4>
-                            </div>
-                            <div class="card-body">
-                                <form id="form-login">
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-envelope me-2"></i>E-mail</label>
-                                        <input name="email" type="email" class="form-control bg-dark text-light" placeholder="seu@email.com" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-lock me-2"></i>Senha</label>
-                                        <input name="password" type="password" class="form-control bg-dark text-light" placeholder="••••••••" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-orange w-100">
-                                        <i class="bi bi-box-arrow-in-right me-2"></i>Entrar
-                                    </button>
-                                </form>
-                                <div id="login-message" class="mt-3"></div>
-                            </div>
+    
+    <div class="container-fluid vh-100">
+        <div class="row h-100">
+            <!-- Left Side - Branding -->
+            <div class="col-lg-6 d-flex align-items-center justify-content-center bg-gradient-dark p-5">
+                <div class="text-center text-white">
+                    <img src="/img/fba-logo.png" alt="FBA Manager" class="img-fluid mb-4" style="max-height: 180px;">
+                    <h1 class="display-4 fw-bold mb-3">FBA Manager Control</h1>
+                    <p class="lead mb-4 text-light-gray">
+                        Sistema completo de gestão da sua franquia de basquete.<br>
+                        Gerencie times, jogadores, drafts e muito mais em um só lugar.
+                    </p>
+                    <div class="d-flex justify-content-center gap-5 mt-5">
+                        <div>
+                            <i class="bi bi-people-fill display-6 text-orange mb-2 d-block"></i>
+                            <p class="mb-0 text-light-gray">Gestão de Times</p>
                         </div>
-                    </div>
-
-                    <!-- Register Card -->
-                    <div class="col-lg-6">
-                        <div class="card bg-dark-panel border-orange h-100">
-                            <div class="card-header bg-transparent border-orange">
-                                <h4 class="mb-0"><i class="bi bi-person-plus me-2 text-orange"></i>Cadastro</h4>
-                            </div>
-                            <div class="card-body">
-                                <form id="form-register">
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-person me-2"></i>Nome</label>
-                                        <input name="name" class="form-control bg-dark text-light" placeholder="Seu nome completo" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-envelope me-2"></i>E-mail</label>
-                                        <input name="email" type="email" class="form-control bg-dark text-light" placeholder="seu@email.com" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-trophy me-2 text-orange"></i>Liga</label>
-                                        <select name="league" class="form-control bg-dark text-light" required>
-                                            <option value="">Selecione sua liga</option>
-                                            <option value="ROOKIE">🥉 ROOKIE - Iniciante</option>
-                                            <option value="RISE">🥈 RISE - Intermediário</option>
-                                            <option value="PRIME">🥇 PRIME - Avançado</option>
-                                            <option value="ELITE">💎 ELITE - Elite</option>
-                                        </select>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label"><i class="bi bi-lock me-2"></i>Senha</label>
-                                        <input name="password" type="password" class="form-control bg-dark text-light" placeholder="••••••••" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-orange w-100">
-                                        <i class="bi bi-person-plus me-2"></i>Criar conta
-                                    </button>
-                                </form>
-                                <div id="register-message" class="mt-3"></div>
-                            </div>
+                        <div>
+                            <i class="bi bi-trophy-fill display-6 text-orange mb-2 d-block"></i>
+                            <p class="mb-0 text-light-gray">4 Ligas</p>
+                        </div>
+                        <div>
+                            <i class="bi bi-graph-up-arrow display-6 text-orange mb-2 d-block"></i>
+                            <p class="mb-0 text-light-gray">Estatísticas</p>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="text-center mt-4">
-                    <small class="text-light-gray">
-                        <i class="bi bi-shield-check me-1"></i>
-                        Após o cadastro, verifique seu e-mail para ativar sua conta
-                    </small>
+            <!-- Right Side - Login/Register Forms -->
+            <div class="col-lg-6 d-flex align-items-center justify-content-center p-5 bg-dark">
+                <div class="w-100" style="max-width: 450px;">
+                    
+                    <!-- Login Form -->
+                    <div id="login-form-container">
+                        <h2 class="mb-4 fw-bold text-white">Entrar na sua conta</h2>
+                        
+                        <div id="login-message"></div>
+                        
+                        <form id="form-login">
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">E-mail</label>
+                                <input name="email" type="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">Senha</label>
+                                <input name="password" type="password" class="form-control form-control-lg" placeholder="••••••••" required>
+                            </div>
+                            <button type="submit" class="btn btn-orange btn-lg w-100 mb-3">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Entrar
+                            </button>
+                        </form>
+                        
+                        <div class="text-center">
+                            <a href="#" class="text-orange text-decoration-none d-block mb-3">
+                                <i class="bi bi-key me-1"></i>Esqueceu a senha?
+                            </a>
+                            <p class="text-light-gray mb-0">
+                                Não tem uma conta?
+                                <a href="#" class="text-orange text-decoration-none fw-bold" onclick="showRegisterForm(); return false;">
+                                    Quero me cadastrar
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="register-form-container" style="display: none;">
+                        <h2 class="mb-4 fw-bold text-white">Criar nova conta</h2>
+                        
+                        <div id="register-message"></div>
+                        
+                        <form id="form-register">
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">Nome completo</label>
+                                <input name="name" class="form-control form-control-lg" placeholder="Seu nome completo" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">E-mail</label>
+                                <input name="email" type="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">Senha</label>
+                                <input name="password" type="password" class="form-control form-control-lg" placeholder="Mínimo 6 caracteres" required minlength="6">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">Liga</label>
+                                <select name="league" class="form-select form-select-lg" required>
+                                    <option value="">Selecione sua liga</option>
+                                    <option value="ROOKIE">🌱 ROOKIE - Liga Rookie</option>
+                                    <option value="RISE">🌟 RISE - Liga Rise</option>
+                                    <option value="PRIME">💎 PRIME - Liga Prime</option>
+                                    <option value="ELITE">🏆 ELITE - Liga Elite</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-orange btn-lg w-100 mb-3">
+                                <i class="bi bi-person-plus me-2"></i>Criar conta
+                            </button>
+                        </form>
+                        
+                        <div class="text-center">
+                            <p class="text-light-gray mb-0">
+                                Já tem uma conta?
+                                <a href="#" class="text-orange text-decoration-none fw-bold" onclick="showLoginForm(); return false;">
+                                    Fazer login
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -117,5 +139,16 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/login.js"></script>
+    <script>
+        function showRegisterForm() {
+            document.getElementById('login-form-container').style.display = 'none';
+            document.getElementById('register-form-container').style.display = 'block';
+        }
+        
+        function showLoginForm() {
+            document.getElementById('register-form-container').style.display = 'none';
+            document.getElementById('login-form-container').style.display = 'block';
+        }
+    </script>
 </body>
 </html>
