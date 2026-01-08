@@ -30,6 +30,11 @@ $user = getUserSession();
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item">
+                        <span class="badge bg-gradient-orange me-3">
+                            <i class="bi bi-trophy-fill me-1"></i><?= htmlspecialchars($user['league']) ?>
+                        </span>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/dashboard.php"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
                     </li>
                     <li class="nav-item dropdown">
@@ -51,7 +56,7 @@ $user = getUserSession();
                 <h1 class="display-5 fw-bold">
                     <i class="bi bi-people-fill text-orange me-2"></i>Elencos e CAP
                 </h1>
-                <p class="text-light-gray">Visualize todos os times, jogadores e status de CAP</p>
+                <p class="text-light-gray">Visualize todos os times da liga <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span></p>
             </div>
             <div class="col-md-4 text-end">
                 <button id="btn-refresh-rosters" class="btn btn-orange">

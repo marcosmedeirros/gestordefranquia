@@ -47,6 +47,7 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
         name: formData.get('name'),
         email: formData.get('email'),
         password: formData.get('password'),
+        league: formData.get('league'),
         user_type: 'jogador'
     };
 

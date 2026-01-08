@@ -14,7 +14,7 @@ if ($email === '' || $password === '') {
     jsonResponse(422, ['error' => 'E-mail e senha são obrigatórios.']);
 }
 
-$stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, email_verified, photo_url FROM users WHERE email = ? LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, league, email_verified, photo_url FROM users WHERE email = ? LIMIT 1');
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
@@ -28,6 +28,7 @@ setUserSession([
     'name' => $user['name'],
     'email' => $email,
     'user_type' => $user['user_type'],
+    'league' => $user['league'],
     'photo_url' => $user['photo_url'] ?? null,
 ]);
 
@@ -38,6 +39,7 @@ jsonResponse(200, [
         'name' => $user['name'],
         'email' => $email,
         'user_type' => $user['user_type'],
+        'league' => $user['league'],
         'email_verified' => (bool) $user['email_verified'],
         'photo_url' => $user['photo_url'] ?? null,
     ],

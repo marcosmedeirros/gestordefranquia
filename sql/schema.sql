@@ -1,4 +1,19 @@
--- Run this on Hostinger MySQL to create the FBA schema.
+-- Run this on Hostinger MySQL to create the FBA schema with multi-league support.
+
+CREATE TABLE IF NOT EXISTS leagues (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name ENUM('ELITE','PRIME','RISE','ROOKIE') NOT NULL UNIQUE,
+    description VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Insert default leagues
+INSERT IGNORE INTO leagues (name, description) VALUES 
+('ELITE', 'Liga Elite - Jogadores experientes'),
+('PRIME', 'Liga Prime - Jogadores intermediários avançados'),
+('RISE', 'Liga Rise - Jogadores intermediários'),
+('ROOKIE', 'Liga Rookie - Jogadores iniciantes');
+
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
@@ -6,22 +21,28 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     photo_url VARCHAR(255) NULL,
     user_type ENUM('jogador','admin') NOT NULL DEFAULT 'jogador',
+    league ENUM('ELITE','PRIME','RISE','ROOKIE') NOT NULL,
     email_verified TINYINT(1) NOT NULL DEFAULT 0,
     verification_token VARCHAR(64) DEFAULT NULL,
     reset_token VARCHAR(64) DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_league (league)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS divisions (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(80) NOT NULL UNIQUE,
+    name VARCHAR(80) NOT NULL,
+    league ENUM('ELITE','PRIME','RISE','ROOKIE') NOT NULL,
     importance INT DEFAULT 0,
-    champions TEXT NULL
+    champions TEXT NULL,
+    UNIQUE KEY uniq_division_league (name, league),
+    INDEX idx_division_league (league)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS teams (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
+    league ENUM('ELITE','PRIME','RISE','ROOKIE') NOT NULL,
     name VARCHAR(120) NOT NULL,
     city VARCHAR(120) NOT NULL,
     mascot VARCHAR(120) NOT NULL,
@@ -29,7 +50,9 @@ CREATE TABLE IF NOT EXISTS teams (
     division_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_team_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_team_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL
+    CONSTRAINT fk_team_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL,
+    INDEX idx_team_league (league),
+    INDEX idx_team_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS players (
@@ -61,8 +84,11 @@ CREATE TABLE IF NOT EXISTS picks (
 
 CREATE TABLE IF NOT EXISTS drafts (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    year INT NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    year INT NOT NULL,
+    league ENUM('ELITE','PRIME','RISE','ROOKIE') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_draft_year_league (year, league),
+    INDEX idx_draft_league (league)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS draft_players (

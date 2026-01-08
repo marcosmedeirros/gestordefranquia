@@ -75,6 +75,16 @@
                                         <input name="email" type="email" class="form-control bg-dark text-light" placeholder="seu@email.com" required>
                                     </div>
                                     <div class="mb-3">
+                                        <label class="form-label"><i class="bi bi-trophy me-2 text-orange"></i>Liga</label>
+                                        <select name="league" class="form-control bg-dark text-light" required>
+                                            <option value="">Selecione sua liga</option>
+                                            <option value="ROOKIE">🥉 ROOKIE - Iniciante</option>
+                                            <option value="RISE">🥈 RISE - Intermediário</option>
+                                            <option value="PRIME">🥇 PRIME - Avançado</option>
+                                            <option value="ELITE">💎 ELITE - Elite</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
                                         <label class="form-label"><i class="bi bi-lock me-2"></i>Senha</label>
                                         <input name="password" type="password" class="form-control bg-dark text-light" placeholder="••••••••" required>
                                     </div>

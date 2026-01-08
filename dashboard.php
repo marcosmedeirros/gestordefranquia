@@ -30,6 +30,11 @@ $user = getUserSession();
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item">
+                        <span class="badge bg-gradient-orange me-3">
+                            <i class="bi bi-trophy-fill me-1"></i><?= htmlspecialchars($user['league']) ?>
+                        </span>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/teams.php"><i class="bi bi-people-fill me-1"></i>Elencos</a>
                     </li>
                     <li class="nav-item dropdown">
@@ -51,7 +56,7 @@ $user = getUserSession();
                 <h1 class="display-5 fw-bold">
                     <i class="bi bi-speedometer2 text-orange me-2"></i>Dashboard
                 </h1>
-                <p class="text-light-gray">Bem-vindo, <?= htmlspecialchars($user['name']) ?>!</p>
+                <p class="text-light-gray">Bem-vindo, <?= htmlspecialchars($user['name']) ?>! Você está na liga <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span></p>
             </div>
         </div>
 

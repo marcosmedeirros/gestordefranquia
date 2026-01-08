@@ -1,6 +1,8 @@
 <?php
+session_start();
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../../backend/helpers.php';
+require_once __DIR__ . '/../../backend/auth.php';
 
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -8,11 +10,18 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
-        $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo
+    
+    // Obter league do usuário da sessão
+    $user = getUserSession();
+    $league = $user['league'] ?? 'ROOKIE';
+    
+    $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo
             FROM teams t
             LEFT JOIN divisions d ON d.id = t.division_id
-            LEFT JOIN users u ON u.id = t.user_id';
-    $params = [];
+            LEFT JOIN users u ON u.id = t.user_id
+            WHERE t.league = ?';
+    $params = [$league];
+    $params = [$league];
     $clauses = [];
     if ($teamId) {
         $clauses[] = 't.id = ?';
@@ -23,7 +32,7 @@ if ($method === 'GET') {
         $params[] = $userId;
     }
     if ($clauses) {
-        $sql .= ' WHERE ' . implode(' AND ', $clauses);
+        $sql .= ' AND ' . implode(' AND ', $clauses);
     }
     $sql .= ' ORDER BY t.id DESC';
 
@@ -46,6 +55,15 @@ if ($method === 'POST') {
     $divisionId = $body['division_id'] ?? null;
     $userId = $body['user_id'] ?? null;
     $photoUrl = trim($body['photo_url'] ?? '');
+    
+    // Obter league do usuário
+    $userStmt = $pdo->prepare('SELECT league FROM users WHERE id = ? LIMIT 1');
+    $userStmt->execute([$userId]);
+    $userRow = $userStmt->fetch();
+    if (!$userRow) {
+        jsonResponse(404, ['error' => 'Usuário não encontrado.']);
+    }
+    $league = $userRow['league'];
 
     if ($name === '' || $city === '' || $mascot === '' || !$userId) {
         jsonResponse(422, ['error' => 'Nome, cidade, mascote e user_id são obrigatórios.']);
@@ -59,8 +77,8 @@ if ($method === 'POST') {
         }
     }
 
-    $stmt = $pdo->prepare('INSERT INTO teams (user_id, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$userId, $name, $city, $mascot, $divisionId, $photoUrl ?: null]);
+    $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$userId, $league, $name, $city, $mascot, $divisionId, $photoUrl ?: null]);
     $teamId = (int) $pdo->lastInsertId();
 
     // Cada time ganha 1 pick de 1ª e 2ª rodada para o ano corrente.
