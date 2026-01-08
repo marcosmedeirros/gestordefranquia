@@ -98,7 +98,7 @@ $teamCap = $capData['cap'] ?? 0;
                 </a>
             </li>
             <li>
-                <a href="#" onclick="alert('Em breve!'); return false;">
+                <a href="/settings.php">
                     <i class="bi bi-gear-fill"></i>
                     Configurações
                 </a>

@@ -134,4 +134,66 @@ if ($method === 'POST') {
     jsonResponse(201, ['message' => 'Time criado.', 'team_id' => $teamId]);
 }
 
+if ($method === 'PUT') {
+    $body = readJsonBody();
+    $name = trim($body['name'] ?? '');
+    $city = trim($body['city'] ?? '');
+    $mascot = trim($body['mascot'] ?? '');
+    $photoUrl = trim($body['photo_url'] ?? '');
+
+    $sessionUser = getUserSession();
+    if (!isset($sessionUser['id'])) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+    $userId = (int) $sessionUser['id'];
+
+    // Buscar time do usuário
+    $stmt = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$userId]);
+    $team = $stmt->fetch();
+    if (!$team) {
+        jsonResponse(404, ['error' => 'Time não encontrado para o usuário.']);
+    }
+
+    // Salvar logo se vier como data URL
+    if ($photoUrl && str_starts_with($photoUrl, 'data:image/')) {
+        try {
+            $commaPos = strpos($photoUrl, ',');
+            $meta = substr($photoUrl, 0, $commaPos);
+            $base64 = substr($photoUrl, $commaPos + 1);
+            $mime = null;
+            if (preg_match('/data:(image\/(png|jpeg|jpg|webp));base64/i', $meta, $m)) {
+                $mime = strtolower($m[1]);
+            }
+            $ext = 'png';
+            if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+            if ($mime === 'image/webp') { $ext = 'webp'; }
+            $binary = base64_decode($base64);
+            if ($binary === false) { throw new Exception('Falha ao decodificar imagem.'); }
+
+            $dirFs = __DIR__ . '/../img/teams';
+            if (!is_dir($dirFs)) { @mkdir($dirFs, 0775, true); }
+            $filename = 'team-' . $userId . '-' . time() . '.' . $ext;
+            $fullPath = $dirFs . '/' . $filename;
+            if (file_put_contents($fullPath, $binary) === false) {
+                throw new Exception('Falha ao salvar imagem.');
+            }
+            $photoUrl = '/img/teams/' . $filename;
+        } catch (Exception $e) {
+            $photoUrl = '';
+        }
+    }
+
+    $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ? WHERE id = ?');
+    $upd->execute([
+        $name !== '' ? $name : $team['name'],
+        $city !== '' ? $city : $team['city'],
+        $mascot !== '' ? $mascot : '',
+        $photoUrl !== '' ? $photoUrl : $team['photo_url'],
+        (int) $team['id'],
+    ]);
+
+    jsonResponse(200, ['message' => 'Time atualizado.']);
+}
+
 jsonResponse(405, ['error' => 'Method not allowed']);
