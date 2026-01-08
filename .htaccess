@@ -1,5 +1,5 @@
 # Habilitar log de erros
-php_flag display_errors Off
+php_flag display_errors On
 php_flag log_errors On
 
 # Charset padrão

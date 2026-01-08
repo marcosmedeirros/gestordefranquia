@@ -1,7 +1,8 @@
 <?php
-session_start();
-require_once __DIR__ . '/backend/db.php';
-require_once __DIR__ . '/backend/helpers.php';
+// Inicia sessão apenas se ainda não foi iniciada
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 function requireAuth() {
     if (!isset($_SESSION['user_id'])) {
