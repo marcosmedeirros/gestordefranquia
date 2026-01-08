@@ -146,46 +146,13 @@ $picks = $stmtPicks->fetchAll();
     <div class="dashboard-content">
         <div class="mb-4">
             <h1 class="text-white fw-bold mb-2"><i class="bi bi-calendar-check-fill me-2 text-orange"></i>Minhas Picks</h1>
-            <p class="text-light-gray">Gerencie as picks de draft do seu time</p>
+            <p class="text-light-gray">Visualize as picks de draft do seu time (geradas automaticamente pelo sistema)</p>
         </div>
 
-        <!-- Formulário para adicionar pick -->
-        <div class="card bg-dark-panel border-orange mb-4">
-            <div class="card-header bg-transparent border-orange">
-                <h5 class="text-white mb-0"><i class="bi bi-plus-circle me-2 text-orange"></i>Adicionar Nova Pick</h5>
-            </div>
-            <div class="card-body">
-                <form id="formAddPick">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label text-white fw-bold">Ano</label>
-                            <input type="number" name="year" class="form-control bg-dark text-white border-orange" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label text-white fw-bold">Rodada</label>
-                            <select name="round" class="form-select bg-dark text-white border-orange" required>
-                                <option value="">Selecione...</option>
-                                <option value="1">1ª Rodada</option>
-                                <option value="2">2ª Rodada</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-white fw-bold">Recebida de (opcional)</label>
-                            <select name="original_team_id" class="form-select bg-dark text-white border-orange">
-                                <option value="">Própria do time</option>
-                                <?php foreach ($allTeams as $t): ?>
-                                    <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-orange w-100">
-                                <i class="bi bi-plus-circle me-1"></i>Adicionar
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
+        <!-- Informação sobre picks automáticas -->
+        <div class="alert alert-info mb-4" style="border-radius: 15px; background: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3);">
+            <i class="bi bi-info-circle me-2"></i>
+            As picks são geradas automaticamente quando uma nova temporada é criada. Cada time recebe 2 picks (1ª e 2ª rodada) por temporada.
         </div>
 
         <!-- Lista de picks -->
@@ -196,14 +163,15 @@ $picks = $stmtPicks->fetchAll();
                         <th class="text-white fw-bold">Ano</th>
                         <th class="text-white fw-bold">Rodada</th>
                         <th class="text-white fw-bold">Origem</th>
-                        <th class="text-white fw-bold">Ações</th>
+                        <th class="text-white fw-bold">Status</th>
                     </tr>
                 </thead>
                 <tbody id="picksTableBody">
                     <?php if (count($picks) === 0): ?>
                         <tr>
-                            <td colspan="4" class="text-center text-light-gray">
-                                Nenhuma pick cadastrada ainda
+                            <td colspan="4" class="text-center text-light-gray py-4">
+                                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
+                                Nenhuma pick ainda. As picks serão geradas automaticamente quando o admin criar uma temporada.
                             </td>
                         </tr>
                     <?php else: ?>
@@ -221,9 +189,13 @@ $picks = $stmtPicks->fetchAll();
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-danger" onclick="deletePick(<?= $pick['id'] ?>)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                    <?php if (!empty($pick['auto_generated'])): ?>
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-cpu me-1"></i>Auto
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">Manual</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -235,60 +207,5 @@ $picks = $stmtPicks->fetchAll();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
-    <script>
-        const teamId = <?= $team['id'] ?>;
-
-        document.getElementById('formAddPick').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const year = formData.get('year');
-            const round = formData.get('round');
-            const originalTeamId = formData.get('original_team_id') || teamId;
-
-            try {
-                const response = await fetch('/api/picks.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        team_id: teamId,
-                        original_team_id: originalTeamId,
-                        year: year,
-                        round: round
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.error || 'Erro ao adicionar pick');
-                }
-            } catch (err) {
-                alert('Erro ao adicionar pick');
-            }
-        });
-
-        async function deletePick(pickId) {
-            if (!confirm('Deseja realmente excluir esta pick?')) return;
-
-            try {
-                const response = await fetch(`/api/picks.php?id=${pickId}`, {
-                    method: 'DELETE'
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.error || 'Erro ao excluir pick');
-                }
-            } catch (err) {
-                alert('Erro ao excluir pick');
-            }
-        }
-    </script>
 </body>
 </html>
