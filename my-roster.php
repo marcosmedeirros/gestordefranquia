@@ -86,7 +86,19 @@ $teamId = $team['id'] ?? null;
   <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
-      <h1 class="text-white fw-bold mb-2"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
+      <div class="d-flex justify-content-between align-items-center">
+        <h1 class="text-white fw-bold mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
+        <div class="d-flex gap-3">
+          <div class="text-center">
+            <small class="text-light-gray">Total</small>
+            <div class="text-white fw-bold" id="total-players" style="font-size: 1.5rem;">0</div>
+          </div>
+          <div class="text-center">
+            <small class="text-light-gray">CAP Top8</small>
+            <div class="text-orange fw-bold" id="cap-top8" style="font-size: 1.5rem;">0</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <?php if (!$teamId): ?>
@@ -247,28 +259,6 @@ $teamId = $team['id'] ?? null;
         <div class="modal-footer border-top border-orange">
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar Mudanças</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Stats Footer -->
-  <div class="container mt-5 mb-5">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="bg-dark-panel border-orange rounded p-4" style="border: 2px solid #f17507;">
-          <div class="text-center">
-            <h3 class="text-light-gray mb-2">Jogadores</h3>
-            <div class="stat-value text-orange" id="total-players" style="font-size: 2.5rem; font-weight: bold;">0</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="bg-dark-panel border-orange rounded p-4" style="border: 2px solid #f17507;">
-          <div class="text-center">
-            <h3 class="text-light-gray mb-2">CAP Top8</h3>
-            <div class="stat-value text-orange" id="cap-top8" style="font-size: 2.5rem; font-weight: bold;">0</div>
-          </div>
         </div>
       </div>
     </div>
