@@ -132,14 +132,31 @@ if ($method === 'POST') {
         exit;
     }
     
-    // Verificar limite de 10 trades por ano
+    // Buscar o time para obter a liga
+    $stmtTeamLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtTeamLeague->execute([$teamId]);
+    $teamData = $stmtTeamLeague->fetch();
+    
+    if (!$teamData) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+        exit;
+    }
+    
+    // Buscar limite de trades da liga
+    $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+    $stmtSettings->execute([$teamData['league']]);
+    $settings = $stmtSettings->fetch();
+    $maxTrades = $settings['max_trades'] ?? 10; // Default 10 se não configurado
+    
+    // Verificar limite de trades por temporada
     $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
     $stmtCount->execute([$teamId]);
     $count = $stmtCount->fetch()['total'];
     
-    if ($count >= 10) {
+    if ($count >= $maxTrades) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Limite de 10 trades por ano atingido']);
+        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
         exit;
     }
     

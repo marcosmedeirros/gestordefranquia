@@ -918,6 +918,74 @@ pre {
 	font-size: 0.9rem;
 }
 
+/* Player Cards Mobile */
+.player-card-mobile {
+	display: none;
+}
+
+@media (max-width: 768px) {
+	.table-responsive {
+		display: none !important;
+	}
+	
+	.player-card-mobile {
+		display: block;
+	}
+	
+	.player-card {
+		background: var(--fba-panel);
+		border: 1px solid var(--fba-border);
+		border-radius: 8px;
+		padding: 1rem;
+		margin-bottom: 1rem;
+		transition: all 0.3s;
+	}
+	
+	.player-card:hover {
+		border-color: var(--fba-orange);
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(241, 117, 7, 0.2);
+	}
+	
+	.player-card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: start;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid var(--fba-border);
+	}
+	
+	.player-card-body {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+	
+	.player-card-stat {
+		font-size: 0.85rem;
+	}
+	
+	.player-card-stat strong {
+		color: var(--fba-orange);
+		display: block;
+		margin-bottom: 0.25rem;
+	}
+	
+	.player-card-actions {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: stretch;
+	}
+	
+	.player-card-actions .btn {
+		flex: 1;
+		font-size: 0.85rem;
+		padding: 0.5rem;
+	}
+}
+
 /* Team Cards */
 .team-card {
 	background: var(--fba-panel);

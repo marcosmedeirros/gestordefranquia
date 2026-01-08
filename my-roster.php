@@ -187,6 +187,7 @@ $teamId = $team['id'] ?? null;
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
+        <!-- Desktop: Tabela -->
         <div id="players-list" class="table-responsive d-none">
           <table class="table table-dark align-middle">
             <thead>
@@ -215,6 +216,8 @@ $teamId = $team['id'] ?? null;
             <tbody id="players-tbody"></tbody>
           </table>
         </div>
+        <!-- Mobile: Cards -->
+        <div id="players-cards-mobile" class="player-card-mobile d-none"></div>
       </div>
     </div>
     <?php endif; ?>

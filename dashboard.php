@@ -215,7 +215,7 @@ $hasEdital = $editalData && !empty($editalData['edital_file']);
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-trophy me-2 text-orange"></i>Quinteto Titular
                         </h4>
-                        <button class="btn btn-outline-orange btn-sm" onclick="window.location.href='/teams.php'">
+                        <button class="btn btn-outline-orange btn-sm" onclick="window.location.href='/my-roster.php'">
                             <i class="bi bi-plus-circle me-1"></i>Gerenciar Elenco
                         </button>
                     </div>

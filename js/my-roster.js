@@ -101,11 +101,19 @@ function renderPlayers(players) {
     return 0;
   });
 
+  // Renderizar tabela (desktop)
   const tbody = document.getElementById('players-tbody');
   tbody.innerHTML = '';
+  
+  // Renderizar cards (mobile)
+  const cardsContainer = document.getElementById('players-cards-mobile');
+  cardsContainer.innerHTML = '';
+  
   sorted.forEach(p => {
-    const tr = document.createElement('tr');
     const ovrColor = getOvrColor(p.ovr);
+    
+    // Tabela (desktop)
+    const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.name}</td>
       <td><span style="font-size: 1.3rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span></td>
@@ -137,7 +145,54 @@ function renderPlayers(players) {
       </td>
     `;
     tbody.appendChild(tr);
+    
+    // Card (mobile)
+    const card = document.createElement('div');
+    card.className = 'player-card';
+    card.innerHTML = `
+      <div class="player-card-header">
+        <div>
+          <h6 class="text-white mb-1">${p.name}</h6>
+          <span class="badge bg-orange">${p.position}</span>
+          <span class="badge bg-secondary ms-1">${p.role}</span>
+        </div>
+        <span style="font-size: 1.5rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span>
+      </div>
+      <div class="player-card-body text-light-gray">
+        <div class="player-card-stat">
+          <strong>Idade</strong>
+          ${p.age} anos
+        </div>
+        <div class="player-card-stat">
+          <strong>Trade</strong>
+          <span class="badge ${p.available_for_trade ? 'bg-success' : 'bg-danger'}">
+            ${p.available_for_trade ? 'Disponível' : 'Indisponível'}
+          </span>
+        </div>
+      </div>
+      <div class="player-card-actions">
+        <button class="btn btn-sm btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" style="
+          background: ${p.available_for_trade ? '#00ff00' : '#ff4444'};
+          color: #000;
+          border: none;
+          font-weight: bold;
+        ">
+          <i class="bi ${p.available_for_trade ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-warning btn-edit-player" data-id="${p.id}">
+          <i class="bi bi-pencil"></i> Editar
+        </button>
+        <button class="btn btn-sm btn-outline-danger btn-delete-player" data-id="${p.id}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    `;
+    cardsContainer.appendChild(card);
   });
+  
+  // Mostrar lista
+  document.getElementById('players-list').classList.remove('d-none');
+  document.getElementById('players-cards-mobile').classList.remove('d-none');
 
   // Atualizar stats
   updateRosterStats();
@@ -262,9 +317,28 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Delegation for actions
+// Delegation for actions (tabela)
 document.getElementById('players-tbody')?.addEventListener('click', (e) => {
   const target = e.target;
+  if (target.classList.contains('btn-delete-player')) {
+    const id = Number(target.dataset.id);
+    deletePlayer(id);
+  } else if (target.classList.contains('btn-edit-player')) {
+    const id = Number(target.dataset.id);
+    const p = getRowPlayer(id);
+    if (p) openEditModal(p);
+  } else if (target.classList.contains('btn-toggle-trade')) {
+    const id = Number(target.dataset.id);
+    const current = Number(target.dataset.trade);
+    updatePlayer({ id, available_for_trade: current ? 0 : 1 });
+  }
+});
+
+// Delegation for actions (cards mobile)
+document.getElementById('players-cards-mobile')?.addEventListener('click', (e) => {
+  const target = e.target.closest('button');
+  if (!target) return;
+  
   if (target.classList.contains('btn-delete-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
