@@ -121,7 +121,8 @@ if ($method === 'POST') {
     }
 
     $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$userId, $league, $name, $city, $mascot !== '' ? $mascot : null, $divisionId, $photoUrl ?: null]);
+    // Mascote não pode ser NULL na tabela; use string vazia quando não fornecido
+    $stmt->execute([$userId, $league, $name, $city, $mascot !== '' ? $mascot : '', $divisionId, $photoUrl ?: null]);
     $teamId = (int) $pdo->lastInsertId();
 
     // Cada time ganha 1 pick de 1ª e 2ª rodada para o ano corrente.
