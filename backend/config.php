@@ -9,8 +9,8 @@ return [
         'charset' => 'utf8mb4',
     ],
     'mail' => [
-        'from' => getenv('FBA_MAIL_FROM') ?: 'no-reply@example.com',
-        'verify_base_url' => getenv('FBA_VERIFY_BASE_URL') ?: 'https://example.com/api/verify.php?token=',
+        'from' => getenv('FBA_MAIL_FROM') ?: 'no-reply@marcosmedeiros.page',
+        'verify_base_url' => getenv('FBA_VERIFY_BASE_URL') ?: 'https://marcosmedeiros.page/api/verify.php?token=',
     ],
     'app' => [
         'cap_min' => 618,

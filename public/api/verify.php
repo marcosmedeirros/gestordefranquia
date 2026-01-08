@@ -4,7 +4,8 @@ require_once __DIR__ . '/../../backend/helpers.php';
 
 $token = $_GET['token'] ?? '';
 if ($token === '') {
-    jsonResponse(400, ['error' => 'Token ausente.']);
+    header('Location: /login.php?error=token_missing');
+    exit;
 }
 
 $pdo = db();
@@ -13,10 +14,12 @@ $stmt->execute([$token]);
 $user = $stmt->fetch();
 
 if (!$user) {
-    jsonResponse(404, ['error' => 'Token inválido.']);
+    header('Location: /login.php?error=invalid_token');
+    exit;
 }
 
 $update = $pdo->prepare('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?');
 $update->execute([$user['id']]);
 
-jsonResponse(200, ['message' => 'E-mail verificado com sucesso.']);
+header('Location: /login.php?verified=1');
+exit;

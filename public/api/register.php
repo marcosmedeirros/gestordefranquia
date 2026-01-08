@@ -9,7 +9,7 @@ $body = readJsonBody();
 $name = trim($body['name'] ?? '');
 $email = strtolower(trim($body['email'] ?? ''));
 $password = $body['password'] ?? '';
-$userType = $body['user_type'] ?? 'jogador';
+$userType = 'jogador'; // Sempre jogador por padrão
 $photoUrl = trim($body['photo_url'] ?? '');
 
 if ($name === '' || $email === '' || $password === '') {

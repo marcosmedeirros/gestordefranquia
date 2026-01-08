@@ -1,6 +1,8 @@
 <?php
+session_start();
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../../backend/helpers.php';
+require_once __DIR__ . '/../../backend/auth.php';
 
 requireMethod('POST');
 $pdo = db();
@@ -20,7 +22,17 @@ if (!$user || !password_verify($password, $user['password_hash'])) {
     jsonResponse(401, ['error' => 'Credenciais inválidas.']);
 }
 
+// Criar sessão
+setUserSession([
+    'id' => (int) $user['id'],
+    'name' => $user['name'],
+    'email' => $email,
+    'user_type' => $user['user_type'],
+    'photo_url' => $user['photo_url'] ?? null,
+]);
+
 jsonResponse(200, [
+    'message' => 'Login realizado com sucesso',
     'user' => [
         'id' => (int) $user['id'],
         'name' => $user['name'],
