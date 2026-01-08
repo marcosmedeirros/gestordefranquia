@@ -397,6 +397,10 @@ if (!$team) {
         const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
         const season = seasonData.season;
         
+        // Buscar times da liga
+        const teamsData = await api(`admin.php?action=teams&league=${league}`);
+        const teams = teamsData.teams || [];
+        
         container.innerHTML = `
           <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
             <i class="bi bi-arrow-left me-2"></i>Voltar
@@ -418,54 +422,104 @@ if (!$team) {
             </div>
           </div>
           
-          <div class="row g-3">
-            <div class="col-md-8">
-              <div class="bg-dark-panel border-orange rounded p-4">
-                <h5 class="text-white mb-3">
-                  <i class="bi bi-people-fill me-2 text-orange"></i>
-                  Disponíveis (${available.length})
-                </h5>
-                <div class="row g-3">
-                  ${available.map(p => `
-                    <div class="col-md-4">
-                      <div class="card bg-dark-panel border-orange h-100">
-                        <div class="card-body">
-                          <div class="d-flex justify-content-between align-items-start mb-2">
-                            <span class="badge bg-orange">${p.position}</span>
-                            <span class="badge bg-success">OVR ${p.ovr}</span>
-                          </div>
-                          <h6 class="text-white mb-1">${p.name}</h6>
-                          <p class="text-light-gray small mb-2">${p.age} anos</p>
-                          <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-outline-danger flex-fill" onclick="deleteDraftPlayer(${p.id})">
+          <!-- Aba de Draft -->
+          <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+            <div class="card-header bg-transparent border-orange">
+              <h5 class="text-white mb-0">
+                <i class="bi bi-people-fill me-2 text-orange"></i>
+                Jogadores Disponíveis para Draft (${available.length})
+              </h5>
+            </div>
+            <div class="card-body p-0">
+              ${available.length === 0 ? `
+                <div class="text-center text-light-gray py-5">
+                  <i class="bi bi-inbox display-1"></i>
+                  <p class="mt-3">Nenhum jogador disponível</p>
+                </div>
+              ` : `
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Nome</th>
+                        <th style="width: 80px;">Pos</th>
+                        <th style="width: 80px;">Idade</th>
+                        <th style="width: 80px;">OVR</th>
+                        <th style="width: 250px;">Draftar para Time</th>
+                        <th style="width: 100px;">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${available.map((p, idx) => `
+                        <tr>
+                          <td class="text-light-gray">${idx + 1}</td>
+                          <td class="text-white fw-bold">${p.name}</td>
+                          <td><span class="badge bg-orange">${p.position}</span></td>
+                          <td class="text-light-gray">${p.age}</td>
+                          <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+                          <td>
+                            <select class="form-select form-select-sm bg-dark text-white border-orange" id="team-${p.id}">
+                              <option value="">Selecione o time...</option>
+                              ${teams.map(t => `
+                                <option value="${t.id}">${t.city} ${t.name}</option>
+                              `).join('')}
+                            </select>
+                          </td>
+                          <td>
+                            <button class="btn btn-sm btn-success me-1" onclick="draftPlayer(${p.id})" title="Draftar">
+                              <i class="bi bi-check-lg"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteDraftPlayer(${p.id})" title="Remover">
                               <i class="bi bi-trash"></i>
                             </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  `).join('') || '<p class="text-light-gray">Nenhum jogador disponível</p>'}
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              `}
+            </div>
+          </div>
+          
+          <!-- Lista de Draftados -->
+          ${drafted.length > 0 ? `
+            <div class="card bg-dark-panel border-success mt-4" style="border-radius: 15px;">
+              <div class="card-header bg-transparent border-success">
+                <h5 class="text-white mb-0">
+                  <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                  Jogadores Já Draftados (${drafted.length})
+                </h5>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Pick</th>
+                        <th>Nome</th>
+                        <th>Posição</th>
+                        <th>OVR</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${drafted.map(p => `
+                        <tr>
+                          <td><span class="badge bg-success">Pick #${p.draft_order}</span></td>
+                          <td class="text-white fw-bold">${p.name}</td>
+                          <td><span class="badge bg-orange">${p.position}</span></td>
+                          <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+                          <td class="text-light-gray">${p.team_name || 'N/A'}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
-            <div class="col-md-4">
-              <div class="bg-dark-panel border-success rounded p-4">
-                <h5 class="text-white mb-3">
-                  <i class="bi bi-check-circle-fill me-2 text-success"></i>
-                  Draftados (${drafted.length})
-                </h5>
-                ${drafted.map(p => `
-                  <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
-                    <div>
-                      <div class="text-white small">${p.name}</div>
-                      <div class="text-light-gray" style="font-size: 0.75rem;">Pick #${p.draft_order}</div>
-                    </div>
-                    <span class="badge bg-success">${p.ovr}</span>
-                  </div>
-                `).join('') || '<p class="text-light-gray small">Nenhum ainda</p>'}
-              </div>
-            </div>
-          </div>
+          ` : ''}
         `;
       } catch (e) {
         container.innerHTML = `
@@ -574,6 +628,31 @@ if (!$team) {
         alert('Jogador removido com sucesso!');
       } catch (e) {
         alert('Erro ao remover jogador: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function draftPlayer(playerId) {
+      const teamSelect = document.getElementById(`team-${playerId}`);
+      const teamId = teamSelect.value;
+      
+      if (!teamId) {
+        alert('Por favor, selecione um time para draftar este jogador.');
+        return;
+      }
+      
+      try {
+        await api('seasons.php?action=assign_draft_pick', {
+          method: 'POST',
+          body: JSON.stringify({
+            player_id: playerId,
+            team_id: teamId
+          })
+        });
+        
+        showDraftManagement(currentSeasonId, currentLeague);
+        alert('Jogador draftado com sucesso!');
+      } catch (e) {
+        alert('Erro ao draftar jogador: ' + (e.error || 'Desconhecido'));
       }
     }
 
