@@ -138,6 +138,20 @@ function renderPlayers(players) {
     `;
     tbody.appendChild(tr);
   });
+
+  // Atualizar stats
+  updateRosterStats();
+}
+
+function updateRosterStats() {
+  const totalPlayers = allPlayers.length;
+  const topEight = allPlayers
+    .sort((a, b) => Number(b.ovr) - Number(a.ovr))
+    .slice(0, 8)
+    .reduce((sum, p) => sum + Number(p.ovr), 0);
+  
+  document.getElementById('total-players').textContent = totalPlayers;
+  document.getElementById('cap-top8').textContent = topEight;
 }
 
 async function loadPlayers() {
@@ -178,7 +192,6 @@ async function addPlayer() {
   }
   try {
     const res = await api('players.php', { method: 'POST', body: JSON.stringify(payload) });
-    alert('Jogador adicionado. CAP Top8: ' + (res.cap_top8 ?? '')); 
     form.reset();
     loadPlayers();
   } catch (err) {
@@ -189,7 +202,6 @@ async function addPlayer() {
 async function updatePlayer(payload) {
   try {
     const res = await api('players.php', { method: 'PUT', body: JSON.stringify(payload) });
-    alert('Jogador atualizado. CAP Top8: ' + (res.cap_top8 ?? ''));
     loadPlayers();
   } catch (err) {
     alert(err.error || 'Erro ao atualizar jogador');
@@ -200,7 +212,6 @@ async function deletePlayer(id) {
   if (!confirm('Deseja excluir este jogador?')) return;
   try {
     const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id }) });
-    alert('Jogador removido. CAP Top8: ' + (res.cap_top8 ?? ''));
     loadPlayers();
   } catch (err) {
     alert(err.error || 'Erro ao remover jogador');
