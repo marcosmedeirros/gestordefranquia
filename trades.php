@@ -29,6 +29,32 @@ if ($teamId) {
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .nav-tabs {
+      border-bottom: 2px solid var(--fba-border);
+    }
+    .nav-tabs .nav-link {
+      background: transparent;
+      border: none;
+      color: var(--fba-text-muted);
+      font-weight: 500;
+      padding: 12px 24px;
+      transition: all 0.3s ease;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+    }
+    .nav-tabs .nav-link:hover {
+      background: rgba(241, 117, 7, 0.1);
+      color: var(--fba-orange);
+      border-bottom-color: var(--fba-orange);
+    }
+    .nav-tabs .nav-link.active {
+      background: rgba(241, 117, 7, 0.15);
+      color: var(--fba-orange);
+      border-bottom-color: var(--fba-orange);
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
   <!-- Sidebar -->
