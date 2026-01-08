@@ -584,3 +584,56 @@ pre {
 .accordion-item {
 	background-color: var(--fba-panel) !important;
 }
+
+/* Admin Tabs */
+.nav-tabs {
+	border-bottom: 2px solid var(--fba-border);
+}
+
+.nav-tabs .nav-link {
+	color: var(--fba-gray);
+	border: none;
+	background: transparent;
+	padding: 0.75rem 1.5rem;
+	transition: all 0.3s;
+}
+
+.nav-tabs .nav-link:hover {
+	color: var(--fba-orange);
+	background: rgba(241, 117, 7, 0.1);
+	border: none;
+}
+
+.nav-tabs .nav-link.active {
+	color: var(--fba-orange);
+	background: var(--fba-panel);
+	border: none;
+	border-bottom: 3px solid var(--fba-orange);
+	font-weight: 600;
+}
+
+.tab-content {
+	padding-top: 1rem;
+}
+
+/* Modal customizations */
+.modal-content {
+	border: 2px solid var(--fba-orange);
+}
+
+.modal-header, .modal-footer {
+	background: var(--fba-dark);
+}
+
+/* Table enhancements for admin */
+.table thead th {
+	border-bottom: 2px solid var(--fba-orange);
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 0.85rem;
+	letter-spacing: 0.5px;
+}
+
+.table tbody tr:hover {
+	background: rgba(241, 117, 7, 0.1);
+}
