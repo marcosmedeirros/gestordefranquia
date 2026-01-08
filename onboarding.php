@@ -62,7 +62,8 @@ $user = getUserSession();
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label text-white fw-bold">E-mail</label>
-                                    <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" readonly>
+                                    <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" disabled aria-disabled="true" title="Seu e-mail não pode ser alterado">
+                                    <small class="text-light-gray">Seu e-mail está vinculado à conta e não pode ser editado.</small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label text-white fw-bold">Liga</label>
@@ -116,7 +117,7 @@ $user = getUserSession();
                         </form>
                         
                         <div class="d-flex justify-content-between mt-4">
-                            <button class="btn btn-outline-orange btn-lg" onclick="prevStep(1)">
+                            <button class="btn btn-white btn-lg" onclick="prevStep(1)">
                                 <i class="bi bi-arrow-left me-2"></i>Voltar
                             </button>
                             <button class="btn btn-orange btn-lg" onclick="saveTeamAndFinish()">

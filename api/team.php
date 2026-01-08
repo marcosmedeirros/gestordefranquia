@@ -56,6 +56,15 @@ if ($method === 'POST') {
     $userId = $body['user_id'] ?? null;
     $photoUrl = trim($body['photo_url'] ?? '');
     
+    // Obter usuário e liga da sessão quando user_id não for fornecido
+    $sessionUser = getUserSession();
+    if (!$userId && isset($sessionUser['id'])) {
+        $userId = (int) $sessionUser['id'];
+    }
+    if (!$userId) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+
     // Obter league do usuário
     $userStmt = $pdo->prepare('SELECT league FROM users WHERE id = ? LIMIT 1');
     $userStmt->execute([$userId]);
@@ -63,10 +72,11 @@ if ($method === 'POST') {
     if (!$userRow) {
         jsonResponse(404, ['error' => 'Usuário não encontrado.']);
     }
-    $league = $userRow['league'];
+    $league = $sessionUser['league'] ?? $userRow['league'];
 
-    if ($name === '' || $city === '' || $mascot === '' || !$userId) {
-        jsonResponse(422, ['error' => 'Nome, cidade, mascote e user_id são obrigatórios.']);
+    // Mascote é opcional no onboarding; permitir vazio
+    if ($name === '' || $city === '') {
+        jsonResponse(422, ['error' => 'Nome e cidade são obrigatórios.']);
     }
 
     if ($divisionId) {
@@ -78,7 +88,7 @@ if ($method === 'POST') {
     }
 
     $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$userId, $league, $name, $city, $mascot, $divisionId, $photoUrl ?: null]);
+    $stmt->execute([$userId, $league, $name, $city, $mascot !== '' ? $mascot : null, $divisionId, $photoUrl ?: null]);
     $teamId = (int) $pdo->lastInsertId();
 
     // Cada time ganha 1 pick de 1ª e 2ª rodada para o ano corrente.

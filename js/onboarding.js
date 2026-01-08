@@ -2,14 +2,26 @@ let currentTeamId = null;
 let userPhotoFile = null;
 let teamPhotoFile = null;
 
-const api = (path, options = {}) => fetch(`/api/${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-}).then(async res => {
-    const body = await res.json().catch(() => ({}));
+const api = async (path, options = {}) => {
+    const doFetch = async (url) => {
+        const res = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options,
+        });
+        let body = {};
+        try { body = await res.json(); } catch { body = {}; }
+        return { res, body };
+    };
+
+    // Tenta em /api primeiro
+    let { res, body } = await doFetch(`/api/${path}`);
+    if (res.status === 404) {
+        // Fallback para /public/api em hosts onde API não está na raiz
+        ({ res, body } = await doFetch(`/public/api/${path}`));
+    }
     if (!res.ok) throw body;
     return body;
-});
+};
 
 function nextStep(step) {
     // Hide all steps
