@@ -203,48 +203,6 @@ $teamCap = $capData['cap'] ?? 0;
             </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-person-plus-fill display-3 text-orange mb-3"></i>
-                        <h5 class="text-white">Adicionar Jogador</h5>
-                        <p class="text-light-gray mb-3">Adicione novos jogadores ao seu elenco</p>
-                        <a href="/my-roster.php" class="btn btn-orange">
-                            <i class="bi bi-plus-circle me-2"></i>Adicionar
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-arrow-left-right display-3 text-orange mb-3"></i>
-                        <h5 class="text-white">Propor Trade</h5>
-                        <p class="text-light-gray mb-3">Negocie jogadores com outros times</p>
-                        <button class="btn btn-orange" onclick="alert('Em breve!')">
-                            <i class="bi bi-arrow-left-right me-2"></i>Negociar
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-trophy-fill display-3 text-orange mb-3"></i>
-                        <h5 class="text-white">Ver Próximo Draft</h5>
-                        <p class="text-light-gray mb-3">Escolha novos talentos no draft</p>
-                        <a href="/draft-players.php" class="btn btn-orange">
-                            <i class="bi bi-trophy me-2"></i>Próximo Draft
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

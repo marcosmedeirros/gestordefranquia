@@ -44,13 +44,23 @@ $teamId = $team['id'] ?? null;
       <li>
         <a href="/teams.php">
           <i class="bi bi-people-fill"></i>
-                    Tabela
-                </a>
-            </li>
-            <li>
-                <a href="/my-roster.php" class="active">
-                    <i class="bi bi-person-fill"></i>
-                    Meu Elenco
+          Tabela
+        </a>
+      </li>
+      <li>
+        <a href="/my-roster.php" class="active">
+          <i class="bi bi-person-fill"></i>
+          Meu Elenco
+        </a>
+      </li>
+      <li>
+        <a href="/settings.php">
+          <i class="bi bi-gear-fill"></i>
+          Configurações
+        </a>
+      </li>
+    </ul>
+
     <hr style="border-color: var(--fba-border);">
 
     <div class="text-center">
