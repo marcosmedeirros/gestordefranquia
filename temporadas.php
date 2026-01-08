@@ -211,7 +211,7 @@ if (!$team) {
                       Temporada ${String(season.season_number).padStart(2, '0')} de ${maxSeasons}
                     </p>
                   </div>
-                  <span class="badge bg-gradient-orange fs-5">${season.year}</span>
+                  <span class="badge bg-gradient-orange fs-5">Ano ${String(season.season_number).padStart(2, '0')}</span>
                 </div>
                 
                 ${sprintCompleted ? `
