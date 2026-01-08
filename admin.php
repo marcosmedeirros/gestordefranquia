@@ -78,9 +78,9 @@ $pdo = db();
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/sidebar.js"></script>
-  <script src="/js/admin.js"></script>
-  <script src="/js/seasons.js"></script>
+  <script src="/js/sidebar.js?v=<?= time() ?>"></script>
+  <script src="/js/admin.js?v=<?= time() ?>"></script>
+  <script src="/js/seasons.js?v=<?= time() ?>"></script>
   <script>
     // Toggle Sidebar Mobile (código legado - sidebar.js já gerencia isso)
     const sidebarToggle = document.getElementById('sidebarToggle');
