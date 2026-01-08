@@ -44,13 +44,19 @@ $team = $stmtTeam->fetch() ?: null;
             <li>
                 <a href="/teams.php">
                     <i class="bi bi-people-fill"></i>
-                    Tabela
+                    Times
                 </a>
             </li>
             <li>
                 <a href="/my-roster.php">
                     <i class="bi bi-person-fill"></i>
                     Meu Elenco
+                </a>
+            </li>
+            <li>
+                <a href="/picks.php">
+                    <i class="bi bi-calendar-check-fill"></i>
+                    Picks
                 </a>
             </li>
             <li>

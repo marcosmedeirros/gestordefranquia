@@ -74,8 +74,8 @@ foreach ($allTeams as $t) {
         transform: translateY(-2px);
       }
       .team-logo {
-        width: 80px;
-        height: 80px;
+        width: 60px;
+        height: 60px;
         border-radius: 8px;
         border: 2px solid var(--fba-orange);
         object-fit: cover;
@@ -160,13 +160,19 @@ foreach ($allTeams as $t) {
             <li>
                 <a href="/teams.php" class="active">
                     <i class="bi bi-people-fill"></i>
-                    Tabela
+                    Times
                 </a>
             </li>
             <li>
                 <a href="/my-roster.php">
                     <i class="bi bi-person-fill"></i>
                     Meu Elenco
+                </a>
+            </li>
+            <li>
+                <a href="/picks.php">
+                    <i class="bi bi-calendar-check-fill"></i>
+                    Picks
                 </a>
             </li>
             <li>
@@ -210,7 +216,7 @@ foreach ($allTeams as $t) {
             </div>
             <div class="conference-grid">
                 <?php foreach ($teams_by_conference['LESTE'] as $t): ?>
-                <div class="team-card">
+                <div class="team-card" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                          alt="<?= htmlspecialchars($t['name']) ?>" 
                          class="team-logo">
@@ -244,7 +250,7 @@ foreach ($allTeams as $t) {
             </div>
             <div class="conference-grid">
                 <?php foreach ($teams_by_conference['OESTE'] as $t): ?>
-                <div class="team-card">
+                <div class="team-card" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                          alt="<?= htmlspecialchars($t['name']) ?>" 
                          class="team-logo">
@@ -271,11 +277,97 @@ foreach ($allTeams as $t) {
         <?php endif; ?>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <!-- Modal para mostrar jogadores -->
+    <div class="modal fade" id="teamPlayersModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white" id="teamModalTitle"></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="playersLoading" class="text-center py-4">
+                        <div class="spinner-border text-orange" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                    <div id="playersContent" style="display: none;">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
+                                    <tr>
+                                        <th class="text-white fw-bold">Jogador</th>
+                                        <th class="text-white fw-bold">OVR</th>
+                                        <th class="text-white fw-bold">Posição</th>
+                                        <th class="text-white fw-bold">Função</th>
+                                        <th class="text-white fw-bold">Idade</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="playersTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/teams.js"></script>
+    <script>
+        async function showTeamPlayers(teamId, teamName) {
+            document.getElementById('teamModalTitle').textContent = teamName;
+            document.getElementById('playersLoading').style.display = 'block';
+            document.getElementById('playersContent').style.display = 'none';
+            
+            const modal = new bootstrap.Modal(document.getElementById('teamPlayersModal'));
+            modal.show();
+
+            try {
+                const response = await fetch(`/api/team.php?team_id=${teamId}`);
+                const data = await response.json();
+
+                if (data.success && data.players) {
+                    const tbody = document.getElementById('playersTableBody');
+                    tbody.innerHTML = '';
+
+                    if (data.players.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-light-gray">Nenhum jogador cadastrado</td></tr>';
+                    } else {
+                        data.players.forEach(player => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="fw-bold">${player.name}</td>
+                                <td><span class="badge" style="background-color: ${getOvrColor(player.ovr)}; color: #000;">${player.ovr}</span></td>
+                                <td><span class="badge bg-orange">${player.position}</span></td>
+                                <td><span class="badge bg-secondary">${player.role}</span></td>
+                                <td class="text-light-gray">${player.age} anos</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+
+                    document.getElementById('playersLoading').style.display = 'none';
+                    document.getElementById('playersContent').style.display = 'block';
+                } else {
+                    throw new Error('Erro ao carregar jogadores');
+                }
+            } catch (err) {
+                document.getElementById('playersLoading').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar jogadores
+                    </div>
+                `;
+            }
+        }
+
+        function getOvrColor(ovr) {
+            if (ovr >= 95) return '#00ff00';
+            if (ovr >= 90) return '#80ff00';
+            if (ovr >= 85) return '#ffff00';
+            if (ovr >= 80) return '#ff9900';
+            if (ovr >= 70) return '#ff6600';
+            return '#ff3333';
+        }
+    </script>
 </body>
 </html>
