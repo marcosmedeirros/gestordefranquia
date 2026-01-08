@@ -296,7 +296,7 @@ try {
                             <div class="text-center text-light-gray py-5">
                                 <i class="bi bi-exclamation-circle display-1"></i>
                                 <p class="mt-3">Você ainda não tem jogadores titulares.</p>
-                                <a href="/teams.php" class="btn btn-orange">
+                                <a href="/my-roster.php" class="btn btn-orange">
                                     <i class="bi bi-plus-circle me-2"></i>Adicionar Jogadores
                                 </a>
                             </div>

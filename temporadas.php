@@ -381,11 +381,197 @@ if (!$team) {
 
     // ========== GERENCIAR DRAFT ==========
     async function showDraftManagement(seasonId, league) {
-      // Redirecionar para a função do seasons.js se disponível
-      if (typeof window.showDraftManagement === 'function') {
-        window.showDraftManagement(seasonId, league);
-      } else {
-        alert('Função de gerenciar draft ainda não implementada');
+      const container = document.getElementById('mainContainer');
+      
+      try {
+        // Buscar jogadores do draft
+        const data = await api(`seasons.php?action=draft_players&season_id=${seasonId}`);
+        const players = data.players || [];
+        const available = players.filter(p => p.draft_status === 'available');
+        const drafted = players.filter(p => p.draft_status === 'drafted');
+        
+        // Buscar dados da temporada
+        const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
+        const season = seasonData.season;
+        
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+          
+          <div class="row g-3 mb-4">
+            <div class="col-md-8">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+                <div class="card-body">
+                  <h4 class="text-white mb-1">Draft - Temporada ${season.season_number}</h4>
+                  <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${season.year}</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal(${seasonId})" style="border-radius: 15px;">
+                <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador ao Draft
+              </button>
+            </div>
+          </div>
+          
+          <div class="row g-3">
+            <div class="col-md-8">
+              <div class="bg-dark-panel border-orange rounded p-4">
+                <h5 class="text-white mb-3">
+                  <i class="bi bi-people-fill me-2 text-orange"></i>
+                  Disponíveis (${available.length})
+                </h5>
+                <div class="row g-3">
+                  ${available.map(p => `
+                    <div class="col-md-4">
+                      <div class="card bg-dark-panel border-orange h-100">
+                        <div class="card-body">
+                          <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-orange">${p.position}</span>
+                            <span class="badge bg-success">OVR ${p.ovr}</span>
+                          </div>
+                          <h6 class="text-white mb-1">${p.name}</h6>
+                          <p class="text-light-gray small mb-2">${p.age} anos</p>
+                          <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-danger flex-fill" onclick="deleteDraftPlayer(${p.id}, ${seasonId}, '${league}')">
+                              <i class="bi bi-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('') || '<p class="text-light-gray">Nenhum jogador disponível</p>'}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="bg-dark-panel border-success rounded p-4">
+                <h5 class="text-white mb-3">
+                  <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                  Draftados (${drafted.length})
+                </h5>
+                ${drafted.map(p => `
+                  <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+                    <div>
+                      <div class="text-white small">${p.name}</div>
+                      <div class="text-light-gray" style="font-size: 0.75rem;">Pick #${p.draft_order}</div>
+                    </div>
+                    <span class="badge bg-success">${p.ovr}</span>
+                  </div>
+                `).join('') || '<p class="text-light-gray small">Nenhum ainda</p>'}
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+          <div class="alert alert-danger">Erro ao carregar jogadores: ${e.error || 'Desconhecido'}</div>
+        `;
+      }
+    }
+    
+    // Adicionar jogador ao draft
+    function showAddDraftPlayerModal(seasonId) {
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="modal fade" id="addPlayerModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content bg-dark">
+              <div class="modal-header border-orange">
+                <h5 class="modal-title text-white">Adicionar Jogador ao Draft</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <form id="addPlayerForm" onsubmit="submitAddPlayer(event, ${seasonId})">
+                  <div class="mb-3">
+                    <label class="form-label text-white">Nome</label>
+                    <input type="text" class="form-control bg-dark text-white border-orange" name="name" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-white">Idade</label>
+                    <input type="number" class="form-control bg-dark text-white border-orange" name="age" min="18" max="40" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-white">Posição</label>
+                    <select class="form-select bg-dark text-white border-orange" name="position" required>
+                      <option value="">Selecione...</option>
+                      <option value="PG">PG</option>
+                      <option value="SG">SG</option>
+                      <option value="SF">SF</option>
+                      <option value="PF">PF</option>
+                      <option value="C">C</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-white">OVR</label>
+                    <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="1" max="99" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-white">Foto (URL)</label>
+                    <input type="url" class="form-control bg-dark text-white border-orange" name="photo_url" placeholder="https://...">
+                  </div>
+                  <button type="submit" class="btn btn-orange w-100">Adicionar</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const bsModal = new bootstrap.Modal(document.getElementById('addPlayerModal'));
+      bsModal.show();
+      document.getElementById('addPlayerModal').addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+      });
+    }
+    
+    async function submitAddPlayer(event, seasonId) {
+      event.preventDefault();
+      const form = event.target;
+      const formData = new FormData(form);
+      
+      try {
+        await api('seasons.php?action=add_draft_player', {
+          method: 'POST',
+          body: JSON.stringify({
+            season_id: seasonId,
+            name: formData.get('name'),
+            age: formData.get('age'),
+            position: formData.get('position'),
+            ovr: formData.get('ovr'),
+            photo_url: formData.get('photo_url')
+          })
+        });
+        
+        bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
+        
+        // Recarregar a lista
+        const league = currentLeague;
+        showDraftManagement(seasonId, league);
+        
+        alert('Jogador adicionado com sucesso!');
+      } catch (e) {
+        alert('Erro ao adicionar jogador: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function deleteDraftPlayer(playerId, seasonId, league) {
+      if (!confirm('Deseja realmente remover este jogador do draft?')) return;
+      
+      try {
+        await api('seasons.php?action=delete_draft_player', {
+          method: 'POST',
+          body: JSON.stringify({ player_id: playerId })
+        });
+        
+        showDraftManagement(seasonId, league);
+        alert('Jogador removido com sucesso!');
+      } catch (e) {
+        alert('Erro ao remover jogador: ' + (e.error || 'Desconhecido'));
       }
     }
 
