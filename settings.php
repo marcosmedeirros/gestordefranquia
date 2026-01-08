@@ -77,6 +77,12 @@ $team = $stmtTeam->fetch() ?: null;
                     Rankings
                 </a>
             </li>
+            <li>
+                <a href="/history.php">
+                    <i class="bi bi-clock-history"></i>
+                    Histórico
+                </a>
+            </li>
             <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
             <li>
                 <a href="/admin.php">

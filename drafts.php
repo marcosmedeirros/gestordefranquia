@@ -55,6 +55,7 @@ $userLeague = $stmt->fetchColumn();
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
       <li><a href="/drafts.php" class="active"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
+      <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
       <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
       <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
       <?php endif; ?>
