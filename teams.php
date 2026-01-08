@@ -11,11 +11,9 @@ $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga por conferência
+// Buscar todos os times da liga
 $stmtTeams = $pdo->prepare('
-  SELECT t.*, u.name as owner_name,
-         COUNT(p.id) as total_players,
-         SUM(CASE WHEN p.ovr IN (SELECT ovr FROM players WHERE team_id = t.id ORDER BY ovr DESC LIMIT 8) THEN p.ovr ELSE 0 END) as cap_top8
+  SELECT t.*, u.name as owner_name, COUNT(DISTINCT p.id) as total_players
   FROM teams t
   LEFT JOIN users u ON t.user_id = u.id
   LEFT JOIN players p ON t.id = p.team_id
@@ -25,6 +23,16 @@ $stmtTeams = $pdo->prepare('
 ');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
+
+// Calcular CAP Top8 para cada time
+foreach ($allTeams as &$t) {
+  $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
+  $stmt->execute([$t['id']]);
+  $topPlayers = $stmt->fetchAll();
+  $t['cap_top8'] = array_reduce($topPlayers, function($carry, $item) {
+    return $carry + $item['ovr'];
+  }, 0);
+}
 
 // Separar por conferência
 $teams_by_conference = [];
