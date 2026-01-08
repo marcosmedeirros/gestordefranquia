@@ -96,6 +96,7 @@ if (!$team) {
 
     let currentLeague = null;
     let currentSeasonData = null;
+    let currentSeasonId = null;
     let timerInterval = null;
 
     // ========== TELA INICIAL COM AS 4 LIGAS ==========
@@ -381,6 +382,8 @@ if (!$team) {
 
     // ========== GERENCIAR DRAFT ==========
     async function showDraftManagement(seasonId, league) {
+      currentSeasonId = seasonId;
+      currentLeague = league;
       const container = document.getElementById('mainContainer');
       
       try {
@@ -409,7 +412,7 @@ if (!$team) {
               </div>
             </div>
             <div class="col-md-4">
-              <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal(${seasonId})" style="border-radius: 15px;">
+              <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal()" style="border-radius: 15px;">
                 <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador ao Draft
               </button>
             </div>
@@ -434,7 +437,7 @@ if (!$team) {
                           <h6 class="text-white mb-1">${p.name}</h6>
                           <p class="text-light-gray small mb-2">${p.age} anos</p>
                           <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-outline-danger flex-fill" onclick="deleteDraftPlayer(${p.id}, ${seasonId}, '${league}')">
+                            <button class="btn btn-sm btn-outline-danger flex-fill" onclick="deleteDraftPlayer(${p.id})">
                               <i class="bi bi-trash"></i>
                             </button>
                           </div>
@@ -475,7 +478,7 @@ if (!$team) {
     }
     
     // Adicionar jogador ao draft
-    function showAddDraftPlayerModal(seasonId) {
+    function showAddDraftPlayerModal() {
       const modal = document.createElement('div');
       modal.innerHTML = `
         <div class="modal fade" id="addPlayerModal" tabindex="-1">
@@ -486,7 +489,7 @@ if (!$team) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <form id="addPlayerForm" onsubmit="submitAddPlayer(event, ${seasonId})">
+                <form id="addPlayerForm" onsubmit="submitAddPlayer(event)">
                   <div class="mb-3">
                     <label class="form-label text-white">Nome</label>
                     <input type="text" class="form-control bg-dark text-white border-orange" name="name" required>
@@ -529,7 +532,7 @@ if (!$team) {
       });
     }
     
-    async function submitAddPlayer(event, seasonId) {
+    async function submitAddPlayer(event) {
       event.preventDefault();
       const form = event.target;
       const formData = new FormData(form);
@@ -538,7 +541,7 @@ if (!$team) {
         await api('seasons.php?action=add_draft_player', {
           method: 'POST',
           body: JSON.stringify({
-            season_id: seasonId,
+            season_id: currentSeasonId,
             name: formData.get('name'),
             age: formData.get('age'),
             position: formData.get('position'),
@@ -550,8 +553,7 @@ if (!$team) {
         bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
         
         // Recarregar a lista
-        const league = currentLeague;
-        showDraftManagement(seasonId, league);
+        showDraftManagement(currentSeasonId, currentLeague);
         
         alert('Jogador adicionado com sucesso!');
       } catch (e) {
@@ -559,7 +561,7 @@ if (!$team) {
       }
     }
     
-    async function deleteDraftPlayer(playerId, seasonId, league) {
+    async function deleteDraftPlayer(playerId) {
       if (!confirm('Deseja realmente remover este jogador do draft?')) return;
       
       try {
@@ -568,7 +570,7 @@ if (!$team) {
           body: JSON.stringify({ player_id: playerId })
         });
         
-        showDraftManagement(seasonId, league);
+        showDraftManagement(currentSeasonId, currentLeague);
         alert('Jogador removido com sucesso!');
       } catch (e) {
         alert('Erro ao remover jogador: ' + (e.error || 'Desconhecido'));
