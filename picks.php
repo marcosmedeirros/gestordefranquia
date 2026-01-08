@@ -121,7 +121,7 @@ $picks = $stmtPicks->fetchAll();
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label text-white fw-bold">Ano</label>
-                            <input type="number" name="year" class="form-control bg-dark text-white border-orange" min="2024" max="2035" required>
+                            <input type="number" name="year" class="form-control bg-dark text-white border-orange" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label text-white fw-bold">Rodada</label>
