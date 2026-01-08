@@ -133,6 +133,30 @@ body {
 	color: var(--fba-black);
 }
 
+/* Admin Trade Filter Buttons */
+.btn-outline-orange {
+	background: transparent;
+	border: 2px solid #ffffff;
+	color: #ffffff;
+	font-weight: 600;
+	transition: all 0.3s ease;
+}
+
+.btn-outline-orange:hover {
+	background: #ffeb3b;
+	border-color: #ffeb3b;
+	color: #000000;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 15px rgba(255, 235, 59, 0.4);
+}
+
+.btn-outline-orange.active {
+	background: var(--fba-orange);
+	border-color: var(--fba-orange);
+	color: #000000;
+	font-weight: 700;
+}
+
 /* Badges */
 .bg-gradient-orange {
 	background: linear-gradient(135deg, var(--fba-orange), var(--fba-orange-light)) !important;
