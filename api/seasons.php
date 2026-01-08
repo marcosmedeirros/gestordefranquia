@@ -341,6 +341,79 @@ try {
             echo json_encode(['success' => true, 'history' => $history]);
             break;
 
+        // ========== HISTÓRICO COMPLETO COM PRÊMIOS ==========
+        case 'full_history':
+            $league = $_GET['league'] ?? null;
+            
+            // Buscar temporadas completas
+            $whereClause = $league ? "WHERE s.league = ? AND s.status = 'completed'" : "WHERE s.status = 'completed'";
+            $params = $league ? [$league] : [];
+            
+            $stmt = $pdo->prepare("
+                SELECT s.id as season_id, s.season_number, s.year, s.league
+                FROM seasons s
+                $whereClause
+                ORDER BY s.id DESC
+            ");
+            $stmt->execute($params);
+            $seasons = $stmt->fetchAll();
+            
+            $result = [];
+            foreach ($seasons as $season) {
+                $seasonData = [
+                    'id' => $season['season_id'],
+                    'number' => $season['season_number'],
+                    'year' => $season['year'],
+                    'league' => $season['league'],
+                    'champion' => null,
+                    'runner_up' => null,
+                    'awards' => []
+                ];
+                
+                // Buscar campeão e vice
+                $stmtPlayoffs = $pdo->prepare("
+                    SELECT pr.position, t.id as team_id, t.city, t.name as team_name
+                    FROM playoff_results pr
+                    JOIN teams t ON pr.team_id = t.id
+                    WHERE pr.season_id = ?
+                ");
+                $stmtPlayoffs->execute([$season['season_id']]);
+                $playoffs = $stmtPlayoffs->fetchAll();
+                
+                foreach ($playoffs as $p) {
+                    if ($p['position'] === 'champion') {
+                        $seasonData['champion'] = ['team_id' => $p['team_id'], 'city' => $p['city'], 'name' => $p['team_name']];
+                    } else if ($p['position'] === 'runner_up') {
+                        $seasonData['runner_up'] = ['team_id' => $p['team_id'], 'city' => $p['city'], 'name' => $p['team_name']];
+                    }
+                }
+                
+                // Buscar prêmios individuais
+                $stmtAwards = $pdo->prepare("
+                    SELECT sa.award_type, sa.player_name, t.id as team_id, t.city, t.name as team_name
+                    FROM season_awards sa
+                    JOIN teams t ON sa.team_id = t.id
+                    WHERE sa.season_id = ?
+                ");
+                $stmtAwards->execute([$season['season_id']]);
+                $awards = $stmtAwards->fetchAll();
+                
+                foreach ($awards as $award) {
+                    $seasonData['awards'][] = [
+                        'type' => $award['award_type'],
+                        'player' => $award['player_name'],
+                        'team_id' => $award['team_id'],
+                        'team_city' => $award['city'],
+                        'team_name' => $award['team_name']
+                    ];
+                }
+                
+                $result[] = $seasonData;
+            }
+            
+            echo json_encode(['success' => true, 'history' => $result]);
+            break;
+
         // ========== SALVAR HISTÓRICO DA TEMPORADA ==========
         case 'save_history':
             if ($method !== 'POST') throw new Exception('Método inválido');

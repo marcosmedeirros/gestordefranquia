@@ -96,11 +96,11 @@ $userLeague = $team['league'];
 
     async function loadHistory() {
       try {
-        // Buscar histórico de campeões
-        const championsData = await api('seasons.php?action=champions_history&league=' + userLeague);
-        const champions = championsData.history || [];
+        // Buscar histórico completo (campeões + prêmios)
+        const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
+        const seasons = historyData.history || [];
 
-        if (champions.length === 0) {
+        if (seasons.length === 0) {
           document.getElementById('historyContainer').innerHTML = `
             <div class="text-center py-5">
               <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
@@ -113,31 +113,9 @@ $userLeague = $team['league'];
           return;
         }
 
-        // Agrupar por temporada
-        const seasons = {};
-        champions.forEach(c => {
-          if (!seasons[c.season_id]) {
-            seasons[c.season_id] = {
-              id: c.season_id,
-              number: c.season_number,
-              year: c.year,
-              league: c.league,
-              champion: null,
-              runner_up: null
-            };
-          }
-          if (c.position === 'champion') {
-            seasons[c.season_id].champion = { city: c.city, name: c.team_name, id: c.team_id };
-          } else if (c.position === 'runner_up') {
-            seasons[c.season_id].runner_up = { city: c.city, name: c.team_name, id: c.team_id };
-          }
-        });
-
-        const seasonsList = Object.values(seasons).reverse();
-
         document.getElementById('historyContainer').innerHTML = `
           <div class="row g-4">
-            ${seasonsList.map(s => `
+            ${seasons.map(s => `
               <div class="col-md-6 col-lg-4">
                 <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
                   <div class="card-body">
@@ -162,7 +140,7 @@ $userLeague = $team['league'];
                     ` : ''}
 
                     ${s.runner_up ? `
-                      <div class="mb-2">
+                      <div class="mb-3">
                         <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(200, 200, 200, 0.05); border-radius: 10px; border-left: 4px solid #888;">
                           <i class="bi bi-award-fill text-light-gray" style="font-size: 1.5rem;"></i>
                           <div>
@@ -170,6 +148,33 @@ $userLeague = $team['league'];
                             <strong class="text-white">${s.runner_up.city} ${s.runner_up.name}</strong>
                           </div>
                         </div>
+                      </div>
+                    ` : ''}
+
+                    ${s.awards && s.awards.length > 0 ? `
+                      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(241, 117, 7, 0.3);">
+                        <small class="text-light-gray d-block mb-2"><strong>Prêmios Individuais:</strong></small>
+                        ${s.awards.map(award => {
+                          const icons = {
+                            'MVP': 'bi-star-fill text-warning',
+                            'DPOY': 'bi-shield-fill text-primary',
+                            'MIP': 'bi-graph-up-arrow text-success',
+                            '6th Man': 'bi-person-plus text-info'
+                          };
+                          const icon = icons[award.type] || 'bi-award text-light-gray';
+                          return `
+                            <div class="mb-2 p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
+                              <div class="d-flex align-items-start gap-2">
+                                <i class="bi ${icon}" style="font-size: 1rem; margin-top: 2px;"></i>
+                                <div style="flex: 1; min-width: 0;">
+                                  <small class="text-light-gray d-block" style="font-size: 0.7rem;">${award.type}</small>
+                                  <strong class="text-white d-block" style="font-size: 0.85rem;">${award.player || 'N/A'}</strong>
+                                  <small class="text-light-gray" style="font-size: 0.75rem;">${award.team_city} ${award.team_name}</small>
+                                </div>
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
                       </div>
                     ` : ''}
                   </div>
