@@ -307,6 +307,7 @@ foreach ($allTeams as $t) {
                                         <th class="text-white fw-bold">Posição</th>
                                         <th class="text-white fw-bold">Função</th>
                                         <th class="text-white fw-bold">Idade</th>
+                                        <th class="text-white fw-bold">Troca?</th>
                                     </tr>
                                 </thead>
                                 <tbody id="playersTableBody"></tbody>
@@ -337,9 +338,11 @@ foreach ($allTeams as $t) {
                     tbody.innerHTML = '';
 
                     if (data.players.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-light-gray">Nenhum jogador cadastrado</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-light-gray">Nenhum jogador cadastrado</td></tr>';
                     } else {
                         data.players.forEach(player => {
+                            const tradeClass = player.available_for_trade ? 'trade' : 'notrade';
+                            const tradeText = player.available_for_trade ? 'Disponível' : 'Fechado';
                             const row = document.createElement('tr');
                             row.innerHTML = `
                                 <td class="fw-bold">${player.name}</td>
@@ -347,6 +350,7 @@ foreach ($allTeams as $t) {
                                 <td><span class="badge bg-orange">${player.position}</span></td>
                                 <td><span class="badge bg-secondary">${player.role}</span></td>
                                 <td class="text-light-gray">${player.age} anos</td>
+                                <td><span class="badge badge-${tradeClass}">${tradeText}</span></td>
                             `;
                             tbody.appendChild(row);
                         });
