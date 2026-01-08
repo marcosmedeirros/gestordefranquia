@@ -180,13 +180,25 @@ $teamId = $team['id'] ?? null;
           <table class="table table-dark align-middle">
             <thead>
               <tr>
-                <th class="sortable" data-sort="name" style="cursor: pointer;">Nome</th>
-                <th class="sortable" data-sort="ovr" style="cursor: pointer;">OVR</th>
-                <th class="sortable" data-sort="position" style="cursor: pointer;">Posição</th>
-                <th class="sortable" data-sort="role" style="cursor: pointer;">Função</th>
-                <th class="sortable" data-sort="age" style="cursor: pointer;">Idade</th>
-                <th class="sortable" data-sort="trade" style="cursor: pointer;">Trade?</th>
-                <th>Ações</th>
+                <th class="sortable" data-sort="name" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Nome
+                </th>
+                <th class="sortable" data-sort="ovr" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>OVR
+                </th>
+                <th class="sortable" data-sort="position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Posição
+                </th>
+                <th class="sortable" data-sort="role" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Função
+                </th>
+                <th class="sortable" data-sort="age" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Idade
+                </th>
+                <th class="sortable" data-sort="trade" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Trade?
+                </th>
+                <th style="cursor: default;">Ações</th>
               </tr>
             </thead>
             <tbody id="players-tbody"></tbody>

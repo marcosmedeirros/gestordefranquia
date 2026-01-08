@@ -44,7 +44,33 @@ function sortPlayers(field) {
     currentSort.field = field;
     currentSort.ascending = field !== 'role'; // role é descendente por padrão (Titular primeiro)
   }
+  
+  // Atualizar ícones das colunas
+  updateSortIcons();
   renderPlayers(allPlayers);
+}
+
+function updateSortIcons() {
+  // Remover ícones de todas as colunas
+  document.querySelectorAll('.sortable i').forEach(icon => {
+    icon.className = 'bi bi-arrow-down-up';
+    icon.style.opacity = '0.5';
+  });
+  
+  // Adicionar ícone na coluna atual
+  const activeHeader = document.querySelector(`.sortable[data-sort="${currentSort.field}"]`);
+  if (activeHeader) {
+    const icon = activeHeader.querySelector('i');
+    if (icon) {
+      if (currentSort.ascending) {
+        icon.className = 'bi bi-arrow-up';
+        icon.style.opacity = '1';
+      } else {
+        icon.className = 'bi bi-arrow-down';
+        icon.style.opacity = '1';
+      }
+    }
+  }
 }
 
 function renderPlayers(players) {
@@ -110,6 +136,7 @@ async function loadPlayers() {
     allPlayers = data.players || [];
     // Ordenar por role padrão (Titular primeiro)
     currentSort = { field: 'role', ascending: false };
+    updateSortIcons();
     renderPlayers(allPlayers);
     document.getElementById('players-status').classList.add('d-none');
     document.getElementById('players-list').classList.remove('d-none');
