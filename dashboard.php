@@ -259,11 +259,11 @@ $teamCap = $capData['cap'] ?? 0;
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-body text-center p-4">
                         <i class="bi bi-trophy-fill display-3 text-orange mb-3"></i>
-                        <h5 class="text-white">Participar do Draft</h5>
+                        <h5 class="text-white">Ver Próximo Draft</h5>
                         <p class="text-light-gray mb-3">Escolha novos talentos no draft</p>
-                        <button class="btn btn-orange" onclick="alert('Em breve!')">
-                            <i class="bi bi-trophy me-2"></i>Draft
-                        </button>
+                        <a href="/draft-players.php" class="btn btn-orange">
+                            <i class="bi bi-trophy me-2"></i>Próximo Draft
+                        </a>
                     </div>
                 </div>
             </div>
