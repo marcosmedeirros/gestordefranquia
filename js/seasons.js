@@ -632,3 +632,9 @@ function renderRanking(ranking) {
         </div>
     `;
 }
+
+// Expor funções para o escopo global (necessário para onclick no HTML)
+window.showSeasonsManagement = showSeasonsManagement;
+window.createNewSeason = createNewSeason;
+window.showDraftManagement = showDraftManagement;
+window.deleteDraftPlayer = deleteDraftPlayer;

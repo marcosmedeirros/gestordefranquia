@@ -83,6 +83,8 @@ $user = getUserSession();
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
+    const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>';
+    
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
       let body = {};
@@ -91,9 +93,9 @@ $user = getUserSession();
       return body;
     };
 
-    let currentType = 'global';
+    let currentType = userLeague.toLowerCase();
 
-    async function loadRanking(type = 'global') {
+    async function loadRanking(type = userLeague.toLowerCase()) {
       currentType = type;
       
       // Atualizar botões ativos
@@ -178,8 +180,8 @@ $user = getUserSession();
       }
     }
 
-    // Carregar ranking geral ao iniciar
-    loadRanking('global');
+    // Carregar ranking da liga do usuário ao iniciar
+    loadRanking(userLeague.toLowerCase());
   </script>
 </body>
 </html>
