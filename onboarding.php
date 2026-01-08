@@ -117,10 +117,10 @@ $user = getUserSession();
                         </form>
                         
                         <div class="d-flex justify-content-between mt-4">
-                            <button class="btn btn-white btn-lg" onclick="prevStep(1)">
+                            <button type="button" class="btn btn-white btn-lg" onclick="prevStep(1)">
                                 <i class="bi bi-arrow-left me-2"></i>Voltar
                             </button>
-                            <button class="btn btn-orange btn-lg" onclick="saveTeamAndFinish()">
+                            <button type="button" class="btn btn-orange btn-lg" onclick="saveTeamAndFinish()">
                                 Concluir <i class="bi bi-check-circle ms-2"></i>
                             </button>
                         </div>
