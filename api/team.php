@@ -79,6 +79,39 @@ if ($method === 'POST') {
         jsonResponse(422, ['error' => 'Nome e cidade são obrigatórios.']);
     }
 
+    // Se a foto vier como data URL, salvar em img/teams e substituir por caminho relativo
+    if ($photoUrl && str_starts_with($photoUrl, 'data:image/')) {
+        $savedPath = null;
+        try {
+            $commaPos = strpos($photoUrl, ',');
+            $meta = substr($photoUrl, 0, $commaPos);
+            $base64 = substr($photoUrl, $commaPos + 1);
+            $mime = null;
+            if (preg_match('/data:(image\/(png|jpeg|jpg|webp));base64/i', $meta, $m)) {
+                $mime = strtolower($m[1]);
+            }
+            $ext = 'png';
+            if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+            if ($mime === 'image/webp') { $ext = 'webp'; }
+            $binary = base64_decode($base64);
+            if ($binary === false) { throw new Exception('Falha ao decodificar imagem.'); }
+
+            $dirFs = __DIR__ . '/../img/teams';
+            if (!is_dir($dirFs)) { @mkdir($dirFs, 0775, true); }
+            $filename = 'team-' . $userId . '-' . time() . '.' . $ext;
+            $fullPath = $dirFs . '/' . $filename;
+            if (file_put_contents($fullPath, $binary) === false) {
+                throw new Exception('Falha ao salvar imagem.');
+            }
+            // Caminho público
+            $savedPath = '/img/teams/' . $filename;
+            $photoUrl = $savedPath;
+        } catch (Exception $e) {
+            // Se falhar, ignora a foto para não quebrar o cadastro
+            $photoUrl = '';
+        }
+    }
+
     if ($divisionId) {
         $checkDiv = $pdo->prepare('SELECT id FROM divisions WHERE id = ?');
         $checkDiv->execute([$divisionId]);
