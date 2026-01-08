@@ -376,21 +376,21 @@ try {
             $stmtDeleteAwards->execute([$seasonId]);
             
             $stmtAward = $pdo->prepare("
-                INSERT INTO season_awards (season_id, team_id, award_type)
-                VALUES (?, ?, ?)
+                INSERT INTO season_awards (season_id, team_id, award_type, player_name)
+                VALUES (?, ?, ?, ?)
             ");
             
-            if (!empty($input['mvp'])) {
-                $stmtAward->execute([$seasonId, $input['mvp'], 'MVP']);
+            if (!empty($input['mvp']) && !empty($input['mvp_team_id'])) {
+                $stmtAward->execute([$seasonId, $input['mvp_team_id'], 'MVP', $input['mvp']]);
             }
-            if (!empty($input['dpoy'])) {
-                $stmtAward->execute([$seasonId, $input['dpoy'], 'DPOY']);
+            if (!empty($input['dpoy']) && !empty($input['dpoy_team_id'])) {
+                $stmtAward->execute([$seasonId, $input['dpoy_team_id'], 'DPOY', $input['dpoy']]);
             }
-            if (!empty($input['mip'])) {
-                $stmtAward->execute([$seasonId, $input['mip'], 'MIP']);
+            if (!empty($input['mip']) && !empty($input['mip_team_id'])) {
+                $stmtAward->execute([$seasonId, $input['mip_team_id'], 'MIP', $input['mip']]);
             }
-            if (!empty($input['sixth_man'])) {
-                $stmtAward->execute([$seasonId, $input['sixth_man'], '6th Man']);
+            if (!empty($input['sixth_man']) && !empty($input['sixth_man_team_id'])) {
+                $stmtAward->execute([$seasonId, $input['sixth_man_team_id'], '6th Man', $input['sixth_man']]);
             }
             
             // Atualizar pontos no ranking (campeão +100, vice +50, prêmios +20 cada)
@@ -417,13 +417,14 @@ try {
                 
                 // Prêmios: 20 pontos cada
                 foreach (['mvp', 'dpoy', 'mip', 'sixth_man'] as $award) {
-                    if (!empty($input[$award])) {
+                    $teamIdKey = $award . '_team_id';
+                    if (!empty($input[$teamIdKey])) {
                         $stmtPoints = $pdo->prepare("
                             INSERT INTO team_ranking_points (team_id, season_id, points, reason)
                             VALUES (?, ?, 20, ?)
                             ON DUPLICATE KEY UPDATE points = points + 20
                         ");
-                        $stmtPoints->execute([$input[$award], $seasonId, strtoupper($award)]);
+                        $stmtPoints->execute([$input[$teamIdKey], $seasonId, strtoupper($award)]);
                     }
                 }
             }

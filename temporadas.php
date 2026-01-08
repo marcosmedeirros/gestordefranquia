@@ -766,49 +766,95 @@ if (!$team) {
                   </select>
                 </div>
                 
-                <!-- MVP -->
+                <!-- MVP - Time -->
                 <div class="mb-4">
                   <label class="form-label text-white">
-                    <i class="bi bi-star-fill text-warning me-2"></i>MVP
+                    <i class="bi bi-star-fill text-warning me-2"></i>Time do MVP
                   </label>
-                  <select class="form-select" name="mvp">
-                    <option value="">Selecione o MVP (opcional)</option>
+                  <select class="form-select" id="mvpTeamSelect" onchange="loadTeamPlayers('mvp', this.value)">
+                    <option value="">Selecione o time (opcional)</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 
-                <!-- DPOY -->
+                <!-- MVP - Jogador -->
+                <div class="mb-4" id="mvpPlayerContainer" style="display: none;">
+                  <label class="form-label text-white">
+                    <i class="bi bi-person-fill text-warning me-2"></i>Jogador MVP
+                  </label>
+                  <select class="form-select" name="mvp" id="mvpPlayerSelect">
+                    <option value="">Carregando jogadores...</option>
+                  </select>
+                </div>
+                
+                <!-- DPOY - Time -->
                 <div class="mb-4">
                   <label class="form-label text-white">
-                    <i class="bi bi-shield-fill text-primary me-2"></i>DPOY (Defensor do Ano)
+                    <i class="bi bi-shield-fill text-primary me-2"></i>Time do DPOY (Defensor do Ano)
                   </label>
-                  <select class="form-select" name="dpoy">
-                    <option value="">Selecione o DPOY (opcional)</option>
+                  <select class="form-select" id="dpoyTeamSelect" onchange="loadTeamPlayers('dpoy', this.value)">
+                    <option value="">Selecione o time (opcional)</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 
-                <!-- MIP -->
+                <!-- DPOY - Jogador -->
+                <div class="mb-4" id="dpoyPlayerContainer" style="display: none;">
+                  <label class="form-label text-white">
+                    <i class="bi bi-person-fill text-primary me-2"></i>Jogador DPOY
+                  </label>
+                  <select class="form-select" name="dpoy" id="dpoyPlayerSelect">
+                    <option value="">Carregando jogadores...</option>
+                  </select>
+                </div>
+                
+                <!-- MIP - Time -->
                 <div class="mb-4">
                   <label class="form-label text-white">
-                    <i class="bi bi-graph-up-arrow text-success me-2"></i>MIP (Jogador que Mais Evoluiu)
+                    <i class="bi bi-graph-up-arrow text-success me-2"></i>Time do MIP (Jogador que Mais Evoluiu)
                   </label>
-                  <select class="form-select" name="mip">
-                    <option value="">Selecione o MIP (opcional)</option>
+                  <select class="form-select" id="mipTeamSelect" onchange="loadTeamPlayers('mip', this.value)">
+                    <option value="">Selecione o time (opcional)</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 
-                <!-- 6º Homem -->
+                <!-- MIP - Jogador -->
+                <div class="mb-4" id="mipPlayerContainer" style="display: none;">
+                  <label class="form-label text-white">
+                    <i class="bi bi-person-fill text-success me-2"></i>Jogador MIP
+                  </label>
+                  <select class="form-select" name="mip" id="mipPlayerSelect">
+                    <option value="">Carregando jogadores...</option>
+                  </select>
+                </div>
+                
+                <!-- 6º Homem - Time -->
                 <div class="mb-4">
                   <label class="form-label text-white">
-                    <i class="bi bi-person-plus text-info me-2"></i>6º Homem
+                    <i class="bi bi-person-plus text-info me-2"></i>Time do 6º Homem
                   </label>
-                  <select class="form-select" name="sixth_man">
-                    <option value="">Selecione o 6º Homem (opcional)</option>
+                  <select class="form-select" id="sixthManTeamSelect" onchange="loadTeamPlayers('sixth_man', this.value)">
+                    <option value="">Selecione o time (opcional)</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
+                
+                <!-- 6º Homem - Jogador -->
+                <div class="mb-4" id="sixth_manPlayerContainer" style="display: none;">
+                  <label class="form-label text-white">
+                    <i class="bi bi-person-fill text-info me-2"></i>Jogador 6º Homem
+                  </label>
+                  <select class="form-select" name="sixth_man" id="sixth_manPlayerSelect">
+                    <option value="">Carregando jogadores...</option>
+                  </select>
+                </div>
+                
+                <!-- Campos ocultos para IDs dos times (para contagem de pontos) -->
+                <input type="hidden" name="mvp_team_id" id="mvp_team_id">
+                <input type="hidden" name="dpoy_team_id" id="dpoy_team_id">
+                <input type="hidden" name="mip_team_id" id="mip_team_id">
+                <input type="hidden" name="sixth_man_team_id" id="sixth_man_team_id">
                 
                 <div class="d-grid gap-2">
                   <button type="submit" class="btn btn-orange btn-lg">
@@ -824,6 +870,44 @@ if (!$team) {
       }
     }
 
+    // ========== CARREGAR JOGADORES DO TIME ==========
+    async function loadTeamPlayers(awardType, teamId) {
+      const playerContainer = document.getElementById(`${awardType}PlayerContainer`);
+      const playerSelect = document.getElementById(`${awardType}PlayerSelect`);
+      const teamIdInput = document.getElementById(`${awardType}_team_id`);
+      
+      if (!teamId) {
+        // Se não selecionou time, esconde o campo de jogador
+        playerContainer.style.display = 'none';
+        playerSelect.innerHTML = '<option value="">Selecione um time primeiro</option>';
+        if (teamIdInput) teamIdInput.value = '';
+        return;
+      }
+      
+      // Guardar o ID do time no campo oculto (para contagem de pontos)
+      if (teamIdInput) teamIdInput.value = teamId;
+      
+      try {
+        // Buscar jogadores do time
+        const response = await api(`team-players.php?team_id=${teamId}`);
+        const players = response.players || [];
+        
+        // Atualizar o select de jogadores
+        playerSelect.innerHTML = `
+          <option value="">Selecione o jogador</option>
+          ${players.map(p => `
+            <option value="${p.name}">${p.name} - ${p.position} (OVR ${p.ovr})</option>
+          `).join('')}
+        `;
+        
+        // Mostrar o campo de jogador
+        playerContainer.style.display = 'block';
+      } catch (e) {
+        alert('Erro ao carregar jogadores: ' + (e.error || 'Desconhecido'));
+        playerContainer.style.display = 'none';
+      }
+    }
+
     // ========== SALVAR HISTÓRICO ==========
     async function saveHistory(event, seasonId, league) {
       event.preventDefault();
@@ -836,9 +920,13 @@ if (!$team) {
         champion: formData.get('champion'),
         runner_up: formData.get('runner_up'),
         mvp: formData.get('mvp') || null,
+        mvp_team_id: formData.get('mvp_team_id') || null,
         dpoy: formData.get('dpoy') || null,
+        dpoy_team_id: formData.get('dpoy_team_id') || null,
         mip: formData.get('mip') || null,
-        sixth_man: formData.get('sixth_man') || null
+        mip_team_id: formData.get('mip_team_id') || null,
+        sixth_man: formData.get('sixth_man') || null,
+        sixth_man_team_id: formData.get('sixth_man_team_id') || null
       };
       
       try {
