@@ -545,3 +545,24 @@ pre {
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 	filter: brightness(0.9);
 }
+
+/* Accordion Styles */
+.accordion-button {
+	background-color: var(--fba-panel) !important;
+	color: var(--fba-text) !important;
+	border: none !important;
+}
+
+.accordion-button:not(.collapsed) {
+	background-color: var(--fba-panel) !important;
+	box-shadow: none !important;
+}
+
+.accordion-button:hover {
+	background-color: var(--fba-panel) !important;
+	box-shadow: 0 2px 4px rgba(241, 117, 7, 0.1) !important;
+}
+
+.accordion-item {
+	background-color: var(--fba-panel) !important;
+}
