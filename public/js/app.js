@@ -1,10 +1,11 @@
-const BASE = '';
+// Permite definir um prefixo (ex.: /public) via data-base no body para cenários em subpastas.
+const BASE = document.body.dataset.base || '';
 
 bindForm('form-register', 'register-result', 'register.php');
 bindForm('form-login', 'login-result', 'login.php');
 bindForm('form-team', 'team-result', 'team.php');
 bindForm('form-player', 'player-result', 'players.php');
-const api = (path, options = {}) => fetch(`/api/${path}`, {
+const api = (path, options = {}) => fetch(`${BASE}/api/${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
 }).then(async res => {
