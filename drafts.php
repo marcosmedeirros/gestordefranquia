@@ -120,8 +120,8 @@ $userLeague = $team['league'];
         const drafted = players.filter(p => p.draft_status === 'drafted');
 
         document.getElementById('draftContainer').innerHTML = `
-          <div class="row mb-4">
-            <div class="col-md-6">
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
               <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                 <div class="card-body">
                   <h5 class="text-white mb-2">
@@ -129,81 +129,139 @@ $userLeague = $team['league'];
                     Temporada ${seasonData.season.season_number}
                   </h5>
                   <p class="text-light-gray mb-0">Ano: ${seasonData.season.year}</p>
-                  <p class="text-light-gray mb-0">Status: <span class="badge bg-gradient-orange">${seasonData.season.status.toUpperCase()}</span></p>
+                  <p class="text-light-gray mb-0">Liga: <span class="badge bg-gradient-orange">${userLeague}</span></p>
                 </div>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                 <div class="card-body">
                   <h5 class="text-white mb-2">
                     <i class="bi bi-people text-orange me-2"></i>
-                    Jogadores Disponíveis
+                    Disponíveis
                   </h5>
                   <h2 class="text-orange mb-0">${available.length}</h2>
-                  <p class="text-light-gray mb-0">${drafted.length} já draftados</p>
+                  <p class="text-light-gray mb-0">Aguardando draft</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card bg-dark-panel border-success" style="border-radius: 15px;">
+                <div class="card-body">
+                  <h5 class="text-white mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Já Draftados
+                  </h5>
+                  <h2 class="text-success mb-0">${drafted.length}</h2>
+                  <p class="text-light-gray mb-0">Picks realizadas</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <h4 class="text-white mb-3">
-            <i class="bi bi-list-stars text-orange me-2"></i>
-            Jogadores Disponíveis
-          </h4>
-          
-          <div class="row g-3">
-            ${available.length === 0 ? `
-              <div class="col-12">
-                <div class="alert alert-warning">
-                  Nenhum jogador disponível para draft no momento.
+          <!-- Jogadores Disponíveis -->
+          <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+            <div class="card-header bg-transparent border-orange">
+              <h5 class="text-white mb-0">
+                <i class="bi bi-people-fill me-2 text-orange"></i>
+                Jogadores Disponíveis para Draft (${available.length})
+              </h5>
+            </div>
+            <div class="card-body p-0">
+              ${available.length === 0 ? `
+                <div class="text-center text-light-gray py-5">
+                  <i class="bi bi-inbox display-1"></i>
+                  <p class="mt-3">Nenhum jogador disponível no momento</p>
                 </div>
-              </div>
-            ` : available.map(p => `
-              <div class="col-md-6 col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
-                  <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                      <img src="${p.photo_url || '/img/default-player.png'}" 
-                           alt="${p.name}" 
-                           style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid var(--fba-orange);">
-                      <div class="ms-3">
-                        <h5 class="text-white mb-0">${p.name}</h5>
-                        <p class="text-light-gray mb-0">${p.position}</p>
-                      </div>
-                    </div>
-                    <div class="row g-2 text-center mb-2">
-                      <div class="col-4">
-                        <small class="text-light-gray">Idade</small>
-                        <p class="text-white mb-0"><strong>${p.age}</strong></p>
-                      </div>
-                      <div class="col-4">
-                        <small class="text-light-gray">OVR</small>
-                        <p class="text-orange mb-0"><strong>${p.ovr}</strong></p>
-                      </div>
-                      <div class="col-4">
-                        <small class="text-light-gray">Status</small>
-                        <p class="text-success mb-0"><i class="bi bi-check-circle"></i></p>
-                      </div>
-                    </div>
-                    ${p.bio ? `<p class="text-light-gray small mb-2">${p.bio}</p>` : ''}
-                    ${p.strengths ? `
-                      <p class="text-light-gray small mb-1">
-                        <i class="bi bi-arrow-up-circle text-success me-1"></i>
-                        <strong>Pontos fortes:</strong> ${p.strengths}
-                      </p>
-                    ` : ''}
-                    ${p.weaknesses ? `
-                      <p class="text-light-gray small mb-0">
-                        <i class="bi bi-arrow-down-circle text-danger me-1"></i>
-                        <strong>Pontos fracos:</strong> ${p.weaknesses}
-                      </p>
-                    ` : ''}
-                  </div>
+              ` : `
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Nome</th>
+                        <th style="width: 100px;">Posição</th>
+                        <th style="width: 100px;">Idade</th>
+                        <th style="width: 100px;">OVR</th>
+                        <th style="width: 150px;">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${available.map((p, idx) => `
+                        <tr>
+                          <td class="text-light-gray">${idx + 1}</td>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <img src="${p.photo_url || '/img/default-player.png'}" 
+                                   alt="${p.name}" 
+                                   style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--fba-orange);"
+                                   class="me-2">
+                              <span class="text-white fw-bold">${p.name}</span>
+                            </div>
+                          </td>
+                          <td><span class="badge bg-orange">${p.position}</span></td>
+                          <td class="text-light-gray">${p.age} anos</td>
+                          <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+                          <td><span class="badge bg-info">Disponível</span></td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            `).join('')}
+              `}
+            </div>
           </div>
+
+          <!-- Jogadores Já Draftados -->
+          ${drafted.length > 0 ? `
+            <div class="card bg-dark-panel border-success" style="border-radius: 15px;">
+              <div class="card-header bg-transparent border-success">
+                <h5 class="text-white mb-0">
+                  <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                  Jogadores Já Draftados (${drafted.length})
+                </h5>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th style="width: 100px;">Pick #</th>
+                        <th>Nome</th>
+                        <th style="width: 100px;">Posição</th>
+                        <th style="width: 100px;">OVR</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${drafted.sort((a, b) => a.draft_order - b.draft_order).map(p => `
+                        <tr>
+                          <td><span class="badge bg-success">Pick #${p.draft_order}</span></td>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <img src="${p.photo_url || '/img/default-player.png'}" 
+                                   alt="${p.name}" 
+                                   style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--fba-orange);"
+                                   class="me-2">
+                              <span class="text-white fw-bold">${p.name}</span>
+                            </div>
+                          </td>
+                          <td><span class="badge bg-orange">${p.position}</span></td>
+                          <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+                          <td class="text-light-gray">${p.team_name || 'N/A'}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ` : `
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Nenhum jogador foi draftado ainda.
+            </div>
+          `}
         `;
       } catch (e) {
         console.error(e);
