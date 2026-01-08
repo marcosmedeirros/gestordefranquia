@@ -164,15 +164,13 @@ if (!$team) {
               <i class="bi bi-arrow-left me-2"></i>Voltar
             </button>
             
-            <div class="card bg-dark-elevated border-0 text-center py-5" style="border-radius: 15px;">
-              <div class="card-body">
-                <i class="bi bi-calendar-plus text-orange fs-1 mb-3"></i>
-                <h3 class="text-white mb-3">Nenhuma temporada ativa</h3>
-                <p class="text-light-gray mb-4">Inicie uma nova temporada para a liga <strong class="text-orange">${league}</strong></p>
-                <button class="btn btn-orange btn-lg" onclick="startNewSeason('${league}')">
-                  <i class="bi bi-play-fill me-2"></i>Iniciar Nova Temporada
-                </button>
-              </div>
+            <div class="text-center py-5">
+              <i class="bi bi-calendar-plus text-orange fs-1 mb-3 d-block"></i>
+              <h3 class="text-white mb-3">Nenhuma temporada ativa</h3>
+              <p class="text-light-gray mb-4">Inicie uma nova temporada para a liga <strong class="text-orange">${league}</strong></p>
+              <button class="btn btn-orange btn-lg" onclick="startNewSeason('${league}')">
+                <i class="bi bi-play-fill me-2"></i>Iniciar Nova Temporada
+              </button>
             </div>
           `;
         } else {

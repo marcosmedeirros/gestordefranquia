@@ -176,20 +176,25 @@ try {
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <h1 class="text-white fw-bold mb-2">Dashboard</h1>
                 <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
             </div>
-            <?php if ($currentSeason): ?>
             <div>
+                <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>
                     Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?> 
                     (<?= $currentSeason['year'] ?>)
                 </span>
+                <?php else: ?>
+                <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                    <i class="bi bi-calendar-x me-2"></i>
+                    Nenhuma temporada ativa
+                </span>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
         </div>
 
         <!-- Stats Cards -->
