@@ -34,7 +34,7 @@ function getOvrColor(ovr) {
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
 
 let allPlayers = [];
-let currentSort = { field: 'role', ascending: false };
+let currentSort = { field: 'role', ascending: true };
 
 function sortPlayers(field) {
   // Se clicou na mesma coluna, inverte ordem
@@ -149,7 +149,7 @@ async function loadPlayers() {
     const data = await api(`players.php?team_id=${teamId}`);
     allPlayers = data.players || [];
     // Ordenar por role padrão (Titular primeiro)
-    currentSort = { field: 'role', ascending: false };
+    currentSort = { field: 'role', ascending: true };
     updateSortIcons();
     renderPlayers(allPlayers);
     document.getElementById('players-status').classList.add('d-none');
