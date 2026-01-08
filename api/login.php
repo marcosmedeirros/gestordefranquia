@@ -5,9 +5,9 @@ ini_set('log_errors', 1);
 
 try {
     session_start();
-    require_once __DIR__ . '/../../backend/db.php';
-    require_once __DIR__ . '/../../backend/helpers.php';
-    require_once __DIR__ . '/../../backend/auth.php';
+    require_once __DIR__ . '/../backend/db.php';
+    require_once __DIR__ . '/../backend/helpers.php';
+    require_once __DIR__ . '/../backend/auth.php';
 
     requireMethod('POST');
     $pdo = db();

@@ -1,8 +1,8 @@
 <?php
 session_start();
-require_once __DIR__ . '/../../backend/db.php';
-require_once __DIR__ . '/../../backend/helpers.php';
-require_once __DIR__ . '/../../backend/auth.php';
+require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     jsonResponse(405, ['error' => 'Method not allowed']);

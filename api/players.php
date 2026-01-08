@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/../../backend/db.php';
-require_once __DIR__ . '/../../backend/helpers.php';
+require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
 
 $pdo = db();
 $config = loadConfig();

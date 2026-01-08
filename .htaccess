@@ -5,6 +5,12 @@ php_flag log_errors On
 # Charset padrão
 AddDefaultCharset UTF-8
 
+# Favicon redirect
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^favicon\.ico$ /img/fba-logo.png [L]
+</IfModule>
+
 # Compressão
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
