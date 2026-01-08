@@ -206,6 +206,12 @@ foreach ($allTeams as $t) {
                     Admin
                 </a>
             </li>
+            <li>
+                <a href="/temporadas.php">
+                    <i class="bi bi-calendar3"></i>
+                    Temporadas
+                </a>
+            </li>
             <?php endif; ?>
             <li>
                 <a href="/settings.php">
