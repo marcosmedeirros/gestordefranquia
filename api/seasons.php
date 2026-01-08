@@ -19,7 +19,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // ==================== ADMIN ONLY ACTIONS ====================
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player', 
                  'update_draft_player', 'delete_draft_player', 'assign_draft_pick', 
-                 'set_standings', 'set_playoff_results', 'set_awards', 'reset_sprint'];
+                 'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -512,6 +512,84 @@ try {
             break;
 
         // ========== RESETAR SPRINT (NOVO CICLO) ==========
+        // ========== RESETAR TIMES (MANTER PONTOS DO RANKING) ==========
+        case 'reset_teams':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            
+            $input = json_decode(file_get_contents('php://input'), true);
+            $league = $input['league'] ?? null;
+            
+            if (!$league) {
+                throw new Exception('Liga não especificada');
+            }
+            
+            $pdo->beginTransaction();
+            
+            // ATENÇÃO: Isso limpa jogadores, picks, trades e histórico, mas MANTÉM os pontos do ranking!
+            
+            // 1. Deletar picks relacionadas aos times da liga
+            $pdo->exec("
+                DELETE p FROM picks p
+                INNER JOIN teams t ON p.team_id = t.id
+                WHERE t.league = '$league'
+            ");
+            
+            // 2. Deletar trades relacionados aos times da liga
+            $pdo->exec("
+                DELETE tr FROM trades tr
+                INNER JOIN teams t1 ON tr.team_id_1 = t1.id
+                WHERE t1.league = '$league'
+            ");
+            
+            // 3. Deletar jogadores dos times da liga (tabela players)
+            $pdo->exec("
+                DELETE pl FROM players pl
+                INNER JOIN teams t ON pl.team_id = t.id
+                WHERE t.league = '$league'
+            ");
+            
+            // 4. Deletar prêmios das temporadas
+            $pdo->exec("
+                DELETE sa FROM season_awards sa
+                INNER JOIN seasons s ON sa.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 5. Deletar resultados de playoffs
+            $pdo->exec("
+                DELETE pr FROM playoff_results pr
+                INNER JOIN seasons s ON pr.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 6. Deletar standings
+            $pdo->exec("
+                DELETE ss FROM season_standings ss
+                INNER JOIN seasons s ON ss.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 7. Deletar draft pool
+            $pdo->exec("
+                DELETE dp FROM draft_pool dp
+                INNER JOIN seasons s ON dp.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 8. Deletar temporadas
+            $pdo->exec("DELETE FROM seasons WHERE league = '$league'");
+            
+            // 9. Deletar sprints
+            $pdo->exec("DELETE FROM sprints WHERE league = '$league'");
+            
+            // IMPORTANTE: NÃO deletar team_ranking_points - os pontos são mantidos!
+            
+            $pdo->commit();
+            
+            echo json_encode(['success' => true, 'message' => 'Times resetados com sucesso! Pontos do ranking mantidos.']);
+            break;
+
+        // ========== RESETAR SPRINT COMPLETO (DELETA TUDO) ==========
         case 'reset_sprint':
             if ($method !== 'POST') throw new Exception('Método inválido');
             

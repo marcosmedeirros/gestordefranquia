@@ -220,8 +220,13 @@ if (!$team) {
                     <strong class="text-white">Sprint Completo!</strong> 
                     <span class="text-light-gray">Todas as ${maxSeasons} temporadas foram concluídas.</span>
                   </div>
-                  <button class="btn btn-orange btn-lg w-100" onclick="confirmResetSprint('${league}')">
-                    <i class="bi bi-arrow-clockwise me-2"></i>Começar Novo Sprint
+                  <div class="alert alert-warning mb-4" style="border-radius: 15px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.5);">
+                    <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+                    <strong class="text-white">Atenção!</strong> 
+                    <span class="text-light-gray">Antes de iniciar um novo sprint, você precisa resetar os times. Isso irá limpar jogadores, picks, trades e histórico, mantendo apenas os pontos do ranking.</span>
+                  </div>
+                  <button class="btn btn-danger btn-lg w-100 mb-3" onclick="confirmResetTeams('${league}')">
+                    <i class="bi bi-trash3 me-2"></i>Resetar Times
                   </button>
                 ` : `
                   <div class="mb-3 text-center">
@@ -363,20 +368,21 @@ if (!$team) {
     }
 
     // ========== RESETAR SPRINT (NOVO CICLO) ==========
-    async function confirmResetSprint(league) {
-      if (!confirm(`ATENÇÃO! Isso irá RESETAR TODOS os dados da liga ${league} e começar um novo sprint do zero. Confirma?`)) return;
-      if (!confirm('Tem CERTEZA ABSOLUTA? Todos os times, jogadores, picks e trades serão DELETADOS!')) return;
+    // ========== RESETAR TIMES (MANTER PONTOS) ==========
+    async function confirmResetTeams(league) {
+      if (!confirm(`ATENÇÃO! Isso irá LIMPAR todos os jogadores, picks, trades e histórico da liga ${league}.\n\nAPENAS os pontos do ranking serão mantidos.\n\nConfirma?`)) return;
+      if (!confirm('Tem CERTEZA ABSOLUTA? Esta ação não pode ser desfeita!')) return;
       
       try {
-        await api('seasons.php?action=reset_sprint', {
+        await api('seasons.php?action=reset_teams', {
           method: 'POST',
           body: JSON.stringify({ league })
         });
         
-        alert('Sprint resetado! Começando do zero.');
+        alert('Times resetados com sucesso! Os pontos do ranking foram mantidos.');
         showLeagueManagement(league);
       } catch (e) {
-        alert('Erro ao resetar: ' + (e.error || 'Desconhecido'));
+        alert('Erro ao resetar times: ' + (e.error || 'Desconhecido'));
       }
     }
 
