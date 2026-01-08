@@ -30,9 +30,13 @@ $stmtTitulares = $pdo->prepare("SELECT * FROM players WHERE team_id = ? AND role
 $stmtTitulares->execute([$team['id']]);
 $titulares = $stmtTitulares->fetchAll();
 
-// Calcular CAP
+// Calcular CAP Top8 (soma dos 8 maiores OVRs)
 $teamCap = 0;
-$stmtCap = $pdo->prepare('SELECT SUM(ovr) as cap FROM players WHERE team_id = ?');
+$stmtCap = $pdo->prepare('
+    SELECT SUM(ovr) as cap FROM (
+        SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8
+    ) as top_eight
+');
 $stmtCap->execute([$team['id']]);
 $capData = $stmtCap->fetch();
 $teamCap = $capData['cap'] ?? 0;
