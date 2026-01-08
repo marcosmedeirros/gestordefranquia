@@ -113,8 +113,22 @@ function renderPlayers(players) {
       <td>${p.role}</td>
       <td>${p.age}</td>
       <td>
-        <button class="btn btn-sm ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-secondary'} btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}">
-          ${p.available_for_trade ? 'Disponível' : 'Indisponível'}
+        <button class="btn btn-sm btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" style="
+          background: ${p.available_for_trade ? '#00ff00' : '#ff4444'};
+          color: #000;
+          border: none;
+          font-weight: bold;
+          padding: 6px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+        " title="Clique para alternar disponibilidade para trade">
+          <i class="bi ${p.available_for_trade ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}"></i>
+          ${p.available_for_trade ? 'Disponível' : 'Não Disponível'}
         </button>
       </td>
       <td>

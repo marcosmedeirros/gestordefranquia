@@ -538,3 +538,10 @@ pre {
 		margin-left: 0;
 	}
 }
+
+/* Trade Button Styles */
+.btn-toggle-trade:hover {
+	transform: scale(1.05);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	filter: brightness(0.9);
+}
