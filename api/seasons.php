@@ -135,6 +135,7 @@ try {
             $seasonId = $pdo->lastInsertId();
             
             // Gerar picks automaticamente para todos os times da liga
+            // IMPORTANTE: Gera picks para TODAS as temporadas do sprint (não apenas a atual)
             $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
             $stmtTeams->execute([$league]);
             $teams = $stmtTeams->fetchAll();
@@ -144,19 +145,27 @@ try {
                 VALUES (?, ?, ?, ?, ?, 1)
             ");
             
+            // Para cada time, gerar 2 picks POR TEMPORADA do sprint
             foreach ($teams as $team) {
-                // 1ª rodada
-                $stmtPick->execute([$team['id'], $team['id'], $year, '1', $seasonId]);
-                // 2ª rodada
-                $stmtPick->execute([$team['id'], $team['id'], $year, '2', $seasonId]);
+                for ($tempNum = 1; $tempNum <= $maxSeasons; $tempNum++) {
+                    // Pick Rodada 1 para temporada X
+                    $pickLabel = "T{$tempNum} R1";
+                    $stmtPick->execute([$team['id'], $team['id'], $year, $pickLabel, $seasonId]);
+                    
+                    // Pick Rodada 2 para temporada X
+                    $pickLabel = "T{$tempNum} R2";
+                    $stmtPick->execute([$team['id'], $team['id'], $year, $pickLabel, $seasonId]);
+                }
             }
+            
+            $totalPicksPerTeam = $maxSeasons * 2; // 2 picks por temporada
             
             $pdo->commit();
             
             echo json_encode([
                 'success' => true,
                 'season_id' => $seasonId,
-                'message' => "Temporada {$seasonNumber} criada com sucesso! Picks geradas automaticamente."
+                'message' => "Temporada {$seasonNumber} criada! Geradas {$totalPicksPerTeam} picks por time ({$maxSeasons} temporadas x 2 rodadas)."
             ]);
             break;
 
@@ -277,16 +286,15 @@ try {
             $draftPlayer = $stmtPlayer->fetch();
             
             $stmtInsert = $pdo->prepare("
-                INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade, photo_url)
-                VALUES (?, ?, ?, ?, ?, 'Reserva', 0, ?)
+                INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade)
+                VALUES (?, ?, ?, ?, ?, 'Reserva', 0)
             ");
             $stmtInsert->execute([
                 $data['team_id'],
                 $draftPlayer['name'],
                 $draftPlayer['position'],
                 $draftPlayer['age'],
-                $draftPlayer['ovr'],
-                $draftPlayer['photo_url']
+                $draftPlayer['ovr']
             ]);
             
             $pdo->commit();

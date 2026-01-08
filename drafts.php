@@ -195,15 +195,7 @@ $userLeague = $team['league'];
                       ${available.map((p, idx) => `
                         <tr>
                           <td class="text-light-gray">${idx + 1}</td>
-                          <td>
-                            <div class="d-flex align-items-center">
-                              <img src="${p.photo_url || '/img/default-player.png'}" 
-                                   alt="${p.name}" 
-                                   style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--fba-orange);"
-                                   class="me-2">
-                              <span class="text-white fw-bold">${p.name}</span>
-                            </div>
-                          </td>
+                          <td class="text-white fw-bold">${p.name}</td>
                           <td><span class="badge bg-orange">${p.position}</span></td>
                           <td class="text-light-gray">${p.age} anos</td>
                           <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
@@ -218,47 +210,54 @@ $userLeague = $team['league'];
           </div>
 
           <!-- Jogadores Já Draftados -->
-          ${drafted.length > 0 ? `
-            <div class="card bg-dark-panel border-success" style="border-radius: 15px;">
-              <div class="card-header bg-transparent border-success">
-                <h5 class="text-white mb-0">
-                  <i class="bi bi-check-circle-fill me-2 text-success"></i>
-                  Jogadores Já Draftados (${drafted.length})
-                </h5>
-              </div>
-              <div class="card-body p-0">
-                <div class="table-responsive">
-                  <table class="table table-dark table-hover mb-0">
-                    <thead>
-                      <tr>
-                        <th style="width: 100px;">Pick #</th>
-                        <th>Nome</th>
-                        <th style="width: 100px;">Posição</th>
-                        <th style="width: 100px;">OVR</th>
-                        <th>Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${drafted.sort((a, b) => a.draft_order - b.draft_order).map(p => `
-                        <tr>
-                          <td><span class="badge bg-success">Pick #${p.draft_order}</span></td>
-                          <td class="text-white fw-bold">${p.name}</td>
-                          <td><span class="badge bg-orange">${p.position}</span></td>
-                          <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
-                          <td class="text-light-gray">${p.team_name || 'N/A'}</td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
+          ${(() => {
+            console.log('Checking drafted condition:', drafted.length > 0);
+            if (drafted.length > 0) {
+              return `
+                <div class="card bg-dark-panel border-success" style="border-radius: 15px;">
+                  <div class="card-header bg-transparent border-success">
+                    <h5 class="text-white mb-0">
+                      <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                      Jogadores Já Draftados (${drafted.length})
+                    </h5>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-dark table-hover mb-0">
+                        <thead>
+                          <tr>
+                            <th style="width: 100px;">Pick #</th>
+                            <th>Nome</th>
+                            <th style="width: 100px;">Posição</th>
+                            <th style="width: 100px;">OVR</th>
+                            <th>Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${drafted.sort((a, b) => a.draft_order - b.draft_order).map(p => `
+                            <tr>
+                              <td><span class="badge bg-success">Pick #${p.draft_order}</span></td>
+                              <td class="text-white fw-bold">${p.name}</td>
+                              <td><span class="badge bg-orange">${p.position}</span></td>
+                              <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+                              <td class="text-light-gray">${p.team_name || 'N/A'}</td>
+                            </tr>
+                          `).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ` : `
-            <div class="alert alert-info">
-              <i class="bi bi-info-circle me-2"></i>
-              Nenhum jogador foi draftado ainda.
-            </div>
-          `}
+              `;
+            } else {
+              return `
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle me-2"></i>
+                  Nenhum jogador foi draftado ainda.
+                </div>
+              `;
+            }
+          })()}
         `;
       } catch (e) {
         console.error(e);
