@@ -1,17 +1,18 @@
 <?php
-header('Content-Type: application/json');
 session_start();
+header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 
-if (!isset($_SESSION['user'])) {
+// Verificar autenticação
+$user = getUserSession();
+if (!$user) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Não autorizado']);
     exit;
 }
 
-$user = $_SESSION['user'];
 $pdo = db();
 
 // POST - Adicionar pick
