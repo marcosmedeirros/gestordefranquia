@@ -72,7 +72,7 @@ $user = getUserSession();
 
         <div id="roster-status" class="text-center mb-3">
             <div class="spinner-border text-orange" role="status"></div>
-            <p class="text-muted mt-2">Carregando elencos...</p>
+            <p class="text-light-gray mt-2">Carregando elencos...</p>
         </div>
 
         <div id="roster-grid" class="row g-4"></div>

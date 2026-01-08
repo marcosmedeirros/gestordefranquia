@@ -114,7 +114,7 @@ $teamCap = $capData['cap'] ?? 0;
         </div>
 
         <div class="text-center mt-3">
-            <small class="text-muted">
+            <small class="text-light-gray">
                 <i class="bi bi-person-circle me-1"></i>
                 <?= htmlspecialchars($user['name']) ?>
             </small>
@@ -200,15 +200,15 @@ $teamCap = $capData['cap'] ?? 0;
                                             <div class="card-body text-center p-3">
                                                 <span class="badge bg-orange mb-2"><?= htmlspecialchars($player['position']) ?></span>
                                                 <h6 class="mb-1"><?= htmlspecialchars($player['name']) ?></h6>
-                                                <p class="mb-0 text-muted small">OVR: <?= $player['ovr'] ?></p>
-                                                <p class="mb-0 text-muted small"><?= $player['age'] ?> anos</p>
+                                                <p class="mb-0 text-light-gray small">OVR: <?= $player['ovr'] ?></p>
+                                                <p class="mb-0 text-light-gray small"><?= $player['age'] ?> anos</p>
                                             </div>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
                         <?php else: ?>
-                            <div class="text-center text-muted py-5">
+                            <div class="text-center text-light-gray py-5">
                                 <i class="bi bi-exclamation-circle display-1"></i>
                                 <p class="mt-3">Você ainda não tem jogadores titulares.</p>
                                 <a href="/teams.php" class="btn btn-orange">

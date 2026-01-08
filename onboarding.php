@@ -26,9 +26,15 @@ $user = getUserSession();
 
             <!-- Step Indicator -->
             <div class="step-indicator mb-5">
-                <div class="step active" id="step-indicator-1">1</div>
-                <div class="step" id="step-indicator-2">2</div>
-                <div class="step" id="step-indicator-3">3</div>
+                <div class="step-item">
+                    <div class="step active" id="step-indicator-1">1</div>
+                    <span class="step-label">Perfil</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step-item">
+                    <div class="step" id="step-indicator-2">2</div>
+                    <span class="step-label">Time</span>
+                </div>
             </div>
 
             <!-- Step 1: Perfil do Usuário -->
@@ -39,24 +45,27 @@ $user = getUserSession();
                         
                         <div class="row">
                             <div class="col-md-4 text-center mb-4">
-                                <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>" 
-                                     alt="Foto" class="team-avatar" id="user-photo-preview">
-                                <label for="user-photo-upload" class="btn btn-outline-orange btn-sm mt-2">
-                                    <i class="bi bi-camera me-1"></i>Alterar Foto
-                                </label>
-                                <input type="file" id="user-photo-upload" class="d-none" accept="image/*">
+                                <div class="photo-upload-container">
+                                    <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>" 
+                                         alt="Foto" class="photo-preview" id="user-photo-preview">
+                                    <label for="user-photo-upload" class="photo-upload-overlay">
+                                        <i class="bi bi-camera-fill"></i>
+                                        <span>Adicionar Foto</span>
+                                    </label>
+                                    <input type="file" id="user-photo-upload" class="d-none" accept="image/*">
+                                </div>
                             </div>
                             <div class="col-md-8">
                                 <div class="mb-3">
-                                    <label class="form-label text-light-gray">Nome</label>
+                                    <label class="form-label text-white fw-bold">Nome</label>
                                     <input type="text" class="form-control" value="<?= htmlspecialchars($user['name']) ?>" readonly>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label text-light-gray">E-mail</label>
+                                    <label class="form-label text-white fw-bold">E-mail</label>
                                     <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" readonly>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label text-light-gray">Liga</label>
+                                    <label class="form-label text-white fw-bold">Liga</label>
                                     <input type="text" class="form-control" value="<?= htmlspecialchars($user['league']) ?>" readonly>
                                 </div>
                             </div>
@@ -78,24 +87,31 @@ $user = getUserSession();
                         <h3 class="mb-4 text-white"><i class="bi bi-trophy me-2 text-orange"></i>Dados do Seu Time</h3>
                         
                         <form id="form-team">
+                            <div class="text-center mb-4">
+                                <div class="photo-upload-container mx-auto" style="width: 150px;">
+                                    <img src="/img/default-team.png" alt="Logo" class="photo-preview" id="team-photo-preview">
+                                    <label for="team-photo-upload" class="photo-upload-overlay">
+                                        <i class="bi bi-image-fill"></i>
+                                        <span>Logo do Time</span>
+                                    </label>
+                                    <input type="file" id="team-photo-upload" class="d-none" accept="image/*">
+                                </div>
+                            </div>
+                            
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label text-light-gray">Nome do Time *</label>
+                                    <label class="form-label text-white fw-bold">Nome do Time *</label>
                                     <input type="text" name="name" class="form-control form-control-lg" placeholder="Ex: Lakers" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label text-light-gray">Cidade *</label>
+                                    <label class="form-label text-white fw-bold">Cidade *</label>
                                     <input type="text" name="city" class="form-control form-control-lg" placeholder="Ex: Los Angeles" required>
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label text-light-gray">Mascote</label>
+                                <label class="form-label text-white fw-bold">Mascote</label>
                                 <input type="text" name="mascot" class="form-control form-control-lg" placeholder="Ex: Águia Dourada">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-light-gray">URL da Logo do Time</label>
-                                <input type="url" name="photo_url" class="form-control form-control-lg" placeholder="https://...">
-                                <small class="text-muted">Cole o link de uma imagem para a logo do seu time</small>
+                                <small class="text-light-gray">Opcional</small>
                             </div>
                         </form>
                         
@@ -103,79 +119,15 @@ $user = getUserSession();
                             <button class="btn btn-outline-orange btn-lg" onclick="prevStep(1)">
                                 <i class="bi bi-arrow-left me-2"></i>Voltar
                             </button>
-                            <button class="btn btn-orange btn-lg" onclick="saveTeamAndNext()">
-                                Próximo <i class="bi bi-arrow-right ms-2"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 3: Cadastro do Elenco -->
-            <div class="step-content" id="step-3">
-                <div class="card bg-dark-panel border-orange">
-                    <div class="card-body p-4">
-                        <h3 class="mb-4 text-white"><i class="bi bi-people me-2 text-orange"></i>Monte Seu Elenco</h3>
-                        
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Você pode adicionar jogadores agora ou fazer isso mais tarde no dashboard.
-                        </div>
-                        
-                        <form id="form-player">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label text-light-gray">Nome do Jogador</label>
-                                    <input type="text" name="name" class="form-control" placeholder="Ex: LeBron James">
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label text-light-gray">Idade</label>
-                                    <input type="number" name="age" class="form-control" placeholder="25">
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label text-light-gray">OVR</label>
-                                    <input type="number" name="ovr" class="form-control" placeholder="85" max="99">
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label text-light-gray">Posição</label>
-                                    <select name="position" class="form-select">
-                                        <option value="PG">PG - Point Guard</option>
-                                        <option value="SG">SG - Shooting Guard</option>
-                                        <option value="SF">SF - Small Forward</option>
-                                        <option value="PF">PF - Power Forward</option>
-                                        <option value="C">C - Center</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label text-light-gray">Função</label>
-                                    <select name="role" class="form-select">
-                                        <option value="Titular">Titular</option>
-                                        <option value="Banco">Banco</option>
-                                        <option value="Outro">Outro</option>
-                                        <option value="G-League">G-League</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-outline-orange mb-3">
-                                <i class="bi bi-plus-circle me-2"></i>Adicionar Jogador
-                            </button>
-                        </form>
-                        
-                        <div id="players-list" class="mt-4"></div>
-                        
-                        <div class="d-flex justify-content-between mt-4">
-                            <button class="btn btn-outline-orange btn-lg" onclick="prevStep(2)">
-                                <i class="bi bi-arrow-left me-2"></i>Voltar
-                            </button>
-                            <button class="btn btn-orange btn-lg" onclick="finishOnboarding()">
+                            <button class="btn btn-orange btn-lg" onclick="saveTeamAndFinish()">
                                 Concluir <i class="bi bi-check-circle ms-2"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+
 
         </div>
     </div>

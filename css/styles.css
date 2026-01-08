@@ -6,8 +6,8 @@
 	--fba-panel: #1a1a1a;
 	--fba-border: #333333;
 	--fba-text: #ffffff;
-	--fba-gray: #cccccc;
-	--fba-light-gray: #dddddd;
+	--fba-gray: #dddddd;
+	--fba-light-gray: #eeeeee;
 }
 
 * {
@@ -348,47 +348,115 @@ pre {
 
 .step-indicator {
 	display: flex;
-	justify-content: space-between;
+	justify-content: center;
+	align-items: center;
+	gap: 20px;
 	margin-bottom: 40px;
 	position: relative;
 }
 
-.step-indicator::before {
-	content: '';
-	position: absolute;
-	top: 20px;
-	left: 0;
-	right: 0;
-	height: 2px;
+.step-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+}
+
+.step-line {
+	width: 100px;
+	height: 3px;
 	background: var(--fba-border);
-	z-index: -1;
+	position: relative;
+	top: -20px;
 }
 
 .step {
-	width: 40px;
-	height: 40px;
+	width: 50px;
+	height: 50px;
 	border-radius: 50%;
 	background: var(--fba-panel);
-	border: 2px solid var(--fba-border);
+	border: 3px solid var(--fba-border);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-weight: bold;
+	font-size: 1.2rem;
 	color: var(--fba-gray);
-	position: relative;
-	z-index: 1;
+	transition: all 0.3s;
 }
 
 .step.active {
-	background: var(--fba-orange);
+	background: linear-gradient(135deg, var(--fba-orange), var(--fba-orange-light));
 	border-color: var(--fba-orange);
 	color: white;
+	box-shadow: 0 0 20px rgba(241, 117, 7, 0.5);
+	transform: scale(1.1);
 }
 
 .step.completed {
 	background: #28a745;
 	border-color: #28a745;
 	color: white;
+}
+
+.step-label {
+	color: var(--fba-light-gray);
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.step.active + .step-label,
+.step.completed + .step-label {
+	color: white;
+}
+
+/* Photo Upload Container */
+.photo-upload-container {
+	position: relative;
+	width: 150px;
+	height: 150px;
+	margin: 0 auto;
+}
+
+.photo-preview {
+	width: 150px;
+	height: 150px;
+	border-radius: 50%;
+	border: 4px solid var(--fba-orange);
+	object-fit: cover;
+	display: block;
+	background: var(--fba-panel);
+}
+
+.photo-upload-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.7);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.3s;
+	cursor: pointer;
+	color: white;
+	font-weight: bold;
+}
+
+.photo-upload-overlay i {
+	font-size: 2rem;
+	margin-bottom: 5px;
+	color: var(--fba-orange);
+}
+
+.photo-upload-overlay:hover {
+	opacity: 1;
 }
 
 .step-content {

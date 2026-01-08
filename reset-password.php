@@ -28,7 +28,7 @@
                         <label class="form-label text-light-gray">Nova Senha</label>
                         <input type="password" name="password" class="form-control form-control-lg" 
                                placeholder="Mínimo 6 caracteres" required minlength="6">
-                        <small class="text-muted">A senha deve ter pelo menos 6 caracteres</small>
+                        <small class="text-light-gray">A senha deve ter pelo menos 6 caracteres</small>
                     </div>
                     
                     <div class="mb-4">
