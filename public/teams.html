@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FBA - Elencos e CAP</title>
+    <title>FBA Manager Control - Elencos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="./css/styles.css" />
 </head>
-<body>
+<body data-base="/gmfba">
     <nav class="topbar">
-        <div class="brand">FBA | Elencos</div>
+        <div class="brand">
+            <img src="./img/fba-logo.png" alt="FBA" class="brand-logo" />
+            <span>Manager Control FBA</span>
+        </div>
         <div class="nav-actions">
-            <a class="ghost" href="/">Central</a>
+            <a class="ghost" href="./index.html">Dashboard</a>
         </div>
     </nav>
 
@@ -21,7 +24,7 @@
         <div>
             <p class="eyebrow">Visão de franquias</p>
             <h1>Times, CAP e disponibilidade de troca</h1>
-            <p class="lede">Visualize cada elenco com fotos, CAP calculado (top 8 OVR) e flag de disponibilidade para troca.</p>
+            <p class="lede">Tema escuro com destaque FBA (#F17507). Veja CAP top 8, picks e flags de troca.</p>
         </div>
         <div class="hero-card glass">
             <p class="muted">Dicas</p>
@@ -45,6 +48,6 @@
         <p>FBA — visão completa de elencos e CAP.</p>
     </footer>
 
-    <script src="/js/app.js"></script>
+    <script src="./js/app.js"></script>
 </body>
 </html>
