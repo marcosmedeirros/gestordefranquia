@@ -90,6 +90,12 @@ $teamCap = $capData['cap'] ?? 0;
                 </a>
             </li>
             <li>
+                <a href="/trades.php">
+                    <i class="bi bi-arrow-left-right"></i>
+                    Trades
+                </a>
+            </li>
+            <li>
                 <a href="/settings.php">
                     <i class="bi bi-gear-fill"></i>
                     Configurações
