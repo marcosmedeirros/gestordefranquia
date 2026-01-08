@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified TINYINT(1) NOT NULL DEFAULT 0,
     verification_token VARCHAR(64) DEFAULT NULL,
     reset_token VARCHAR(64) DEFAULT NULL,
+    reset_token_expiry DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_league (league)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

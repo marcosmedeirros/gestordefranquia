@@ -66,3 +66,30 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
         showMessage('register-message', err.error || 'Erro ao cadastrar', 'danger');
     }
 });
+
+// Forgot password form
+document.getElementById('form-forgot-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+        email: formData.get('email')
+    };
+
+    try {
+        const result = await api('reset-password.php', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        
+        showMessage('forgot-password-message', result.message || 'Link de recuperação enviado! Verifique seu e-mail.', 'success');
+        e.target.reset();
+        
+        // Fecha o modal após 3 segundos
+        setTimeout(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal'));
+            modal.hide();
+        }, 3000);
+    } catch (err) {
+        showMessage('forgot-password-message', err.error || 'Erro ao enviar e-mail de recuperação', 'danger');
+    }
+});

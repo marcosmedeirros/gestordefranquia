@@ -76,7 +76,7 @@
                         </form>
                         
                         <div class="text-center">
-                            <a href="#" class="text-orange text-decoration-none d-block mb-3">
+                            <a href="#" class="text-orange text-decoration-none d-block mb-3" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">
                                 <i class="bi bi-key me-1"></i>Esqueceu a senha?
                             </a>
                             <p class="text-light-gray mb-0">
@@ -132,6 +132,35 @@
                         </div>
                     </div>
 
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white" id="forgotPasswordModalLabel">
+                        <i class="bi bi-key me-2 text-orange"></i>Recuperar Senha
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-light-gray mb-4">Digite seu e-mail cadastrado e enviaremos um link para redefinir sua senha.</p>
+                    
+                    <div id="forgot-password-message"></div>
+                    
+                    <form id="form-forgot-password">
+                        <div class="mb-3">
+                            <label class="form-label text-light-gray">E-mail</label>
+                            <input type="email" name="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
+                        </div>
+                        <button type="submit" class="btn btn-orange w-100">
+                            <i class="bi bi-envelope me-2"></i>Enviar Link de Recuperação
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>

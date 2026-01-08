@@ -50,6 +50,32 @@ function sendVerificationEmail(string $email, string $token): bool
     return mail($email, $subject, $message, $headers);
 }
 
+function sendPasswordResetEmail(string $email, string $token, string $name): bool
+{
+    $config = loadConfig();
+    $resetUrl = 'https://marcosmedeiros.page/reset-password.php?token=' . urlencode($token);
+    $subject = 'Recuperação de Senha - FBA Manager';
+    
+    $message = "
+Olá {$name},
+
+Recebemos uma solicitação para redefinir sua senha do FBA Manager Control.
+
+Clique no link abaixo para criar uma nova senha:
+{$resetUrl}
+
+Este link expira em 1 hora.
+
+Se você não solicitou esta alteração, ignore este e-mail.
+
+Atenciosamente,
+Equipe FBA Manager
+    ";
+    
+    $headers = 'From: ' . $config['mail']['from'];
+    return mail($email, $subject, $message, $headers);
+}
+
 function topEightCap(PDO $pdo, int $teamId): int
 {
     $stmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (
