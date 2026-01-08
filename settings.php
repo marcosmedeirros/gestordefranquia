@@ -193,6 +193,13 @@ $team = $stmtTeam->fetch() ?: null;
                                 <label class="form-label text-white fw-bold">Mascote</label>
                                 <input type="text" name="mascot" class="form-control" value="<?= htmlspecialchars($team['mascot']) ?>">
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label text-white fw-bold">Conferência</label>
+                                <select name="conference" class="form-select">
+                                    <option value="LESTE" <?= (isset($team['conference']) && $team['conference'] === 'LESTE') ? 'selected' : '' ?>>LESTE</option>
+                                    <option value="OESTE" <?= (isset($team['conference']) && $team['conference'] === 'OESTE') ? 'selected' : '' ?>>OESTE</option>
+                                </select>
+                            </div>
                             <div class="text-end">
                                 <button type="button" class="btn btn-orange" id="btn-save-team"><i class="bi bi-save2 me-1"></i> Salvar Time</button>
                             </div>

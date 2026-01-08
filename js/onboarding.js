@@ -52,11 +52,12 @@ async function saveTeamAndFinish() {
         name: formData.get('name'),
         city: formData.get('city'),
         mascot: formData.get('mascot'),
+        conference: formData.get('conference'),
         photo_url: teamPhotoFile ? await convertToBase64(teamPhotoFile) : null
     };
     
-    if (!data.name || !data.city) {
-        alert('Por favor, preencha o nome e cidade do time.');
+    if (!data.name || !data.city || !data.conference) {
+        alert('Por favor, preencha nome, cidade e conferência do time.');
         return;
     }
     

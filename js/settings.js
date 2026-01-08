@@ -91,6 +91,7 @@ document.getElementById('btn-save-team')?.addEventListener('click', async () => 
     name: fd.get('name'),
     city: fd.get('city'),
     mascot: fd.get('mascot'),
+    conference: fd.get('conference'),
     photo_url: teamPhotoFile ? await convertToBase64(teamPhotoFile) : null,
   };
   try {

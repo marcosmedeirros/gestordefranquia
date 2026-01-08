@@ -114,6 +114,19 @@ $user = getUserSession();
                                 <input type="text" name="mascot" class="form-control form-control-lg" placeholder="Ex: Águia Dourada">
                                 <small class="text-light-gray">Opcional</small>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white fw-bold">Conferência *</label>
+                                    <select name="conference" class="form-select form-select-lg" required>
+                                        <option value="">Selecione...</option>
+                                        <option value="LESTE">LESTE</option>
+                                        <option value="OESTE">OESTE</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3 d-flex align-items-end">
+                                    <small class="text-light-gray">Usamos a conferência para organizar tabelas e confrontos.</small>
+                                </div>
+                            </div>
                         </form>
                         
                         <div class="d-flex justify-content-between mt-4">

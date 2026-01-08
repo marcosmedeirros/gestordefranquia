@@ -7,6 +7,12 @@ require_once __DIR__ . '/../backend/auth.php';
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 
+function teamColumnExists(PDO $pdo, string $column): bool {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
 if ($method === 'GET') {
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
@@ -52,6 +58,7 @@ if ($method === 'POST') {
     $name = trim($body['name'] ?? '');
     $city = trim($body['city'] ?? '');
     $mascot = trim($body['mascot'] ?? '');
+    $conference = strtoupper(trim($body['conference'] ?? ''));
     $divisionId = $body['division_id'] ?? null;
     $userId = $body['user_id'] ?? null;
     $photoUrl = trim($body['photo_url'] ?? '');
@@ -77,6 +84,13 @@ if ($method === 'POST') {
     // Mascote é opcional no onboarding; permitir vazio
     if ($name === '' || $city === '') {
         jsonResponse(422, ['error' => 'Nome e cidade são obrigatórios.']);
+    }
+    // Conferência é obrigatória somente se coluna existir
+    $hasConference = teamColumnExists($pdo, 'conference');
+    if ($hasConference) {
+        if (!in_array($conference, ['LESTE', 'OESTE'], true)) {
+            jsonResponse(422, ['error' => 'Conferência inválida. Escolha LESTE ou OESTE.']);
+        }
     }
 
     // Se a foto vier como data URL, salvar em img/teams e substituir por caminho relativo
@@ -120,9 +134,14 @@ if ($method === 'POST') {
         }
     }
 
-    $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    // Mascote não pode ser NULL na tabela; use string vazia quando não fornecido
-    $stmt->execute([$userId, $league, $name, $city, $mascot !== '' ? $mascot : '', $divisionId, $photoUrl ?: null]);
+    if ($hasConference) {
+        $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, conference, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $league, $conference, $name, $city, $mascot !== '' ? $mascot : '', $divisionId, $photoUrl ?: null]);
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO teams (user_id, league, name, city, mascot, division_id, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        // Mascote não pode ser NULL na tabela; use string vazia quando não fornecido
+        $stmt->execute([$userId, $league, $name, $city, $mascot !== '' ? $mascot : '', $divisionId, $photoUrl ?: null]);
+    }
     $teamId = (int) $pdo->lastInsertId();
 
     // Cada time ganha 1 pick de 1ª e 2ª rodada para o ano corrente.
@@ -139,6 +158,7 @@ if ($method === 'PUT') {
     $name = trim($body['name'] ?? '');
     $city = trim($body['city'] ?? '');
     $mascot = trim($body['mascot'] ?? '');
+    $conference = strtoupper(trim($body['conference'] ?? ''));
     $photoUrl = trim($body['photo_url'] ?? '');
 
     $sessionUser = getUserSession();
@@ -184,14 +204,31 @@ if ($method === 'PUT') {
         }
     }
 
-    $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ? WHERE id = ?');
-    $upd->execute([
-        $name !== '' ? $name : $team['name'],
-        $city !== '' ? $city : $team['city'],
-        $mascot !== '' ? $mascot : '',
-        $photoUrl !== '' ? $photoUrl : $team['photo_url'],
-        (int) $team['id'],
-    ]);
+    $hasConference = teamColumnExists($pdo, 'conference');
+    if ($hasConference && $conference !== '' && !in_array($conference, ['LESTE', 'OESTE'], true)) {
+        jsonResponse(422, ['error' => 'Conferência inválida.']);
+    }
+
+    if ($hasConference) {
+        $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ?, conference = ? WHERE id = ?');
+        $upd->execute([
+            $name !== '' ? $name : $team['name'],
+            $city !== '' ? $city : $team['city'],
+            $mascot !== '' ? $mascot : '',
+            $photoUrl !== '' ? $photoUrl : $team['photo_url'],
+            $conference !== '' ? $conference : $team['conference'] ?? null,
+            (int) $team['id'],
+        ]);
+    } else {
+        $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ? WHERE id = ?');
+        $upd->execute([
+            $name !== '' ? $name : $team['name'],
+            $city !== '' ? $city : $team['city'],
+            $mascot !== '' ? $mascot : '',
+            $photoUrl !== '' ? $photoUrl : $team['photo_url'],
+            (int) $team['id'],
+        ]);
+    }
 
     jsonResponse(200, ['message' => 'Time atualizado.']);
 }

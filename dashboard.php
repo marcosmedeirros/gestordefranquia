@@ -74,7 +74,7 @@ $teamCap = $capData['cap'] ?? 0;
                 </a>
             </li>
             <li>
-                <a href="#" onclick="alert('Em breve!'); return false;">
+                <a href="/my-roster.php">
                     <i class="bi bi-person-fill"></i>
                     Meu Elenco
                 </a>
