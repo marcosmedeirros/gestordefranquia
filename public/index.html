@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FBA - Central do GM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+    <nav class="topbar">
+        <div class="brand">FBA | Central do GM</div>
+        <div class="nav-actions">
+            <a class="ghost" href="/teams.html">Ver Elencos</a>
+            <a class="primary" href="#painel">Painel</a>
+        </div>
+    </nav>
+
+    <header class="hero glass">
+        <div>
+            <p class="eyebrow">Franchise Basketball Association</p>
+            <h1>Controle total da sua franquia</h1>
+            <p class="lede">Cadastre usuários, crie times com identidade visual, gerencie CAP e acompanhe o elenco com flag de troca.</p>
+            <div class="cta-row">
+                <a class="primary" href="#painel">Ir para o painel</a>
+                <a class="ghost" href="/teams.html">Visualizar times e elencos</a>
+            </div>
+        </div>
+        <div class="hero-card glass">
+            <p class="muted">Status CAP</p>
+            <h3>Regras</h3>
+            <ul>
+                <li>CAP = soma dos 8 maiores OVRs</li>
+                <li>Min: 618 | Max: 648</li>
+                <li>Inserção bloqueada se exceder o máximo</li>
+            </ul>
+            <p class="muted">Dica: use fotos de usuário/time para personalizar a franquia.</p>
+        </div>
+    </header>
+
+    <main id="painel" class="grid">
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Usuário</p>
+                    <h2>Registrar GM</h2>
+                </div>
+                <span class="pill">cria e-mail de verificação</span>
+            </div>
+            <form id="form-register" class="stack">
+                <input name="name" placeholder="Nome" required />
+                <input name="email" type="email" placeholder="E-mail" required />
+                <input name="password" type="password" placeholder="Senha" required />
+                <input name="photo_url" type="url" placeholder="URL da foto do usuário (opcional)" />
+                <button type="submit">Registrar</button>
+            </form>
+            <pre id="register-result"></pre>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Sessão</p>
+                    <h2>Login</h2>
+                </div>
+            </div>
+            <form id="form-login" class="stack">
+                <input name="email" type="email" placeholder="E-mail" required />
+                <input name="password" type="password" placeholder="Senha" required />
+                <button type="submit">Entrar</button>
+            </form>
+            <pre id="login-result"></pre>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Franquia</p>
+                    <h2>Criar time</h2>
+                </div>
+                <span class="pill">gera picks 1ª/2ª</span>
+            </div>
+            <form id="form-team" class="stack">
+                <input name="user_id" placeholder="ID do usuário" required />
+                <input name="name" placeholder="Nome do time" required />
+                <input name="city" placeholder="Cidade" required />
+                <input name="mascot" placeholder="Mascote" required />
+                <input name="photo_url" type="url" placeholder="URL da foto do time (opcional)" />
+                <input name="division_id" placeholder="ID da divisão (opcional)" />
+                <button type="submit">Salvar time</button>
+            </form>
+            <pre id="team-result"></pre>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Elenco</p>
+                    <h2>Adicionar jogador</h2>
+                </div>
+                <span class="pill">valida CAP</span>
+            </div>
+            <form id="form-player" class="stack">
+                <input name="team_id" placeholder="ID do time" required />
+                <input name="name" placeholder="Nome" required />
+                <input name="age" type="number" placeholder="Idade" required />
+                <input name="position" placeholder="Posição" required />
+                <input name="role" placeholder="Tipo (Titular/Banco/Outro/G-League)" />
+                <input name="ovr" type="number" placeholder="OVR" required />
+                <label class="checkbox">
+                    <input type="checkbox" name="available_for_trade" /> Disponível para troca
+                </label>
+                <button type="submit">Adicionar</button>
+            </form>
+            <pre id="player-result"></pre>
+        </section>
+
+        <section class="card wide">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Visão</p>
+                    <h2>Times rápidos</h2>
+                </div>
+                <div class="cta-row">
+                    <button id="btn-load-teams" class="ghost">Recarregar</button>
+                    <a class="primary" href="/teams.html">Abrir elencos completos</a>
+                </div>
+            </div>
+            <pre id="teams-list"></pre>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>FBA — Central do GM. Controle de franquias, CAP e draft.</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
