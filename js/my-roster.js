@@ -167,31 +167,35 @@ async function deletePlayer(id) {
 }
 
 function openEditModal(player) {
+  if (!player) return;
+  
   const modalEl = document.getElementById('editPlayerModal');
-  if (!modalEl) return;
-  modalEl.querySelector('#edit-player-id').value = player.id;
-  modalEl.querySelector('#edit-name').value = player.name;
-  modalEl.querySelector('#edit-age').value = player.age;
-  modalEl.querySelector('#edit-position').value = player.position;
-  modalEl.querySelector('#edit-ovr').value = player.ovr;
-  modalEl.querySelector('#edit-role').value = player.role;
-  modalEl.querySelector('#edit-available').checked = !!player.available_for_trade;
-  const bsModal = new bootstrap.Modal(modalEl);
+  if (!modalEl) {
+    console.error('Modal não encontrado');
+    return;
+  }
+  
+  // Preencher os campos do modal
+  document.getElementById('edit-player-id').value = player.id;
+  document.getElementById('edit-name').value = player.name;
+  document.getElementById('edit-age').value = player.age;
+  document.getElementById('edit-position').value = player.position;
+  document.getElementById('edit-ovr').value = player.ovr;
+  document.getElementById('edit-role').value = player.role;
+  document.getElementById('edit-available').checked = !!player.available_for_trade;
+  
+  // Abrir modal com Bootstrap 5
+  const bsModal = new bootstrap.Modal(modalEl, {
+    backdrop: 'static',
+    keyboard: false
+  });
   bsModal.show();
 }
 
 function getRowPlayer(id) {
-  const row = Array.from(document.querySelectorAll('#players-tbody tr')).find(tr => tr.children[0].textContent == id);
-  if (!row) return null;
-  return {
-    id,
-    name: row.children[1].textContent,
-    position: row.children[2].textContent,
-    ovr: Number(row.children[3].querySelector('.badge').textContent),
-    role: row.children[4].textContent,
-    age: Number(row.children[5].textContent),
-    available_for_trade: row.querySelector('.btn-toggle-trade').dataset.trade === '1'
-  };
+  // Encontrar o jogador no array allPlayers usando o ID
+  const player = allPlayers.find(p => p.id === id);
+  return player || null;
 }
 
 // Bind

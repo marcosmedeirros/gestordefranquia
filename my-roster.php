@@ -201,24 +201,24 @@ $teamId = $team['id'] ?? null;
   <div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content bg-dark-panel border-orange">
-        <div class="modal-header">
+        <div class="modal-header border-bottom border-orange">
           <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2 text-orange"></i>Editar Jogador</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="edit-player-id">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label text-white fw-bold">Nome</label>
-              <input type="text" id="edit-name" class="form-control" required>
+              <input type="text" id="edit-name" class="form-control bg-dark text-white border-orange" required>
             </div>
             <div class="col-md-2">
               <label class="form-label text-white fw-bold">Idade</label>
-              <input type="number" id="edit-age" class="form-control" min="16" max="50" required>
+              <input type="number" id="edit-age" class="form-control bg-dark text-white border-orange" min="16" max="50" required>
             </div>
             <div class="col-md-2">
               <label class="form-label text-white fw-bold">Posição</label>
-              <select id="edit-position" class="form-select" required>
+              <select id="edit-position" class="form-select bg-dark text-white border-orange" required>
                 <option value="PG">PG</option>
                 <option value="SG">SG</option>
                 <option value="SF">SF</option>
@@ -228,11 +228,11 @@ $teamId = $team['id'] ?? null;
             </div>
             <div class="col-md-2">
               <label class="form-label text-white fw-bold">OVR</label>
-              <input type="number" id="edit-ovr" class="form-control" min="40" max="99" required>
+              <input type="number" id="edit-ovr" class="form-control bg-dark text-white border-orange" min="40" max="99" required>
             </div>
             <div class="col-md-4">
               <label class="form-label text-white fw-bold">Função</label>
-              <select id="edit-role" class="form-select" required>
+              <select id="edit-role" class="form-select bg-dark text-white border-orange" required>
                 <option value="Titular">Titular</option>
                 <option value="Banco">Banco</option>
                 <option value="Outro">Outro</option>
@@ -247,9 +247,9 @@ $teamId = $team['id'] ?? null;
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-white" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar</button>
+        <div class="modal-footer border-top border-orange">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar Mudanças</button>
         </div>
       </div>
     </div>
