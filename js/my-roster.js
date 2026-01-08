@@ -14,14 +14,20 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-// Função para calcular cor do OVR (gradiente verde)
+// Função para calcular cor do OVR com nova escala
 function getOvrColor(ovr) {
-  if (ovr >= 95) return '#00ff00'; // Verde brilhante
-  if (ovr >= 90) return '#7fff00'; // Verde-amarelo
-  if (ovr >= 85) return '#ffff00'; // Amarelo
-  if (ovr >= 80) return '#ffa500'; // Laranja
-  if (ovr >= 75) return '#ff6347'; // Tomate
-  return '#ff4444'; // Vermelho
+  // 99-95: Big (verde brilhante)
+  if (ovr >= 95) return '#00ff00';
+  // 94-89: Elite (verde)
+  if (ovr >= 89) return '#00dd00';
+  // 88-84: Muito Bom (amarelo claro)
+  if (ovr >= 84) return '#ffff00';
+  // 83-79: Bom Jogador (amarelo escuro/ouro)
+  if (ovr >= 79) return '#ffd700';
+  // 79-72: Jogadores (laranja)
+  if (ovr >= 72) return '#ff9900';
+  // 71-60: Ruins (vermelho)
+  return '#ff4444';
 }
 
 // Ordem padrão de funções
@@ -191,6 +197,14 @@ function getRowPlayer(id) {
 // Bind
 document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);
 document.getElementById('btn-add-player')?.addEventListener('click', addPlayer);
+
+// Adicionar event listeners aos headers para ordenação
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('sortable')) {
+    const field = e.target.getAttribute('data-sort');
+    if (field) sortPlayers(field);
+  }
+});
 
 // Delegation for actions
 document.getElementById('players-tbody')?.addEventListener('click', (e) => {

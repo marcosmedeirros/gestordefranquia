@@ -107,54 +107,61 @@ $teamId = $team['id'] ?? null;
     <?php if (!$teamId): ?>
       <div class="alert alert-warning">Você ainda não possui um time. Crie um no onboarding.</div>
     <?php else: ?>
-    <div class="card bg-dark-panel border-orange mb-4">
-      <div class="card-header bg-transparent border-orange">
-        <h5 class="mb-0 text-white"><i class="bi bi-plus-circle me-2 text-orange"></i>Adicionar Jogador</h5>
-      </div>
-      <div class="card-body">
-        <form id="form-player">
-          <div class="row g-3">
-            <div class="col-md-3">
-              <label class="form-label text-white fw-bold">Nome</label>
-              <input type="text" name="name" class="form-control" required>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label text-white fw-bold">OVR</label>
-              <input type="number" name="ovr" class="form-control" min="40" max="99" required>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label text-white fw-bold">Idade</label>
-              <input type="number" name="age" class="form-control" min="16" max="50" required>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label text-white fw-bold">Posição</label>
-              <select name="position" class="form-select" required>
-                <option value="PG">PG</option>
-                <option value="SG">SG</option>
-                <option value="SF">SF</option>
-                <option value="PF">PF</option>
-                <option value="C">C</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label text-white fw-bold">Função</label>
-              <select name="role" class="form-select" required>
-                <option value="Titular">Titular</option>
-                <option value="Banco">Banco</option>
-                <option value="Outro">Outro</option>
-                <option value="G-League">G-League</option>
-              </select>
-            </div>
-            <div class="col-md-12">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="available_for_trade" name="available_for_trade">
-                <label class="form-check-label text-light-gray" for="available_for_trade">Disponível para troca</label>
+    <!-- Accordion para adicionar jogador -->
+    <div class="accordion mb-4" id="accordionAddPlayer">
+      <div class="accordion-item bg-dark-panel border-orange">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed bg-dark-panel text-white border-orange" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAddPlayer">
+            <i class="bi bi-plus-circle me-2 text-orange"></i>Adicionar Jogador
+          </button>
+        </h2>
+        <div id="collapseAddPlayer" class="accordion-collapse collapse" data-bs-parent="#accordionAddPlayer">
+          <div class="accordion-body bg-dark-panel border-top border-orange">
+            <form id="form-player">
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label text-white fw-bold">Nome</label>
+                  <input type="text" name="name" class="form-control" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">OVR</label>
+                  <input type="number" name="ovr" class="form-control" min="40" max="99" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">Idade</label>
+                  <input type="number" name="age" class="form-control" min="16" max="50" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">Posição</label>
+                  <select name="position" class="form-select" required>
+                    <option value="PG">PG</option>
+                    <option value="SG">SG</option>
+                    <option value="SF">SF</option>
+                    <option value="PF">PF</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label text-white fw-bold">Função</label>
+                  <select name="role" class="form-select" required>
+                    <option value="Titular">Titular</option>
+                    <option value="Banco">Banco</option>
+                    <option value="Outro">Outro</option>
+                    <option value="G-League">G-League</option>
+                  </select>
+                </div>
+                <div class="col-md-12">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="available_for_trade" name="available_for_trade">
+                    <label class="form-check-label text-light-gray" for="available_for_trade">Disponível para troca</label>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div class="text-end mt-3">
+                <button type="button" class="btn btn-orange" id="btn-add-player"><i class="bi bi-save2 me-1"></i> Adicionar</button>
+              </div>
+            </form>
           </div>
-        </form>
-        <div class="text-end mt-3">
-          <button class="btn btn-orange" id="btn-add-player"><i class="bi bi-save2 me-1"></i> Adicionar</button>
         </div>
       </div>
     </div>
