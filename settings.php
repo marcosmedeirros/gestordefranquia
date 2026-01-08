@@ -72,6 +72,12 @@ $team = $stmtTeam->fetch() ?: null;
                 </a>
             </li>
             <li>
+                <a href="/ranking.php">
+                    <i class="bi bi-trophy-fill"></i>
+                    Ranking
+                </a>
+            </li>
+            <li>
                 <a href="/settings.php" class="active">
                     <i class="bi bi-gear-fill"></i>
                     Configurações
