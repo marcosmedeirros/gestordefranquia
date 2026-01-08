@@ -43,6 +43,8 @@ $pdo = db();
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
       <li><a href="/admin.php" class="active"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
+      <li><a href="#" onclick="showSeasons(); return false;"><i class="bi bi-calendar3"></i>Temporadas</a></li>
+      <li><a href="#" onclick="showRankingPage(); return false;"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
     </ul>
     <hr style="border-color: var(--fba-border);">
@@ -78,6 +80,7 @@ $pdo = db();
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script src="/js/admin.js"></script>
+  <script src="/js/seasons.js"></script>
   <script>
     // Toggle Sidebar Mobile (código legado - sidebar.js já gerencia isso)
     const sidebarToggle = document.getElementById('sidebarToggle');

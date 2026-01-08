@@ -35,6 +35,12 @@ function updateBreadcrumb() {
     } else if (appState.view === 'config') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Configurações</li>';
       pageTitle.textContent = 'Configurações das Ligas';
+    } else if (appState.view === 'seasons') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Temporadas</li>';
+      pageTitle.textContent = 'Gerenciar Temporadas';
+    } else if (appState.view === 'ranking') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>';
+      pageTitle.textContent = 'Rankings Globais';
     }
   }
 }
