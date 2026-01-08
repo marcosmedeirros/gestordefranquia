@@ -282,6 +282,7 @@ $teamId = $team['id'] ?? null;
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/sidebar.js"></script>
   <script src="/js/my-roster.js"></script>
 </body>
 </html>

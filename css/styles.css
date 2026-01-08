@@ -567,17 +567,22 @@ pre {
 	letter-spacing: 1px;
 }
 
+/* Responsividade Tablet */
 @media (max-width: 992px) {
-	.dashboard-sidebar {
-		width: 100%;
-		height: auto;
-		position: relative;
-		border-right: none;
-		border-bottom: 2px solid var(--fba-orange);
-	}
-	
 	.dashboard-content {
 		margin-left: 0;
+	}
+	
+	.stat-card {
+		margin-bottom: 1rem;
+	}
+	
+	.table-responsive {
+		overflow-x: auto;
+	}
+}
+
+/* Responsividade Mobile */
 	}
 }
 
@@ -738,6 +743,100 @@ pre {
 	.nav-tabs .nav-link {
 		font-size: 0.9rem;
 		padding: 0.5rem 1rem;
+	}
+	
+	/* Cards responsivos */
+	.stat-card {
+		padding: 1rem;
+	}
+	
+	.stat-value {
+		font-size: 1.8rem;
+	}
+	
+	/* Títulos menores */
+	h1 {
+		font-size: 1.75rem !important;
+	}
+	
+	h4 {
+		font-size: 1.25rem !important;
+	}
+	
+	/* Botões responsivos */
+	.btn-group-vertical {
+		width: 100%;
+	}
+	
+	.btn-group .btn {
+		font-size: 0.85rem;
+		padding: 0.5rem 0.75rem;
+	}
+	
+	/* Alertas e cards */
+	.alert {
+		flex-direction: column;
+		text-align: center;
+	}
+	
+	.alert .btn {
+		margin-top: 1rem;
+		width: 100%;
+	}
+	
+	/* Admin específico */
+	.bg-dark-panel {
+		padding: 1rem !important;
+	}
+	
+	/* Tabelas */
+	.table {
+		font-size: 0.8rem;
+	}
+	
+	.table th,
+	.table td {
+		padding: 0.5rem;
+	}
+	
+	/* Modais */
+	.modal-dialog {
+		margin: 0.5rem;
+	}
+	
+	/* Forms */
+	.form-label {
+		font-size: 0.9rem;
+	}
+	
+	.form-control,
+	.form-select {
+		font-size: 0.9rem;
+	}
+}
+
+/* Extra small devices */
+@media (max-width: 576px) {
+	.dashboard-content {
+		padding: 60px 10px 20px;
+	}
+	
+	.stat-value {
+		font-size: 1.5rem;
+	}
+	
+	h1 {
+		font-size: 1.5rem !important;
+	}
+	
+	.btn-sm {
+		font-size: 0.75rem;
+		padding: 0.375rem 0.5rem;
+	}
+	
+	/* Ocultar alguns ícones decorativos em telas muito pequenas */
+	.display-4 {
+		font-size: 2rem !important;
 	}
 }
 
