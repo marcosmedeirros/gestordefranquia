@@ -104,8 +104,13 @@ $user = getUserSession();
         btn.classList.remove('btn-orange');
         btn.classList.add('btn-outline-orange');
       });
-      event.target.classList.remove('btn-outline-orange');
-      event.target.classList.add('btn-orange');
+      
+      // Ativar o botão correto
+      const activeBtn = document.querySelector(`button[onclick*="${type}"]`);
+      if (activeBtn) {
+        activeBtn.classList.remove('btn-outline-orange');
+        activeBtn.classList.add('btn-orange');
+      }
 
       const container = document.getElementById('rankingContainer');
       container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
@@ -181,8 +186,10 @@ $user = getUserSession();
       }
     }
 
-    // Carregar ranking da liga do usuário ao iniciar
-    loadRanking(userLeague.toLowerCase());
+    // Carregar ranking geral ao iniciar
+    document.addEventListener('DOMContentLoaded', () => {
+      loadRanking('global');
+    });
   </script>
 </body>
 </html>
