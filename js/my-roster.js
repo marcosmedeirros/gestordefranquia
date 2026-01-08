@@ -190,7 +190,8 @@ function renderPlayers(players) {
     cardsContainer.appendChild(card);
   });
   
-  // Mostrar lista
+  // Mostrar lista e ocultar loading
+  document.getElementById('players-status').style.display = 'none';
   document.getElementById('players-list').classList.remove('d-none');
   document.getElementById('players-cards-mobile').classList.remove('d-none');
 
