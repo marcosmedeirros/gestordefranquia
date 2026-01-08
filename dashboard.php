@@ -1,172 +1,270 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
+require_once __DIR__ . '/backend/db.php';
 requireAuth();
 
 $user = getUserSession();
+$pdo = db();
+
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
+
+// Se não tem time, redireciona para onboarding
+if (!$team) {
+    header('Location: /onboarding.php');
+    exit;
+}
+
+// Buscar estatísticas do time
+$stmtPlayers = $pdo->prepare('SELECT COUNT(*) as total, SUM(ovr) as total_ovr FROM players WHERE team_id = ?');
+$stmtPlayers->execute([$team['id']]);
+$stats = $stmtPlayers->fetch();
+
+$totalPlayers = $stats['total'] ?? 0;
+$avgOvr = $totalPlayers > 0 ? round($stats['total_ovr'] / $totalPlayers, 1) : 0;
+
+// Buscar jogadores titulares
+$stmtTitulares = $pdo->prepare("SELECT * FROM players WHERE team_id = ? AND role = 'Titular' ORDER BY ovr DESC");
+$stmtTitulares->execute([$team['id']]);
+$titulares = $stmtTitulares->fetchAll();
+
+// Calcular CAP
+$teamCap = 0;
+$stmtCap = $pdo->prepare('SELECT SUM(ovr) as cap FROM players WHERE team_id = ?');
+$stmtCap->execute([$team['id']]);
+$capData = $stmtCap->fetch();
+$teamCap = $capData['cap'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard - FBA Manager Control</title>
+    <title>Dashboard - FBA Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="/dashboard.php">
-                <img src="/img/fba-logo.png" alt="FBA" height="40" class="me-2">
-                <span class="fw-bold">Manager Control FBA</span>
+    <!-- Sidebar -->
+    <div class="dashboard-sidebar">
+        <div class="text-center mb-4">
+            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" 
+                 alt="<?= htmlspecialchars($team['name']) ?>" class="team-avatar">
+            <h5 class="text-white mb-1"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></h5>
+            <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
+        </div>
+
+        <hr style="border-color: var(--fba-border);">
+
+        <ul class="sidebar-menu">
+            <li>
+                <a href="/dashboard.php" class="active">
+                    <i class="bi bi-house-door-fill"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="/teams.php">
+                    <i class="bi bi-people-fill"></i>
+                    Todos os Times
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-person-fill"></i>
+                    Meu Elenco
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-trophy-fill"></i>
+                    Drafts
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-arrow-left-right"></i>
+                    Trades
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    Estatísticas
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-gear-fill"></i>
+                    Configurações
+                </a>
+            </li>
+        </ul>
+
+        <hr style="border-color: var(--fba-border);">
+
+        <div class="text-center">
+            <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
+                <i class="bi bi-box-arrow-right me-2"></i>Sair
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <span class="badge bg-gradient-orange me-3">
-                            <i class="bi bi-trophy-fill me-1"></i><?= htmlspecialchars($user['league']) ?>
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/teams.php"><i class="bi bi-people-fill me-1"></i>Elencos</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle me-1"></i><?= htmlspecialchars($user['name']) ?>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end bg-dark-panel border-orange">
-                            <li><a class="dropdown-item text-light" href="/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container py-5">
-        <div class="row mb-4">
-            <div class="col">
-                <h1 class="display-5 fw-bold">
-                    <i class="bi bi-speedometer2 text-orange me-2"></i>Dashboard
-                </h1>
-                <p class="text-light-gray">Bem-vindo, <?= htmlspecialchars($user['name']) ?>! Você está na liga <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span></p>
-            </div>
         </div>
 
-        <div class="row g-4">
-            <!-- Criar Time -->
-            <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-header bg-transparent border-orange">
-                        <h5 class="mb-0"><i class="bi bi-trophy me-2 text-orange"></i>Criar Time</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="form-team">
-                            <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
-                            <div class="mb-3">
-                                <label class="form-label">Nome do time</label>
-                                <input name="name" class="form-control bg-dark text-light" placeholder="Ex: Lakers" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Cidade</label>
-                                <input name="city" class="form-control bg-dark text-light" placeholder="Ex: Los Angeles" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Mascote</label>
-                                <input name="mascot" class="form-control bg-dark text-light" placeholder="Ex: Lakers" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">URL da foto (opcional)</label>
-                                <input name="photo_url" type="url" class="form-control bg-dark text-light" placeholder="https://...">
-                            </div>
-                            <button type="submit" class="btn btn-orange w-100"><i class="bi bi-plus-circle me-2"></i>Criar Time</button>
-                        </form>
-                        <div id="team-message" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Adicionar Jogador -->
-            <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-header bg-transparent border-orange">
-                        <h5 class="mb-0"><i class="bi bi-person-plus me-2 text-orange"></i>Adicionar Jogador</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="form-player">
-                            <div class="mb-3">
-                                <label class="form-label">ID do Time</label>
-                                <input name="team_id" type="number" class="form-control bg-dark text-light" placeholder="1" required>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-8 mb-3">
-                                    <label class="form-label">Nome</label>
-                                    <input name="name" class="form-control bg-dark text-light" placeholder="LeBron James" required>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Idade</label>
-                                    <input name="age" type="number" class="form-control bg-dark text-light" placeholder="30" required>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Posição</label>
-                                    <input name="position" class="form-control bg-dark text-light" placeholder="SF" required>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">OVR</label>
-                                    <input name="ovr" type="number" class="form-control bg-dark text-light" placeholder="90" required>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Tipo</label>
-                                    <select name="role" class="form-control bg-dark text-light">
-                                        <option value="Titular">Titular</option>
-                                        <option value="Banco">Banco</option>
-                                        <option value="Outro">Outro</option>
-                                        <option value="G-League">G-League</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-check mb-3">
-                                <input type="checkbox" name="available_for_trade" class="form-check-input" id="tradeCheck">
-                                <label class="form-check-label text-light-gray" for="tradeCheck">
-                                    Disponível para troca
-                                </label>
-                            </div>
-                            <button type="submit" class="btn btn-orange w-100"><i class="bi bi-plus-circle me-2"></i>Adicionar Jogador</button>
-                        </form>
-                        <div id="player-message" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Lista de Times -->
-            <div class="col-12">
-                <div class="card bg-dark-panel border-orange">
-                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-list-ul me-2 text-orange"></i>Meus Times</h5>
-                        <button id="btn-load-teams" class="btn btn-sm btn-orange"><i class="bi bi-arrow-clockwise me-1"></i>Recarregar</button>
-                    </div>
-                    <div class="card-body">
-                        <div id="teams-list" class="table-responsive"></div>
-                    </div>
-                </div>
-            </div>
+        <div class="text-center mt-3">
+            <small class="text-muted">
+                <i class="bi bi-person-circle me-1"></i>
+                <?= htmlspecialchars($user['name']) ?>
+            </small>
         </div>
     </div>
 
-    <footer class="footer">
-        <p>FBA — Manager Control • marcosmedeiros.page</p>
-    </footer>
+    <!-- Main Content -->
+    <div class="dashboard-content">
+        <div class="mb-4">
+            <h1 class="text-white fw-bold mb-2">Dashboard</h1>
+            <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Jogadores</div>
+                            <div class="stat-value"><?= $totalPlayers ?></div>
+                        </div>
+                        <i class="bi bi-people-fill display-4 text-orange"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">OVR Médio</div>
+                            <div class="stat-value"><?= $avgOvr ?></div>
+                        </div>
+                        <i class="bi bi-star-fill display-4 text-orange"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">CAP Total</div>
+                            <div class="stat-value"><?= $teamCap ?></div>
+                        </div>
+                        <i class="bi bi-cash-stack display-4 text-orange"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Liga</div>
+                            <div class="stat-value" style="font-size: 1.8rem;"><?= htmlspecialchars($user['league']) ?></div>
+                        </div>
+                        <i class="bi bi-trophy-fill display-4 text-orange"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Titular -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card bg-dark-panel border-orange">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-trophy me-2 text-orange"></i>Quinteto Titular
+                        </h4>
+                        <button class="btn btn-outline-orange btn-sm" onclick="window.location.href='/teams.php'">
+                            <i class="bi bi-plus-circle me-1"></i>Gerenciar Elenco
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <?php if (count($titulares) > 0): ?>
+                            <div class="row g-3">
+                                <?php foreach ($titulares as $player): ?>
+                                    <div class="col-md-2">
+                                        <div class="card bg-dark text-white h-100">
+                                            <div class="card-body text-center p-3">
+                                                <span class="badge bg-orange mb-2"><?= htmlspecialchars($player['position']) ?></span>
+                                                <h6 class="mb-1"><?= htmlspecialchars($player['name']) ?></h6>
+                                                <p class="mb-0 text-muted small">OVR: <?= $player['ovr'] ?></p>
+                                                <p class="mb-0 text-muted small"><?= $player['age'] ?> anos</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center text-muted py-5">
+                                <i class="bi bi-exclamation-circle display-1"></i>
+                                <p class="mt-3">Você ainda não tem jogadores titulares.</p>
+                                <a href="/teams.php" class="btn btn-orange">
+                                    <i class="bi bi-plus-circle me-2"></i>Adicionar Jogadores
+                                </a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-person-plus-fill display-3 text-orange mb-3"></i>
+                        <h5 class="text-white">Adicionar Jogador</h5>
+                        <p class="text-light-gray mb-3">Adicione novos jogadores ao seu elenco</p>
+                        <button class="btn btn-orange" onclick="alert('Em breve!')">
+                            <i class="bi bi-plus-circle me-2"></i>Adicionar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-arrow-left-right display-3 text-orange mb-3"></i>
+                        <h5 class="text-white">Propor Trade</h5>
+                        <p class="text-light-gray mb-3">Negocie jogadores com outros times</p>
+                        <button class="btn btn-orange" onclick="alert('Em breve!')">
+                            <i class="bi bi-arrow-left-right me-2"></i>Negociar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-trophy-fill display-3 text-orange mb-3"></i>
+                        <h5 class="text-white">Participar do Draft</h5>
+                        <p class="text-light-gray mb-3">Escolha novos talentos no draft</p>
+                        <button class="btn btn-orange" onclick="alert('Em breve!')">
+                            <i class="bi bi-trophy me-2"></i>Draft
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/dashboard.js"></script>
 </body>
 </html>
