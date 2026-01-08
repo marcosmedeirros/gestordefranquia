@@ -195,8 +195,6 @@ function getOvrColor($ovr) {
                         <th class="text-white fw-bold">Posição</th>
                         <th class="text-white fw-bold">Escola</th>
                         <th class="text-white fw-bold">País</th>
-                        <th class="text-white fw-bold">Overall</th>
-                        <th class="text-white fw-bold">Ação</th>
                     </tr>
                 </thead>
                 <tbody id="playersTableBody">
@@ -207,16 +205,6 @@ function getOvrColor($ovr) {
                             <td><span class="badge bg-orange"><?= htmlspecialchars($player['position']) ?></span></td>
                             <td class="text-light-gray"><?= htmlspecialchars($player['school']) ?></td>
                             <td class="text-light-gray"><?= htmlspecialchars($player['country']) ?></td>
-                            <td>
-                                <span class="badge" style="background-color: <?= getOvrColor($player['ovr']) ?>; color: #000; font-weight: bold;">
-                                    <?= $player['ovr'] ?>
-                                </span>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-orange" onclick="selectPlayer(this, '<?= htmlspecialchars($player['name']) ?>')">
-                                    <i class="bi bi-check-circle me-1"></i>Selecionar
-                                </button>
-                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -226,22 +214,6 @@ function getOvrColor($ovr) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function getOvrColor(ovr) {
-            if (ovr >= 95) return '#00ff00';
-            if (ovr >= 90) return '#80ff00';
-            if (ovr >= 85) return '#ffff00';
-            if (ovr >= 80) return '#ff9900';
-            if (ovr >= 70) return '#ff6600';
-            return '#ff3333';
-        }
-
-        function selectPlayer(button, playerName) {
-            button.innerHTML = '<i class="bi bi-check me-1"></i>Selecionado';
-            button.disabled = true;
-            button.classList.remove('btn-orange');
-            button.classList.add('btn-success');
-        }
-
         // Search functionality
         document.getElementById('searchInput').addEventListener('keyup', function() {
             filterPlayers();
