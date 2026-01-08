@@ -1,8 +1,15 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
+require_once __DIR__ . '/backend/db.php';
 requireAuth();
 
 $user = getUserSession();
+$pdo = db();
+
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch() ?: null;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -18,39 +25,80 @@ $user = getUserSession();
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="/dashboard.php">
-                <img src="/img/fba-logo.png" alt="FBA" height="40" class="me-2">
-                <span class="fw-bold">Manager Control FBA</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <span class="badge bg-gradient-orange me-3">
-                            <i class="bi bi-trophy-fill me-1"></i><?= htmlspecialchars($user['league']) ?>
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard.php"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle me-1"></i><?= htmlspecialchars($user['name']) ?>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end bg-dark-panel border-orange">
-                            <li><a class="dropdown-item text-light" href="/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
+    <!-- Sidebar -->
+    <div class="dashboard-sidebar">
+        <div class="text-center mb-4">
+            <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
+                 alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
+            <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
+            <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
         </div>
-    </nav>
 
-    <div class="container py-5">
+        <hr style="border-color: var(--fba-border);">
+
+        <ul class="sidebar-menu">
+            <li>
+                <a href="/dashboard.php">
+                    <i class="bi bi-house-door-fill"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="/teams.php" class="active">
+                    <i class="bi bi-people-fill"></i>
+                    Todos os Times
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-person-fill"></i>
+                    Meu Elenco
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-trophy-fill"></i>
+                    Drafts
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-arrow-left-right"></i>
+                    Trades
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    Estatísticas
+                </a>
+            </li>
+            <li>
+                <a href="/settings.php">
+                    <i class="bi bi-gear-fill"></i>
+                    Configurações
+                </a>
+            </li>
+        </ul>
+
+        <hr style="border-color: var(--fba-border);">
+
+        <div class="text-center">
+            <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
+                <i class="bi bi-box-arrow-right me-2"></i>Sair
+            </a>
+        </div>
+
+        <div class="text-center mt-3">
+            <small class="text-light-gray">
+                <i class="bi bi-person-circle me-1"></i>
+                <?= htmlspecialchars($user['name']) ?>
+            </small>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="dashboard-content">
         <div class="row mb-4">
             <div class="col-md-8">
                 <h1 class="display-5 fw-bold">
@@ -77,10 +125,6 @@ $user = getUserSession();
 
         <div id="roster-grid" class="row g-4"></div>
     </div>
-
-    <footer class="footer">
-        <p>FBA — Manager Control • marcosmedeiros.page</p>
-    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/teams.js"></script>

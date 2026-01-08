@@ -23,7 +23,80 @@ $team = $stmtTeam->fetch() ?: null;
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
-    <div class="container py-5">
+    <!-- Sidebar -->
+    <div class="dashboard-sidebar">
+        <div class="text-center mb-4">
+            <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
+                 alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
+            <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
+            <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
+        </div>
+
+        <hr style="border-color: var(--fba-border);">
+
+        <ul class="sidebar-menu">
+            <li>
+                <a href="/dashboard.php">
+                    <i class="bi bi-house-door-fill"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="/teams.php">
+                    <i class="bi bi-people-fill"></i>
+                    Todos os Times
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-person-fill"></i>
+                    Meu Elenco
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-trophy-fill"></i>
+                    Drafts
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-arrow-left-right"></i>
+                    Trades
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="alert('Em breve!'); return false;">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    Estatísticas
+                </a>
+            </li>
+            <li>
+                <a href="/settings.php" class="active">
+                    <i class="bi bi-gear-fill"></i>
+                    Configurações
+                </a>
+            </li>
+        </ul>
+
+        <hr style="border-color: var(--fba-border);">
+
+        <div class="text-center">
+            <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
+                <i class="bi bi-box-arrow-right me-2"></i>Sair
+            </a>
+        </div>
+
+        <div class="text-center mt-3">
+            <small class="text-light-gray">
+                <i class="bi bi-person-circle me-1"></i>
+                <?= htmlspecialchars($user['name']) ?>
+            </small>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="dashboard-content">
         <div class="mb-4 d-flex align-items-center justify-content-between">
             <h1 class="text-white fw-bold mb-2"><i class="bi bi-gear-fill me-2 text-orange"></i>Configurações</h1>
             <a class="btn btn-outline-orange" href="/dashboard.php"><i class="bi bi-arrow-left me-1"></i> Voltar ao Dashboard</a>
