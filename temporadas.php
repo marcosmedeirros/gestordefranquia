@@ -561,11 +561,11 @@ if (!$team) {
                     <label class="form-label text-white">Posição</label>
                     <select class="form-select bg-dark text-white border-orange" name="position" required>
                       <option value="">Selecione...</option>
-                      <option value="PG">PG</option>
-                      <option value="SG">SG</option>
-                      <option value="SF">SF</option>
-                      <option value="PF">PF</option>
-                      <option value="C">C</option>
+                      <option value="PG">PG - Armador</option>
+                      <option value="SG">SG - Ala-Armador</option>
+                      <option value="SF">SF - Ala</option>
+                      <option value="PF">PF - Ala-Pivô</option>
+                      <option value="C">C - Pivô</option>
                     </select>
                   </div>
                   <div class="mb-3">

@@ -148,13 +148,15 @@ try {
             // Para cada time, gerar 2 picks POR TEMPORADA do sprint
             foreach ($teams as $team) {
                 for ($tempNum = 1; $tempNum <= $maxSeasons; $tempNum++) {
+                    $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT); // "Ano 01", "Ano 02", etc
+                    
                     // Pick Rodada 1 para temporada X
                     $pickLabel = "T{$tempNum} R1";
-                    $stmtPick->execute([$team['id'], $team['id'], $year, $pickLabel, $seasonId]);
+                    $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
                     
                     // Pick Rodada 2 para temporada X
                     $pickLabel = "T{$tempNum} R2";
-                    $stmtPick->execute([$team['id'], $team['id'], $year, $pickLabel, $seasonId]);
+                    $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
                 }
             }
             

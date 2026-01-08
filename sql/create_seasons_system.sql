@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS draft_pool (
     id INT AUTO_INCREMENT PRIMARY KEY,
     season_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
-    position ENUM('Armador', 'Ala-Armador', 'Ala', 'Ala-Pivô', 'Pivô') NOT NULL,
+    position ENUM('PG', 'SG', 'SF', 'PF', 'C') NOT NULL,
     age INT NOT NULL,
     ovr INT NOT NULL CHECK (ovr >= 1 AND ovr <= 99),
     photo_url VARCHAR(255),
