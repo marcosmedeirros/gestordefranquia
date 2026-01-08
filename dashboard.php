@@ -80,19 +80,19 @@ $teamCap = $capData['cap'] ?? 0;
                 </a>
             </li>
             <li>
-                <a href="#" onclick="alert('Em breve!'); return false;">
+                <a href="/drafts.php">
                     <i class="bi bi-trophy-fill"></i>
                     Drafts
                 </a>
             </li>
             <li>
-                <a href="#" onclick="alert('Em breve!'); return false;">
+                <a href="/trades.php">
                     <i class="bi bi-arrow-left-right"></i>
                     Trades
                 </a>
             </li>
             <li>
-                <a href="#" onclick="alert('Em breve!'); return false;">
+                <a href="/estatisticas.php">
                     <i class="bi bi-bar-chart-fill"></i>
                     Estatísticas
                 </a>
