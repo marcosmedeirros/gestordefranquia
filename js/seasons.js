@@ -88,7 +88,7 @@ async function showSeasonsManagement() {
                 </h3>
             </div>
             <div class="col-md-4">
-                <div class="card bg-dark-elevated border-0">
+                <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
                         <h5 class="text-orange mb-2">
                             <i class="bi bi-calendar-check"></i> Temporadas
@@ -98,7 +98,7 @@ async function showSeasonsManagement() {
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-dark-elevated border-0">
+                <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
                         <h5 class="text-orange mb-2">
                             <i class="bi bi-people"></i> Picks Automáticas
@@ -108,7 +108,7 @@ async function showSeasonsManagement() {
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-dark-elevated border-0">
+                <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
                         <h5 class="text-orange mb-2">
                             <i class="bi bi-bar-chart"></i> Ranking Acumulativo
@@ -183,7 +183,7 @@ async function showDraftManagement(seasonId, league) {
         
         <div class="row g-3 mb-4">
             <div class="col-md-8">
-                <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+                <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                     <div class="card-body">
                         <h4 class="text-white mb-1">Draft - Temporada ${season.season_number}</h4>
                         <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${season.year}</p>
@@ -234,7 +234,7 @@ async function showDraftManagement(seasonId, league) {
 // ========== FORMULÁRIO DE HISTÓRICO ==========
 function renderHistoryForm(seasonId, league) {
     return `
-        <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+        <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
             <div class="card-body">
                 <h5 class="text-white mb-4">
                     <i class="bi bi-pencil-square text-orange me-2"></i>
@@ -403,13 +403,13 @@ function renderDraftPlayers(players) {
                     <div class="row g-3">
                         ${available.map(p => `
                             <div class="col-md-4">
-                                <div class="card bg-dark text-white h-100">
+                                <div class="card bg-dark-panel border-orange h-100">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
                                             <span class="badge bg-orange">${p.position}</span>
                                             <span class="badge bg-success">OVR ${p.ovr}</span>
                                         </div>
-                                        <h6 class="mb-1">${p.name}</h6>
+                                        <h6 class="text-white mb-1">${p.name}</h6>
                                         <p class="text-light-gray small mb-2">${p.age} anos</p>
                                         <div class="d-flex gap-1">
                                             <button class="btn btn-sm btn-outline-warning flex-fill" onclick="editDraftPlayer(${p.id})">

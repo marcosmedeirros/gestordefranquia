@@ -139,7 +139,7 @@ $userLeague = $team['league'];
           <div class="row g-4">
             ${seasonsList.map(s => `
               <div class="col-md-6 col-lg-4">
-                <div class="card bg-dark-elevated border-0 h-100" style="border-radius: 15px;">
+                <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
                   <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                       <h5 class="text-white mb-0">

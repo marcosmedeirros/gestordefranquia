@@ -198,7 +198,7 @@ if (!$team) {
         
         <div class="row g-4 mb-4">
           <div class="col-md-8">
-            <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+            <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-4">
                   <div>
@@ -214,20 +214,18 @@ if (!$team) {
                 </div>
                 
                 ${sprintCompleted ? `
-                  <div class="alert alert-success mb-4" style="border-radius: 15px;">
-                    <i class="bi bi-check-circle me-2"></i>
-                    <strong>Sprint Completo!</strong> Todas as ${maxSeasons} temporadas foram concluídas.
+                  <div class="alert alert-success mb-4" style="border-radius: 15px; background: rgba(25, 135, 84, 0.2); border: 1px solid rgba(25, 135, 84, 0.5);">
+                    <i class="bi bi-check-circle me-2 text-success"></i>
+                    <strong class="text-white">Sprint Completo!</strong> 
+                    <span class="text-light-gray">Todas as ${maxSeasons} temporadas foram concluídas.</span>
                   </div>
                   <button class="btn btn-orange btn-lg w-100" onclick="confirmResetSprint('${league}')">
                     <i class="bi bi-arrow-clockwise me-2"></i>Começar Novo Sprint
                   </button>
                 ` : `
-                  <div class="card bg-dark-panel border-orange mb-3" style="border-radius: 15px;">
-                    <div class="card-body text-center py-4">
-                      <h5 class="text-light-gray mb-3">Tempo decorrido</h5>
-                      <div id="timer" class="display-4 text-orange fw-bold">00:00:00</div>
-                      <p class="text-light-gray mt-3 mb-0">Desde ${new Date(season.created_at).toLocaleString('pt-BR')}</p>
-                    </div>
+                  <div class="mb-3 text-center">
+                    <p class="text-light-gray mb-2">Temporada iniciada em:</p>
+                    <p class="text-white fw-bold">${new Date(season.created_at).toLocaleString('pt-BR')}</p>
                   </div>
                   <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
                     <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
@@ -238,13 +236,13 @@ if (!$team) {
           </div>
           
           <div class="col-md-4">
-            <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+            <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
               <div class="card-body">
                 <h5 class="text-white mb-3">
                   <i class="bi bi-info-circle text-orange me-2"></i>
                   Progresso do Sprint
                 </h5>
-                <div class="progress mb-3" style="height: 25px; border-radius: 15px;">
+                <div class="progress mb-3" style="height: 25px; border-radius: 15px; background: rgba(241, 117, 7, 0.2);">
                   <div class="progress-bar bg-gradient-orange" role="progressbar" 
                        style="width: ${(season.season_number / maxSeasons * 100).toFixed(0)}%">
                     ${(season.season_number / maxSeasons * 100).toFixed(0)}%
@@ -259,7 +257,7 @@ if (!$team) {
         </div>
         
         <!-- GERENCIAR DRAFT -->
-        <div class="card bg-dark-elevated border-0 mb-4" style="border-radius: 15px;">
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
           <div class="card-body">
             <h4 class="text-white mb-3">
               <i class="bi bi-trophy text-orange me-2"></i>
@@ -272,7 +270,7 @@ if (!$team) {
         </div>
         
         <!-- CADASTRO DE HISTÓRICO -->
-        <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+        <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
           <div class="card-body">
             <h4 class="text-white mb-3">
               <i class="bi bi-award text-orange me-2"></i>
@@ -405,7 +403,7 @@ if (!$team) {
             <i class="bi bi-arrow-left me-2"></i>Voltar
           </button>
           
-          <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+          <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
             <div class="card-body">
               <h3 class="text-white mb-4">
                 <i class="bi bi-award text-orange me-2"></i>

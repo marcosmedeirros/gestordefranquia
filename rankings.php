@@ -134,7 +134,7 @@ $user = getUserSession();
         }
 
         container.innerHTML = `
-          <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+          <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
             <div class="card-body p-0">
               <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0">

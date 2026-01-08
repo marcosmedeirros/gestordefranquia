@@ -122,7 +122,7 @@ $userLeague = $team['league'];
         document.getElementById('draftContainer').innerHTML = `
           <div class="row mb-4">
             <div class="col-md-6">
-              <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                 <div class="card-body">
                   <h5 class="text-white mb-2">
                     <i class="bi bi-calendar3 text-orange me-2"></i>
@@ -134,7 +134,7 @@ $userLeague = $team['league'];
               </div>
             </div>
             <div class="col-md-6">
-              <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                 <div class="card-body">
                   <h5 class="text-white mb-2">
                     <i class="bi bi-people text-orange me-2"></i>
@@ -161,7 +161,7 @@ $userLeague = $team['league'];
               </div>
             ` : available.map(p => `
               <div class="col-md-6 col-lg-4">
-                <div class="card bg-dark-elevated border-0 h-100" style="border-radius: 15px;">
+                <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
                   <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                       <img src="${p.photo_url || '/img/default-player.png'}" 
