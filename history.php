@@ -100,14 +100,12 @@ $userLeague = $team['league'];
 
         if (champions.length === 0) {
           document.getElementById('historyContainer').innerHTML = `
-            <div class="card bg-dark-elevated border-0 text-center py-5" style="border-radius: 15px;">
-              <div class="card-body">
-                <i class="bi bi-clock-history text-orange fs-1 mb-3"></i>
-                <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
-                <p class="text-light-gray">
-                  Ainda não há histórico de temporadas registrado para a liga <strong class="text-orange">${userLeague}</strong>.
-                </p>
-              </div>
+            <div class="text-center py-5">
+              <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
+              <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
+              <p class="text-light-gray">
+                Ainda não há histórico de temporadas registrado para a liga <strong class="text-orange">${userLeague}</strong>.
+              </p>
             </div>
           `;
           return;
