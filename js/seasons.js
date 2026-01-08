@@ -5,6 +5,120 @@ const seasonsState = {
     draftPlayers: []
 };
 
+// ========== TELA PRINCIPAL DE TEMPORADAS ==========
+async function showSeasonsManagement() {
+    // Atualizar breadcrumb
+    appState.view = 'seasons';
+    updateBreadcrumb();
+    
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = `
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <h3 class="text-white mb-3">
+                    <i class="bi bi-calendar3 text-orange me-2"></i>
+                    Gerenciar Temporadas
+                </h3>
+            </div>
+            
+            <!-- ELITE -->
+            <div class="col-md-6 col-lg-3">
+                <div class="league-card" style="cursor: default;">
+                    <h3>ELITE</h3>
+                    <p class="text-light-gray mb-2">20 temporadas por sprint</p>
+                    <button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="createNewSeason('ELITE')">
+                        <i class="bi bi-plus-circle me-1"></i>Nova Temporada
+                    </button>
+                    <button class="btn btn-sm btn-orange w-100" onclick="showDraftManagement(null, 'ELITE')">
+                        <i class="bi bi-trophy me-1"></i>Gerenciar Draft
+                    </button>
+                </div>
+            </div>
+            
+            <!-- NEXT -->
+            <div class="col-md-6 col-lg-3">
+                <div class="league-card" style="cursor: default;">
+                    <h3>NEXT</h3>
+                    <p class="text-light-gray mb-2">15 temporadas por sprint</p>
+                    <button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="createNewSeason('NEXT')">
+                        <i class="bi bi-plus-circle me-1"></i>Nova Temporada
+                    </button>
+                    <button class="btn btn-sm btn-orange w-100" onclick="showDraftManagement(null, 'NEXT')">
+                        <i class="bi bi-trophy me-1"></i>Gerenciar Draft
+                    </button>
+                </div>
+            </div>
+            
+            <!-- RISE -->
+            <div class="col-md-6 col-lg-3">
+                <div class="league-card" style="cursor: default;">
+                    <h3>RISE</h3>
+                    <p class="text-light-gray mb-2">10 temporadas por sprint</p>
+                    <button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="createNewSeason('RISE')">
+                        <i class="bi bi-plus-circle me-1"></i>Nova Temporada
+                    </button>
+                    <button class="btn btn-sm btn-orange w-100" onclick="showDraftManagement(null, 'RISE')">
+                        <i class="bi bi-trophy me-1"></i>Gerenciar Draft
+                    </button>
+                </div>
+            </div>
+            
+            <!-- ROOKIE -->
+            <div class="col-md-6 col-lg-3">
+                <div class="league-card" style="cursor: default;">
+                    <h3>ROOKIE</h3>
+                    <p class="text-light-gray mb-2">10 temporadas por sprint</p>
+                    <button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="createNewSeason('ROOKIE')">
+                        <i class="bi bi-plus-circle me-1"></i>Nova Temporada
+                    </button>
+                    <button class="btn btn-sm btn-orange w-100" onclick="showDraftManagement(null, 'ROOKIE')">
+                        <i class="bi bi-trophy me-1"></i>Gerenciar Draft
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-12">
+                <h3 class="text-white mb-3">
+                    <i class="bi bi-info-circle text-orange me-2"></i>
+                    Informações do Sistema
+                </h3>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark-elevated border-0">
+                    <div class="card-body">
+                        <h5 class="text-orange mb-2">
+                            <i class="bi bi-calendar-check"></i> Temporadas
+                        </h5>
+                        <p class="text-light-gray mb-0">Cada liga possui um número específico de temporadas por sprint (ciclo).</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark-elevated border-0">
+                    <div class="card-body">
+                        <h5 class="text-orange mb-2">
+                            <i class="bi bi-people"></i> Picks Automáticas
+                        </h5>
+                        <p class="text-light-gray mb-0">Ao criar uma temporada, são geradas automaticamente 2 picks (1ª e 2ª rodada) para cada time.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark-elevated border-0">
+                    <div class="card-body">
+                        <h5 class="text-orange mb-2">
+                            <i class="bi bi-bar-chart"></i> Ranking Acumulativo
+                        </h5>
+                        <p class="text-light-gray mb-0">Os pontos do ranking são acumulativos e nunca resetam. Use "Rankings" no menu para visualizar.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // ========== BUSCAR TEMPORADA ATUAL ==========
 async function loadCurrentSeason(league) {
     try {
@@ -246,6 +360,10 @@ async function deleteDraftPlayer(id) {
 
 // ========== RANKING ==========
 async function showRankingPage(type = 'global') {
+    // Atualizar breadcrumb
+    appState.view = 'ranking';
+    updateBreadcrumb();
+    
     const container = document.getElementById('mainContainer');
     container.innerHTML = `
         <div class="mb-4">
