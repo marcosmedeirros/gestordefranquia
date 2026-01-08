@@ -199,7 +199,7 @@ $teamCap = $capData['cap'] ?? 0;
                     </div>
                     <div class="card-body">
                         <?php if (count($titulares) > 0): ?>
-                            <div class="row g-3">
+                            <div class="row g-3 justify-content-center">
                                 <?php foreach ($titulares as $player): ?>
                                     <div class="col-md-2">
                                         <div class="card bg-dark text-white h-100">
@@ -235,9 +235,9 @@ $teamCap = $capData['cap'] ?? 0;
                         <i class="bi bi-person-plus-fill display-3 text-orange mb-3"></i>
                         <h5 class="text-white">Adicionar Jogador</h5>
                         <p class="text-light-gray mb-3">Adicione novos jogadores ao seu elenco</p>
-                        <button class="btn btn-orange" onclick="alert('Em breve!')">
+                        <a href="/my-roster.php" class="btn btn-orange">
                             <i class="bi bi-plus-circle me-2"></i>Adicionar
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>

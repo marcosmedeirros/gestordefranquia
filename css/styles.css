@@ -316,6 +316,24 @@ pre {
 	z-index: 1000;
 }
 
+.dashboard-sidebar::-webkit-scrollbar {
+	width: 8px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb {
+	background: var(--fba-orange);
+	border-radius: 4px;
+	transition: background 0.3s;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb:hover {
+	background: var(--fba-orange-light);
+}
+
 .dashboard-content {
 	margin-left: 280px;
 	padding: 30px;
