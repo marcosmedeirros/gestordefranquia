@@ -10,6 +10,7 @@ const api = async (path, options = {}) => {
 };
 
 let myTeamId = window.__TEAM_ID__;
+let myLeague = window.__USER_LEAGUE__;
 let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
@@ -38,15 +39,17 @@ async function loadTeams() {
     const data = await api('teams.php');
     allTeams = data.teams || [];
     
-    // Preencher select de times (exceto o meu)
+    // Preencher select de times (exceto o meu, apenas da mesma liga)
     const select = document.getElementById('targetTeam');
     select.innerHTML = '<option value="">Selecione...</option>';
-    allTeams.filter(t => t.id !== myTeamId).forEach(t => {
-      const option = document.createElement('option');
-      option.value = t.id;
-      option.textContent = `${t.city} ${t.name}`;
-      select.appendChild(option);
-    });
+    allTeams
+      .filter(t => t.id !== myTeamId && t.league === myLeague)
+      .forEach(t => {
+        const option = document.createElement('option');
+        option.value = t.id;
+        option.textContent = `${t.city} ${t.name}`;
+        select.appendChild(option);
+      });
   } catch (err) {
     console.error('Erro ao carregar times:', err);
   }

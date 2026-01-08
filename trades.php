@@ -252,6 +252,7 @@ if ($teamId) {
 
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
+    window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/trades.js"></script>
