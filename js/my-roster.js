@@ -14,16 +14,70 @@ const api = async (path, options = {}) => {
   return body;
 };
 
+// Função para calcular cor do OVR (gradiente verde)
+function getOvrColor(ovr) {
+  if (ovr >= 95) return '#00ff00'; // Verde brilhante
+  if (ovr >= 90) return '#7fff00'; // Verde-amarelo
+  if (ovr >= 85) return '#ffff00'; // Amarelo
+  if (ovr >= 80) return '#ffa500'; // Laranja
+  if (ovr >= 75) return '#ff6347'; // Tomate
+  return '#ff4444'; // Vermelho
+}
+
+// Ordem padrão de funções
+const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
+
+let allPlayers = [];
+let currentSort = { field: 'role', ascending: false };
+
+function sortPlayers(field) {
+  // Se clicou na mesma coluna, inverte ordem
+  if (currentSort.field === field) {
+    currentSort.ascending = !currentSort.ascending;
+  } else {
+    currentSort.field = field;
+    currentSort.ascending = field !== 'role'; // role é descendente por padrão (Titular primeiro)
+  }
+  renderPlayers(allPlayers);
+}
+
 function renderPlayers(players) {
+  // Ordenar jogadores
+  let sorted = [...players];
+  sorted.sort((a, b) => {
+    let aVal = a[currentSort.field];
+    let bVal = b[currentSort.field];
+    
+    // Para role, usar ordem customizada
+    if (currentSort.field === 'role') {
+      aVal = roleOrder[aVal] ?? 999;
+      bVal = roleOrder[bVal] ?? 999;
+    }
+    // Para trade, converter bool
+    if (currentSort.field === 'trade') {
+      aVal = a.available_for_trade ? 1 : 0;
+      bVal = b.available_for_trade ? 1 : 0;
+    }
+    // Para numéricos, converter
+    if (['ovr', 'age'].includes(currentSort.field)) {
+      aVal = Number(aVal);
+      bVal = Number(bVal);
+    }
+
+    if (aVal < bVal) return currentSort.ascending ? -1 : 1;
+    if (aVal > bVal) return currentSort.ascending ? 1 : -1;
+    return 0;
+  });
+
   const tbody = document.getElementById('players-tbody');
   tbody.innerHTML = '';
-  players.forEach(p => {
+  sorted.forEach(p => {
     const tr = document.createElement('tr');
+    const ovrColor = getOvrColor(p.ovr);
     tr.innerHTML = `
-      <td>${p.id}</td>
       <td>${p.name}</td>
+      <td><span style="font-size: 1.3rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span></td>
       <td>${p.position}</td>
-      <td><span class="badge bg-gradient-orange">${p.ovr}</span></td>
       <td>${p.role}</td>
       <td>${p.age}</td>
       <td>
@@ -47,7 +101,10 @@ async function loadPlayers() {
   document.getElementById('players-list').classList.add('d-none');
   try {
     const data = await api(`players.php?team_id=${teamId}`);
-    renderPlayers(data.players || []);
+    allPlayers = data.players || [];
+    // Ordenar por role padrão (Titular primeiro)
+    currentSort = { field: 'role', ascending: false };
+    renderPlayers(allPlayers);
     document.getElementById('players-status').classList.add('d-none');
     document.getElementById('players-list').classList.remove('d-none');
   } catch (err) {

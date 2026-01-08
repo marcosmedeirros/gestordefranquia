@@ -114,9 +114,13 @@ $teamId = $team['id'] ?? null;
       <div class="card-body">
         <form id="form-player">
           <div class="row g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label text-white fw-bold">Nome</label>
               <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-white fw-bold">OVR</label>
+              <input type="number" name="ovr" class="form-control" min="40" max="99" required>
             </div>
             <div class="col-md-2">
               <label class="form-label text-white fw-bold">Idade</label>
@@ -132,11 +136,7 @@ $teamId = $team['id'] ?? null;
                 <option value="C">C</option>
               </select>
             </div>
-            <div class="col-md-2">
-              <label class="form-label text-white fw-bold">OVR</label>
-              <input type="number" name="ovr" class="form-control" min="40" max="99" required>
-            </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
               <label class="form-label text-white fw-bold">Função</label>
               <select name="role" class="form-select" required>
                 <option value="Titular">Titular</option>
@@ -173,13 +173,12 @@ $teamId = $team['id'] ?? null;
           <table class="table table-dark align-middle">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Nome</th>
-                <th>Posição</th>
-                <th>OVR</th>
-                <th>Função</th>
-                <th>Idade</th>
-                <th>Trade?</th>
+                <th class="sortable" data-sort="name" style="cursor: pointer;">Nome</th>
+                <th class="sortable" data-sort="ovr" style="cursor: pointer;">OVR</th>
+                <th class="sortable" data-sort="position" style="cursor: pointer;">Posição</th>
+                <th class="sortable" data-sort="role" style="cursor: pointer;">Função</th>
+                <th class="sortable" data-sort="age" style="cursor: pointer;">Idade</th>
+                <th class="sortable" data-sort="trade" style="cursor: pointer;">Trade?</th>
                 <th>Ações</th>
               </tr>
             </thead>
