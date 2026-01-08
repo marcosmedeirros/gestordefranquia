@@ -202,9 +202,21 @@ async function showConfig() {
 <input type="number" class="form-control bg-dark text-white border-orange" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" /></div>
 <div class="col-md-3 d-flex align-items-end"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max} CAP</div></div>
 </div>
-<div class="row">
+<div class="row mb-3">
 <div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (Regras, informações gerais)</label>
 <textarea class="form-control bg-dark text-white border-orange" rows="4" data-league="${lg.league}" data-field="edital" placeholder="Digite as regras e informações gerais desta liga...">${lg.edital || ''}</textarea></div>
+</div>
+<div class="row">
+<div class="col-12"><label class="form-label text-light-gray mb-1">Arquivo do Edital (PDF/Word)</label>
+<div class="input-group">
+<input type="file" class="form-control bg-dark text-white border-orange" id="edital_file_${lg.league}" accept=".pdf,.doc,.docx" />
+<button class="btn btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
+</div>
+${lg.edital_file ? `<div class="mt-2 d-flex align-items-center gap-2">
+<small class="text-success"><i class="bi bi-file-earmark-check"></i> ${lg.edital_file}</small>
+<button class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')"><i class="bi bi-trash"></i></button>
+</div>` : '<small class="text-light-gray mt-1">Nenhum arquivo enviado</small>'}
+</div>
 </div>
 </div>`).join('');
     
@@ -309,11 +321,13 @@ function editPlayer(playerId) {
   document.body.appendChild(modal);
   api('admin.php?action=teams').then(data => {
     const select = modal.querySelector('#editPlayerTeam');
+    const currentLeague = appState.currentTeam.league;
     data.teams.forEach(t => {
-      if (t.id != appState.currentTeam.id) {
+      // Apenas times da mesma liga, exceto o time atual
+      if (t.id != appState.currentTeam.id && t.league === currentLeague) {
         const opt = document.createElement('option');
         opt.value = t.id;
-        opt.textContent = `${t.city} ${t.name} (${t.league})`;
+        opt.textContent = `${t.city} ${t.name}`;
         select.appendChild(opt);
       }
     });
@@ -559,6 +573,76 @@ async function deletePick(pickId) {
     await showTeam(appState.currentTeam.id);
     alert('Pick deletado!');
   } catch (e) { alert('Erro ao deletar pick!'); }
+}
+
+// Função para upload de edital
+async function uploadEdital(league) {
+  const fileInput = document.getElementById(`edital_file_${league}`);
+  const file = fileInput.files[0];
+  
+  if (!file) {
+    alert('Selecione um arquivo primeiro!');
+    return;
+  }
+  
+  // Validação de tipo de arquivo
+  const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  if (!allowedTypes.includes(file.type)) {
+    alert('Apenas arquivos PDF ou Word são permitidos!');
+    return;
+  }
+  
+  // Validação de tamanho (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    alert('Arquivo muito grande! Máximo: 10MB');
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('league', league);
+  
+  try {
+    const response = await fetch('api/edital.php?action=upload_edital', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      alert('Edital enviado com sucesso!');
+      showConfig(); // Recarrega para mostrar o arquivo
+    } else {
+      alert('Erro: ' + (result.error || 'Falha no upload'));
+    }
+  } catch (e) {
+    alert('Erro ao enviar arquivo: ' + e.message);
+  }
+}
+
+// Função para deletar edital
+async function deleteEdital(league) {
+  if (!confirm('Tem certeza que deseja remover o edital desta liga?')) return;
+  
+  try {
+    const response = await fetch('api/edital.php?action=delete_edital', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ league })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      alert('Edital removido!');
+      showConfig(); // Recarrega
+    } else {
+      alert('Erro: ' + (result.error || 'Falha ao remover'));
+    }
+  } catch (e) {
+    alert('Erro ao remover arquivo: ' + e.message);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

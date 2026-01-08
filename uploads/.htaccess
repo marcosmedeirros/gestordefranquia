@@ -1,0 +1,16 @@
+# Proteção do diretório de uploads
+# Permite apenas download, não execução de scripts
+
+<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|jsp|asp|html|htm|shtml|sh|cgi)$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Permitir apenas arquivos PDF e documentos
+<FilesMatch "\.(pdf|doc|docx)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Desabilitar listagem de diretório
+Options -Indexes

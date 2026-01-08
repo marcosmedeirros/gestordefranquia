@@ -40,6 +40,12 @@ $stmtCap = $pdo->prepare('
 $stmtCap->execute([$team['id']]);
 $capData = $stmtCap->fetch();
 $teamCap = $capData['cap'] ?? 0;
+
+// Buscar edital da liga
+$stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
+$stmtEdital->execute([$team['league']]);
+$editalData = $stmtEdital->fetch();
+$hasEdital = $editalData && !empty($editalData['edital_file']);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -184,6 +190,22 @@ $teamCap = $capData['cap'] ?? 0;
                 </div>
             </div>
         </div>
+
+        <!-- Edital da Liga -->
+        <?php if ($hasEdital): ?>
+        <div class="alert alert-info bg-dark-panel border-orange d-flex align-items-center justify-content-between mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-file-earmark-text-fill text-orange me-3 fs-2"></i>
+                <div>
+                    <h5 class="mb-1 text-white">Edital da Liga <?= htmlspecialchars($team['league']) ?></h5>
+                    <p class="mb-0 text-light-gray">Baixe o arquivo oficial com as regras e informações da temporada</p>
+                </div>
+            </div>
+            <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" class="btn btn-orange" download>
+                <i class="bi bi-download me-1"></i>Download
+            </a>
+        </div>
+        <?php endif; ?>
 
         <!-- Titular -->
         <div class="row mb-4">
