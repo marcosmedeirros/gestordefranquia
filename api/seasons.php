@@ -134,33 +134,37 @@ try {
             $stmtSeason->execute([$sprintId, $league, $seasonNumber, $year]);
             $seasonId = $pdo->lastInsertId();
             
-            // Gerar picks automaticamente para todos os times da liga
-            // IMPORTANTE: Gera picks para TODAS as temporadas do sprint (não apenas a atual)
-            $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
-            $stmtTeams->execute([$league]);
-            $teams = $stmtTeams->fetchAll();
-            
-            $stmtPick = $pdo->prepare("
-                INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
-                VALUES (?, ?, ?, ?, ?, 1)
-            ");
-            
-            // Para cada time, gerar 2 picks POR TEMPORADA do sprint
-            foreach ($teams as $team) {
-                for ($tempNum = 1; $tempNum <= $maxSeasons; $tempNum++) {
-                    $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT); // "Ano 01", "Ano 02", etc
-                    
-                    // Pick Rodada 1 para temporada X
-                    $pickLabel = "T{$tempNum} R1";
-                    $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
-                    
-                    // Pick Rodada 2 para temporada X
-                    $pickLabel = "T{$tempNum} R2";
-                    $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+            // Gerar picks automaticamente APENAS na primeira temporada do sprint
+            // As picks são para TODAS as temporadas do sprint (não apenas a primeira)
+            if ($seasonNumber === 1) {
+                $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
+                $stmtTeams->execute([$league]);
+                $teams = $stmtTeams->fetchAll();
+                
+                $stmtPick = $pdo->prepare("
+                    INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                ");
+                
+                // Para cada time, gerar 2 picks POR TEMPORADA do sprint
+                foreach ($teams as $team) {
+                    for ($tempNum = 1; $tempNum <= $maxSeasons; $tempNum++) {
+                        $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT); // "Ano 01", "Ano 02", etc
+                        
+                        // Pick Rodada 1 para temporada X
+                        $pickLabel = "T{$tempNum} R1";
+                        $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                        
+                        // Pick Rodada 2 para temporada X
+                        $pickLabel = "T{$tempNum} R2";
+                        $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                    }
                 }
+                
+                $totalPicksPerTeam = $maxSeasons * 2; // 2 picks por temporada
+            } else {
+                $totalPicksPerTeam = 0; // Picks já foram geradas na primeira temporada
             }
-            
-            $totalPicksPerTeam = $maxSeasons * 2; // 2 picks por temporada
             
             $pdo->commit();
             
