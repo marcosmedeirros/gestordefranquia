@@ -537,8 +537,8 @@ try {
             // 2. Deletar trades relacionados aos times da liga
             $pdo->exec("
                 DELETE tr FROM trades tr
-                INNER JOIN teams t1 ON tr.team_id_1 = t1.id
-                WHERE t1.league = '$league'
+                INNER JOIN teams t ON tr.from_team_id = t.id
+                WHERE t.league = '$league'
             ");
             
             // 3. Deletar jogadores dos times da liga (tabela players)
@@ -614,8 +614,8 @@ try {
             // 2. Deletar trades relacionados aos times da liga
             $pdo->exec("
                 DELETE tr FROM trades tr
-                INNER JOIN teams t1 ON tr.team_id_1 = t1.id
-                WHERE t1.league = '$league'
+                INNER JOIN teams t ON tr.from_team_id = t.id
+                WHERE t.league = '$league'
             ");
             
             // 3. Deletar jogadores dos times da liga
