@@ -313,6 +313,193 @@ try {
             echo json_encode(['success' => true, 'history' => $history]);
             break;
 
+        // ========== SALVAR HISTÓRICO DA TEMPORADA ==========
+        case 'save_history':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            
+            $input = json_decode(file_get_contents('php://input'), true);
+            $seasonId = $input['season_id'] ?? null;
+            $champion = $input['champion'] ?? null;
+            $runnerUp = $input['runner_up'] ?? null;
+            
+            if (!$seasonId || !$champion || !$runnerUp) {
+                throw new Exception('Dados incompletos: season_id, champion e runner_up são obrigatórios');
+            }
+            
+            if ($champion == $runnerUp) {
+                throw new Exception('Campeão e vice-campeão não podem ser o mesmo time');
+            }
+            
+            $pdo->beginTransaction();
+            
+            // Salvar resultados dos playoffs
+            $stmtDelete = $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?");
+            $stmtDelete->execute([$seasonId]);
+            
+            $stmtPlayoff = $pdo->prepare("
+                INSERT INTO playoff_results (season_id, team_id, position)
+                VALUES (?, ?, ?)
+            ");
+            $stmtPlayoff->execute([$seasonId, $champion, 'champion']);
+            $stmtPlayoff->execute([$seasonId, $runnerUp, 'runner_up']);
+            
+            // Salvar prêmios individuais
+            $stmtDeleteAwards = $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?");
+            $stmtDeleteAwards->execute([$seasonId]);
+            
+            $stmtAward = $pdo->prepare("
+                INSERT INTO season_awards (season_id, team_id, award_type)
+                VALUES (?, ?, ?)
+            ");
+            
+            if (!empty($input['mvp'])) {
+                $stmtAward->execute([$seasonId, $input['mvp'], 'MVP']);
+            }
+            if (!empty($input['dpoy'])) {
+                $stmtAward->execute([$seasonId, $input['dpoy'], 'DPOY']);
+            }
+            if (!empty($input['mip'])) {
+                $stmtAward->execute([$seasonId, $input['mip'], 'MIP']);
+            }
+            if (!empty($input['sixth_man'])) {
+                $stmtAward->execute([$seasonId, $input['sixth_man'], '6th Man']);
+            }
+            
+            // Atualizar pontos no ranking (campeão +100, vice +50, prêmios +20 cada)
+            $stmtGetSeason = $pdo->prepare("SELECT league, year FROM seasons WHERE id = ?");
+            $stmtGetSeason->execute([$seasonId]);
+            $season = $stmtGetSeason->fetch();
+            
+            if ($season) {
+                // Campeão: 100 pontos
+                $stmtPoints = $pdo->prepare("
+                    INSERT INTO team_ranking_points (team_id, season_id, points, reason)
+                    VALUES (?, ?, 100, 'Campeão')
+                    ON DUPLICATE KEY UPDATE points = points + 100
+                ");
+                $stmtPoints->execute([$champion, $seasonId]);
+                
+                // Vice: 50 pontos
+                $stmtPoints = $pdo->prepare("
+                    INSERT INTO team_ranking_points (team_id, season_id, points, reason)
+                    VALUES (?, ?, 50, 'Vice-Campeão')
+                    ON DUPLICATE KEY UPDATE points = points + 50
+                ");
+                $stmtPoints->execute([$runnerUp, $seasonId]);
+                
+                // Prêmios: 20 pontos cada
+                foreach (['mvp', 'dpoy', 'mip', 'sixth_man'] as $award) {
+                    if (!empty($input[$award])) {
+                        $stmtPoints = $pdo->prepare("
+                            INSERT INTO team_ranking_points (team_id, season_id, points, reason)
+                            VALUES (?, ?, 20, ?)
+                            ON DUPLICATE KEY UPDATE points = points + 20
+                        ");
+                        $stmtPoints->execute([$input[$award], $seasonId, strtoupper($award)]);
+                    }
+                }
+            }
+            
+            // Marcar temporada como completa
+            $stmtComplete = $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?");
+            $stmtComplete->execute([$seasonId]);
+            
+            $pdo->commit();
+            
+            echo json_encode(['success' => true, 'message' => 'Histórico salvo com sucesso']);
+            break;
+
+        // ========== RESETAR SPRINT (NOVO CICLO) ==========
+        case 'reset_sprint':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            
+            $input = json_decode(file_get_contents('php://input'), true);
+            $league = $input['league'] ?? null;
+            
+            if (!$league) {
+                throw new Exception('Liga não especificada');
+            }
+            
+            $pdo->beginTransaction();
+            
+            // ATENÇÃO: Isso deleta TUDO da liga!
+            
+            // 1. Deletar picks relacionadas aos times da liga
+            $pdo->exec("
+                DELETE p FROM picks p
+                INNER JOIN teams t ON p.team_id = t.id
+                WHERE t.league = '$league'
+            ");
+            
+            // 2. Deletar trades relacionados aos times da liga
+            $pdo->exec("
+                DELETE tr FROM trades tr
+                INNER JOIN teams t1 ON tr.team_id_1 = t1.id
+                WHERE t1.league = '$league'
+            ");
+            
+            // 3. Deletar jogadores dos times da liga
+            $pdo->exec("
+                DELETE tp FROM team_players tp
+                INNER JOIN teams t ON tp.team_id = t.id
+                WHERE t.league = '$league'
+            ");
+            
+            // 4. Deletar pontos de ranking dos times
+            $pdo->exec("
+                DELETE trp FROM team_ranking_points trp
+                INNER JOIN teams t ON trp.team_id = t.id
+                WHERE t.league = '$league'
+            ");
+            
+            // 5. Deletar prêmios das temporadas
+            $pdo->exec("
+                DELETE sa FROM season_awards sa
+                INNER JOIN seasons s ON sa.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 6. Deletar resultados de playoffs
+            $pdo->exec("
+                DELETE pr FROM playoff_results pr
+                INNER JOIN seasons s ON pr.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 7. Deletar standings
+            $pdo->exec("
+                DELETE ss FROM season_standings ss
+                INNER JOIN seasons s ON ss.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 8. Deletar draft pool
+            $pdo->exec("
+                DELETE dp FROM draft_pool dp
+                INNER JOIN seasons s ON dp.season_id = s.id
+                WHERE s.league = '$league'
+            ");
+            
+            // 9. Deletar temporadas
+            $pdo->exec("DELETE FROM seasons WHERE league = '$league'");
+            
+            // 10. Deletar sprints
+            $pdo->exec("DELETE FROM sprints WHERE league = '$league'");
+            
+            // 11. Deletar times (e seus usuários associados)
+            $pdo->exec("
+                DELETE u FROM users u
+                INNER JOIN teams t ON u.id = t.user_id
+                WHERE t.league = '$league'
+            ");
+            
+            $pdo->exec("DELETE FROM teams WHERE league = '$league'");
+            
+            $pdo->commit();
+            
+            echo json_encode(['success' => true, 'message' => 'Sprint resetado com sucesso']);
+            break;
+
         default:
             throw new Exception('Ação inválida');
     }
@@ -323,3 +510,4 @@ try {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
+

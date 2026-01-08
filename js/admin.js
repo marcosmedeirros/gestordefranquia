@@ -56,9 +56,8 @@ async function showHome() {
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('RISE')"><h3>RISE</h3><p class="text-light-gray mb-2">Liga Rise</p><span class="badge bg-gradient-orange" id="rise-teams">Ver mais</span></div></div>
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
-<div class="col-md-4"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Gerencie sprints e temporadas</p></div></div>
-<div class="col-md-4"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-<div class="col-md-4"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');

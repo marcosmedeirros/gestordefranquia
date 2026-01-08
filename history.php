@@ -72,11 +72,6 @@ $userLeague = $team['league'];
       </h1>
     </div>
 
-    <div class="alert alert-info mb-4" style="border-radius: 15px;">
-      <i class="bi bi-info-circle me-2"></i>
-      Visualize o histórico completo das temporadas da liga <strong><?= $userLeague ?></strong>
-    </div>
-
     <div id="historyContainer">
       <div class="text-center py-5">
         <div class="spinner-border text-orange"></div>
@@ -105,9 +100,14 @@ $userLeague = $team['league'];
 
         if (champions.length === 0) {
           document.getElementById('historyContainer').innerHTML = `
-            <div class="alert alert-warning" style="border-radius: 15px;">
-              <i class="bi bi-exclamation-triangle me-2"></i>
-              Ainda não há histórico de temporadas para a liga ${userLeague}.
+            <div class="card bg-dark-elevated border-0 text-center py-5" style="border-radius: 15px;">
+              <div class="card-body">
+                <i class="bi bi-clock-history text-orange fs-1 mb-3"></i>
+                <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
+                <p class="text-light-gray">
+                  Ainda não há histórico de temporadas registrado para a liga <strong class="text-orange">${userLeague}</strong>.
+                </p>
+              </div>
             </div>
           `;
           return;
