@@ -18,7 +18,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     // Listar ligas com configurações e times
-    $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','PRIME','RISE','ROOKIE')");
+    $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
     $leagues = $stmtLeagues->fetchAll(PDO::FETCH_COLUMN);
 
     $result = [];

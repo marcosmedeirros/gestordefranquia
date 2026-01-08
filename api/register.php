@@ -22,7 +22,7 @@ try {
         jsonResponse(422, ['error' => 'Nome, e-mail, senha e liga são obrigatórios.']);
     }
 
-    if (!in_array($league, ['ELITE', 'PRIME', 'RISE', 'ROOKIE'])) {
+    if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'])) {
         jsonResponse(422, ['error' => 'Liga inválida.']);
     }
 

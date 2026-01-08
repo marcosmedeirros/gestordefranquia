@@ -113,7 +113,7 @@
                                     <option value="">Selecione sua liga</option>
                                     <option value="ROOKIE">🌱 ROOKIE - Liga Rookie</option>
                                     <option value="RISE">🌟 RISE - Liga Rise</option>
-                                    <option value="PRIME">💎 PRIME - Liga Prime</option>
+                                    <option value="NEXT">💎 NEXT - Liga Next</option>
                                     <option value="ELITE">🏆 ELITE - Liga Elite</option>
                                 </select>
                             </div>

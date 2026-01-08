@@ -45,19 +45,19 @@ async function showHome() {
   
   const container = document.getElementById('mainContainer');
   container.innerHTML = `<div class="row g-4 mb-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-trophy-fill text-orange me-2"></i>Ligas</h3></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ELITE')"><h3>ELITE</h3><p class="text-light-gray mb-2">Liga Elite</p><span class="badge bg-gradient-orange" id="elite-teams">...</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('PRIME')"><h3>PRIME</h3><p class="text-light-gray mb-2">Liga Prime</p><span class="badge bg-gradient-orange" id="prime-teams">...</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('RISE')"><h3>RISE</h3><p class="text-light-gray mb-2">Liga Rise</p><span class="badge bg-gradient-orange" id="rise-teams">...</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">...</span></div></div></div>
+<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ELITE')"><h3>ELITE</h3><p class="text-light-gray mb-2">Liga Elite</p><span class="badge bg-gradient-orange" id="elite-teams">Ver mais</span></div></div>
+<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('NEXT')"><h3>NEXT</h3><p class="text-light-gray mb-2">Liga Next</p><span class="badge bg-gradient-orange" id="next-teams">Ver mais</span></div></div>
+<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('RISE')"><h3>RISE</h3><p class="text-light-gray mb-2">Liga Rise</p><span class="badge bg-gradient-orange" id="rise-teams">Ver mais</span></div></div>
+<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP das ligas</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
     (data.leagues || []).forEach(league => {
       const el = document.getElementById(`${league.league.toLowerCase()}-teams`);
-      if (el) el.textContent = `${league.team_count} times`;
+      if (el) el.textContent = `${league.team_count} ${league.team_count === 1 ? 'time' : 'times'}`;
     });
   } catch (e) {}
 }
@@ -106,14 +106,29 @@ async function showTeam(teamId) {
 <div class="bg-dark rounded p-3"><h4 class="text-orange mb-0">${t.cap_top8}</h4><small class="text-light-gray">CAP Top 8</small></div></div></div></div>
 <ul class="nav nav-tabs mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#roster-tab">Elenco (${t.players.length})</button></li>
 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#picks-tab">Picks (${t.picks ? t.picks.length : 0})</button></li></ul>
-<div class="tab-content"><div class="tab-pane fade show active" id="roster-tab"><div class="table-responsive"><table class="table table-dark table-hover">
+<div class="tab-content">
+<div class="tab-pane fade show active" id="roster-tab">
+<div class="d-flex justify-content-between mb-3">
+<h5 class="text-white mb-0">Jogadores</h5>
+<button class="btn btn-sm btn-orange" onclick="addPlayer(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Jogador</button>
+</div>
+<div class="table-responsive"><table class="table table-dark table-hover">
 <thead><tr><th>Jogador</th><th>Pos</th><th>Idade</th><th>OVR</th><th>Papel</th><th>Ações</th></tr></thead>
 <tbody>${t.players.map(p => `<tr><td><strong>${p.name}</strong></td><td>${p.position}</td><td>${p.age}</td>
 <td><span class="badge ${p.ovr >= 80 ? 'bg-success' : p.ovr >= 70 ? 'bg-warning text-dark' : 'bg-secondary'}">${p.ovr}</span></td><td>${p.role}</td>
 <td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPlayer(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-<button class="btn btn-sm btn-outline-danger" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div></div>
-<div class="tab-pane fade" id="picks-tab">${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th></tr></thead>
-<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td></tr>`).join('')}</tbody></table></div>` : '<div class="text-center py-5 text-light-gray">Nenhum pick</div>'}</div></div>`;
+<button class="btn btn-sm btn-outline-danger" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>
+</div>
+<div class="tab-pane fade" id="picks-tab">
+<div class="d-flex justify-content-between mb-3">
+<h5 class="text-white mb-0">Picks</h5>
+<button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
+</div>
+${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
+<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td>
+<td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
+<button class="btn btn-sm btn-outline-danger" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>` : '<div class="text-center py-5 text-light-gray">Nenhum pick</div>'}
+</div></div>`;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar time</div>';
   }
@@ -168,31 +183,43 @@ async function showConfig() {
   const container = document.getElementById('mainContainer');
   container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
 <div class="d-flex justify-content-between mb-3"><h4 class="text-white mb-0">Configurações das Ligas</h4>
-<button class="btn btn-orange" id="saveConfigBtn"><i class="bi bi-save2 me-1"></i>Salvar</button></div>
+<button class="btn btn-orange" id="saveConfigBtn"><i class="bi bi-save2 me-1"></i>Salvar Tudo</button></div>
 <div id="configContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
     document.getElementById('configContainer').innerHTML = (data.leagues || []).map(lg => `
-<div class="bg-dark-panel border-orange rounded p-4 mb-3"><div class="row align-items-center">
-<div class="col-md-3"><h4 class="text-orange mb-1">${lg.league}</h4><small class="text-light-gray">${lg.team_count} times</small></div>
+<div class="bg-dark-panel border-orange rounded p-4 mb-4">
+<div class="row mb-3">
+<div class="col-12"><h4 class="text-orange mb-1">${lg.league}</h4><small class="text-light-gray">${lg.team_count} ${lg.team_count === 1 ? 'time' : 'times'}</small></div>
+</div>
+<div class="row g-3 mb-3">
 <div class="col-md-3"><label class="form-label text-light-gray mb-1">CAP Mínimo</label>
 <input type="number" class="form-control bg-dark text-white border-orange" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min" /></div>
 <div class="col-md-3"><label class="form-label text-light-gray mb-1">CAP Máximo</label>
 <input type="number" class="form-control bg-dark text-white border-orange" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max" /></div>
-<div class="col-md-3"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max}</div></div></div></div>`).join('');
+<div class="col-md-3"><label class="form-label text-light-gray mb-1">Máx. Trocas/Temporada</label>
+<input type="number" class="form-control bg-dark text-white border-orange" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" /></div>
+<div class="col-md-3 d-flex align-items-end"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max} CAP</div></div>
+</div>
+<div class="row">
+<div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (Regras, informações gerais)</label>
+<textarea class="form-control bg-dark text-white border-orange" rows="4" data-league="${lg.league}" data-field="edital" placeholder="Digite as regras e informações gerais desta liga...">${lg.edital || ''}</textarea></div>
+</div>
+</div>`).join('');
     
     document.getElementById('saveConfigBtn').addEventListener('click', saveLeagueSettings);
   } catch (e) {}
 }
 
 async function saveLeagueSettings() {
-  const inputs = document.querySelectorAll('#configContainer input[data-league]');
+  const inputs = document.querySelectorAll('#configContainer input[data-league], #configContainer textarea[data-league]');
   const groups = {};
   inputs.forEach(inp => {
     const lg = inp.dataset.league;
     groups[lg] = groups[lg] || { league: lg };
-    groups[lg][inp.dataset.field] = parseInt(inp.value);
+    const value = inp.dataset.field === 'edital' ? inp.value : parseInt(inp.value);
+    groups[lg][inp.dataset.field] = value;
   });
   
   const btn = document.getElementById('saveConfigBtn');
@@ -334,6 +361,204 @@ async function revertTrade(tradeId) {
     await showTrades();
     alert('Revertida!');
   } catch (e) { alert('Erro'); }
+}
+
+function addPlayer(teamId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Adicionar Jogador</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="mb-3"><label class="form-label text-light-gray">Nome</label>
+<input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerName" placeholder="Nome completo do jogador"></div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Posição</label>
+<input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerPosition" placeholder="PG, SG, SF, PF, C"></div>
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerAge" value="25" min="18" max="45"></div>
+</div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">OVR</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerOvr" value="70" min="0" max="99"></div>
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Papel</label>
+<select class="form-select bg-dark text-white border-orange" id="addPlayerRole">
+<option value="Titular">Titular</option>
+<option value="Banco" selected>Banco</option>
+<option value="Outro">Outro</option>
+<option value="G-League">G-League</option></select></div>
+</div></div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
+  
+  document.body.appendChild(modal);
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function saveNewPlayer(teamId) {
+  const data = {
+    team_id: teamId,
+    name: document.getElementById('addPlayerName').value.trim(),
+    position: document.getElementById('addPlayerPosition').value.trim(),
+    age: parseInt(document.getElementById('addPlayerAge').value),
+    ovr: parseInt(document.getElementById('addPlayerOvr').value),
+    role: document.getElementById('addPlayerRole').value
+  };
+  
+  if (!data.name || !data.position) {
+    alert('Nome e posição são obrigatórios!');
+    return;
+  }
+  
+  try {
+    await api('admin.php?action=player', { method: 'POST', body: JSON.stringify(data) });
+    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    await showTeam(teamId);
+    alert('Jogador adicionado!');
+  } catch (e) { 
+    alert('Erro ao adicionar jogador: ' + (e.error || 'Desconhecido')); 
+  }
+}
+
+function addPick(teamId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Adicionar Pick</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="mb-3"><label class="form-label text-light-gray">Temporada</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="addPickYear" value="${new Date().getFullYear()}" min="2025"></div>
+<div class="mb-3"><label class="form-label text-light-gray">Rodada</label>
+<select class="form-select bg-dark text-white border-orange" id="addPickRound">
+<option value="1">1ª Rodada</option>
+<option value="2">2ª Rodada</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Time Original</label>
+<select class="form-select bg-dark text-white border-orange" id="addPickOriginalTeam">
+<option value="">Carregando...</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Observações (opcional)</label>
+<textarea class="form-control bg-dark text-white border-orange" id="addPickNotes" rows="2" placeholder="Informações adicionais sobre este pick"></textarea></div>
+</div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="saveNewPick(${teamId})">Adicionar</button></div></div></div>`;
+  
+  document.body.appendChild(modal);
+  
+  // Carregar times para seleção
+  api('admin.php?action=teams').then(data => {
+    const select = modal.querySelector('#addPickOriginalTeam');
+    select.innerHTML = '<option value="">Selecione o time original</option>';
+    data.teams.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name} (${t.league})`;
+      if (t.id == teamId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  });
+  
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function saveNewPick(teamId) {
+  const data = {
+    team_id: teamId,
+    original_team_id: parseInt(document.getElementById('addPickOriginalTeam').value),
+    season_year: parseInt(document.getElementById('addPickYear').value),
+    round: document.getElementById('addPickRound').value,
+    notes: document.getElementById('addPickNotes').value.trim() || null
+  };
+  
+  if (!data.original_team_id) {
+    alert('Selecione o time original!');
+    return;
+  }
+  
+  try {
+    await api('admin.php?action=pick', { method: 'POST', body: JSON.stringify(data) });
+    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    await showTeam(teamId);
+    alert('Pick adicionado!');
+  } catch (e) { 
+    alert('Erro ao adicionar pick: ' + (e.error || 'Desconhecido')); 
+  }
+}
+
+function editPick(pickId) {
+  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
+  if (!p) return;
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Editar Pick</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="mb-3"><label class="form-label text-light-gray">Temporada</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="editPickYear" value="${p.season_year}" min="2025"></div>
+<div class="mb-3"><label class="form-label text-light-gray">Rodada</label>
+<select class="form-select bg-dark text-white border-orange" id="editPickRound">
+<option value="1" ${p.round == 1 ? 'selected' : ''}>1ª Rodada</option>
+<option value="2" ${p.round == 2 ? 'selected' : ''}>2ª Rodada</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Time Original</label>
+<select class="form-select bg-dark text-white border-orange" id="editPickOriginalTeam">
+<option value="">Carregando...</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Observações (opcional)</label>
+<textarea class="form-control bg-dark text-white border-orange" id="editPickNotes" rows="2">${p.notes || ''}</textarea></div>
+</div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="savePickEdit(${pickId})">Salvar</button></div></div></div>`;
+  
+  document.body.appendChild(modal);
+  
+  // Carregar times para seleção
+  api('admin.php?action=teams').then(data => {
+    const select = modal.querySelector('#editPickOriginalTeam');
+    select.innerHTML = '';
+    data.teams.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name} (${t.league})`;
+      if (t.id == p.original_team_id) opt.selected = true;
+      select.appendChild(opt);
+    });
+  });
+  
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function savePickEdit(pickId) {
+  const data = {
+    pick_id: pickId,
+    team_id: appState.currentTeam.id,
+    original_team_id: parseInt(document.getElementById('editPickOriginalTeam').value),
+    season_year: parseInt(document.getElementById('editPickYear').value),
+    round: document.getElementById('editPickRound').value,
+    notes: document.getElementById('editPickNotes').value.trim() || null
+  };
+  
+  if (!data.original_team_id) {
+    alert('Selecione o time original!');
+    return;
+  }
+  
+  try {
+    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify(data) });
+    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    await showTeam(appState.currentTeam.id);
+    alert('Pick atualizado!');
+  } catch (e) { 
+    alert('Erro ao atualizar pick: ' + (e.error || 'Desconhecido')); 
+  }
+}
+
+async function deletePick(pickId) {
+  if (!confirm('Deletar este pick?')) return;
+  try {
+    await api(`admin.php?action=pick&id=${pickId}`, { method: 'DELETE' });
+    await showTeam(appState.currentTeam.id);
+    alert('Pick deletado!');
+  } catch (e) { alert('Erro ao deletar pick!'); }
 }
 
 document.addEventListener('DOMContentLoaded', init);
