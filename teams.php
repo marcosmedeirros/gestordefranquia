@@ -216,7 +216,7 @@ foreach ($allTeams as $t) {
             </div>
             <div class="conference-grid">
                 <?php foreach ($teams_by_conference['LESTE'] as $t): ?>
-                <div class="team-card" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
+                <div class="team-card">
                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                          alt="<?= htmlspecialchars($t['name']) ?>" 
                          class="team-logo">
@@ -236,6 +236,9 @@ foreach ($allTeams as $t) {
                             </div>
                         </div>
                     </div>
+                    <button class="btn btn-sm btn-orange" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
+                        <i class="bi bi-eye me-1"></i>Ver
+                    </button>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -250,7 +253,7 @@ foreach ($allTeams as $t) {
             </div>
             <div class="conference-grid">
                 <?php foreach ($teams_by_conference['OESTE'] as $t): ?>
-                <div class="team-card" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
+                <div class="team-card">
                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                          alt="<?= htmlspecialchars($t['name']) ?>" 
                          class="team-logo">
@@ -270,6 +273,9 @@ foreach ($allTeams as $t) {
                             </div>
                         </div>
                     </div>
+                    <button class="btn btn-sm btn-orange" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
+                        <i class="bi bi-eye me-1"></i>Ver
+                    </button>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -323,7 +329,7 @@ foreach ($allTeams as $t) {
             modal.show();
 
             try {
-                const response = await fetch(`/api/team.php?team_id=${teamId}`);
+                const response = await fetch(`/api/team-players.php?team_id=${teamId}`);
                 const data = await response.json();
 
                 if (data.success && data.players) {
