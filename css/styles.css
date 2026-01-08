@@ -1075,3 +1075,66 @@ pre {
 	margin: 0;
 	font-size: 0.9rem;
 }
+
+/* ===== CARDS BRANCOS COM TEXTO PRETO ===== */
+.card.bg-light,
+.card.bg-white,
+.alert.bg-light,
+.alert.bg-white {
+	color: #000 !important;
+}
+
+.card.bg-light h1,
+.card.bg-light h2,
+.card.bg-light h3,
+.card.bg-light h4,
+.card.bg-light h5,
+.card.bg-light h6,
+.card.bg-light p,
+.card.bg-light span,
+.card.bg-white h1,
+.card.bg-white h2,
+.card.bg-white h3,
+.card.bg-white h4,
+.card.bg-white h5,
+.card.bg-white h6,
+.card.bg-white p,
+.card.bg-white span {
+	color: #000 !important;
+}
+
+/* ===== BORDAS ARREDONDADAS GLOBAIS ===== */
+.card,
+.btn,
+.form-control,
+.form-select,
+.input-group,
+.modal-content,
+.alert,
+.badge,
+.league-card,
+.action-card,
+.team-card,
+.player-card,
+.trade-card,
+.bg-dark-elevated,
+.bg-dark-panel {
+	border-radius: 15px !important;
+}
+
+.modal-header,
+.modal-footer {
+	border-radius: 15px 15px 0 0 !important;
+}
+
+.table {
+	border-radius: 15px !important;
+	overflow: hidden;
+}
+
+/* Ajustes para imagens arredondadas */
+.team-avatar,
+.team-logo,
+img[style*="border-radius: 50%"] {
+	border-radius: 50% !important;
+}

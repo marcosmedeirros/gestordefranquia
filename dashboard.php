@@ -46,6 +46,23 @@ $stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHE
 $stmtEdital->execute([$team['league']]);
 $editalData = $stmtEdital->fetch();
 $hasEdital = $editalData && !empty($editalData['edital_file']);
+
+// Buscar temporada atual da liga
+$currentSeason = null;
+try {
+    $stmtSeason = $pdo->prepare("
+        SELECT season_number, year, status 
+        FROM seasons 
+        WHERE league = ? AND status IN ('draft', 'regular', 'playoffs')
+        ORDER BY created_at DESC 
+        LIMIT 1
+    ");
+    $stmtSeason->execute([$team['league']]);
+    $currentSeason = $stmtSeason->fetch();
+} catch (Exception $e) {
+    // Tabela seasons pode não existir ainda
+    $currentSeason = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -135,9 +152,20 @@ $hasEdital = $editalData && !empty($editalData['edital_file']);
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <div class="mb-4">
-            <h1 class="text-white fw-bold mb-2">Dashboard</h1>
-            <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
+        <div class="mb-4 d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="text-white fw-bold mb-2">Dashboard</h1>
+                <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
+            </div>
+            <?php if ($currentSeason): ?>
+            <div>
+                <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
+                    <i class="bi bi-calendar3 me-2"></i>
+                    Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?> 
+                    (<?= $currentSeason['year'] ?>)
+                </span>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Stats Cards -->
