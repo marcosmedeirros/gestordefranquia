@@ -217,7 +217,7 @@ $teamId = $team['id'] ?? null;
           </table>
         </div>
         <!-- Mobile: Cards -->
-        <div id="players-cards-mobile" class="player-card-mobile d-none"></div>
+        <div id="players-cards-mobile" class="player-card-mobile"></div>
       </div>
     </div>
     <?php endif; ?>
