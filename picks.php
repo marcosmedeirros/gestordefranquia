@@ -86,6 +86,18 @@ $picks = $stmtPicks->fetchAll();
                     Trades
                 </a>
             </li>
+            <li>
+                <a href="/drafts.php">
+                    <i class="bi bi-trophy"></i>
+                    Draft
+                </a>
+            </li>
+            <li>
+                <a href="/rankings.php">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    Rankings
+                </a>
+            </li>
             <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
             <li>
                 <a href="/admin.php">

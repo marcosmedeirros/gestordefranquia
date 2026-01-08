@@ -5,8 +5,14 @@ require_once 'backend/db.php';
 
 requireAuth();
 
-$user = $_SESSION['user'];
-$teamId = $user['team_id'];
+$user = getUserSession();
+$pdo = db();
+$teamId = $user['team_id'] ?? null;
+
+if (!$teamId) {
+    header('Location: /onboarding.php');
+    exit;
+}
 
 // Buscar liga do time do usuário
 $stmt = $pdo->prepare("SELECT league FROM teams WHERE id = ?");
@@ -35,10 +41,10 @@ $userLeague = $stmt->fetchColumn();
 
   <div class="dashboard-sidebar" id="sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="<?= htmlspecialchars($user['team_name']) ?>" class="team-avatar">
-      <h5 class="text-white mb-1"><?= htmlspecialchars($user['city']) ?></h5>
-      <h6 class="text-white mb-1"><?= htmlspecialchars($user['team_name']) ?></h6>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
+      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="Time" class="team-avatar">
+      <h5 class="text-white mb-1"><?= htmlspecialchars($user['city'] ?? 'Cidade') ?></h5>
+      <h6 class="text-white mb-1"><?= htmlspecialchars($user['name'] ?? 'Nome') ?></h6>
+      <span class="badge bg-gradient-orange"><?= htmlspecialchars($userLeague ?? 'LEAGUE') ?></span>
     </div>
     <hr style="border-color: var(--fba-border);">
     <ul class="sidebar-menu">
@@ -49,7 +55,7 @@ $userLeague = $stmt->fetchColumn();
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
       <li><a href="/drafts.php" class="active"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
-      <?php if ($user['is_admin']): ?>
+      <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
       <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
       <?php endif; ?>
       <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
