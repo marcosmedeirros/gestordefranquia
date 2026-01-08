@@ -103,11 +103,8 @@ $teamId = $team['id'] ?? null;
 
   <!-- Main Content -->
   <div class="dashboard-content">
-    <div class="mb-4 d-flex align-items-center justify-content-between">
+    <div class="mb-4">
       <h1 class="text-white fw-bold mb-2"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
-      <?php if ($teamId): ?>
-      <span class="badge bg-gradient-orange">Time ID: <?= (int)$teamId ?></span>
-      <?php endif; ?>
     </div>
 
     <?php if (!$teamId): ?>
