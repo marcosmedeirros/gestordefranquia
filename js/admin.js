@@ -209,7 +209,10 @@ async function showConfig() {
 <button class="btn btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
 </div>
 ${lg.edital_file ? `<div class="mt-2 d-flex align-items-center gap-2">
-<small class="text-success"><i class="bi bi-file-earmark-check"></i> ${lg.edital_file}</small>
+<span class="text-success flex-grow-1"><i class="bi bi-file-earmark-check"></i> ${lg.edital_file}</span>
+<a href="/api/edital.php?action=download_edital&league=${lg.league}" class="btn btn-sm btn-outline-light" download target="_blank">
+<i class="bi bi-download me-1"></i>Baixar
+</a>
 <button class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')"><i class="bi bi-trash"></i></button>
 </div>` : '<small class="text-light-gray mt-1">Nenhum arquivo enviado</small>'}
 </div>
