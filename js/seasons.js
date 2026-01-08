@@ -7,6 +7,8 @@ const seasonsState = {
 
 // ========== TELA PRINCIPAL DE TEMPORADAS ==========
 async function showSeasonsManagement() {
+    console.log('showSeasonsManagement chamada!'); // Debug
+    
     // Atualizar breadcrumb
     appState.view = 'seasons';
     updateBreadcrumb();
