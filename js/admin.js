@@ -202,12 +202,8 @@ async function showConfig() {
 <input type="number" class="form-control bg-dark text-white border-orange" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" /></div>
 <div class="col-md-3 d-flex align-items-end"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max} CAP</div></div>
 </div>
-<div class="row mb-3">
-<div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (Regras, informações gerais)</label>
-<textarea class="form-control bg-dark text-white border-orange" rows="4" data-league="${lg.league}" data-field="edital" placeholder="Digite as regras e informações gerais desta liga...">${lg.edital || ''}</textarea></div>
-</div>
 <div class="row">
-<div class="col-12"><label class="form-label text-light-gray mb-1">Arquivo do Edital (PDF/Word)</label>
+<div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (PDF/Word)</label>
 <div class="input-group">
 <input type="file" class="form-control bg-dark text-white border-orange" id="edital_file_${lg.league}" accept=".pdf,.doc,.docx" />
 <button class="btn btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
