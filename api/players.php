@@ -1,6 +1,8 @@
 <?php
+session_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/auth.php';
 
 $pdo = db();
 $config = loadConfig();
@@ -36,10 +38,19 @@ if ($method === 'POST') {
         jsonResponse(422, ['error' => 'Campos obrigatórios: team_id, nome, idade, posição, ovr.']);
     }
 
-    $teamExists = $pdo->prepare('SELECT id FROM teams WHERE id = ?');
+    // Verificar propriedade do time pelo usuário logado
+    $sessionUser = getUserSession();
+    if (!isset($sessionUser['id'])) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+    $teamExists = $pdo->prepare('SELECT id, user_id FROM teams WHERE id = ?');
     $teamExists->execute([$teamId]);
-    if (!$teamExists->fetch()) {
+    $teamRow = $teamExists->fetch();
+    if (!$teamRow) {
         jsonResponse(404, ['error' => 'Time não encontrado.']);
+    }
+    if ((int)$teamRow['user_id'] !== (int)$sessionUser['id']) {
+        jsonResponse(403, ['error' => 'Sem permissão para alterar este time.']);
     }
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
@@ -59,6 +70,77 @@ if ($method === 'POST') {
         'cap_top8' => $newCap,
         'warning' => $warning,
     ]);
+}
+
+if ($method === 'PUT') {
+    $body = readJsonBody();
+    $playerId = (int) ($body['id'] ?? 0);
+    if (!$playerId) jsonResponse(422, ['error' => 'ID do jogador é obrigatório.']);
+
+    $sessionUser = getUserSession();
+    if (!isset($sessionUser['id'])) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+
+    $stmt = $pdo->prepare('SELECT p.*, t.user_id FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $stmt->execute([$playerId]);
+    $player = $stmt->fetch();
+    if (!$player) jsonResponse(404, ['error' => 'Jogador não encontrado.']);
+    if ((int)$player['user_id'] !== (int)$sessionUser['id']) {
+        jsonResponse(403, ['error' => 'Sem permissão para alterar este jogador.']);
+    }
+
+    $name = isset($body['name']) ? trim($body['name']) : $player['name'];
+    $age = isset($body['age']) ? (int)$body['age'] : (int)$player['age'];
+    $position = isset($body['position']) ? trim($body['position']) : $player['position'];
+    $role = isset($body['role']) ? $body['role'] : $player['role'];
+    $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
+    $availableForTrade = isset($body['available_for_trade']) ? (int)((bool)$body['available_for_trade']) : (int)$player['available_for_trade'];
+
+    if ($name === '' || !$age || $position === '' || !$ovr) {
+        jsonResponse(422, ['error' => 'Campos obrigatórios: nome, idade, posição, ovr.']);
+    }
+
+    // CAP check: recalcular considerando o novo OVR substituindo o anterior
+    $ovrsStmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? AND id <> ? ORDER BY ovr DESC LIMIT 8');
+    $ovrsStmt->execute([(int)$player['team_id'], $playerId]);
+    $ovrs = $ovrsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $ovrs[] = $ovr;
+    rsort($ovrs, SORT_NUMERIC);
+    $capAfter = array_sum(array_slice($ovrs, 0, 8));
+    if ($capAfter > $config['app']['cap_max']) {
+        jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $capAfter]);
+    }
+
+    $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+    $upd->execute([$name, $age, $position, $role, $ovr, $availableForTrade, $playerId]);
+
+    $newCap = topEightCap($pdo, (int)$player['team_id']);
+    jsonResponse(200, ['message' => 'Jogador atualizado.', 'cap_top8' => $newCap]);
+}
+
+if ($method === 'DELETE') {
+    $body = readJsonBody();
+    $playerId = (int) ($body['id'] ?? 0);
+    if (!$playerId) jsonResponse(422, ['error' => 'ID do jogador é obrigatório.']);
+
+    $sessionUser = getUserSession();
+    if (!isset($sessionUser['id'])) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+
+    $stmt = $pdo->prepare('SELECT p.id, p.team_id, t.user_id FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $stmt->execute([$playerId]);
+    $row = $stmt->fetch();
+    if (!$row) jsonResponse(404, ['error' => 'Jogador não encontrado.']);
+    if ((int)$row['user_id'] !== (int)$sessionUser['id']) {
+        jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
+    }
+
+    $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
+    $del->execute([$playerId]);
+    $newCap = topEightCap($pdo, (int)$row['team_id']);
+    jsonResponse(200, ['message' => 'Jogador removido.', 'cap_top8' => $newCap]);
 }
 
 jsonResponse(405, ['error' => 'Method not allowed']);

@@ -180,6 +180,7 @@ $teamId = $team['id'] ?? null;
                 <th>Função</th>
                 <th>Idade</th>
                 <th>Trade?</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="players-tbody"></tbody>
@@ -188,6 +189,64 @@ $teamId = $team['id'] ?? null;
       </div>
     </div>
     <?php endif; ?>
+  </div>
+
+  <!-- Edit Player Modal -->
+  <div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header">
+          <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2 text-orange"></i>Editar Jogador</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="edit-player-id">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-white fw-bold">Nome</label>
+              <input type="text" id="edit-name" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-white fw-bold">Idade</label>
+              <input type="number" id="edit-age" class="form-control" min="16" max="50" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-white fw-bold">Posição</label>
+              <select id="edit-position" class="form-select" required>
+                <option value="PG">PG</option>
+                <option value="SG">SG</option>
+                <option value="SF">SF</option>
+                <option value="PF">PF</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-white fw-bold">OVR</label>
+              <input type="number" id="edit-ovr" class="form-control" min="40" max="99" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-white fw-bold">Função</label>
+              <select id="edit-role" class="form-select" required>
+                <option value="Titular">Titular</option>
+                <option value="Banco">Banco</option>
+                <option value="Outro">Outro</option>
+                <option value="G-League">G-League</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-center">
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" id="edit-available">
+                <label class="form-check-label text-light-gray" for="edit-available">Disponível para troca</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-white" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
