@@ -155,6 +155,22 @@ async function showDraftManagement(seasonId, league) {
     seasonsState.currentLeague = league;
     const season = await loadCurrentSeason(league);
     
+    if (!season) {
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = `
+            <div class="mb-4">
+                <button class="btn btn-back" onclick="showSeasonsManagement()">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </button>
+            </div>
+            <div class="alert alert-info" style="border-radius: 15px;">
+                <i class="bi bi-info-circle me-2"></i>
+                Nenhuma temporada ativa para a liga ${league}. Crie uma temporada primeiro.
+            </div>
+        `;
+        return;
+    }
+
     const container = document.getElementById('mainContainer');
     container.innerHTML = `
         <div class="mb-4">
@@ -163,21 +179,195 @@ async function showDraftManagement(seasonId, league) {
             </button>
         </div>
         
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h4 class="text-white mb-1">Draft - Temporada ${season?.season_number || '?'}</h4>
-                <small class="text-light-gray">${league} | Sprint ${season?.sprint_number || '?'}</small>
+        <div class="row g-3 mb-4">
+            <div class="col-md-8">
+                <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+                    <div class="card-body">
+                        <h4 class="text-white mb-1">Draft - Temporada ${season.season_number}</h4>
+                        <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${season.year}</p>
+                    </div>
+                </div>
             </div>
-            <button class="btn btn-orange" onclick="showAddDraftPlayerModal(${seasonId})">
-                <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador
-            </button>
+            <div class="col-md-4">
+                <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal(${season.id})" style="border-radius: 15px;">
+                    <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador ao Draft
+                </button>
+            </div>
         </div>
+
+        <!-- Nav Tabs -->
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link active" id="draft-tab" data-bs-toggle="tab" href="#draft-panel">
+                    <i class="bi bi-trophy me-1"></i>Jogadores do Draft
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="history-tab" data-bs-toggle="tab" href="#history-panel">
+                    <i class="bi bi-clock-history me-1"></i>Cadastrar Histórico
+                </a>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="draft-panel">
+                <div id="draftPlayersContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-orange"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="history-panel">
+                <div id="historyContainer">
+                    ${renderHistoryForm(season.id, league)}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    loadDraftPlayers(season.id);
+}
+
+// ========== FORMULÁRIO DE HISTÓRICO ==========
+function renderHistoryForm(seasonId, league) {
+    return `
+        <div class="card bg-dark-elevated border-0" style="border-radius: 15px;">
+            <div class="card-body">
+                <h5 class="text-white mb-4">
+                    <i class="bi bi-pencil-square text-orange me-2"></i>
+                    Cadastrar Resultados da Temporada
+                </h5>
+                
+                <form id="formSeasonHistory" onsubmit="saveSeasonHistory(event, ${seasonId})">
+                    <h6 class="text-orange mb-3">1. Classificação da Temporada Regular</h6>
+                    <div class="mb-4" id="standingsContainer">
+                        <button type="button" class="btn btn-sm btn-outline-orange" onclick="loadTeamsForStandings('${league}')">
+                            <i class="bi bi-download me-1"></i>Carregar Times da Liga
+                        </button>
+                    </div>
+
+                    <h6 class="text-orange mb-3">2. Resultados dos Playoffs</h6>
+                    <div class="mb-3">
+                        <label class="form-label text-light-gray">Campeão</label>
+                        <select class="form-select bg-dark text-white border-orange" name="champion_team_id" required style="border-radius: 15px;">
+                            <option value="">Selecione o campeão...</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-light-gray">Vice-Campeão</label>
+                        <select class="form-select bg-dark text-white border-orange" name="runnerup_team_id" required style="border-radius: 15px;">
+                            <option value="">Selecione o vice...</option>
+                        </select>
+                    </div>
+
+                    <h6 class="text-orange mb-3">3. Premiações</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">MVP (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="mvp_team_id" style="border-radius: 15px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">MVP (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="mvp_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">DPOY (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="dpoy_team_id" style="border-radius: 15px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">DPOY (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="dpoy_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">MIP (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="mip_team_id" style="border-radius: 15px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">MIP (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="mip_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">6th Man (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="sixth_man_team_id" style="border-radius: 15px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">6th Man (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="sixth_man_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-orange" style="border-radius: 15px;">
+                            <i class="bi bi-save me-1"></i>Salvar Histórico
+                        </button>
+                        <button type="button" class="btn btn-outline-orange" onclick="loadDraftPlayers(${seasonId})" style="border-radius: 15px;">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+async function loadTeamsForStandings(league) {
+    try {
+        const data = await api(`admin.php?action=teams&league=${league}`);
+        const teams = data.teams || [];
         
-        <div id="draftPlayersContainer">
-            <div class="text-center py-4">
-                <div class="spinner-border text-orange"></div>
+        const container = document.getElementById('standingsContainer');
+        container.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-dark">
+                    <thead>
+                        <tr>
+                            <th>Posição</th>
+                            <th>Time</th>
+                            <th>V</th>
+                            <th>D</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${teams.map((t, idx) => `
+                            <tr>
+                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="position_${t.id}" value="${idx + 1}" min="1" style="width: 70px; border-radius: 10px;"></td>
+                                <td>${t.city} ${t.name}</td>
+                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="wins_${t.id}" value="0" min="0" style="width: 70px; border-radius: 10px;"></td>
+                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="losses_${t.id}" value="0" min="0" style="width: 70px; border-radius: 10px;"></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             </div>
-        </div>
+        `;
+
+        // Popular selects de premiações
+        const selects = document.querySelectorAll('select[name$="_team_id"]');
+        selects.forEach(select => {
+            select.innerHTML = '<option value="">Selecione...</option>' + 
+                teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+        });
+    } catch (e) {
+        alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+    }
+}
+
+function saveSeasonHistory(event, seasonId) {
+    event.preventDefault();
+    alert('Função de salvar histórico em desenvolvimento. Os dados serão salvos via API seasons.php com actions específicas para standings, awards e playoffs.');
+    // TODO: Implementar saves via API
+}
+
+// ========== GERENCIAR DRAFT (continuação) ==========
     `;
     
     loadDraftPlayers(seasonId);
