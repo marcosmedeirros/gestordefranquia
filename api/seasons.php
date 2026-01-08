@@ -166,9 +166,13 @@ try {
             if (!$seasonId) throw new Exception('Season ID não especificado');
             
             $stmt = $pdo->prepare("
-                SELECT * FROM draft_pool 
-                WHERE season_id = ? 
-                ORDER BY draft_status ASC, ovr DESC, name ASC
+                SELECT 
+                    dp.*,
+                    CONCAT(t.city, ' ', t.name) as team_name
+                FROM draft_pool dp
+                LEFT JOIN teams t ON dp.drafted_by_team_id = t.id
+                WHERE dp.season_id = ? 
+                ORDER BY dp.draft_status ASC, dp.draft_order ASC, dp.ovr DESC, dp.name ASC
             ");
             $stmt->execute([$seasonId]);
             $players = $stmt->fetchAll();
@@ -230,9 +234,10 @@ try {
 
         // ========== DELETAR JOGADOR DO DRAFT (ADMIN) ==========
         case 'delete_draft_player':
-            if ($method !== 'DELETE') throw new Exception('Método inválido');
+            if ($method !== 'POST') throw new Exception('Método inválido');
             
-            $id = $_GET['id'] ?? null;
+            $data = json_decode(file_get_contents('php://input'), true);
+            $id = $data['player_id'] ?? null;
             if (!$id) throw new Exception('ID não especificado');
             
             $stmt = $pdo->prepare("DELETE FROM draft_pool WHERE id = ? AND draft_status = 'available'");
@@ -247,7 +252,16 @@ try {
             
             $data = json_decode(file_get_contents('php://input'), true);
             
+            if (!isset($data['team_id']) || !isset($data['player_id'])) {
+                throw new Exception('team_id e player_id são obrigatórios');
+            }
+            
             $pdo->beginTransaction();
+            
+            // Buscar próximo draft_order
+            $stmtOrder = $pdo->prepare("SELECT COALESCE(MAX(draft_order), 0) + 1 as next_order FROM draft_pool WHERE draft_status = 'drafted'");
+            $stmtOrder->execute();
+            $nextOrder = $stmtOrder->fetch()['next_order'];
             
             // Atualizar draft_pool
             $stmt = $pdo->prepare("
@@ -255,7 +269,7 @@ try {
                 SET draft_status = 'drafted', drafted_by_team_id = ?, draft_order = ?
                 WHERE id = ?
             ");
-            $stmt->execute([$data['team_id'], $data['draft_order'], $data['player_id']]);
+            $stmt->execute([$data['team_id'], $nextOrder, $data['player_id']]);
             
             // Adicionar jogador ao elenco do time
             $stmtPlayer = $pdo->prepare("SELECT * FROM draft_pool WHERE id = ?");

@@ -118,6 +118,11 @@ $userLeague = $team['league'];
         
         const available = players.filter(p => p.draft_status === 'available');
         const drafted = players.filter(p => p.draft_status === 'drafted');
+        
+        console.log('Total players:', players.length);
+        console.log('Available:', available.length);
+        console.log('Drafted:', drafted.length);
+        console.log('Drafted players:', drafted);
 
         document.getElementById('draftContainer').innerHTML = `
           <div class="row g-3 mb-4">
@@ -237,15 +242,7 @@ $userLeague = $team['league'];
                       ${drafted.sort((a, b) => a.draft_order - b.draft_order).map(p => `
                         <tr>
                           <td><span class="badge bg-success">Pick #${p.draft_order}</span></td>
-                          <td>
-                            <div class="d-flex align-items-center">
-                              <img src="${p.photo_url || '/img/default-player.png'}" 
-                                   alt="${p.name}" 
-                                   style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--fba-orange);"
-                                   class="me-2">
-                              <span class="text-white fw-bold">${p.name}</span>
-                            </div>
-                          </td>
+                          <td class="text-white fw-bold">${p.name}</td>
                           <td><span class="badge bg-orange">${p.position}</span></td>
                           <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
                           <td class="text-light-gray">${p.team_name || 'N/A'}</td>

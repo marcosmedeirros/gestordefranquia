@@ -441,24 +441,24 @@ if (!$team) {
                   <table class="table table-dark table-hover mb-0">
                     <thead>
                       <tr>
-                        <th style="width: 50px;">#</th>
+                        <th class="d-none d-md-table-cell" style="width: 50px;">#</th>
                         <th>Nome</th>
                         <th style="width: 80px;">Pos</th>
-                        <th style="width: 80px;">Idade</th>
+                        <th class="d-none d-lg-table-cell" style="width: 80px;">Idade</th>
                         <th style="width: 80px;">OVR</th>
-                        <th style="width: 250px;">Draftar para Time</th>
-                        <th style="width: 100px;">Ações</th>
+                        <th class="d-none d-xl-table-cell" style="width: 250px;">Draftar para Time</th>
+                        <th style="width: 150px;">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       ${available.map((p, idx) => `
                         <tr>
-                          <td class="text-light-gray">${idx + 1}</td>
+                          <td class="text-light-gray d-none d-md-table-cell">${idx + 1}</td>
                           <td class="text-white fw-bold">${p.name}</td>
-                          <td><span class="badge bg-orange">${p.position}</span></td>
-                          <td class="text-light-gray">${p.age}</td>
+                          <td><span class="badge bg-orange">${p.position || 'N/A'}</span></td>
+                          <td class="text-light-gray d-none d-lg-table-cell">${p.age}</td>
                           <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
-                          <td>
+                          <td class="d-none d-xl-table-cell">
                             <select class="form-select form-select-sm bg-dark text-white border-orange" id="team-${p.id}">
                               <option value="">Selecione o time...</option>
                               ${teams.map(t => `
@@ -467,12 +467,17 @@ if (!$team) {
                             </select>
                           </td>
                           <td>
-                            <button class="btn btn-sm btn-success me-1" onclick="draftPlayer(${p.id})" title="Draftar">
-                              <i class="bi bi-check-lg"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteDraftPlayer(${p.id})" title="Remover">
-                              <i class="bi bi-trash"></i>
-                            </button>
+                            <div class="d-flex gap-1 flex-wrap">
+                              <button class="btn btn-sm btn-success d-xl-none" onclick="showDraftModal(${p.id}, '${p.name}')" title="Draftar">
+                                <i class="bi bi-check-lg"></i>
+                              </button>
+                              <button class="btn btn-sm btn-success d-none d-xl-inline-block" onclick="draftPlayer(${p.id})" title="Draftar">
+                                <i class="bi bi-check-lg"></i>
+                              </button>
+                              <button class="btn btn-sm btn-danger" onclick="deleteDraftPlayer(${p.id})" title="Remover">
+                                <i class="bi bi-trash"></i>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       `).join('')}
@@ -567,10 +572,6 @@ if (!$team) {
                     <label class="form-label text-white">OVR</label>
                     <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="1" max="99" required>
                   </div>
-                  <div class="mb-3">
-                    <label class="form-label text-white">Foto (URL)</label>
-                    <input type="url" class="form-control bg-dark text-white border-orange" name="photo_url" placeholder="https://...">
-                  </div>
                   <button type="submit" class="btn btn-orange w-100">Adicionar</button>
                 </form>
               </div>
@@ -600,7 +601,7 @@ if (!$team) {
             age: formData.get('age'),
             position: formData.get('position'),
             ovr: formData.get('ovr'),
-            photo_url: formData.get('photo_url')
+            photo_url: null
           })
         });
         
@@ -649,6 +650,71 @@ if (!$team) {
           })
         });
         
+        showDraftManagement(currentSeasonId, currentLeague);
+        alert('Jogador draftado com sucesso!');
+      } catch (e) {
+        alert('Erro ao draftar jogador: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    // Modal para draftar no mobile
+    async function showDraftModal(playerId, playerName) {
+      // Buscar times da liga
+      const teamsData = await api(`admin.php?action=teams&league=${currentLeague}`);
+      const teams = teamsData.teams || [];
+      
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="modal fade" id="draftModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content bg-dark">
+              <div class="modal-header border-orange">
+                <h5 class="modal-title text-white">Draftar ${playerName}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <label class="form-label text-white">Selecione o Time</label>
+                <select class="form-select bg-dark text-white border-orange" id="modalTeamSelect">
+                  <option value="">Selecione...</option>
+                  ${teams.map(t => `
+                    <option value="${t.id}">${t.city} ${t.name}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div class="modal-footer border-orange">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmDraft(${playerId})">Draftar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const bsModal = new bootstrap.Modal(document.getElementById('draftModal'));
+      bsModal.show();
+      document.getElementById('draftModal').addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+      });
+    }
+    
+    async function confirmDraft(playerId) {
+      const teamId = document.getElementById('modalTeamSelect').value;
+      
+      if (!teamId) {
+        alert('Por favor, selecione um time.');
+        return;
+      }
+      
+      try {
+        await api('seasons.php?action=assign_draft_pick', {
+          method: 'POST',
+          body: JSON.stringify({
+            player_id: playerId,
+            team_id: teamId
+          })
+        });
+        
+        bootstrap.Modal.getInstance(document.getElementById('draftModal')).hide();
         showDraftManagement(currentSeasonId, currentLeague);
         alert('Jogador draftado com sucesso!');
       } catch (e) {
