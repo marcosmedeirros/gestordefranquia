@@ -140,15 +140,15 @@ try {
             $teams = $stmtTeams->fetchAll();
             
             $stmtPick = $pdo->prepare("
-                INSERT INTO picks (team_id, league, season_id, round, year, auto_generated)
+                INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
                 VALUES (?, ?, ?, ?, ?, 1)
             ");
             
             foreach ($teams as $team) {
                 // 1ª rodada
-                $stmtPick->execute([$team['id'], $league, $seasonId, 1, $year]);
+                $stmtPick->execute([$team['id'], $team['id'], $year, '1', $seasonId]);
                 // 2ª rodada
-                $stmtPick->execute([$team['id'], $league, $seasonId, 2, $year]);
+                $stmtPick->execute([$team['id'], $team['id'], $year, '2', $seasonId]);
             }
             
             $pdo->commit();

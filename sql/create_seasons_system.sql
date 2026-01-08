@@ -133,9 +133,12 @@ CREATE TABLE IF NOT EXISTS team_ranking_points (
 
 -- 8. Atualizar tabela de picks para incluir season_id
 ALTER TABLE picks 
-ADD COLUMN IF NOT EXISTS season_id INT AFTER league,
-ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN DEFAULT FALSE COMMENT 'Se foi gerada automaticamente pelo sistema',
-ADD FOREIGN KEY IF NOT EXISTS fk_picks_season (season_id) REFERENCES seasons(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS season_id INT AFTER round,
+ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN DEFAULT FALSE COMMENT 'Se foi gerada automaticamente pelo sistema';
+
+-- Adicionar foreign key separadamente (evita erro se já existir)
+ALTER TABLE picks
+ADD CONSTRAINT fk_picks_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL;
 
 -- 9. Adicionar índices para otimização
 CREATE INDEX IF NOT EXISTS idx_picks_season ON picks(season_id);
