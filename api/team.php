@@ -144,12 +144,6 @@ if ($method === 'POST') {
     }
     $teamId = (int) $pdo->lastInsertId();
 
-    // Cada time ganha 1 pick de 1ª e 2ª rodada para o ano corrente.
-    $seasonYear = (int) date('Y');
-    $pickStmt = $pdo->prepare('INSERT INTO picks (team_id, original_team_id, season_year, round, notes) VALUES (?, ?, ?, ?, ?)');
-    $pickStmt->execute([$teamId, $teamId, $seasonYear, '1', 'Pick de 1ª rodada gerada automaticamente.']);
-    $pickStmt->execute([$teamId, $teamId, $seasonYear, '2', 'Pick de 2ª rodada gerada automaticamente.']);
-
     jsonResponse(201, ['message' => 'Time criado.', 'team_id' => $teamId]);
 }
 
