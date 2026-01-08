@@ -13,14 +13,21 @@
 </head>
 <body class="d-flex align-items-center min-vh-100">
     <?php
-    // Mensagens de verificação
-    if (isset($_GET['verified']) && $_GET['verified'] == '1') {
-        echo '<div class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999;">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i>E-mail verificado com sucesso! Faça login.
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>';
+    error_reporting(E_ALL);
+    ini_set('display_errors', 0);
+    
+    try {
+        // Mensagens de verificação
+        if (isset($_GET['verified']) && $_GET['verified'] == '1') {
+            echo '<div class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999;">
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>E-mail verificado com sucesso! Faça login.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>';
+        }
+    } catch (Exception $e) {
+        error_log('Erro no login.php: ' . $e->getMessage());
     }
     ?>
     <div class="container">

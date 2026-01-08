@@ -35,6 +35,26 @@ function ensureSchema(PDO $pdo, string $dbName): void
     }
 
     $sql = file_get_contents($schemaFile);
-    // Executa múltiplos CREATE TABLE IF NOT EXISTS de uma vez.
-    $pdo->exec($sql);
+    
+    // Divide o SQL em statements individuais e executa um por vez
+    $statements = array_filter(
+        array_map('trim', explode(';', $sql)),
+        function($stmt) {
+            return !empty($stmt) && !preg_match('/^--/', $stmt);
+        }
+    );
+    
+    foreach ($statements as $statement) {
+        if (!empty($statement)) {
+            try {
+                $pdo->exec($statement);
+            } catch (PDOException $e) {
+                // Ignora erros de duplicação (tabela/índice já existe)
+                if (strpos($e->getMessage(), 'already exists') === false && 
+                    strpos($e->getMessage(), 'Duplicate') === false) {
+                    throw $e;
+                }
+            }
+        }
+    }
 }
