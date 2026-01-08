@@ -267,6 +267,17 @@ async function respondTrade(tradeId, action) {
     loadTrades('received');
     loadTrades('sent');
     loadTrades('history');
+    // Atualiza meus jogadores e picks imediatamente após a decisão
+    try {
+      await loadMyAssets();
+      // Se um time alvo estiver selecionado no modal, recarregar os assets dele também
+      const targetEl = document.getElementById('targetTeam');
+      if (targetEl && targetEl.value) {
+        await onTargetTeamChange({ target: targetEl });
+      }
+    } catch (e) {
+      console.warn('Falha ao atualizar assets após trade:', e);
+    }
   } catch (err) {
     alert(err.error || 'Erro ao atualizar trade');
   }

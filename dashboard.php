@@ -95,6 +95,14 @@ $teamCap = $capData['cap'] ?? 0;
                     Trades
                 </a>
             </li>
+            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <li>
+                <a href="/admin.php">
+                    <i class="bi bi-shield-lock-fill"></i>
+                    Admin
+                </a>
+            </li>
+            <?php endif; ?>
             <li>
                 <a href="/settings.php">
                     <i class="bi bi-gear-fill"></i>
