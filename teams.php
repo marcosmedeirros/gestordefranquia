@@ -27,24 +27,15 @@ $stmtTeams = $pdo->prepare('
     SELECT 
         t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url,
         u.name AS owner_name,
-        COALESCE(pc.player_count, 0) AS total_players
+        COUNT(p.id) AS total_players
     FROM teams t
     LEFT JOIN users u ON t.user_id = u.id
-    LEFT JOIN (
-        SELECT team_id, COUNT(*) AS player_count
-        FROM players
-        GROUP BY team_id
-    ) pc ON pc.team_id = t.id
-    INNER JOIN (
-        SELECT MAX(id) AS id
-        FROM teams
-        WHERE league = ?
-        GROUP BY user_id, league
-    ) latest ON latest.id = t.id
+    LEFT JOIN players p ON p.team_id = t.id
     WHERE t.league = ?
+    GROUP BY t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name
     ORDER BY t.conference, t.name, t.id DESC
 ');
-$stmtTeams->execute([$user['league'], $user['league']]);
+$stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
 
 // Calcular CAP Top8 para cada time
