@@ -252,19 +252,15 @@ foreach ($allTeams as $t) {
     <div class="dashboard-content">
         <div class="mb-4">
             <h1 class="display-5 fw-bold mb-2">
-                <i class="bi bi-people-fill text-orange me-2"></i>Todos os Times
+                <i class="bi bi-people-fill text-orange me-2"></i>Times da Liga
             </h1>
             <p class="text-light-gray">Liga <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span></p>
         </div>
 
-        <!-- CONFERÊNCIA LESTE -->
-        <?php if (isset($teams_by_conference['LESTE'])): ?>
-        <div class="conference-section">
-            <div class="conference-title">
-                <i class="bi bi-geo-alt me-2"></i>Conferência LESTE
-            </div>
-            <div class="conference-grid">
-                <?php foreach ($teams_by_conference['LESTE'] as $t): ?>
+        <!-- Grid de Times -->
+        <div class="row g-3">
+            <?php foreach ($allTeams as $t): ?>
+            <div class="col-md-6 col-lg-4">
                 <div class="team-card">
                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                          alt="<?= htmlspecialchars($t['name']) ?>" 
@@ -289,47 +285,9 @@ foreach ($allTeams as $t) {
                         <i class="bi bi-eye me-1"></i>Ver
                     </button>
                 </div>
-                <?php endforeach; ?>
             </div>
+            <?php endforeach; ?>
         </div>
-        <?php endif; ?>
-
-        <!-- CONFERÊNCIA OESTE -->
-        <?php if (isset($teams_by_conference['OESTE'])): ?>
-        <div class="conference-section">
-            <div class="conference-title">
-                <i class="bi bi-geo-alt me-2"></i>Conferência OESTE
-            </div>
-            <div class="conference-grid">
-                <?php foreach ($teams_by_conference['OESTE'] as $t): ?>
-                <div class="team-card">
-                    <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                         alt="<?= htmlspecialchars($t['name']) ?>" 
-                         class="team-logo">
-                    <div class="team-info">
-                        <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                        <div class="team-owner">
-                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name'] ?? 'N/A') ?>
-                        </div>
-                        <div class="team-stats">
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['total_players'] ?? 0 ?></span>
-                                <span class="team-stat-label">Jogadores</span>
-                            </div>
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['cap_top8'] ?? 0 ?></span>
-                                <span class="team-stat-label">CAP Top8</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-orange" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
-                        <i class="bi bi-eye me-1"></i>Ver
-                    </button>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
 
     <!-- Modal para mostrar jogadores -->
@@ -380,8 +338,11 @@ foreach ($allTeams as $t) {
             modal.show();
 
             try {
+                console.log(`Carregando jogadores do time ${teamId}`);
                 const response = await fetch(`/api/team-players.php?team_id=${teamId}`);
+                console.log(`Status da resposta: ${response.status}`);
                 const data = await response.json();
+                console.log('Dados recebidos:', data);
 
                 if (data.success && data.players) {
                     const tbody = document.getElementById('playersTableBody');
@@ -409,12 +370,13 @@ foreach ($allTeams as $t) {
                     document.getElementById('playersLoading').style.display = 'none';
                     document.getElementById('playersContent').style.display = 'block';
                 } else {
-                    throw new Error('Erro ao carregar jogadores');
+                    throw new Error('Erro ao carregar jogadores: ' + JSON.stringify(data));
                 }
             } catch (err) {
+                console.error('Erro:', err);
                 document.getElementById('playersLoading').innerHTML = `
                     <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar jogadores
+                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar jogadores: ${err.message}
                     </div>
                 `;
             }
