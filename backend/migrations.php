@@ -156,16 +156,28 @@ function runMigrations() {
         'create_playoff_results' => [
             'sql' => "CREATE TABLE IF NOT EXISTS playoff_results (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                season_year INT NOT NULL,
-                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                season_id INT NOT NULL,
                 team_id INT NOT NULL,
-                playoff_position ENUM('first_round_loss','second_round_loss','conference_final_loss','vice_champion','champion') NOT NULL,
-                points INT DEFAULT 0,
+                position ENUM('champion','runner_up','conference_final','second_round','first_round') NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_playoff_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
                 CONSTRAINT fk_playoff_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-                INDEX idx_playoff_season (season_year),
-                INDEX idx_playoff_league (league),
+                INDEX idx_playoff_season (season_id),
                 INDEX idx_playoff_team (team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_season_awards' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS season_awards (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT,
+                award_type VARCHAR(50) NOT NULL,
+                player_name VARCHAR(120) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_award_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                CONSTRAINT fk_award_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+                INDEX idx_award_season (season_id),
+                INDEX idx_award_team (team_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
         'create_directives' => [
@@ -216,6 +228,50 @@ function runMigrations() {
             $errors[] = "{$name}: " . $e->getMessage();
             error_log("[MIGRATION] ✗ {$name} falhou: " . $e->getMessage());
         }
+    }
+
+    // Ajustes de schema legado
+    try {
+        $hasPlayoffPosition = $pdo->query("SHOW COLUMNS FROM playoff_results LIKE 'playoff_position'")->fetch();
+        if ($hasPlayoffPosition) {
+            $pdo->exec("ALTER TABLE playoff_results CHANGE playoff_position position ENUM('champion','runner_up','conference_final','second_round','first_round') NOT NULL");
+        }
+        $hasSeasonId = $pdo->query("SHOW COLUMNS FROM playoff_results LIKE 'season_id'")->fetch();
+        if (!$hasSeasonId) {
+            $pdo->exec("ALTER TABLE playoff_results ADD COLUMN season_id INT NOT NULL AFTER id");
+            $pdo->exec("ALTER TABLE playoff_results ADD CONSTRAINT fk_playoff_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE");
+        }
+        $hasSeasonYear = $pdo->query("SHOW COLUMNS FROM playoff_results LIKE 'season_year'")->fetch();
+        if ($hasSeasonYear) {
+            $pdo->exec("ALTER TABLE playoff_results DROP COLUMN season_year");
+        }
+        $hasLeague = $pdo->query("SHOW COLUMNS FROM playoff_results LIKE 'league'")->fetch();
+        if ($hasLeague) {
+            $pdo->exec("ALTER TABLE playoff_results DROP COLUMN league");
+        }
+        $hasPoints = $pdo->query("SHOW COLUMNS FROM playoff_results LIKE 'points'")->fetch();
+        if ($hasPoints) {
+            $pdo->exec("ALTER TABLE playoff_results DROP COLUMN points");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_playoff_results: " . $e->getMessage();
+    }
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS season_awards (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            season_id INT NOT NULL,
+            team_id INT,
+            award_type VARCHAR(50) NOT NULL,
+            player_name VARCHAR(120) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_award_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+            CONSTRAINT fk_award_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+            INDEX idx_award_season (season_id),
+            INDEX idx_award_team (team_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_season_awards: " . $e->getMessage();
     }
 
     return [
