@@ -760,7 +760,7 @@ if (!$team) {
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
-                
+
                 <!-- Vice-Campeão -->
                 <div class="mb-4">
                   <label class="form-label text-white">
@@ -770,6 +770,39 @@ if (!$team) {
                     <option value="">Selecione o vice-campeão</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
+                </div>
+
+                <!-- Eliminados 1ª Rodada -->
+                <div class="mb-4">
+                  <label class="form-label text-white">
+                    <i class="bi bi-x-circle text-danger me-2"></i>Times eliminados na 1ª rodada
+                  </label>
+                  <select class="form-select" name="first_round_losses[]" multiple>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                  <small class="text-light-gray">Selecione todos os times que perderam na 1ª rodada dos playoffs.</small>
+                </div>
+
+                <!-- Eliminados 2ª Rodada -->
+                <div class="mb-4">
+                  <label class="form-label text-white">
+                    <i class="bi bi-x-circle text-warning me-2"></i>Times eliminados na 2ª rodada
+                  </label>
+                  <select class="form-select" name="second_round_losses[]" multiple>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                  <small class="text-light-gray">Selecione todos os times que perderam na 2ª rodada dos playoffs.</small>
+                </div>
+
+                <!-- Eliminados Final de Conferência -->
+                <div class="mb-4">
+                  <label class="form-label text-white">
+                    <i class="bi bi-x-circle text-info me-2"></i>Times eliminados na final de conferência
+                  </label>
+                  <select class="form-select" name="conference_final_losses[]" multiple>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                  <small class="text-light-gray">Selecione todos os times que perderam na final de conferência.</small>
                 </div>
                 
                 <!-- MVP - Time -->
@@ -920,11 +953,18 @@ if (!$team) {
       
       const form = event.target;
       const formData = new FormData(form);
-      
+      // Multi-selects: pegar arrays
+      const firstRoundLosses = formData.getAll('first_round_losses[]').map(Number);
+      const secondRoundLosses = formData.getAll('second_round_losses[]').map(Number);
+      const conferenceFinalLosses = formData.getAll('conference_final_losses[]').map(Number);
+
       const data = {
         season_id: seasonId,
         champion: formData.get('champion'),
         runner_up: formData.get('runner_up'),
+        first_round_losses: firstRoundLosses,
+        second_round_losses: secondRoundLosses,
+        conference_final_losses: conferenceFinalLosses,
         mvp: formData.get('mvp') || null,
         mvp_team_id: formData.get('mvp_team_id') || null,
         dpoy: formData.get('dpoy') || null,
@@ -934,13 +974,13 @@ if (!$team) {
         sixth_man: formData.get('sixth_man') || null,
         sixth_man_team_id: formData.get('sixth_man_team_id') || null
       };
-      
+
       try {
         await api('seasons.php?action=save_history', {
           method: 'POST',
           body: JSON.stringify(data)
         });
-        
+
         alert('Histórico salvo com sucesso!');
         showLeagueManagement(league);
       } catch (e) {
