@@ -23,22 +23,19 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
 // Buscar todos os times da liga
-$stmtTeams = $pdo->prepare('
-    SELECT 
-        t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url,
-        u.name AS owner_name,
-        COUNT(p.id) AS total_players
-    FROM teams t
-    LEFT JOIN users u ON t.user_id = u.id
-    LEFT JOIN players p ON p.team_id = t.id
-    WHERE t.league = ?
-    GROUP BY t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name
-    ORDER BY t.conference, t.name, t.id DESC
-');
+$stmtTeams = $pdo->prepare('SELECT DISTINCT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.conference, t.name');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
 
-// Calcular CAP Top8 para cada time
+// Calcular contagem de jogadores para cada time
+foreach ($allTeams as &$t) {
+  $stmtPlayers = $pdo->prepare('SELECT COUNT(*) as count FROM players WHERE team_id = ?');
+  $stmtPlayers->execute([$t['id']]);
+  $playerData = $stmtPlayers->fetch();
+  $t['total_players'] = $playerData['count'] ?? 0;
+}
+
+// Calcular CAP Top8 para cada time (já tem total_players acima)
 foreach ($allTeams as &$t) {
   $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
   $stmt->execute([$t['id']]);
