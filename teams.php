@@ -438,7 +438,15 @@ foreach ($allTeams as $t) {
         // Debug: Mostrar dados carregados
         console.log('=== DEBUG Teams.php ===');
         console.log('Usuário:', <?= json_encode(['id' => $user['id'], 'league' => $user['league'], 'name' => $user['name']]) ?>);
+        console.log('Quantidade de times:', <?= count($allTeams) ?>);
         console.log('Times carregados:', <?= json_encode($allTeams) ?>);
+        
+        // Debug detalhado
+        const times = <?= json_encode($allTeams) ?>;
+        times.forEach((t, i) => {
+            console.log(`Time ${i+1}: ID=${t.id}, Nome=${t.city} ${t.name}, Conferência=${t.conference}`);
+        });
+        
         console.log('Times por conferência:', <?= json_encode($teams_by_conference) ?>);
     </script>
 </body>
