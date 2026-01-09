@@ -6,12 +6,11 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-// 1. Buscar time do usuário para saber qual liga ele pertence
+// Buscar time do usuário
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-// Se não tiver time, manda criar
 if (!$team) {
     header('Location: /onboarding.php');
     exit;
@@ -84,7 +83,6 @@ $userLeague = $team['league'];
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
-    // Passa a liga do PHP para o JS
     const userLeague = '<?= $userLeague ?>';
 
     const api = async (path, options = {}) => {
@@ -97,8 +95,6 @@ $userLeague = $team['league'];
 
     async function loadHistory() {
       try {
-        // AQUI ESTÁ O FILTRO: &league=userLeague
-        // Isso garante que só busca dados da ELITE se eu for ELITE, da NEXT se for NEXT, etc.
         const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
         const seasons = historyData.history || [];
 
@@ -115,15 +111,9 @@ $userLeague = $team['league'];
           return;
         }
 
-        
-
-[Image of JSON data structure diagram]
-
-
         document.getElementById('historyContainer').innerHTML = `
           <div class="row g-4">
             ${seasons.map(s => {
-              // Mapeamento corrigido para os códigos do banco (minúsculos)
               const awardConfig = {
                 'mvp': { icon: 'bi-star-fill text-warning', label: 'MVP' },
                 'dpoy': { icon: 'bi-shield-fill text-primary', label: 'DPOY' },
@@ -194,7 +184,8 @@ $userLeague = $team['league'];
                   </div>
                 </div>
               </div>
-            `}).join('')}
+            `;
+            }).join('')}
           </div>
         `;
       } catch (e) {
