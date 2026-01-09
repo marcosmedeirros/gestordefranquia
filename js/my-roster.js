@@ -91,7 +91,7 @@ function renderPlayers(players) {
       bVal = b.available_for_trade ? 1 : 0;
     }
     // Para numéricos, converter
-    if (['ovr', 'age'].includes(currentSort.field)) {
+    if (['ovr', 'age', 'seasons_in_league'].includes(currentSort.field)) {
       aVal = Number(aVal);
       bVal = Number(bVal);
     }
@@ -111,15 +111,18 @@ function renderPlayers(players) {
   
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
+    const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
+    const seasonsDisplay = p.seasons_in_league || 0;
     
     // Tabela (desktop)
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.name}</td>
       <td><span style="font-size: 1.3rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span></td>
-      <td>${p.position}</td>
+      <td>${positionDisplay}</td>
       <td>${p.role}</td>
       <td>${p.age}</td>
+      <td>${seasonsDisplay}</td>
       <td>
         <button class="btn btn-sm btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" style="
           background: ${p.available_for_trade ? '#00ff00' : '#ff4444'};
@@ -141,7 +144,9 @@ function renderPlayers(players) {
       </td>
       <td>
         <button class="btn btn-sm btn-outline-warning btn-edit-player" data-id="${p.id}">Editar</button>
-        <button class="btn btn-sm btn-outline-danger btn-delete-player" data-id="${p.id}">Excluir</button>
+        <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
+          <i class="bi bi-person-x"></i> Dispensar
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -153,7 +158,7 @@ function renderPlayers(players) {
       <div class="player-card-header">
         <div>
           <h6 class="text-white mb-1">${p.name}</h6>
-          <span class="badge bg-orange">${p.position}</span>
+          <span class="badge bg-orange">${positionDisplay}</span>
           <span class="badge bg-secondary ms-1">${p.role}</span>
         </div>
         <span style="font-size: 1.5rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span>
@@ -162,6 +167,10 @@ function renderPlayers(players) {
         <div class="player-card-stat">
           <strong>Idade</strong>
           ${p.age} anos
+        </div>
+        <div class="player-card-stat">
+          <strong>Temporadas</strong>
+          ${seasonsDisplay}
         </div>
         <div class="player-card-stat">
           <strong>Trade</strong>
@@ -182,8 +191,8 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-warning btn-edit-player" data-id="${p.id}">
           <i class="bi bi-pencil"></i> Editar
         </button>
-        <button class="btn btn-sm btn-outline-danger btn-delete-player" data-id="${p.id}">
-          <i class="bi bi-trash"></i>
+        <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
+          <i class="bi bi-person-x"></i> Dispensar
         </button>
       </div>
     `;
@@ -238,6 +247,8 @@ async function addPlayer() {
     name: fd.get('name'),
     age: Number(fd.get('age')),
     position: fd.get('position'),
+    secondary_position: fd.get('secondary_position'),
+    seasons_in_league: Number(fd.get('seasons_in_league') || 0),
     role: fd.get('role'),
     ovr: Number(fd.get('ovr')),
     available_for_trade: document.getElementById('available_for_trade').checked,
@@ -264,12 +275,15 @@ async function updatePlayer(payload) {
 }
 
 async function deletePlayer(id) {
-  if (!confirm('Deseja excluir este jogador?')) return;
+  if (!confirm('Deseja dispensar este jogador? (Limite: 3 dispensas por temporada)')) return;
   try {
     const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id }) });
+    if (res.waivers_used) {
+      alert(`Jogador dispensado. Você usou ${res.waivers_used} de 3 dispensas nesta temporada.`);
+    }
     loadPlayers();
   } catch (err) {
-    alert(err.error || 'Erro ao remover jogador');
+    alert(err.error || 'Erro ao dispensar jogador');
   }
 }
 
@@ -287,7 +301,9 @@ function openEditModal(player) {
   document.getElementById('edit-name').value = player.name;
   document.getElementById('edit-age').value = player.age;
   document.getElementById('edit-position').value = player.position;
+  document.getElementById('edit-secondary-position').value = player.secondary_position || '';
   document.getElementById('edit-ovr').value = player.ovr;
+  document.getElementById('edit-seasons').value = player.seasons_in_league || 0;
   document.getElementById('edit-role').value = player.role;
   document.getElementById('edit-available').checked = !!player.available_for_trade;
   
@@ -320,7 +336,7 @@ document.addEventListener('click', (e) => {
 // Delegation for actions (tabela)
 document.getElementById('players-tbody')?.addEventListener('click', (e) => {
   const target = e.target;
-  if (target.classList.contains('btn-delete-player')) {
+  if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
   } else if (target.classList.contains('btn-edit-player')) {
@@ -339,7 +355,7 @@ document.getElementById('players-cards-mobile')?.addEventListener('click', (e) =
   const target = e.target.closest('button');
   if (!target) return;
   
-  if (target.classList.contains('btn-delete-player')) {
+  if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
   } else if (target.classList.contains('btn-edit-player')) {
@@ -361,6 +377,8 @@ document.getElementById('btn-save-edit')?.addEventListener('click', () => {
     name: document.getElementById('edit-name').value,
     age: Number(document.getElementById('edit-age').value),
     position: document.getElementById('edit-position').value,
+    secondary_position: document.getElementById('edit-secondary-position').value,
+    seasons_in_league: Number(document.getElementById('edit-seasons').value || 0),
     ovr: Number(document.getElementById('edit-ovr').value),
     role: document.getElementById('edit-role').value,
     available_for_trade: document.getElementById('edit-available').checked,

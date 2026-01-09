@@ -57,7 +57,8 @@ async function showHome() {
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -651,3 +652,211 @@ async function deleteEdital(league) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ========== DIRETRIZES ==========
+async function showDirectives() {
+  appState.view = 'directives';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api('diretrizes.php?action=list_deadlines_admin');
+    const deadlines = data.deadlines || [];
+    
+    container.innerHTML = `
+      <div class="mb-4">
+        <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <button class="btn btn-orange float-end" onclick="showCreateDeadlineModal()">
+          <i class="bi bi-plus-circle me-2"></i>Criar Prazo
+        </button>
+      </div>
+      
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-header bg-transparent border-orange">
+          <h5 class="text-white mb-0"><i class="bi bi-calendar-event me-2"></i>Prazos de Diretrizes</h5>
+        </div>
+        <div class="card-body">
+          ${deadlines.length === 0 ? 
+            '<p class="text-light-gray text-center py-4">Nenhum prazo configurado</p>' :
+            `<div class="table-responsive"><table class="table table-dark">
+              <thead><tr>
+                <th>Liga</th><th>Data</th><th>Descrição</th><th>Status</th><th>Envios</th><th>Ações</th>
+              </tr></thead>
+              <tbody>${deadlines.map(d => `
+                <tr>
+                  <td><span class="badge bg-gradient-orange">${d.league}</span></td>
+                  <td>${new Date(d.deadline_date).toLocaleDateString('pt-BR')}</td>
+                  <td>${d.description || '-'}</td>
+                  <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
+                  <td><span class="badge bg-info">${d.submissions_count} time(s)</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDirectives(${d.id}, '${d.league}')">
+                      <i class="bi bi-eye"></i> Ver
+                    </button>
+                    <button class="btn btn-sm btn-outline-${d.is_active ? 'warning' : 'success'}" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})">
+                      <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}</tbody>
+            </table></div>`
+          }
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar prazos</div>';
+  }
+}
+
+function showCreateDeadlineModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Criar Prazo de Diretrizes</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-white">Liga</label>
+            <select class="form-select bg-dark text-white border-orange" id="deadline-league">
+              <option value="ELITE">ELITE</option>
+              <option value="NEXT">NEXT</option>
+              <option value="RISE">RISE</option>
+              <option value="ROOKIE">ROOKIE</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Data do Prazo</label>
+            <input type="date" class="form-control bg-dark text-white border-orange" id="deadline-date" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Descrição</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="deadline-description" 
+                   placeholder="Ex: Diretrizes da Rodada 1">
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="createDeadline()">Criar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function createDeadline() {
+  const league = document.getElementById('deadline-league').value;
+  const date = document.getElementById('deadline-date').value;
+  const description = document.getElementById('deadline-description').value;
+  
+  if (!date) {
+    alert('Preencha a data');
+    return;
+  }
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, description })
+    });
+    alert('Prazo criado com sucesso!');
+    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao criar prazo: ' + (e.error || e.message));
+  }
+}
+
+async function toggleDeadlineStatus(id, currentStatus) {
+  try {
+    await api('diretrizes.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, is_active: currentStatus ? 0 : 1 })
+    });
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao atualizar status');
+  }
+}
+
+async function viewDirectives(deadlineId, league) {
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
+    const directives = data.directives || [];
+    
+    container.innerHTML = `
+      <div class="mb-4">
+        <button class="btn btn-back" onclick="showDirectives()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      </div>
+      
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-header bg-transparent border-orange">
+          <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
+        </div>
+        <div class="card-body">
+          ${directives.length === 0 ? 
+            '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
+            directives.map(d => `
+              <div class="card bg-dark mb-3">
+                <div class="card-header">
+                  <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
+                  <small class="text-light-gray">Enviado em ${new Date(d.submitted_at).toLocaleString('pt-BR')}</small>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <h6 class="text-orange">Quinteto Titular</h6>
+                      <ul class="text-light-gray">
+                        ${[1,2,3,4,5].map(i => `<li>${d[\`starter_\${i}_name\`]} (${d[\`starter_\${i}_pos\`]})</li>`).join('')}
+                      </ul>
+                    </div>
+                    <div class="col-md-6">
+                      <h6 class="text-orange">Banco</h6>
+                      <ul class="text-light-gray">
+                        ${[1,2,3].map(i => `<li>${d[\`bench_\${i}_name\`]} (${d[\`bench_\${i}_pos\`]})</li>`).join('')}
+                      </ul>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Estratégia</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-3">Pace: ${d.pace}</div>
+                        <div class="col-md-3">Rebote Of.: ${d.offensive_rebound}</div>
+                        <div class="col-md-3">Agressividade: ${d.offensive_aggression}</div>
+                        <div class="col-md-3">Rebote Def.: ${d.defensive_rebound}</div>
+                      </div>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Estilos</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-3">Rotação: ${d.rotation_style}</div>
+                        <div class="col-md-3">Jogo: ${d.game_style}</div>
+                        <div class="col-md-3">Ataque: ${d.offense_style}</div>
+                        <div class="col-md-3">Defesa: ${d.defense_style}</div>
+                      </div>
+                    </div>
+                    ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${d.notes}</p></div>` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')
+          }
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+  }
+}

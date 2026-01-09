@@ -41,6 +41,48 @@ $stmtCap->execute([$team['id']]);
 $capData = $stmtCap->fetch();
 $teamCap = $capData['cap'] ?? 0;
 
+// Buscar limites de CAP da liga
+$capMin = 600;
+$capMax = 700;
+try {
+    $stmtCapLimits = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+    $stmtCapLimits->execute([$team['league']]);
+    $capLimits = $stmtCapLimits->fetch();
+    if ($capLimits) {
+        $capMin = (int)$capLimits['cap_min'];
+        $capMax = (int)$capLimits['cap_max'];
+    }
+} catch (Exception $e) {
+    // Tabela league_settings pode não existir ainda
+}
+
+// Determinar cor do CAP
+$capColor = '#00ff00'; // Verde
+if ($teamCap < $capMin || $teamCap > $capMax) {
+    $capColor = '#ff4444'; // Vermelho
+}
+
+// Buscar limites de CAP da liga
+$capMin = 0;
+$capMax = 999;
+try {
+    $stmtCapLimits = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+    $stmtCapLimits->execute([$team['league']]);
+    $capLimits = $stmtCapLimits->fetch();
+    if ($capLimits) {
+        $capMin = $capLimits['cap_min'] ?? 0;
+        $capMax = $capLimits['cap_max'] ?? 999;
+    }
+} catch (Exception $e) {
+    // Tabela league_settings pode não existir ainda
+}
+
+// Determinar cor do CAP
+$capColor = '#00ff00'; // Verde por padrão
+if ($teamCap < $capMin || $teamCap > $capMax) {
+    $capColor = '#ff4444'; // Vermelho se fora dos limites
+}
+
 // Buscar edital da liga
 $stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
 $stmtEdital->execute([$team['league']]);
@@ -48,6 +90,20 @@ $editalData = $stmtEdital->fetch();
 $hasEdital = $editalData && !empty($editalData['edital_file']);
 
 // Buscar temporada atual da liga
+// Buscar prazo ativo de diretrizes
+$activeDirectiveDeadline = null;
+try {
+    $stmtDirective = $pdo->prepare("
+        SELECT * FROM directive_deadlines 
+        WHERE league = ? AND is_active = 1 
+        ORDER BY deadline_date DESC LIMIT 1
+    ");
+    $stmtDirective->execute([$team['league']]);
+    $activeDirectiveDeadline = $stmtDirective->fetch();
+} catch (Exception $e) {
+    // Tabela pode não existir ainda
+}
+
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
@@ -227,8 +283,11 @@ try {
                 <div class="stat-card">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <div class="stat-label">CAP Total</div>
-                            <div class="stat-value"><?= $teamCap ?></div>
+                            <div class="stat-label">CAP Top8</div>
+                            <div class="stat-value" style="color: <?= $capColor ?>;"><?= $teamCap ?></div>
+                            <small class="text-light-gray" style="font-size: 0.85rem;">
+                                Limite: <?= $capMin ?> - <?= $capMax ?>
+                            </small>
                         </div>
                         <i class="bi bi-cash-stack display-4 text-orange"></i>
                     </div>
@@ -261,6 +320,50 @@ try {
             <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" class="btn btn-orange" download>
                 <i class="bi bi-download me-1"></i>Download
             </a>
+        </div>
+        <?php endif; ?>
+
+        <!-- Calendário da Temporada -->
+        <?php if ($currentSeason): ?>
+        <div class="card bg-dark-panel border-orange mb-4">
+            <div class="card-header bg-transparent border-orange">
+                <h4 class="mb-0 text-white">
+                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Exemplo de eventos do calendário -->
+                        <?php if ($activeDirectiveDeadline): ?>
+                        <div class="col-md-12">
+                            <div class="calendar-event" style="cursor: pointer; padding: 20px; border: 2px solid var(--fba-orange); border-radius: 8px; transition: all 0.3s; background: linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent);" 
+                                 onclick="window.location.href='/diretrizes.php'"
+                                 onmouseover="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.2), transparent)'"
+                                 onmouseout="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent)'">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                        <h5 class="text-white mb-2 fw-bold">
+                                        <i class="bi bi-clipboard-check text-orange me-2"></i>Enviar Rotação
+                                        </h5>
+                                        <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Envio de diretrizes de jogo') ?></p>
+                                        <p class="text-orange mb-0 fw-bold">
+                                            <i class="bi bi-calendar-event me-1"></i>Prazo: <?= date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date'])) ?>
+                                        </p>
+                                </div>
+                                    <i class="bi bi-arrow-right-circle-fill text-orange" style="font-size: 3rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                        <?php else: ?>
+                        <div class="col-12">
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-calendar-x display-4"></i>
+                                <p class="mt-3 mb-0">Nenhum evento ativo no momento</p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                </div>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -310,5 +413,20 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
+    <script>
+        // Hover effect para eventos do calendário
+        document.querySelectorAll('.calendar-event').forEach(el => {
+            el.addEventListener('mouseenter', function() {
+                if (!this.style.opacity || this.style.opacity === '1') {
+                    this.style.background = 'rgba(255, 112, 67, 0.1)';
+                }
+            });
+            el.addEventListener('mouseleave', function() {
+                if (!this.style.opacity || this.style.opacity === '1') {
+                    this.style.background = 'transparent';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

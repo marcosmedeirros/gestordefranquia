@@ -134,8 +134,7 @@ try {
             $stmtSeason->execute([$sprintId, $league, $seasonNumber, $year]);
             $seasonId = $pdo->lastInsertId();
             
-            // Gerar picks automaticamente APENAS na primeira temporada do sprint
-            // As picks são para TODAS as temporadas do sprint (não apenas a primeira)
+            // Gerar picks automaticamente para os próximos 5 anos
             if ($seasonNumber === 1) {
                 $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
                 $stmtTeams->execute([$league]);
@@ -146,9 +145,10 @@ try {
                     VALUES (?, ?, ?, ?, ?, 1)
                 ");
                 
-                // Para cada time, gerar 2 picks POR TEMPORADA do sprint
+                // Gerar picks apenas para os próximos 5 anos
+                $yearsToGenerate = 5;
                 foreach ($teams as $team) {
-                    for ($tempNum = 1; $tempNum <= $maxSeasons; $tempNum++) {
+                    for ($tempNum = 1; $tempNum <= $yearsToGenerate; $tempNum++) {
                         $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT); // "Ano 01", "Ano 02", etc
                         
                         // Pick Rodada 1 para temporada X
@@ -161,9 +161,45 @@ try {
                     }
                 }
                 
-                $totalPicksPerTeam = $maxSeasons * 2; // 2 picks por temporada
+                $totalPicksPerTeam = $yearsToGenerate * 2; // 2 picks por ano
             } else {
-                $totalPicksPerTeam = 0; // Picks já foram geradas na primeira temporada
+                // Verificar se precisa gerar mais picks (quando chegou no ano 6, 11, 16, etc)
+                $stmtMaxYear = $pdo->prepare("
+                    SELECT MAX(CAST(SUBSTRING(season_year, 5) AS UNSIGNED)) as max_year 
+                    FROM picks 
+                    WHERE team_id IN (SELECT id FROM teams WHERE league = ?)
+                ");
+                $stmtMaxYear->execute([$league]);
+                $maxYear = (int)$stmtMaxYear->fetchColumn();
+                
+                // Se o ano atual for >= maxYear - 1, gerar mais 5 anos
+                if ($seasonNumber >= $maxYear - 1) {
+                    $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
+                    $stmtTeams->execute([$league]);
+                    $teams = $stmtTeams->fetchAll();
+                    
+                    $stmtPick = $pdo->prepare("
+                        INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
+                        VALUES (?, ?, ?, ?, ?, 1)
+                    ");
+                    
+                    $startYear = $maxYear + 1;
+                    $endYear = $maxYear + 5;
+                    
+                    foreach ($teams as $team) {
+                        for ($tempNum = $startYear; $tempNum <= $endYear; $tempNum++) {
+                            $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT);
+                            
+                            $pickLabel = "T{$tempNum} R1";
+                            $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                            
+                            $pickLabel = "T{$tempNum} R2";
+                            $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                        }
+                    }
+                }
+                
+                $totalPicksPerTeam = 0; // Picks já foram gerenciadas
             }
             
             $pdo->commit();
@@ -678,6 +714,22 @@ try {
             $pdo->commit();
             
             echo json_encode(['success' => true, 'message' => 'Sprint resetado com sucesso']);
+            break;
+
+        // ========== AVANÇAR CICLO DE TRADES (ADMIN) ==========
+        case 'advance_cycle':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            
+            $data = json_decode(file_get_contents('php://input'), true);
+            $league = $data['league'] ?? null;
+            
+            if (!$league) throw new Exception('Liga não especificada');
+            
+            // Incrementar ciclo de todos os times da liga
+            $stmt = $pdo->prepare('UPDATE teams SET current_cycle = current_cycle + 1 WHERE league = ?');
+            $stmt->execute([$league]);
+            
+            echo json_encode(['success' => true, 'message' => 'Ciclo de trades avançado para todos os times da liga']);
             break;
 
         default:

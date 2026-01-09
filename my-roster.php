@@ -176,6 +176,21 @@ $teamId = $team['id'] ?? null;
                     <option value="C">C</option>
                   </select>
                 </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">Pos. Secundária</label>
+                  <select name="secondary_position" class="form-select">
+                    <option value="">Nenhuma</option>
+                    <option value="PG">PG</option>
+                    <option value="SG">SG</option>
+                    <option value="SF">SF</option>
+                    <option value="PF">PF</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">Temporadas</label>
+                  <input type="number" name="seasons_in_league" class="form-control" min="0" max="30" value="0">
+                </div>
                 <div class="col-md-3">
                   <label class="form-label text-white fw-bold">Função</label>
                   <select name="role" class="form-select" required>
@@ -231,6 +246,9 @@ $teamId = $team['id'] ?? null;
                 <th class="sortable" data-sort="age" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Idade
                 </th>
+                <th class="sortable" data-sort="seasons_in_league" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Temp.
+                </th>
                 <th class="sortable" data-sort="trade" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Trade?
                 </th>
@@ -277,8 +295,23 @@ $teamId = $team['id'] ?? null;
               </select>
             </div>
             <div class="col-md-2">
+              <label class="form-label text-white fw-bold">Pos. Sec.</label>
+              <select id="edit-secondary-position" class="form-select bg-dark text-white border-orange">
+                <option value="">Nenhuma</option>
+                <option value="PG">PG</option>
+                <option value="SG">SG</option>
+                <option value="SF">SF</option>
+                <option value="PF">PF</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+            <div class="col-md-2">
               <label class="form-label text-white fw-bold">OVR</label>
               <input type="number" id="edit-ovr" class="form-control bg-dark text-white border-orange" min="40" max="99" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-white fw-bold">Temp.</label>
+              <input type="number" id="edit-seasons" class="form-control bg-dark text-white border-orange" min="0" max="30" required>
             </div>
             <div class="col-md-4">
               <label class="form-label text-white fw-bold">Função</label>

@@ -149,23 +149,35 @@ if ($method === 'POST') {
     $settings = $stmtSettings->fetch();
     $maxTrades = $settings['max_trades'] ?? 10; // Default 10 se não configurado
     
-    // Verificar limite de trades por temporada
-    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
-    $stmtCount->execute([$teamId]);
+    // Buscar ciclo atual do time (incrementa a cada 2 temporadas)
+    $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+    $stmtCycle->execute([$teamId]);
+    $currentCycle = (int)$stmtCycle->fetchColumn();
+    
+    if (!$currentCycle) {
+        // Inicializar ciclo se ainda não existe
+        $currentCycle = 1;
+        $stmtUpdateCycle = $pdo->prepare('UPDATE teams SET current_cycle = 1 WHERE id = ?');
+        $stmtUpdateCycle->execute([$teamId]);
+    }
+    
+    // Verificar limite de trades por ciclo (2 temporadas)
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND cycle = ?');
+    $stmtCount->execute([$teamId, $currentCycle]);
     $count = $stmtCount->fetch()['total'];
     
     if ($count >= $maxTrades) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
+        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por ciclo (2 temporadas) atingido"]);
         exit;
     }
     
     try {
         $pdo->beginTransaction();
         
-        // Criar trade
-        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes) VALUES (?, ?, ?)');
-        $stmtTrade->execute([$teamId, $toTeamId, $notes]);
+        // Criar trade com o ciclo atual
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes, cycle) VALUES (?, ?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $notes, $currentCycle]);
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
