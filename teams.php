@@ -22,15 +22,23 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga do usuário (SIMPLES, sem JOINs problemáticos)
+// Buscar todos os times da liga do usuário
 $stmtTeams = $pdo->prepare('
-    SELECT DISTINCT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url
+    SELECT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url
     FROM teams t
     WHERE t.league = ?
     ORDER BY t.id ASC
 ');
 $stmtTeams->execute([$user['league']]);
-$allTeams = $stmtTeams->fetchAll() ?: [];
+$allTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+// Debug: log da query
+error_log('=== TEAMS DEBUG ===');
+error_log('Liga: ' . $user['league']);
+error_log('SQL retornou: ' . count($allTeams) . ' registros');
+foreach ($allTeams as $tm) {
+    error_log('ID: ' . $tm['id'] . ' | Nome: ' . $tm['name']);
+}
 
 // Adicionar owner_name, total_players e cap_top8
 foreach ($allTeams as &$t) {
