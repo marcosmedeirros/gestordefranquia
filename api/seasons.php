@@ -502,16 +502,16 @@ try {
             ");
             
             if (!empty($input['mvp']) && !empty($input['mvp_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['mvp_team_id'], 'MVP', $input['mvp']]);
+                $stmtAward->execute([$seasonId, (int)$input['mvp_team_id'], 'mvp', $input['mvp']]);
             }
             if (!empty($input['dpoy']) && !empty($input['dpoy_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['dpoy_team_id'], 'DPOY', $input['dpoy']]);
+                $stmtAward->execute([$seasonId, (int)$input['dpoy_team_id'], 'dpoy', $input['dpoy']]);
             }
             if (!empty($input['mip']) && !empty($input['mip_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['mip_team_id'], 'MIP', $input['mip']]);
+                $stmtAward->execute([$seasonId, (int)$input['mip_team_id'], 'mip', $input['mip']]);
             }
             if (!empty($input['sixth_man']) && !empty($input['sixth_man_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['sixth_man_team_id'], '6th Man', $input['sixth_man']]);
+                $stmtAward->execute([$seasonId, (int)$input['sixth_man_team_id'], '6th_man', $input['sixth_man']]);
             }
             
             // Atualizar pontos no ranking com nova pontuação por fase
