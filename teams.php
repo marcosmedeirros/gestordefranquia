@@ -434,6 +434,12 @@ foreach ($allTeams as $t) {
             if (ovr >= 70) return '#ff6600';
             return '#ff3333';
         }
+
+        // Debug: Mostrar dados carregados
+        console.log('=== DEBUG Teams.php ===');
+        console.log('Usuário:', <?= json_encode(['id' => $user['id'], 'league' => $user['league'], 'name' => $user['name']]) ?>);
+        console.log('Times carregados:', <?= json_encode($allTeams) ?>);
+        console.log('Times por conferência:', <?= json_encode($teams_by_conference) ?>);
     </script>
 </body>
 </html>
