@@ -81,125 +81,148 @@ $userLeague = $team['league'];
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/sidebar.js"></script>
-  <script>
-    const userLeague = '<?= $userLeague ?>';
+<script src="/js/sidebar.js"></script>
+<script>
+  const userLeague = '<?= $userLeague ?>';
 
-    const api = async (path, options = {}) => {
-      const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
-      let body = {};
-      try { body = await res.json(); } catch {}
-      if (!res.ok) throw body;
-      return body;
+  // Função auxiliar para chamar API
+  const api = async (path, options = {}) => {
+    const res = await fetch(`/api/${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    let body = {};
+    try { body = await res.json(); } catch {}
+    if (!res.ok) throw body;
+    return body;
+  };
+
+  // 1. Função separada para gerar o HTML dos Prêmios (Evita o erro do 'of')
+  function gerarHtmlPremios(awards) {
+    if (!awards || awards.length === 0) return '';
+
+    const icons = {
+      'MVP': 'bi-star-fill text-warning',
+      'DPOY': 'bi-shield-fill text-primary',
+      'MIP': 'bi-graph-up-arrow text-success',
+      '6th Man': 'bi-person-plus text-info'
     };
 
-    async function loadHistory() {
-      try {
-        const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
-        const seasons = historyData.history || [];
+    // Aqui fora da string principal, podemos usar map tranquilamente
+    const listaPremios = awards.map(award => {
+      const icon = icons[award.type] || 'bi-award text-light-gray';
+      // Verificação de segurança para nulls
+      const player = award.player || 'Jogador Desconhecido';
+      const teamInfo = (award.team_city && award.team_name) ? `${award.team_city} ${award.team_name}` : 'Time N/A';
 
-        if (seasons.length === 0) {
-          document.getElementById('historyContainer').innerHTML = `
-            <div class="text-center py-5">
-              <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
-              <h5 class="text-white mb-2">Nenhum histórico nesta liga</h5>
-              <p class="text-light-gray">
-                Ainda não há temporadas finalizadas na liga <strong class="text-orange">${userLeague}</strong>.
-              </p>
+      return `
+        <div class="mb-2 p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi ${icon}" style="font-size: 1rem; margin-top: 2px;"></i>
+            <div style="flex: 1; min-width: 0;">
+              <small class="text-light-gray d-block" style="font-size: 0.7rem;">${award.type}</small>
+              <strong class="text-white d-block" style="font-size: 0.85rem;">${player}</strong>
+              <small class="text-light-gray" style="font-size: 0.75rem;">${teamInfo}</small>
             </div>
-          `;
-          return;
-        }
+          </div>
+        </div>
+      `;
+    }).join('');
 
-        document.getElementById('historyContainer').innerHTML = `
-          <div class="row g-4">
-            ${seasons.map(s => {
-              const awardConfig = {
-                'mvp': { icon: 'bi-star-fill text-warning', label: 'MVP' },
-                'dpoy': { icon: 'bi-shield-fill text-primary', label: 'DPOY' },
-                'mip': { icon: 'bi-graph-up-arrow text-success', label: 'MIP' },
-                '6th_man': { icon: 'bi-person-plus text-info', label: '6º Homem' }
-              };
+    return `
+      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(241, 117, 7, 0.3);">
+        <small class="text-light-gray d-block mb-2"><strong>Prêmios Individuais:</strong></small>
+        ${listaPremios}
+      </div>
+    `;
+  }
 
-              return `
-              <div class="col-md-6 col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h5 class="text-white mb-0">
-                        <i class="bi bi-calendar3 text-orange me-2"></i>
-                        Temp. ${String(s.number).padStart(2, '0')}
-                      </h5>
-                      <span class="badge bg-gradient-orange">${s.year}</span>
-                    </div>
+  // 2. Função principal de carregar
+  async function loadHistory() {
+    const container = document.getElementById('historyContainer');
+    
+    try {
+      console.log('Carregando histórico para liga:', userLeague);
+      
+      const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
+      const seasons = historyData.history || [];
 
-                    ${s.champion ? `
-                      <div class="mb-3">
-                        <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(241, 117, 7, 0.1); border-radius: 10px; border-left: 4px solid var(--fba-orange);">
-                          <i class="bi bi-trophy-fill text-orange" style="font-size: 1.5rem;"></i>
-                          <div>
-                            <small class="text-light-gray d-block text-uppercase" style="font-size: 0.7rem;">Campeão</small>
-                            <strong class="text-white">${s.champion.city} ${s.champion.name}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    ${s.runner_up ? `
-                      <div class="mb-3">
-                        <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(200, 200, 200, 0.05); border-radius: 10px; border-left: 4px solid #888;">
-                          <i class="bi bi-award-fill text-light-gray" style="font-size: 1.5rem;"></i>
-                          <div>
-                            <small class="text-light-gray d-block text-uppercase" style="font-size: 0.7rem;">Vice-Campeão</small>
-                            <strong class="text-white">${s.runner_up.city} ${s.runner_up.name}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    ${s.awards && s.awards.length > 0 ? `
-                      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                        <small class="text-light-gray d-block mb-2 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">Prêmios</small>
-                        <div class="row g-2">
-                        ${s.awards.map(award => {
-                          const config = awardConfig[award.type] || { icon: 'bi-award text-light-gray', label: award.type };
-                          return `
-                            <div class="col-12">
-                              <div class="d-flex align-items-center p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
-                                <i class="bi ${config.icon} me-2 fs-5"></i>
-                                <div style="flex: 1; min-width: 0; line-height: 1.2;">
-                                  <div class="d-flex justify-content-between">
-                                    <small class="text-orange fw-bold" style="font-size: 0.7rem;">${config.label}</small>
-                                    <small class="text-muted" style="font-size: 0.7rem;">${award.team_city}</small>
-                                  </div>
-                                  <div class="text-white text-truncate" style="font-size: 0.85rem;">${award.player || 'N/A'}</div>
-                                </div>
-                              </div>
-                            </div>
-                          `;
-                        }).join('')}
-                        </div>
-                      </div>
-                    ` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
-            }).join('')}
+      if (seasons.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-5">
+            <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
+            <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
+            <p class="text-light-gray">
+              Ainda não há histórico de temporadas finalizadas para a liga <strong class="text-orange">${userLeague}</strong>.
+            </p>
           </div>
         `;
-      } catch (e) {
-        console.error(e);
-        document.getElementById('historyContainer').innerHTML = `
-          <div class="alert alert-danger border-0 text-white" style="background-color: #dc3545; border-radius: 15px;">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            Erro ao carregar histórico: ${e.error || 'Erro de conexão'}
-          </div>
-        `;
+        return;
       }
-    }
 
-    loadHistory();
-  </script>
+      // Gera o HTML de todos os cards
+      const cardsHtml = seasons.map(s => {
+        const awardsHtml = gerarHtmlPremios(s.awards);
+        
+        // Renderiza Campeão (Segurança se for null)
+        const championHtml = s.champion ? `
+          <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(241, 117, 7, 0.1); border-radius: 10px; border-left: 4px solid var(--fba-orange);">
+              <i class="bi bi-trophy-fill text-orange" style="font-size: 1.5rem;"></i>
+              <div>
+                <small class="text-light-gray d-block">Campeão</small>
+                <strong class="text-white">${s.champion.city} ${s.champion.name}</strong>
+              </div>
+            </div>
+          </div>` : '';
+
+        // Renderiza Vice (Segurança se for null)
+        const runnerUpHtml = s.runner_up ? `
+          <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(200, 200, 200, 0.05); border-radius: 10px; border-left: 4px solid #888;">
+              <i class="bi bi-award-fill text-light-gray" style="font-size: 1.5rem;"></i>
+              <div>
+                <small class="text-light-gray d-block">Vice-Campeão</small>
+                <strong class="text-white">${s.runner_up.city} ${s.runner_up.name}</strong>
+              </div>
+            </div>
+          </div>` : '';
+
+        return `
+          <div class="col-md-6 col-lg-4">
+            <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="text-white mb-0">
+                    <i class="bi bi-calendar3 text-orange me-2"></i>
+                    Temporada ${String(s.number).padStart(2, '0')}
+                  </h5>
+                  <span class="badge bg-gradient-orange">${s.year}</span>
+                </div>
+                ${championHtml}
+                ${runnerUpHtml}
+                ${awardsHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `<div class="row g-4">${cardsHtml}</div>`;
+
+    } catch (e) {
+      console.error('Erro detalhado:', e);
+      container.innerHTML = `
+        <div class="alert alert-danger" style="border-radius: 15px;">
+          <strong>Erro ao carregar histórico:</strong><br>
+          ${e.error || e.message || 'Erro desconhecido. Verifique o console.'}
+        </div>
+      `;
+    }
+  }
+
+  // Iniciar
+  document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
 </body>
 </html>
