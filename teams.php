@@ -55,6 +55,13 @@ foreach ($teams as &$t) {
   $capResult = $capStmt->fetch();
   $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
 }
+unset($t); // Importante: limpar referência do foreach
+
+// DEBUG: Verificar IDs após processamento
+$debugInfo .= " | Após processamento: ";
+foreach ($teams as $tm) {
+    $debugInfo .= $tm['id'] . ", ";
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -200,7 +207,10 @@ foreach ($teams as &$t) {
                                          style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-orange"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                    <div class="fw-bold text-orange">
+                                        <span class="badge bg-danger me-2">ID:<?= $t['id'] ?></span>
+                                        <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
+                                    </div>
                                     <small class="text-light-gray"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
                                 </td>
                                 <td>
