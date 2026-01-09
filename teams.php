@@ -23,6 +23,27 @@ $stmt = $pdo->prepare('SELECT id, city, name, mascot, photo_url, user_id FROM te
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// DEBUG: Verificar IDs únicos
+error_log("=== DEBUG TEAMS.PHP ===");
+error_log("Liga: " . $user['league']);
+error_log("Total times retornados: " . count($teams));
+foreach ($teams as $idx => $tm) {
+    error_log("Index $idx: ID={$tm['id']}, Nome={$tm['city']} {$tm['name']}, user_id={$tm['user_id']}");
+}
+
+// Remover duplicatas por ID (se existirem)
+$uniqueTeams = [];
+$seenIds = [];
+foreach ($teams as $t) {
+    if (!in_array($t['id'], $seenIds)) {
+        $seenIds[] = $t['id'];
+        $uniqueTeams[] = $t;
+    } else {
+        error_log("DUPLICATA ENCONTRADA: ID {$t['id']}");
+    }
+}
+$teams = $uniqueTeams;
+
 // Adicionar dados complementares para cada time
 foreach ($teams as &$t) {
   $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
