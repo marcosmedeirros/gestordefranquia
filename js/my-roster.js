@@ -284,12 +284,10 @@ async function updatePlayer(payload) {
 }
 
 async function deletePlayer(id) {
-  if (!confirm('Deseja dispensar este jogador? (Limite: 3 dispensas por temporada)')) return;
+  if (!confirm('Deseja dispensar este jogador?')) return;
   try {
     const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id }) });
-    if (res.waivers_used) {
-      alert(`Jogador dispensado. Você usou ${res.waivers_used} de 3 dispensas nesta temporada.`);
-    }
+    alert('Jogador dispensado com sucesso!');
     loadPlayers();
   } catch (err) {
     alert(err.error || 'Erro ao dispensar jogador');

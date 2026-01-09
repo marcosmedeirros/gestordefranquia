@@ -201,24 +201,12 @@ if ($method === 'DELETE') {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
-    // Verificar limite de dispensas (waiver) por temporada
-    $currentYear = (int)date('Y');
-    $waiverCountStmt = $pdo->prepare('SELECT COUNT(*) as count FROM waivers WHERE team_id = ? AND season_year = ?');
-    $waiverCountStmt->execute([(int)$row['team_id'], $currentYear]);
-    $waiverCount = (int)$waiverCountStmt->fetchColumn();
-    
-    if ($waiverCount >= 3) {
-        jsonResponse(409, ['error' => 'Limite de 3 dispensas por temporada atingido.']);
-    }
-
-    // Registrar a dispensa no waiver
-    $waiverStmt = $pdo->prepare('INSERT INTO waivers (team_id, player_name, season_year) VALUES (?, ?, ?)');
-    $waiverStmt->execute([(int)$row['team_id'], $row['name'], $currentYear]);
-
+    // Deletar o jogador
     $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
     $del->execute([$playerId]);
+    
     $newCap = topEightCap($pdo, (int)$row['team_id']);
-    jsonResponse(200, ['message' => 'Jogador dispensado.', 'cap_top8' => $newCap, 'waivers_used' => $waiverCount + 1]);
+    jsonResponse(200, ['message' => 'Jogador dispensado com sucesso.', 'cap_top8' => $newCap]);
 }
 
 jsonResponse(405, ['error' => 'Method not allowed']);
