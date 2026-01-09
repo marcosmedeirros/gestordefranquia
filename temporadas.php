@@ -574,6 +574,17 @@ if (!$team) {
                       <option value="C">C - Pivô</option>
                     </select>
                   </div>
+                    <div class="mb-3">
+                      <label class="form-label text-white">Posição Secundária</label>
+                      <select class="form-select bg-dark text-white border-orange" name="secondary_position">
+                        <option value="">Nenhuma</option>
+                        <option value="PG">PG - Armador</option>
+                        <option value="SG">SG - Ala-Armador</option>
+                        <option value="SF">SF - Ala</option>
+                        <option value="PF">PF - Ala-Pivô</option>
+                        <option value="C">C - Pivô</option>
+                      </select>
+                    </div>
                   <div class="mb-3">
                     <label class="form-label text-white">OVR</label>
                     <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="1" max="99" required>
@@ -595,8 +606,9 @@ if (!$team) {
     
     async function submitAddPlayer(event) {
       event.preventDefault();
-      const form = event.target;
-      const formData = new FormData(form);
+  const form = event.target;
+  const formData = new FormData(form);
+  const secondaryPosition = formData.get('secondary_position');
       
       try {
         await api('seasons.php?action=add_draft_player', {
@@ -606,6 +618,7 @@ if (!$team) {
             name: formData.get('name'),
             age: formData.get('age'),
             position: formData.get('position'),
+            secondary_position: secondaryPosition,
             ovr: formData.get('ovr'),
             photo_url: null
           })

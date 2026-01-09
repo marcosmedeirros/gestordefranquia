@@ -1,3 +1,5 @@
+-- Adicionar campo de posição secundária na tabela draft_pool
+ALTER TABLE draft_pool ADD COLUMN secondary_position ENUM('PG', 'SG', 'SF', 'PF', 'C') NULL AFTER position;
 -- Adicionar campo de posição secundária aos jogadores
 ALTER TABLE players ADD COLUMN secondary_position VARCHAR(20) NULL AFTER position;
 

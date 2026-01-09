@@ -230,13 +230,14 @@ try {
             $data = json_decode(file_get_contents('php://input'), true);
             
             $stmt = $pdo->prepare("
-                INSERT INTO draft_pool (season_id, name, position, age, ovr, photo_url, bio, strengths, weaknesses)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO draft_pool (season_id, name, position, secondary_position, age, ovr, photo_url, bio, strengths, weaknesses)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $data['season_id'],
                 $data['name'],
                 $data['position'],
+                $data['secondary_position'] ?? null,
                 $data['age'],
                 $data['ovr'],
                 $data['photo_url'] ?? null,
@@ -443,13 +444,15 @@ try {
             break;
 
         // ========== SALVAR HISTÓRICO DA TEMPORADA ==========
-        case 'save_history':
+            case 'save_history':
             if ($method !== 'POST') throw new Exception('Método inválido');
             
             $input = json_decode(file_get_contents('php://input'), true);
             $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : null;
             $champion = isset($input['champion']) ? (int)$input['champion'] : null;
             $runnerUp = isset($input['runner_up']) ? (int)$input['runner_up'] : null;
+            
+            // Arrays de IDs dos times eliminados
             $firstRound = isset($input['first_round_losses']) && is_array($input['first_round_losses']) ? array_map('intval', array_filter($input['first_round_losses'])) : [];
             $secondRound = isset($input['second_round_losses']) && is_array($input['second_round_losses']) ? array_map('intval', array_filter($input['second_round_losses'])) : [];
             $confFinal = isset($input['conference_final_losses']) && is_array($input['conference_final_losses']) ? array_map('intval', array_filter($input['conference_final_losses'])) : [];
@@ -457,11 +460,8 @@ try {
             if (!$seasonId || !$champion || !$runnerUp) {
                 throw new Exception('Dados incompletos: season_id, champion e runner_up são obrigatórios');
             }
-            
-            if ($champion == $runnerUp) {
-                throw new Exception('Campeão e vice-campeão não podem ser o mesmo time');
-            }
 
+            // Validar duplicações lógicas
             $allEliminated = array_merge($firstRound, $secondRound, $confFinal);
             if (count(array_unique($allEliminated)) !== count($allEliminated)) {
                 throw new Exception('Um time não pode ser marcado em mais de uma fase eliminada');
@@ -472,99 +472,140 @@ try {
             
             $pdo->beginTransaction();
             
-            // Salvar resultados dos playoffs
-            $stmtDelete = $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?");
-            $stmtDelete->execute([$seasonId]);
+            // 1. Buscar informações da Liga (necessário para a tabela team_ranking_points)
+            $stmtSeason = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtSeason->execute([$seasonId]);
+            $seasonData = $stmtSeason->fetch();
             
-            $stmtPlayoff = $pdo->prepare("
-                INSERT INTO playoff_results (season_id, team_id, position)
-                VALUES (?, ?, ?)
-            ");
+            if (!$seasonData) throw new Exception('Temporada não encontrada');
+            $league = $seasonData['league'];
+
+            // 2. Salvar Tabelas Auxiliares (Playoff Results e Awards)
+            // (Mantemos essa parte pois ela alimenta a exibição visual do histórico)
+            $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?")->execute([$seasonId]);
+            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?")->execute([$seasonId]);
+            
+            $stmtPlayoff = $pdo->prepare("INSERT INTO playoff_results (season_id, team_id, position) VALUES (?, ?, ?)");
             $stmtPlayoff->execute([$seasonId, $champion, 'champion']);
             $stmtPlayoff->execute([$seasonId, $runnerUp, 'runner_up']);
-            foreach ($firstRound as $teamId) {
-                $stmtPlayoff->execute([$seasonId, $teamId, 'first_round']);
-            }
-            foreach ($secondRound as $teamId) {
-                $stmtPlayoff->execute([$seasonId, $teamId, 'second_round']);
-            }
-            foreach ($confFinal as $teamId) {
-                $stmtPlayoff->execute([$seasonId, $teamId, 'conference_final']);
-            }
+            foreach ($firstRound as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'first_round']);
+            foreach ($secondRound as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'second_round']);
+            foreach ($confFinal as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'conference_final']);
             
-            // Salvar prêmios individuais
-            $stmtDeleteAwards = $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?");
-            $stmtDeleteAwards->execute([$seasonId]);
+            // Inserir prêmios na tabela auxiliar
+            $stmtAward = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?, ?, ?, ?)");
+            $awardTypes = ['mvp', 'dpoy', 'mip', 'sixth_man'];
+            $awardsMap = []; // Para usar no cálculo de pontos depois
             
-            $stmtAward = $pdo->prepare("
-                INSERT INTO season_awards (season_id, team_id, award_type, player_name)
-                VALUES (?, ?, ?, ?)
-            ");
-            
-            if (!empty($input['mvp']) && !empty($input['mvp_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['mvp_team_id'], 'mvp', $input['mvp']]);
-            }
-            if (!empty($input['dpoy']) && !empty($input['dpoy_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['dpoy_team_id'], 'dpoy', $input['dpoy']]);
-            }
-            if (!empty($input['mip']) && !empty($input['mip_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['mip_team_id'], 'mip', $input['mip']]);
-            }
-            if (!empty($input['sixth_man']) && !empty($input['sixth_man_team_id'])) {
-                $stmtAward->execute([$seasonId, (int)$input['sixth_man_team_id'], '6th_man', $input['sixth_man']]);
-            }
-            
-            // Atualizar pontos no ranking com nova pontuação por fase
-            $stmtGetSeason = $pdo->prepare("SELECT league, year FROM seasons WHERE id = ?");
-            $stmtGetSeason->execute([$seasonId]);
-            $season = $stmtGetSeason->fetch();
-            
-            if ($season) {
-                // Resetar pontos da temporada antes de aplicar nova lógica
-                $stmtDeletePoints = $pdo->prepare("DELETE FROM team_ranking_points WHERE season_id = ?");
-                $stmtDeletePoints->execute([$seasonId]);
-
-                $stmtPoints = $pdo->prepare("
-                    INSERT INTO team_ranking_points (team_id, season_id, points, reason)
-                    VALUES (?, ?, ?, ?)
-                ");
-
-                $addPoints = function($teamId, $points, $reason) use ($stmtPoints, $seasonId) {
-                    if (!$teamId) return;
-                    $stmtPoints->execute([$teamId, $seasonId, $points, $reason]);
-                };
-
-                // Campeão e vice
-                $addPoints($champion, 11, 'Campeão');
-                $addPoints($runnerUp, 8, 'Vice-Campeão');
-
-                // Eliminados por fase
-                foreach ($confFinal as $teamId) {
-                    $addPoints($teamId, 6, 'Final de Conferência');
-                }
-                foreach ($secondRound as $teamId) {
-                    $addPoints($teamId, 3, '2ª Rodada');
-                }
-                foreach ($firstRound as $teamId) {
-                    $addPoints($teamId, 1, '1ª Rodada');
-                }
-
-                // Prêmios: 1 ponto cada
-                foreach (['mvp', 'dpoy', 'mip', 'sixth_man'] as $award) {
-                    $teamIdKey = $award . '_team_id';
-                    if (!empty($input[$teamIdKey])) {
-                        $addPoints((int)$input[$teamIdKey], 1, 'Prêmio ' . strtoupper($award));
+            foreach ($awardTypes as $type) {
+                $teamKey = $type . '_team_id'; // ex: mvp_team_id
+                if (!empty($input[$type]) && !empty($input[$teamKey])) {
+                    $tId = (int)$input[$teamKey];
+                    $stmtAward->execute([$seasonId, $tId, ($type == 'sixth_man' ? '6th_man' : $type), $input[$type]]);
+                    
+                    // Contabilizar para o ranking
+                    if (!isset($awardsMap[$tId])) {
+                        $awardsMap[$tId] = 0;
                     }
+                    $awardsMap[$tId]++; // +1 prêmio para este time
                 }
+            }
+
+            // 3. CALCULAR E SALVAR NA TABELA team_ranking_points (A Correção Principal)
+            
+            // Primeiro, limpamos o registro anterior desta temporada para evitar duplicidade
+            $pdo->prepare("DELETE FROM team_ranking_points WHERE season_id = ?")->execute([$seasonId]);
+
+            // Vamos montar um array com todos os times que pontuaram
+            $teamStats = [];
+
+            // Função helper para iniciar o time no array se não existir
+            $initTeam = function($tId) use (&$teamStats) {
+                if (!isset($teamStats[$tId])) {
+                    $teamStats[$tId] = [
+                        'playoff_champion' => 0,
+                        'playoff_runner_up' => 0,
+                        'playoff_conference_finals' => 0,
+                        'playoff_second_round' => 0,
+                        'playoff_first_round' => 0,
+                        'playoff_points' => 0,
+                        'awards_count' => 0,
+                        'awards_points' => 0
+                    ];
+                }
+            };
+
+            // Processar Campeão (11 pontos segundo seu código anterior)
+            $initTeam($champion);
+            $teamStats[$champion]['playoff_champion'] = 1;
+            $teamStats[$champion]['playoff_points'] = 11; 
+
+            // Processar Vice (8 pontos)
+            $initTeam($runnerUp);
+            $teamStats[$runnerUp]['playoff_runner_up'] = 1;
+            $teamStats[$runnerUp]['playoff_points'] = 8;
+
+            // Processar Finais de Conferência (6 pontos)
+            foreach ($confFinal as $tid) {
+                $initTeam($tid);
+                $teamStats[$tid]['playoff_conference_finals'] = 1;
+                $teamStats[$tid]['playoff_points'] = 6;
+            }
+
+            // Processar 2ª Rodada (3 pontos)
+            foreach ($secondRound as $tid) {
+                $initTeam($tid);
+                $teamStats[$tid]['playoff_second_round'] = 1;
+                $teamStats[$tid]['playoff_points'] = 3;
+            }
+
+            // Processar 1ª Rodada (1 ponto)
+            foreach ($firstRound as $tid) {
+                $initTeam($tid);
+                $teamStats[$tid]['playoff_first_round'] = 1;
+                $teamStats[$tid]['playoff_points'] = 1;
+            }
+
+            // Processar Prêmios (1 ponto cada)
+            foreach ($awardsMap as $tid => $count) {
+                $initTeam($tid);
+                $teamStats[$tid]['awards_count'] = $count;
+                $teamStats[$tid]['awards_points'] = $count * 1; // 1 ponto por prêmio
+            }
+
+            // Agora fazemos o INSERT final para cada time
+            $stmtInsertRanking = $pdo->prepare("
+                INSERT INTO team_ranking_points 
+                (team_id, season_id, league, 
+                 playoff_champion, playoff_runner_up, playoff_conference_finals, 
+                 playoff_second_round, playoff_first_round, playoff_points,
+                 awards_count, awards_points)
+                VALUES 
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            foreach ($teamStats as $tid => $stats) {
+                $stmtInsertRanking->execute([
+                    $tid, 
+                    $seasonId, 
+                    $league,
+                    $stats['playoff_champion'],
+                    $stats['playoff_runner_up'],
+                    $stats['playoff_conference_finals'],
+                    $stats['playoff_second_round'],
+                    $stats['playoff_first_round'],
+                    $stats['playoff_points'],
+                    $stats['awards_count'],
+                    $stats['awards_points']
+                ]);
             }
             
             // Marcar temporada como completa
-            $stmtComplete = $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?");
-            $stmtComplete->execute([$seasonId]);
+            $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
             
             $pdo->commit();
             
-            echo json_encode(['success' => true, 'message' => 'Histórico salvo com sucesso']);
+            echo json_encode(['success' => true, 'message' => 'Histórico salvo e ranking atualizado!']);
             break;
 
         // ========== RESETAR SPRINT (NOVO CICLO) ==========
