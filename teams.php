@@ -22,16 +22,18 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga
-$stmtTeams = $pdo->prepare('
-    SELECT DISTINCT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name AS owner_name
-    FROM teams t
-    LEFT JOIN users u ON t.user_id = u.id
-    WHERE t.league = ?
-    ORDER BY t.id ASC
-');
+// Buscar todos os times da liga do usuário
+$stmtTeams = $pdo->prepare('SELECT id, user_id, league, conference, name, city, mascot, photo_url FROM teams WHERE league = ? ORDER BY id ASC');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
+
+// Adicionar nome do owner em cada time
+foreach ($allTeams as &$t) {
+  $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
+  $ownerStmt->execute([$t['user_id']]);
+  $owner = $ownerStmt->fetch();
+  $t['owner_name'] = $owner['name'] ?? 'N/A';
+}
 
 // Calcular contagem de jogadores para cada time
 foreach ($allTeams as &$t) {
