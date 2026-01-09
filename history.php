@@ -116,23 +116,42 @@ $userLeague = $team['league'];
   const userLeague = '<?= $userLeague ?>';
   log('1. Script Iniciado. Liga do usuário:', userLeague);
 
-  // Função auxiliar para chamar API com Debug
+  // Função auxiliar para chamar API com Debug e Timeout
   const api = async (path) => {
     log(`2. Chamando API: /api/${path}`);
+    
+    // Criar timeout de 15 segundos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
     try {
-      const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`/api/${path}`, { 
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal 
+      });
+      clearTimeout(timeoutId);
+      
       log(`3. Resposta API Status:`, res.status);
       
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      
       const text = await res.text(); // Pega como texto primeiro pra ver se não é erro de PHP
-      log(`4. Resposta Raw (Primeiros 100 chars):`, text.substring(0, 100));
+      log(`4. Resposta Raw (Primeiros 200 chars):`, text.substring(0, 200));
+
+      if (!text) {
+        throw new Error('Resposta vazia do servidor');
+      }
 
       try {
         const json = JSON.parse(text);
         return json;
       } catch (errJson) {
-        throw new Error(`Erro ao converter JSON. O servidor retornou HTML ou erro? Resp: ${text.substring(0, 50)}...`);
+        throw new Error(`Erro ao converter JSON. O servidor retornou HTML ou erro? Resp: ${text.substring(0, 100)}...`);
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       log('ERRO NA REQUISIÇÃO:', err.message);
       throw err;
     }
@@ -152,11 +171,17 @@ $userLeague = $team['league'];
       if (!userLeague) throw new Error('A variável userLeague está vazia.');
 
       log('5. Iniciando busca de histórico...');
-      const data = await api('seasons.php?action=full_history&league=' + userLeague);
+      const apiUrl = 'seasons.php?action=full_history&league=' + encodeURIComponent(userLeague);
+      log('URL da API:', apiUrl);
+      const data = await api(apiUrl);
       
       log('6. JSON recebido com sucesso:', data);
 
-      if (!data.success) {
+      if (!data || typeof data !== 'object') {
+        throw new Error('Resposta inválida: não é um objeto JSON válido');
+      }
+
+      if (data.success === false) {
         throw new Error(data.error || 'API retornou success: false');
       }
 
@@ -216,10 +241,10 @@ $userLeague = $team['league'];
       log('ERRO FATAL NO PROCESSO:', e.message);
       container.innerHTML = `
         <div class="alert alert-danger">
-          <h4>Erro Crítico</h4>
-          <p>${e.message}</p>
+          <h4>Erro ao Carregar Histórico</h4>
+          <p><strong>Erro:</strong> ${e.message}</p>
           <hr>
-          <small>Veja o log preto abaixo para detalhes técnicos.</small>
+          <small>Verifique o console do navegador (F12) e o log preto abaixo para detalhes técnicos.</small>
         </div>
       `;
     }
