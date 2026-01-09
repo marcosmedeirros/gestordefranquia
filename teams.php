@@ -22,47 +22,30 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga do usuário
-$stmtTeams = $pdo->prepare('
-    SELECT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url
+// Buscar todos os times da liga (mesma query que funciona no admin)
+$query = "
+    SELECT 
+        t.id, t.city, t.name, t.mascot, t.league, t.conference, t.photo_url,
+        u.name as owner_name,
+        (SELECT COUNT(*) FROM players WHERE team_id = t.id) as total_players
     FROM teams t
+    JOIN users u ON t.user_id = u.id
     WHERE t.league = ?
-    ORDER BY t.id ASC
-');
+    ORDER BY t.city, t.name
+";
+$stmtTeams = $pdo->prepare($query);
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// Debug: log da query
-error_log('=== TEAMS DEBUG ===');
-error_log('Liga: ' . $user['league']);
-error_log('SQL retornou: ' . count($allTeams) . ' registros');
-foreach ($allTeams as $tm) {
-    error_log('ID: ' . $tm['id'] . ' | Nome: ' . $tm['name']);
-}
-
-// Adicionar owner_name, total_players e cap_top8
+// Calcular CAP Top8 para cada time
 foreach ($allTeams as &$t) {
-  // Owner name
-  $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
-  $ownerStmt->execute([$t['user_id']]);
-  $owner = $ownerStmt->fetch();
-  $t['owner_name'] = $owner['name'] ?? 'N/A';
-  
-  // Total de jogadores
-  $playerCountStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
-  $playerCountStmt->execute([$t['id']]);
-  $t['total_players'] = (int)$playerCountStmt->fetchColumn();
-  
-  // CAP Top8
-  $capStmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
-  $capStmt->execute([$t['id']]);
-  $topPlayers = $capStmt->fetchAll();
+  $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
+  $stmt->execute([$t['id']]);
+  $topPlayers = $stmt->fetchAll();
   $t['cap_top8'] = array_reduce($topPlayers, function($carry, $item) {
     return $carry + $item['ovr'];
   }, 0);
 }
-
-// Separar por conferência
 $teams_by_conference = [];
 foreach ($allTeams as $t) {
   $conf = $t['conference'] ?? 'Sem Conferência';
@@ -445,20 +428,6 @@ foreach ($allTeams as $t) {
             if (ovr >= 70) return '#ff6600';
             return '#ff3333';
         }
-
-        // Debug: Mostrar dados carregados
-        console.log('=== DEBUG Teams.php ===');
-        console.log('Usuário:', <?= json_encode(['id' => $user['id'], 'league' => $user['league'], 'name' => $user['name']]) ?>);
-        console.log('Quantidade de times:', <?= count($allTeams) ?>);
-        console.log('Times carregados:', <?= json_encode($allTeams) ?>);
-        
-        // Debug detalhado
-        const times = <?= json_encode($allTeams) ?>;
-        times.forEach((t, i) => {
-            console.log(`Time ${i+1}: ID=${t.id}, Nome=${t.city} ${t.name}, Conferência=${t.conference}`);
-        });
-        
-        console.log('Times por conferência:', <?= json_encode($teams_by_conference) ?>);
     </script>
 </body>
 </html>
