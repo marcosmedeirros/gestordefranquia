@@ -6,11 +6,12 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-// Buscar time do usuário
+// 1. Buscar time do usuário para saber qual liga ele pertence
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
+// Se não tiver time, manda criar
 if (!$team) {
     header('Location: /onboarding.php');
     exit;
@@ -59,7 +60,6 @@ $userLeague = $team['league'];
       <?php endif; ?>
       <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
     </ul>
-    </ul>
     <hr style="border-color: var(--fba-border);">
     <div class="text-center">
       <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-box-arrow-right me-2"></i>Sair</a>
@@ -70,7 +70,7 @@ $userLeague = $team['league'];
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="text-white fw-bold mb-0">
         <i class="bi bi-clock-history me-2 text-orange"></i>
-        Histórico de Temporadas
+        Histórico de Temporadas - Liga <?= htmlspecialchars($userLeague) ?>
       </h1>
     </div>
 
@@ -84,6 +84,7 @@ $userLeague = $team['league'];
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
+    // Passa a liga do PHP para o JS
     const userLeague = '<?= $userLeague ?>';
 
     const api = async (path, options = {}) => {
@@ -96,7 +97,8 @@ $userLeague = $team['league'];
 
     async function loadHistory() {
       try {
-        // Buscar histórico completo (campeões + prêmios)
+        // AQUI ESTÁ O FILTRO: &league=userLeague
+        // Isso garante que só busca dados da ELITE se eu for ELITE, da NEXT se for NEXT, etc.
         const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
         const seasons = historyData.history || [];
 
@@ -104,25 +106,39 @@ $userLeague = $team['league'];
           document.getElementById('historyContainer').innerHTML = `
             <div class="text-center py-5">
               <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
-              <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
+              <h5 class="text-white mb-2">Nenhum histórico nesta liga</h5>
               <p class="text-light-gray">
-                Ainda não há histórico de temporadas registrado para a liga <strong class="text-orange">${userLeague}</strong>.
+                Ainda não há temporadas finalizadas na liga <strong class="text-orange">${userLeague}</strong>.
               </p>
             </div>
           `;
           return;
         }
 
+        
+
+[Image of JSON data structure diagram]
+
+
         document.getElementById('historyContainer').innerHTML = `
           <div class="row g-4">
-            ${seasons.map(s => `
+            ${seasons.map(s => {
+              // Mapeamento corrigido para os códigos do banco (minúsculos)
+              const awardConfig = {
+                'mvp': { icon: 'bi-star-fill text-warning', label: 'MVP' },
+                'dpoy': { icon: 'bi-shield-fill text-primary', label: 'DPOY' },
+                'mip': { icon: 'bi-graph-up-arrow text-success', label: 'MIP' },
+                '6th_man': { icon: 'bi-person-plus text-info', label: '6º Homem' }
+              };
+
+              return `
               <div class="col-md-6 col-lg-4">
                 <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
                   <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                       <h5 class="text-white mb-0">
                         <i class="bi bi-calendar3 text-orange me-2"></i>
-                        Temporada ${String(s.number).padStart(2, '0')}
+                        Temp. ${String(s.number).padStart(2, '0')}
                       </h5>
                       <span class="badge bg-gradient-orange">${s.year}</span>
                     </div>
@@ -132,7 +148,7 @@ $userLeague = $team['league'];
                         <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(241, 117, 7, 0.1); border-radius: 10px; border-left: 4px solid var(--fba-orange);">
                           <i class="bi bi-trophy-fill text-orange" style="font-size: 1.5rem;"></i>
                           <div>
-                            <small class="text-light-gray d-block">Campeão</small>
+                            <small class="text-light-gray d-block text-uppercase" style="font-size: 0.7rem;">Campeão</small>
                             <strong class="text-white">${s.champion.city} ${s.champion.name}</strong>
                           </div>
                         </div>
@@ -144,7 +160,7 @@ $userLeague = $team['league'];
                         <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(200, 200, 200, 0.05); border-radius: 10px; border-left: 4px solid #888;">
                           <i class="bi bi-award-fill text-light-gray" style="font-size: 1.5rem;"></i>
                           <div>
-                            <small class="text-light-gray d-block">Vice-Campeão</small>
+                            <small class="text-light-gray d-block text-uppercase" style="font-size: 0.7rem;">Vice-Campeão</small>
                             <strong class="text-white">${s.runner_up.city} ${s.runner_up.name}</strong>
                           </div>
                         </div>
@@ -152,42 +168,41 @@ $userLeague = $team['league'];
                     ` : ''}
 
                     ${s.awards && s.awards.length > 0 ? `
-                      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(241, 117, 7, 0.3);">
-                        <small class="text-light-gray d-block mb-2"><strong>Prêmios Individuais:</strong></small>
+                      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                        <small class="text-light-gray d-block mb-2 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">Prêmios</small>
+                        <div class="row g-2">
                         ${s.awards.map(award => {
-                          const icons = {
-                            'MVP': 'bi-star-fill text-warning',
-                            'DPOY': 'bi-shield-fill text-primary',
-                            'MIP': 'bi-graph-up-arrow text-success',
-                            '6th Man': 'bi-person-plus text-info'
-                          };
-                          const icon = icons[award.type] || 'bi-award text-light-gray';
+                          const config = awardConfig[award.type] || { icon: 'bi-award text-light-gray', label: award.type };
                           return `
-                            <div class="mb-2 p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
-                              <div class="d-flex align-items-start gap-2">
-                                <i class="bi ${icon}" style="font-size: 1rem; margin-top: 2px;"></i>
-                                <div style="flex: 1; min-width: 0;">
-                                  <small class="text-light-gray d-block" style="font-size: 0.7rem;">${award.type}</small>
-                                  <strong class="text-white d-block" style="font-size: 0.85rem;">${award.player || 'N/A'}</strong>
-                                  <small class="text-light-gray" style="font-size: 0.75rem;">${award.team_city} ${award.team_name}</small>
+                            <div class="col-12">
+                              <div class="d-flex align-items-center p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
+                                <i class="bi ${config.icon} me-2 fs-5"></i>
+                                <div style="flex: 1; min-width: 0; line-height: 1.2;">
+                                  <div class="d-flex justify-content-between">
+                                    <small class="text-orange fw-bold" style="font-size: 0.7rem;">${config.label}</small>
+                                    <small class="text-muted" style="font-size: 0.7rem;">${award.team_city}</small>
+                                  </div>
+                                  <div class="text-white text-truncate" style="font-size: 0.85rem;">${award.player || 'N/A'}</div>
                                 </div>
                               </div>
                             </div>
                           `;
                         }).join('')}
+                        </div>
                       </div>
                     ` : ''}
                   </div>
                 </div>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
         `;
       } catch (e) {
         console.error(e);
         document.getElementById('historyContainer').innerHTML = `
-          <div class="alert alert-danger" style="border-radius: 15px;">
-            Erro ao carregar histórico: ${e.error || 'Desconhecido'}
+          <div class="alert alert-danger border-0 text-white" style="background-color: #dc3545; border-radius: 15px;">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Erro ao carregar histórico: ${e.error || 'Erro de conexão'}
           </div>
         `;
       }
