@@ -18,31 +18,26 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-// Buscar TODOS os times da liga do usuário
+// Buscar TODOS os times da liga do usuário - QUERY DIRETA
 $stmt = $pdo->prepare('SELECT id, city, name, mascot, photo_url, user_id FROM teams WHERE league = ? ORDER BY id ASC');
 $stmt->execute([$user['league']]);
-$teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$teamsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// DEBUG: Verificar IDs únicos
-error_log("=== DEBUG TEAMS.PHP ===");
-error_log("Liga: " . $user['league']);
-error_log("Total times retornados: " . count($teams));
-foreach ($teams as $idx => $tm) {
-    error_log("Index $idx: ID={$tm['id']}, Nome={$tm['city']} {$tm['name']}, user_id={$tm['user_id']}");
+// DEBUG VISUAL
+$debugInfo = "Liga: {$user['league']} | Total retornado: " . count($teamsRaw) . " | IDs: ";
+foreach ($teamsRaw as $tr) {
+    $debugInfo .= $tr['id'] . ", ";
 }
 
-// Remover duplicatas por ID (se existirem)
-$uniqueTeams = [];
+// Remover duplicatas por ID
+$teams = [];
 $seenIds = [];
-foreach ($teams as $t) {
+foreach ($teamsRaw as $t) {
     if (!in_array($t['id'], $seenIds)) {
         $seenIds[] = $t['id'];
-        $uniqueTeams[] = $t;
-    } else {
-        error_log("DUPLICATA ENCONTRADA: ID {$t['id']}");
+        $teams[] = $t;
     }
 }
-$teams = $uniqueTeams;
 
 // Adicionar dados complementares para cada time
 foreach ($teams as &$t) {
@@ -173,6 +168,11 @@ foreach ($teams as &$t) {
 
     <!-- Main Content -->
     <div class="dashboard-content">
+        <!-- DEBUG INFO -->
+        <div class="alert alert-warning">
+            <strong>DEBUG:</strong> <?= $debugInfo ?>
+        </div>
+
         <h1 class="display-5 fw-bold mb-4">
             <i class="bi bi-people-fill text-orange me-2"></i>Times da Liga
         </h1>
