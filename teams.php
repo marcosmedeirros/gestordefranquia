@@ -22,8 +22,14 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga
-$stmtTeams = $pdo->prepare('SELECT DISTINCT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.conference, t.name');
+// Buscar todos os times da liga (sem duplicatas)
+$stmtTeams = $pdo->prepare('
+    SELECT t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url, u.name AS owner_name
+    FROM teams t
+    LEFT JOIN users u ON t.user_id = u.id
+    WHERE t.league = ?
+    ORDER BY t.conference, t.name, t.id
+');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
 

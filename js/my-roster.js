@@ -220,12 +220,19 @@ function updateRosterStats() {
 
 async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
-  if (!teamId) return;
+  console.log('loadPlayers chamado, teamId:', teamId);
+  if (!teamId) {
+    console.error('Sem teamId!');
+    return;
+  }
   document.getElementById('players-status').classList.remove('d-none');
   document.getElementById('players-list').classList.add('d-none');
   try {
+    console.log('Fetching:', `/api/players.php?team_id=${teamId}`);
     const data = await api(`players.php?team_id=${teamId}`);
+    console.log('Resposta API:', data);
     allPlayers = data.players || [];
+    console.log('Total de jogadores carregados:', allPlayers.length);
     // Ordenar por role padrão (Titular primeiro)
     currentSort = { field: 'role', ascending: true };
     updateSortIcons();
@@ -233,6 +240,7 @@ async function loadPlayers() {
     document.getElementById('players-status').classList.add('d-none');
     document.getElementById('players-list').classList.remove('d-none');
   } catch (err) {
+    console.error('Erro ao carregar:', err);
     alert(err.error || 'Erro ao carregar jogadores');
   }
 }
