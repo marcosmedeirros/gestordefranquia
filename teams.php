@@ -22,28 +22,24 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga do usuário
-$stmtTeams = $pdo->prepare('SELECT id, user_id, league, conference, name, city, mascot, photo_url FROM teams WHERE league = ? ORDER BY id ASC');
+// Buscar todos os times da liga do usuário (mesma query do admin)
+$query = "
+    SELECT 
+        t.id, t.city, t.name, t.mascot, t.league, t.conference, t.photo_url,
+        u.name as owner_name, u.email as owner_email,
+        d.name as division_name,
+        (SELECT COUNT(*) FROM players WHERE team_id = t.id) as total_players
+    FROM teams t
+    JOIN users u ON t.user_id = u.id
+    LEFT JOIN divisions d ON t.division_id = d.id
+    WHERE t.league = ?
+    ORDER BY t.city, t.name
+";
+$stmtTeams = $pdo->prepare($query);
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
 
-// Adicionar nome do owner em cada time
-foreach ($allTeams as &$t) {
-  $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
-  $ownerStmt->execute([$t['user_id']]);
-  $owner = $ownerStmt->fetch();
-  $t['owner_name'] = $owner['name'] ?? 'N/A';
-}
-
-// Calcular contagem de jogadores para cada time
-foreach ($allTeams as &$t) {
-  $stmtPlayers = $pdo->prepare('SELECT COUNT(*) as count FROM players WHERE team_id = ?');
-  $stmtPlayers->execute([$t['id']]);
-  $playerData = $stmtPlayers->fetch();
-  $t['total_players'] = $playerData['count'] ?? 0;
-}
-
-// Calcular CAP Top8 para cada time (já tem total_players acima)
+// Calcular CAP Top8 para cada time
 foreach ($allTeams as &$t) {
   $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
   $stmt->execute([$t['id']]);
