@@ -12,6 +12,13 @@ if (!$user) {
     exit;
 }
 
+// Libera o lock da sessão imediatamente após ler os dados do usuário.
+// Isso evita bloqueios quando múltiplas requisições são feitas em paralelo
+// (ex.: salvar histórico e, em seguida, carregar o histórico na aba).
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $pdo = db();
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];

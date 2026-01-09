@@ -12,6 +12,11 @@ if (!$user) {
     exit;
 }
 
+// Evita bloqueios de sessão em chamadas paralelas
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $pdo = db();
 
 try {
