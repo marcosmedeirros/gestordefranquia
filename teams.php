@@ -29,9 +29,10 @@ $query = "
         u.name as owner_name,
         (SELECT COUNT(*) FROM players WHERE team_id = t.id) as total_players
     FROM teams t
-    JOIN users u ON t.user_id = u.id
+    LEFT JOIN users u ON t.user_id = u.id
     WHERE t.league = ?
-    ORDER BY t.city, t.name
+    GROUP BY t.id
+    ORDER BY t.id ASC
 ";
 $stmtTeams = $pdo->prepare($query);
 $stmtTeams->execute([$user['league']]);
