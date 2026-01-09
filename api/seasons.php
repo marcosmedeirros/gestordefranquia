@@ -145,27 +145,23 @@ try {
                     VALUES (?, ?, ?, ?, ?, 1)
                 ");
                 
-                // Gerar picks apenas para os próximos 5 anos
-                $yearsToGenerate = 5;
+                // Gerar picks para as próximas 5 temporadas (numéricas para respeitar o schema)
+                $yearsToGenerate = 5; // temporadas futuras
                 foreach ($teams as $team) {
                     for ($tempNum = 1; $tempNum <= $yearsToGenerate; $tempNum++) {
-                        $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT); // "Ano 01", "Ano 02", etc
-                        
-                        // Pick Rodada 1 para temporada X
-                        $pickLabel = "T{$tempNum} R1";
-                        $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
-                        
-                        // Pick Rodada 2 para temporada X
-                        $pickLabel = "T{$tempNum} R2";
-                        $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                        // season_year numérico (1,2,3,4,5...)
+                        $seasonYearNumeric = $tempNum;
+                        // round numérico (1 ou 2)
+                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId]);
+                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId]);
                     }
                 }
                 
-                $totalPicksPerTeam = $yearsToGenerate * 2; // 2 picks por ano
+                $totalPicksPerTeam = $yearsToGenerate * 2; // 2 picks por temporada
             } else {
                 // Verificar se precisa gerar mais picks (quando chegou no ano 6, 11, 16, etc)
                 $stmtMaxYear = $pdo->prepare("
-                    SELECT MAX(CAST(SUBSTRING(season_year, 5) AS UNSIGNED)) as max_year 
+                    SELECT MAX(season_year) as max_year 
                     FROM picks 
                     WHERE team_id IN (SELECT id FROM teams WHERE league = ?)
                 ");
@@ -188,13 +184,9 @@ try {
                     
                     foreach ($teams as $team) {
                         for ($tempNum = $startYear; $tempNum <= $endYear; $tempNum++) {
-                            $yearLabel = "Ano " . str_pad($tempNum, 2, '0', STR_PAD_LEFT);
-                            
-                            $pickLabel = "T{$tempNum} R1";
-                            $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
-                            
-                            $pickLabel = "T{$tempNum} R2";
-                            $stmtPick->execute([$team['id'], $team['id'], $yearLabel, $pickLabel, $seasonId]);
+                            $seasonYearNumeric = $tempNum;
+                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId]);
+                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId]);
                         }
                     }
                 }
