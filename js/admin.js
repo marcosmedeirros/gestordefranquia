@@ -809,7 +809,10 @@ async function viewDirectives(deadlineId, league) {
         <div class="card-body">
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
-            directives.map(d => `
+            directives.map(d => {
+              const starters = [1,2,3,4,5].map(i => `<li>${d['starter_' + i + '_name']} (${d['starter_' + i + '_pos']})</li>`).join('');
+              const bench = [1,2,3].map(i => `<li>${d['bench_' + i + '_name']} (${d['bench_' + i + '_pos']})</li>`).join('');
+              return `
               <div class="card bg-dark mb-3">
                 <div class="card-header">
                   <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
@@ -820,13 +823,13 @@ async function viewDirectives(deadlineId, league) {
                     <div class="col-md-6">
                       <h6 class="text-orange">Quinteto Titular</h6>
                       <ul class="text-light-gray">
-                        ${[1,2,3,4,5].map(i => `<li>${d[\`starter_\${i}_name\`]} (${d[\`starter_\${i}_pos\`]})</li>`).join('')}
+                        ${starters}
                       </ul>
                     </div>
                     <div class="col-md-6">
                       <h6 class="text-orange">Banco</h6>
                       <ul class="text-light-gray">
-                        ${[1,2,3].map(i => `<li>${d[\`bench_\${i}_name\`]} (${d[\`bench_\${i}_pos\`]})</li>`).join('')}
+                        ${bench}
                       </ul>
                     </div>
                     <div class="col-12 mt-3">
@@ -851,7 +854,8 @@ async function viewDirectives(deadlineId, league) {
                   </div>
                 </div>
               </div>
-            `).join('')
+            `;
+            }).join('')
           }
         </div>
       </div>
