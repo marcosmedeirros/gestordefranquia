@@ -390,6 +390,13 @@ foreach ($allTeams as $t) {
             if (ovr >= 70) return '#ff6600';
             return '#ff3333';
         }
+
+        // DEBUG
+        console.log('=== DEBUG TIMES ===');
+        console.log('Times carregados:', <?= json_encode($allTeams) ?>);
+        const times = <?= json_encode($allTeams) ?>;
+        console.log('Total:', times.length);
+        times.forEach(t => console.log(`ID: ${t.id}, Nome: ${t.city} ${t.name}`));
     </script>
 </body>
 </html>
