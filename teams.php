@@ -7,7 +7,18 @@ $user = getUserSession();
 $pdo = db();
 
 // Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+$stmtTeam = $pdo->prepare('
+    SELECT t.*
+    FROM teams t
+    LEFT JOIN (
+        SELECT team_id, COUNT(*) AS player_count
+        FROM players
+        GROUP BY team_id
+    ) pc ON pc.team_id = t.id
+    WHERE t.user_id = ?
+    ORDER BY COALESCE(pc.player_count, 0) DESC, t.id DESC
+    LIMIT 1
+');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
@@ -16,14 +27,24 @@ $stmtTeams = $pdo->prepare('
     SELECT 
         t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url,
         u.name AS owner_name,
-        (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id) AS total_players
+        COALESCE(pc.player_count, 0) AS total_players
     FROM teams t
     LEFT JOIN users u ON t.user_id = u.id
+    LEFT JOIN (
+        SELECT team_id, COUNT(*) AS player_count
+        FROM players
+        GROUP BY team_id
+    ) pc ON pc.team_id = t.id
+    INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM teams
+        WHERE league = ?
+        GROUP BY user_id, league
+    ) latest ON latest.id = t.id
     WHERE t.league = ?
-    GROUP BY t.id
     ORDER BY t.conference, t.name, t.id DESC
 ');
-$stmtTeams->execute([$user['league']]);
+$stmtTeams->execute([$user['league'], $user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
 
 // Calcular CAP Top8 para cada time

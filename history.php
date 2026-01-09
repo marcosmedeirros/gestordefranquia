@@ -7,7 +7,18 @@ $user = getUserSession();
 $pdo = db();
 
 // Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+$stmtTeam = $pdo->prepare('
+  SELECT t.*
+  FROM teams t
+  LEFT JOIN (
+    SELECT team_id, COUNT(*) AS player_count
+    FROM players
+    GROUP BY team_id
+  ) pc ON pc.team_id = t.id
+  WHERE t.user_id = ?
+  ORDER BY COALESCE(pc.player_count, 0) DESC, t.id DESC
+  LIMIT 1
+');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
