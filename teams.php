@@ -22,21 +22,22 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
-// Buscar todos os times da liga (mesma query que funciona no admin)
-$query = "
-    SELECT 
-        t.id, t.city, t.name, t.mascot, t.league, t.conference, t.photo_url,
-        u.name as owner_name,
-        (SELECT COUNT(*) FROM players WHERE team_id = t.id) as total_players
-    FROM teams t
-    LEFT JOIN users u ON t.user_id = u.id
-    WHERE t.league = ?
-    GROUP BY t.id
-    ORDER BY t.id ASC
-";
-$stmtTeams = $pdo->prepare($query);
+// Buscar TODOS os times da liga - SIMPLES E DIRETO
+$stmtTeams = $pdo->prepare('SELECT id, city, name, mascot, league, conference, photo_url, user_id FROM teams WHERE league = ? ORDER BY id ASC');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+// Adicionar owner_name e total_players para cada time
+foreach ($allTeams as &$t) {
+  $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
+  $ownerStmt->execute([$t['user_id']]);
+  $ownerResult = $ownerStmt->fetch();
+  $t['owner_name'] = $ownerResult['name'] ?? 'N/A';
+  
+  $countStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
+  $countStmt->execute([$t['id']]);
+  $t['total_players'] = (int)$countStmt->fetch()['cnt'];
+}
 
 // Calcular CAP Top8 para cada time
 foreach ($allTeams as &$t) {
