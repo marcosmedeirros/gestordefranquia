@@ -7,7 +7,7 @@ $user = getUserSession();
 $pdo = db();
 
 // Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? ORDER BY id DESC LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 
@@ -20,7 +20,8 @@ $stmtTeams = $pdo->prepare('
     FROM teams t
     LEFT JOIN users u ON t.user_id = u.id
     WHERE t.league = ?
-    ORDER BY t.conference, t.name
+    GROUP BY t.id
+    ORDER BY t.conference, t.name, t.id DESC
 ');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];

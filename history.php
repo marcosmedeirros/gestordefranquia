@@ -7,7 +7,7 @@ $user = getUserSession();
 $pdo = db();
 
 // Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? ORDER BY id DESC LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
