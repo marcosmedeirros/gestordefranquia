@@ -18,10 +18,19 @@ if ($method === 'GET') {
     }
     $sql .= ' ORDER BY p.ovr DESC, p.id DESC';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $players = $stmt->fetchAll();
-    jsonResponse(200, ['players' => $players]);
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'players' => $players]);
+        exit;
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao buscar jogadores', 'details' => $e->getMessage()]);
+        exit;
+    }
 }
 
 if ($method === 'POST') {

@@ -6,6 +6,7 @@ const api = async (path, options = {}) => {
     });
     let body = {};
     try { body = await res.json(); } catch { body = {}; }
+    console.log('API Response Status:', res.status, 'Body:', body);
     return { res, body };
   };
   let { res, body } = await doFetch(`/api/${path}`);
