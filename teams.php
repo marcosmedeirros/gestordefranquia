@@ -18,26 +18,9 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-// Buscar TODOS os times da liga do usuário - QUERY DIRETA
 $stmt = $pdo->prepare('SELECT id, city, name, mascot, photo_url, user_id FROM teams WHERE league = ? ORDER BY id ASC');
 $stmt->execute([$user['league']]);
-$teamsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-// DEBUG VISUAL
-$debugInfo = "Liga: {$user['league']} | Total retornado: " . count($teamsRaw) . " | IDs: ";
-foreach ($teamsRaw as $tr) {
-    $debugInfo .= $tr['id'] . ", ";
-}
-
-// Remover duplicatas por ID
-$teams = [];
-$seenIds = [];
-foreach ($teamsRaw as $t) {
-    if (!in_array($t['id'], $seenIds)) {
-        $seenIds[] = $t['id'];
-        $teams[] = $t;
-    }
-}
+$teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 // Adicionar dados complementares para cada time
 foreach ($teams as &$t) {
@@ -56,12 +39,6 @@ foreach ($teams as &$t) {
   $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
 }
 unset($t); // Importante: limpar referência do foreach
-
-// DEBUG: Verificar IDs após processamento
-$debugInfo .= " | Após processamento: ";
-foreach ($teams as $tm) {
-    $debugInfo .= $tm['id'] . ", ";
-}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -175,11 +152,6 @@ foreach ($teams as $tm) {
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <!-- DEBUG INFO -->
-        <div class="alert alert-warning">
-            <strong>DEBUG:</strong> <?= $debugInfo ?>
-        </div>
-
         <h1 class="display-5 fw-bold mb-4">
             <i class="bi bi-people-fill text-orange me-2"></i>Times da Liga
         </h1>
@@ -207,10 +179,7 @@ foreach ($teams as $tm) {
                                          style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-orange">
-                                        <span class="badge bg-danger me-2">ID:<?= $t['id'] ?></span>
-                                        <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
-                                    </div>
+                                    <div class="fw-bold text-orange"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
                                     <small class="text-light-gray"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
                                 </td>
                                 <td>
