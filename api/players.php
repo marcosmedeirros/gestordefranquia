@@ -10,7 +10,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
-    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.secondary_position, p.seasons_in_league, p.role, p.ovr, p.available_for_trade FROM players p';
+    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.role, p.ovr, p.available_for_trade FROM players p';
     $params = [];
     if ($teamId) {
         $sql .= ' WHERE p.team_id = ?';
@@ -39,8 +39,6 @@ if ($method === 'POST') {
     $name = trim($body['name'] ?? '');
     $age = (int) ($body['age'] ?? 0);
     $position = trim($body['position'] ?? '');
-    $secondaryPosition = trim($body['secondary_position'] ?? '');
-    $seasonsInLeague = (int) ($body['seasons_in_league'] ?? 0);
     $role = $body['role'] ?? 'Titular';
     $ovr = (int) ($body['ovr'] ?? 0);
     $availableForTrade = isset($body['available_for_trade']) ? (int) ((bool) $body['available_for_trade']) : 0;
@@ -85,10 +83,8 @@ if ($method === 'POST') {
     }
     
     // Validar elegibilidade para G-League
-    if ($role === 'G-League') {
-        if ($seasonsInLeague >= 4 && $age >= 25) {
-            jsonResponse(409, ['error' => 'Jogador não elegível para G-League (deve ter menos de 4 temporadas OU menos de 25 anos).']);
-        }
+    if ($role === 'G-League' && $age >= 25) {
+        jsonResponse(409, ['error' => 'Jogador não elegível para G-League (deve ter menos de 25 anos).']);
     }
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
@@ -96,8 +92,8 @@ if ($method === 'POST') {
         jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $prospectiveCap]);
     }
 
-    $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, secondary_position, seasons_in_league, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$teamId, $name, $age, $position, $secondaryPosition ?: null, $seasonsInLeague, $role, $ovr, $availableForTrade]);
+    $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade]);
 
     $newCap = topEightCap($pdo, $teamId);
     $warning = $newCap < $config['app']['cap_min'] ? 'CAP abaixo do mínimo. Reforce seu elenco.' : null;
