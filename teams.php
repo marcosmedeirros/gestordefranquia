@@ -13,13 +13,14 @@ $team = $stmtTeam->fetch() ?: null;
 
 // Buscar todos os times da liga
 $stmtTeams = $pdo->prepare('
-  SELECT t.*, u.name as owner_name, COUNT(DISTINCT p.id) as total_players
-  FROM teams t
-  LEFT JOIN users u ON t.user_id = u.id
-  LEFT JOIN players p ON t.id = p.team_id
-  WHERE t.league = ?
-  GROUP BY t.id, t.name, t.city, t.mascot, t.photo_url, t.conference, u.name
-  ORDER BY t.conference, t.name
+    SELECT 
+        t.id, t.user_id, t.league, t.conference, t.name, t.city, t.mascot, t.photo_url,
+        u.name AS owner_name,
+        (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id) AS total_players
+    FROM teams t
+    LEFT JOIN users u ON t.user_id = u.id
+    WHERE t.league = ?
+    ORDER BY t.conference, t.name
 ');
 $stmtTeams->execute([$user['league']]);
 $allTeams = $stmtTeams->fetchAll() ?: [];
