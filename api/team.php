@@ -27,7 +27,6 @@ if ($method === 'GET') {
             LEFT JOIN users u ON u.id = t.user_id
             WHERE t.league = ?';
     $params = [$league];
-    $params = [$league];
     $clauses = [];
     if ($teamId) {
         $clauses[] = 't.id = ?';

@@ -39,17 +39,26 @@ async function loadTeams() {
     const data = await api('teams.php');
     allTeams = data.teams || [];
     
+    console.log('Times carregados:', allTeams.length, 'Meu time:', myTeamId, 'Minha liga:', myLeague);
+    
     // Preencher select de times (exceto o meu, apenas da mesma liga)
     const select = document.getElementById('targetTeam');
     select.innerHTML = '<option value="">Selecione...</option>';
-    allTeams
-      .filter(t => t.id !== myTeamId && t.league === myLeague)
-      .forEach(t => {
-        const option = document.createElement('option');
-        option.value = t.id;
-        option.textContent = `${t.city} ${t.name}`;
-        select.appendChild(option);
-      });
+    
+    const filteredTeams = allTeams.filter(t => {
+      const teamId = parseInt(t.id);
+      const myId = parseInt(myTeamId);
+      return teamId !== myId && t.league === myLeague;
+    });
+    
+    console.log('Times filtrados para trade:', filteredTeams.length);
+    
+    filteredTeams.forEach(t => {
+      const option = document.createElement('option');
+      option.value = t.id;
+      option.textContent = `${t.city} ${t.name}`;
+      select.appendChild(option);
+    });
   } catch (err) {
     console.error('Erro ao carregar times:', err);
   }
@@ -59,29 +68,47 @@ async function loadMyAssets() {
   try {
     // Meus jogadores disponíveis para troca
     const playersData = await api(`players.php?team_id=${myTeamId}`);
-    myPlayers = (playersData.players || []).filter(p => p.available_for_trade);
+    myPlayers = (playersData.players || []).filter(p => p.available_for_trade == 1);
+    
+    console.log('Meus jogadores para trade:', myPlayers.length);
     
     const selectPlayers = document.getElementById('offerPlayers');
     selectPlayers.innerHTML = '';
-    myPlayers.forEach(p => {
+    if (myPlayers.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+      option.disabled = true;
+      option.textContent = 'Nenhum jogador disponível para trade';
       selectPlayers.appendChild(option);
-    });
+    } else {
+      myPlayers.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+        selectPlayers.appendChild(option);
+      });
+    }
     
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
     myPicks = picksData.picks || [];
     
+    console.log('Minhas picks:', myPicks.length);
+    
     const selectPicks = document.getElementById('offerPicks');
     selectPicks.innerHTML = '';
-    myPicks.forEach(p => {
+    if (myPicks.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name})`;
+      option.disabled = true;
+      option.textContent = 'Nenhuma pick disponível';
       selectPicks.appendChild(option);
-    });
+    } else {
+      myPicks.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name || 'Time'})`;
+        selectPicks.appendChild(option);
+      });
+    }
   } catch (err) {
     console.error('Erro ao carregar assets:', err);
   }
@@ -94,29 +121,47 @@ async function onTargetTeamChange(e) {
   try {
     // Carregar jogadores do time alvo
     const playersData = await api(`players.php?team_id=${teamId}`);
-    const players = (playersData.players || []).filter(p => p.available_for_trade);
+    const players = (playersData.players || []).filter(p => p.available_for_trade == 1);
+    
+    console.log('Jogadores do time alvo para trade:', players.length);
     
     const select = document.getElementById('requestPlayers');
     select.innerHTML = '';
-    players.forEach(p => {
+    if (players.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+      option.disabled = true;
+      option.textContent = 'Nenhum jogador disponível para trade';
       select.appendChild(option);
-    });
+    } else {
+      players.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+        select.appendChild(option);
+      });
+    }
     
     // Carregar picks do time alvo
     const picksData = await api(`picks.php?team_id=${teamId}`);
     const picks = picksData.picks || [];
     
+    console.log('Picks do time alvo:', picks.length);
+    
     const selectPicks = document.getElementById('requestPicks');
     selectPicks.innerHTML = '';
-    picks.forEach(p => {
+    if (picks.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name})`;
+      option.disabled = true;
+      option.textContent = 'Nenhuma pick disponível';
       selectPicks.appendChild(option);
-    });
+    } else {
+      picks.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name || 'Time'})`;
+        selectPicks.appendChild(option);
+      });
+    }
   } catch (err) {
     console.error('Erro ao carregar assets do time:', err);
   }

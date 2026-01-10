@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     $stmt = $pdo->prepare('
-        SELECT p.*, t.city, t.name as team_name 
+        SELECT p.*, t.city as original_team_city, t.name as original_team_name 
         FROM picks p
         LEFT JOIN teams t ON p.original_team_id = t.id
         WHERE p.team_id = ?
