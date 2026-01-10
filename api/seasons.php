@@ -720,6 +720,19 @@ try {
             // 9. Deletar sprints
             $pdo->exec("DELETE FROM sprints WHERE league = '$league'");
             
+            // 10. Deletar propostas de Free Agency da liga
+            $pdo->exec("
+                DELETE fap FROM free_agent_proposals fap
+                INNER JOIN free_agents fa ON fap.free_agent_id = fa.id
+                WHERE fa.league = '$league'
+            ");
+            
+            // 11. Deletar Free Agents da liga
+            $pdo->exec("DELETE FROM free_agents WHERE league = '$league'");
+            
+            // 12. Resetar contadores de waivers/signings dos times
+            $pdo->exec("UPDATE teams SET waivers_used = 0, fa_signings_used = 0 WHERE league = '$league'");
+            
             // IMPORTANTE: NÃO deletar team_ranking_points - os pontos são mantidos!
             
             $pdo->commit();
@@ -804,7 +817,17 @@ try {
             // 10. Deletar sprints
             $pdo->exec("DELETE FROM sprints WHERE league = '$league'");
             
-            // 11. Deletar times (e seus usuários associados)
+            // 11. Deletar propostas de Free Agency da liga
+            $pdo->exec("
+                DELETE fap FROM free_agent_proposals fap
+                INNER JOIN free_agents fa ON fap.free_agent_id = fa.id
+                WHERE fa.league = '$league'
+            ");
+            
+            // 12. Deletar Free Agents da liga
+            $pdo->exec("DELETE FROM free_agents WHERE league = '$league'");
+            
+            // 13. Deletar times (e seus usuários associados)
             $pdo->exec("
                 DELETE u FROM users u
                 INNER JOIN teams t ON u.id = t.user_id

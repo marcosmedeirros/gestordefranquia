@@ -87,6 +87,12 @@ $picks = $stmtPicks->fetchAll();
                 </a>
             </li>
             <li>
+                <a href="/free-agency.php">
+                    <i class="bi bi-person-plus-fill"></i>
+                    Free Agency
+                </a>
+            </li>
+            <li>
                 <a href="/drafts.php">
                     <i class="bi bi-trophy"></i>
                     Draft
