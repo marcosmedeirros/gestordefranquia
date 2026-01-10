@@ -240,65 +240,68 @@ try {
                 INSERT INTO draft_pool (season_id, name, position, secondary_position, age, ovr, photo_url, bio, strengths, weaknesses)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
-            $stmt->execute([
-                $data['season_id'],
-                $data['name'],
-                $data['position'],
-                $data['secondary_position'] ?? null,
-                $data['age'],
-                $data['ovr'],
-                $data['photo_url'] ?? null,
-                $data['bio'] ?? null,
-                $data['strengths'] ?? null,
-                $data['weaknesses'] ?? null
-            ]);
+                $stmt->execute([
+                    $data['season_id'],
+                    $data['name'],
+                    $data['position'],
+                    $data['secondary_position'] ?? null,
+                    $data['age'],
+                    $data['ovr'],
+                    $data['photo_url'] ?? null,
+                    $data['bio'] ?? null,
+                    $data['strengths'] ?? null,
+            $data['weaknesses'] ?? null
+        ]);
             
-            echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
-            break;
+                echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+                break;
 
-        // ========== ATUALIZAR JOGADOR DO DRAFT (ADMIN) ==========
-        case 'update_draft_player':
-            if ($method !== 'PUT') throw new Exception('Método inválido');
+            // ========== ATRIBUIR JOGADOR DRAFTADO A UM TIME (ADMIN) ==========
+            case 'assign_draft_pick':
+                if ($method !== 'POST') throw new Exception('Método inválido');
             
-            $data = json_decode(file_get_contents('php://input'), true);
+                $data = json_decode(file_get_contents('php://input'), true);
             
-            $stmt = $pdo->prepare("
-                UPDATE draft_pool 
-                SET name = ?, position = ?, age = ?, ovr = ?, 
-                    photo_url = ?, bio = ?, strengths = ?, weaknesses = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                $data['name'],
-                $data['position'],
-                $data['age'],
-                $data['ovr'],
-                $data['photo_url'] ?? null,
-                $data['bio'] ?? null,
-                $data['strengths'] ?? null,
-                $data['weaknesses'] ?? null,
-                $data['id']
-            ]);
+                if (!isset($data['team_id']) || !isset($data['player_id'])) {
+                    throw new Exception('team_id e player_id são obrigatórios');
+                }
             
-            echo json_encode(['success' => true]);
-            break;
-
-        // ========== DELETAR JOGADOR DO DRAFT (ADMIN) ==========
-        case 'delete_draft_player':
-            if ($method !== 'POST') throw new Exception('Método inválido');
+                $pdo->beginTransaction();
             
-            $data = json_decode(file_get_contents('php://input'), true);
-            $id = $data['player_id'] ?? null;
-            if (!$id) throw new Exception('ID não especificado');
+                // Buscar próximo draft_order
+                $stmtOrder = $pdo->prepare("SELECT COALESCE(MAX(draft_order), 0) + 1 as next_order FROM draft_pool WHERE draft_status = 'drafted'");
+                $stmtOrder->execute();
+                $nextOrder = $stmtOrder->fetch()['next_order'];
             
-            $stmt = $pdo->prepare("DELETE FROM draft_pool WHERE id = ? AND draft_status = 'available'");
-            $stmt->execute([$id]);
+                // Atualizar draft_pool
+                $stmt = $pdo->prepare("
+                    UPDATE draft_pool 
+                    SET draft_status = 'drafted', drafted_by_team_id = ?, draft_order = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$data['team_id'], $nextOrder, $data['player_id']]);
             
-            echo json_encode(['success' => true]);
-            break;
-
-        // ========== ATRIBUIR JOGADOR DRAFTADO A UM TIME (ADMIN) ==========
-        case 'assign_draft_pick':
+                // Adicionar jogador ao elenco do time
+                $stmtPlayer = $pdo->prepare("SELECT * FROM draft_pool WHERE id = ?");
+                $stmtPlayer->execute([$data['player_id']]);
+                $draftPlayer = $stmtPlayer->fetch();
+            
+                $stmtInsert = $pdo->prepare("
+                    INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade)
+                    VALUES (?, ?, ?, ?, ?, 'Reserva', 0)
+                ");
+                $stmtInsert->execute([
+                    $data['team_id'],
+                    $draftPlayer['name'],
+                    $draftPlayer['position'],
+                    $draftPlayer['age'],
+                    $draftPlayer['ovr']
+                ]);
+            
+                $pdo->commit();
+            
+                echo json_encode(['success' => true]);
+                break;
             if ($method !== 'POST') throw new Exception('Método inválido');
             
             $data = json_decode(file_get_contents('php://input'), true);
@@ -518,13 +521,8 @@ try {
                 }
             }
 
-            // 3. CALCULAR E SALVAR NA TABELA team_ranking_points (A Correção Principal)
-            
-            // Primeiro, limpamos o registro anterior desta temporada para evitar duplicidade
-            $pdo->prepare("DELETE FROM team_ranking_points WHERE season_id = ?")->execute([$seasonId]);
-
-            // Vamos montar um array com todos os times que pontuaram
-            $teamStats = [];
+            // 3. Pontuação do ranking: removida do fluxo automático.
+            //    Use o endpoint 'set_season_points' para registrar pontos manualmente.
 
             // Função helper para iniciar o time no array se não existir
             $initTeam = function($tId) use (&$teamStats) {
@@ -612,8 +610,44 @@ try {
             
             $pdo->commit();
             
-            echo json_encode(['success' => true, 'message' => 'Histórico salvo e ranking atualizado!']);
+                echo json_encode(['success' => true, 'message' => 'Histórico salvo!']);
             break;
+
+            // ========== DEFINIR PONTOS MANUAIS DA TEMPORADA (ADMIN) ==========
+            case 'set_season_points':
+                if ($method !== 'POST') throw new Exception('Método inválido');
+
+                // Somente admin pode ajustar
+                if (($user['user_type'] ?? 'jogador') !== 'admin') {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                    exit;
+                }
+
+                $input = json_decode(file_get_contents('php://input'), true);
+                $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : null;
+                $items = isset($input['items']) && is_array($input['items']) ? $input['items'] : [];
+
+                if (!$seasonId) throw new Exception('season_id é obrigatório');
+
+                $pdo->beginTransaction();
+
+                // Limpar pontos desta temporada antes de gravar
+                $pdo->prepare("DELETE FROM team_ranking_points WHERE season_id = ?")->execute([$seasonId]);
+
+                $stmtInsert = $pdo->prepare("INSERT INTO team_ranking_points (team_id, season_id, points, reason) VALUES (?, ?, ?, ?)");
+
+                foreach ($items as $row) {
+                    $teamId = isset($row['team_id']) ? (int)$row['team_id'] : null;
+                    $pts = isset($row['points']) ? (int)$row['points'] : 0;
+                    $reason = isset($row['reason']) ? trim($row['reason']) : null;
+                    if (!$teamId) continue;
+                    $stmtInsert->execute([$teamId, $seasonId, $pts, $reason]);
+                }
+
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'Pontos da temporada salvos e enviados ao ranking']);
+                break;
 
         // ========== RESETAR SPRINT (NOVO CICLO) ==========
         // ========== RESETAR TIMES (MANTER PONTOS DO RANKING) ==========

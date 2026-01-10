@@ -290,6 +290,22 @@ if (!$team) {
             </button>
           </div>
         </div>
+
+        <!-- PONTOS DA TEMPORADA (MANUAL) -->
+        <div class="card bg-dark-panel border-warning mt-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h4 class="text-white mb-3">
+              <i class="bi bi-bar-chart-steps text-warning me-2"></i>
+              Registrar Pontos da Temporada (Manual)
+            </h4>
+            <p class="text-light-gray mb-3">
+              Informe quantos pontos cada time recebeu nesta temporada. Os valores serão enviados ao ranking.
+            </p>
+            <button class="btn btn-outline-warning" onclick="showSeasonPointsForm(${season.id}, '${league}')">
+              <i class="bi bi-pencil-square me-2"></i>Lançar Pontos
+            </button>
+          </div>
+        </div>
       `;
       
       // Iniciar contador se temporada ativa
@@ -919,6 +935,99 @@ if (!$team) {
         `;
       } catch (e) {
         alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    // ========== REGISTRAR PONTOS DA TEMPORADA (MANUAL) ==========
+    async function showSeasonPointsForm(seasonId, league) {
+      const container = document.getElementById('mainContainer');
+
+      try {
+        const teamsData = await api(`admin.php?action=teams&league=${league}`);
+        const teams = teamsData.teams || [];
+
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+
+          <div class="card bg-dark-panel border-warning" style="border-radius: 15px;">
+            <div class="card-body">
+              <h3 class="text-white mb-4">
+                <i class="bi bi-bar-chart-steps text-warning me-2"></i>
+                Pontos da Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+              </h3>
+
+              <form id="pointsForm" onsubmit="saveSeasonPoints(event, ${seasonId}, '${league}')">
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th style="width: 120px;">Pontos</th>
+                        <th class="d-none d-md-table-cell">Observação (opcional)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${teams.map(t => `
+                        <tr>
+                          <td>
+                            <div class="d-flex align-items-center gap-2">
+                              <img src="${t.photo_url || '/img/default-team.png'}" alt="${t.city} ${t.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+                              <span>${t.city} ${t.name}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="0" min="0" />
+                          </td>
+                          <td class="d-none d-md-table-cell">
+                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" />
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-save me-2"></i>Salvar Pontos
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    async function saveSeasonPoints(event, seasonId, league) {
+      event.preventDefault();
+      const form = event.target;
+
+      // Montar payload
+      const items = [];
+      const formData = new FormData(form);
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('points_')) {
+          const teamId = Number(key.replace('points_', ''));
+          const points = Number(value || 0);
+          const reason = formData.get(`reason_${teamId}`) || null;
+          items.push({ team_id: teamId, points, reason });
+        }
+      }
+
+      try {
+        await api('seasons.php?action=set_season_points', {
+          method: 'POST',
+          body: JSON.stringify({ season_id: seasonId, items })
+        });
+        alert('Pontos salvos com sucesso!');
+        showLeagueManagement(league);
+      } catch (e) {
+        alert('Erro ao salvar pontos: ' + (e.error || 'Desconhecido'));
       }
     }
 

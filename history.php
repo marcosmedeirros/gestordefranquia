@@ -24,7 +24,8 @@ $userLeague = $team['league'];
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Histórico - GM FBA</title>
-  <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+  <!-- Favicon: usar PNG existente para evitar 404 -->
+  <link rel="icon" type="image/png" href="/img/default-team.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
@@ -73,7 +74,7 @@ $userLeague = $team['league'];
       </h1>
     </div>
 
-    <div id="historyContainer">
+    <div id="historyContainer" data-league="<?= htmlspecialchars($userLeague) ?>">
       <div class="text-center py-5">
         <div class="spinner-border text-orange"></div>
       </div>
@@ -87,171 +88,6 @@ $userLeague = $team['league'];
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/sidebar.js"></script>
-<script>
-  // 1. Configuração do Debugger na Tela
-  const debugMode = true;
-  const debugConsole = document.getElementById('debugConsole');
-  if (debugMode) debugConsole.style.display = 'block';
-
-  function log(msg, data = null) {
-    console.log(msg, data || '');
-    const logLine = document.createElement('div');
-    logLine.style.marginBottom = '5px';
-    logLine.style.borderBottom = '1px solid #333';
-    
-    // Formata o dado se existir
-    let dataStr = '';
-    if (data) {
-      try {
-        dataStr = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-      } catch (e) { dataStr = '[Objeto Circular ou Erro ao converter]'; }
-    }
-
-    logLine.innerHTML = `<strong style="color: #fff;">[${new Date().toLocaleTimeString()}]</strong> ${msg} <br> <span style="color: #bbb; font-size: 0.9em;">${dataStr}</span>`;
-    document.getElementById('debugLogs').appendChild(logLine);
-  }
-
-  // --- Início do Script Real ---
-
-  const userLeague = '<?= $userLeague ?>';
-  log('1. Script Iniciado. Liga do usuário:', userLeague);
-
-  // Função auxiliar para chamar API com Debug e Timeout
-  const api = async (path) => {
-    log(`2. Chamando API: /api/${path}`);
-    
-    // Criar timeout de 15 segundos
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    
-    try {
-      const res = await fetch(`/api/${path}`, { 
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal 
-      });
-      clearTimeout(timeoutId);
-      
-      log(`3. Resposta API Status:`, res.status);
-      
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      
-      const text = await res.text(); // Pega como texto primeiro pra ver se não é erro de PHP
-      log(`4. Resposta Raw (Primeiros 200 chars):`, text.substring(0, 200));
-
-      if (!text) {
-        throw new Error('Resposta vazia do servidor');
-      }
-
-      try {
-        const json = JSON.parse(text);
-        return json;
-      } catch (errJson) {
-        throw new Error(`Erro ao converter JSON. O servidor retornou HTML ou erro? Resp: ${text.substring(0, 100)}...`);
-      }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      log('ERRO NA REQUISIÇÃO:', err.message);
-      throw err;
-    }
-  };
-
-  function gerarHtmlPremios(awards) {
-    if (!awards || !Array.isArray(awards)) return '';
-    // Mapeamento simples
-    return awards.map(a => `<div>${a.type}: ${a.player}</div>`).join(''); 
-    // Simplifiquei aqui só pra testar o carregamento, depois voltamos o visual
-  }
-
-  async function loadHistory() {
-    const container = document.getElementById('historyContainer');
-    
-    try {
-      if (!userLeague) throw new Error('A variável userLeague está vazia.');
-
-      log('5. Iniciando busca de histórico...');
-      const apiUrl = 'seasons.php?action=full_history&league=' + encodeURIComponent(userLeague);
-      log('URL da API:', apiUrl);
-      const data = await api(apiUrl);
-      
-      log('6. JSON recebido com sucesso:', data);
-
-      if (!data || typeof data !== 'object') {
-        throw new Error('Resposta inválida: não é um objeto JSON válido');
-      }
-
-      if (data.success === false) {
-        throw new Error(data.error || 'API retornou success: false');
-      }
-
-      const seasons = data.history || [];
-      log(`7. Total de temporadas encontradas: ${seasons.length}`);
-
-      if (seasons.length === 0) {
-        container.innerHTML = '<div class="alert alert-info">Nenhuma temporada encontrada no histórico (JSON vazio).</div>';
-        log('8. Finalizado (Sem dados).');
-        return;
-      }
-
-      // Renderização
-      log('8. Iniciando renderização do HTML...');
-      
-      let html = '<div class="row g-4">';
-      
-      seasons.forEach((s, index) => {
-        log(`Renderizando temporada ${index + 1} (ID: ${s.id})...`);
-        
-        // Proteção contra nulos
-        const champName = s.champion ? `${s.champion.city} ${s.champion.name}` : 'N/A';
-        const runnerName = s.runner_up ? `${s.runner_up.city} ${s.runner_up.name}` : 'N/A';
-        
-        // Gerando prêmios
-        let awardsHtml = '';
-        if (s.awards && s.awards.length > 0) {
-           awardsHtml = `<div class="mt-3 border-top pt-2"><small>Prêmios:</small><br>` + 
-                        s.awards.map(a => `<span class="badge bg-dark border border-secondary me-1 mb-1">${a.type}: ${a.player}</span>`).join('') +
-                        `</div>`;
-        }
-
-        html += `
-          <div class="col-md-6 col-lg-4">
-            <div class="card bg-dark text-white border-warning mb-3">
-              <div class="card-header bg-warning text-dark fw-bold d-flex justify-content-between">
-                <span>Temp ${s.number}</span>
-                <span>${s.year}</span>
-              </div>
-              <div class="card-body">
-                <p class="mb-1">🏆 <strong>Campeão:</strong> <br>${champName}</p>
-                <p class="mb-1">🥈 <strong>Vice:</strong> <br>${runnerName}</p>
-                ${awardsHtml}
-              </div>
-            </div>
-          </div>
-        `;
-      });
-      
-      html += '</div>';
-      
-      container.innerHTML = html;
-      log('9. Renderização CONCLUÍDA com sucesso!');
-
-    } catch (e) {
-      console.error(e);
-      log('ERRO FATAL NO PROCESSO:', e.message);
-      container.innerHTML = `
-        <div class="alert alert-danger">
-          <h4>Erro ao Carregar Histórico</h4>
-          <p><strong>Erro:</strong> ${e.message}</p>
-          <hr>
-          <small>Verifique o console do navegador (F12) e o log preto abaixo para detalhes técnicos.</small>
-        </div>
-      `;
-    }
-  }
-
-  // Força o carregamento assim que ler o script
-  loadHistory();
-</script>
+<script src="/js/history.js" defer></script>
 </body>
 </html>
