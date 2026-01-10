@@ -148,10 +148,12 @@ function renderPlayers(players) {
       </td>
     `;
     tbody.appendChild(tr);
-    
+
     // Card (mobile)
     const card = document.createElement('div');
     card.className = 'player-card';
+    // Corrigir: definir positionDisplay corretamente
+    const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
     card.innerHTML = `
       <div class="player-card-header">
         <div>
