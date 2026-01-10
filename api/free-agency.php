@@ -393,6 +393,29 @@ if ($method === 'POST') {
         }
         exit;
     }
+    
+    // Admin: Rejeitar todas as propostas de um jogador
+    if ($action === 'reject_all') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+        
+        $freeAgentId = $data['free_agent_id'] ?? null;
+        
+        if (!$freeAgentId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID do free agent não informado']);
+            exit;
+        }
+        
+        $stmtReject = $pdo->prepare('UPDATE free_agent_offers SET status = "rejected" WHERE free_agent_id = ? AND status = "pending"');
+        $stmtReject->execute([$freeAgentId]);
+        
+        echo json_encode(['success' => true, 'message' => 'Todas as propostas foram rejeitadas', 'count' => $stmtReject->rowCount()]);
+        exit;
+    }
 }
 
 // DELETE - Cancelar proposta ou limpar free agency (admin)

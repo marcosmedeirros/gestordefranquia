@@ -41,6 +41,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'ranking') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>';
       pageTitle.textContent = 'Rankings Globais';
+    } else if (appState.view === 'freeagency') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>';
+      pageTitle.textContent = 'Aprovar Free Agency';
     }
   }
 }
@@ -57,6 +60,7 @@ async function showHome() {
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showFreeAgency()"><i class="bi bi-person-plus-fill"></i><h4>Free Agency</h4><p>Aprovar contratações de jogadores livres</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div></div>`;
   
@@ -879,5 +883,154 @@ async function viewDirectives(deadlineId, league) {
     `;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+  }
+}
+
+// ========== FREE AGENCY ADMIN ==========
+async function showFreeAgency() {
+  appState.view = 'freeagency';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-orange active" onclick="loadFreeAgencyOffers('ELITE')" id="btn-fa-ELITE">ELITE</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('NEXT')" id="btn-fa-NEXT">NEXT</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('RISE')" id="btn-fa-RISE">RISE</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="faOffersContainer">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>
+  `;
+  
+  // Carregar ofertas da primeira liga
+  loadFreeAgencyOffers('ELITE');
+}
+
+async function loadFreeAgencyOffers(league) {
+  // Atualizar botões ativos
+  document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`btn-fa-${league}`).classList.add('active');
+  
+  const container = document.getElementById('faOffersContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api(`free-agency.php?action=admin_offers&league=${league}`);
+    const players = data.players || [];
+    
+    if (players.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-5">
+          <i class="bi bi-person-x display-1 text-muted"></i>
+          <p class="text-light-gray mt-3">Nenhuma proposta pendente na liga ${league}</p>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = players.map(item => {
+      const player = item.player;
+      const offers = item.offers;
+      
+      return `
+        <div class="card mb-4" style="background: var(--fba-panel); border: 1px solid var(--fba-border);">
+          <div class="card-header d-flex justify-content-between align-items-center" style="background: rgba(241,117,7,0.1); border-bottom: 1px solid var(--fba-border);">
+            <div>
+              <h5 class="mb-0 text-white">${player.name}</h5>
+              <small class="text-light-gray">
+                ${player.position} | OVR ${player.ovr} | ${player.age} anos
+                ${player.original_team ? `| Ex: ${player.original_team}` : ''}
+              </small>
+            </div>
+            <span class="badge bg-orange">${offers.length} proposta(s)</span>
+          </div>
+          <div class="card-body">
+            <h6 class="text-orange mb-3">Times interessados:</h6>
+            <div class="row g-2">
+              ${offers.map(offer => `
+                <div class="col-md-6 col-lg-4">
+                  <div class="p-3 rounded" style="background: var(--fba-dark); border: 1px solid var(--fba-border);">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 class="mb-1 text-white">${offer.team_name}</h6>
+                        ${offer.notes ? `<small class="text-light-gray">${offer.notes}</small>` : ''}
+                      </div>
+                      <button class="btn btn-success btn-sm" onclick="approveFreeAgentOffer(${player.id}, ${offer.id}, ${offer.team_id})">
+                        <i class="bi bi-check-lg"></i> Aprovar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-outline-danger btn-sm" onclick="rejectAllOffers(${player.id}, '${league}')">
+                <i class="bi bi-x-lg"></i> Rejeitar Todas as Propostas
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar propostas: ${e.error || 'Desconhecido'}</div>`;
+  }
+}
+
+async function approveFreeAgentOffer(playerId, offerId, teamId) {
+  if (!confirm('Aprovar esta contratação? O jogador será transferido para o time selecionado.')) return;
+  
+  try {
+    await api('free-agency.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        action: 'approve',
+        offer_id: offerId,
+        free_agent_id: playerId,
+        team_id: teamId
+      })
+    });
+    
+    alert('Contratação aprovada com sucesso!');
+    
+    // Recarregar a lista
+    const activeBtn = document.querySelector('[id^="btn-fa-"].active');
+    if (activeBtn) {
+      const league = activeBtn.id.replace('btn-fa-', '');
+      loadFreeAgencyOffers(league);
+    }
+  } catch (e) {
+    alert('Erro ao aprovar: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function rejectAllOffers(playerId, league) {
+  if (!confirm('Rejeitar TODAS as propostas para este jogador? Ele continuará disponível na Free Agency.')) return;
+  
+  try {
+    await api('free-agency.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        action: 'reject_all',
+        free_agent_id: playerId
+      })
+    });
+    
+    alert('Todas as propostas foram rejeitadas.');
+    loadFreeAgencyOffers(league);
+  } catch (e) {
+    alert('Erro ao rejeitar: ' + (e.error || 'Desconhecido'));
   }
 }

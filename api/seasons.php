@@ -722,8 +722,8 @@ try {
             
             // 10. Deletar propostas de Free Agency da liga
             $pdo->exec("
-                DELETE fap FROM free_agent_proposals fap
-                INNER JOIN free_agents fa ON fap.free_agent_id = fa.id
+                DELETE fao FROM free_agent_offers fao
+                INNER JOIN free_agents fa ON fao.free_agent_id = fa.id
                 WHERE fa.league = '$league'
             ");
             
@@ -819,8 +819,8 @@ try {
             
             // 11. Deletar propostas de Free Agency da liga
             $pdo->exec("
-                DELETE fap FROM free_agent_proposals fap
-                INNER JOIN free_agents fa ON fap.free_agent_id = fa.id
+                DELETE fao FROM free_agent_offers fao
+                INNER JOIN free_agents fa ON fao.free_agent_id = fa.id
                 WHERE fa.league = '$league'
             ");
             
