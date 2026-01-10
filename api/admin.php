@@ -531,6 +531,7 @@ if ($method === 'POST') {
             $name = $data['name'] ?? null;
             $age = $data['age'] ?? null;
             $position = $data['position'] ?? null;
+            $secondaryPosition = $data['secondary_position'] ?? null;
             $role = $data['role'] ?? 'Banco';
             $ovr = $data['ovr'] ?? 50;
 
@@ -541,10 +542,10 @@ if ($method === 'POST') {
             }
 
             $stmt = $pdo->prepare('
-                INSERT INTO players (team_id, name, age, position, role, ovr)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO players (team_id, name, age, position, secondary_position, role, ovr)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ');
-            $stmt->execute([$teamId, $name, $age, $position, $role, $ovr]);
+            $stmt->execute([$teamId, $name, $age, $position, $secondaryPosition, $role, $ovr]);
             
             $newPlayerId = $pdo->lastInsertId();
             echo json_encode(['success' => true, 'player_id' => $newPlayerId]);

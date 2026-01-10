@@ -393,20 +393,36 @@ function addPlayer(teamId) {
 <input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerName" placeholder="Nome completo do jogador"></div>
 <div class="row">
 <div class="col-md-6 mb-3"><label class="form-label text-light-gray">Posição</label>
-<input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerPosition" placeholder="PG, SG, SF, PF, C"></div>
-<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
-<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerAge" value="25" min="18" max="45"></div>
+<select class="form-select bg-dark text-white border-orange" id="addPlayerPosition">
+<option value="PG">PG</option>
+<option value="SG">SG</option>
+<option value="SF">SF</option>
+<option value="PF">PF</option>
+<option value="C">C</option>
+</select></div>
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Pos. Secundária</label>
+<select class="form-select bg-dark text-white border-orange" id="addPlayerSecondaryPosition">
+<option value="">Nenhuma</option>
+<option value="PG">PG</option>
+<option value="SG">SG</option>
+<option value="SF">SF</option>
+<option value="PF">PF</option>
+<option value="C">C</option>
+</select></div>
 </div>
 <div class="row">
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerAge" value="25" min="18" max="45"></div>
 <div class="col-md-6 mb-3"><label class="form-label text-light-gray">OVR</label>
 <input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerOvr" value="70" min="0" max="99"></div>
-<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Papel</label>
+</div>
+<div class="mb-3"><label class="form-label text-light-gray">Papel</label>
 <select class="form-select bg-dark text-white border-orange" id="addPlayerRole">
 <option value="Titular">Titular</option>
 <option value="Banco" selected>Banco</option>
 <option value="Outro">Outro</option>
 <option value="G-League">G-League</option></select></div>
-</div></div>
+</div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
   
@@ -419,7 +435,8 @@ async function saveNewPlayer(teamId) {
   const data = {
     team_id: teamId,
     name: document.getElementById('addPlayerName').value.trim(),
-    position: document.getElementById('addPlayerPosition').value.trim(),
+    position: document.getElementById('addPlayerPosition').value,
+    secondary_position: document.getElementById('addPlayerSecondaryPosition').value || null,
     age: parseInt(document.getElementById('addPlayerAge').value),
     ovr: parseInt(document.getElementById('addPlayerOvr').value),
     role: document.getElementById('addPlayerRole').value
