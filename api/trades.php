@@ -132,6 +132,19 @@ if ($method === 'POST') {
         exit;
     }
     
+    // Verificar se há algo para trocar
+    if (empty($offerPlayers) && empty($offerPicks)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Você precisa oferecer algo']);
+        exit;
+    }
+    
+    if (empty($requestPlayers) && empty($requestPicks)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Você precisa pedir algo em troca']);
+        exit;
+    }
+    
     // Buscar o time para obter a liga
     $stmtTeamLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
     $stmtTeamLeague->execute([$teamId]);
@@ -143,41 +156,36 @@ if ($method === 'POST') {
         exit;
     }
     
-    // Buscar limite de trades da liga
-    $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
-    $stmtSettings->execute([$teamData['league']]);
-    $settings = $stmtSettings->fetch();
-    $maxTrades = $settings['max_trades'] ?? 10; // Default 10 se não configurado
-    
-    // Buscar ciclo atual do time (incrementa a cada 2 temporadas)
-    $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
-    $stmtCycle->execute([$teamId]);
-    $currentCycle = (int)$stmtCycle->fetchColumn();
-    
-    if (!$currentCycle) {
-        // Inicializar ciclo se ainda não existe
-        $currentCycle = 1;
-        $stmtUpdateCycle = $pdo->prepare('UPDATE teams SET current_cycle = 1 WHERE id = ?');
-        $stmtUpdateCycle->execute([$teamId]);
+    // Verificar se a coluna max_trades existe em league_settings
+    $maxTrades = 10; // Default
+    try {
+        $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+        $stmtSettings->execute([$teamData['league']]);
+        $settings = $stmtSettings->fetch();
+        if ($settings && isset($settings['max_trades'])) {
+            $maxTrades = (int)$settings['max_trades'];
+        }
+    } catch (Exception $e) {
+        // Coluna não existe, usar default
     }
     
-    // Verificar limite de trades por ciclo (2 temporadas)
-    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND cycle = ?');
-    $stmtCount->execute([$teamId, $currentCycle]);
-    $count = $stmtCount->fetch()['total'];
+    // Verificar limite de trades por ano (simplificado - sem ciclo)
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
+    $stmtCount->execute([$teamId]);
+    $count = (int)$stmtCount->fetch()['total'];
     
     if ($count >= $maxTrades) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por ciclo (2 temporadas) atingido"]);
+        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
         exit;
     }
     
     try {
         $pdo->beginTransaction();
         
-        // Criar trade com o ciclo atual
-        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes, cycle) VALUES (?, ?, ?, ?)');
-        $stmtTrade->execute([$teamId, $toTeamId, $notes, $currentCycle]);
+        // Criar trade (sem coluna cycle - ela é opcional)
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes) VALUES (?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $notes]);
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
@@ -205,7 +213,7 @@ if ($method === 'POST') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade']);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade: ' . $e->getMessage()]);
     }
     exit;
 }
