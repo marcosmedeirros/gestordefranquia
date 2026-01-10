@@ -154,8 +154,13 @@ try {
                 throw new Exception('ID da temporada é obrigatório');
             }
             
-            // Buscar dados da temporada
-            $stmt = $pdo->prepare("SELECT * FROM seasons WHERE id = ?");
+            // Buscar dados da temporada com sprint
+            $stmt = $pdo->prepare("
+                SELECT s.*, sp.sprint_number 
+                FROM seasons s 
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id 
+                WHERE s.id = ?
+            ");
             $stmt->execute([$seasonId]);
             $season = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -171,9 +176,9 @@ try {
             $historyData = [
                 'season_id' => $seasonId,
                 'league' => $data['league'],
-                'sprint_number' => $season['sprint_number'],
-                'season_number' => $season['season_number'],
-                'year' => $season['year'],
+                'sprint_number' => $season['sprint_number'] ?? 1,
+                'season_number' => $season['season_number'] ?? 1,
+                'year' => $season['year'] ?? date('Y'),
                 'champion_team_id' => $data['champion_team_id'] ?: null,
                 'runner_up_team_id' => $data['runner_up_team_id'] ?: null,
                 'mvp_player' => $data['mvp_player'] ?: null,
@@ -286,14 +291,22 @@ try {
                 throw new Exception('ID da temporada e liga são obrigatórios');
             }
             
-            // Buscar dados da temporada
-            $stmt = $pdo->prepare("SELECT * FROM seasons WHERE id = ?");
+            // Buscar dados da temporada com sprint
+            $stmt = $pdo->prepare("
+                SELECT s.*, sp.sprint_number 
+                FROM seasons s 
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id 
+                WHERE s.id = ?
+            ");
             $stmt->execute([$seasonId]);
             $season = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$season) {
                 throw new Exception('Temporada não encontrada');
             }
+            
+            $sprintNumber = $season['sprint_number'] ?? 1;
+            $seasonNumber = $season['season_number'] ?? 1;
             
             $pdo->beginTransaction();
             
@@ -324,8 +337,8 @@ try {
                         $teamName,
                         $league,
                         $seasonId,
-                        $season['sprint_number'],
-                        $season['season_number'],
+                        $sprintNumber,
+                        $seasonNumber,
                         $points
                     ]);
                 }

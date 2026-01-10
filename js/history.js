@@ -32,12 +32,10 @@ async function loadHistory(league) {
         
         if (history.length === 0) {
             container.innerHTML = `
-                <div class="card bg-dark-secondary border-secondary">
-                    <div class="card-body text-center py-5">
-                        <i class="bi bi-clock-history display-1 text-muted"></i>
-                        <h4 class="text-white mt-3">Nenhum histórico registrado</h4>
-                        <p class="text-muted">O histórico de temporadas da liga ${league} aparecerá aqui após ser registrado.</p>
-                    </div>
+                <div class="text-center py-5">
+                    <i class="bi bi-clock-history display-1 text-muted"></i>
+                    <h4 class="text-white mt-3">Nenhum histórico registrado</h4>
+                    <p class="text-muted">O histórico de temporadas da liga ${league} aparecerá aqui após ser registrado.</p>
                 </div>
             `;
             return;
