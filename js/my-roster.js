@@ -113,7 +113,6 @@ function renderPlayers(players) {
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
     const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
-    const seasonsDisplay = p.seasons_in_league || 0;
     
     // Tabela (desktop)
     const tr = document.createElement('tr');
@@ -123,7 +122,6 @@ function renderPlayers(players) {
       <td>${positionDisplay}</td>
       <td>${p.role}</td>
       <td>${p.age}</td>
-      <td>${seasonsDisplay}</td>
       <td>
         <button class="btn btn-sm btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" style="
           background: ${p.available_for_trade ? '#00ff00' : '#ff4444'};
@@ -168,10 +166,6 @@ function renderPlayers(players) {
         <div class="player-card-stat">
           <strong>Idade</strong>
           ${p.age} anos
-        </div>
-        <div class="player-card-stat">
-          <strong>Temporadas</strong>
-          ${seasonsDisplay}
         </div>
         <div class="player-card-stat">
           <strong>Trade</strong>
@@ -257,7 +251,6 @@ async function addPlayer() {
     age: Number(fd.get('age')),
     position: fd.get('position'),
     secondary_position: fd.get('secondary_position'),
-    seasons_in_league: Number(fd.get('seasons_in_league') || 0),
     role: fd.get('role'),
     ovr: Number(fd.get('ovr')),
     available_for_trade: document.getElementById('available_for_trade').checked,
@@ -310,7 +303,6 @@ function openEditModal(player) {
   document.getElementById('edit-position').value = player.position;
   document.getElementById('edit-secondary-position').value = player.secondary_position || '';
   document.getElementById('edit-ovr').value = player.ovr;
-  document.getElementById('edit-seasons').value = player.seasons_in_league || 0;
   document.getElementById('edit-role').value = player.role;
   document.getElementById('edit-available').checked = !!player.available_for_trade;
   
@@ -385,7 +377,6 @@ document.getElementById('btn-save-edit')?.addEventListener('click', () => {
     age: Number(document.getElementById('edit-age').value),
     position: document.getElementById('edit-position').value,
     secondary_position: document.getElementById('edit-secondary-position').value,
-    seasons_in_league: Number(document.getElementById('edit-seasons').value || 0),
     ovr: Number(document.getElementById('edit-ovr').value),
     role: document.getElementById('edit-role').value,
     available_for_trade: document.getElementById('edit-available').checked,

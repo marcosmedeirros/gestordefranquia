@@ -10,7 +10,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
-    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.role, p.ovr, p.available_for_trade FROM players p';
+    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.secondary_position, p.seasons_in_league, p.role, p.ovr, p.available_for_trade FROM players p';
     $params = [];
     if ($teamId) {
         $sql .= ' WHERE p.team_id = ?';
