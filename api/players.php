@@ -10,7 +10,29 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
-    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.secondary_position, p.seasons_in_league, p.role, p.ovr, p.available_for_trade FROM players p';
+    
+    // Verificar se as colunas secondary_position e seasons_in_league existem
+    try {
+        $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
+        $hasSecondaryPosition = $checkCol->rowCount() > 0;
+        
+        $checkCol2 = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'");
+        $hasSeasonsInLeague = $checkCol2->rowCount() > 0;
+    } catch (Exception $e) {
+        $hasSecondaryPosition = false;
+        $hasSeasonsInLeague = false;
+    }
+    
+    // Construir SQL dinamicamente com colunas disponíveis
+    $columns = 'p.id, p.team_id, p.name, p.age, p.position, p.role, p.ovr, p.available_for_trade';
+    if ($hasSecondaryPosition) {
+        $columns .= ', p.secondary_position';
+    }
+    if ($hasSeasonsInLeague) {
+        $columns .= ', p.seasons_in_league';
+    }
+    
+    $sql = "SELECT $columns FROM players p";
     $params = [];
     if ($teamId) {
         $sql .= ' WHERE p.team_id = ?';
@@ -22,6 +44,17 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Adicionar campos padrão se não existirem
+        foreach ($players as &$player) {
+            if (!isset($player['secondary_position'])) {
+                $player['secondary_position'] = null;
+            }
+            if (!isset($player['seasons_in_league'])) {
+                $player['seasons_in_league'] = 0;
+            }
+        }
+        
         header('Content-Type: application/json');
         echo json_encode(['success' => true, 'players' => $players]);
         exit;
@@ -176,8 +209,29 @@ if ($method === 'PUT') {
         jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $capAfter]);
     }
 
-    $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, seasons_in_league = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
-    $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $seasonsInLeague, $role, $ovr, $availableForTrade, $playerId]);
+    // Verificar se as colunas extras existem
+    try {
+        $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
+        $hasSecondaryPosition = $checkCol->rowCount() > 0;
+        
+        $checkCol2 = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'");
+        $hasSeasonsInLeague = $checkCol2->rowCount() > 0;
+    } catch (Exception $e) {
+        $hasSecondaryPosition = false;
+        $hasSeasonsInLeague = false;
+    }
+
+    // Construir UPDATE dinamicamente
+    if ($hasSecondaryPosition && $hasSeasonsInLeague) {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, seasons_in_league = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $seasonsInLeague, $role, $ovr, $availableForTrade, $playerId]);
+    } elseif ($hasSecondaryPosition) {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $role, $ovr, $availableForTrade, $playerId]);
+    } else {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $role, $ovr, $availableForTrade, $playerId]);
+    }
 
     $newCap = topEightCap($pdo, (int)$player['team_id']);
     jsonResponse(200, ['message' => 'Jogador atualizado.', 'cap_top8' => $newCap]);

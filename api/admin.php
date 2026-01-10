@@ -541,11 +541,27 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmt = $pdo->prepare('
-                INSERT INTO players (team_id, name, age, position, secondary_position, role, ovr)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ');
-            $stmt->execute([$teamId, $name, $age, $position, $secondaryPosition, $role, $ovr]);
+            // Verificar se a coluna secondary_position existe
+            try {
+                $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
+                $hasSecondaryPosition = $checkCol->rowCount() > 0;
+            } catch (Exception $e) {
+                $hasSecondaryPosition = false;
+            }
+
+            if ($hasSecondaryPosition) {
+                $stmt = $pdo->prepare('
+                    INSERT INTO players (team_id, name, age, position, secondary_position, role, ovr)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ');
+                $stmt->execute([$teamId, $name, $age, $position, $secondaryPosition, $role, $ovr]);
+            } else {
+                $stmt = $pdo->prepare('
+                    INSERT INTO players (team_id, name, age, position, role, ovr)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ');
+                $stmt->execute([$teamId, $name, $age, $position, $role, $ovr]);
+            }
             
             $newPlayerId = $pdo->lastInsertId();
             echo json_encode(['success' => true, 'player_id' => $newPlayerId]);
