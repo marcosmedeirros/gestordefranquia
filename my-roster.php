@@ -250,6 +250,9 @@ $teamId = $team['id'] ?? null;
                 <th class="sortable" data-sort="position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Posição
                 </th>
+                <th class="sortable" data-sort="secondary_position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Pos. Sec.
+                </th>
                 <th class="sortable" data-sort="role" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Função
                 </th>

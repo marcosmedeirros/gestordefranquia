@@ -112,14 +112,13 @@ function renderPlayers(players) {
   
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
-    const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
-    
     // Tabela (desktop)
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.name}</td>
       <td><span style="font-size: 1.3rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span></td>
-      <td>${positionDisplay}</td>
+      <td>${p.position}</td>
+      <td>${p.secondary_position || '-'}</td>
       <td>${p.role}</td>
       <td>${p.age}</td>
       <td>
@@ -285,6 +284,10 @@ async function deletePlayer(id) {
     });
     alert(res.message || 'Jogador dispensado e enviado para Free Agency!');
     loadPlayers();
+    // Se estiver aberta a tela de Free Agency, recarregar a lista de FAs
+    if (window.location.pathname.includes('free-agency.php')) {
+      if (typeof loadFreeAgents === 'function') loadFreeAgents();
+    }
   } catch (err) {
     alert(err.error || 'Erro ao dispensar jogador');
   }
