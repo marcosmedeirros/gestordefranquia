@@ -81,11 +81,6 @@ $userLeague = $team['league'];
     </div>
   </div>
 
-<div id="debugConsole" style="background: #000; color: #0f0; padding: 20px; margin: 20px; border: 2px solid #f00; font-family: monospace; display: none;">
-  <h4 style="color: #fff; border-bottom: 1px solid #333; padding-bottom: 5px;">DEBUG LOG (Envie um print disso)</h4>
-  <div id="debugLogs"></div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/history.js" defer></script>

@@ -85,18 +85,9 @@ $user = getUserSession();
   <script src="/js/sidebar.js"></script>
   <script>
     const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>';
-    
-    const api = async (path, options = {}) => {
-      const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
-      let body = {};
-      try { body = await res.json(); } catch {}
-      if (!res.ok) throw body;
-      return body;
-    };
+    let currentType = 'global';
 
-    let currentType = userLeague.toLowerCase();
-
-    async function loadRanking(type = userLeague.toLowerCase()) {
+    async function loadRanking(type = 'global') {
       currentType = type;
       
       // Atualizar botões ativos
@@ -116,12 +107,31 @@ $user = getUserSession();
       container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
 
       try {
-        const endpoint = type === 'global' 
-          ? 'seasons.php?action=global_ranking'
-          : `seasons.php?action=league_ranking&league=${type.toUpperCase()}`;
+        // Usar a nova API simplificada
+        const league = type === 'global' ? '' : type.toUpperCase();
+        const endpoint = league 
+          ? `/api/history-points.php?action=get_ranking&league=${league}`
+          : `/api/history-points.php?action=get_ranking`;
         
-        const data = await api(endpoint);
-        const ranking = data.ranking || [];
+        const response = await fetch(endpoint);
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error);
+        }
+
+        // Processar ranking
+        let ranking = [];
+        if (type === 'global') {
+          // Juntar todas as ligas
+          for (const league in data.ranking) {
+            ranking = ranking.concat(data.ranking[league]);
+          }
+          // Ordenar por pontos totais
+          ranking.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
+        } else {
+          ranking = data.ranking[type.toUpperCase()] || [];
+        }
 
         if (ranking.length === 0) {
           container.innerHTML = `
@@ -140,34 +150,30 @@ $user = getUserSession();
                 <table class="table table-dark table-hover mb-0">
                   <thead>
                     <tr>
-                      <th style="border-radius: 15px 0 0 0;">#</th>
+                      <th style="border-radius: 15px 0 0 0; width: 60px;">#</th>
                       <th>Time</th>
-                      <th>Liga</th>
-                      <th>Pontos</th>
-                      <th>Temporadas</th>
-                      <th>🏆 Títulos</th>
-                      <th>🥈 Vices</th>
-                      <th style="border-radius: 0 15px 0 0;">⭐ Prêmios</th>
+                      <th style="width: 100px;">Liga</th>
+                      <th style="border-radius: 0 15px 0 0; width: 120px; text-align: center;">
+                        <i class="bi bi-trophy-fill text-warning me-1"></i>Pontos
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     ${ranking.map((team, idx) => `
                       <tr>
-                        <td><strong class="text-orange">${idx + 1}º</strong></td>
                         <td>
-                          <div class="d-flex align-items-center gap-2">
-                            <img src="${team.photo_url || '/img/default-team.png'}" 
-                                 alt="${team.team_name}" 
-                                 style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
-                            <span>${team.city} ${team.team_name}</span>
-                          </div>
+                          ${idx < 3 ? 
+                            `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>` : 
+                            `<strong class="text-muted">${idx + 1}º</strong>`
+                          }
+                        </td>
+                        <td>
+                          <span class="fw-bold text-white">${team.team_name}</span>
                         </td>
                         <td><span class="badge bg-gradient-orange">${team.league}</span></td>
-                        <td><strong class="text-warning">${team.total_points || 0}</strong></td>
-                        <td>${team.seasons_played || 0}</td>
-                        <td>${team.championships || 0}</td>
-                        <td>${team.runner_ups || 0}</td>
-                        <td>${team.total_awards || 0}</td>
+                        <td class="text-center">
+                          <strong class="text-warning fs-5">${team.total_points || 0}</strong>
+                        </td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -180,7 +186,7 @@ $user = getUserSession();
         console.error(e);
         container.innerHTML = `
           <div class="alert alert-danger" style="border-radius: 15px;">
-            Erro ao carregar ranking: ${e.error || 'Desconhecido'}
+            Erro ao carregar ranking: ${e.message || 'Desconhecido'}
           </div>
         `;
       }
