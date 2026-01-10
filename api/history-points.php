@@ -10,6 +10,23 @@
  * - get_ranking: Busca ranking (soma de pontos)
  */
 
+// Garantir que erros sejam retornados como JSON
+set_error_handler(function($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+set_exception_handler(function($e) {
+    header('Content-Type: application/json');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine()
+    ]);
+    exit;
+});
+
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -39,7 +56,31 @@ if (in_array($action, $adminActions)) {
     }
 }
 
+// Verificar se as tabelas existem
+$pdo = db();
+function checkTablesExist($pdo) {
+    $stmt = $pdo->query("SHOW TABLES LIKE 'season_history'");
+    if ($stmt->rowCount() == 0) {
+        return false;
+    }
+    $stmt = $pdo->query("SHOW TABLES LIKE 'team_season_points'");
+    if ($stmt->rowCount() == 0) {
+        return false;
+    }
+    return true;
+}
+
 try {
+    // Verificar tabelas para ações que precisam delas
+    $tableActions = ['get_history', 'save_history', 'delete_history', 'get_ranking', 'save_season_points', 'get_season_points', 'get_teams_for_points'];
+    if (in_array($action, $tableActions) && !checkTablesExist($pdo)) {
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Tabelas não encontradas. Execute a migração acessando: /migrate-history-points.php'
+        ]);
+        exit;
+    }
+
     switch ($action) {
         
         // =====================================================
