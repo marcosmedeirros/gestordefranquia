@@ -713,11 +713,14 @@ async function showDirectives() {
                   <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
                   <td><span class="badge bg-info">${d.submissions_count} time(s)</span></td>
                   <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewDirectives(${d.id}, '${d.league}')">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDirectives(${d.id}, '${d.league}')" title="Ver diretrizes">
                       <i class="bi bi-eye"></i> Ver
                     </button>
-                    <button class="btn btn-sm btn-outline-${d.is_active ? 'warning' : 'success'}" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})">
+                    <button class="btn btn-sm btn-outline-${d.is_active ? 'warning' : 'success'}" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})" title="${d.is_active ? 'Desativar' : 'Ativar'}">
                       <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDeadline(${d.id}, '${d.league}')" title="Excluir prazo">
+                      <i class="bi bi-trash"></i>
                     </button>
                   </td>
                 </tr>
@@ -807,6 +810,22 @@ async function toggleDeadlineStatus(id, currentStatus) {
     showDirectives();
   } catch (e) {
     alert('Erro ao atualizar status');
+  }
+}
+
+async function deleteDeadline(id, league) {
+  const confirmMsg = `Tem certeza que deseja excluir este prazo de diretrizes da liga ${league}?\n\nTodas as diretrizes enviadas para este prazo também serão excluídas!`;
+  if (!confirm(confirmMsg)) return;
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    });
+    alert('Prazo excluído com sucesso!');
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao excluir prazo: ' + (e.error || e.message));
   }
 }
 
