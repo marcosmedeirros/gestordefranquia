@@ -133,7 +133,11 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           <span class="badge bg-success limit-badge" id="signings-badge">
             <i class="bi bi-person-plus me-1"></i>Contratações: <span id="signings-count">0/3</span>
           </span>
-          <!-- Botão Resetar FA removido -->
+          <?php if ($isAdmin): ?>
+          <button class="btn btn-outline-danger btn-sm" id="btn-reset-fa">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar FA
+          </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>
