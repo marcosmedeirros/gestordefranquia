@@ -8,6 +8,11 @@ if (($user['user_type'] ?? 'jogador') !== 'admin') {
   exit;
 }
 $pdo = db();
+
+// Buscar time do usuário (se tiver)
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -31,9 +36,9 @@ $pdo = db();
 
   <div class="dashboard-sidebar" id="sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="Admin" class="team-avatar">
-      <h5 class="text-white mb-1">Admin</h5>
-      <span class="badge bg-gradient-orange">Painel</span>
+      <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="Admin" class="team-avatar">
+      <h5 class="text-white mb-1"><?= $team ? htmlspecialchars($team['city'] . ' ' . $team['name']) : 'Admin' ?></h5>
+      <span class="badge bg-gradient-orange"><?= $team ? htmlspecialchars($team['league']) : 'Painel' ?></span>
     </div>
     <hr style="border-color: var(--fba-border);">
     <ul class="sidebar-menu">

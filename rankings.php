@@ -6,6 +6,12 @@ require_once 'backend/db.php';
 requireAuth();
 
 $user = getUserSession();
+$pdo = db();
+
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -29,10 +35,9 @@ $user = getUserSession();
 
   <div class="dashboard-sidebar" id="sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="Time" class="team-avatar">
-      <h5 class="text-white mb-1"><?= htmlspecialchars($user['city'] ?? 'Cidade') ?></h5>
-      <h6 class="text-white mb-1"><?= htmlspecialchars($user['name'] ?? 'Nome') ?></h6>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league'] ?? 'LEAGUE') ?></span>
+      <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="Time" class="team-avatar">
+      <h5 class="text-white mb-1"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?></h5>
+      <span class="badge bg-gradient-orange"><?= htmlspecialchars($team['league'] ?? $user['league'] ?? 'LEAGUE') ?></span>
     </div>
     <hr style="border-color: var(--fba-border);">
     <ul class="sidebar-menu">
