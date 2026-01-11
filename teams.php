@@ -61,8 +61,16 @@ unset($t); // Importante: limpar referência do foreach
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+    <!-- Botão Hamburguer para Mobile -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="bi bi-list fs-4"></i>
+    </button>
+    
+    <!-- Overlay para fechar sidebar no mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Sidebar -->
-    <div class="dashboard-sidebar">
+    <div class="dashboard-sidebar" id="sidebar">
         <div class="text-center mb-4">
             <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" 
                  alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
@@ -177,12 +185,12 @@ unset($t); // Importante: limpar referência do foreach
                     <table class="table table-dark table-hover mb-0">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                             <tr>
-                                <th class="text-white fw-bold" style="width: 80px;">Logo</th>
+                                <th class="text-white fw-bold" style="width: 60px;">Logo</th>
                                 <th class="text-white fw-bold">Time</th>
-                                <th class="text-white fw-bold">Proprietário</th>
-                                <th class="text-white fw-bold text-center">Jogadores</th>
-                                <th class="text-white fw-bold text-center">CAP Top8</th>
-                                <th class="text-white fw-bold text-center" style="width: 120px;">Ações</th>
+                                <th class="text-white fw-bold hide-mobile">Proprietário</th>
+                                <th class="text-white fw-bold text-center">Jog.</th>
+                                <th class="text-white fw-bold text-center hide-mobile">CAP</th>
+                                <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -191,24 +199,25 @@ unset($t); // Importante: limpar referência do foreach
                                 <td>
                                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                                          alt="<?= htmlspecialchars($t['name']) ?>" 
-                                         style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
+                                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-orange"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                                    <small class="text-light-gray"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
+                                    <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                    <small class="text-light-gray d-none d-md-block"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
+                                    <small class="text-light-gray d-md-none"><i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?></small>
                                 </td>
-                                <td>
+                                <td class="hide-mobile">
                                     <i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-gradient-orange"><?= $t['total_players'] ?></span>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center hide-mobile">
                                     <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
                                 </td>
                                 <td class="text-center">
                                     <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
-                                        <i class="bi bi-eye me-1"></i>Ver Elenco
+                                        <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
                                     </button>
                                 </td>
                             </tr>

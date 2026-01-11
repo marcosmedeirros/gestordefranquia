@@ -79,14 +79,14 @@ $team = $stmtTeam->fetch();
       </h1>
     </div>
 
-    <div class="btn-group mb-4" role="group">
-      <button type="button" class="btn btn-orange" onclick="loadRanking('global')">
+    <div class="d-flex flex-wrap gap-2 mb-4" role="group">
+      <button type="button" class="btn btn-orange btn-sm" onclick="loadRanking('global')">
         <i class="bi bi-globe me-1"></i>Geral
       </button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('elite')">ELITE</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('next')">NEXT</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('rise')">RISE</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('rookie')">ROOKIE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('elite')">ELITE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('next')">NEXT</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('rise')">RISE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('rookie')">ROOKIE</button>
     </div>
 
     <div id="rankingContainer">
@@ -106,7 +106,7 @@ $team = $stmtTeam->fetch();
       currentType = type;
       
       // Atualizar botões ativos
-      document.querySelectorAll('.btn-group button').forEach(btn => {
+      document.querySelectorAll('.d-flex button').forEach(btn => {
         btn.classList.remove('btn-orange');
         btn.classList.add('btn-outline-orange');
       });
@@ -165,11 +165,11 @@ $team = $stmtTeam->fetch();
                 <table class="table table-dark table-hover mb-0">
                   <thead>
                     <tr>
-                      <th style="border-radius: 15px 0 0 0; width: 60px;">#</th>
+                      <th style="border-radius: 15px 0 0 0; width: 50px;">#</th>
                       <th>Time</th>
-                      <th style="width: 100px;">Liga</th>
-                      <th style="border-radius: 0 15px 0 0; width: 120px; text-align: center;">
-                        <i class="bi bi-trophy-fill text-warning me-1"></i>Pontos
+                      <th class="hide-mobile" style="width: 90px;">Liga</th>
+                      <th style="border-radius: 0 15px 0 0; width: 80px; text-align: center;">
+                        <i class="bi bi-trophy-fill text-warning"></i><span class="d-none d-md-inline ms-1">Pontos</span>
                       </th>
                     </tr>
                   </thead>
@@ -183,11 +183,12 @@ $team = $stmtTeam->fetch();
                           }
                         </td>
                         <td>
-                          <span class="fw-bold text-white">${team.team_name}</span>
+                          <span class="fw-bold text-white" style="font-size: 0.9rem;">${team.team_name}</span>
+                          <small class="d-md-none d-block text-light-gray">${team.league}</small>
                         </td>
-                        <td><span class="badge bg-gradient-orange">${team.league}</span></td>
+                        <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
                         <td class="text-center">
-                          <strong class="text-warning fs-5">${team.total_points || 0}</strong>
+                          <strong class="text-warning">${team.total_points || 0}</strong>
                         </td>
                       </tr>
                     `).join('')}

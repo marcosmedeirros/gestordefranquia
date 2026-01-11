@@ -1055,8 +1055,22 @@ pre{
 
 	.form-label, .form-control, .form-select{ font-size: .9rem; }
 
-	/* Mobile player cards */
-	.table-responsive{ display: none !important; }
+	/* Mobile: tabelas responsivas */
+	.table-responsive{ 
+		display: block !important;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+	
+	/* Esconder elementos em mobile */
+	.hide-mobile,
+	.table .hide-mobile,
+	th.hide-mobile,
+	td.hide-mobile {
+		display: none !important;
+	}
+	
+	/* Player cards para páginas que implementarem */
 	.player-card-mobile{ display: block; }
 
 	.player-card{
