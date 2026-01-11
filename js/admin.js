@@ -818,6 +818,34 @@ async function viewDirectives(deadlineId, league) {
     const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
     const directives = data.directives || [];
     
+    // Mapear labels para os novos valores
+    const gameStyleLabels = {
+      'balanced': 'Balanced', 'triangle': 'Triangle', 'grit_grind': 'Grit & Grind',
+      'pace_space': 'Pace & Space', 'perimeter_centric': 'Perimeter Centric',
+      'post_centric': 'Post Centric', 'seven_seconds': 'Seven Seconds',
+      'defense': 'Defense', 'franchise_player': 'Franchise Player', 'most_stars': 'Maior nº de Estrelas'
+    };
+    const offenseStyleLabels = {
+      'no_preference': 'No Preference', 'pick_roll': 'Pick & Roll',
+      'neutral': 'Neutral Focus', 'play_through_star': 'Play Through Star',
+      'get_to_basket': 'Get to Basket', 'get_shooters_open': 'Get Shooters Open', 'feed_post': 'Feed Post'
+    };
+    const paceLabels = {
+      'no_preference': 'No Preference', 'patient': 'Patient', 'average': 'Average', 'shoot_at_will': 'Shoot at Will'
+    };
+    const defAggrLabels = {
+      'physical': 'Physical', 'no_preference': 'No Preference', 'conservative': 'Conservative', 'neutral': 'Neutral'
+    };
+    const offRebLabels = {
+      'limit_transition': 'Limit Transition', 'no_preference': 'No Preference', 
+      'crash_glass': 'Crash Glass', 'some_crash': 'Some Crash'
+    };
+    const defRebLabels = {
+      'run_transition': 'Run Transition', 'crash_glass': 'Crash Glass', 
+      'some_crash': 'Some Crash', 'no_preference': 'No Preference'
+    };
+    const rotationLabels = { 'manual': 'Manual', 'auto': 'Automática' };
+    
     container.innerHTML = `
       <div class="mb-4">
         <button class="btn btn-back" onclick="showDirectives()"><i class="bi bi-arrow-left"></i> Voltar</button>
@@ -831,13 +859,18 @@ async function viewDirectives(deadlineId, league) {
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
-              const starters = [1,2,3,4,5].map(i => `<li>${d['starter_' + i + '_name']} (${d['starter_' + i + '_pos']})</li>`).join('');
-              const bench = [1,2,3].map(i => `<li>${d['bench_' + i + '_name']} (${d['bench_' + i + '_pos']})</li>`).join('');
+              const starters = [1,2,3,4,5].map(i => `<li>${d['starter_' + i + '_name'] || '?'} (${d['starter_' + i + '_pos'] || '?'})</li>`).join('');
+              const bench = [1,2,3].map(i => `<li>${d['bench_' + i + '_name'] || '?'} (${d['bench_' + i + '_pos'] || '?'})</li>`).join('');
               return `
               <div class="card bg-dark mb-3">
-                <div class="card-header">
-                  <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
-                  <small class="text-light-gray">Enviado em ${new Date(d.submitted_at).toLocaleString('pt-BR')}</small>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
+                    <small class="text-light-gray">Enviado em ${new Date(d.submitted_at).toLocaleString('pt-BR')}</small>
+                  </div>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
+                    <i class="bi bi-trash"></i> Excluir
+                  </button>
                 </div>
                 <div class="card-body">
                   <div class="row">
@@ -854,21 +887,27 @@ async function viewDirectives(deadlineId, league) {
                       </ul>
                     </div>
                     <div class="col-12 mt-3">
-                      <h6 class="text-orange">Estratégia</h6>
+                      <h6 class="text-orange">Estilo de Jogo</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-3">Pace: ${d.pace}</div>
-                        <div class="col-md-3">Rebote Of.: ${d.offensive_rebound}</div>
-                        <div class="col-md-3">Agressividade: ${d.offensive_aggression}</div>
-                        <div class="col-md-3">Rebote Def.: ${d.defensive_rebound}</div>
+                        <div class="col-md-4">Game Style: ${gameStyleLabels[d.game_style] || d.game_style}</div>
+                        <div class="col-md-4">Offense Style: ${offenseStyleLabels[d.offense_style] || d.offense_style}</div>
+                        <div class="col-md-4">Rotação: ${rotationLabels[d.rotation_style] || d.rotation_style}</div>
                       </div>
                     </div>
                     <div class="col-12 mt-3">
-                      <h6 class="text-orange">Estilos</h6>
+                      <h6 class="text-orange">Configurações</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-3">Rotação: ${d.rotation_style}</div>
-                        <div class="col-md-3">Jogo: ${d.game_style}</div>
-                        <div class="col-md-3">Ataque: ${d.offense_style}</div>
-                        <div class="col-md-3">Defesa: ${d.defense_style}</div>
+                        <div class="col-md-3">Tempo Ataque: ${paceLabels[d.pace] || d.pace}</div>
+                        <div class="col-md-3">Agress. Def.: ${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</div>
+                        <div class="col-md-3">Reb. Ofensivo: ${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</div>
+                        <div class="col-md-3">Reb. Defensivo: ${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</div>
+                      </div>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Rotação e Foco</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-6">Jogadores na Rotação: ${d.rotation_players || 10}</div>
+                        <div class="col-md-6">Foco Veteranos: ${d.veteran_focus || 50}%</div>
                       </div>
                     </div>
                     ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${d.notes}</p></div>` : ''}
@@ -883,6 +922,22 @@ async function viewDirectives(deadlineId, league) {
     `;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+  }
+}
+
+// Função para excluir diretriz
+async function deleteDirective(directiveId, deadlineId, league) {
+  if (!confirm('Tem certeza que deseja excluir esta diretriz? O time terá que enviar novamente.')) return;
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ action: 'delete_directive', directive_id: directiveId })
+    });
+    alert('Diretriz excluída com sucesso');
+    viewDirectives(deadlineId, league);
+  } catch (e) {
+    alert(e.error || 'Erro ao excluir diretriz');
   }
 }
 

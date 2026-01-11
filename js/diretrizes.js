@@ -19,7 +19,7 @@ document.querySelectorAll('input[type="range"]').forEach(range => {
   const valueSpan = document.getElementById(`${range.name}-value`);
   if (valueSpan) {
     range.addEventListener('input', () => {
-      valueSpan.textContent = range.value;
+      valueSpan.textContent = range.value + '%';
     });
   }
 });
@@ -50,18 +50,25 @@ async function loadExistingDirective() {
         }
       }
       
-      // Preencher estratégias
-      ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound'].forEach(field => {
-        const input = document.querySelector(`input[name="${field}"]`);
-        if (input && d[field]) {
-          input.value = d[field];
-          const valueSpan = document.getElementById(`${field}-value`);
-          if (valueSpan) valueSpan.textContent = d[field];
+      // Preencher estilos (selects)
+      ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 
+       'rotation_style', 'game_style', 'offense_style', 'rotation_players'].forEach(field => {
+        const select = document.querySelector(`select[name="${field}"]`);
+        if (select && d[field]) {
+          select.value = d[field];
         }
       });
       
-      // Preencher estilos
-      ['rotation_style', 'game_style', 'offense_style', 'defense_style'].forEach(field => {
+      // Preencher slider veteran_focus
+      const veteranInput = document.querySelector('input[name="veteran_focus"]');
+      if (veteranInput && d.veteran_focus !== undefined) {
+        veteranInput.value = d.veteran_focus;
+        const valueSpan = document.getElementById('veteran_focus-value');
+        if (valueSpan) valueSpan.textContent = d.veteran_focus + '%';
+      }
+      
+      // Preencher G-League
+      ['gleague_1_id', 'gleague_2_id'].forEach(field => {
         const select = document.querySelector(`select[name="${field}"]`);
         if (select && d[field]) {
           select.value = d[field];
@@ -120,6 +127,23 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     allPlayers.push(playerId);
   }
   
+  // Validar G-League (não pode ser titular/banco)
+  const gleague1 = fd.get('gleague_1_id');
+  const gleague2 = fd.get('gleague_2_id');
+  
+  if (gleague1 && allPlayers.includes(gleague1)) {
+    alert('Jogador da G-League não pode estar no quinteto titular ou banco');
+    return;
+  }
+  if (gleague2 && allPlayers.includes(gleague2)) {
+    alert('Jogador da G-League não pode estar no quinteto titular ou banco');
+    return;
+  }
+  if (gleague1 && gleague2 && gleague1 === gleague2) {
+    alert('Não pode selecionar o mesmo jogador duas vezes para G-League');
+    return;
+  }
+  
   const payload = {
     action: 'submit_directive',
     deadline_id: deadlineId,
@@ -131,14 +155,17 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     bench_1_id: parseInt(fd.get('bench_1_id')),
     bench_2_id: parseInt(fd.get('bench_2_id')),
     bench_3_id: parseInt(fd.get('bench_3_id')),
-    pace: parseInt(fd.get('pace')),
-    offensive_rebound: parseInt(fd.get('offensive_rebound')),
-    offensive_aggression: parseInt(fd.get('offensive_aggression')),
-    defensive_rebound: parseInt(fd.get('defensive_rebound')),
+    pace: fd.get('pace'),
+    offensive_rebound: fd.get('offensive_rebound'),
+    offensive_aggression: fd.get('offensive_aggression'),
+    defensive_rebound: fd.get('defensive_rebound'),
     rotation_style: fd.get('rotation_style'),
     game_style: fd.get('game_style'),
     offense_style: fd.get('offense_style'),
-    defense_style: fd.get('defense_style'),
+    rotation_players: parseInt(fd.get('rotation_players')) || 10,
+    veteran_focus: parseInt(fd.get('veteran_focus')) || 50,
+    gleague_1_id: gleague1 ? parseInt(gleague1) : null,
+    gleague_2_id: gleague2 ? parseInt(gleague2) : null,
     notes: fd.get('notes')
   };
   

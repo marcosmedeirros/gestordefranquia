@@ -225,7 +225,9 @@ if ($method === 'POST') {
                             starter_1_id = ?, starter_2_id = ?, starter_3_id = ?, starter_4_id = ?, starter_5_id = ?,
                             bench_1_id = ?, bench_2_id = ?, bench_3_id = ?,
                             pace = ?, offensive_rebound = ?, offensive_aggression = ?, defensive_rebound = ?,
-                            rotation_style = ?, game_style = ?, offense_style = ?, defense_style = ?,
+                            rotation_style = ?, game_style = ?, offense_style = ?,
+                            rotation_players = ?, veteran_focus = ?,
+                            gleague_1_id = ?, gleague_2_id = ?,
                             notes = ?, updated_at = NOW()
                         WHERE id = ?
                     ");
@@ -233,10 +235,12 @@ if ($method === 'POST') {
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], 
                         $data['starter_4_id'], $data['starter_5_id'],
                         $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
-                        $data['pace'] ?? 50, $data['offensive_rebound'] ?? 50, 
-                        $data['offensive_aggression'] ?? 50, $data['defensive_rebound'] ?? 50,
-                        $data['rotation_style'] ?? 'balanced', $data['game_style'] ?? 'balanced',
-                        $data['offense_style'] ?? 'balanced', $data['defense_style'] ?? 'man',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', 
+                        $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced',
+                        $data['offense_style'] ?? 'no_preference',
+                        $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
+                        $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null,
                         $existing['id']
                     ]);
@@ -248,18 +252,22 @@ if ($method === 'POST') {
                             starter_1_id, starter_2_id, starter_3_id, starter_4_id, starter_5_id,
                             bench_1_id, bench_2_id, bench_3_id,
                             pace, offensive_rebound, offensive_aggression, defensive_rebound,
-                            rotation_style, game_style, offense_style, defense_style, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            rotation_style, game_style, offense_style,
+                            rotation_players, veteran_focus,
+                            gleague_1_id, gleague_2_id, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $team['id'], $deadlineId,
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], 
                         $data['starter_4_id'], $data['starter_5_id'],
                         $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
-                        $data['pace'] ?? 50, $data['offensive_rebound'] ?? 50, 
-                        $data['offensive_aggression'] ?? 50, $data['defensive_rebound'] ?? 50,
-                        $data['rotation_style'] ?? 'balanced', $data['game_style'] ?? 'balanced',
-                        $data['offense_style'] ?? 'balanced', $data['defense_style'] ?? 'man',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', 
+                        $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced',
+                        $data['offense_style'] ?? 'no_preference',
+                        $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
+                        $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null
                     ]);
                 }
@@ -340,7 +348,7 @@ if ($method === 'PUT') {
     exit;
 }
 
-// DELETE - Deletar prazo (admin)
+// DELETE - Deletar prazo ou diretriz (admin)
 if ($method === 'DELETE') {
     if (($user['user_type'] ?? 'jogador') !== 'admin') {
         http_response_code(403);
@@ -349,6 +357,26 @@ if ($method === 'DELETE') {
     }
     
     $data = json_decode(file_get_contents('php://input'), true);
+    $action = $data['action'] ?? 'delete_deadline';
+    
+    if ($action === 'delete_directive') {
+        // Deletar uma diretriz específica de um time
+        $directiveId = $data['directive_id'] ?? null;
+        
+        if (!$directiveId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'directive_id obrigatório']);
+            exit;
+        }
+        
+        $stmt = $pdo->prepare('DELETE FROM team_directives WHERE id = ?');
+        $stmt->execute([$directiveId]);
+        
+        echo json_encode(['success' => true, 'message' => 'Diretriz excluída com sucesso']);
+        exit;
+    }
+    
+    // Default: delete deadline
     $deadlineId = $data['id'] ?? null;
     
     if (!$deadlineId) {

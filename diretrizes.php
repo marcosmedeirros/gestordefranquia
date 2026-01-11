@@ -34,6 +34,16 @@ $stmtPlayers = $pdo->prepare("
 ");
 $stmtPlayers->execute([$team['id']]);
 $players = $stmtPlayers->fetchAll();
+
+// Contar jogadores para regras da G-League
+$playerCount = count($players);
+// G-League: Se time tem 15+ jogadores, pode mandar 2; se tem 14, pode mandar 1
+$gleagueSlots = 0;
+if ($playerCount >= 15) {
+    $gleagueSlots = 2;
+} elseif ($playerCount >= 14) {
+    $gleagueSlots = 1;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -158,95 +168,169 @@ $players = $stmtPlayers->fetchAll();
                 </div>
             </div>
 
-            <!-- Estratégia de Jogo -->
-            <div class="card bg-dark-panel border-orange mb-4">
-                <div class="card-header bg-transparent border-orange">
-                    <h5 class="text-white mb-0"><i class="bi bi-bar-chart me-2"></i>Estratégia de Jogo</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-4">
-                        <div class="col-md-6">
-                            <label class="form-label text-white">Tempo de Ataque (Pace)</label>
-                            <input type="range" class="form-range" name="pace" id="pace" min="0" max="100" value="50">
-                            <div class="d-flex justify-content-between text-light-gray small">
-                                <span>Lento</span>
-                                <span id="pace-value">50</span>
-                                <span>Rápido</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-white">Rebote Ofensivo</label>
-                            <input type="range" class="form-range" name="offensive_rebound" id="offensive_rebound" min="0" max="100" value="50">
-                            <div class="d-flex justify-content-between text-light-gray small">
-                                <span>Baixo</span>
-                                <span id="offensive_rebound-value">50</span>
-                                <span>Alto</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-white">Agressividade Ofensiva</label>
-                            <input type="range" class="form-range" name="offensive_aggression" id="offensive_aggression" min="0" max="100" value="50">
-                            <div class="d-flex justify-content-between text-light-gray small">
-                                <span>Conservador</span>
-                                <span id="offensive_aggression-value">50</span>
-                                <span>Agressivo</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-white">Rebote Defensivo</label>
-                            <input type="range" class="form-range" name="defensive_rebound" id="defensive_rebound" min="0" max="100" value="50">
-                            <div class="d-flex justify-content-between text-light-gray small">
-                                <span>Baixo</span>
-                                <span id="defensive_rebound-value">50</span>
-                                <span>Alto</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Estilos de Jogo -->
             <div class="card bg-dark-panel border-orange mb-4">
                 <div class="card-header bg-transparent border-orange">
-                    <h5 class="text-white mb-0"><i class="bi bi-gear me-2"></i>Configurações de Rotação e Estilos</h5>
+                    <h5 class="text-white mb-0"><i class="bi bi-gear me-2"></i>Configurações de Estilo de Jogo</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label text-white">Estilo de Rotação</label>
-                            <select class="form-select bg-dark text-white border-orange" name="rotation_style">
-                                <option value="balanced">Balanceado (7-8 jogadores)</option>
-                                <option value="short">Curta (5-6 jogadores)</option>
-                                <option value="deep">Profunda (9-10 jogadores)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
                             <label class="form-label text-white">Estilo de Jogo</label>
                             <select class="form-select bg-dark text-white border-orange" name="game_style">
-                                <option value="balanced">Balanceado</option>
-                                <option value="fast">Rápido (Transição)</option>
-                                <option value="slow">Lento (Posicional)</option>
+                                <option value="balanced">Balanced</option>
+                                <option value="triangle">Triangle</option>
+                                <option value="grit_grind">Grit & Grind</option>
+                                <option value="pace_space">Pace & Space</option>
+                                <option value="perimeter_centric">Perimeter Centric</option>
+                                <option value="post_centric">Post Centric</option>
+                                <option value="seven_seconds">Seven Seconds</option>
+                                <option value="defense">Defense</option>
+                                <option value="franchise_player">Melhor esquema pro Franchise Player</option>
+                                <option value="most_stars">Maior nº de Estrelas</option>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-white">Estilo de Ataque</label>
                             <select class="form-select bg-dark text-white border-orange" name="offense_style">
-                                <option value="balanced">Balanceado</option>
-                                <option value="inside">Interior (Garrafão)</option>
-                                <option value="outside">Exterior (3 pontos)</option>
+                                <option value="no_preference">No Preference</option>
+                                <option value="pick_roll">Pick & Roll Offense</option>
+                                <option value="neutral">Neutral Offensive Focus</option>
+                                <option value="play_through_star">Play Through Star</option>
+                                <option value="get_to_basket">Get to The Basket</option>
+                                <option value="get_shooters_open">Get Shooters Open</option>
+                                <option value="feed_post">Feed The Post</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-white">Estilo de Defesa</label>
-                            <select class="form-select bg-dark text-white border-orange" name="defense_style">
-                                <option value="man">Individual</option>
-                                <option value="zone">Zona</option>
-                                <option value="mixed">Mista</option>
+                            <label class="form-label text-white">Estilo de Rotação</label>
+                            <select class="form-select bg-dark text-white border-orange" name="rotation_style">
+                                <option value="auto">Automática</option>
+                                <option value="manual">Manual</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Tempo de Ataque</label>
+                            <select class="form-select bg-dark text-white border-orange" name="pace">
+                                <option value="no_preference">No Preference</option>
+                                <option value="patient">Patient Offense</option>
+                                <option value="average">Average Tempo</option>
+                                <option value="shoot_at_will">Shoot at Will</option>
                             </select>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Configurações Defensivas -->
+            <div class="card bg-dark-panel border-orange mb-4">
+                <div class="card-header bg-transparent border-orange">
+                    <h5 class="text-white mb-0"><i class="bi bi-shield me-2"></i>Configurações Defensivas e Rebotes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Agressividade Defensiva</label>
+                            <select class="form-select bg-dark text-white border-orange" name="offensive_aggression">
+                                <option value="physical">Play Physical Defense</option>
+                                <option value="no_preference" selected>No Preference</option>
+                                <option value="conservative">Conservative Defense</option>
+                                <option value="neutral">Neutral Defensive Aggression</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Rebote Ofensivo</label>
+                            <select class="form-select bg-dark text-white border-orange" name="offensive_rebound">
+                                <option value="limit_transition">Limit Transition</option>
+                                <option value="no_preference" selected>No Preference</option>
+                                <option value="crash_glass">Crash Offensive Glass</option>
+                                <option value="some_crash">Some Crash Others Get Back</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Rebote Defensivo</label>
+                            <select class="form-select bg-dark text-white border-orange" name="defensive_rebound">
+                                <option value="run_transition">Run in Transition</option>
+                                <option value="crash_glass">Crash Defensive Glass</option>
+                                <option value="some_crash">Some Crash Others Run</option>
+                                <option value="no_preference" selected>No Preference</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rotação e Foco -->
+            <div class="card bg-dark-panel border-orange mb-4">
+                <div class="card-header bg-transparent border-orange">
+                    <h5 class="text-white mb-0"><i class="bi bi-sliders me-2"></i>Rotação e Foco</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Jogadores na Rotação</label>
+                            <select class="form-select bg-dark text-white border-orange" name="rotation_players">
+                                <?php for ($i = 8; $i <= 15; $i++): ?>
+                                <option value="<?= $i ?>" <?= $i == 10 ? 'selected' : '' ?>><?= $i ?> jogadores</option>
+                                <?php endfor; ?>
+                            </select>
+                            <small class="text-light-gray">Quantidade de jogadores que entram em quadra</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">% Foco em Jogadores Veteranos</label>
+                            <input type="range" class="form-range" name="veteran_focus" id="veteran_focus" min="0" max="100" value="50">
+                            <div class="d-flex justify-content-between text-light-gray small">
+                                <span>Jovens (0%)</span>
+                                <span id="veteran_focus-value">50%</span>
+                                <span>Veteranos (100%)</span>
+                            </div>
+                            <small class="text-light-gray">Define prioridade de minutos entre jovens e veteranos</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- G-League -->
+            <?php if ($gleagueSlots > 0): ?>
+            <div class="card bg-dark-panel border-orange mb-4">
+                <div class="card-header bg-transparent border-orange">
+                    <h5 class="text-white mb-0"><i class="bi bi-arrow-down-circle me-2"></i>G-League (Opcional)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info bg-dark border-info mb-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Seu elenco tem <strong><?= $playerCount ?></strong> jogadores. Você pode enviar até <strong><?= $gleagueSlots ?></strong> jogador(es) para a G-League.
+                        <br><small class="text-light-gray">Regra: 15+ jogadores = 2 vagas | 14 jogadores = 1 vaga | &lt;14 jogadores = sem vagas</small>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Jogador G-League 1</label>
+                            <select class="form-select bg-dark text-white border-orange" name="gleague_1_id">
+                                <option value="">Nenhum</option>
+                                <?php foreach ($players as $p): ?>
+                                <option value="<?= $p['id'] ?>">
+                                    <?= htmlspecialchars($p['name']) ?> - <?= $p['position'] ?> (<?= $p['ovr'] ?>)
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php if ($gleagueSlots >= 2): ?>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Jogador G-League 2</label>
+                            <select class="form-select bg-dark text-white border-orange" name="gleague_2_id">
+                                <option value="">Nenhum</option>
+                                <?php foreach ($players as $p): ?>
+                                <option value="<?= $p['id'] ?>">
+                                    <?= htmlspecialchars($p['name']) ?> - <?= $p['position'] ?> (<?= $p['ovr'] ?>)
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Observações -->
             <div class="card bg-dark-panel border-orange mb-4">
