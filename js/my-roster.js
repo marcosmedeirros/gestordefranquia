@@ -217,12 +217,34 @@ function updateRosterStats() {
 async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
   console.log('loadPlayers chamado, teamId:', teamId);
+  
+  const statusEl = document.getElementById('players-status');
+  const listEl = document.getElementById('players-list');
+  
   if (!teamId) {
     console.error('Sem teamId!');
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div class="alert alert-warning text-center">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Você ainda não possui um time. Crie um time para gerenciar seu elenco.
+        </div>
+      `;
+      statusEl.classList.remove('d-none');
+    }
+    if (listEl) listEl.classList.add('d-none');
     return;
   }
-  document.getElementById('players-status').classList.remove('d-none');
-  document.getElementById('players-list').classList.add('d-none');
+  
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <div class="spinner-border text-orange" role="status"></div>
+      <p class="text-light-gray mt-2">Carregando jogadores...</p>
+    `;
+    statusEl.classList.remove('d-none');
+  }
+  if (listEl) listEl.classList.add('d-none');
+  
   try {
     console.log('Fetching:', `/api/players.php?team_id=${teamId}`);
     const data = await api(`players.php?team_id=${teamId}`);
@@ -233,11 +255,18 @@ async function loadPlayers() {
     currentSort = { field: 'role', ascending: true };
     updateSortIcons();
     renderPlayers(allPlayers);
-    document.getElementById('players-status').classList.add('d-none');
-    document.getElementById('players-list').classList.remove('d-none');
+    if (statusEl) statusEl.classList.add('d-none');
+    if (listEl) listEl.classList.remove('d-none');
   } catch (err) {
     console.error('Erro ao carregar:', err);
-    alert(err.error || 'Erro ao carregar jogadores');
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="bi bi-x-circle me-2"></i>
+          Erro ao carregar jogadores: ${err.error || 'Desconhecido'}
+        </div>
+      `;
+    }
   }
 }
 

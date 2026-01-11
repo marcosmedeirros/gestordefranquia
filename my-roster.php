@@ -6,18 +6,19 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-$stmtTeam = $pdo->prepare('
-  SELECT t.*, COUNT(p.id) as player_count
-  FROM teams t
-  LEFT JOIN players p ON p.team_id = t.id
-  WHERE t.user_id = ?
-  GROUP BY t.id
-  ORDER BY player_count DESC, t.id DESC
-  LIMIT 1
-');
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 $teamId = $team['id'] ?? null;
+
+// Buscar contagem de jogadores separadamente
+$playerCount = 0;
+if ($teamId) {
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+    $stmtCount->execute([$teamId]);
+    $playerCount = (int)$stmtCount->fetchColumn();
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
