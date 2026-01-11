@@ -116,8 +116,8 @@ if ($method === 'POST') {
     }
     
     // Validar elegibilidade para G-League
-    if ($role === 'G-League' && $age >= 25) {
-        jsonResponse(409, ['error' => 'Jogador não elegível para G-League (deve ter menos de 25 anos).']);
+        if ($role === 'G-League' && $age >= 25) {
+            jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
     }
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
@@ -191,11 +191,8 @@ if ($method === 'PUT') {
         }
         
         // Validar elegibilidade para G-League
-        if ($role === 'G-League') {
-            if ($seasonsInLeague >= 4 && $age >= 25) {
-                jsonResponse(409, ['error' => 'Jogador não elegível para G-League (deve ter menos de 4 temporadas OU menos de 25 anos).']);
-            }
-        }
+            if ($role === 'G-League' && $age >= 25) {
+                jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
     }
 
     // CAP check: recalcular considerando o novo OVR substituindo o anterior
