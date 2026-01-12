@@ -15,10 +15,11 @@ if (!$user) {
 $pdo = db();
 
 // Detect league from user's team
+// Sempre usar a liga do time do usuário (evitar misturar ligas)
 $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-$league = $team['league'] ?? ($user['league'] ?? null);
+$league = $team['league'] ?? null;
 
 if (!$league) {
     http_response_code(400);

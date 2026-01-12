@@ -10,7 +10,7 @@ $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 $teamId = $team['id'] ?? null;
-$league = $team['league'] ?? ($user['league'] ?? '');
+$league = $team['league'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -107,7 +107,7 @@ $league = $team['league'] ?? ($user['league'] ?? '');
   </div>
 
   <script>
-    window.__USER_LEAGUE__ = '<?= htmlspecialchars($league, ENT_QUOTES) ?>';
+  window.__USER_LEAGUE__ = '<?= htmlspecialchars($league, ENT_QUOTES) ?>';
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
