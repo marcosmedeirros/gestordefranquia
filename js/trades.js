@@ -15,6 +15,17 @@ let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
 
+function clearCounterProposalState() {
+  const modalEl = document.getElementById('proposeTradeModal');
+  if (modalEl && modalEl.dataset.counterTo) {
+    delete modalEl.dataset.counterTo;
+  }
+  const targetSelect = document.getElementById('targetTeam');
+  if (targetSelect) {
+    targetSelect.disabled = false;
+  }
+}
+
 async function init() {
   if (!myTeamId) return;
   
@@ -32,6 +43,13 @@ async function init() {
   // Event listeners
   document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
   document.getElementById('targetTeam').addEventListener('change', onTargetTeamChange);
+
+  const tradeModalEl = document.getElementById('proposeTradeModal');
+  if (tradeModalEl) {
+    tradeModalEl.addEventListener('hidden.bs.modal', () => {
+      clearCounterProposalState();
+    });
+  }
 }
 
 async function loadTeams() {
@@ -174,6 +192,8 @@ async function submitTrade() {
   const requestPlayers = Array.from(document.getElementById('requestPlayers').selectedOptions).map(o => o.value);
   const requestPicks = Array.from(document.getElementById('requestPicks').selectedOptions).map(o => o.value);
   const notes = document.getElementById('tradeNotes').value;
+  const modalEl = document.getElementById('proposeTradeModal');
+  const counterTo = modalEl && modalEl.dataset.counterTo ? parseInt(modalEl.dataset.counterTo, 10) : null;
   
   if (!targetTeam) {
     return alert('Selecione um time.');
@@ -188,22 +208,30 @@ async function submitTrade() {
   }
   
   try {
+    const payload = {
+      to_team_id: parseInt(targetTeam),
+      offer_players: offerPlayers.map(id => parseInt(id)),
+      offer_picks: offerPicks.map(id => parseInt(id)),
+      request_players: requestPlayers.map(id => parseInt(id)),
+      request_picks: requestPicks.map(id => parseInt(id)),
+      notes
+    };
+    if (counterTo) {
+      payload.counter_to_trade_id = counterTo;
+    }
+
     await api('trades.php', {
       method: 'POST',
-      body: JSON.stringify({
-        to_team_id: parseInt(targetTeam),
-        offer_players: offerPlayers.map(id => parseInt(id)),
-        offer_picks: offerPicks.map(id => parseInt(id)),
-        request_players: requestPlayers.map(id => parseInt(id)),
-        request_picks: requestPicks.map(id => parseInt(id)),
-        notes
-      })
+      body: JSON.stringify(payload)
     });
     
     alert('Proposta de trade enviada!');
     bootstrap.Modal.getInstance(document.getElementById('proposeTradeModal')).hide();
+    clearCounterProposalState();
     document.getElementById('proposeTradeForm').reset();
     loadTrades('sent');
+    loadTrades('received');
+    loadTrades('history');
   } catch (err) {
     alert(err.error || 'Erro ao enviar trade');
   }

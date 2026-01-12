@@ -45,7 +45,7 @@ if ($method === 'GET') {
         $params[] = $teamId;
     } else { // history
         $conditions[] = '(t.from_team_id = ? OR t.to_team_id = ?)';
-        $conditions[] = "t.status IN ('accepted', 'rejected', 'cancelled')";
+        $conditions[] = "t.status IN ('accepted', 'rejected', 'cancelled', 'countered')";
         $params[] = $teamId;
         $params[] = $teamId;
     }
@@ -125,6 +125,8 @@ if ($method === 'POST') {
     $requestPlayers = $data['request_players'] ?? [];
     $requestPicks = $data['request_picks'] ?? [];
     $notes = $data['notes'] ?? '';
+    $counterTradeId = isset($data['counter_to_trade_id']) ? (int)$data['counter_to_trade_id'] : null;
+    $counterTrade = null;
     
     if (!$toTeamId) {
         http_response_code(400);
@@ -146,7 +148,7 @@ if ($method === 'POST') {
     }
     
     // Buscar o time para obter a liga
-    $stmtTeamLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtTeamLeague = $pdo->prepare('SELECT league, city, name FROM teams WHERE id = ?');
     $stmtTeamLeague->execute([$teamId]);
     $teamData = $stmtTeamLeague->fetch();
     
@@ -154,6 +156,32 @@ if ($method === 'POST') {
         http_response_code(404);
         echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
         exit;
+    }
+
+    if ($counterTradeId) {
+        $stmtCounter = $pdo->prepare('SELECT * FROM trades WHERE id = ?');
+        $stmtCounter->execute([$counterTradeId]);
+        $counterTrade = $stmtCounter->fetch(PDO::FETCH_ASSOC);
+        if (!$counterTrade) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Trade original não encontrada para contraproposta']);
+            exit;
+        }
+        if ((int)$counterTrade['to_team_id'] !== (int)$teamId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não pode fazer contraproposta para esta trade']);
+            exit;
+        }
+        if ($counterTrade['status'] !== 'pending') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A trade original não está mais pendente']);
+            exit;
+        }
+        if ((int)$counterTrade['from_team_id'] !== (int)$toTeamId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Selecione o mesmo time da proposta original para contrapropor']);
+            exit;
+        }
     }
     
     // Verificar se a coluna max_trades existe em league_settings
@@ -181,7 +209,7 @@ if ($method === 'POST') {
     }
     
     try {
-        $pdo->beginTransaction();
+    $pdo->beginTransaction();
         
         // Criar trade (sem coluna cycle - ela é opcional)
         $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes) VALUES (?, ?, ?)');
@@ -206,6 +234,13 @@ if ($method === 'POST') {
         
         foreach ($requestPicks as $pickId) {
             $stmtItem->execute([$tradeId, null, $pickId, false]);
+        }
+
+        if ($counterTrade) {
+            $counterNote = trim($notes) !== '' ? trim($notes) : 'Contraproposta enviada.';
+            $counterNote .= ' Nova proposta #' . $tradeId;
+            $stmtCounterUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
+            $stmtCounterUpdate->execute(['countered', $counterNote, $counterTradeId]);
         }
         
         $pdo->commit();
