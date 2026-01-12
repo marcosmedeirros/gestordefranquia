@@ -1082,7 +1082,12 @@ img.broken-image {
 	}
 	
 	/* Player cards para páginas que implementarem */
-	.player-card-mobile{ display: block; }
+	.player-card-mobile{ display: none; }
+
+	@media (max-width: 768px) {
+		#players-list { display: none !important; }
+		.player-card-mobile{ display: block; }
+	}
 
 	.player-card{
 		background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
