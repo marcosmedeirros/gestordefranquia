@@ -14,28 +14,25 @@ if (!$user) {
 
 $pdo = db();
 
-// Detect league from user's team
-// Sempre usar a liga do time do usuário (evitar misturar ligas)
-// Priorizar o time do usuário na liga atual da sessão
-$sessionLeague = $user['league'] ?? null;
-$stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? AND league = ? LIMIT 1');
-$stmtTeam->execute([$user['id'], $sessionLeague]);
-$team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-
-// Fallback: se não encontrar pelo par (user_id, league), pegar qualquer time do usuário
-if (!$team) {
-    $stmtTeam2 = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
-    $stmtTeam2->execute([$user['id']]);
-    $team = $stmtTeam2->fetch(PDO::FETCH_ASSOC);
-}
-
-$league = $team['league'] ?? $sessionLeague ?? null;
-
-if (!$league) {
+// Liga ativa deve ser a mesma escolhida no login do usuário
+$activeLeague = $user['league'] ?? null;
+if (!$activeLeague) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Liga do usuário não encontrada']);
+    echo json_encode(['success' => false, 'error' => 'Liga ativa não encontrada']);
     exit;
 }
+
+$stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1');
+$stmtTeam->execute([$user['id'], $activeLeague]);
+$team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+
+if (!$team) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Time do usuário não encontrado para esta liga']);
+    exit;
+}
+
+$league = $activeLeague;
 
 $q = trim($_GET['q'] ?? '');
 $sort = strtolower($_GET['sort'] ?? 'ovr');
@@ -51,7 +48,7 @@ $allowedSort = [
 $orderBy = $allowedSort[$sort] ?? 'p.ovr';
 $orderDir = $dir === 'asc' ? 'ASC' : 'DESC';
 
-$where = ['p.available_for_trade = 1', 'LOWER(t.league) = LOWER(?)'];
+$where = ['p.available_for_trade = 1', 'LOWER(TRIM(t.league)) = LOWER(TRIM(?))'];
 $params = [$league];
 
 if ($q !== '') {

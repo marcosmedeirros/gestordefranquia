@@ -72,6 +72,77 @@ if ($teamId) {
       border-bottom-color: var(--fba-orange);
       font-weight: 600;
     }
+
+    .trade-list-panel {
+      background: var(--fba-card-bg);
+      border: 1px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .trade-list-search .form-control,
+    .trade-list-search .form-select {
+      background: var(--fba-dark-bg);
+      color: var(--fba-text);
+      border: 1px solid var(--fba-border);
+    }
+
+    .trade-list-search .form-control:focus,
+    .trade-list-search .form-select:focus {
+      border-color: var(--fba-orange);
+      box-shadow: 0 0 0 0.25rem rgba(241, 117, 7, 0.25);
+    }
+
+    .player-card {
+      background: var(--fba-dark-bg);
+      border: 1px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: transform 0.2s ease, border 0.2s ease;
+    }
+
+    .player-card:hover {
+      border-color: var(--fba-orange);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(241, 117, 7, 0.25);
+    }
+
+    .player-name {
+      font-weight: 600;
+      color: var(--fba-text);
+      font-size: 1.05rem;
+    }
+
+    .player-meta {
+      font-size: 0.9rem;
+      color: var(--fba-text-muted);
+    }
+
+    .team-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--fba-border);
+      border-radius: 30px;
+      padding: 6px 14px;
+    }
+
+    .team-chip img {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    #playersList .alert {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--fba-border);
+      color: var(--fba-text);
+    }
   </style>
 </head>
 <body>
@@ -240,26 +311,31 @@ if ($teamId) {
 
       <!-- Trade List (Disponíveis para troca na sua liga) -->
       <div class="tab-pane fade" id="trade-list" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="text-white mb-0"><i class="bi bi-list-stars me-2 text-orange"></i>Disponíveis para troca</h5>
-          <span class="badge bg-secondary" id="countBadge">0 jogadores</span>
+        <div class="trade-list-panel">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+            <div>
+              <h5 class="text-white mb-1"><i class="bi bi-list-stars me-2 text-orange"></i>Jogadores disponíveis para troca</h5>
+              <p class="text-light-gray mb-0 small">Somente atletas marcados como disponíveis na sua liga atual.</p>
+            </div>
+            <span class="badge bg-secondary" id="countBadge">0 jogadores</span>
+          </div>
+          <div class="trade-list-search d-flex flex-column flex-md-row gap-2 mb-3">
+            <input type="text" class="form-control" id="searchInput" placeholder="Procurar por nome...">
+            <select class="form-select" id="sortSelect">
+              <option value="ovr_desc">OVR (Maior primeiro)</option>
+              <option value="ovr_asc">OVR (Menor primeiro)</option>
+              <option value="name_asc">Nome (A-Z)</option>
+              <option value="name_desc">Nome (Z-A)</option>
+              <option value="age_asc">Idade (Menor primeiro)</option>
+              <option value="age_desc">Idade (Maior primeiro)</option>
+              <option value="position_asc">Posição (A-Z)</option>
+              <option value="position_desc">Posição (Z-A)</option>
+              <option value="team_asc">Time (A-Z)</option>
+              <option value="team_desc">Time (Z-A)</option>
+            </select>
+          </div>
+          <div id="playersList"></div>
         </div>
-        <div class="d-flex gap-2 mb-3">
-          <input type="text" class="form-control bg-dark text-white border-orange" id="searchInput" placeholder="Procurar por nome...">
-          <select class="form-select bg-dark text-white border-orange" id="sortSelect">
-            <option value="ovr_desc">OVR (Maior primeiro)</option>
-            <option value="ovr_asc">OVR (Menor primeiro)</option>
-            <option value="name_asc">Nome (A-Z)</option>
-            <option value="name_desc">Nome (Z-A)</option>
-            <option value="age_asc">Idade (Menor primeiro)</option>
-            <option value="age_desc">Idade (Maior primeiro)</option>
-            <option value="position_asc">Posição (A-Z)</option>
-            <option value="position_desc">Posição (Z-A)</option>
-            <option value="team_asc">Time (A-Z)</option>
-            <option value="team_desc">Time (Z-A)</option>
-          </select>
-        </div>
-        <div id="playersList"></div>
       </div>
     </div>
 
