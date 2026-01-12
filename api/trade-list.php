@@ -42,8 +42,8 @@ $allowedSort = [
 $orderBy = $allowedSort[$sort] ?? 'p.ovr';
 $orderDir = $dir === 'asc' ? 'ASC' : 'DESC';
 
-$where = ['p.available_for_trade = 1', 'LOWER(TRIM(t.league)) = LOWER(TRIM(?))'];
-$params = [$league];
+$where = ['p.available_for_trade = 1', '(LOWER(TRIM(t.league)) = LOWER(TRIM(?)) OR LOWER(TRIM(u.league)) = LOWER(TRIM(?)))'];
+$params = [$league, $league];
 
 if ($q !== '') {
     $where[] = 'p.name LIKE ?';
@@ -53,10 +53,12 @@ if ($q !== '') {
 $sql = "
     SELECT 
         p.id, p.name, p.age, p.position, p.secondary_position, p.role, p.ovr,
-        t.id AS team_id, CONCAT(t.city, ' ', t.name) AS team_name, t.league,
-        COALESCE(t.photo_url, '') AS team_logo
+        t.id AS team_id, CONCAT(t.city, ' ', t.name) AS team_name,
+        COALESCE(t.photo_url, '') AS team_logo,
+        COALESCE(NULLIF(TRIM(t.league), ''), u.league) AS league
     FROM players p
     JOIN teams t ON p.team_id = t.id
+    JOIN users u ON t.user_id = u.id
     WHERE " . implode(' AND ', $where) . "
     ORDER BY $orderBy $orderDir, p.id DESC
 ";
