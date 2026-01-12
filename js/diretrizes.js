@@ -17,6 +17,7 @@ const api = async (path, options = {}) => {
 // Armazenar lista de jogadores para referência
 let allPlayersData = [];
 let playersById = {};
+let currentDirective = null; // manter dados carregados para re-render confiável
 
 // Buscar todos os jogadores do time para renderizar campos de minutagem
 async function loadPlayersData() {
@@ -55,8 +56,22 @@ function renderPlayerMinutes() {
     return ids;
   };
 
-  const starters = getSelectedIds('starter', 5);
-  const bench = getSelectedIds('bench', 3);
+  let starters = getSelectedIds('starter', 5);
+  let bench = getSelectedIds('bench', 3);
+
+  // Fallback: se não houver seleção ainda, usar dados da diretriz existente
+  if (starters.length === 0 && bench.length === 0 && currentDirective) {
+    starters = [];
+    bench = [];
+    for (let i = 1; i <= 5; i++) {
+      const sid = parseInt(currentDirective[`starter_${i}_id`]);
+      if (!isNaN(sid) && sid > 0) starters.push(sid);
+    }
+    for (let i = 1; i <= 3; i++) {
+      const bid = parseInt(currentDirective[`bench_${i}_id`]);
+      if (!isNaN(bid) && bid > 0) bench.push(bid);
+    }
+  }
 
   // Render seção Titulares
   if (starters.length > 0) {
@@ -78,7 +93,7 @@ function renderPlayerMinutes() {
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"
                      data-player-id="${player.id}" data-player-name="${player.name}"
-                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
+                     min="5" max="${maxMinutes}" value="${(currentDirective && currentDirective.player_minutes && currentDirective.player_minutes[player.id]) ? currentDirective.player_minutes[player.id] : 20}" placeholder="Minutos">
               <span class="input-group-text bg-dark text-orange border-orange">min</span>
             </div>
           </div>
@@ -109,7 +124,7 @@ function renderPlayerMinutes() {
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"
                      data-player-id="${player.id}" data-player-name="${player.name}"
-                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
+                     min="5" max="${maxMinutes}" value="${(currentDirective && currentDirective.player_minutes && currentDirective.player_minutes[player.id]) ? currentDirective.player_minutes[player.id] : 20}" placeholder="Minutos">
               <span class="input-group-text bg-dark text-orange border-orange">min</span>
             </div>
           </div>
@@ -121,11 +136,32 @@ function renderPlayerMinutes() {
   }
 
   // Mensagem de orientação se nada selecionado ainda
+  // Fallback final: se ainda não houver seleção nem diretriz, renderizar todos os jogadores
   if (starters.length === 0 && bench.length === 0) {
-    const info = document.createElement('div');
-    info.className = 'col-12';
-    info.innerHTML = `<small class="text-light-gray">Selecione seus Titulares e Banco acima para configurar a minutagem.</small>`;
-    container.appendChild(info);
+    const titleAll = document.createElement('div');
+    titleAll.className = 'col-12 mb-2';
+    titleAll.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>Jogadores do Elenco</h6>`;
+    container.appendChild(titleAll);
+    allPlayersData.forEach(player => {
+      const row = document.createElement('div');
+      row.className = 'col-12';
+      row.innerHTML = `
+        <div class="form-group mb-2">
+          <div class="d-flex align-items-center justify-content-between gap-3">
+            <span class="text-white small">${player.name}</span>
+            <div class="input-group input-group-sm" style="max-width: 130px;">
+              <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
+                     name="minutes_player_${player.id}"
+                     data-player-id="${player.id}" data-player-name="${player.name}"
+                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
+              <span class="input-group-text bg-dark text-orange border-orange">min</span>
+            </div>
+          </div>
+          <small class="text-light-gray d-block">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
+        </div>
+      `;
+      container.appendChild(row);
+    });
   }
 }
 
@@ -189,6 +225,7 @@ async function loadExistingDirective() {
     const data = await api(`diretrizes.php?action=my_directive&deadline_id=${deadlineId}`);
     if (data.directive) {
       const d = data.directive;
+      currentDirective = d;
       
       // Preencher titulares
       for (let i = 1; i <= 5; i++) {
@@ -245,7 +282,7 @@ async function loadExistingDirective() {
             const input = document.querySelector(`input[name="minutes_player_${playerId}"]`);
             if (input) input.value = d.player_minutes[playerId];
           });
-        }, 100);
+        }, 50);
       }
       
       // Atualizar visibilidade após carregar dados
