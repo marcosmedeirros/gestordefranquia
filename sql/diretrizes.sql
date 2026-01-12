@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS directive_deadlines (
     season_id INT NULL,
     deadline_date DATE NOT NULL,
     description VARCHAR(255) NULL,
+    phase ENUM('regular','playoffs') DEFAULT 'regular',
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_deadline_league_date (league, deadline_date),

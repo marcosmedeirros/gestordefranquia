@@ -72,25 +72,111 @@ MODIFY COLUMN defensive_rebound ENUM(
 ) DEFAULT 'no_preference' COMMENT 'Rebote defensivo';
 
 -- Remover defense_style (não usado mais)
-ALTER TABLE team_directives 
-DROP COLUMN defense_style;
+-- Executar de forma segura apenas se a coluna existir
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND COLUMN_NAME = 'defense_style'
+);
+SET @sql := IF(@col_exists > 0,
+    'ALTER TABLE team_directives DROP COLUMN defense_style',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Adicionar novos campos
-ALTER TABLE team_directives 
-ADD COLUMN rotation_players INT DEFAULT 10 COMMENT 'Jogadores na rotação (8-15)';
+-- rotation_players
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND COLUMN_NAME = 'rotation_players'
+);
+SET @sql := IF(@col_exists = 0,
+    'ALTER TABLE team_directives ADD COLUMN rotation_players INT DEFAULT 10 COMMENT ''Jogadores na rotação (8-15)''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE team_directives 
-ADD COLUMN veteran_focus INT DEFAULT 50 COMMENT 'Foco em jogadores veteranos (0-100%)';
+-- veteran_focus
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND COLUMN_NAME = 'veteran_focus'
+);
+SET @sql := IF(@col_exists = 0,
+    'ALTER TABLE team_directives ADD COLUMN veteran_focus INT DEFAULT 50 COMMENT ''Foco em jogadores veteranos (0-100%)''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE team_directives 
-ADD COLUMN gleague_1_id INT NULL COMMENT 'Jogador 1 a mandar para G-League';
+-- gleague_1_id
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND COLUMN_NAME = 'gleague_1_id'
+);
+SET @sql := IF(@col_exists = 0,
+    'ALTER TABLE team_directives ADD COLUMN gleague_1_id INT NULL COMMENT ''Jogador 1 a mandar para G-League''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE team_directives 
-ADD COLUMN gleague_2_id INT NULL COMMENT 'Jogador 2 a mandar para G-League';
+-- gleague_2_id
+SET @col_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND COLUMN_NAME = 'gleague_2_id'
+);
+SET @sql := IF(@col_exists = 0,
+    'ALTER TABLE team_directives ADD COLUMN gleague_2_id INT NULL COMMENT ''Jogador 2 a mandar para G-League''',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Adicionar foreign keys para G-League
-ALTER TABLE team_directives 
-ADD CONSTRAINT fk_directive_gleague1 FOREIGN KEY (gleague_1_id) REFERENCES players(id) ON DELETE SET NULL;
+-- fk_directive_gleague1
+SET @fk_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND CONSTRAINT_NAME = 'fk_directive_gleague1'
+        AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql := IF(@fk_exists = 0,
+    'ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague1 FOREIGN KEY (gleague_1_id) REFERENCES players(id) ON DELETE SET NULL',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE team_directives 
-ADD CONSTRAINT fk_directive_gleague2 FOREIGN KEY (gleague_2_id) REFERENCES players(id) ON DELETE SET NULL;
+-- fk_directive_gleague2
+SET @fk_exists := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'team_directives'
+        AND CONSTRAINT_NAME = 'fk_directive_gleague2'
+        AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql := IF(@fk_exists = 0,
+    'ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague2 FOREIGN KEY (gleague_2_id) REFERENCES players(id) ON DELETE SET NULL',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

@@ -316,12 +316,12 @@ try {
             </div>
 
             <!-- Minutagem por Jogador -->
-            <div class="card bg-dark-panel border-orange mb-4" id="player-minutes-card" style="display: none;">
+            <div class="card bg-dark-panel border-orange mb-4" id="player-minutes-card">
                 <div class="card-header bg-transparent border-orange">
                     <h5 class="text-white mb-0"><i class="bi bi-clock me-2"></i>Minutagem por Jogador</h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-light-gray mb-3">Configure os minutos por jogo para cada jogador (mínimo 5, máximo 40 na regular / 45 nos playoffs)</p>
+                    <p class="text-light-gray mb-3">Configure os minutos por jogo para cada jogador (mínimo 5; máximo definido pelo prazo: 40 na regular / 45 nos playoffs)</p>
                     <div id="player-minutes-container" class="row g-3">
                         <!-- Preenchido dinamicamente com JavaScript -->
                     </div>
@@ -396,6 +396,7 @@ try {
     <script>
         window.__DEADLINE_ID__ = <?= $deadline ? (int)$deadline['id'] : 'null' ?>;
         window.__SEASON_STATUS__ = <?= json_encode($currentSeason['status'] ?? null) ?>;
+        window.__DEADLINE_PHASE__ = <?= json_encode($deadline['phase'] ?? null) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>

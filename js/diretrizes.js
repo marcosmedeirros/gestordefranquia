@@ -34,9 +34,9 @@ function renderPlayerMinutes() {
   const container = document.getElementById('player-minutes-container');
   if (!container) return;
   
-  // Determinar limite máximo conforme fase da temporada
-  const seasonStatus = window.__SEASON_STATUS__ || 'regular';
-  const maxMinutes = seasonStatus === 'playoffs' ? 45 : 40;
+  // Determinar limite máximo conforme fase do prazo (definido pelo admin)
+  const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
+  const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
   
   // Limpar container
   container.innerHTML = '';
@@ -77,7 +77,7 @@ function renderPlayerMinutes() {
                    placeholder="Minutos">
             <span class="input-group-text bg-dark text-orange border-orange">min</span>
           </div>
-          <small class="text-light-gray d-block mt-1">Min: 5 | Max: ${maxMinutes} (${seasonStatus === 'playoffs' ? 'offs' : 'regular'})</small>
+          <small class="text-light-gray d-block mt-1">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
         </div>
       `;
       container.appendChild(playerDiv);
@@ -95,19 +95,16 @@ function updateRotationFieldsVisibility() {
   
   if (!rotationStyle) return;
   
-  const isAutoRotation = rotationStyle.value === 'auto';
+  const isManualRotation = rotationStyle.value === 'manual';
   
   // Mostrar/esconder os campos
   if (rotationPlayersField) {
-    rotationPlayersField.style.display = isAutoRotation ? 'block' : 'none';
+    rotationPlayersField.style.display = isManualRotation ? 'block' : 'none';
   }
   if (veteranFocusField) {
-    veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
+    veteranFocusField.style.display = isManualRotation ? 'block' : 'none';
   }
-  if (playerMinutesCard) {
-    // Minutagem por jogador deve aparecer somente na rotação manual
-    playerMinutesCard.style.display = isAutoRotation ? 'none' : 'block';
-  }
+  // Minutagem por jogador é sempre exibida, independente do estilo de rotação
 }
 
 // Atualizar valores dos ranges
@@ -266,12 +263,11 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     return;
   }
   
-  // Validar minutagem para rotação automática
-  const rotationStyle = fd.get('rotation_style');
+  // Validar minutagem por jogador (sempre)
   const playerMinutes = {};
-  if (rotationStyle === 'manual') {
-    const seasonStatus = window.__SEASON_STATUS__ || 'regular';
-    const maxMinutes = seasonStatus === 'playoffs' ? 45 : 40;
+  {
+    const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
+    const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
     const minutesInputs = document.querySelectorAll('.player-minutes-input');
     minutesInputs.forEach(input => {
       const minutes = parseInt(input.value) || 0;
@@ -301,7 +297,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     offensive_rebound: fd.get('offensive_rebound'),
     offensive_aggression: fd.get('offensive_aggression'),
     defensive_rebound: fd.get('defensive_rebound'),
-    rotation_style: fd.get('rotation_style'),
+  rotation_style: fd.get('rotation_style'),
     game_style: fd.get('game_style'),
     offense_style: fd.get('offense_style'),
     rotation_players: parseInt(fd.get('rotation_players')) || 10,

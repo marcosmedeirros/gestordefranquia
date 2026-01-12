@@ -17,44 +17,38 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // GET - Buscar diretrizes ou prazos
 if ($method === 'GET') {
-    $action = $_GET['action'] ?? 'get_directives';
-    
-    // Buscar time do usuário
+    $action = $_GET['action'] ?? 'active_deadline';
+
+    // Buscar time do usuário (não exigido para admin listar prazos)
     $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
     $stmtTeam->execute([$user['id']]);
     $team = $stmtTeam->fetch();
-    
-    if (!$team && $action !== 'list_deadlines_admin') {
+
+    if (!$team && !in_array($action, ['list_deadlines_admin', 'view_all_directives_admin'])) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Usuário sem time']);
         exit;
     }
-    
+
     switch ($action) {
         case 'active_deadline':
             // Buscar prazo ativo para a liga do time
-            $stmt = $pdo->prepare("
-                SELECT * FROM directive_deadlines 
-                WHERE league = ? AND is_active = 1 
-                ORDER BY deadline_date DESC LIMIT 1
-            ");
+            $stmt = $pdo->prepare("SELECT * FROM directive_deadlines WHERE league = ? AND is_active = 1 ORDER BY deadline_date DESC LIMIT 1");
             $stmt->execute([$team['league']]);
             $deadline = $stmt->fetch();
-            
             echo json_encode(['success' => true, 'deadline' => $deadline]);
             break;
-            
+
         case 'my_directive':
-            // Buscar diretriz enviada pelo time
             $deadlineId = $_GET['deadline_id'] ?? null;
             if (!$deadlineId) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
                 exit;
             }
-            
+
             $stmt = $pdo->prepare("
-                SELECT td.*, 
+                SELECT td.*,
                        s1.name as starter_1_name, s1.position as starter_1_pos,
                        s2.name as starter_2_name, s2.position as starter_2_pos,
                        s3.name as starter_3_name, s3.position as starter_3_pos,
@@ -70,75 +64,57 @@ if ($method === 'GET') {
                 LEFT JOIN players s4 ON td.starter_4_id = s4.id
                 LEFT JOIN players s5 ON td.starter_5_id = s5.id
                 LEFT JOIN players b1 ON td.bench_1_id = b1.id
-                LEFT JOIN players b2 on td.bench_2_id = b2.id
+                LEFT JOIN players b2 ON td.bench_2_id = b2.id
                 LEFT JOIN players b3 ON td.bench_3_id = b3.id
                 WHERE td.team_id = ? AND td.deadline_id = ?
             ");
             $stmt->execute([$team['id'], $deadlineId]);
             $directive = $stmt->fetch();
-            
+
             // Buscar minutagem dos jogadores
-            $playerMinutes = [];
             if ($directive) {
-                $stmtMinutes = $pdo->prepare("
-                    SELECT player_id, minutes_per_game 
-                    FROM directive_player_minutes 
-                    WHERE directive_id = ?
-                ");
+                $stmtMinutes = $pdo->prepare("SELECT player_id, minutes_per_game FROM directive_player_minutes WHERE directive_id = ?");
                 $stmtMinutes->execute([$directive['id']]);
                 $minutesData = $stmtMinutes->fetchAll(PDO::FETCH_ASSOC);
+                $playerMinutes = [];
                 foreach ($minutesData as $row) {
                     $playerMinutes[$row['player_id']] = $row['minutes_per_game'];
                 }
                 $directive['player_minutes'] = $playerMinutes;
             }
-            
+
             echo json_encode(['success' => true, 'directive' => $directive]);
             break;
-            
+
         case 'list_deadlines_admin':
-            // ADMIN: Listar todos os prazos
             if (($user['user_type'] ?? 'jogador') !== 'admin') {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
-            
             $league = $_GET['league'] ?? null;
             $where = $league ? 'WHERE league = ?' : '';
             $params = $league ? [$league] : [];
-            
-            $stmt = $pdo->prepare("
-                SELECT dd.*,
-                       (SELECT COUNT(*) FROM team_directives WHERE deadline_id = dd.id) as submissions_count
-                FROM directive_deadlines dd
-                $where
-                ORDER BY deadline_date DESC
-            ");
+            $stmt = $pdo->prepare("SELECT dd.*, (SELECT COUNT(*) FROM team_directives WHERE deadline_id = dd.id) as submissions_count FROM directive_deadlines dd $where ORDER BY deadline_date DESC");
             $stmt->execute($params);
             $deadlines = $stmt->fetchAll();
-            
             echo json_encode(['success' => true, 'deadlines' => $deadlines]);
             break;
-            
+
         case 'view_all_directives_admin':
-            // ADMIN: Ver todas as diretrizes de um prazo
             if (($user['user_type'] ?? 'jogador') !== 'admin') {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
-            
             $deadlineId = $_GET['deadline_id'] ?? null;
             if (!$deadlineId) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
                 exit;
             }
-            
             $stmt = $pdo->prepare("
-                SELECT td.*,
-                       t.city, t.name as team_name,
+                SELECT td.*, t.city, t.name as team_name,
                        s1.name as starter_1_name, s1.position as starter_1_pos,
                        s2.name as starter_2_name, s2.position as starter_2_pos,
                        s3.name as starter_3_name, s3.position as starter_3_pos,
@@ -162,10 +138,9 @@ if ($method === 'GET') {
             ");
             $stmt->execute([$deadlineId]);
             $directives = $stmt->fetchAll();
-            
             echo json_encode(['success' => true, 'directives' => $directives]);
             break;
-            
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
@@ -173,22 +148,22 @@ if ($method === 'GET') {
     exit;
 }
 
-// POST - Enviar/atualizar diretriz
+// POST - Enviar/atualizar diretriz ou criar prazo
 if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? 'submit_directive';
-    
-    // Buscar time do usuário
+
+    // Buscar time (não exigido para criar prazo)
     $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
     $stmtTeam->execute([$user['id']]);
     $team = $stmtTeam->fetch();
-    
+
     if (!$team && $action !== 'create_deadline') {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Usuário sem time']);
         exit;
     }
-    
+
     switch ($action) {
         case 'submit_directive':
             $deadlineId = $data['deadline_id'] ?? null;
@@ -197,7 +172,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
                 exit;
             }
-            
+
             // Validar quinteto titular (5 jogadores)
             $starters = array_filter([
                 $data['starter_1_id'] ?? null,
@@ -206,36 +181,33 @@ if ($method === 'POST') {
                 $data['starter_4_id'] ?? null,
                 $data['starter_5_id'] ?? null
             ]);
-            
             if (count($starters) !== 5) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Quinteto titular deve ter exatamente 5 jogadores']);
                 exit;
             }
-            
+
             // Validar banco (3 jogadores)
             $bench = array_filter([
                 $data['bench_1_id'] ?? null,
                 $data['bench_2_id'] ?? null,
                 $data['bench_3_id'] ?? null
             ]);
-            
             if (count($bench) !== 3) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Banco deve ter exatamente 3 jogadores']);
                 exit;
             }
-            
+
             try {
                 $pdo->beginTransaction();
-                
+
                 // Verificar se já existe diretriz para este prazo
                 $stmtCheck = $pdo->prepare('SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ?');
                 $stmtCheck->execute([$team['id'], $deadlineId]);
                 $existing = $stmtCheck->fetch();
-                
+
                 if ($existing) {
-                    // Atualizar
                     $stmt = $pdo->prepare("
                         UPDATE team_directives SET
                             starter_1_id = ?, starter_2_id = ?, starter_3_id = ?, starter_4_id = ?, starter_5_id = ?,
@@ -248,20 +220,16 @@ if ($method === 'POST') {
                         WHERE id = ?
                     ");
                     $stmt->execute([
-                        $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], 
-                        $data['starter_4_id'], $data['starter_5_id'],
+                        $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
                         $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
-                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', 
-                        $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
-                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced',
-                        $data['offense_style'] ?? 'no_preference',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null,
                         $existing['id']
                     ]);
                 } else {
-                    // Inserir
                     $stmt = $pdo->prepare("
                         INSERT INTO team_directives (
                             team_id, deadline_id,
@@ -275,60 +243,42 @@ if ($method === 'POST') {
                     ");
                     $stmt->execute([
                         $team['id'], $deadlineId,
-                        $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], 
-                        $data['starter_4_id'], $data['starter_5_id'],
+                        $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
                         $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
-                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', 
-                        $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
-                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced',
-                        $data['offense_style'] ?? 'no_preference',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null
                     ]);
                 }
-                
+
                 $directiveId = $existing['id'] ?? $pdo->lastInsertId();
-                
-                // Salvar minutagem dos jogadores se rotação MANUAL
-                if (($data['rotation_style'] ?? 'auto') === 'manual' && !empty($data['player_minutes'])) {
-                    // Validar limites conforme fase da temporada (regular: 40, playoffs: 45)
+
+                // Salvar minutagem (sempre), validando por fase do prazo
+                if (!empty($data['player_minutes'])) {
                     $maxMinutes = 40;
-                    try {
-                        $stmtSeason = $pdo->prepare("SELECT status FROM seasons WHERE league = ? AND status IN ('draft','regular','playoffs') ORDER BY created_at DESC LIMIT 1");
-                        $stmtSeason->execute([$team['league']]);
-                        $season = $stmtSeason->fetch();
-                        if ($season && $season['status'] === 'playoffs') {
-                            $maxMinutes = 45;
-                        }
-                    } catch (Exception $e) {
-                        // mantém padrão 40
+                    $stmtDeadline = $pdo->prepare('SELECT phase FROM directive_deadlines WHERE id = ?');
+                    $stmtDeadline->execute([$deadlineId]);
+                    $deadlineRow = $stmtDeadline->fetch();
+                    if ($deadlineRow && strtolower($deadlineRow['phase'] ?? '') === 'playoffs') {
+                        $maxMinutes = 45;
                     }
 
-                    // Deletar minutagens antigas
-                    $stmtDeleteMinutes = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
-                    $stmtDeleteMinutes->execute([$directiveId]);
-                    
-                    // Inserir novas minutagens
-                    $stmtMinutes = $pdo->prepare("
-                        INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game)
-                        VALUES (?, ?, ?)
-                    ");
-                    
+                    // Limpar minutos antigos
+                    $stmtDelete = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
+                    $stmtDelete->execute([$directiveId]);
+
+                    $stmtMinutes = $pdo->prepare('INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game) VALUES (?, ?, ?)');
                     foreach ($data['player_minutes'] as $playerId => $minutes) {
                         $m = (int)$minutes;
                         if ($m < 5 || $m > $maxMinutes) {
                             throw new Exception("Minutos inválidos para o jogador {$playerId}. Deve estar entre 5 e {$maxMinutes}.");
                         }
-                        $stmtMinutes->execute([$directiveId, $playerId, $m]);
+                        $stmtMinutes->execute([$directiveId, (int)$playerId, $m]);
                     }
                 }
-                // Se rotação for automática, remover qualquer minutagem previamente salva
-                if (($data['rotation_style'] ?? 'auto') === 'auto') {
-                    $stmtDeleteMinutes = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
-                    $stmtDeleteMinutes->execute([$directiveId]);
-                }
-                
+
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Diretriz enviada com sucesso']);
             } catch (Exception $e) {
@@ -337,7 +287,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao enviar diretriz: ' . $e->getMessage()]);
             }
             break;
-            
+
         case 'create_deadline':
             // ADMIN: Criar prazo
             if (($user['user_type'] ?? 'jogador') !== 'admin') {
@@ -345,26 +295,20 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
-            
             $league = $data['league'] ?? null;
             $deadlineDate = $data['deadline_date'] ?? null;
             $description = $data['description'] ?? null;
-            
+            $phase = $data['phase'] ?? 'regular';
             if (!$league || !$deadlineDate) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Liga e data obrigatórios']);
                 exit;
             }
-            
-            $stmt = $pdo->prepare("
-                INSERT INTO directive_deadlines (league, deadline_date, description)
-                VALUES (?, ?, ?)
-            ");
-            $stmt->execute([$league, $deadlineDate, $description]);
-            
+            $stmt = $pdo->prepare('INSERT INTO directive_deadlines (league, deadline_date, description, phase) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$league, $deadlineDate, $description, $phase]);
             echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
             break;
-            
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
@@ -379,28 +323,21 @@ if ($method === 'PUT') {
         echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
         exit;
     }
-    
     $data = json_decode(file_get_contents('php://input'), true);
     $deadlineId = $data['id'] ?? null;
-    
     if (!$deadlineId) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'ID obrigatório']);
         exit;
     }
-    
-    $stmt = $pdo->prepare("
-        UPDATE directive_deadlines 
-        SET deadline_date = ?, description = ?, is_active = ?
-        WHERE id = ?
-    ");
+    $stmt = $pdo->prepare('UPDATE directive_deadlines SET deadline_date = ?, description = ?, is_active = ?, phase = ? WHERE id = ?');
     $stmt->execute([
         $data['deadline_date'] ?? null,
         $data['description'] ?? null,
         isset($data['is_active']) ? (int)$data['is_active'] : 1,
+        $data['phase'] ?? 'regular',
         $deadlineId
     ]);
-    
     echo json_encode(['success' => true]);
     exit;
 }
@@ -412,39 +349,28 @@ if ($method === 'DELETE') {
         echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
         exit;
     }
-    
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? 'delete_deadline';
-    
     if ($action === 'delete_directive') {
-        // Deletar uma diretriz específica de um time
         $directiveId = $data['directive_id'] ?? null;
-        
         if (!$directiveId) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'directive_id obrigatório']);
             exit;
         }
-        
         $stmt = $pdo->prepare('DELETE FROM team_directives WHERE id = ?');
         $stmt->execute([$directiveId]);
-        
         echo json_encode(['success' => true, 'message' => 'Diretriz excluída com sucesso']);
         exit;
     }
-    
-    // Default: delete deadline
     $deadlineId = $data['id'] ?? null;
-    
     if (!$deadlineId) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'ID obrigatório']);
         exit;
     }
-    
     $stmt = $pdo->prepare('DELETE FROM directive_deadlines WHERE id = ?');
     $stmt->execute([$deadlineId]);
-    
     echo json_encode(['success' => true]);
     exit;
 }
