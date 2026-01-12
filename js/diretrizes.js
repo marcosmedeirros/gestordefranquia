@@ -33,14 +33,14 @@ async function loadPlayersData() {
 function renderPlayerMinutes() {
   const container = document.getElementById('player-minutes-container');
   if (!container) return;
-  
+
   // Determinar limite máximo conforme fase do prazo (definido pelo admin)
   const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
   const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
-  
+
   // Limpar container
   container.innerHTML = '';
-  
+
   // Agrupar jogadores por posição
   const playersByPosition = {};
   allPlayersData.forEach(player => {
@@ -49,35 +49,37 @@ function renderPlayerMinutes() {
     }
     playersByPosition[player.position].push(player);
   });
-  
+
   // Renderizar por posição
   Object.keys(playersByPosition).sort().forEach(position => {
     const positionPlayers = playersByPosition[position];
-    
+
     const positionDiv = document.createElement('div');
-    positionDiv.className = 'col-12 mb-3';
+    positionDiv.className = 'col-12 mb-2';
     positionDiv.innerHTML = `
-      <h6 class="text-orange mb-3"><i class="bi bi-people me-2"></i>${position}</h6>
+      <h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>${position}</h6>
     `;
     container.appendChild(positionDiv);
-    
+
     positionPlayers.forEach(player => {
       const playerDiv = document.createElement('div');
-      playerDiv.className = 'col-md-3 col-sm-6';
+      playerDiv.className = 'col-12';
       playerDiv.innerHTML = `
-        <div class="form-group">
-          <label class="form-label text-white small">${player.name}</label>
-          <div class="input-group input-group-sm">
-            <input type="number" 
-                   class="form-control bg-dark text-white border-orange player-minutes-input" 
-                   name="minutes_player_${player.id}" 
-                   data-player-id="${player.id}"
-                   data-player-name="${player.name}"
-                   min="5" max="${maxMinutes}" value="20" 
-                   placeholder="Minutos">
-            <span class="input-group-text bg-dark text-orange border-orange">min</span>
+        <div class="form-group mb-2">
+          <div class="d-flex align-items-center justify-content-between gap-3">
+            <span class="text-white small">${player.name}</span>
+            <div class="input-group input-group-sm" style="max-width: 130px;">
+              <input type="number"
+                     class="form-control bg-dark text-white border-orange player-minutes-input"
+                     name="minutes_player_${player.id}"
+                     data-player-id="${player.id}"
+                     data-player-name="${player.name}"
+                     min="5" max="${maxMinutes}" value="20"
+                     placeholder="Minutos">
+              <span class="input-group-text bg-dark text-orange border-orange">min</span>
+            </div>
           </div>
-          <small class="text-light-gray d-block mt-1">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
+          <small class="text-light-gray d-block">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
         </div>
       `;
       container.appendChild(playerDiv);
@@ -88,23 +90,21 @@ function renderPlayerMinutes() {
 // Atualizar visibilidade dos campos de rotação automática
 function updateRotationFieldsVisibility() {
   const rotationStyle = document.querySelector('select[name="rotation_style"]');
-  const rotationConfigCard = document.getElementById('rotation-config-card');
-  const playerMinutesCard = document.getElementById('player-minutes-card');
   const rotationPlayersField = document.getElementById('rotation-players-field');
   const veteranFocusField = document.getElementById('veteran-focus-field');
-  
+
   if (!rotationStyle) return;
-  
-  const isAutoRotation = rotationStyle.value === 'auto';
-  
-  // Mostrar/esconder os campos SOMENTE quando rotação for automática
+
+  const isManualRotation = rotationStyle.value === 'manual';
+
+  // Mostrar campos SOMENTE quando rotação for manual; esconder quando automática
   if (rotationPlayersField) {
-    rotationPlayersField.style.display = isAutoRotation ? 'block' : 'none';
+    rotationPlayersField.style.display = isManualRotation ? 'block' : 'none';
   }
   if (veteranFocusField) {
-    veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
+    veteranFocusField.style.display = isManualRotation ? 'block' : 'none';
   }
-  // Minutagem por jogador é sempre exibida, independente do estilo de rotação
+  // Minutagem por jogador é sempre exibida
 }
 
 // Atualizar valores dos ranges
