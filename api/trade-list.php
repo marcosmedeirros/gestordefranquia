@@ -26,12 +26,6 @@ $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? AND league = ?
 $stmtTeam->execute([$user['id'], $activeLeague]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
-if (!$team) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Time do usuário não encontrado para esta liga']);
-    exit;
-}
-
 $league = $activeLeague;
 
 $q = trim($_GET['q'] ?? '');
