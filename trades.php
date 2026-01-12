@@ -118,6 +118,12 @@ if ($teamId) {
         </a>
       </li>
       <li>
+        <a href="/trade-list.php">
+          <i class="bi bi-list-stars"></i>
+          Trade List
+        </a>
+      </li>
+      <li>
         <a href="/free-agency.php">
           <i class="bi bi-person-plus-fill"></i>
           Free Agency
