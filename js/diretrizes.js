@@ -16,6 +16,7 @@ const api = async (path, options = {}) => {
 
 // Armazenar lista de jogadores para referência
 let allPlayersData = [];
+let playersById = {};
 
 // Buscar todos os jogadores do time para renderizar campos de minutagem
 async function loadPlayersData() {
@@ -23,6 +24,8 @@ async function loadPlayersData() {
     const data = await api('team-players.php');
     if (data.players) {
       allPlayersData = data.players;
+      playersById = {};
+      allPlayersData.forEach(p => { playersById[p.id] = p; });
     }
   } catch (err) {
     console.error('Erro ao carregar jogadores:', err);
@@ -41,50 +44,89 @@ function renderPlayerMinutes() {
   // Limpar container
   container.innerHTML = '';
 
-  // Agrupar jogadores por posição
-  const playersByPosition = {};
-  allPlayersData.forEach(player => {
-    if (!playersByPosition[player.position]) {
-      playersByPosition[player.position] = [];
+  // Helpers para coletar jogadores selecionados nos selects
+  const getSelectedIds = (prefix, count) => {
+    const ids = [];
+    for (let i = 1; i <= count; i++) {
+      const sel = document.querySelector(`select[name="${prefix}_${i}_id"]`);
+      const val = sel ? parseInt(sel.value) : NaN;
+      if (!isNaN(val) && val > 0) ids.push(val);
     }
-    playersByPosition[player.position].push(player);
-  });
+    return ids;
+  };
 
-  // Renderizar por posição
-  Object.keys(playersByPosition).sort().forEach(position => {
-    const positionPlayers = playersByPosition[position];
+  const starters = getSelectedIds('starter', 5);
+  const bench = getSelectedIds('bench', 3);
 
-    const positionDiv = document.createElement('div');
-    positionDiv.className = 'col-12 mb-2';
-    positionDiv.innerHTML = `
-      <h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>${position}</h6>
-    `;
-    container.appendChild(positionDiv);
+  // Render seção Titulares
+  if (starters.length > 0) {
+    const title = document.createElement('div');
+    title.className = 'col-12 mb-2';
+    title.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-trophy me-2"></i>Quinteto Titular</h6>`;
+    container.appendChild(title);
 
-    positionPlayers.forEach(player => {
-      const playerDiv = document.createElement('div');
-      playerDiv.className = 'col-12';
-      playerDiv.innerHTML = `
+    starters.forEach((id, idx) => {
+      const player = playersById[id];
+      if (!player) return;
+      const row = document.createElement('div');
+      row.className = 'col-12';
+      row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">${player.name}</span>
+            <span class="text-white small">Titular ${idx + 1}: ${player.name}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
-              <input type="number"
-                     class="form-control bg-dark text-white border-orange player-minutes-input"
+              <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"
-                     data-player-id="${player.id}"
-                     data-player-name="${player.name}"
-                     min="5" max="${maxMinutes}" value="20"
-                     placeholder="Minutos">
+                     data-player-id="${player.id}" data-player-name="${player.name}"
+                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
               <span class="input-group-text bg-dark text-orange border-orange">min</span>
             </div>
           </div>
           <small class="text-light-gray d-block">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
         </div>
       `;
-      container.appendChild(playerDiv);
+      container.appendChild(row);
     });
-  });
+  }
+
+  // Render seção Banco
+  if (bench.length > 0) {
+    const titleB = document.createElement('div');
+    titleB.className = 'col-12 mb-2 mt-2';
+    titleB.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>Banco</h6>`;
+    container.appendChild(titleB);
+
+    bench.forEach((id, idx) => {
+      const player = playersById[id];
+      if (!player) return;
+      const row = document.createElement('div');
+      row.className = 'col-12';
+      row.innerHTML = `
+        <div class="form-group mb-2">
+          <div class="d-flex align-items-center justify-content-between gap-3">
+            <span class="text-white small">Banco ${idx + 1}: ${player.name}</span>
+            <div class="input-group input-group-sm" style="max-width: 130px;">
+              <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
+                     name="minutes_player_${player.id}"
+                     data-player-id="${player.id}" data-player-name="${player.name}"
+                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
+              <span class="input-group-text bg-dark text-orange border-orange">min</span>
+            </div>
+          </div>
+          <small class="text-light-gray d-block">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  // Mensagem de orientação se nada selecionado ainda
+  if (starters.length === 0 && bench.length === 0) {
+    const info = document.createElement('div');
+    info.className = 'col-12';
+    info.innerHTML = `<small class="text-light-gray">Selecione seus Titulares e Banco acima para configurar a minutagem.</small>`;
+    container.appendChild(info);
+  }
 }
 
 // Atualizar visibilidade dos campos de rotação automática
@@ -126,6 +168,16 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Chamar ao iniciar
   updateRotationFieldsVisibility();
+
+  // Redesenhar minutagem quando os selects de titulares/banco mudarem
+  for (let i = 1; i <= 5; i++) {
+    const sel = document.querySelector(`select[name="starter_${i}_id"]`);
+    if (sel) sel.addEventListener('change', renderPlayerMinutes);
+  }
+  for (let i = 1; i <= 3; i++) {
+    const sel = document.querySelector(`select[name="bench_${i}_id"]`);
+    if (sel) sel.addEventListener('change', renderPlayerMinutes);
+  }
 });
 
 // Carregar diretriz existente
@@ -185,16 +237,15 @@ async function loadExistingDirective() {
         notesField.value = d.notes;
       }
       
-      // Preencher minutagem dos jogadores
+      // Render e preencher minutagem dos jogadores (após selects definidos)
+      renderPlayerMinutes();
       if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
         setTimeout(() => {
           Object.keys(d.player_minutes).forEach(playerId => {
             const input = document.querySelector(`input[name="minutes_player_${playerId}"]`);
-            if (input) {
-              input.value = d.player_minutes[playerId];
-            }
+            if (input) input.value = d.player_minutes[playerId];
           });
-        }, 100); // Aguardar para garantir que os inputs foram renderizados
+        }, 100);
       }
       
       // Atualizar visibilidade após carregar dados
