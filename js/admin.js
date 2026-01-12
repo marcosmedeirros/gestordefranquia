@@ -888,8 +888,21 @@ async function viewDirectives(deadlineId, league) {
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
-              const starters = [1,2,3,4,5].map(i => `<li>${d['starter_' + i + '_name'] || '?'} (${d['starter_' + i + '_pos'] || '?'})</li>`).join('');
-              const bench = [1,2,3].map(i => `<li>${d['bench_' + i + '_name'] || '?'} (${d['bench_' + i + '_pos'] || '?'})</li>`).join('');
+              const pm = d.player_minutes || {};
+              const starters = [1,2,3,4,5].map(i => {
+                const id = d['starter_' + i + '_id'];
+                const m = id && pm[id] ? `${pm[id]} min` : '';
+                const name = d['starter_' + i + '_name'] || '?';
+                const pos = d['starter_' + i + '_pos'] || '?';
+                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
+              }).join('');
+              const bench = [1,2,3].map(i => {
+                const id = d['bench_' + i + '_id'];
+                const m = id && pm[id] ? `${pm[id]} min` : '';
+                const name = d['bench_' + i + '_name'] || '?';
+                const pos = d['bench_' + i + '_pos'] || '?';
+                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
+              }).join('');
               return `
               <div class="card bg-dark mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">

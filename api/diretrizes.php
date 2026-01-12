@@ -137,7 +137,30 @@ if ($method === 'GET') {
                 ORDER BY t.name
             ");
             $stmt->execute([$deadlineId]);
-            $directives = $stmt->fetchAll();
+            $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Anexar minutos por jogador para cada diretriz (admin visualização)
+            if ($directives) {
+                $directiveIds = array_column($directives, 'id');
+                if (!empty($directiveIds)) {
+                    $placeholders = implode(',', array_fill(0, count($directiveIds), '?'));
+                    $stmtMin = $pdo->prepare("SELECT directive_id, player_id, minutes_per_game FROM directive_player_minutes WHERE directive_id IN ($placeholders)");
+                    $stmtMin->execute($directiveIds);
+                    $minRows = $stmtMin->fetchAll(PDO::FETCH_ASSOC);
+                    $minutesByDirective = [];
+                    foreach ($minRows as $mr) {
+                        $dId = (int)$mr['directive_id'];
+                        if (!isset($minutesByDirective[$dId])) $minutesByDirective[$dId] = [];
+                        $minutesByDirective[$dId][(int)$mr['player_id']] = (int)$mr['minutes_per_game'];
+                    }
+                    foreach ($directives as &$dRow) {
+                        $id = (int)$dRow['id'];
+                        $dRow['player_minutes'] = $minutesByDirective[$id] ?? [];
+                    }
+                    unset($dRow);
+                }
+            }
+
             echo json_encode(['success' => true, 'directives' => $directives]);
             break;
 
