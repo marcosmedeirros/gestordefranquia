@@ -16,10 +16,20 @@ $pdo = db();
 
 // Detect league from user's team
 // Sempre usar a liga do time do usuário (evitar misturar ligas)
-$stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
+// Priorizar o time do usuário na liga atual da sessão
+$sessionLeague = $user['league'] ?? null;
+$stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? AND league = ? LIMIT 1');
+$stmtTeam->execute([$user['id'], $sessionLeague]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-$league = $team['league'] ?? null;
+
+// Fallback: se não encontrar pelo par (user_id, league), pegar qualquer time do usuário
+if (!$team) {
+    $stmtTeam2 = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtTeam2->execute([$user['id']]);
+    $team = $stmtTeam2->fetch(PDO::FETCH_ASSOC);
+}
+
+$league = $team['league'] ?? $sessionLeague ?? null;
 
 if (!$league) {
     http_response_code(400);
@@ -41,7 +51,7 @@ $allowedSort = [
 $orderBy = $allowedSort[$sort] ?? 'p.ovr';
 $orderDir = $dir === 'asc' ? 'ASC' : 'DESC';
 
-$where = ['p.available_for_trade = 1', 't.league = ?'];
+$where = ['p.available_for_trade = 1', 'LOWER(t.league) = LOWER(?)'];
 $params = [$league];
 
 if ($q !== '') {
