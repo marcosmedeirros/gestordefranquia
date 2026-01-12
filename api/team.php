@@ -16,10 +16,31 @@ function teamColumnExists(PDO $pdo, string $column): bool {
 if ($method === 'GET') {
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
-    
-    // Obter league do usuário da sessão
+    $leagueParam = isset($_GET['league']) ? strtoupper(trim($_GET['league'])) : null;
+
+    // Obter league do usuário da sessão ou do time vinculado
     $user = getUserSession();
-    $league = $user['league'] ?? 'ROOKIE';
+    if (!$user) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+
+    $league = null;
+    $isAdmin = ($user['user_type'] ?? '') === 'admin';
+
+    if ($leagueParam && $isAdmin) {
+        $league = $leagueParam;
+    } else {
+        $teamLeagueStmt = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+        $teamLeagueStmt->execute([$user['id']]);
+        $teamLeague = $teamLeagueStmt->fetch();
+        if ($teamLeague && !empty($teamLeague['league'])) {
+            $league = $teamLeague['league'];
+        }
+    }
+
+    if (!$league) {
+        $league = $user['league'] ?? 'ROOKIE';
+    }
     
     $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo
             FROM teams t
