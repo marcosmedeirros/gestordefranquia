@@ -44,6 +44,22 @@ if ($playerCount >= 15) {
 } elseif ($playerCount >= 14) {
     $gleagueSlots = 1;
 }
+
+// Buscar temporada atual da liga (para validar minutagem regular vs playoffs)
+$currentSeason = null;
+try {
+    $stmtSeason = $pdo->prepare("
+        SELECT season_number, year, status 
+        FROM seasons 
+        WHERE league = ? AND status IN ('draft', 'regular', 'playoffs')
+        ORDER BY created_at DESC 
+        LIMIT 1
+    ");
+    $stmtSeason->execute([$team['league']]);
+    $currentSeason = $stmtSeason->fetch();
+} catch (Exception $e) {
+    $currentSeason = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -379,6 +395,7 @@ if ($playerCount >= 15) {
 
     <script>
         window.__DEADLINE_ID__ = <?= $deadline ? (int)$deadline['id'] : 'null' ?>;
+        window.__SEASON_STATUS__ = <?= json_encode($currentSeason['status'] ?? null) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>

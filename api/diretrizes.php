@@ -290,8 +290,21 @@ if ($method === 'POST') {
                 
                 $directiveId = $existing['id'] ?? $pdo->lastInsertId();
                 
-                // Salvar minutagem dos jogadores se rotação automática
-                if (($data['rotation_style'] ?? 'auto') === 'auto' && !empty($data['player_minutes'])) {
+                // Salvar minutagem dos jogadores se rotação MANUAL
+                if (($data['rotation_style'] ?? 'auto') === 'manual' && !empty($data['player_minutes'])) {
+                    // Validar limites conforme fase da temporada (regular: 40, playoffs: 45)
+                    $maxMinutes = 40;
+                    try {
+                        $stmtSeason = $pdo->prepare("SELECT status FROM seasons WHERE league = ? AND status IN ('draft','regular','playoffs') ORDER BY created_at DESC LIMIT 1");
+                        $stmtSeason->execute([$team['league']]);
+                        $season = $stmtSeason->fetch();
+                        if ($season && $season['status'] === 'playoffs') {
+                            $maxMinutes = 45;
+                        }
+                    } catch (Exception $e) {
+                        // mantém padrão 40
+                    }
+
                     // Deletar minutagens antigas
                     $stmtDeleteMinutes = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
                     $stmtDeleteMinutes->execute([$directiveId]);
@@ -303,8 +316,17 @@ if ($method === 'POST') {
                     ");
                     
                     foreach ($data['player_minutes'] as $playerId => $minutes) {
-                        $stmtMinutes->execute([$directiveId, $playerId, (int)$minutes]);
+                        $m = (int)$minutes;
+                        if ($m < 5 || $m > $maxMinutes) {
+                            throw new Exception("Minutos inválidos para o jogador {$playerId}. Deve estar entre 5 e {$maxMinutes}.");
+                        }
+                        $stmtMinutes->execute([$directiveId, $playerId, $m]);
                     }
+                }
+                // Se rotação for automática, remover qualquer minutagem previamente salva
+                if (($data['rotation_style'] ?? 'auto') === 'auto') {
+                    $stmtDeleteMinutes = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
+                    $stmtDeleteMinutes->execute([$directiveId]);
                 }
                 
                 $pdo->commit();

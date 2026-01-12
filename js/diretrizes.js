@@ -34,6 +34,10 @@ function renderPlayerMinutes() {
   const container = document.getElementById('player-minutes-container');
   if (!container) return;
   
+  // Determinar limite máximo conforme fase da temporada
+  const seasonStatus = window.__SEASON_STATUS__ || 'regular';
+  const maxMinutes = seasonStatus === 'playoffs' ? 45 : 40;
+  
   // Limpar container
   container.innerHTML = '';
   
@@ -69,11 +73,11 @@ function renderPlayerMinutes() {
                    name="minutes_player_${player.id}" 
                    data-player-id="${player.id}"
                    data-player-name="${player.name}"
-                   min="5" max="45" value="20" 
+                   min="5" max="${maxMinutes}" value="20" 
                    placeholder="Minutos">
             <span class="input-group-text bg-dark text-orange border-orange">min</span>
           </div>
-          <small class="text-light-gray d-block mt-1">Min: 5 | Max: 40 (reg) / 45 (off)</small>
+          <small class="text-light-gray d-block mt-1">Min: 5 | Max: ${maxMinutes} (${seasonStatus === 'playoffs' ? 'offs' : 'regular'})</small>
         </div>
       `;
       container.appendChild(playerDiv);
@@ -101,7 +105,8 @@ function updateRotationFieldsVisibility() {
     veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
   }
   if (playerMinutesCard) {
-    playerMinutesCard.style.display = isAutoRotation ? 'block' : 'none';
+    // Minutagem por jogador deve aparecer somente na rotação manual
+    playerMinutesCard.style.display = isAutoRotation ? 'none' : 'block';
   }
 }
 
@@ -264,15 +269,17 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   // Validar minutagem para rotação automática
   const rotationStyle = fd.get('rotation_style');
   const playerMinutes = {};
-  if (rotationStyle === 'auto') {
+  if (rotationStyle === 'manual') {
+    const seasonStatus = window.__SEASON_STATUS__ || 'regular';
+    const maxMinutes = seasonStatus === 'playoffs' ? 45 : 40;
     const minutesInputs = document.querySelectorAll('.player-minutes-input');
     minutesInputs.forEach(input => {
       const minutes = parseInt(input.value) || 0;
       const playerId = input.getAttribute('data-player-id');
       const playerName = input.getAttribute('data-player-name');
       
-      if (minutes < 5 || minutes > 45) {
-        alert(`${playerName}: minutos devem estar entre 5 e 45`);
+      if (minutes < 5 || minutes > maxMinutes) {
+        alert(`${playerName}: minutos devem estar entre 5 e ${maxMinutes}`);
         throw new Error('Validação de minutos falhou');
       }
       playerMinutes[playerId] = minutes;

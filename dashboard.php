@@ -320,10 +320,15 @@ try {
                         <div>
                             <div class="stat-label">Liga</div>
                         </div>
-                        <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
-                             alt="<?= htmlspecialchars($user['league']) ?>" 
-                             class="league-logo" 
-                             style="height: 60px; width: auto; object-fit: contain;">
+                        <div class="text-end">
+                            <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
+                                 alt="<?= htmlspecialchars($user['league']) ?>" 
+                                 class="league-logo" 
+                                 style="height: 80px; width: auto; object-fit: contain; display: block; margin-left: auto;">
+                            <small class="text-light-gray d-block mt-1" style="font-weight: 600;">
+                                <?= htmlspecialchars($user['league']) ?>
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
