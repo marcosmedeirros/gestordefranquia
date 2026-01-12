@@ -1007,6 +1007,9 @@ img.broken-image {
 	-webkit-backdrop-filter: blur(6px);
 }
 
+/* Player cards container hidden by default; enabled via media queries */
+.player-card-mobile{ display: none; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 992px){
 	.dashboard-content{ margin-left: 0; }
@@ -1082,12 +1085,8 @@ img.broken-image {
 	}
 	
 	/* Player cards para páginas que implementarem */
-	.player-card-mobile{ display: none; }
-
-	@media (max-width: 768px) {
-		#players-list { display: none !important; }
-		.player-card-mobile{ display: block; }
-	}
+	.player-card-mobile{ display: block; }
+	#players-list { display: none !important; }
 
 	.player-card{
 		background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
