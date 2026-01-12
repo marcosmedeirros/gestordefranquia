@@ -517,8 +517,19 @@ pre{
 	object-fit: cover;
 	margin: 0 auto 15px;
 	display: block;
-	background: var(--fba-black);
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat;
 	box-shadow: 0 16px 44px rgba(0,0,0,.55);
+}
+
+/* Fallback para imagens quebradas */
+.team-avatar[src=""],
+.team-avatar:not([src]),
+img.broken-image {
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat !important;
+}
+
+.team-logo {
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat;
 }
 
 .sidebar-menu{

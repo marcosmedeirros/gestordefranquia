@@ -96,3 +96,25 @@ function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
     $slice = array_slice($ovrs, 0, 8);
     return array_sum($slice);
 }
+
+/**
+ * Retorna URL de imagem válida ou imagem padrão
+ */
+function getTeamPhoto(?string $photoUrl, string $default = '/img/default-team.png'): string
+{
+    if (empty($photoUrl) || trim($photoUrl) === '') {
+        return $default;
+    }
+    return $photoUrl;
+}
+
+/**
+ * Retorna URL de avatar válida ou avatar padrão
+ */
+function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.png'): string
+{
+    if (empty($photoUrl) || trim($photoUrl) === '') {
+        return $default;
+    }
+    return $photoUrl;
+}

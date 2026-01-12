@@ -224,6 +224,7 @@ if ($method === 'PUT') {
     
     $tradeId = $data['trade_id'] ?? null;
     $action = $data['action'] ?? null; // accepted, rejected, cancelled
+    $responseNotes = $data['response_notes'] ?? '';
     
     if (!$tradeId || !$action) {
         http_response_code(400);
@@ -259,9 +260,9 @@ if ($method === 'PUT') {
     try {
         $pdo->beginTransaction();
         
-        // Atualizar status
-        $stmtUpdate = $pdo->prepare('UPDATE trades SET status = ? WHERE id = ?');
-        $stmtUpdate->execute([$action, $tradeId]);
+        // Atualizar status e observação de resposta
+        $stmtUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
+        $stmtUpdate->execute([$action, $responseNotes, $tradeId]);
         
         // Se aceito, executar a trade (transferir jogadores e picks)
         if ($action === 'accepted') {

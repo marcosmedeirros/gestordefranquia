@@ -240,11 +240,20 @@ function createTradeCard(trade, type) {
     'pending': '<span class="badge bg-warning text-dark">Pendente</span>',
     'accepted': '<span class="badge bg-success">Aceita</span>',
     'rejected': '<span class="badge bg-danger">Rejeitada</span>',
-    'cancelled': '<span class="badge bg-secondary">Cancelada</span>'
+    'cancelled': '<span class="badge bg-secondary">Cancelada</span>',
+    'countered': '<span class="badge bg-info">Contraproposta</span>'
   }[trade.status];
   
   const fromTeam = `${trade.from_city} ${trade.from_name}`;
   const toTeam = `${trade.to_city} ${trade.to_name}`;
+  
+  // Verificar se tem observação de resposta
+  const responseNotes = trade.response_notes ? `
+    <div class="mt-2 p-2 bg-dark rounded border-start border-warning border-3">
+      <small class="text-warning fw-bold"><i class="bi bi-chat-dots me-1"></i>Resposta:</small>
+      <small class="text-light-gray d-block">${trade.response_notes}</small>
+    </div>
+  ` : '';
   
   card.innerHTML = `
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -261,6 +270,7 @@ function createTradeCard(trade, type) {
         <ul class="list-unstyled text-white">
           ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}
           ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
       </div>
       <div class="col-md-6">
@@ -268,25 +278,41 @@ function createTradeCard(trade, type) {
         <ul class="list-unstyled text-white">
           ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}
           ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
       </div>
     </div>
     
-    ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray">${trade.notes}</small></div>` : ''}
+    ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
+    ${responseNotes}
     
     ${trade.status === 'pending' && type === 'received' ? `
-      <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-success btn-sm" onclick="respondTrade(${trade.id}, 'accepted')">
-          <i class="bi bi-check-circle me-1"></i>Aceitar
-        </button>
-        <button class="btn btn-danger btn-sm" onclick="respondTrade(${trade.id}, 'rejected')">
-          <i class="bi bi-x-circle me-1"></i>Rejeitar
-        </button>
+      <div class="mt-3">
+        <div class="mb-2">
+          <label class="form-label text-light-gray small">Observação (opcional):</label>
+          <textarea class="form-control form-control-sm bg-dark text-white border-secondary" 
+                    id="responseNotes_${trade.id}" rows="2" 
+                    placeholder="Adicione uma mensagem..."></textarea>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-success btn-sm" onclick="respondTrade(${trade.id}, 'accepted')">
+            <i class="bi bi-check-circle me-1"></i>Aceitar
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="respondTrade(${trade.id}, 'rejected')">
+            <i class="bi bi-x-circle me-1"></i>Rejeitar
+          </button>
+          <button class="btn btn-info btn-sm" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+            <i class="bi bi-arrow-repeat me-1"></i>Contraproposta
+          </button>
+        </div>
       </div>
     ` : ''}
     
     ${trade.status === 'pending' && type === 'sent' ? `
-      <div class="mt-3">
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-warning btn-sm" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+          <i class="bi bi-pencil me-1"></i>Modificar
+        </button>
         <button class="btn btn-secondary btn-sm" onclick="respondTrade(${trade.id}, 'cancelled')">
           <i class="bi bi-x-circle me-1"></i>Cancelar
         </button>
@@ -298,14 +324,24 @@ function createTradeCard(trade, type) {
 }
 
 async function respondTrade(tradeId, action) {
-  if (!confirm(`Confirma ${action === 'accepted' ? 'aceitar' : action === 'rejected' ? 'rejeitar' : 'cancelar'} esta trade?`)) {
+  const actionTexts = {
+    'accepted': 'aceitar',
+    'rejected': 'rejeitar', 
+    'cancelled': 'cancelar'
+  };
+  
+  if (!confirm(`Confirma ${actionTexts[action]} esta trade?`)) {
     return;
   }
+  
+  // Pegar observação se existir
+  const notesEl = document.getElementById(`responseNotes_${tradeId}`);
+  const responseNotes = notesEl ? notesEl.value.trim() : '';
   
   try {
     await api('trades.php', {
       method: 'PUT',
-      body: JSON.stringify({ trade_id: tradeId, action })
+      body: JSON.stringify({ trade_id: tradeId, action, response_notes: responseNotes })
     });
     
     alert('Trade atualizada!');
@@ -325,6 +361,121 @@ async function respondTrade(tradeId, action) {
     }
   } catch (err) {
     alert(err.error || 'Erro ao atualizar trade');
+  }
+}
+
+// Abrir modal de contraproposta
+async function openCounterProposal(originalTradeId, originalTrade) {
+  // Decodificar o trade se vier como string
+  if (typeof originalTrade === 'string') {
+    originalTrade = JSON.parse(originalTrade.replace(/&quot;/g, '"'));
+  }
+  
+  // Preencher o modal com dados invertidos
+  document.getElementById('targetTeam').value = originalTrade.from_team_id;
+  document.getElementById('targetTeam').disabled = true; // Não pode mudar o time
+  
+  // Carregar jogadores e picks do time que enviou a proposta original
+  await onTargetTeamChange({ target: document.getElementById('targetTeam') });
+  
+  // Pré-selecionar jogadores/picks que estavam sendo pedidos (agora vou oferecer)
+  setTimeout(() => {
+    const offerPlayersSelect = document.getElementById('offerPlayers');
+    const offerPicksSelect = document.getElementById('offerPicks');
+    
+    // Selecionar os jogadores que eu deveria enviar na proposta original
+    originalTrade.request_players.forEach(p => {
+      const option = offerPlayersSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
+    });
+    
+    originalTrade.request_picks.forEach(p => {
+      const option = offerPicksSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
+    });
+    
+    // Selecionar os jogadores/picks que estavam sendo oferecidos (agora vou pedir)
+    const requestPlayersSelect = document.getElementById('requestPlayers');
+    const requestPicksSelect = document.getElementById('requestPicks');
+    
+    originalTrade.offer_players.forEach(p => {
+      const option = requestPlayersSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
+    });
+    
+    originalTrade.offer_picks.forEach(p => {
+      const option = requestPicksSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
+    });
+  }, 500);
+  
+  // Adicionar nota de contraproposta
+  document.getElementById('tradeNotes').value = `[CONTRAPROPOSTA] Em resposta à proposta #${originalTradeId}`;
+  
+  // Abrir modal
+  const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
+  modal.show();
+  
+  // Guardar ID da trade original para cancelar depois
+  document.getElementById('proposeTradeModal').dataset.counterTo = originalTradeId;
+}
+
+// Abrir modal para modificar trade (quem enviou)
+async function openModifyTrade(tradeId, trade) {
+  // Decodificar o trade se vier como string
+  if (typeof trade === 'string') {
+    trade = JSON.parse(trade.replace(/&quot;/g, '"'));
+  }
+  
+  // Primeiro, cancelar a trade atual
+  if (!confirm('Para modificar, a proposta atual será cancelada e uma nova será criada. Continuar?')) {
+    return;
+  }
+  
+  try {
+    await api('trades.php', {
+      method: 'PUT',
+      body: JSON.stringify({ trade_id: tradeId, action: 'cancelled' })
+    });
+    
+    // Preencher o modal com os dados da trade
+    document.getElementById('targetTeam').value = trade.to_team_id;
+    await onTargetTeamChange({ target: document.getElementById('targetTeam') });
+    
+    // Pré-selecionar itens
+    setTimeout(() => {
+      trade.offer_players.forEach(p => {
+        const option = document.querySelector(`#offerPlayers option[value="${p.id}"]`);
+        if (option) option.selected = true;
+      });
+      
+      trade.offer_picks.forEach(p => {
+        const option = document.querySelector(`#offerPicks option[value="${p.id}"]`);
+        if (option) option.selected = true;
+      });
+      
+      trade.request_players.forEach(p => {
+        const option = document.querySelector(`#requestPlayers option[value="${p.id}"]`);
+        if (option) option.selected = true;
+      });
+      
+      trade.request_picks.forEach(p => {
+        const option = document.querySelector(`#requestPicks option[value="${p.id}"]`);
+        if (option) option.selected = true;
+      });
+    }, 500);
+    
+    document.getElementById('tradeNotes').value = trade.notes || '';
+    
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
+    modal.show();
+    
+    // Atualizar listas
+    loadTrades('sent');
+    loadTrades('history');
+  } catch (err) {
+    alert(err.error || 'Erro ao modificar trade');
   }
 }
 
