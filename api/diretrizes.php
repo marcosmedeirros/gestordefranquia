@@ -77,6 +77,22 @@ if ($method === 'GET') {
             $stmt->execute([$team['id'], $deadlineId]);
             $directive = $stmt->fetch();
             
+            // Buscar minutagem dos jogadores
+            $playerMinutes = [];
+            if ($directive) {
+                $stmtMinutes = $pdo->prepare("
+                    SELECT player_id, minutes_per_game 
+                    FROM directive_player_minutes 
+                    WHERE directive_id = ?
+                ");
+                $stmtMinutes->execute([$directive['id']]);
+                $minutesData = $stmtMinutes->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($minutesData as $row) {
+                    $playerMinutes[$row['player_id']] = $row['minutes_per_game'];
+                }
+                $directive['player_minutes'] = $playerMinutes;
+            }
+            
             echo json_encode(['success' => true, 'directive' => $directive]);
             break;
             
@@ -270,6 +286,25 @@ if ($method === 'POST') {
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null
                     ]);
+                }
+                
+                $directiveId = $existing['id'] ?? $pdo->lastInsertId();
+                
+                // Salvar minutagem dos jogadores se rotação automática
+                if (($data['rotation_style'] ?? 'auto') === 'auto' && !empty($data['player_minutes'])) {
+                    // Deletar minutagens antigas
+                    $stmtDeleteMinutes = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
+                    $stmtDeleteMinutes->execute([$directiveId]);
+                    
+                    // Inserir novas minutagens
+                    $stmtMinutes = $pdo->prepare("
+                        INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game)
+                        VALUES (?, ?, ?)
+                    ");
+                    
+                    foreach ($data['player_minutes'] as $playerId => $minutes) {
+                        $stmtMinutes->execute([$directiveId, $playerId, (int)$minutes]);
+                    }
                 }
                 
                 $pdo->commit();

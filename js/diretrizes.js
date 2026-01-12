@@ -14,6 +14,97 @@ const api = async (path, options = {}) => {
   return body;
 };
 
+// Armazenar lista de jogadores para referência
+let allPlayersData = [];
+
+// Buscar todos os jogadores do time para renderizar campos de minutagem
+async function loadPlayersData() {
+  try {
+    const data = await api('team-players.php');
+    if (data.players) {
+      allPlayersData = data.players;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar jogadores:', err);
+  }
+}
+
+// Renderizar campos de minutagem para cada jogador
+function renderPlayerMinutes() {
+  const container = document.getElementById('player-minutes-container');
+  if (!container) return;
+  
+  // Limpar container
+  container.innerHTML = '';
+  
+  // Agrupar jogadores por posição
+  const playersByPosition = {};
+  allPlayersData.forEach(player => {
+    if (!playersByPosition[player.position]) {
+      playersByPosition[player.position] = [];
+    }
+    playersByPosition[player.position].push(player);
+  });
+  
+  // Renderizar por posição
+  Object.keys(playersByPosition).sort().forEach(position => {
+    const positionPlayers = playersByPosition[position];
+    
+    const positionDiv = document.createElement('div');
+    positionDiv.className = 'col-12 mb-3';
+    positionDiv.innerHTML = `
+      <h6 class="text-orange mb-3"><i class="bi bi-people me-2"></i>${position}</h6>
+    `;
+    container.appendChild(positionDiv);
+    
+    positionPlayers.forEach(player => {
+      const playerDiv = document.createElement('div');
+      playerDiv.className = 'col-md-3 col-sm-6';
+      playerDiv.innerHTML = `
+        <div class="form-group">
+          <label class="form-label text-white small">${player.name}</label>
+          <div class="input-group input-group-sm">
+            <input type="number" 
+                   class="form-control bg-dark text-white border-orange player-minutes-input" 
+                   name="minutes_player_${player.id}" 
+                   data-player-id="${player.id}"
+                   data-player-name="${player.name}"
+                   min="5" max="45" value="20" 
+                   placeholder="Minutos">
+            <span class="input-group-text bg-dark text-orange border-orange">min</span>
+          </div>
+          <small class="text-light-gray d-block mt-1">Min: 5 | Max: 40 (reg) / 45 (off)</small>
+        </div>
+      `;
+      container.appendChild(playerDiv);
+    });
+  });
+}
+
+// Atualizar visibilidade dos campos de rotação automática
+function updateRotationFieldsVisibility() {
+  const rotationStyle = document.querySelector('select[name="rotation_style"]');
+  const rotationConfigCard = document.getElementById('rotation-config-card');
+  const playerMinutesCard = document.getElementById('player-minutes-card');
+  const rotationPlayersField = document.getElementById('rotation-players-field');
+  const veteranFocusField = document.getElementById('veteran-focus-field');
+  
+  if (!rotationStyle) return;
+  
+  const isAutoRotation = rotationStyle.value === 'auto';
+  
+  // Mostrar/esconder os campos
+  if (rotationPlayersField) {
+    rotationPlayersField.style.display = isAutoRotation ? 'block' : 'none';
+  }
+  if (veteranFocusField) {
+    veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
+  }
+  if (playerMinutesCard) {
+    playerMinutesCard.style.display = isAutoRotation ? 'block' : 'none';
+  }
+}
+
 // Atualizar valores dos ranges
 document.querySelectorAll('input[type="range"]').forEach(range => {
   const valueSpan = document.getElementById(`${range.name}-value`);
@@ -22,6 +113,17 @@ document.querySelectorAll('input[type="range"]').forEach(range => {
       valueSpan.textContent = range.value + '%';
     });
   }
+});
+
+// Adicionar listener ao campo de rotação
+document.addEventListener('DOMContentLoaded', () => {
+  const rotationStyle = document.querySelector('select[name="rotation_style"]');
+  if (rotationStyle) {
+    rotationStyle.addEventListener('change', updateRotationFieldsVisibility);
+  }
+  
+  // Chamar ao iniciar
+  updateRotationFieldsVisibility();
 });
 
 // Carregar diretriz existente
@@ -80,6 +182,21 @@ async function loadExistingDirective() {
       if (notesField && d.notes) {
         notesField.value = d.notes;
       }
+      
+      // Preencher minutagem dos jogadores
+      if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
+        setTimeout(() => {
+          Object.keys(d.player_minutes).forEach(playerId => {
+            const input = document.querySelector(`input[name="minutes_player_${playerId}"]`);
+            if (input) {
+              input.value = d.player_minutes[playerId];
+            }
+          });
+        }, 100); // Aguardar para garantir que os inputs foram renderizados
+      }
+      
+      // Atualizar visibilidade após carregar dados
+      updateRotationFieldsVisibility();
     }
   } catch (err) {
     console.error('Erro ao carregar diretriz:', err);
@@ -144,6 +261,24 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     return;
   }
   
+  // Validar minutagem para rotação automática
+  const rotationStyle = fd.get('rotation_style');
+  const playerMinutes = {};
+  if (rotationStyle === 'auto') {
+    const minutesInputs = document.querySelectorAll('.player-minutes-input');
+    minutesInputs.forEach(input => {
+      const minutes = parseInt(input.value) || 0;
+      const playerId = input.getAttribute('data-player-id');
+      const playerName = input.getAttribute('data-player-name');
+      
+      if (minutes < 5 || minutes > 45) {
+        alert(`${playerName}: minutos devem estar entre 5 e 45`);
+        throw new Error('Validação de minutos falhou');
+      }
+      playerMinutes[playerId] = minutes;
+    });
+  }
+  
   const payload = {
     action: 'submit_directive',
     deadline_id: deadlineId,
@@ -166,7 +301,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     veteran_focus: parseInt(fd.get('veteran_focus')) || 50,
     gleague_1_id: gleague1 ? parseInt(gleague1) : null,
     gleague_2_id: gleague2 ? parseInt(gleague2) : null,
-    notes: fd.get('notes')
+    notes: fd.get('notes'),
+    player_minutes: playerMinutes
   };
   
   try {
@@ -182,4 +318,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
 });
 
 // Carregar diretriz ao iniciar
-loadExistingDirective();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadPlayersData();
+  renderPlayerMinutes();
+  loadExistingDirective();
+});

@@ -319,9 +319,11 @@ try {
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
                             <div class="stat-label">Liga</div>
-                            <div class="stat-value" style="font-size: 1.8rem;"><?= htmlspecialchars($user['league']) ?></div>
                         </div>
-                        <i class="bi bi-trophy-fill display-4 text-orange"></i>
+                        <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
+                             alt="<?= htmlspecialchars($user['league']) ?>" 
+                             class="league-logo" 
+                             style="height: 60px; width: auto; object-fit: contain;">
                     </div>
                 </div>
             </div>

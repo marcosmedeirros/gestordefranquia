@@ -270,13 +270,13 @@ if ($playerCount >= 15) {
             </div>
 
             <!-- Rotação e Foco -->
-            <div class="card bg-dark-panel border-orange mb-4">
+            <div class="card bg-dark-panel border-orange mb-4" id="rotation-config-card">
                 <div class="card-header bg-transparent border-orange">
                     <h5 class="text-white mb-0"><i class="bi bi-sliders me-2"></i>Rotação e Foco</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-4">
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="rotation-players-field">
                             <label class="form-label text-white">Jogadores na Rotação</label>
                             <select class="form-select bg-dark text-white border-orange" name="rotation_players">
                                 <?php for ($i = 8; $i <= 15; $i++): ?>
@@ -285,16 +285,29 @@ if ($playerCount >= 15) {
                             </select>
                             <small class="text-light-gray">Quantidade de jogadores que entram em quadra</small>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-white">% Foco em Jogadores Veteranos</label>
+                        <div class="col-md-6" id="veteran-focus-field">
+                            <label class="form-label text-white">% Foco em Jogadores Jovens</label>
                             <input type="range" class="form-range" name="veteran_focus" id="veteran_focus" min="0" max="100" value="50">
                             <div class="d-flex justify-content-between text-light-gray small">
-                                <span>Jovens (0%)</span>
+                                <span>Veteranos (0%)</span>
                                 <span id="veteran_focus-value">50%</span>
-                                <span>Veteranos (100%)</span>
+                                <span>Jovens (100%)</span>
                             </div>
                             <small class="text-light-gray">Define prioridade de minutos entre jovens e veteranos</small>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Minutagem por Jogador -->
+            <div class="card bg-dark-panel border-orange mb-4" id="player-minutes-card" style="display: none;">
+                <div class="card-header bg-transparent border-orange">
+                    <h5 class="text-white mb-0"><i class="bi bi-clock me-2"></i>Minutagem por Jogador</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-light-gray mb-3">Configure os minutos por jogo para cada jogador (mínimo 5, máximo 40 na regular / 45 nos playoffs)</p>
+                    <div id="player-minutes-container" class="row g-3">
+                        <!-- Preenchido dinamicamente com JavaScript -->
                     </div>
                 </div>
             </div>
