@@ -118,12 +118,6 @@ if ($teamId) {
         </a>
       </li>
       <li>
-        <a href="/trade-list.php">
-          <i class="bi bi-list-stars"></i>
-          Trade List
-        </a>
-      </li>
-      <li>
         <a href="/free-agency.php">
           <i class="bi bi-person-plus-fill"></i>
           Free Agency
@@ -220,6 +214,11 @@ if ($teamId) {
           <i class="bi bi-clock-history me-1"></i>Histórico
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="trade-list-tab" data-bs-toggle="tab" data-bs-target="#trade-list" type="button">
+          <i class="bi bi-list-stars me-1"></i>Trade List
+        </button>
+      </li>
     </ul>
 
     <!-- Tab Content -->
@@ -237,6 +236,30 @@ if ($teamId) {
       <!-- Histórico -->
       <div class="tab-pane fade" id="history" role="tabpanel">
         <div id="historyTradesList"></div>
+      </div>
+
+      <!-- Trade List (Disponíveis para troca na sua liga) -->
+      <div class="tab-pane fade" id="trade-list" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="text-white mb-0"><i class="bi bi-list-stars me-2 text-orange"></i>Disponíveis para troca</h5>
+          <span class="badge bg-secondary" id="countBadge">0 jogadores</span>
+        </div>
+        <div class="d-flex gap-2 mb-3">
+          <input type="text" class="form-control bg-dark text-white border-orange" id="searchInput" placeholder="Procurar por nome...">
+          <select class="form-select bg-dark text-white border-orange" id="sortSelect">
+            <option value="ovr_desc">OVR (Maior primeiro)</option>
+            <option value="ovr_asc">OVR (Menor primeiro)</option>
+            <option value="name_asc">Nome (A-Z)</option>
+            <option value="name_desc">Nome (Z-A)</option>
+            <option value="age_asc">Idade (Menor primeiro)</option>
+            <option value="age_desc">Idade (Maior primeiro)</option>
+            <option value="position_asc">Posição (A-Z)</option>
+            <option value="position_desc">Posição (Z-A)</option>
+            <option value="team_asc">Time (A-Z)</option>
+            <option value="team_desc">Time (Z-A)</option>
+          </select>
+        </div>
+        <div id="playersList"></div>
       </div>
     </div>
 
@@ -319,6 +342,7 @@ if ($teamId) {
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script src="/js/trades.js"></script>
+  <script src="/js/trade-list.js"></script>
   <script src="/js/pwa.js"></script>
 </body>
 </html>
