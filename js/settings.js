@@ -1,6 +1,20 @@
 let profilePhotoFile = null;
 let teamPhotoFile = null;
 
+const formatPhone = (value = '') => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
+const phoneInput = document.querySelector('input[name="phone"]');
+if (phoneInput) {
+  phoneInput.addEventListener('input', (e) => {
+    e.target.value = formatPhone(e.target.value);
+  });
+}
+
 const api = async (path, options = {}) => {
   const doFetch = async (url) => {
     const res = await fetch(url, {
@@ -56,6 +70,7 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
   const payload = {
     name: fd.get('name'),
     photo_url: profilePhotoFile ? await convertToBase64(profilePhotoFile) : null,
+    phone: fd.get('phone'),
   };
   try {
     await api('user.php', { method: 'POST', body: JSON.stringify(payload) });

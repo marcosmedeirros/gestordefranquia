@@ -10,6 +10,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     $user = getUserSession();
     if (!$user) jsonResponse(401, ['error' => 'Não autenticado']);
+    $user['phone_display'] = formatBrazilianPhone($user['phone'] ?? '');
     jsonResponse(200, ['user' => $user]);
 }
 
@@ -20,9 +21,15 @@ if ($method === 'POST') {
     $body = readJsonBody();
     $name = trim($body['name'] ?? $user['name']);
     $photoUrl = trim($body['photo_url'] ?? '');
+    $phoneRaw = array_key_exists('phone', $body) ? trim((string)$body['phone']) : ($user['phone'] ?? '');
+    $phone = $phoneRaw === '' ? null : normalizeBrazilianPhone($phoneRaw);
 
     if ($name === '') {
         jsonResponse(422, ['error' => 'Nome é obrigatório.']);
+    }
+
+    if ($phoneRaw !== '' && !$phone) {
+        jsonResponse(422, ['error' => 'Telefone inválido. Use DDD + número.']);
     }
 
     // Salvar foto se vier como data URL
@@ -57,13 +64,14 @@ if ($method === 'POST') {
         $photoUrl = ($photoUrl !== '') ? $photoUrl : ($user['photo_url'] ?? null);
     }
 
-    $stmt = $pdo->prepare('UPDATE users SET name = ?, photo_url = ? WHERE id = ?');
-    $stmt->execute([$name, $photoUrl ?: null, $user['id']]);
+    $stmt = $pdo->prepare('UPDATE users SET name = ?, photo_url = ?, phone = ? WHERE id = ?');
+    $stmt->execute([$name, $photoUrl ?: null, $phone, $user['id']]);
 
     // Atualizar sessão
     $updated = $user;
     $updated['name'] = $name;
     $updated['photo_url'] = $photoUrl ?: $user['photo_url'] ?? null;
+    $updated['phone'] = $phone;
     setUserSession($updated);
 
     jsonResponse(200, ['message' => 'Perfil atualizado.']);

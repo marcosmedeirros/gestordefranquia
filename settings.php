@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
@@ -170,6 +171,11 @@ $team = $stmtTeam->fetch() ?: null;
                                 <label class="form-label text-white fw-bold">E-mail</label>
                                 <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" disabled>
                                 <small class="text-light-gray">E-mail não pode ser alterado.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-white fw-bold">Telefone (WhatsApp)</label>
+                                <input type="tel" name="phone" class="form-control" value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>" placeholder="(11) 90000-0000" required>
+                                <small class="text-light-gray">Mantenha atualizado para facilitar contato entre franquias.</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-white fw-bold">Liga</label>

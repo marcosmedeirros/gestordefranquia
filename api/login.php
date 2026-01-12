@@ -19,7 +19,7 @@ try {
         jsonResponse(422, ['error' => 'E-mail e senha são obrigatórios.']);
     }
 
-    $stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, league, email_verified, photo_url FROM users WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, league, email_verified, photo_url, phone FROM users WHERE email = ? LIMIT 1');
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
@@ -35,6 +35,7 @@ try {
         'user_type' => $user['user_type'],
         'league' => $user['league'],
         'photo_url' => $user['photo_url'] ?? null,
+        'phone' => $user['phone'] ?? null,
     ]);
 
     jsonResponse(200, [
@@ -47,6 +48,7 @@ try {
             'league' => $user['league'],
             'email_verified' => (bool) $user['email_verified'],
             'photo_url' => $user['photo_url'] ?? null,
+            'phone' => $user['phone'] ?? null,
         ],
     ]);
 } catch (PDOException $e) {

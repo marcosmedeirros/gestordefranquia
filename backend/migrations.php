@@ -35,6 +35,7 @@ function runMigrations() {
                 email VARCHAR(190) NOT NULL UNIQUE,
                 password_hash VARCHAR(255) NOT NULL,
                 photo_url VARCHAR(255) NULL,
+                phone VARCHAR(30) NULL,
                 user_type ENUM('jogador','admin') NOT NULL DEFAULT 'jogador',
                 league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
                 email_verified TINYINT(1) NOT NULL DEFAULT 0,
@@ -42,7 +43,8 @@ function runMigrations() {
                 reset_token VARCHAR(64) DEFAULT NULL,
                 reset_token_expiry DATETIME DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_user_league (league)
+                INDEX idx_user_league (league),
+                INDEX idx_user_phone (phone)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
         'create_divisions' => [
@@ -272,6 +274,15 @@ function runMigrations() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     } catch (PDOException $e) {
         $errors[] = "ajuste_season_awards: " . $e->getMessage();
+    }
+
+    try {
+        $hasPhone = $pdo->query("SHOW COLUMNS FROM users LIKE 'phone'")->fetch();
+        if (!$hasPhone) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN phone VARCHAR(30) NULL AFTER photo_url, ADD INDEX idx_user_phone (phone)");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_users_phone: " . $e->getMessage();
     }
 
     return [

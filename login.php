@@ -111,6 +111,11 @@
                                 <input name="email" type="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label text-light-gray">Telefone (WhatsApp)</label>
+                                <input name="phone" type="tel" class="form-control form-control-lg" placeholder="(11) 90000-0000" required maxlength="20">
+                                <small class="text-light-gray">Usaremos este contato para facilitar negociações.</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label text-light-gray">Senha</label>
                                 <input name="password" type="password" class="form-control form-control-lg" placeholder="Mínimo 6 caracteres" required minlength="6">
                             </div>

@@ -42,7 +42,7 @@ if ($method === 'GET') {
         $league = $user['league'] ?? 'ROOKIE';
     }
     
-    $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo
+    $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo, u.name AS owner_name, u.phone AS owner_phone
             FROM teams t
             LEFT JOIN divisions d ON d.id = t.division_id
             LEFT JOIN users u ON u.id = t.user_id
@@ -68,6 +68,16 @@ if ($method === 'GET') {
 
     foreach ($teams as &$team) {
         $team['cap_top8'] = topEightCap($pdo, (int) $team['id']);
+        $rawPhone = $team['owner_phone'] ?? '';
+        $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+        if (!$normalizedPhone && $rawPhone !== '') {
+            $digits = preg_replace('/\D+/', '', $rawPhone);
+            if ($digits !== '') {
+                $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+            }
+        }
+        $team['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+        $team['owner_phone_whatsapp'] = $normalizedPhone;
     }
 
     jsonResponse(200, ['teams' => $teams]);

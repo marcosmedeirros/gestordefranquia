@@ -118,3 +118,49 @@ function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.
     }
     return $photoUrl;
 }
+
+function normalizeBrazilianPhone(?string $input): ?string
+{
+    if ($input === null) {
+        return null;
+    }
+    $digits = preg_replace('/\D+/', '', $input);
+    if ($digits === '') {
+        return null;
+    }
+    $digits = ltrim($digits, '0');
+
+    if (str_starts_with($digits, '55')) {
+        if (strlen($digits) < 12) {
+            return null;
+        }
+        return substr($digits, 0, 13);
+    }
+
+    if (strlen($digits) === 11 || strlen($digits) === 10) {
+        return '55' . $digits;
+    }
+
+    return null;
+}
+
+function formatBrazilianPhone(?string $phone): ?string
+{
+    if (!$phone) {
+        return null;
+    }
+    $digits = preg_replace('/\D+/', '', $phone);
+    if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+        $digits = substr($digits, 2);
+    }
+
+    if (strlen($digits) === 11) {
+        return sprintf('(%s) %s-%s', substr($digits, 0, 2), substr($digits, 2, 5), substr($digits, 7));
+    }
+
+    if (strlen($digits) === 10) {
+        return sprintf('(%s) %s-%s', substr($digits, 0, 2), substr($digits, 2, 4), substr($digits, 6));
+    }
+
+    return $phone;
+}

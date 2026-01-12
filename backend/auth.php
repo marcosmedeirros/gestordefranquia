@@ -22,6 +22,7 @@ function getUserSession() {
         'user_type' => $_SESSION['user_type'] ?? 'jogador',
         'league' => $_SESSION['user_league'] ?? 'ROOKIE',
         'photo_url' => $_SESSION['user_photo'] ?? null,
+        'phone' => $_SESSION['user_phone'] ?? null,
     ];
 }
 
@@ -32,6 +33,7 @@ function setUserSession($user) {
     $_SESSION['user_type'] = $user['user_type'];
     $_SESSION['user_league'] = $user['league'];
     $_SESSION['user_photo'] = $user['photo_url'] ?? null;
+    $_SESSION['user_phone'] = $user['phone'] ?? null;
 }
 
 function destroyUserSession() {

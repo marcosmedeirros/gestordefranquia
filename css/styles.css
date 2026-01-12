@@ -1069,6 +1069,21 @@ img.broken-image {
 
 	.form-label, .form-control, .form-select{ font-size: .9rem; }
 
+		/* Touch-friendly adjustments for mobile */
+		.btn, .btn-orange, .btn-white, .btn-outline-light, .btn-outline-orange{
+			padding: .6rem .9rem;
+			min-height: 44px; /* Apple recommended touch target */
+		}
+
+		.form-control, .form-select{
+			padding: .6rem .75rem;
+			min-height: 44px;
+		}
+
+		.table-responsive table tbody tr td, .table-responsive table tbody tr th{
+			padding: .75rem .5rem;
+		}
+
 	/* Mobile: tabelas responsivas */
 	.table-responsive{ 
 		display: block !important;

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
@@ -18,17 +19,34 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-$stmt = $pdo->prepare('SELECT id, city, name, mascot, photo_url, user_id FROM teams WHERE league = ? ORDER BY id ASC');
+$stmt = $pdo->prepare('
+    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id,
+           u.name AS owner_name, u.phone AS owner_phone
+    FROM teams t
+    INNER JOIN users u ON u.id = t.user_id
+    WHERE t.league = ?
+    ORDER BY t.id ASC
+');
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 // Adicionar dados complementares para cada time
 foreach ($teams as &$t) {
-  $ownerStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
-  $ownerStmt->execute([$t['user_id']]);
-  $owner = $ownerStmt->fetch();
-  $t['owner_name'] = $owner['name'] ?? 'N/A';
-  
+    if (empty($t['owner_name'])) {
+        $t['owner_name'] = 'N/A';
+    }
+
+    $rawPhone = $t['owner_phone'] ?? '';
+    $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+    if (!$normalizedPhone && $rawPhone !== '') {
+        $digits = preg_replace('/\D+/', '', $rawPhone);
+        if ($digits !== '') {
+            $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+        }
+    }
+    $t['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+    $t['owner_phone_whatsapp'] = $normalizedPhone;
+
   $playerStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
   $playerStmt->execute([$t['id']]);
   $t['total_players'] = (int)$playerStmt->fetch()['cnt'];
@@ -44,7 +62,7 @@ unset($t); // Importante: limpar referência do foreach
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <?php include __DIR__ . '/includes/head-pwa.php'; ?>
     <title>Times - FBA Manager</title>
     
     <!-- PWA Meta Tags -->
@@ -204,10 +222,20 @@ unset($t); // Importante: limpar referência do foreach
                                 <td>
                                     <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
                                     <small class="text-light-gray d-none d-md-block"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
-                                    <small class="text-light-gray d-md-none"><i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?></small>
+                                    <small class="text-light-gray d-md-none">
+                                        <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
+                                    </small>
+                                    <?php if (!empty($t['owner_phone_display'])): ?>
+                                        <small class="text-light-gray d-md-none">
+                                            <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
+                                        </small>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="hide-mobile">
-                                    <i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?>
+                                    <div><i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?></div>
+                                    <?php if (!empty($t['owner_phone_display'])): ?>
+                                        <small class="text-light-gray"><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-gradient-orange"><?= $t['total_players'] ?></span>
@@ -216,9 +244,16 @@ unset($t); // Importante: limpar referência do foreach
                                     <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
                                 </td>
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
-                                        <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
-                                    </button>
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                                            <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
+                                        </button>
+                                        <?php if (!empty($t['owner_phone_whatsapp'])): ?>
+                                            <a class="btn btn-sm btn-outline-success" href="https://wa.me/<?= htmlspecialchars($t['owner_phone_whatsapp']) ?>" target="_blank" rel="noopener">
+                                                <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">Falar</span>
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
