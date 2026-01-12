@@ -321,10 +321,10 @@ try {
                             <div class="stat-label">Liga</div>
                         </div>
                         <div class="d-flex align-items-center justify-content-end gap-3">
-                            <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
-                                 alt="<?= htmlspecialchars($user['league']) ?>" 
-                                 class="league-logo" 
-                                 style="height: 100px; width: auto; object-fit: contain;">
+                       <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
+                           alt="<?= htmlspecialchars($user['league']) ?>" 
+                           class="league-logo" 
+                           style="height: 140px; width: auto; object-fit: contain;">
                             <span class="text-light-gray" style="font-weight: 700; font-size: 1.1rem;">
                                 <?= htmlspecialchars($user['league']) ?>
                             </span>

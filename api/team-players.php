@@ -12,9 +12,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $teamId = $_GET['team_id'] ?? null;
 
     if (!$teamId) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Team ID não informado']);
-        exit;
+        // Buscar time do usuário da sessão
+        $user = getUserSession();
+        if (!$user || !isset($user['id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Não autenticado']);
+            exit;
+        }
+        $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+        $stmtTeam->execute([$user['id']]);
+        $row = $stmtTeam->fetch();
+        if (!$row) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Time não encontrado para o usuário']);
+            exit;
+        }
+        $teamId = (int)$row['id'];
     }
 
     try {

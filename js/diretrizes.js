@@ -95,14 +95,14 @@ function updateRotationFieldsVisibility() {
   
   if (!rotationStyle) return;
   
-  const isManualRotation = rotationStyle.value === 'manual';
+  const isAutoRotation = rotationStyle.value === 'auto';
   
-  // Mostrar/esconder os campos
+  // Mostrar/esconder os campos SOMENTE quando rotação for automática
   if (rotationPlayersField) {
-    rotationPlayersField.style.display = isManualRotation ? 'block' : 'none';
+    rotationPlayersField.style.display = isAutoRotation ? 'block' : 'none';
   }
   if (veteranFocusField) {
-    veteranFocusField.style.display = isManualRotation ? 'block' : 'none';
+    veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
   }
   // Minutagem por jogador é sempre exibida, independente do estilo de rotação
 }

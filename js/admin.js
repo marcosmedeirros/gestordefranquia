@@ -703,13 +703,14 @@ async function showDirectives() {
             '<p class="text-light-gray text-center py-4">Nenhum prazo configurado</p>' :
             `<div class="table-responsive"><table class="table table-dark">
               <thead><tr>
-                <th>Liga</th><th>Data</th><th>Descrição</th><th>Status</th><th>Envios</th><th>Ações</th>
+                <th>Liga</th><th>Data</th><th>Descrição</th><th>Fase</th><th>Status</th><th>Envios</th><th>Ações</th>
               </tr></thead>
               <tbody>${deadlines.map(d => `
                 <tr>
                   <td><span class="badge bg-gradient-orange">${d.league}</span></td>
                   <td>${new Date(d.deadline_date).toLocaleDateString('pt-BR')}</td>
                   <td>${d.description || '-'}</td>
+                  <td>${(d.phase || 'regular') === 'playoffs' ? '<span class="badge bg-danger">Playoffs</span>' : '<span class="badge bg-info">Regular</span>'}</td>
                   <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
                   <td><span class="badge bg-info">${d.submissions_count} time(s)</span></td>
                   <td>
@@ -764,6 +765,14 @@ function showCreateDeadlineModal() {
             <input type="text" class="form-control bg-dark text-white border-orange" id="deadline-description" 
                    placeholder="Ex: Diretrizes da Rodada 1">
           </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Fase</label>
+            <select class="form-select bg-dark text-white border-orange" id="deadline-phase">
+              <option value="regular" selected>Temporada Regular (máx 40 min)</option>
+              <option value="playoffs">Playoffs (máx 45 min)</option>
+            </select>
+            <small class="text-light-gray">Define o limite máximo de minutagem por jogador no formulário.</small>
+          </div>
         </div>
         <div class="modal-footer border-orange">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -782,6 +791,7 @@ async function createDeadline() {
   const league = document.getElementById('deadline-league').value;
   const date = document.getElementById('deadline-date').value;
   const description = document.getElementById('deadline-description').value;
+  const phase = document.getElementById('deadline-phase').value;
   
   if (!date) {
     alert('Preencha a data');
@@ -791,7 +801,7 @@ async function createDeadline() {
   try {
     await api('diretrizes.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, description })
+      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, description, phase })
     });
     alert('Prazo criado com sucesso!');
     bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
