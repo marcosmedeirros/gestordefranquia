@@ -11,7 +11,6 @@ $pdo = db();
 echo "=== Migração: Atualização de directive_deadlines (phase) e minutos por jogador ===\n\n";
 
 try {
-    $pdo->beginTransaction();
 
     // Verificar colunas existentes em directive_deadlines
     $stmt = $pdo->query("SHOW COLUMNS FROM directive_deadlines");
@@ -50,13 +49,16 @@ try {
         }
     }
 
-    $pdo->commit();
     echo "\n=== Migração concluída com sucesso! ===\n";
     echo "- directive_deadlines: coluna 'phase' e 'is_active' verificadas/adicionadas.\n";
     echo "- directive_player_minutes: tabela criada/confirmada.\n";
     echo "\n<a href='/' style='color: #f17507;'>Voltar ao Dashboard</a>\n";
 } catch (Exception $e) {
-    $pdo->rollBack();
+    // Em MySQL, DDLs (ALTER/CREATE) fazem commit implícito.
+    // Garantimos que não chamaremos rollBack sem transação ativa.
+    if (method_exists($pdo, 'inTransaction') && $pdo->inTransaction()) {
+        try { $pdo->rollBack(); } catch (Exception $ignored) {}
+    }
     echo "\nERRO: " . $e->getMessage() . "\n";
     exit(1);
 }
