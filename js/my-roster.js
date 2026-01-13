@@ -164,10 +164,10 @@ function renderPlayers(players) {
   const tbody = document.getElementById('players-tbody');
   tbody.innerHTML = '';
   
-  // Renderizar cards (mobile)
+  // Renderizar cards (mobile) com ordenação fixa
   const cardsContainer = document.getElementById('players-cards-mobile');
   cardsContainer.innerHTML = '';
-  
+
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
     // Tabela (desktop)
@@ -206,11 +206,24 @@ function renderPlayers(players) {
       </td>
     `;
     tbody.appendChild(tr);
+  });
 
-    // Card (mobile)
+  const mobileSorted = [...players].sort((a, b) => {
+    const roleDiff = (roleOrder[a.role] ?? 999) - (roleOrder[b.role] ?? 999);
+    if (roleDiff !== 0) return roleDiff;
+
+    if (a.role === 'Titular' && b.role === 'Titular') {
+      const posDiff = (starterPositionOrder[a.position] ?? 999) - (starterPositionOrder[b.position] ?? 999);
+      if (posDiff !== 0) return posDiff;
+    }
+
+    return Number(b.ovr) - Number(a.ovr);
+  });
+
+  mobileSorted.forEach(p => {
+    const ovrColor = getOvrColor(p.ovr);
     const card = document.createElement('div');
     card.className = 'player-card';
-    // Corrigir: definir positionDisplay corretamente
     const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
     card.innerHTML = `
       <div class="player-card-header">
