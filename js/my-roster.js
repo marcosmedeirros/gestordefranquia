@@ -360,9 +360,9 @@ async function updatePlayer(payload) {
 async function deletePlayer(id) {
   if (!confirm('Deseja dispensar este jogador? Ele será enviado para a Free Agency e outros times poderão contratá-lo.')) return;
   try {
-    const res = await api('free-agency.php', { 
-      method: 'POST', 
-      body: JSON.stringify({ action: 'waive', player_id: id }) 
+    const res = await api('players.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
     });
     alert(res.message || 'Jogador dispensado e enviado para Free Agency!');
     await loadPlayers();
