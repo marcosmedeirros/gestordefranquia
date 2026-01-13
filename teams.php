@@ -9,52 +9,51 @@ $pdo = db();
 
 // Buscar time do usuário para a sidebar
 $stmtTeam = $pdo->prepare('
-  SELECT t.*, COUNT(p.id) as player_count
-  FROM teams t
-  LEFT JOIN players p ON p.team_id = t.id
-  WHERE t.user_id = ?
-  GROUP BY t.id
-  ORDER BY player_count DESC, t.id DESC
+    SELECT t.*, COUNT(p.id) as player_count
+    FROM teams t
+    LEFT JOIN players p ON p.team_id = t.id
+    WHERE t.user_id = ?
+    GROUP BY t.id
+    ORDER BY player_count DESC, t.id DESC
 ');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
 $stmt = $pdo->prepare('
-    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id,
-           u.name AS owner_name, u.phone AS owner_phone
-    FROM teams t
-    INNER JOIN users u ON u.id = t.user_id
-    WHERE t.league = ?
-    ORDER BY t.id ASC
+        SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id,
+                     u.name AS owner_name, u.phone AS owner_phone
+        FROM teams t
+        INNER JOIN users u ON u.id = t.user_id
+        WHERE t.league = ?
+        ORDER BY t.id ASC
 ');
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// Adicionar dados complementares para cada time
 foreach ($teams as &$t) {
-    if (empty($t['owner_name'])) {
-        $t['owner_name'] = 'N/A';
-    }
-
-    $rawPhone = $t['owner_phone'] ?? '';
-    $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
-    if (!$normalizedPhone && $rawPhone !== '') {
-        $digits = preg_replace('/\D+/', '', $rawPhone);
-        if ($digits !== '') {
-            $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+        if (empty($t['owner_name'])) {
+                $t['owner_name'] = 'N/A';
         }
-    }
-    $t['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
-    $t['owner_phone_whatsapp'] = $normalizedPhone;
 
-  $playerStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
-  $playerStmt->execute([$t['id']]);
-  $t['total_players'] = (int)$playerStmt->fetch()['cnt'];
-  
-  $capStmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top8');
-  $capStmt->execute([$t['id']]);
-  $capResult = $capStmt->fetch();
-  $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
+        $rawPhone = $t['owner_phone'] ?? '';
+        $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+        if (!$normalizedPhone && $rawPhone !== '') {
+                $digits = preg_replace('/\D+/', '', $rawPhone);
+                if ($digits !== '') {
+                        $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+                }
+        }
+        $t['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+        $t['owner_phone_whatsapp'] = $normalizedPhone;
+
+        $playerStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
+        $playerStmt->execute([$t['id']]);
+        $t['total_players'] = (int)$playerStmt->fetch()['cnt'];
+
+        $capStmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top8');
+        $capStmt->execute([$t['id']]);
+        $capResult = $capStmt->fetch();
+        $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
 }
 unset($t); // Importante: limpar referência do foreach
 
@@ -229,24 +228,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 </td>
                                 <td>
                                     <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                                    <?php if ($hasContact): ?>
-                                                     <a class="btn btn-sm btn-outline-success d-none d-md-inline-flex align-items-center mt-1"
-                                                         href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
-                                            <i class="bi bi-whatsapp me-1"></i>Falar no WhatsApp
-                                        </a>
-                                    <?php else: ?>
-                                        <small class="text-muted d-none d-md-block">Sem contato</small>
-                                    <?php endif; ?>
                                     <div class="d-md-none mt-1">
                                         <small class="text-light-gray d-block">
                                             <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
                                         </small>
                                         <?php if ($hasContact): ?>
-                                                          <a class="d-inline-flex align-items-center text-success text-decoration-none small"
-                                                              href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
-                                                <i class="bi bi-whatsapp me-1"></i>Chamar no Whats
-                                            </a>
-                                            <small class="text-light-gray d-block"><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                            <small class="text-light-gray d-block">
+                                                <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
+                                            </small>
                                         <?php else: ?>
                                             <small class="text-muted">Sem contato</small>
                                         <?php endif; ?>
@@ -255,11 +244,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <td class="hide-mobile">
                                     <div><i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?></div>
                                     <?php if ($hasContact): ?>
-                                                     <a class="d-inline-flex align-items-center text-success text-decoration-none small"
-                                                         href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
-                                            <i class="bi bi-whatsapp me-1"></i>Falar no WhatsApp
-                                        </a>
-                                        <small class="text-light-gray d-block"><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                        <small class="text-light-gray d-block"><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></small>
                                     <?php else: ?>
                                         <small class="text-muted">Sem contato</small>
                                     <?php endif; ?>
