@@ -92,21 +92,24 @@ if ($method === 'POST') {
     }
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
+    $warnings = [];
     if ($prospectiveCap > $config['app']['cap_max']) {
-        jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $prospectiveCap]);
+        $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $config['app']['cap_max'] . ').';
     }
 
     $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade]);
 
     $newCap = topEightCap($pdo, $teamId);
-    $warning = $newCap < $config['app']['cap_min'] ? 'CAP abaixo do mínimo. Reforce seu elenco.' : null;
+    if ($newCap < $config['app']['cap_min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
 
     jsonResponse(201, [
         'message' => 'Jogador adicionado.',
         'player_id' => $pdo->lastInsertId(),
         'cap_top8' => $newCap,
-        'warning' => $warning,
+        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
     ]);
 }
 
@@ -174,8 +177,9 @@ if ($method === 'PUT') {
     $ovrs[] = $ovr;
     rsort($ovrs, SORT_NUMERIC);
     $capAfter = array_sum(array_slice($ovrs, 0, 8));
+    $warnings = [];
     if ($capAfter > $config['app']['cap_max']) {
-        jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $capAfter]);
+        $warnings[] = 'CAP acima do limite recomendado (' . $capAfter . ' / ' . $config['app']['cap_max'] . ').';
     }
 
     // Verificar se as colunas extras existem
@@ -203,7 +207,14 @@ if ($method === 'PUT') {
     }
 
     $newCap = topEightCap($pdo, (int)$player['team_id']);
-    jsonResponse(200, ['message' => 'Jogador atualizado.', 'cap_top8' => $newCap]);
+    if ($newCap < $config['app']['cap_min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
+    jsonResponse(200, [
+        'message' => 'Jogador atualizado.',
+        'cap_top8' => $newCap,
+        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
+    ]);
 }
 
 if ($method === 'DELETE') {
