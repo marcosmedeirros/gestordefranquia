@@ -1,3 +1,112 @@
+const THEME_STORAGE_KEY = 'fba-theme-preference';
+const VALID_THEMES = ['dark', 'light'];
+let pendingBodyTheme = null;
+let bodyThemeListenerAttached = false;
+
+function getStoredTheme() {
+    try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        return VALID_THEMES.includes(stored) ? stored : null;
+    } catch (err) {
+        return null;
+    }
+}
+
+function setBodyThemeAttribute(theme) {
+    if (document.body) {
+        document.body.setAttribute('data-theme', theme);
+    } else {
+        pendingBodyTheme = theme;
+        if (!bodyThemeListenerAttached) {
+            document.addEventListener('DOMContentLoaded', function applyPendingTheme() {
+                if (pendingBodyTheme) {
+                    document.body?.setAttribute('data-theme', pendingBodyTheme);
+                    pendingBodyTheme = null;
+                }
+            }, { once: true });
+            bodyThemeListenerAttached = true;
+        }
+    }
+}
+
+function setTheme(theme, persist = true) {
+    const normalized = VALID_THEMES.includes(theme) ? theme : 'dark';
+    document.documentElement.setAttribute('data-theme', normalized);
+    setBodyThemeAttribute(normalized);
+    if (persist) {
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, normalized);
+        } catch (err) {
+            console.warn('Não foi possível salvar a preferência de tema.', err);
+        }
+    }
+    document.dispatchEvent(new CustomEvent('themechange', { detail: { theme: normalized } }));
+}
+
+(function initializeTheme() {
+    const stored = getStoredTheme();
+    if (stored) {
+        setTheme(stored, false);
+    } else {
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        setTheme(prefersLight ? 'light' : 'dark', false);
+    }
+
+    if (window.matchMedia) {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+        mediaQuery.addEventListener('change', event => {
+            if (getStoredTheme()) return;
+            setTheme(event.matches ? 'light' : 'dark', false);
+        });
+    }
+})();
+
+function initThemeToggle(sidebar) {
+    if (!sidebar) return;
+
+    let existingToggle = sidebar.querySelector('.sidebar-theme-toggle');
+    if (!existingToggle) {
+        existingToggle = document.createElement('button');
+        existingToggle.type = 'button';
+        existingToggle.className = 'sidebar-theme-toggle';
+        const textBlocks = sidebar.querySelectorAll('.text-center');
+        const logoutBlock = textBlocks[textBlocks.length - 1];
+        if (logoutBlock && logoutBlock.parentElement === sidebar) {
+            sidebar.insertBefore(existingToggle, logoutBlock);
+        } else {
+            sidebar.appendChild(existingToggle);
+        }
+    }
+
+    const renderToggle = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const isLight = currentTheme === 'light';
+        existingToggle.classList.toggle('active', isLight);
+        existingToggle.innerHTML = `
+            <div class="theme-toggle-icon">
+                <i class="bi ${isLight ? 'bi-moon-stars-fill' : 'bi-brightness-high-fill'}"></i>
+            </div>
+            <div class="theme-toggle-copy">
+                <span>${isLight ? 'Modo escuro' : 'Modo claro'}</span>
+                <small>${isLight ? 'Voltar para o visual original' : 'Ativar versão clara'}</small>
+            </div>
+            <div class="theme-toggle-switch ${isLight ? 'active' : ''}">
+                <span></span>
+            </div>
+        `;
+    };
+
+    existingToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+        setTheme(nextTheme, true);
+        renderToggle();
+    });
+
+    document.addEventListener('themechange', renderToggle);
+    renderToggle();
+}
+
 // Sidebar Toggle para Mobile
 document.addEventListener('DOMContentLoaded', function() {
     // Criar botão hambúrguer se não existir
@@ -21,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const overlay = document.querySelector('.sidebar-overlay');
     
     if (!sidebar || !toggleBtn || !overlay) return;
+    initThemeToggle(sidebar);
     
     // Abrir sidebar
     toggleBtn.addEventListener('click', function(e) {
