@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('search-fa')?.addEventListener('input', filterFreeAgents);
   document.getElementById('filter-position')?.addEventListener('change', filterFreeAgents);
   document.getElementById('btn-send-offer')?.addEventListener('click', sendOffer);
+  if (window.__IS_ADMIN__) {
+    document.getElementById('btn-open-create-fa')?.addEventListener('click', openCreateFaModal);
+    document.getElementById('btn-create-fa')?.addEventListener('click', submitCreateFreeAgent);
+  }
   
   // Tab change listeners
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
@@ -361,5 +365,51 @@ async function rejectOffer(offerId) {
     loadAdminOffers();
   } catch (err) {
     alert(err.error || 'Erro ao rejeitar');
+  }
+}
+
+function openCreateFaModal() {
+  const form = document.getElementById('createFaForm');
+  if (form) {
+    form.reset();
+  }
+  const leagueSelect = document.getElementById('faLeague');
+  if (leagueSelect && window.__USER_LEAGUE__) {
+    leagueSelect.value = window.__USER_LEAGUE__;
+  }
+  const modalEl = document.getElementById('createFaModal');
+  if (modalEl) new bootstrap.Modal(modalEl).show();
+}
+
+async function submitCreateFreeAgent() {
+  const payload = {
+    action: 'create_free_agent',
+    name: document.getElementById('faName').value.trim(),
+    age: parseInt(document.getElementById('faAge').value, 10),
+    ovr: parseInt(document.getElementById('faOvr').value, 10),
+    position: document.getElementById('faPosition').value,
+    secondary_position: document.getElementById('faSecondary').value || null,
+    league: document.getElementById('faLeague').value,
+    original_team_name: document.getElementById('faOriginal').value.trim()
+  };
+
+  if (!payload.name || !payload.age || !payload.ovr || !payload.position) {
+    alert('Preencha nome, idade, OVR e posição.');
+    return;
+  }
+
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    alert(data.message || 'Free agent criado!');
+    bootstrap.Modal.getInstance(document.getElementById('createFaModal'))?.hide();
+    await loadFreeAgents();
+    if (window.__IS_ADMIN__) {
+      await loadAdminOffers();
+    }
+  } catch (err) {
+    alert(err.error || 'Erro ao criar free agent');
   }
 }

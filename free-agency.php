@@ -140,6 +140,11 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           <span class="badge bg-success limit-badge" id="signings-badge">
             <i class="bi bi-person-plus me-1"></i>Contratações: <span id="signings-count">0/3</span>
           </span>
+          <?php if ($isAdmin): ?>
+          <button class="btn btn-orange" id="btn-open-create-fa">
+            <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
+          </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -218,6 +223,82 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     <?php endif; ?>
   </div>
+
+  <?php if ($isAdmin): ?>
+  <!-- Modal: Criar Free Agent -->
+  <div class="modal fade" id="createFaModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-plus-fill me-2 text-orange"></i>Novo Free Agent</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="createFaForm">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Nome</label>
+              <input type="text" class="form-control bg-dark text-white border-orange" id="faName" required>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">Idade</label>
+                <input type="number" class="form-control bg-dark text-white border-orange" id="faAge" min="16" max="45" value="25" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">OVR</label>
+                <input type="number" class="form-control bg-dark text-white border-orange" id="faOvr" min="40" max="99" value="70" required>
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">Posição</label>
+                <select class="form-select bg-dark text-white border-orange" id="faPosition" required>
+                  <option value="PG">PG - Armador</option>
+                  <option value="SG">SG - Ala-Armador</option>
+                  <option value="SF">SF - Ala</option>
+                  <option value="PF">PF - Ala-Pivô</option>
+                  <option value="C">C - Pivô</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">Posição Secundária</label>
+                <select class="form-select bg-dark text-white border-orange" id="faSecondary">
+                  <option value="">Nenhuma</option>
+                  <option value="PG">PG - Armador</option>
+                  <option value="SG">SG - Ala-Armador</option>
+                  <option value="SF">SF - Ala</option>
+                  <option value="PF">PF - Ala-Pivô</option>
+                  <option value="C">C - Pivô</option>
+                </select>
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">Liga</label>
+                <select class="form-select bg-dark text-white border-orange" id="faLeague">
+                  <option value="ELITE">ELITE</option>
+                  <option value="NEXT">NEXT</option>
+                  <option value="RISE">RISE</option>
+                  <option value="ROOKIE">ROOKIE</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-light-gray">Ex-time (opcional)</label>
+                <input type="text" class="form-control bg-dark text-white border-orange" id="faOriginal" placeholder="Cidade Time">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="btn-create-fa">
+            <i class="bi bi-check2-circle me-1"></i>Adicionar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Modal: Enviar Proposta -->
   <div class="modal fade" id="offerModal" tabindex="-1">
