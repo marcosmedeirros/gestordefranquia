@@ -224,6 +224,34 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
         exit;
     }
+
+    // Validar posse das picks oferecidas
+    if (!empty($offerPicks)) {
+        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        foreach ($offerPicks as $pickId) {
+            $pickId = (int)$pickId;
+            $stmtPickOwner->execute([$pickId, $teamId]);
+            if (!$stmtPickOwner->fetchColumn()) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Você só pode oferecer picks que pertencem ao seu time']);
+                exit;
+            }
+        }
+    }
+
+    // Validar posse das picks solicitadas
+    if (!empty($requestPicks)) {
+        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        foreach ($requestPicks as $pickId) {
+            $pickId = (int)$pickId;
+            $stmtPickOwner->execute([$pickId, $toTeamId]);
+            if (!$stmtPickOwner->fetchColumn()) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Só é possível pedir picks que pertencem ao time alvo']);
+                exit;
+            }
+        }
+    }
     
     try {
     $pdo->beginTransaction();
@@ -323,19 +351,28 @@ if ($method === 'PUT') {
             $stmtItems->execute([$tradeId]);
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
             
+            $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
+            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
+            
             foreach ($items as $item) {
                 if ($item['player_id']) {
                     // Transferir jogador
+                    $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransfer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
-                    $stmtTransfer->execute([$newTeamId, $item['player_id']]);
+                    $stmtTransferPlayer->execute([$newTeamId, $item['player_id'], $expectedOwner]);
+                    if ($stmtTransferPlayer->rowCount() === 0) {
+                        throw new Exception('Jogador não está mais disponível para transferência');
+                    }
                 }
                 
                 if ($item['pick_id']) {
                     // Transferir pick
+                    $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransfer = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
-                    $stmtTransfer->execute([$newTeamId, $item['pick_id']]);
+                    $stmtTransferPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
+                    if ($stmtTransferPick->rowCount() === 0) {
+                        throw new Exception('Pick não está mais disponível para transferência');
+                    }
                 }
             }
         }
