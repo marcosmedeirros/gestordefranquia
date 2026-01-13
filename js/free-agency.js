@@ -9,7 +9,15 @@ const api = async (path, options = {}) => {
   return body;
 };
 
+const DEFAULT_LIMITS = {
+  waiversUsed: 0,
+  waiversMax: 3,
+  signingsUsed: 0,
+  signingsMax: 3,
+};
+
 let allFreeAgents = [];
+let currentLimits = { ...DEFAULT_LIMITS };
 
 // Cores por OVR
 function getOvrColor(ovr) {
@@ -34,7 +42,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('search-fa')?.addEventListener('input', filterFreeAgents);
   document.getElementById('filter-position')?.addEventListener('change', filterFreeAgents);
   document.getElementById('btn-send-offer')?.addEventListener('click', sendOffer);
-  document.getElementById('btn-reset-fa')?.addEventListener('click', resetFreeAgency);
   
   // Tab change listeners
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
@@ -49,11 +56,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadLimits() {
   try {
     const data = await api('free-agency.php?action=limits');
-    document.getElementById('waivers-count').textContent = `${data.waivers_used}/${data.waivers_max}`;
-    document.getElementById('signings-count').textContent = `${data.signings_used}/${data.signings_max}`;
+    currentLimits = {
+      waiversUsed: Number.isFinite(data.waivers_used) ? data.waivers_used : DEFAULT_LIMITS.waiversUsed,
+      waiversMax: Number.isFinite(data.waivers_max) ? data.waivers_max : DEFAULT_LIMITS.waiversMax,
+      signingsUsed: Number.isFinite(data.signings_used) ? data.signings_used : DEFAULT_LIMITS.signingsUsed,
+      signingsMax: Number.isFinite(data.signings_max) ? data.signings_max : DEFAULT_LIMITS.signingsMax,
+    };
+    updateLimitBadges();
   } catch (err) {
     console.error('Erro ao carregar limites:', err);
+    currentLimits = { ...DEFAULT_LIMITS };
+    updateLimitBadges();
   }
+}
+
+function updateLimitBadges() {
+  const waiversCount = document.getElementById('waivers-count');
+  const signingsCount = document.getElementById('signings-count');
+  const waiversBadge = document.getElementById('waivers-badge');
+  const signingsBadge = document.getElementById('signings-badge');
+
+  if (waiversCount) {
+    waiversCount.textContent = `${currentLimits.waiversUsed}/${currentLimits.waiversMax}`;
+  }
+  if (signingsCount) {
+    signingsCount.textContent = `${currentLimits.signingsUsed}/${currentLimits.signingsMax}`;
+  }
+  if (waiversBadge) {
+    waiversBadge.classList.toggle('bg-danger', currentLimits.waiversUsed >= currentLimits.waiversMax);
+    waiversBadge.classList.toggle('bg-secondary', currentLimits.waiversUsed < currentLimits.waiversMax);
+  }
+  if (signingsBadge) {
+    signingsBadge.classList.toggle('bg-danger', currentLimits.signingsUsed >= currentLimits.signingsMax);
+    signingsBadge.classList.toggle('bg-success', currentLimits.signingsUsed < currentLimits.signingsMax);
+  }
+}
+
+function remainingSignings() {
+  return Math.max(0, currentLimits.signingsMax - currentLimits.signingsUsed);
 }
 
 async function loadFreeAgents() {
@@ -99,6 +139,9 @@ function renderFreeAgents(agents) {
   container.innerHTML = agents.map(fa => {
     const posDisplay = fa.secondary_position ? `${fa.position}/${fa.secondary_position}` : fa.position;
     const ovrColor = getOvrColor(fa.ovr);
+    const limitReached = remainingSignings() <= 0;
+    const disabledAttr = limitReached ? 'disabled' : '';
+    const limitLabel = limitReached ? '<small class="text-danger d-block mt-1">Limite de contratações atingido</small>' : '';
     
     return `
       <div class="col-md-6 col-lg-4">
@@ -117,9 +160,10 @@ function renderFreeAgents(agents) {
             </div>
             <div class="text-end">
               <div class="player-ovr" style="color: ${ovrColor}">${fa.ovr}</div>
-              <button class="btn btn-sm btn-orange mt-2" onclick="openOfferModal(${fa.id}, '${fa.name.replace(/'/g, "\\'")}', '${posDisplay}', ${fa.ovr})">
+              <button class="btn btn-sm btn-orange mt-2" ${disabledAttr} onclick="openOfferModal(${fa.id}, '${fa.name.replace(/'/g, "\\'")}', '${posDisplay}', ${fa.ovr})">
                 <i class="bi bi-send"></i> Propor
               </button>
+              ${limitLabel}
             </div>
           </div>
         </div>
@@ -129,6 +173,10 @@ function renderFreeAgents(agents) {
 }
 
 function openOfferModal(faId, name, position, ovr) {
+  if (!canSendMoreOffers()) {
+    alert('Você já atingiu o limite de contratações para esta temporada (3).');
+    return;
+  }
   document.getElementById('offer-fa-id').value = faId;
   document.getElementById('offer-player-name').textContent = name;
   document.getElementById('offer-player-info').textContent = `${position} - OVR ${ovr}`;
@@ -137,9 +185,18 @@ function openOfferModal(faId, name, position, ovr) {
   new bootstrap.Modal(document.getElementById('offerModal')).show();
 }
 
+function canSendMoreOffers() {
+  return remainingSignings() > 0;
+}
+
 async function sendOffer() {
   const faId = document.getElementById('offer-fa-id').value;
   const notes = document.getElementById('offer-notes').value;
+  if (!canSendMoreOffers()) {
+    alert('Você já atingiu o limite de contratações para esta temporada (3).');
+    bootstrap.Modal.getInstance(document.getElementById('offerModal'))?.hide();
+    return;
+  }
   
   try {
     const data = await api('free-agency.php', {
@@ -155,6 +212,7 @@ async function sendOffer() {
     bootstrap.Modal.getInstance(document.getElementById('offerModal')).hide();
     loadFreeAgents();
     loadMyOffers();
+    loadLimits();
   } catch (err) {
     alert(err.error || 'Erro ao enviar proposta');
   }
@@ -303,17 +361,5 @@ async function rejectOffer(offerId) {
     loadAdminOffers();
   } catch (err) {
     alert(err.error || 'Erro ao rejeitar');
-  }
-}
-
-async function resetFreeAgency() {
-  if (!confirm('ATENÇÃO: Isso irá remover TODOS os free agents e propostas da liga, e resetar os contadores de dispensas/contratações. Continuar?')) return;
-  
-  try {
-    const data = await api(`free-agency.php?action=reset&league=${window.__USER_LEAGUE__}`, { method: 'DELETE' });
-    alert(data.message || 'Free Agency resetada!');
-    location.reload();
-  } catch (err) {
-    alert(err.error || 'Erro ao resetar');
   }
 }

@@ -130,13 +130,17 @@ if ($method === 'GET') {
     }
     
     if ($action === 'limits') {
+        $waiversUsed = (int)($team['waivers_used'] ?? 0);
+        $signingsUsed = (int)($team['fa_signings_used'] ?? 0);
         // Retornar limites do time
         echo json_encode([
             'success' => true,
-            'waivers_used' => (int)($team['waivers_used'] ?? 0),
+            'waivers_used' => $waiversUsed,
             'waivers_max' => $MAX_WAIVERS,
-            'signings_used' => (int)($team['fa_signings_used'] ?? 0),
-            'signings_max' => $MAX_SIGNINGS
+            'waivers_remaining' => max(0, $MAX_WAIVERS - $waiversUsed),
+            'signings_used' => $signingsUsed,
+            'signings_max' => $MAX_SIGNINGS,
+            'signings_remaining' => max(0, $MAX_SIGNINGS - $signingsUsed)
         ]);
         exit;
     }
@@ -243,6 +247,14 @@ if ($method === 'POST') {
         if (!$freeAgent) {
             http_response_code(404);
             echo json_encode(['success' => false, 'error' => 'Free agent não encontrado']);
+            exit;
+        }
+
+        // Verificar limite de contratações do time
+        $signingsUsed = (int)($team['fa_signings_used'] ?? 0);
+        if ($signingsUsed >= $MAX_SIGNINGS) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Você atingiu o limite de contratações na temporada']);
             exit;
         }
         
