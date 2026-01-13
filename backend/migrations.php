@@ -33,12 +33,40 @@ function runMigrations() {
                 INDEX idx_league_settings_league (league)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
+        'create_sprints' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS sprints (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                sprint_number INT NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NULL,
+                status ENUM('active','completed') DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_league_sprint (league, sprint_number)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_league_sprint_config' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS league_sprint_config (
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') PRIMARY KEY,
+                max_seasons INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
         'seed_league_settings' => [
             'sql' => "INSERT IGNORE INTO league_settings (league, cap_min, cap_max, max_trades) VALUES
                 ('ELITE', 618, 648, 3),
                 ('NEXT', 618, 648, 3),
                 ('RISE', 618, 648, 3),
                 ('ROOKIE', 618, 648, 3);"
+        ],
+        'seed_league_sprint_config' => [
+            'sql' => "INSERT INTO league_sprint_config (league, max_seasons) VALUES
+                ('ELITE', 20),
+                ('NEXT', 15),
+                ('RISE', 10),
+                ('ROOKIE', 10)
+            ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons);"
         ],
         'insert_leagues' => [
             'condition' => "SELECT COUNT(*) as cnt FROM leagues",
@@ -78,11 +106,12 @@ function runMigrations() {
                 INDEX idx_division_league (league)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
-        'create_teams' => [
+    'create_teams' => [
             'sql' => "CREATE TABLE IF NOT EXISTS teams (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
                 league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+        current_cycle INT NOT NULL DEFAULT 1,
                 conference ENUM('LESTE','OESTE') NULL,
                 name VARCHAR(120) NOT NULL,
                 city VARCHAR(120) NOT NULL,
@@ -102,7 +131,9 @@ function runMigrations() {
                 team_id INT NOT NULL,
                 name VARCHAR(120) NOT NULL,
                 age INT NOT NULL,
+                seasons_in_league INT NOT NULL DEFAULT 0,
                 position VARCHAR(20) NOT NULL,
+                secondary_position VARCHAR(20) NULL,
                 role ENUM('Titular','Banco','Outro','G-League') NOT NULL DEFAULT 'Titular',
                 available_for_trade TINYINT(1) NOT NULL DEFAULT 0,
                 ovr INT NOT NULL,
@@ -151,12 +182,99 @@ function runMigrations() {
         'create_seasons' => [
             'sql' => "CREATE TABLE IF NOT EXISTS seasons (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                year INT NOT NULL UNIQUE,
+                sprint_id INT NOT NULL,
                 league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
-                status ENUM('planejamento','regular','playoffs','finalizado') DEFAULT 'planejamento',
+                season_number INT NOT NULL,
+                year INT NOT NULL,
+                start_date DATE NULL,
+                end_date DATE NULL,
+                status ENUM('draft','regular','playoffs','completed') DEFAULT 'draft',
+                current_phase VARCHAR(50) DEFAULT 'draft',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_season_year_league (year, league),
-                INDEX idx_season_league (league)
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_season_sprint FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
+                INDEX idx_season_league (league),
+                INDEX idx_season_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_draft_pool' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS draft_pool (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                position ENUM('PG','SG','SF','PF','C') NOT NULL,
+                secondary_position ENUM('PG','SG','SF','PF','C') NULL,
+                age INT NOT NULL,
+                ovr INT NOT NULL,
+                photo_url VARCHAR(255) NULL,
+                bio TEXT NULL,
+                strengths TEXT NULL,
+                weaknesses TEXT NULL,
+                draft_status ENUM('available','drafted') DEFAULT 'available',
+                drafted_by_team_id INT NULL,
+                draft_order INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_draft_pool_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                CONSTRAINT fk_draft_pool_team FOREIGN KEY (drafted_by_team_id) REFERENCES teams(id) ON DELETE SET NULL,
+                INDEX idx_draft_pool_season_status (season_id, draft_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_season_standings' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS season_standings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT NOT NULL,
+                wins INT DEFAULT 0,
+                losses INT DEFAULT 0,
+                points_for INT DEFAULT 0,
+                points_against INT DEFAULT 0,
+                position INT NULL,
+                conference VARCHAR(50) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_standings_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                CONSTRAINT fk_standings_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                UNIQUE KEY uniq_season_team (season_id, team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_team_ranking_points' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS team_ranking_points (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                team_id INT NOT NULL,
+                season_id INT NOT NULL,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                regular_season_points INT DEFAULT 0,
+                playoff_champion TINYINT(1) DEFAULT 0,
+                playoff_runner_up TINYINT(1) DEFAULT 0,
+                playoff_conference_finals TINYINT(1) DEFAULT 0,
+                playoff_second_round TINYINT(1) DEFAULT 0,
+                playoff_first_round TINYINT(1) DEFAULT 0,
+                playoff_points INT DEFAULT 0,
+                awards_count INT DEFAULT 0,
+                awards_points INT DEFAULT 0,
+                points INT DEFAULT 0,
+                reason VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_rank_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                CONSTRAINT fk_rank_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                INDEX idx_rank_team (team_id),
+                INDEX idx_rank_season (season_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_waivers' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS waivers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT NOT NULL,
+                player_id INT NOT NULL,
+                claim_order INT DEFAULT 0,
+                status ENUM('pending','approved','denied') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_waivers_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                CONSTRAINT fk_waivers_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                CONSTRAINT fk_waivers_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                INDEX idx_waivers_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
         'create_awards' => [
