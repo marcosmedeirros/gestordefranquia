@@ -97,6 +97,30 @@ function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
     return array_sum($slice);
 }
 
+function ensureTeamFreeAgencyColumns(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $needsWaivers = $pdo->query("SHOW COLUMNS FROM teams LIKE 'waivers_used'")->rowCount() === 0;
+        if ($needsWaivers) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN waivers_used INT DEFAULT 0");
+        }
+
+        $needsSignings = $pdo->query("SHOW COLUMNS FROM teams LIKE 'fa_signings_used'")->rowCount() === 0;
+        if ($needsSignings) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN fa_signings_used INT DEFAULT 0");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureTeamFreeAgencyColumns] ' . $e->getMessage());
+    }
+
+    $checked = true;
+}
+
 /**
  * Retorna URL de imagem válida ou imagem padrão
  */

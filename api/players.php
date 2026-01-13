@@ -11,6 +11,8 @@ $config = loadConfig();
 $method = $_SERVER['REQUEST_METHOD'];
 $MAX_WAIVERS = 3;
 
+ensureTeamFreeAgencyColumns($pdo);
+
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
     

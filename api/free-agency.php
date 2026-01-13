@@ -21,6 +21,8 @@ $pdo = db();
 $config = loadConfig();
 $method = $_SERVER['REQUEST_METHOD'];
 
+ensureTeamFreeAgencyColumns($pdo);
+
 // Limites
 $MAX_WAIVERS = 3; // Máximo de dispensas por temporada
 $MAX_SIGNINGS = 3; // Máximo de contratações FA por temporada
