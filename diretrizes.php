@@ -103,6 +103,7 @@ try {
             <li><a href="/diretrizes.php" class="active"><i class="bi bi-clipboard-check"></i> Diretrizes</a></li>
             <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
             <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a></li>
+            <li><a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a></li>
             <?php endif; ?>
             <li><a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a></li>
         </ul>
