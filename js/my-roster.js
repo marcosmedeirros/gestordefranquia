@@ -4,8 +4,15 @@ const api = async (path, options = {}) => {
       headers: { 'Content-Type': 'application/json' },
       ...options,
     });
+    const raw = await res.text();
     let body = {};
-    try { body = await res.json(); } catch { body = {}; }
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch (err) {
+        console.error('Falha ao parsear JSON da resposta:', { url, raw, err });
+      }
+    }
     console.log('API Response Status:', res.status, 'Body:', body);
     return { res, body };
   };
@@ -372,6 +379,7 @@ async function deletePlayer(id) {
       if (typeof loadFreeAgents === 'function') loadFreeAgents();
     }
   } catch (err) {
+    console.error('Erro ao dispensar jogador:', err);
     alert(err.error || 'Erro ao dispensar jogador');
   }
 }
