@@ -31,11 +31,12 @@ async function loadHistory(league) {
         const history = data.history[league] || [];
         
         if (history.length === 0) {
+            const leagueLabel = league.toUpperCase();
             container.innerHTML = `
                 <div class="text-center py-5">
-                    <i class="bi bi-clock-history display-1 text-muted"></i>
+                    <i class="bi bi-clock-history display-1 text-white-50"></i>
                     <h4 class="text-white mt-3">Nenhum histórico registrado</h4>
-                    <p class="text-muted">O histórico de temporadas da liga ${league} aparecerá aqui após ser registrado.</p>
+                    <p class="text-white mt-2">O histórico de temporadas da liga ${leagueLabel} aparecerá aqui após ser registrado.</p>
                 </div>
             `;
             return;
