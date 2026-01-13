@@ -19,7 +19,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
-function resolveSeasonYear(PDO $pdo): int {
+function resolveSeasonYear(PDO $pdo, string $league): int {
     $currentYear = (int)date('Y');
 
     try {
@@ -29,6 +29,9 @@ function resolveSeasonYear(PDO $pdo): int {
         }
 
         $stmtIndexes = $pdo->query('SHOW INDEX FROM seasons');
+        $hasYearUnique = false;
+        $hasYearLeagueUnique = false;
+
         if ($stmtIndexes) {
             $uniqueIndexes = [];
             while ($index = $stmtIndexes->fetch(PDO::FETCH_ASSOC)) {
@@ -41,20 +44,43 @@ function resolveSeasonYear(PDO $pdo): int {
                 }
             }
 
-            $hasYearUnique = false;
             foreach ($uniqueIndexes as $columns) {
+                sort($columns);
                 if (count($columns) === 1 && $columns[0] === 'year') {
                     $hasYearUnique = true;
-                    break;
+                }
+                if (count($columns) === 2 && in_array('year', $columns, true) && in_array('league', $columns, true)) {
+                    $hasYearLeagueUnique = true;
                 }
             }
-
-            if ($hasYearUnique) {
-                $stmtMaxYear = $pdo->query('SELECT COALESCE(MAX(year), 0) as max_year FROM seasons');
-                $maxYear = (int)($stmtMaxYear->fetch()['max_year'] ?? 0);
-                return max($currentYear, $maxYear + 1);
-            }
         }
+
+        $yearCandidate = $currentYear;
+
+        if ($hasYearUnique) {
+            $stmtMaxYear = $pdo->query('SELECT COALESCE(MAX(year), 0) as max_year FROM seasons');
+            $maxYear = (int)($stmtMaxYear->fetch()['max_year'] ?? 0);
+            $yearCandidate = max($yearCandidate, $maxYear + 1);
+        }
+
+        if ($hasYearLeagueUnique) {
+            $stmtMaxLeagueYear = $pdo->prepare('SELECT COALESCE(MAX(year), 0) as max_year FROM seasons WHERE league = ?');
+            $stmtMaxLeagueYear->execute([$league]);
+            $maxLeagueYear = (int)($stmtMaxLeagueYear->fetch()['max_year'] ?? 0);
+            $yearCandidate = max($yearCandidate, $maxLeagueYear + 1);
+        }
+
+        // Garantir que não exista conflito com combinação liga+ano, mesmo sem índice único
+        $stmtExists = $pdo->prepare('SELECT COUNT(*) FROM seasons WHERE league = ? AND year = ?');
+        while (true) {
+            $stmtExists->execute([$league, $yearCandidate]);
+            if ((int)$stmtExists->fetchColumn() === 0) {
+                break;
+            }
+            $yearCandidate++;
+        }
+
+        return $yearCandidate;
     } catch (Exception $ignored) {
         // Mantém ano atual se não for possível inspecionar os índices
     }
@@ -175,7 +201,7 @@ try {
             
             // Criar nova temporada
             $seasonNumber = $seasonCount + 1;
-            $year = resolveSeasonYear($pdo);
+            $year = resolveSeasonYear($pdo, $league);
             
             $stmtSeason = $pdo->prepare("
                 INSERT INTO seasons (sprint_id, league, season_number, year, start_date, status, current_phase)
