@@ -39,9 +39,9 @@ let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
 const DEFAULT_FA_LIMITS = {
   waiversUsed: 0,
-  waiversMax: 0,
+  waiversMax: 3,
   signingsUsed: 0,
-  signingsMax: 0,
+  signingsMax: 3,
 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
@@ -51,9 +51,9 @@ async function loadFreeAgencyLimits() {
     const data = await api('free-agency.php?action=limits');
     currentFALimits = {
       waiversUsed: Number.isFinite(data.waivers_used) ? data.waivers_used : 0,
-      waiversMax: Number.isFinite(data.waivers_max) ? data.waivers_max : 0,
+      waiversMax: Number.isFinite(data.waivers_max) && data.waivers_max > 0 ? data.waivers_max : DEFAULT_FA_LIMITS.waiversMax,
       signingsUsed: Number.isFinite(data.signings_used) ? data.signings_used : 0,
-      signingsMax: Number.isFinite(data.signings_max) ? data.signings_max : 0,
+      signingsMax: Number.isFinite(data.signings_max) && data.signings_max > 0 ? data.signings_max : DEFAULT_FA_LIMITS.signingsMax,
     };
   } catch (err) {
     console.warn('Não foi possível carregar limites de FA:', err);
