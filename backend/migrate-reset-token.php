@@ -1,7 +1,7 @@
 <?php
 /**
  * Migração para adicionar coluna reset_token_expiry
- * Execute acessando: https://marcosmedeiros.page/backend/migrate-reset-token.php
+ * Execute acessando: https://fbabrasil.com.br/backend/migrate-reset-token.php
  */
 
 require_once __DIR__ . '/db.php';

@@ -53,7 +53,7 @@ function sendVerificationEmail(string $email, string $token): bool
 function sendPasswordResetEmail(string $email, string $token, string $name): bool
 {
     $config = loadConfig();
-    $resetUrl = 'https://marcosmedeiros.page/reset-password.php?token=' . urlencode($token);
+    $resetUrl = 'https://fbabrasil.com.br/reset-password.php?token=' . urlencode($token);
     $subject = 'Recuperação de Senha - FBA Manager';
     
     $message = "

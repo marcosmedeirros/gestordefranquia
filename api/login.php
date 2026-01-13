@@ -57,7 +57,7 @@ try {
     // Se o erro é sobre coluna 'league' não existir, retorna mensagem específica
     if (strpos($e->getMessage(), "Unknown column 'league'") !== false) {
         jsonResponse(500, [
-            'error' => 'Schema do banco desatualizado. Execute a migração: https://marcosmedeiros.page/backend/migrate.php',
+            'error' => 'Schema do banco desatualizado. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
             'technical' => $e->getMessage()
         ]);
     }
