@@ -113,7 +113,7 @@
                             <div class="mb-3">
                                 <label class="form-label text-light-gray">Telefone (WhatsApp)</label>
                                 <input name="phone" type="tel" class="form-control form-control-lg" placeholder="Ex.: 55999999999" required maxlength="13">
-                                <small class="text-light-gray">Digite apenas números (55 + DDD + telefone).</small>
+                                <small class="text-light-gray">Digite apenas números (DDD + telefone).</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-gray">Senha</label>
