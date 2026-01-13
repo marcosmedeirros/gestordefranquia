@@ -20,6 +20,26 @@ function runMigrations() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
+        'create_league_settings' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS league_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL UNIQUE,
+                cap_min INT NOT NULL DEFAULT 0,
+                cap_max INT NOT NULL DEFAULT 0,
+                max_trades INT NOT NULL DEFAULT 3,
+                edital TEXT NULL,
+                edital_file VARCHAR(255) NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_league_settings_league (league)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'seed_league_settings' => [
+            'sql' => "INSERT IGNORE INTO league_settings (league, cap_min, cap_max, max_trades) VALUES
+                ('ELITE', 618, 648, 3),
+                ('NEXT', 618, 648, 3),
+                ('RISE', 618, 648, 3),
+                ('ROOKIE', 618, 648, 3);"
+        ],
         'insert_leagues' => [
             'condition' => "SELECT COUNT(*) as cnt FROM leagues",
             'sql' => "INSERT IGNORE INTO leagues (name, description) VALUES 
@@ -283,6 +303,35 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_users_phone: " . $e->getMessage();
+    }
+
+    try {
+        $hasLeagueSettings = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
+        if ($hasLeagueSettings) {
+            $hasMaxTrades = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'max_trades'")->fetch();
+            if (!$hasMaxTrades) {
+                $pdo->exec("ALTER TABLE league_settings ADD COLUMN max_trades INT NOT NULL DEFAULT 3 AFTER cap_max");
+            }
+
+            $hasEdital = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'edital'")->fetch();
+            if (!$hasEdital) {
+                $pdo->exec("ALTER TABLE league_settings ADD COLUMN edital TEXT NULL AFTER max_trades");
+            }
+
+            $hasEditalFile = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'edital_file'")->fetch();
+            if (!$hasEditalFile) {
+                $pdo->exec("ALTER TABLE league_settings ADD COLUMN edital_file VARCHAR(255) NULL AFTER edital");
+            }
+
+            $pdo->exec("UPDATE league_settings SET max_trades = 3 WHERE max_trades IS NULL OR max_trades = 0");
+            $pdo->exec("INSERT IGNORE INTO league_settings (league, cap_min, cap_max, max_trades) VALUES
+                ('ELITE', 618, 648, 3),
+                ('NEXT', 618, 648, 3),
+                ('RISE', 618, 648, 3),
+                ('ROOKIE', 618, 648, 3)");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_league_settings: " . $e->getMessage();
     }
 
     return [

@@ -91,10 +91,16 @@ if ($teamCap < $capMin || $teamCap > $capMax) {
 }
 
 // Buscar edital da liga
-$stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
-$stmtEdital->execute([$team['league']]);
-$editalData = $stmtEdital->fetch();
-$hasEdital = $editalData && !empty($editalData['edital_file']);
+$editalData = null;
+$hasEdital = false;
+try {
+    $stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
+    $stmtEdital->execute([$team['league']]);
+    $editalData = $stmtEdital->fetch();
+    $hasEdital = $editalData && !empty($editalData['edital_file']);
+} catch (Exception $e) {
+    // Pode ocorrer antes da migração criar a tabela
+}
 
 // Buscar temporada atual da liga
 // Buscar prazo ativo de diretrizes
