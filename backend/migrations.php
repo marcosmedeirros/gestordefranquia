@@ -218,21 +218,27 @@ function runMigrations() {
         'create_trades' => [
             'sql' => "CREATE TABLE IF NOT EXISTS trades (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                season_year INT NOT NULL,
-                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
-                team_from INT NOT NULL,
-                team_to INT NOT NULL,
-                players_given TEXT,
-                players_received TEXT,
-                picks_given TEXT,
-                picks_received TEXT,
-                status ENUM('proposto','aceito','recusado') DEFAULT 'proposto',
-                proposed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                resolved_at TIMESTAMP NULL,
-                CONSTRAINT fk_trade_from FOREIGN KEY (team_from) REFERENCES teams(id) ON DELETE CASCADE,
-                CONSTRAINT fk_trade_to FOREIGN KEY (team_to) REFERENCES teams(id) ON DELETE CASCADE,
-                INDEX idx_trade_season (season_year),
-                INDEX idx_trade_league (league)
+                from_team_id INT NOT NULL,
+                to_team_id INT NOT NULL,
+                status ENUM('pending','accepted','rejected','cancelled','countered') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                notes TEXT,
+                FOREIGN KEY (from_team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                FOREIGN KEY (to_team_id) REFERENCES teams(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_trade_items' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS trade_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                trade_id INT NOT NULL,
+                player_id INT NULL,
+                pick_id INT NULL,
+                from_team TINYINT(1) DEFAULT 1,
+                FOREIGN KEY (trade_id) REFERENCES trades(id) ON DELETE CASCADE,
+                FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                FOREIGN KEY (pick_id) REFERENCES picks(id) ON DELETE CASCADE,
+                INDEX idx_trade_items_trade (trade_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ]
     ];
@@ -332,6 +338,89 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_league_settings: " . $e->getMessage();
+    }
+
+    try {
+        $hasTradesTable = $pdo->query("SHOW TABLES LIKE 'trades'")->fetch();
+        if ($hasTradesTable) {
+            $hasFromTeamId = $pdo->query("SHOW COLUMNS FROM trades LIKE 'from_team_id'")->fetch();
+            if (!$hasFromTeamId) {
+                $hasTeamFrom = $pdo->query("SHOW COLUMNS FROM trades LIKE 'team_from'")->fetch();
+                if ($hasTeamFrom) {
+                    $pdo->exec("ALTER TABLE trades CHANGE COLUMN team_from from_team_id INT NOT NULL");
+                } else {
+                    $pdo->exec("ALTER TABLE trades ADD COLUMN from_team_id INT NOT NULL AFTER id");
+                }
+            }
+
+            $hasToTeamId = $pdo->query("SHOW COLUMNS FROM trades LIKE 'to_team_id'")->fetch();
+            if (!$hasToTeamId) {
+                $hasTeamTo = $pdo->query("SHOW COLUMNS FROM trades LIKE 'team_to'")->fetch();
+                if ($hasTeamTo) {
+                    $pdo->exec("ALTER TABLE trades CHANGE COLUMN team_to to_team_id INT NOT NULL");
+                } else {
+                    $pdo->exec("ALTER TABLE trades ADD COLUMN to_team_id INT NOT NULL AFTER from_team_id");
+                }
+            }
+
+            $hasStatus = $pdo->query("SHOW COLUMNS FROM trades LIKE 'status'")->fetch();
+            if (!$hasStatus) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN status ENUM('pending','accepted','rejected','cancelled','countered') DEFAULT 'pending' AFTER to_team_id");
+            } else {
+                $pdo->exec("ALTER TABLE trades MODIFY COLUMN status ENUM('pending','accepted','rejected','cancelled','countered') DEFAULT 'pending'");
+            }
+
+            $hasCreatedAt = $pdo->query("SHOW COLUMNS FROM trades LIKE 'created_at'")->fetch();
+            if (!$hasCreatedAt) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER status");
+            }
+
+            $hasUpdatedAt = $pdo->query("SHOW COLUMNS FROM trades LIKE 'updated_at'")->fetch();
+            if (!$hasUpdatedAt) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
+            }
+
+            $hasNotes = $pdo->query("SHOW COLUMNS FROM trades LIKE 'notes'")->fetch();
+            if (!$hasNotes) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN notes TEXT NULL AFTER updated_at");
+            }
+
+            $idxFrom = $pdo->query("SHOW INDEX FROM trades WHERE Key_name = 'idx_trades_from_team'")->fetch();
+            if (!$idxFrom) {
+                $pdo->exec("CREATE INDEX idx_trades_from_team ON trades(from_team_id)");
+            }
+
+            $idxTo = $pdo->query("SHOW INDEX FROM trades WHERE Key_name = 'idx_trades_to_team'")->fetch();
+            if (!$idxTo) {
+                $pdo->exec("CREATE INDEX idx_trades_to_team ON trades(to_team_id)");
+            }
+
+            $idxStatus = $pdo->query("SHOW INDEX FROM trades WHERE Key_name = 'idx_trades_status'")->fetch();
+            if (!$idxStatus) {
+                $pdo->exec("CREATE INDEX idx_trades_status ON trades(status)");
+            }
+        }
+
+        $hasTradeItems = $pdo->query("SHOW TABLES LIKE 'trade_items'")->fetch();
+        if (!$hasTradeItems) {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS trade_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                trade_id INT NOT NULL,
+                player_id INT NULL,
+                pick_id INT NULL,
+                from_team TINYINT(1) DEFAULT 1,
+                FOREIGN KEY (trade_id) REFERENCES trades(id) ON DELETE CASCADE,
+                FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                FOREIGN KEY (pick_id) REFERENCES picks(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+        } else {
+            $idxTradeItems = $pdo->query("SHOW INDEX FROM trade_items WHERE Key_name = 'idx_trade_items_trade'")->fetch();
+            if (!$idxTradeItems) {
+                $pdo->exec("CREATE INDEX idx_trade_items_trade ON trade_items(trade_id)");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_trades: " . $e->getMessage();
     }
 
     return [

@@ -23,9 +23,13 @@ if ($team) {
 // Contar trades criadas pelo usuário nesta temporada
 $tradeCount = 0;
 if ($teamId) {
+  try {
     $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
     $stmtCount->execute([$teamId]);
     $tradeCount = $stmtCount->fetch()['total'] ?? 0;
+  } catch (Exception $e) {
+    $tradeCount = 0;
+  }
 }
 ?>
 <!DOCTYPE html>
