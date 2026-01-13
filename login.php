@@ -112,8 +112,8 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-gray">Telefone (WhatsApp)</label>
-                                <input name="phone" type="tel" class="form-control form-control-lg" placeholder="(11) 90000-0000" required maxlength="20">
-                                <small class="text-light-gray">Usaremos este contato para facilitar negociações.</small>
+                                <input name="phone" type="tel" class="form-control form-control-lg" placeholder="Ex.: 55999999999" required maxlength="13">
+                                <small class="text-light-gray">Digite apenas números (55 + DDD + telefone).</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-gray">Senha</label>

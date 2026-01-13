@@ -174,8 +174,8 @@ $team = $stmtTeam->fetch() ?: null;
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-white fw-bold">Telefone (WhatsApp)</label>
-                                <input type="tel" name="phone" class="form-control" value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>" placeholder="(11) 90000-0000" required maxlength="15">
-                                <small class="text-light-gray">Mantenha atualizado para facilitar contato entre franquias.</small>
+                                <input type="tel" name="phone" class="form-control" value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>" placeholder="Ex.: 55999999999" required maxlength="13">
+                                <small class="text-light-gray">Digite apenas números (55 + DDD + telefone).</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-white fw-bold">Liga</label>

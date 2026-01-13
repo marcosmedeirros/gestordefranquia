@@ -128,31 +128,23 @@ function normalizeBrazilianPhone(?string $input): ?string
     if ($digits === '') {
         return null;
     }
-    $digits = ltrim($digits, '0');
 
-    if (str_starts_with($digits, '55')) {
-        if (strlen($digits) < 12) {
-            $local = substr($digits, 2);
-            if (strlen($local) < 10) {
-                return null;
-            }
-            $digits = '55' . substr($local, 0, 11);
-        }
+    if (strlen($digits) < 10) {
+        return null;
+    }
+
+    if (strlen($digits) > 13) {
+        $digits = substr($digits, 0, 13);
+    }
+
+    if (!str_starts_with($digits, '55')) {
+        $digits = '55' . $digits;
         if (strlen($digits) > 13) {
             $digits = substr($digits, 0, 13);
         }
-        return $digits;
     }
 
-    if (strlen($digits) > 11) {
-        $digits = substr($digits, -11);
-    }
-
-    if (strlen($digits) === 11 || strlen($digits) === 10) {
-        return '55' . $digits;
-    }
-
-    return null;
+    return $digits;
 }
 
 function formatBrazilianPhone(?string $phone): ?string
