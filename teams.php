@@ -249,7 +249,8 @@ unset($t); // Importante: limpar referência do foreach
                                             <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
                                         </button>
                                         <?php if (!empty($t['owner_phone_whatsapp'])): ?>
-                                            <a class="btn btn-sm btn-outline-success" href="https://wa.me/<?= htmlspecialchars($t['owner_phone_whatsapp']) ?>" target="_blank" rel="noopener">
+                                            <?php $defaultMsg = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?'); ?>
+                                            <a class="btn btn-sm btn-outline-success" href="https://api.whatsapp.com/send/?phone=<?= htmlspecialchars($t['owner_phone_whatsapp']) ?>&text=<?= $defaultMsg ?>&type=phone_number&app_absent=0" target="_blank" rel="noopener">
                                                 <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">Falar</span>
                                             </a>
                                         <?php endif; ?>

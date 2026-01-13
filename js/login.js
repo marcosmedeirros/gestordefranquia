@@ -19,7 +19,9 @@ const formatPhone = (value = '') => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
     if (digits.length <= 2) return digits;
     if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    const middleLength = digits.length === 10 ? 4 : 5;
+    const middleEnd = 2 + middleLength;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, middleEnd)}-${digits.slice(middleEnd)}`;
 };
 
 document.querySelectorAll('input[name="phone"]').forEach((input) => {
