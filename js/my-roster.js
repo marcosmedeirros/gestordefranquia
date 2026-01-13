@@ -365,7 +365,8 @@ async function deletePlayer(id) {
       body: JSON.stringify({ action: 'waive', player_id: id }) 
     });
     alert(res.message || 'Jogador dispensado e enviado para Free Agency!');
-    loadPlayers();
+    await loadPlayers();
+    await loadFreeAgencyLimits();
     // Se estiver aberta a tela de Free Agency, recarregar a lista de FAs
     if (window.location.pathname.includes('free-agency.php')) {
       if (typeof loadFreeAgents === 'function') loadFreeAgents();
@@ -422,17 +423,27 @@ document.addEventListener('click', (e) => {
 
 // Delegation for actions (tabela)
 document.getElementById('players-tbody')?.addEventListener('click', (e) => {
-  const target = e.target;
-  if (target.classList.contains('btn-waive-player')) {
-    const id = Number(target.dataset.id);
-    deletePlayer(id);
-  } else if (target.classList.contains('btn-edit-player')) {
-    const id = Number(target.dataset.id);
+  const button = e.target.closest('button');
+  if (!button) return;
+
+  if (button.classList.contains('btn-waive-player')) {
+    const id = Number(button.dataset.id);
+    if (Number.isFinite(id) && id > 0) deletePlayer(id);
+    return;
+  }
+
+  if (button.classList.contains('btn-edit-player')) {
+    const id = Number(button.dataset.id);
+    if (!Number.isFinite(id)) return;
     const p = getRowPlayer(id);
     if (p) openEditModal(p);
-  } else if (target.classList.contains('btn-toggle-trade')) {
-    const id = Number(target.dataset.id);
-    const current = Number(target.dataset.trade);
+    return;
+  }
+
+  if (button.classList.contains('btn-toggle-trade')) {
+    const id = Number(button.dataset.id);
+    if (!Number.isFinite(id)) return;
+    const current = Number(button.dataset.trade);
     updatePlayer({ id, available_for_trade: current ? 0 : 1 });
   }
 });
