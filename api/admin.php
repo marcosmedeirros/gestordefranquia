@@ -16,6 +16,7 @@ if (!$user || ($user['user_type'] ?? 'jogador') !== 'admin') {
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
+$validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
 // GET - Listar dados do admin
 if ($method === 'GET') {
@@ -232,6 +233,93 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'divisions' => $divisions]);
             break;
 
+        case 'free_agents':
+            $league = strtoupper($_GET['league'] ?? 'ELITE');
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('
+                SELECT fa.*, (
+                    SELECT COUNT(*) FROM free_agent_offers 
+                    WHERE free_agent_id = fa.id AND status = "pending"
+                ) AS pending_offers
+                FROM free_agents fa
+                WHERE fa.league = ?
+                ORDER BY fa.ovr DESC, fa.name ASC
+            ');
+            $stmt->execute([$league]);
+            $agents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'league' => $league, 'free_agents' => $agents]);
+            break;
+
+        case 'free_agent_offers':
+            $league = strtoupper($_GET['league'] ?? 'ELITE');
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('
+                SELECT fao.*, 
+                       fa.name AS player_name, fa.position, fa.ovr, fa.age, fa.original_team_name,
+                       t.name AS team_name, t.city AS team_city
+                FROM free_agent_offers fao
+                JOIN free_agents fa ON fao.free_agent_id = fa.id
+                JOIN teams t ON fao.team_id = t.id
+                WHERE fa.league = ? AND fao.status = "pending"
+                ORDER BY fa.name, fao.created_at ASC
+            ');
+            $stmt->execute([$league]);
+            $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $grouped = [];
+            foreach ($offers as $offer) {
+                $faId = $offer['free_agent_id'];
+                if (!isset($grouped[$faId])) {
+                    $grouped[$faId] = [
+                        'player' => [
+                            'id' => $faId,
+                            'name' => $offer['player_name'],
+                            'position' => $offer['position'],
+                            'ovr' => $offer['ovr'],
+                            'age' => $offer['age'],
+                            'original_team' => $offer['original_team_name']
+                        ],
+                        'offers' => []
+                    ];
+                }
+                $grouped[$faId]['offers'][] = [
+                    'id' => $offer['id'],
+                    'team_id' => $offer['team_id'],
+                    'team_name' => $offer['team_city'] . ' ' . $offer['team_name'],
+                    'notes' => $offer['notes'],
+                    'created_at' => $offer['created_at']
+                ];
+            }
+
+            echo json_encode(['success' => true, 'league' => $league, 'players' => array_values($grouped)]);
+            break;
+
+        case 'free_agent_teams':
+            $league = strtoupper($_GET['league'] ?? 'ELITE');
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city, name');
+            $stmt->execute([$league]);
+            $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'league' => $league, 'teams' => $teams]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
@@ -244,6 +332,122 @@ if ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true);
     
     switch ($action) {
+        case 'free_agent':
+            $name = trim($data['name'] ?? '');
+            $age = isset($data['age']) ? (int)$data['age'] : null;
+            $position = strtoupper(trim($data['position'] ?? ''));
+            $secondaryPosition = $data['secondary_position'] ?? null;
+            $ovr = isset($data['ovr']) ? (int)$data['ovr'] : null;
+            $league = strtoupper($data['league'] ?? 'ELITE');
+            $originalTeamName = trim($data['original_team_name'] ?? '');
+
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+
+            if ($name === '' || !$age || !$position || !$ovr) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Preencha nome, idade, posição e OVR']);
+                exit;
+            }
+
+            try {
+                $stmt = $pdo->prepare('
+                    INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
+                    VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+                ');
+                $stmt->execute([
+                    $name,
+                    $age,
+                    $position,
+                    $secondaryPosition ?: null,
+                    $ovr,
+                    $league,
+                    $originalTeamName ?: null
+                ]);
+
+                echo json_encode(['success' => true, 'message' => 'Free agent criado com sucesso!']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao criar free agent: ' . $e->getMessage()]);
+            }
+            break;
+
+        case 'free_agent_assign':
+            $freeAgentId = isset($data['free_agent_id']) ? (int)$data['free_agent_id'] : null;
+            $teamId = isset($data['team_id']) ? (int)$data['team_id'] : null;
+
+            if (!$freeAgentId || !$teamId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Free agent e time são obrigatórios']);
+                exit;
+            }
+
+            $stmtFA = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
+            $stmtFA->execute([$freeAgentId]);
+            $freeAgent = $stmtFA->fetch(PDO::FETCH_ASSOC);
+
+            if (!$freeAgent) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Free agent não encontrado']);
+                exit;
+            }
+
+            $stmtTeam = $pdo->prepare('SELECT id, league, city, name FROM teams WHERE id = ?');
+            $stmtTeam->execute([$teamId]);
+            $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+
+            if (!$team) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+
+            if (strtoupper($team['league']) !== strtoupper($freeAgent['league'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time e jogador precisam ser da mesma liga']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                $stmtPlayer = $pdo->prepare('
+                    INSERT INTO players (team_id, name, age, seasons_in_league, position, secondary_position, role, available_for_trade, ovr)
+                    VALUES (?, ?, ?, 0, ?, ?, "Banco", 0, ?)
+                ');
+                $stmtPlayer->execute([
+                    $teamId,
+                    $freeAgent['name'],
+                    $freeAgent['age'],
+                    $freeAgent['position'],
+                    $freeAgent['secondary_position'],
+                    $freeAgent['ovr']
+                ]);
+
+                $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
+                $stmtDelete->execute([$freeAgentId]);
+
+                $stmtUpdateTeam = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');
+                $stmtUpdateTeam->execute([$teamId]);
+
+                $stmtOffers = $pdo->prepare('UPDATE free_agent_offers SET status = CASE WHEN team_id = ? THEN "accepted" ELSE "rejected" END WHERE free_agent_id = ? AND status = "pending"');
+                $stmtOffers->execute([$teamId, $freeAgentId]);
+
+                $pdo->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => sprintf('%s agora faz parte de %s %s', $freeAgent['name'], $team['city'], $team['name'])
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atribuir jogador: ' . $e->getMessage()]);
+            }
+            break;
         case 'league_settings':
             // Atualizar configurações de liga
             $league = $data['league'] ?? null;
@@ -603,6 +807,18 @@ if ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
     
     switch ($action) {
+        case 'free_agent':
+            if (!$id) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'ID do free agent obrigatório']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
+            $stmt->execute([$id]);
+            echo json_encode(['success' => true, 'message' => 'Free agent removido']);
+            break;
+
         case 'player':
             if (!$id) {
                 http_response_code(400);

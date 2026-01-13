@@ -1,13 +1,28 @@
 const api = async (path, options = {}) => {
-  const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+  const res = await fetch(`/api/${path}`, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    credentials: 'same-origin',
+    ...options,
+  });
+  const text = await res.text();
   let body = {};
-  try { body = await res.json(); } catch {}
-  if (!res.ok) throw body;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { error: text };
+    }
+  }
+  if (!res.ok || body.success === false) {
+    const message = body.error || body.message || 'Erro desconhecido';
+    throw { ...body, error: message };
+  }
   return body;
 };
 
 let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null, currentFAleague: 'ELITE' };
 let adminFreeAgents = [];
+const freeAgencyTeamsCache = {};
 
 async function init() { showHome(); }
 
@@ -1067,8 +1082,8 @@ async function loadAdminFreeAgents(league) {
   if (!container) return;
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
   try {
-    const data = await api(`free-agency.php?action=list&league=${league}`);
-    adminFreeAgents = data.free_agents || [];
+  const data = await api(`admin.php?action=free_agents&league=${league}`);
+  adminFreeAgents = (data.free_agents || []).map(fa => ({ ...fa, id: Number(fa.id) }));
     const countEl = document.getElementById('faAvailableCount');
     if (countEl) {
       const qty = adminFreeAgents.length;
@@ -1118,9 +1133,14 @@ function renderAdminFreeAgents(filterTerm = '') {
           </div>
           <div class="text-end">
             <span class="badge bg-secondary">OVR ${fa.ovr}</span>
-            <button class="btn btn-sm btn-outline-danger mt-2" onclick="deleteFreeAgent(${fa.id})" title="Remover">
-              <i class="bi bi-trash"></i>
-            </button>
+            <div class="d-flex flex-column gap-2 mt-2">
+              <button class="btn btn-sm btn-outline-light" onclick="openAssignFreeAgentModal(${fa.id})">
+                <i class="bi bi-check2-circle"></i> Definir Time
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteFreeAgent(${fa.id})" title="Remover">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1132,11 +1152,88 @@ async function deleteFreeAgent(freeAgentId) {
   if (!confirm('Remover este free agent da lista?')) return;
   const league = appState.currentFAleague || 'ELITE';
   try {
-    await api(`free-agency.php?action=delete_free_agent&free_agent_id=${freeAgentId}&league=${league}`, { method: 'DELETE' });
-    alert('Free agent removido.');
-    loadAdminFreeAgents(league);
+  await api(`admin.php?action=free_agent&id=${freeAgentId}`, { method: 'DELETE' });
+  alert('Free agent removido.');
+  refreshAdminFreeAgency();
   } catch (e) {
     alert(e.error || 'Erro ao remover free agent');
+  }
+}
+
+async function loadTeamsForFreeAgency(league) {
+  if (freeAgencyTeamsCache[league]) return freeAgencyTeamsCache[league];
+  const data = await api(`admin.php?action=free_agent_teams&league=${league}`);
+  const teams = data.teams || [];
+  freeAgencyTeamsCache[league] = teams;
+  return teams;
+}
+
+async function openAssignFreeAgentModal(freeAgentId) {
+  const league = appState.currentFAleague || 'ELITE';
+  const freeAgent = adminFreeAgents.find(fa => fa.id === freeAgentId);
+  if (!freeAgent) return;
+
+  const teams = await loadTeamsForFreeAgency(league);
+  if (teams.length === 0) {
+    alert('Nenhum time encontrado para esta liga.');
+    return;
+  }
+
+  const selectId = `assignTeamSelect-${freeAgentId}`;
+  const modalId = `assignFreeAgentModal-${freeAgentId}`;
+  const options = teams.map(team => `<option value="${team.id}">${team.city} ${team.name}</option>`).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = modalId;
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Definir destino - ${freeAgent.name}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray mb-3">Selecione o time que receberá este jogador.</p>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Time</label>
+            <select class="form-select bg-dark text-white border-orange" id="${selectId}">
+              ${options}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="assignFreeAgent(${freeAgentId})">
+            <i class="bi bi-check2-circle me-1"></i>Confirmar
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  const modalInstance = new bootstrap.Modal(modal);
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+  modalInstance.show();
+}
+
+async function assignFreeAgent(freeAgentId) {
+  const league = appState.currentFAleague || 'ELITE';
+  const select = document.getElementById(`assignTeamSelect-${freeAgentId}`);
+  const teamId = parseInt(select?.value || '', 10);
+  if (!teamId) {
+    alert('Selecione um time válido.');
+    return;
+  }
+  try {
+    await api('admin.php?action=free_agent_assign', {
+      method: 'POST',
+      body: JSON.stringify({ free_agent_id: freeAgentId, team_id: teamId })
+    });
+    bootstrap.Modal.getInstance(document.getElementById(`assignFreeAgentModal-${freeAgentId}`))?.hide();
+    refreshAdminFreeAgency();
+  } catch (e) {
+    alert(e.error || 'Erro ao definir time');
   }
 }
 
@@ -1150,7 +1247,7 @@ async function loadFreeAgencyOffers(league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
-    const data = await api(`free-agency.php?action=admin_offers&league=${league}`);
+  const data = await api(`admin.php?action=free_agent_offers&league=${league}`);
     const players = data.players || [];
     
     if (players.length === 0) {
@@ -1324,7 +1421,6 @@ function openCreateFreeAgentModal() {
 async function submitCreateFreeAgent() {
   const league = appState.currentFAleague || 'ELITE';
   const payload = {
-    action: 'create_free_agent',
     league,
     name: document.getElementById('faName').value.trim(),
     age: parseInt(document.getElementById('faAge').value, 10),
@@ -1340,7 +1436,7 @@ async function submitCreateFreeAgent() {
   }
 
   try {
-    await api('free-agency.php', {
+    await api('admin.php?action=free_agent', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
