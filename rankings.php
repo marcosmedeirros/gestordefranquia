@@ -6,13 +6,28 @@ require_once 'backend/db.php';
 requireAuth();
 
 $user = getUserSession();
+$pdo = db();
+
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <title>Rankings - GM FBA</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FBA Manager">
+  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  
   <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -29,10 +44,9 @@ $user = getUserSession();
 
   <div class="dashboard-sidebar" id="sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="Time" class="team-avatar">
-      <h5 class="text-white mb-1"><?= htmlspecialchars($user['city'] ?? 'Cidade') ?></h5>
-      <h6 class="text-white mb-1"><?= htmlspecialchars($user['name'] ?? 'Nome') ?></h6>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league'] ?? 'LEAGUE') ?></span>
+      <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="Time" class="team-avatar">
+      <h5 class="text-white mb-1"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?></h5>
+      <span class="badge bg-gradient-orange"><?= htmlspecialchars($team['league'] ?? $user['league'] ?? 'LEAGUE') ?></span>
     </div>
     <hr style="border-color: var(--fba-border);">
     <ul class="sidebar-menu">
@@ -41,6 +55,7 @@ $user = getUserSession();
       <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i>Meu Elenco</a></li>
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
+      <li><a href="/free-agency.php"><i class="bi bi-person-plus-fill"></i>Free Agency</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php" class="active"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
@@ -64,14 +79,11 @@ $user = getUserSession();
       </h1>
     </div>
 
-    <div class="btn-group mb-4" role="group">
-      <button type="button" class="btn btn-orange" onclick="loadRanking('global')">
-        <i class="bi bi-globe me-1"></i>Geral
-      </button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('elite')">ELITE</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('next')">NEXT</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('rise')">RISE</button>
-      <button type="button" class="btn btn-outline-orange" onclick="loadRanking('rookie')">ROOKIE</button>
+    <div class="d-flex flex-wrap gap-2 mb-4 ranking-filters" role="group">
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="ELITE" onclick="loadRanking('ELITE')">ELITE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
     </div>
 
     <div id="rankingContainer">
@@ -84,44 +96,39 @@ $user = getUserSession();
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
-    const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>';
-    
-    const api = async (path, options = {}) => {
-      const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
-      let body = {};
-      try { body = await res.json(); } catch {}
-      if (!res.ok) throw body;
-      return body;
-    };
+    const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>'.toUpperCase();
+    let currentLeague = userLeague;
 
-    let currentType = userLeague.toLowerCase();
-
-    async function loadRanking(type = userLeague.toLowerCase()) {
-      currentType = type;
-      
-      // Atualizar botões ativos
-      document.querySelectorAll('.btn-group button').forEach(btn => {
-        btn.classList.remove('btn-orange');
-        btn.classList.add('btn-outline-orange');
+    function updateActiveButton() {
+      document.querySelectorAll('.ranking-filters button').forEach(btn => {
+        if (btn.dataset.league === currentLeague) {
+          btn.classList.remove('btn-outline-orange');
+          btn.classList.add('btn-orange');
+        } else {
+          btn.classList.add('btn-outline-orange');
+          btn.classList.remove('btn-orange');
+        }
       });
-      
-      // Ativar o botão correto
-      const activeBtn = document.querySelector(`button[onclick*="${type}"]`);
-      if (activeBtn) {
-        activeBtn.classList.remove('btn-outline-orange');
-        activeBtn.classList.add('btn-orange');
-      }
+    }
+
+    async function loadRanking(league = userLeague) {
+      currentLeague = league.toUpperCase();
+      updateActiveButton();
 
       const container = document.getElementById('rankingContainer');
       container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
 
       try {
-        const endpoint = type === 'global' 
-          ? 'seasons.php?action=global_ranking'
-          : `seasons.php?action=league_ranking&league=${type.toUpperCase()}`;
+        const endpoint = `/api/history-points.php?action=get_ranking&league=${encodeURIComponent(currentLeague)}`;
         
-        const data = await api(endpoint);
-        const ranking = data.ranking || [];
+        const response = await fetch(endpoint);
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error);
+        }
+
+        const ranking = data.ranking[currentLeague] || [];
 
         if (ranking.length === 0) {
           container.innerHTML = `
@@ -140,34 +147,37 @@ $user = getUserSession();
                 <table class="table table-dark table-hover mb-0">
                   <thead>
                     <tr>
-                      <th style="border-radius: 15px 0 0 0;">#</th>
+                      <th style="border-radius: 15px 0 0 0; width: 50px;">#</th>
                       <th>Time</th>
-                      <th>Liga</th>
-                      <th>Pontos</th>
-                      <th>Temporadas</th>
-                      <th>🏆 Títulos</th>
-                      <th>🥈 Vices</th>
-                      <th style="border-radius: 0 15px 0 0;">⭐ Prêmios</th>
+                      <th class="hide-mobile" style="width: 90px;">Liga</th>
+                      <th style="width: 90px; text-align: center;">
+                        <i class="bi bi-trophy text-info"></i><span class="d-none d-md-inline ms-1">Títulos</span>
+                      </th>
+                      <th style="border-radius: 0 15px 0 0; width: 80px; text-align: center;">
+                        <i class="bi bi-trophy-fill text-warning"></i><span class="d-none d-md-inline ms-1">Pontos</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     ${ranking.map((team, idx) => `
                       <tr>
-                        <td><strong class="text-orange">${idx + 1}º</strong></td>
                         <td>
-                          <div class="d-flex align-items-center gap-2">
-                            <img src="${team.photo_url || '/img/default-team.png'}" 
-                                 alt="${team.team_name}" 
-                                 style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
-                            <span>${team.city} ${team.team_name}</span>
-                          </div>
+                          ${idx < 3 ? 
+                            `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>` : 
+                            `<strong class="text-muted">${idx + 1}º</strong>`
+                          }
                         </td>
-                        <td><span class="badge bg-gradient-orange">${team.league}</span></td>
-                        <td><strong class="text-warning">${team.total_points || 0}</strong></td>
-                        <td>${team.seasons_played || 0}</td>
-                        <td>${team.championships || 0}</td>
-                        <td>${team.runner_ups || 0}</td>
-                        <td>${team.total_awards || 0}</td>
+                        <td>
+                          <span class="fw-bold text-white" style="font-size: 0.9rem;">${team.team_name}</span>
+                          <small class="d-md-none d-block text-light-gray">${team.league}</small>
+                        </td>
+                        <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
+                        <td class="text-center">
+                          <strong class="text-info">${team.total_titles || 0}</strong>
+                        </td>
+                        <td class="text-center">
+                          <strong class="text-warning">${team.total_points || 0}</strong>
+                        </td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -180,7 +190,7 @@ $user = getUserSession();
         console.error(e);
         container.innerHTML = `
           <div class="alert alert-danger" style="border-radius: 15px;">
-            Erro ao carregar ranking: ${e.error || 'Desconhecido'}
+            Erro ao carregar ranking: ${e.message || 'Desconhecido'}
           </div>
         `;
       }
@@ -188,8 +198,9 @@ $user = getUserSession();
 
     // Carregar ranking geral ao iniciar
     document.addEventListener('DOMContentLoaded', () => {
-      loadRanking('global');
+      loadRanking(userLeague);
     });
   </script>
+  <script src="/js/pwa.js"></script>
 </body>
 </html>

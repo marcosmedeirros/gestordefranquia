@@ -93,8 +93,17 @@ function getOvrColor($ovr) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <?php include __DIR__ . '/includes/head-pwa.php'; ?>
     <title>Próximo Draft - FBA Manager</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a0c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FBA Manager">
+    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -137,6 +146,20 @@ function getOvrColor($ovr) {
                     Picks
                 </a>
             </li>
+            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <li>
+                <a href="/admin.php">
+                    <i class="bi bi-shield-lock-fill"></i>
+                    Admin
+                </a>
+            </li>
+            <li>
+                <a href="/temporadas.php">
+                    <i class="bi bi-calendar3"></i>
+                    Temporadas
+                </a>
+            </li>
+            <?php endif; ?>
             <li>
                 <a href="/settings.php">
                     <i class="bi bi-gear-fill"></i>
@@ -246,5 +269,6 @@ function getOvrColor($ovr) {
             });
         }
     </script>
+    <script src="/js/pwa.js"></script>
 </body>
 </html>

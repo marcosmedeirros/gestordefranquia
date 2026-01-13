@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
@@ -15,8 +16,17 @@ $team = $stmtTeam->fetch() ?: null;
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Configurações - FBA Manager</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a0c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FBA Manager">
+    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -63,6 +73,12 @@ $team = $stmtTeam->fetch() ?: null;
                 <a href="/trades.php">
                     <i class="bi bi-arrow-left-right"></i>
                     Trades
+                </a>
+            </li>
+            <li>
+                <a href="/free-agency.php">
+                    <i class="bi bi-person-plus-fill"></i>
+                    Free Agency
                 </a>
             </li>
             <li>
@@ -157,6 +173,11 @@ $team = $stmtTeam->fetch() ?: null;
                                 <small class="text-light-gray">E-mail não pode ser alterado.</small>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label text-white fw-bold">Telefone (WhatsApp)</label>
+                                <input type="tel" name="phone" class="form-control" value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>" placeholder="Ex.: 55999999999" required maxlength="13">
+                                <small class="text-light-gray">Digite apenas números (DDD + telefone).</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label text-white fw-bold">Liga</label>
                                 <input type="text" class="form-control" value="<?= htmlspecialchars($user['league']) ?>" disabled>
                             </div>
@@ -242,5 +263,6 @@ $team = $stmtTeam->fetch() ?: null;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script src="/js/settings.js"></script>
+    <script src="/js/pwa.js"></script>
 </body>
 </html>

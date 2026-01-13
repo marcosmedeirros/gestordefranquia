@@ -6,17 +6,35 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
+// Buscar time do usuário
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 $teamId = $team['id'] ?? null;
+
+// Buscar contagem de jogadores separadamente
+$playerCount = 0;
+if ($teamId) {
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+    $stmtCount->execute([$teamId]);
+    $playerCount = (int)$stmtCount->fetchColumn();
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <title>Meu Elenco - FBA Manager</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FBA Manager">
+  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -63,6 +81,12 @@ $teamId = $team['id'] ?? null;
         <a href="/trades.php">
           <i class="bi bi-arrow-left-right"></i>
           Trades
+        </a>
+      </li>
+      <li>
+        <a href="/free-agency.php">
+          <i class="bi bi-person-plus-fill"></i>
+          Free Agency
         </a>
       </li>
       <li>
@@ -126,7 +150,7 @@ $teamId = $team['id'] ?? null;
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
-        <div class="d-flex gap-3">
+        <div class="d-flex gap-3 flex-wrap justify-content-end">
           <div class="text-center">
             <small class="text-light-gray">Total</small>
             <div class="text-white fw-bold" id="total-players" style="font-size: 1.5rem;">0</div>
@@ -134,6 +158,14 @@ $teamId = $team['id'] ?? null;
           <div class="text-center">
             <small class="text-light-gray">CAP Top8</small>
             <div class="text-orange fw-bold" id="cap-top8" style="font-size: 1.5rem;">0</div>
+          </div>
+          <div class="text-center">
+            <small class="text-light-gray">Dispensas (FA)</small>
+            <div class="text-white fw-bold" id="waivers-count" style="font-size: 1.1rem;">0 / 0</div>
+          </div>
+          <div class="text-center">
+            <small class="text-light-gray">Contratações FA</small>
+            <div class="text-white fw-bold" id="signings-count" style="font-size: 1.1rem;">0 / 0</div>
           </div>
         </div>
       </div>
@@ -169,6 +201,17 @@ $teamId = $team['id'] ?? null;
                 <div class="col-md-2">
                   <label class="form-label text-white fw-bold">Posição</label>
                   <select name="position" class="form-select" required>
+                    <option value="PG">PG</option>
+                    <option value="SG">SG</option>
+                    <option value="SF">SF</option>
+                    <option value="PF">PF</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label text-white fw-bold">Pos. Secundária</label>
+                  <select name="secondary_position" class="form-select">
+                    <option value="">Nenhuma</option>
                     <option value="PG">PG</option>
                     <option value="SG">SG</option>
                     <option value="SF">SF</option>
@@ -225,6 +268,9 @@ $teamId = $team['id'] ?? null;
                 <th class="sortable" data-sort="position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Posição
                 </th>
+                <th class="sortable" data-sort="secondary_position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
+                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Pos. Sec.
+                </th>
                 <th class="sortable" data-sort="role" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
                   <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Função
                 </th>
@@ -277,6 +323,17 @@ $teamId = $team['id'] ?? null;
               </select>
             </div>
             <div class="col-md-2">
+              <label class="form-label text-white fw-bold">Pos. Sec.</label>
+              <select id="edit-secondary-position" class="form-select bg-dark text-white border-orange">
+                <option value="">Nenhuma</option>
+                <option value="PG">PG</option>
+                <option value="SG">SG</option>
+                <option value="SF">SF</option>
+                <option value="PF">PF</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+            <div class="col-md-2">
               <label class="form-label text-white fw-bold">OVR</label>
               <input type="number" id="edit-ovr" class="form-control bg-dark text-white border-orange" min="40" max="99" required>
             </div>
@@ -307,9 +364,11 @@ $teamId = $team['id'] ?? null;
 
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
+    console.log('Team ID:', window.__TEAM_ID__, 'Team:', <?= json_encode($team) ?>);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script src="/js/my-roster.js"></script>
+  <script src="/js/pwa.js"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 <?php
 session_start();
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -10,18 +12,29 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
-    $sql = 'SELECT p.id, p.team_id, p.name, p.age, p.position, p.role, p.ovr, p.available_for_trade FROM players p';
+    
+    // Query simples e direta
+    $sql = "SELECT * FROM players";
     $params = [];
+    
     if ($teamId) {
-        $sql .= ' WHERE p.team_id = ?';
+        $sql .= ' WHERE team_id = ?';
         $params[] = $teamId;
     }
-    $sql .= ' ORDER BY p.ovr DESC, p.id DESC';
+    $sql .= ' ORDER BY ovr DESC, id DESC';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $players = $stmt->fetchAll();
-    jsonResponse(200, ['players' => $players]);
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode(['success' => true, 'players' => $players, 'count' => count($players), 'team_id' => $teamId]);
+        exit;
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao buscar jogadores', 'details' => $e->getMessage()]);
+        exit;
+    }
 }
 
 if ($method === 'POST') {
@@ -53,22 +66,50 @@ if ($method === 'POST') {
         jsonResponse(403, ['error' => 'Sem permissão para alterar este time.']);
     }
 
+    // Validar limitadores de função
+    $roleCountStmt = $pdo->prepare('SELECT role, COUNT(*) as count FROM players WHERE team_id = ? GROUP BY role');
+    $roleCountStmt->execute([$teamId]);
+    $roleCounts = [];
+    while ($row = $roleCountStmt->fetch()) {
+        $roleCounts[$row['role']] = (int)$row['count'];
+    }
+    
+    $titularCount = $roleCounts['Titular'] ?? 0;
+    $bancoCount = $roleCounts['Banco'] ?? 0;
+    $gleagueCount = $roleCounts['G-League'] ?? 0;
+    
+    // Validar limites
+    if ($role === 'Titular' && $titularCount >= 5) {
+        jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
+    }
+    if ($role === 'G-League' && $gleagueCount >= 2) {
+        jsonResponse(409, ['error' => 'Limite de G-League atingido (máximo 2).']);
+    }
+    
+    // Validar elegibilidade para G-League
+    if ($role === 'G-League' && $age >= 25) {
+        jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
+    }
+
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
+    $warnings = [];
     if ($prospectiveCap > $config['app']['cap_max']) {
-        jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $prospectiveCap]);
+        $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $config['app']['cap_max'] . ').';
     }
 
     $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade]);
 
     $newCap = topEightCap($pdo, $teamId);
-    $warning = $newCap < $config['app']['cap_min'] ? 'CAP abaixo do mínimo. Reforce seu elenco.' : null;
+    if ($newCap < $config['app']['cap_min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
 
     jsonResponse(201, [
         'message' => 'Jogador adicionado.',
         'player_id' => $pdo->lastInsertId(),
         'cap_top8' => $newCap,
-        'warning' => $warning,
+        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
     ]);
 }
 
@@ -93,12 +134,40 @@ if ($method === 'PUT') {
     $name = isset($body['name']) ? trim($body['name']) : $player['name'];
     $age = isset($body['age']) ? (int)$body['age'] : (int)$player['age'];
     $position = isset($body['position']) ? trim($body['position']) : $player['position'];
+    $secondaryPosition = isset($body['secondary_position']) ? trim($body['secondary_position']) : ($player['secondary_position'] ?? '');
+    $seasonsInLeague = isset($body['seasons_in_league']) ? (int)$body['seasons_in_league'] : (int)($player['seasons_in_league'] ?? 0);
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
     $availableForTrade = isset($body['available_for_trade']) ? (int)((bool)$body['available_for_trade']) : (int)$player['available_for_trade'];
 
     if ($name === '' || !$age || $position === '' || !$ovr) {
         jsonResponse(422, ['error' => 'Campos obrigatórios: nome, idade, posição, ovr.']);
+    }
+
+    // Validar limitadores de função se mudou o role
+    if ($role !== $player['role']) {
+        $roleCountStmt = $pdo->prepare('SELECT role, COUNT(*) as count FROM players WHERE team_id = ? AND id <> ? GROUP BY role');
+        $roleCountStmt->execute([(int)$player['team_id'], $playerId]);
+        $roleCounts = [];
+        while ($row = $roleCountStmt->fetch()) {
+            $roleCounts[$row['role']] = (int)$row['count'];
+        }
+        
+        $titularCount = $roleCounts['Titular'] ?? 0;
+        $bancoCount = $roleCounts['Banco'] ?? 0;
+        $gleagueCount = $roleCounts['G-League'] ?? 0;
+        
+        if ($role === 'Titular' && $titularCount >= 5) {
+            jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
+        }
+        if ($role === 'G-League' && $gleagueCount >= 2) {
+            jsonResponse(409, ['error' => 'Limite de G-League atingido (máximo 2).']);
+        }
+        
+        // Validar elegibilidade para G-League
+        if ($role === 'G-League' && $age >= 25) {
+            jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
+        }
     }
 
     // CAP check: recalcular considerando o novo OVR substituindo o anterior
@@ -108,15 +177,44 @@ if ($method === 'PUT') {
     $ovrs[] = $ovr;
     rsort($ovrs, SORT_NUMERIC);
     $capAfter = array_sum(array_slice($ovrs, 0, 8));
+    $warnings = [];
     if ($capAfter > $config['app']['cap_max']) {
-        jsonResponse(409, ['error' => 'CAP excedido. Máx: ' . $config['app']['cap_max'], 'cap_after' => $capAfter]);
+        $warnings[] = 'CAP acima do limite recomendado (' . $capAfter . ' / ' . $config['app']['cap_max'] . ').';
     }
 
-    $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
-    $upd->execute([$name, $age, $position, $role, $ovr, $availableForTrade, $playerId]);
+    // Verificar se as colunas extras existem
+    try {
+        $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
+        $hasSecondaryPosition = $checkCol->rowCount() > 0;
+        
+        $checkCol2 = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'");
+        $hasSeasonsInLeague = $checkCol2->rowCount() > 0;
+    } catch (Exception $e) {
+        $hasSecondaryPosition = false;
+        $hasSeasonsInLeague = false;
+    }
+
+    // Construir UPDATE dinamicamente
+    if ($hasSecondaryPosition && $hasSeasonsInLeague) {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, seasons_in_league = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $seasonsInLeague, $role, $ovr, $availableForTrade, $playerId]);
+    } elseif ($hasSecondaryPosition) {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $role, $ovr, $availableForTrade, $playerId]);
+    } else {
+        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
+        $upd->execute([$name, $age, $position, $role, $ovr, $availableForTrade, $playerId]);
+    }
 
     $newCap = topEightCap($pdo, (int)$player['team_id']);
-    jsonResponse(200, ['message' => 'Jogador atualizado.', 'cap_top8' => $newCap]);
+    if ($newCap < $config['app']['cap_min']) {
+        $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
+    jsonResponse(200, [
+        'message' => 'Jogador atualizado.',
+        'cap_top8' => $newCap,
+        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
+    ]);
 }
 
 if ($method === 'DELETE') {
@@ -129,7 +227,7 @@ if ($method === 'DELETE') {
         jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
     }
 
-    $stmt = $pdo->prepare('SELECT p.id, p.team_id, t.user_id FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $stmt = $pdo->prepare('SELECT p.id, p.name, p.team_id, t.user_id FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
     $stmt->execute([$playerId]);
     $row = $stmt->fetch();
     if (!$row) jsonResponse(404, ['error' => 'Jogador não encontrado.']);
@@ -137,10 +235,12 @@ if ($method === 'DELETE') {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
+    // Deletar o jogador
     $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
     $del->execute([$playerId]);
+    
     $newCap = topEightCap($pdo, (int)$row['team_id']);
-    jsonResponse(200, ['message' => 'Jogador removido.', 'cap_top8' => $newCap]);
+    jsonResponse(200, ['message' => 'Jogador dispensado com sucesso.', 'cap_top8' => $newCap]);
 }
 
 jsonResponse(405, ['error' => 'Method not allowed']);

@@ -15,11 +15,17 @@ try {
     $email = strtolower(trim($body['email'] ?? ''));
     $password = $body['password'] ?? '';
     $league = strtoupper(trim($body['league'] ?? ''));
+    $phoneRaw = trim($body['phone'] ?? '');
+    $phone = normalizeBrazilianPhone($phoneRaw);
     $userType = 'jogador'; // Sempre jogador por padrão
     $photoUrl = trim($body['photo_url'] ?? '');
 
-    if ($name === '' || $email === '' || $password === '' || $league === '') {
-        jsonResponse(422, ['error' => 'Nome, e-mail, senha e liga são obrigatórios.']);
+    if ($name === '' || $email === '' || $password === '' || $league === '' || $phoneRaw === '') {
+        jsonResponse(422, ['error' => 'Nome, e-mail, telefone, senha e liga são obrigatórios.']);
+    }
+
+    if (!$phone) {
+        jsonResponse(422, ['error' => 'Informe um telefone válido com DDD (WhatsApp).']);
     }
 
     if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'])) {
@@ -35,8 +41,8 @@ try {
     $token = bin2hex(random_bytes(16));
     $hash = password_hash($password, PASSWORD_BCRYPT);
 
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null]);
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null, $phone]);
 
     sendVerificationEmail($email, $token);
 
@@ -47,7 +53,7 @@ try {
     // Se o erro é sobre coluna 'league' não existir, retorna mensagem específica
     if (strpos($e->getMessage(), "Unknown column 'league'") !== false) {
         jsonResponse(500, [
-            'error' => 'Schema do banco desatualizado. Execute a migração: https://marcosmedeiros.page/backend/migrate.php',
+            'error' => 'Schema do banco desatualizado. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
             'technical' => $e->getMessage()
         ]);
     }

@@ -53,7 +53,7 @@ function sendVerificationEmail(string $email, string $token): bool
 function sendPasswordResetEmail(string $email, string $token, string $name): bool
 {
     $config = loadConfig();
-    $resetUrl = 'https://marcosmedeiros.page/reset-password.php?token=' . urlencode($token);
+    $resetUrl = 'https://fbabrasil.com.br/reset-password.php?token=' . urlencode($token);
     $subject = 'Recuperação de Senha - FBA Manager';
     
     $message = "
@@ -95,4 +95,75 @@ function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
     rsort($ovrs, SORT_NUMERIC);
     $slice = array_slice($ovrs, 0, 8);
     return array_sum($slice);
+}
+
+/**
+ * Retorna URL de imagem válida ou imagem padrão
+ */
+function getTeamPhoto(?string $photoUrl, string $default = '/img/default-team.png'): string
+{
+    if (empty($photoUrl) || trim($photoUrl) === '') {
+        return $default;
+    }
+    return $photoUrl;
+}
+
+/**
+ * Retorna URL de avatar válida ou avatar padrão
+ */
+function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.png'): string
+{
+    if (empty($photoUrl) || trim($photoUrl) === '') {
+        return $default;
+    }
+    return $photoUrl;
+}
+
+function normalizeBrazilianPhone(?string $input): ?string
+{
+    if ($input === null) {
+        return null;
+    }
+    $digits = preg_replace('/\D+/', '', $input);
+    if ($digits === '') {
+        return null;
+    }
+
+    if (strlen($digits) < 10) {
+        return null;
+    }
+
+    if (strlen($digits) > 13) {
+        $digits = substr($digits, 0, 13);
+    }
+
+    if (!str_starts_with($digits, '55')) {
+        $digits = '55' . $digits;
+        if (strlen($digits) > 13) {
+            $digits = substr($digits, 0, 13);
+        }
+    }
+
+    return $digits;
+}
+
+function formatBrazilianPhone(?string $phone): ?string
+{
+    if (!$phone) {
+        return null;
+    }
+    $digits = preg_replace('/\D+/', '', $phone);
+    if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+        $digits = substr($digits, -11);
+    }
+
+    if (strlen($digits) === 11) {
+        return sprintf('(%s) %s-%s', substr($digits, 0, 2), substr($digits, 2, 5), substr($digits, 7));
+    }
+
+    if (strlen($digits) === 10) {
+        return sprintf('(%s) %s-%s', substr($digits, 0, 2), substr($digits, 2, 4), substr($digits, 6));
+    }
+
+    return $phone;
 }

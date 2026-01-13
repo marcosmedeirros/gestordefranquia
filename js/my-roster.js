@@ -6,6 +6,7 @@ const api = async (path, options = {}) => {
     });
     let body = {};
     try { body = await res.json(); } catch { body = {}; }
+    console.log('API Response Status:', res.status, 'Body:', body);
     return { res, body };
   };
   let { res, body } = await doFetch(`/api/${path}`);
@@ -32,9 +33,47 @@ function getOvrColor(ovr) {
 
 // Ordem padrão de funções
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
+const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
 let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
+const DEFAULT_FA_LIMITS = {
+  waiversUsed: 0,
+  waiversMax: 3,
+  signingsUsed: 0,
+  signingsMax: 3,
+};
+let currentFALimits = { ...DEFAULT_FA_LIMITS };
+
+async function loadFreeAgencyLimits() {
+  if (!window.__TEAM_ID__) return;
+  try {
+    const data = await api('free-agency.php?action=limits');
+    currentFALimits = {
+      waiversUsed: Number.isFinite(data.waivers_used) ? data.waivers_used : 0,
+      waiversMax: Number.isFinite(data.waivers_max) && data.waivers_max > 0 ? data.waivers_max : DEFAULT_FA_LIMITS.waiversMax,
+      signingsUsed: Number.isFinite(data.signings_used) ? data.signings_used : 0,
+      signingsMax: Number.isFinite(data.signings_max) && data.signings_max > 0 ? data.signings_max : DEFAULT_FA_LIMITS.signingsMax,
+    };
+  } catch (err) {
+    console.warn('Não foi possível carregar limites de FA:', err);
+    currentFALimits = { ...DEFAULT_FA_LIMITS };
+  }
+  updateFreeAgencyCounters();
+}
+
+function updateFreeAgencyCounters() {
+  const waiversEl = document.getElementById('waivers-count');
+  const signingsEl = document.getElementById('signings-count');
+  if (waiversEl) {
+    waiversEl.textContent = `${currentFALimits.waiversUsed} / ${currentFALimits.waiversMax}`;
+    waiversEl.classList.toggle('text-danger', currentFALimits.waiversMax && currentFALimits.waiversUsed >= currentFALimits.waiversMax);
+  }
+  if (signingsEl) {
+    signingsEl.textContent = `${currentFALimits.signingsUsed} / ${currentFALimits.signingsMax}`;
+    signingsEl.classList.toggle('text-danger', currentFALimits.signingsMax && currentFALimits.signingsUsed >= currentFALimits.signingsMax);
+  }
+}
 
 function sortPlayers(field) {
   // Se clicou na mesma coluna, inverte ordem
@@ -91,13 +130,26 @@ function renderPlayers(players) {
       bVal = b.available_for_trade ? 1 : 0;
     }
     // Para numéricos, converter
-    if (['ovr', 'age'].includes(currentSort.field)) {
+    if (['ovr', 'age', 'seasons_in_league'].includes(currentSort.field)) {
       aVal = Number(aVal);
       bVal = Number(bVal);
     }
 
     if (aVal < bVal) return currentSort.ascending ? -1 : 1;
     if (aVal > bVal) return currentSort.ascending ? 1 : -1;
+
+    // Quando ordenando por função, garantir ordem PG→C dentro dos titulares
+    if (
+      currentSort.field === 'role' &&
+      a.role === 'Titular' &&
+      b.role === 'Titular'
+    ) {
+      const aPos = starterPositionOrder[a.position] ?? 999;
+      const bPos = starterPositionOrder[b.position] ?? 999;
+      if (aPos !== bPos) {
+        return currentSort.ascending ? aPos - bPos : bPos - aPos;
+      }
+    }
     return 0;
   });
 
@@ -111,13 +163,13 @@ function renderPlayers(players) {
   
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
-    
     // Tabela (desktop)
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.name}</td>
       <td><span style="font-size: 1.3rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span></td>
       <td>${p.position}</td>
+      <td>${p.secondary_position || '-'}</td>
       <td>${p.role}</td>
       <td>${p.age}</td>
       <td>
@@ -141,19 +193,23 @@ function renderPlayers(players) {
       </td>
       <td>
         <button class="btn btn-sm btn-outline-warning btn-edit-player" data-id="${p.id}">Editar</button>
-        <button class="btn btn-sm btn-outline-danger btn-delete-player" data-id="${p.id}">Excluir</button>
+        <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
+          <i class="bi bi-person-x"></i> Dispensar
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
-    
+
     // Card (mobile)
     const card = document.createElement('div');
     card.className = 'player-card';
+    // Corrigir: definir positionDisplay corretamente
+    const positionDisplay = p.secondary_position ? `${p.position}/${p.secondary_position}` : p.position;
     card.innerHTML = `
       <div class="player-card-header">
         <div>
           <h6 class="text-white mb-1">${p.name}</h6>
-          <span class="badge bg-orange">${p.position}</span>
+          <span class="badge bg-orange">${positionDisplay}</span>
           <span class="badge bg-secondary ms-1">${p.role}</span>
         </div>
         <span style="font-size: 1.5rem; font-weight: bold; color: ${ovrColor};">${p.ovr}</span>
@@ -182,8 +238,8 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-warning btn-edit-player" data-id="${p.id}">
           <i class="bi bi-pencil"></i> Editar
         </button>
-        <button class="btn btn-sm btn-outline-danger btn-delete-player" data-id="${p.id}">
-          <i class="bi bi-trash"></i>
+        <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
+          <i class="bi bi-person-x"></i> Dispensar
         </button>
       </div>
     `;
@@ -211,20 +267,57 @@ function updateRosterStats() {
 
 async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
-  if (!teamId) return;
-  document.getElementById('players-status').classList.remove('d-none');
-  document.getElementById('players-list').classList.add('d-none');
+  console.log('loadPlayers chamado, teamId:', teamId);
+  
+  const statusEl = document.getElementById('players-status');
+  const listEl = document.getElementById('players-list');
+  
+  if (!teamId) {
+    console.error('Sem teamId!');
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div class="alert alert-warning text-center">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Você ainda não possui um time. Crie um time para gerenciar seu elenco.
+        </div>
+      `;
+      statusEl.classList.remove('d-none');
+    }
+    if (listEl) listEl.classList.add('d-none');
+    return;
+  }
+  
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <div class="spinner-border text-orange" role="status"></div>
+      <p class="text-light-gray mt-2">Carregando jogadores...</p>
+    `;
+    statusEl.classList.remove('d-none');
+  }
+  if (listEl) listEl.classList.add('d-none');
+  
   try {
+    console.log('Fetching:', `/api/players.php?team_id=${teamId}`);
     const data = await api(`players.php?team_id=${teamId}`);
+    console.log('Resposta API:', data);
     allPlayers = data.players || [];
+    console.log('Total de jogadores carregados:', allPlayers.length);
     // Ordenar por role padrão (Titular primeiro)
     currentSort = { field: 'role', ascending: true };
     updateSortIcons();
     renderPlayers(allPlayers);
-    document.getElementById('players-status').classList.add('d-none');
-    document.getElementById('players-list').classList.remove('d-none');
+    if (statusEl) statusEl.classList.add('d-none');
+    if (listEl) listEl.classList.remove('d-none');
   } catch (err) {
-    alert(err.error || 'Erro ao carregar jogadores');
+    console.error('Erro ao carregar:', err);
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="bi bi-x-circle me-2"></i>
+          Erro ao carregar jogadores: ${err.error || 'Desconhecido'}
+        </div>
+      `;
+    }
   }
 }
 
@@ -238,6 +331,7 @@ async function addPlayer() {
     name: fd.get('name'),
     age: Number(fd.get('age')),
     position: fd.get('position'),
+    secondary_position: fd.get('secondary_position'),
     role: fd.get('role'),
     ovr: Number(fd.get('ovr')),
     available_for_trade: document.getElementById('available_for_trade').checked,
@@ -264,12 +358,20 @@ async function updatePlayer(payload) {
 }
 
 async function deletePlayer(id) {
-  if (!confirm('Deseja excluir este jogador?')) return;
+  if (!confirm('Deseja dispensar este jogador? Ele será enviado para a Free Agency e outros times poderão contratá-lo.')) return;
   try {
-    const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id }) });
+    const res = await api('free-agency.php', { 
+      method: 'POST', 
+      body: JSON.stringify({ action: 'waive', player_id: id }) 
+    });
+    alert(res.message || 'Jogador dispensado e enviado para Free Agency!');
     loadPlayers();
+    // Se estiver aberta a tela de Free Agency, recarregar a lista de FAs
+    if (window.location.pathname.includes('free-agency.php')) {
+      if (typeof loadFreeAgents === 'function') loadFreeAgents();
+    }
   } catch (err) {
-    alert(err.error || 'Erro ao remover jogador');
+    alert(err.error || 'Erro ao dispensar jogador');
   }
 }
 
@@ -287,6 +389,7 @@ function openEditModal(player) {
   document.getElementById('edit-name').value = player.name;
   document.getElementById('edit-age').value = player.age;
   document.getElementById('edit-position').value = player.position;
+  document.getElementById('edit-secondary-position').value = player.secondary_position || '';
   document.getElementById('edit-ovr').value = player.ovr;
   document.getElementById('edit-role').value = player.role;
   document.getElementById('edit-available').checked = !!player.available_for_trade;
@@ -320,7 +423,7 @@ document.addEventListener('click', (e) => {
 // Delegation for actions (tabela)
 document.getElementById('players-tbody')?.addEventListener('click', (e) => {
   const target = e.target;
-  if (target.classList.contains('btn-delete-player')) {
+  if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
   } else if (target.classList.contains('btn-edit-player')) {
@@ -339,7 +442,7 @@ document.getElementById('players-cards-mobile')?.addEventListener('click', (e) =
   const target = e.target.closest('button');
   if (!target) return;
   
-  if (target.classList.contains('btn-delete-player')) {
+  if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
   } else if (target.classList.contains('btn-edit-player')) {
@@ -361,6 +464,7 @@ document.getElementById('btn-save-edit')?.addEventListener('click', () => {
     name: document.getElementById('edit-name').value,
     age: Number(document.getElementById('edit-age').value),
     position: document.getElementById('edit-position').value,
+    secondary_position: document.getElementById('edit-secondary-position').value,
     ovr: Number(document.getElementById('edit-ovr').value),
     role: document.getElementById('edit-role').value,
     available_for_trade: document.getElementById('edit-available').checked,
@@ -373,3 +477,4 @@ document.getElementById('btn-save-edit')?.addEventListener('click', () => {
 
 // Initial
 loadPlayers();
+loadFreeAgencyLimits();

@@ -8,12 +8,24 @@ if (($user['user_type'] ?? 'jogador') !== 'admin') {
   exit;
 }
 $pdo = db();
+
+// Buscar time do usuário (se tiver)
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#fc0025">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FBA Manager">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/img/icon-192x192.png">
   <title>Admin - Ligas</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -31,9 +43,9 @@ $pdo = db();
 
   <div class="dashboard-sidebar" id="sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-team.png') ?>" alt="Admin" class="team-avatar">
-      <h5 class="text-white mb-1">Admin</h5>
-      <span class="badge bg-gradient-orange">Painel</span>
+      <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="Admin" class="team-avatar">
+      <h5 class="text-white mb-1"><?= $team ? htmlspecialchars($team['city'] . ' ' . $team['name']) : 'Admin' ?></h5>
+      <span class="badge bg-gradient-orange"><?= $team ? htmlspecialchars($team['league']) : 'Painel' ?></span>
     </div>
     <hr style="border-color: var(--fba-border);">
     <ul class="sidebar-menu">
@@ -42,6 +54,7 @@ $pdo = db();
       <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i>Meu Elenco</a></li>
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
+      <li><a href="/free-agency.php"><i class="bi bi-person-plus-fill"></i>Free Agency</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
@@ -109,5 +122,6 @@ $pdo = db();
       });
     }
   </script>
+  <script src="/js/pwa.js"></script>
 </body>
 </html>

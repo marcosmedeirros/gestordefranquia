@@ -263,7 +263,29 @@ function renderHistoryForm(seasonId, league) {
                         </select>
                     </div>
 
-                    <h6 class="text-orange mb-3">3. Premiações</h6>
+                    <h6 class="text-orange mb-3">3. Eliminados por Fase (apenas perdedores)</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label text-light-gray">1ª Rodada (1 ponto)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="first_round_losses" multiple style="border-radius: 12px; min-height: 120px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-light-gray">2ª Rodada (3 pontos)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="second_round_losses" multiple style="border-radius: 12px; min-height: 120px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-light-gray">Final de Conferência (6 pontos)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="conference_final_losses" multiple style="border-radius: 12px; min-height: 120px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h6 class="text-orange mb-3">4. Premiações</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label text-light-gray">MVP (Time)</label>
@@ -358,6 +380,15 @@ async function loadTeamsForStandings(league) {
             select.innerHTML = '<option value="">Selecione...</option>' + 
                 teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
         });
+
+        // Popular multi-selects de eliminados por fase
+        ['first_round_losses','second_round_losses','conference_final_losses'].forEach(name => {
+            const select = document.querySelector(`select[name="${name}"]`);
+            if (select) {
+                select.innerHTML = '<option value="">Selecione...</option>' +
+                    teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+            }
+        });
     } catch (e) {
         alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
     }
@@ -365,8 +396,73 @@ async function loadTeamsForStandings(league) {
 
 function saveSeasonHistory(event, seasonId) {
     event.preventDefault();
-    alert('Função de salvar histórico em desenvolvimento. Os dados serão salvos via API seasons.php com actions específicas para standings, awards e playoffs.');
-    // TODO: Implementar saves via API
+    const form = event.target;
+    const getMulti = (name) => {
+        const select = form.querySelector(`select[name="${name}"]`);
+        if (!select) return [];
+        return Array.from(select.selectedOptions).map(o => o.value).filter(Boolean);
+    };
+
+    const champion = form.champion_team_id.value;
+    const runnerUp = form.runnerup_team_id.value;
+    const firstRound = getMulti('first_round_losses');
+    const secondRound = getMulti('second_round_losses');
+    const confFinal = getMulti('conference_final_losses');
+
+    if (!champion || !runnerUp) {
+        alert('Selecione campeão e vice.');
+        return;
+    }
+    if (champion === runnerUp) {
+        alert('Campeão e vice não podem ser iguais.');
+        return;
+    }
+
+    const allEliminated = [...firstRound, ...secondRound, ...confFinal];
+    const hasDuplicates = new Set(allEliminated).size !== allEliminated.length;
+    if (hasDuplicates) {
+        alert('Um time não pode aparecer em mais de uma fase eliminada.');
+        return;
+    }
+    if (allEliminated.includes(champion) || allEliminated.includes(runnerUp)) {
+        alert('Não inclua campeão ou vice nas listas de eliminados.');
+        return;
+    }
+
+    const payload = {
+        season_id: seasonId,
+        champion,
+        runner_up: runnerUp,
+        first_round_losses: firstRound,
+        second_round_losses: secondRound,
+        conference_final_losses: confFinal,
+        mvp: form.mvp_player_name.value || null,
+        mvp_team_id: form.mvp_team_id.value || null,
+        dpoy: form.dpoy_player_name.value || null,
+        dpoy_team_id: form.dpoy_team_id.value || null,
+        mip: form.mip_player_name.value || null,
+        mip_team_id: form.mip_team_id.value || null,
+        sixth_man: form.sixth_man_player_name.value || null,
+        sixth_man_team_id: form.sixth_man_team_id.value || null
+    };
+
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+
+    api('seasons.php?action=save_history', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    }).then(() => {
+        alert('Histórico salvo! Pontuação atualizada.');
+        loadDraftPlayers(seasonId);
+    }).catch(e => {
+        alert('Erro ao salvar histórico: ' + (e.error || 'Desconhecido'));
+    }).finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
 }
 
 // ========== GERENCIAR DRAFT (continuação) ==========
@@ -544,7 +640,11 @@ async function deleteDraftPlayer(id) {
     
     try {
         await api(`seasons.php?action=delete_draft_player&id=${id}`, { method: 'DELETE' });
-        loadDraftPlayers(seasonsState.currentSeason.id);
+        const seasonId = seasonsState.currentSeason ? seasonsState.currentSeason.id : null;
+        if (seasonId) {
+            loadDraftPlayers(seasonId);
+        }
+        alert('Jogador removido do draft!');
     } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
     }

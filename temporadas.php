@@ -26,8 +26,17 @@ if (!$team) {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <title>Temporadas - GM FBA</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FBA Manager">
+  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  
   <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -54,6 +63,7 @@ if (!$team) {
       <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i>Meu Elenco</a></li>
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
+      <li><a href="/free-agency.php"><i class="bi bi-person-plus-fill"></i>Free Agency</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
@@ -287,6 +297,22 @@ if (!$team) {
             </p>
             <button class="btn btn-orange" onclick="showHistoryForm(${season.id}, '${league}')">
               <i class="bi bi-pencil me-2"></i>Cadastrar Histórico da Temporada
+            </button>
+          </div>
+        </div>
+
+        <!-- PONTOS DA TEMPORADA (MANUAL) -->
+        <div class="card bg-dark-panel border-warning mt-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h4 class="text-white mb-3">
+              <i class="bi bi-bar-chart-steps text-warning me-2"></i>
+              Registrar Pontos da Temporada (Manual)
+            </h4>
+            <p class="text-light-gray mb-3">
+              Informe quantos pontos cada time recebeu nesta temporada. Os valores serão enviados ao ranking.
+            </p>
+            <button class="btn btn-outline-warning" onclick="showSeasonPointsForm(${season.id}, '${league}')">
+              <i class="bi bi-pencil-square me-2"></i>Lançar Pontos
             </button>
           </div>
         </div>
@@ -574,6 +600,17 @@ if (!$team) {
                       <option value="C">C - Pivô</option>
                     </select>
                   </div>
+                    <div class="mb-3">
+                      <label class="form-label text-white">Posição Secundária</label>
+                      <select class="form-select bg-dark text-white border-orange" name="secondary_position">
+                        <option value="">Nenhuma</option>
+                        <option value="PG">PG - Armador</option>
+                        <option value="SG">SG - Ala-Armador</option>
+                        <option value="SF">SF - Ala</option>
+                        <option value="PF">PF - Ala-Pivô</option>
+                        <option value="C">C - Pivô</option>
+                      </select>
+                    </div>
                   <div class="mb-3">
                     <label class="form-label text-white">OVR</label>
                     <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="1" max="99" required>
@@ -595,8 +632,9 @@ if (!$team) {
     
     async function submitAddPlayer(event) {
       event.preventDefault();
-      const form = event.target;
-      const formData = new FormData(form);
+  const form = event.target;
+  const formData = new FormData(form);
+  const secondaryPosition = formData.get('secondary_position');
       
       try {
         await api('seasons.php?action=add_draft_player', {
@@ -606,6 +644,7 @@ if (!$team) {
             name: formData.get('name'),
             age: formData.get('age'),
             position: formData.get('position'),
+            secondary_position: secondaryPosition,
             ovr: formData.get('ovr'),
             photo_url: null
           })
@@ -755,112 +794,98 @@ if (!$team) {
                   <label class="form-label text-white">
                     <i class="bi bi-trophy-fill text-warning me-2"></i>Campeão
                   </label>
-                  <select class="form-select" name="champion" required>
+                  <select class="form-select" name="champion_team_id" required>
                     <option value="">Selecione o campeão</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
-                
+
                 <!-- Vice-Campeão -->
                 <div class="mb-4">
                   <label class="form-label text-white">
                     <i class="bi bi-award text-secondary me-2"></i>Vice-Campeão
                   </label>
-                  <select class="form-select" name="runner_up" required>
+                  <select class="form-select" name="runner_up_team_id" required>
                     <option value="">Selecione o vice-campeão</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 
-                <!-- MVP - Time -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-star-fill text-warning me-2"></i>Time do MVP
-                  </label>
-                  <select class="form-select" id="mvpTeamSelect" onchange="loadTeamPlayers('mvp', this.value)">
-                    <option value="">Selecione o time (opcional)</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
+                <!-- MVP -->
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-star-fill text-warning me-2"></i>MVP (Nome do Jogador)
+                    </label>
+                    <input type="text" class="form-control" name="mvp_player" placeholder="Ex: LeBron James">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-people me-2"></i>Time do MVP
+                    </label>
+                    <select class="form-select" name="mvp_team_id">
+                      <option value="">Selecione o time</option>
+                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    </select>
+                  </div>
                 </div>
                 
-                <!-- MVP - Jogador -->
-                <div class="mb-4" id="mvpPlayerContainer" style="display: none;">
-                  <label class="form-label text-white">
-                    <i class="bi bi-person-fill text-warning me-2"></i>Jogador MVP
-                  </label>
-                  <select class="form-select" name="mvp" id="mvpPlayerSelect">
-                    <option value="">Carregando jogadores...</option>
-                  </select>
+                <!-- DPOY -->
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-shield-fill text-info me-2"></i>DPOY (Nome do Jogador)
+                    </label>
+                    <input type="text" class="form-control" name="dpoy_player" placeholder="Ex: Rudy Gobert">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-people me-2"></i>Time do DPOY
+                    </label>
+                    <select class="form-select" name="dpoy_team_id">
+                      <option value="">Selecione o time</option>
+                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    </select>
+                  </div>
                 </div>
                 
-                <!-- DPOY - Time -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-shield-fill text-primary me-2"></i>Time do DPOY (Defensor do Ano)
-                  </label>
-                  <select class="form-select" id="dpoyTeamSelect" onchange="loadTeamPlayers('dpoy', this.value)">
-                    <option value="">Selecione o time (opcional)</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
+                <!-- MIP -->
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-graph-up-arrow text-success me-2"></i>MIP (Nome do Jogador)
+                    </label>
+                    <input type="text" class="form-control" name="mip_player" placeholder="Ex: Ja Morant">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-people me-2"></i>Time do MIP
+                    </label>
+                    <select class="form-select" name="mip_team_id">
+                      <option value="">Selecione o time</option>
+                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    </select>
+                  </div>
                 </div>
                 
-                <!-- DPOY - Jogador -->
-                <div class="mb-4" id="dpoyPlayerContainer" style="display: none;">
-                  <label class="form-label text-white">
-                    <i class="bi bi-person-fill text-primary me-2"></i>Jogador DPOY
-                  </label>
-                  <select class="form-select" name="dpoy" id="dpoyPlayerSelect">
-                    <option value="">Carregando jogadores...</option>
-                  </select>
+                <!-- 6º Homem -->
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-person-plus text-primary me-2"></i>6º Homem (Nome do Jogador)
+                    </label>
+                    <input type="text" class="form-control" name="sixth_man_player" placeholder="Ex: Tyler Herro">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label text-white">
+                      <i class="bi bi-people me-2"></i>Time do 6º Homem
+                    </label>
+                    <select class="form-select" name="sixth_man_team_id">
+                      <option value="">Selecione o time</option>
+                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    </select>
+                  </div>
                 </div>
-                
-                <!-- MIP - Time -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-graph-up-arrow text-success me-2"></i>Time do MIP (Jogador que Mais Evoluiu)
-                  </label>
-                  <select class="form-select" id="mipTeamSelect" onchange="loadTeamPlayers('mip', this.value)">
-                    <option value="">Selecione o time (opcional)</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
-                </div>
-                
-                <!-- MIP - Jogador -->
-                <div class="mb-4" id="mipPlayerContainer" style="display: none;">
-                  <label class="form-label text-white">
-                    <i class="bi bi-person-fill text-success me-2"></i>Jogador MIP
-                  </label>
-                  <select class="form-select" name="mip" id="mipPlayerSelect">
-                    <option value="">Carregando jogadores...</option>
-                  </select>
-                </div>
-                
-                <!-- 6º Homem - Time -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-person-plus text-info me-2"></i>Time do 6º Homem
-                  </label>
-                  <select class="form-select" id="sixthManTeamSelect" onchange="loadTeamPlayers('sixth_man', this.value)">
-                    <option value="">Selecione o time (opcional)</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
-                </div>
-                
-                <!-- 6º Homem - Jogador -->
-                <div class="mb-4" id="sixth_manPlayerContainer" style="display: none;">
-                  <label class="form-label text-white">
-                    <i class="bi bi-person-fill text-info me-2"></i>Jogador 6º Homem
-                  </label>
-                  <select class="form-select" name="sixth_man" id="sixth_manPlayerSelect">
-                    <option value="">Carregando jogadores...</option>
-                  </select>
-                </div>
-                
-                <!-- Campos ocultos para IDs dos times (para contagem de pontos) -->
-                <input type="hidden" name="mvp_team_id" id="mvp_team_id">
-                <input type="hidden" name="dpoy_team_id" id="dpoy_team_id">
-                <input type="hidden" name="mip_team_id" id="mip_team_id">
-                <input type="hidden" name="sixth_man_team_id" id="sixth_man_team_id">
                 
                 <div class="d-grid gap-2">
                   <button type="submit" class="btn btn-orange btn-lg">
@@ -876,41 +901,103 @@ if (!$team) {
       }
     }
 
-    // ========== CARREGAR JOGADORES DO TIME ==========
-    async function loadTeamPlayers(awardType, teamId) {
-      const playerContainer = document.getElementById(`${awardType}PlayerContainer`);
-      const playerSelect = document.getElementById(`${awardType}PlayerSelect`);
-      const teamIdInput = document.getElementById(`${awardType}_team_id`);
-      
-      if (!teamId) {
-        // Se não selecionou time, esconde o campo de jogador
-        playerContainer.style.display = 'none';
-        playerSelect.innerHTML = '<option value="">Selecione um time primeiro</option>';
-        if (teamIdInput) teamIdInput.value = '';
-        return;
-      }
-      
-      // Guardar o ID do time no campo oculto (para contagem de pontos)
-      if (teamIdInput) teamIdInput.value = teamId;
-      
+    // ========== REGISTRAR PONTOS DA TEMPORADA (MANUAL) ==========
+    async function showSeasonPointsForm(seasonId, league) {
+      const container = document.getElementById('mainContainer');
+
       try {
-        // Buscar jogadores do time
-        const response = await api(`team-players.php?team_id=${teamId}`);
-        const players = response.players || [];
-        
-        // Atualizar o select de jogadores
-        playerSelect.innerHTML = `
-          <option value="">Selecione o jogador</option>
-          ${players.map(p => `
-            <option value="${p.name}">${p.name} - ${p.position} (OVR ${p.ovr})</option>
-          `).join('')}
+        const teamsData = await api(`admin.php?action=teams&league=${league}`);
+        const teams = teamsData.teams || [];
+
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+
+          <div class="card bg-dark-panel border-warning" style="border-radius: 15px;">
+            <div class="card-body">
+              <h3 class="text-white mb-4">
+                <i class="bi bi-bar-chart-steps text-warning me-2"></i>
+                Pontos da Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+              </h3>
+
+              <form id="pointsForm" onsubmit="saveSeasonPoints(event, ${seasonId}, '${league}')">
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th style="width: 120px;">Pontos</th>
+                        <th class="d-none d-md-table-cell">Observação (opcional)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${teams.map(t => `
+                        <tr>
+                          <td>
+                            <div class="d-flex align-items-center gap-2">
+                              <img src="${t.photo_url || '/img/default-team.png'}" alt="${t.city} ${t.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+                              <span>${t.city} ${t.name}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="0" min="0" />
+                          </td>
+                          <td class="d-none d-md-table-cell">
+                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" />
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-save me-2"></i>Salvar Pontos
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         `;
-        
-        // Mostrar o campo de jogador
-        playerContainer.style.display = 'block';
       } catch (e) {
-        alert('Erro ao carregar jogadores: ' + (e.error || 'Desconhecido'));
-        playerContainer.style.display = 'none';
+        alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    async function saveSeasonPoints(event, seasonId, league) {
+      event.preventDefault();
+      const form = event.target;
+
+      // Montar payload
+      const teamPoints = [];
+      const formData = new FormData(form);
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('points_')) {
+          const teamId = Number(key.replace('points_', ''));
+          const points = Number(value || 0);
+          teamPoints.push({ team_id: teamId, points });
+        }
+      }
+
+      try {
+        await fetch('/api/history-points.php?action=save_season_points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            season_id: seasonId, 
+            league: league,
+            team_points: teamPoints 
+          })
+        }).then(res => res.json()).then(data => {
+          if (!data.success) throw new Error(data.error);
+        });
+        
+        alert('Pontos salvos com sucesso!');
+        showLeagueManagement(league);
+      } catch (e) {
+        alert('Erro ao salvar pontos: ' + (e.message || 'Desconhecido'));
       }
     }
 
@@ -920,31 +1007,38 @@ if (!$team) {
       
       const form = event.target;
       const formData = new FormData(form);
-      
+
       const data = {
         season_id: seasonId,
-        champion: formData.get('champion'),
-        runner_up: formData.get('runner_up'),
-        mvp: formData.get('mvp') || null,
+        league: league,
+        champion_team_id: formData.get('champion_team_id') || null,
+        runner_up_team_id: formData.get('runner_up_team_id') || null,
+        mvp_player: formData.get('mvp_player') || null,
         mvp_team_id: formData.get('mvp_team_id') || null,
-        dpoy: formData.get('dpoy') || null,
+        dpoy_player: formData.get('dpoy_player') || null,
         dpoy_team_id: formData.get('dpoy_team_id') || null,
-        mip: formData.get('mip') || null,
+        mip_player: formData.get('mip_player') || null,
         mip_team_id: formData.get('mip_team_id') || null,
-        sixth_man: formData.get('sixth_man') || null,
+        sixth_man_player: formData.get('sixth_man_player') || null,
         sixth_man_team_id: formData.get('sixth_man_team_id') || null
       };
-      
+
       try {
-        await api('seasons.php?action=save_history', {
+        const response = await fetch('/api/history-points.php?action=save_history', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
+        const result = await response.json();
         
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+
         alert('Histórico salvo com sucesso!');
         showLeagueManagement(league);
       } catch (e) {
-        alert('Erro ao salvar histórico: ' + (e.error || 'Desconhecido'));
+        alert('Erro ao salvar histórico: ' + (e.message || 'Desconhecido'));
       }
     }
 
@@ -958,5 +1052,6 @@ if (!$team) {
       if (timerInterval) clearInterval(timerInterval);
     });
   </script>
+  <script src="/js/pwa.js"></script>
 </body>
 </html>

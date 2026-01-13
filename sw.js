@@ -1,0 +1,154 @@
+// Service Worker para FBA Manager PWA
+const CACHE_NAME = 'fba-manager-v1';
+const OFFLINE_URL = '/offline.html';
+
+// Arquivos essenciais para cache
+const STATIC_ASSETS = [
+  '/',
+  '/dashboard.php',
+  '/login.php',
+  '/css/styles.css',
+  '/js/sidebar.js',
+  '/img/default-team.png',
+  '/manifest.json',
+  '/offline.html',
+  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
+  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
+  'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap'
+];
+
+// Instalar Service Worker
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[SW] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Ativar Service Worker
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[SW] Removing old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Estratégia de fetch: Network First, fallback to Cache
+self.addEventListener('fetch', event => {
+  // Ignorar requisições não-GET e APIs
+  if (event.request.method !== 'GET') return;
+  
+  const url = new URL(event.request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
+  
+  // Para APIs, sempre buscar da rede
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => new Response(JSON.stringify({ error: 'Offline' }), {
+          headers: { 'Content-Type': 'application/json' }
+        }))
+    );
+    return;
+  }
+  
+  // Para navegação (páginas HTML)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(OFFLINE_URL))
+    );
+    return;
+  }
+  
+  // Para assets estáticos: Cache First
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).then(fetchResponse => {
+          // Cachear recursos estáticos
+          if (fetchResponse.ok && 
+              (url.pathname.endsWith('.css') || 
+               url.pathname.endsWith('.js') || 
+               url.pathname.endsWith('.png') || 
+               url.pathname.endsWith('.jpg') ||
+               url.pathname.endsWith('.ico'))) {
+            const responseClone = fetchResponse.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => cache.put(event.request, responseClone))
+              .catch(err => console.warn('[SW] Falha ao cachear recurso', url.href, err));
+          }
+          return fetchResponse;
+        });
+      })
+      .catch(() => {
+        // Fallback para imagens
+        if (event.request.destination === 'image') {
+          return caches.match('/img/default-team.png');
+        }
+      })
+  );
+});
+
+// Push Notifications (para futuro uso)
+self.addEventListener('push', event => {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body || 'Nova notificação do FBA Manager',
+      icon: '/img/icon-192x192.png',
+      badge: '/img/icon-72x72.png',
+      vibrate: [100, 50, 100],
+      data: {
+        dateOfArrival: Date.now(),
+        primaryKey: data.primaryKey || 1,
+        url: data.url || '/dashboard.php'
+      },
+      actions: [
+        { action: 'explore', title: 'Ver' },
+        { action: 'close', title: 'Fechar' }
+      ]
+    };
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'FBA Manager', options)
+    );
+  }
+});
+
+// Clique em notificação
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  if (event.action === 'explore' || !event.action) {
+    const urlToOpen = event.notification.data?.url || '/dashboard.php';
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then(windowClients => {
+          for (const client of windowClients) {
+            if (client.url === urlToOpen && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          if (clients.openWindow) {
+            return clients.openWindow(urlToOpen);
+          }
+        })
+    );
+  }
+});

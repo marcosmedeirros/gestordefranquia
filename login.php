@@ -2,7 +2,14 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#fc0025">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FBA Manager">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/img/icon-192x192.png">
     <title>FBA Manager Control - Sistema de Gestão de Franquias</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,6 +111,11 @@
                                 <input name="email" type="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label text-light-gray">Telefone (WhatsApp)</label>
+                                <input name="phone" type="tel" class="form-control form-control-lg" placeholder="Ex.: 55999999999" required maxlength="13">
+                                <small class="text-light-gray">Digite apenas números (DDD + telefone).</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label text-light-gray">Senha</label>
                                 <input name="password" type="password" class="form-control form-control-lg" placeholder="Mínimo 6 caracteres" required minlength="6">
                             </div>
@@ -168,6 +180,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/login.js"></script>
+    <script src="/js/pwa.js"></script>
     <script>
         function showRegisterForm() {
             document.getElementById('login-form-container').style.display = 'none';

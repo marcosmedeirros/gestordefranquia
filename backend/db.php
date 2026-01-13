@@ -22,39 +22,12 @@ function db(): PDO
 
 function ensureSchema(PDO $pdo, string $dbName): void
 {
-    // Verifica se já existe a tabela principal; se não, roda o schema completo.
-    $check = $pdo->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? LIMIT 1');
-    $check->execute([$dbName, 'users']);
-    if ($check->fetch()) {
-        return;
-    }
-
-    $schemaFile = __DIR__ . '/../sql/schema.sql';
-    if (!file_exists($schemaFile)) {
-        throw new RuntimeException('Arquivo schema.sql não encontrado.');
-    }
-
-    $sql = file_get_contents($schemaFile);
+    // Carrega e executa migrações automáticas
+    require_once __DIR__ . '/migrations.php';
     
-    // Divide o SQL em statements individuais e executa um por vez
-    $statements = array_filter(
-        array_map('trim', explode(';', $sql)),
-        function($stmt) {
-            return !empty($stmt) && !preg_match('/^--/', $stmt);
-        }
-    );
-    
-    foreach ($statements as $statement) {
-        if (!empty($statement)) {
-            try {
-                $pdo->exec($statement);
-            } catch (PDOException $e) {
-                // Ignora erros de duplicação (tabela/índice já existe)
-                if (strpos($e->getMessage(), 'already exists') === false && 
-                    strpos($e->getMessage(), 'Duplicate') === false) {
-                    throw $e;
-                }
-            }
-        }
+    try {
+        runMigrations();
+    } catch (Exception $e) {
+        error_log('Erro ao executar migrações: ' . $e->getMessage());
     }
 }

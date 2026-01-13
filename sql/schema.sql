@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(190) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     photo_url VARCHAR(255) NULL,
+    phone VARCHAR(30) NULL,
     user_type ENUM('jogador','admin') NOT NULL DEFAULT 'jogador',
     league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
     email_verified TINYINT(1) NOT NULL DEFAULT 0,
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
     reset_token VARCHAR(64) DEFAULT NULL,
     reset_token_expiry DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_league (league)
+    INDEX idx_user_league (league),
+    INDEX idx_user_phone (phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS divisions (

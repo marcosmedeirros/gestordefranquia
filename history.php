@@ -22,9 +22,19 @@ $userLeague = $team['league'];
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <title>Histórico - GM FBA</title>
-  <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FBA Manager">
+  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  
+  <!-- Favicon: usar PNG existente para evitar 404 -->
+  <link rel="icon" type="image/png" href="/img/default-team.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
@@ -50,6 +60,7 @@ $userLeague = $team['league'];
       <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i>Meu Elenco</a></li>
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
+      <li><a href="/free-agency.php"><i class="bi bi-person-plus-fill"></i>Free Agency</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php" class="active"><i class="bi bi-clock-history"></i>Histórico</a></li>
@@ -58,7 +69,6 @@ $userLeague = $team['league'];
       <li><a href="/temporadas.php"><i class="bi bi-calendar3"></i>Temporadas</a></li>
       <?php endif; ?>
       <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
-    </ul>
     </ul>
     <hr style="border-color: var(--fba-border);">
     <div class="text-center">
@@ -70,130 +80,20 @@ $userLeague = $team['league'];
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="text-white fw-bold mb-0">
         <i class="bi bi-clock-history me-2 text-orange"></i>
-        Histórico de Temporadas
+        Histórico de Temporadas - Liga <?= htmlspecialchars($userLeague) ?>
       </h1>
     </div>
 
-    <div id="historyContainer">
+    <div id="historyContainer" data-league="<?= htmlspecialchars($userLeague) ?>">
       <div class="text-center py-5">
         <div class="spinner-border text-orange"></div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/sidebar.js"></script>
-  <script>
-    const userLeague = '<?= $userLeague ?>';
-
-    const api = async (path, options = {}) => {
-      const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
-      let body = {};
-      try { body = await res.json(); } catch {}
-      if (!res.ok) throw body;
-      return body;
-    };
-
-    async function loadHistory() {
-      try {
-        // Buscar histórico completo (campeões + prêmios)
-        const historyData = await api('seasons.php?action=full_history&league=' + userLeague);
-        const seasons = historyData.history || [];
-
-        if (seasons.length === 0) {
-          document.getElementById('historyContainer').innerHTML = `
-            <div class="text-center py-5">
-              <i class="bi bi-clock-history text-orange fs-1 mb-3 d-block"></i>
-              <h5 class="text-white mb-2">Nenhum histórico ainda</h5>
-              <p class="text-light-gray">
-                Ainda não há histórico de temporadas registrado para a liga <strong class="text-orange">${userLeague}</strong>.
-              </p>
-            </div>
-          `;
-          return;
-        }
-
-        document.getElementById('historyContainer').innerHTML = `
-          <div class="row g-4">
-            ${seasons.map(s => `
-              <div class="col-md-6 col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100" style="border-radius: 15px;">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h5 class="text-white mb-0">
-                        <i class="bi bi-calendar3 text-orange me-2"></i>
-                        Temporada ${String(s.number).padStart(2, '0')}
-                      </h5>
-                      <span class="badge bg-gradient-orange">${s.year}</span>
-                    </div>
-
-                    ${s.champion ? `
-                      <div class="mb-3">
-                        <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(241, 117, 7, 0.1); border-radius: 10px; border-left: 4px solid var(--fba-orange);">
-                          <i class="bi bi-trophy-fill text-orange" style="font-size: 1.5rem;"></i>
-                          <div>
-                            <small class="text-light-gray d-block">Campeão</small>
-                            <strong class="text-white">${s.champion.city} ${s.champion.name}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    ${s.runner_up ? `
-                      <div class="mb-3">
-                        <div class="d-flex align-items-center gap-2 p-3" style="background: rgba(200, 200, 200, 0.05); border-radius: 10px; border-left: 4px solid #888;">
-                          <i class="bi bi-award-fill text-light-gray" style="font-size: 1.5rem;"></i>
-                          <div>
-                            <small class="text-light-gray d-block">Vice-Campeão</small>
-                            <strong class="text-white">${s.runner_up.city} ${s.runner_up.name}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    ` : ''}
-
-                    ${s.awards && s.awards.length > 0 ? `
-                      <div class="mt-3 pt-3" style="border-top: 1px solid rgba(241, 117, 7, 0.3);">
-                        <small class="text-light-gray d-block mb-2"><strong>Prêmios Individuais:</strong></small>
-                        ${s.awards.map(award => {
-                          const icons = {
-                            'MVP': 'bi-star-fill text-warning',
-                            'DPOY': 'bi-shield-fill text-primary',
-                            'MIP': 'bi-graph-up-arrow text-success',
-                            '6th Man': 'bi-person-plus text-info'
-                          };
-                          const icon = icons[award.type] || 'bi-award text-light-gray';
-                          return `
-                            <div class="mb-2 p-2" style="background: rgba(255,255,255,0.03); border-radius: 8px;">
-                              <div class="d-flex align-items-start gap-2">
-                                <i class="bi ${icon}" style="font-size: 1rem; margin-top: 2px;"></i>
-                                <div style="flex: 1; min-width: 0;">
-                                  <small class="text-light-gray d-block" style="font-size: 0.7rem;">${award.type}</small>
-                                  <strong class="text-white d-block" style="font-size: 0.85rem;">${award.player || 'N/A'}</strong>
-                                  <small class="text-light-gray" style="font-size: 0.75rem;">${award.team_city} ${award.team_name}</small>
-                                </div>
-                              </div>
-                            </div>
-                          `;
-                        }).join('')}
-                      </div>
-                    ` : ''}
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-      } catch (e) {
-        console.error(e);
-        document.getElementById('historyContainer').innerHTML = `
-          <div class="alert alert-danger" style="border-radius: 15px;">
-            Erro ao carregar histórico: ${e.error || 'Desconhecido'}
-          </div>
-        `;
-      }
-    }
-
-    loadHistory();
-  </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/history.js" defer></script>
+<script src="/js/pwa.js"></script>
 </body>
 </html>

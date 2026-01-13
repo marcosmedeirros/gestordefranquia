@@ -1,150 +1,99 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
 $pdo = db();
 
-// Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
-$team = $stmtTeam->fetch() ?: null;
-
-// Buscar todos os times da liga
-$stmtTeams = $pdo->prepare('
-  SELECT t.*, u.name as owner_name, COUNT(DISTINCT p.id) as total_players
-  FROM teams t
-  LEFT JOIN users u ON t.user_id = u.id
-  LEFT JOIN players p ON t.id = p.team_id
-  WHERE t.league = ?
-  GROUP BY t.id, t.name, t.city, t.mascot, t.photo_url, t.conference, u.name
-  ORDER BY t.conference, t.name
+// Buscar time do usuário para a sidebar
+$stmtTeam = $pdo->prepare('
+    SELECT t.*, COUNT(p.id) as player_count
+    FROM teams t
+    LEFT JOIN players p ON p.team_id = t.id
+    WHERE t.user_id = ?
+    GROUP BY t.id
+    ORDER BY player_count DESC, t.id DESC
 ');
-$stmtTeams->execute([$user['league']]);
-$allTeams = $stmtTeams->fetchAll() ?: [];
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch();
 
-// Calcular CAP Top8 para cada time
-foreach ($allTeams as &$t) {
-  $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
-  $stmt->execute([$t['id']]);
-  $topPlayers = $stmt->fetchAll();
-  $t['cap_top8'] = array_reduce($topPlayers, function($carry, $item) {
-    return $carry + $item['ovr'];
-  }, 0);
-}
+$stmt = $pdo->prepare('
+        SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id,
+                     u.name AS owner_name, u.phone AS owner_phone
+        FROM teams t
+        INNER JOIN users u ON u.id = t.user_id
+        WHERE t.league = ?
+        ORDER BY t.id ASC
+');
+$stmt->execute([$user['league']]);
+$teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// Separar por conferência
-$teams_by_conference = [];
-foreach ($allTeams as $t) {
-  $conf = $t['conference'] ?? 'Sem Conferência';
-  if (!isset($teams_by_conference[$conf])) {
-    $teams_by_conference[$conf] = [];
-  }
-  $teams_by_conference[$conf][] = $t;
+foreach ($teams as &$t) {
+        if (empty($t['owner_name'])) {
+                $t['owner_name'] = 'N/A';
+        }
+
+        $rawPhone = $t['owner_phone'] ?? '';
+        $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+        if (!$normalizedPhone && $rawPhone !== '') {
+                $digits = preg_replace('/\D+/', '', $rawPhone);
+                if ($digits !== '') {
+                        $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+                }
+        }
+        $t['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+        $t['owner_phone_whatsapp'] = $normalizedPhone;
+
+        $playerStmt = $pdo->prepare('SELECT COUNT(*) as cnt FROM players WHERE team_id = ?');
+        $playerStmt->execute([$t['id']]);
+        $t['total_players'] = (int)$playerStmt->fetch()['cnt'];
+
+        $capStmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top8');
+        $capStmt->execute([$t['id']]);
+        $capResult = $capStmt->fetch();
+        $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
 }
+unset($t); // Importante: limpar referência do foreach
+
+$whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Todos os Times - FBA Manager Control</title>
+    <meta charset="UTF-8">
+    <?php include __DIR__ . '/includes/head-pwa.php'; ?>
+    <title>Times - FBA Manager</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a0c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FBA Manager">
+    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="/css/styles.css" />
-    <style>
-      .team-card {
-        background: var(--fba-panel);
-        border: 2px solid var(--fba-border);
-        border-radius: 8px;
-        padding: 15px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-      }
-      .team-card:hover {
-        border-color: var(--fba-orange);
-        box-shadow: 0 4px 12px rgba(241, 117, 7, 0.3);
-        transform: translateY(-2px);
-      }
-      .team-logo {
-        width: 60px;
-        height: 60px;
-        border-radius: 8px;
-        border: 2px solid var(--fba-orange);
-        object-fit: cover;
-        flex-shrink: 0;
-      }
-      .team-info {
-        flex: 1;
-      }
-      .team-name {
-        font-size: 1.1rem;
-        font-weight: bold;
-        color: var(--fba-orange);
-        margin-bottom: 5px;
-      }
-      .team-owner {
-        font-size: 0.9rem;
-        color: var(--fba-text-muted);
-        margin-bottom: 8px;
-      }
-      .team-stats {
-        display: flex;
-        gap: 15px;
-        font-size: 0.85rem;
-      }
-      .team-stat {
-        display: flex;
-        flex-direction: column;
-      }
-      .team-stat-value {
-        font-weight: bold;
-        color: var(--fba-text);
-        font-size: 1rem;
-      }
-      .team-stat-label {
-        color: var(--fba-text-muted);
-        font-size: 0.75rem;
-        text-transform: uppercase;
-      }
-      .conference-section {
-        margin-bottom: 40px;
-      }
-      .conference-title {
-        font-size: 1.8rem;
-        font-weight: bold;
-        color: var(--fba-orange);
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid var(--fba-orange);
-      }
-      .conference-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin-bottom: 30px;
-      }
-      @media (max-width: 768px) {
-        .conference-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+    <!-- Botão Hamburguer para Mobile -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="bi bi-list fs-4"></i>
+    </button>
+    
+    <!-- Overlay para fechar sidebar no mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Sidebar -->
-    <div class="dashboard-sidebar">
+    <div class="dashboard-sidebar" id="sidebar">
         <div class="text-center mb-4">
-            <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
+            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" 
                  alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
-            <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
+            <h5 class="text-white mb-1"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? 'Sem time')) ?></h5>
             <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
         </div>
 
@@ -179,6 +128,12 @@ foreach ($allTeams as $t) {
                 <a href="/trades.php">
                     <i class="bi bi-arrow-left-right"></i>
                     Trades
+                </a>
+            </li>
+            <li>
+                <a href="/free-agency.php">
+                    <i class="bi bi-person-plus-fill"></i>
+                    Free Agency
                 </a>
             </li>
             <li>
@@ -239,118 +194,112 @@ foreach ($allTeams as $t) {
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <div class="mb-4">
-            <h1 class="display-5 fw-bold mb-2">
-                <i class="bi bi-people-fill text-orange me-2"></i>Todos os Times
-            </h1>
-            <p class="text-light-gray">Liga <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span></p>
-        </div>
+        <h1 class="display-5 fw-bold mb-4">
+            <i class="bi bi-people-fill text-orange me-2"></i>Times da Liga
+        </h1>
 
-        <!-- CONFERÊNCIA LESTE -->
-        <?php if (isset($teams_by_conference['LESTE'])): ?>
-        <div class="conference-section">
-            <div class="conference-title">
-                <i class="bi bi-geo-alt me-2"></i>Conferência LESTE
-            </div>
-            <div class="conference-grid">
-                <?php foreach ($teams_by_conference['LESTE'] as $t): ?>
-                <div class="team-card">
-                    <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                         alt="<?= htmlspecialchars($t['name']) ?>" 
-                         class="team-logo">
-                    <div class="team-info">
-                        <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                        <div class="team-owner">
-                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name'] ?? 'N/A') ?>
-                        </div>
-                        <div class="team-stats">
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['total_players'] ?? 0 ?></span>
-                                <span class="team-stat-label">Jogadores</span>
-                            </div>
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['cap_top8'] ?? 0 ?></span>
-                                <span class="team-stat-label">CAP Top8</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-orange" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
-                        <i class="bi bi-eye me-1"></i>Ver
-                    </button>
+        <div class="card bg-dark-panel border-orange">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
+                            <tr>
+                                <th class="text-white fw-bold" style="width: 60px;">Logo</th>
+                                <th class="text-white fw-bold">Time</th>
+                                <th class="text-white fw-bold hide-mobile">Proprietário</th>
+                                <th class="text-white fw-bold text-center">Jog.</th>
+                                <th class="text-white fw-bold text-center hide-mobile">CAP</th>
+                                <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($teams as $t): ?>
+                            <?php
+                                $hasContact = !empty($t['owner_phone_whatsapp']);
+                                $whatsAppLink = $hasContact
+                                    ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
+                                    : null;
+                            ?>
+                            <tr>
+                                <td>
+                                    <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
+                                         alt="<?= htmlspecialchars($t['name']) ?>" 
+                                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                    <div class="d-md-none mt-1">
+                                        <small class="text-light-gray d-block">
+                                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
+                                        </small>
+                                        <?php if ($hasContact): ?>
+                                            <small class="text-light-gray d-block">
+                                                <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
+                                            </small>
+                                        <?php else: ?>
+                                            <small class="text-muted">Sem contato</small>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td class="hide-mobile">
+                                    <div><i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?></div>
+                                    <?php if ($hasContact): ?>
+                                        <small class="text-light-gray d-block"><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                    <?php else: ?>
+                                        <small class="text-muted">Sem contato</small>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-gradient-orange"><?= $t['total_players'] ?></span>
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                                            <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
+                                        </button>
+                                        <?php if ($hasContact): ?>
+                                            <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                                <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">Falar</span>
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <?php endforeach; ?>
             </div>
         </div>
-        <?php endif; ?>
-
-        <!-- CONFERÊNCIA OESTE -->
-        <?php if (isset($teams_by_conference['OESTE'])): ?>
-        <div class="conference-section">
-            <div class="conference-title">
-                <i class="bi bi-geo-alt me-2"></i>Conferência OESTE
-            </div>
-            <div class="conference-grid">
-                <?php foreach ($teams_by_conference['OESTE'] as $t): ?>
-                <div class="team-card">
-                    <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                         alt="<?= htmlspecialchars($t['name']) ?>" 
-                         class="team-logo">
-                    <div class="team-info">
-                        <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                        <div class="team-owner">
-                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name'] ?? 'N/A') ?>
-                        </div>
-                        <div class="team-stats">
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['total_players'] ?? 0 ?></span>
-                                <span class="team-stat-label">Jogadores</span>
-                            </div>
-                            <div class="team-stat">
-                                <span class="team-stat-value"><?= $t['cap_top8'] ?? 0 ?></span>
-                                <span class="team-stat-label">CAP Top8</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-orange" onclick="showTeamPlayers(<?= $t['id'] ?>, '<?= htmlspecialchars($t['city'] . ' ' . $t['name'], ENT_QUOTES) ?>')">
-                        <i class="bi bi-eye me-1"></i>Ver
-                    </button>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
 
-    <!-- Modal para mostrar jogadores -->
-    <div class="modal fade" id="teamPlayersModal" tabindex="-1">
+    <!-- Modal -->
+    <div class="modal fade" id="playersModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content bg-dark-panel border-orange">
                 <div class="modal-header border-orange">
-                    <h5 class="modal-title text-white" id="teamModalTitle"></h5>
+                    <h5 class="modal-title text-white" id="modalTitle"></h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="playersLoading" class="text-center py-4">
-                        <div class="spinner-border text-orange" role="status">
-                            <span class="visually-hidden">Carregando...</span>
-                        </div>
+                    <div id="loading" class="text-center py-4">
+                        <div class="spinner-border text-orange" role="status"></div>
                     </div>
-                    <div id="playersContent" style="display: none;">
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover mb-0">
-                                <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
-                                    <tr>
-                                        <th class="text-white fw-bold">Jogador</th>
-                                        <th class="text-white fw-bold">OVR</th>
-                                        <th class="text-white fw-bold">Posição</th>
-                                        <th class="text-white fw-bold">Função</th>
-                                        <th class="text-white fw-bold">Idade</th>
-                                        <th class="text-white fw-bold">Troca?</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="playersTableBody"></tbody>
-                            </table>
-                        </div>
+                    <div id="content" style="display: none;">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead style="background: var(--fba-orange); color: #000;">
+                                <tr>
+                                    <th>Jogador</th>
+                                    <th>OVR</th>
+                                    <th>Posição</th>
+                                    <th>Função</th>
+                                </tr>
+                            </thead>
+                            <tbody id="playersList"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -360,63 +309,43 @@ foreach ($allTeams as $t) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script>
-        async function showTeamPlayers(teamId, teamName) {
-            document.getElementById('teamModalTitle').textContent = teamName;
-            document.getElementById('playersLoading').style.display = 'block';
-            document.getElementById('playersContent').style.display = 'none';
+        async function verJogadores(teamId, teamName) {
+            document.getElementById('modalTitle').textContent = 'Elenco: ' + teamName;
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('content').style.display = 'none';
             
-            const modal = new bootstrap.Modal(document.getElementById('teamPlayersModal'));
+            const modal = new bootstrap.Modal(document.getElementById('playersModal'));
             modal.show();
 
             try {
-                const response = await fetch(`/api/team-players.php?team_id=${teamId}`);
-                const data = await response.json();
+                const res = await fetch(`/api/team-players.php?team_id=${teamId}`);
+                const data = await res.json();
 
                 if (data.success && data.players) {
-                    const tbody = document.getElementById('playersTableBody');
+                    const tbody = document.getElementById('playersList');
                     tbody.innerHTML = '';
 
                     if (data.players.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-light-gray">Nenhum jogador cadastrado</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum jogador</td></tr>';
                     } else {
-                        data.players.forEach(player => {
-                            const tradeClass = player.available_for_trade ? 'trade' : 'notrade';
-                            const tradeText = player.available_for_trade ? 'Disponível' : 'Fechado';
-                            const row = document.createElement('tr');
-                            row.innerHTML = `
-                                <td class="fw-bold">${player.name}</td>
-                                <td><span class="badge" style="background-color: ${getOvrColor(player.ovr)}; color: #000;">${player.ovr}</span></td>
-                                <td><span class="badge bg-orange">${player.position}</span></td>
-                                <td><span class="badge bg-secondary">${player.role}</span></td>
-                                <td class="text-light-gray">${player.age} anos</td>
-                                <td><span class="badge badge-${tradeClass}">${tradeText}</span></td>
-                            `;
-                            tbody.appendChild(row);
+                        data.players.forEach(p => {
+                            tbody.innerHTML += `<tr>
+                                <td><strong>${p.name}</strong></td>
+                                <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
+                                <td>${p.position}</td>
+                                <td>${p.role}</td>
+                            </tr>`;
                         });
                     }
 
-                    document.getElementById('playersLoading').style.display = 'none';
-                    document.getElementById('playersContent').style.display = 'block';
-                } else {
-                    throw new Error('Erro ao carregar jogadores');
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('content').style.display = 'block';
                 }
             } catch (err) {
-                document.getElementById('playersLoading').innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-triangle"></i> Erro ao carregar jogadores
-                    </div>
-                `;
+                document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Erro ao carregar</div>';
             }
         }
-
-        function getOvrColor(ovr) {
-            if (ovr >= 95) return '#00ff00';
-            if (ovr >= 90) return '#80ff00';
-            if (ovr >= 85) return '#ffff00';
-            if (ovr >= 80) return '#ff9900';
-            if (ovr >= 70) return '#ff6600';
-            return '#ff3333';
-        }
     </script>
+    <script src="/js/pwa.js"></script>
 </body>
 </html>

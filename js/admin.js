@@ -6,7 +6,7 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null };
+let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null, currentFAleague: 'ELITE' };
 
 async function init() { showHome(); }
 
@@ -41,6 +41,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'ranking') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>';
       pageTitle.textContent = 'Rankings Globais';
+    } else if (appState.view === 'freeagency') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>';
+      pageTitle.textContent = 'Aprovar Free Agency';
     }
   }
 }
@@ -57,7 +60,9 @@ async function showHome() {
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showFreeAgency()"><i class="bi bi-person-plus-fill"></i><h4>Free Agency</h4><p>Aprovar contratações de jogadores livres</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -392,20 +397,36 @@ function addPlayer(teamId) {
 <input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerName" placeholder="Nome completo do jogador"></div>
 <div class="row">
 <div class="col-md-6 mb-3"><label class="form-label text-light-gray">Posição</label>
-<input type="text" class="form-control bg-dark text-white border-orange" id="addPlayerPosition" placeholder="PG, SG, SF, PF, C"></div>
-<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
-<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerAge" value="25" min="18" max="45"></div>
+<select class="form-select bg-dark text-white border-orange" id="addPlayerPosition">
+<option value="PG">PG</option>
+<option value="SG">SG</option>
+<option value="SF">SF</option>
+<option value="PF">PF</option>
+<option value="C">C</option>
+</select></div>
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Pos. Secundária</label>
+<select class="form-select bg-dark text-white border-orange" id="addPlayerSecondaryPosition">
+<option value="">Nenhuma</option>
+<option value="PG">PG</option>
+<option value="SG">SG</option>
+<option value="SF">SF</option>
+<option value="PF">PF</option>
+<option value="C">C</option>
+</select></div>
 </div>
 <div class="row">
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerAge" value="25" min="18" max="45"></div>
 <div class="col-md-6 mb-3"><label class="form-label text-light-gray">OVR</label>
 <input type="number" class="form-control bg-dark text-white border-orange" id="addPlayerOvr" value="70" min="0" max="99"></div>
-<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Papel</label>
+</div>
+<div class="mb-3"><label class="form-label text-light-gray">Papel</label>
 <select class="form-select bg-dark text-white border-orange" id="addPlayerRole">
 <option value="Titular">Titular</option>
 <option value="Banco" selected>Banco</option>
 <option value="Outro">Outro</option>
 <option value="G-League">G-League</option></select></div>
-</div></div>
+</div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
   
@@ -418,7 +439,8 @@ async function saveNewPlayer(teamId) {
   const data = {
     team_id: teamId,
     name: document.getElementById('addPlayerName').value.trim(),
-    position: document.getElementById('addPlayerPosition').value.trim(),
+    position: document.getElementById('addPlayerPosition').value,
+    secondary_position: document.getElementById('addPlayerSecondaryPosition').value || null,
     age: parseInt(document.getElementById('addPlayerAge').value),
     ovr: parseInt(document.getElementById('addPlayerOvr').value),
     role: document.getElementById('addPlayerRole').value
@@ -651,3 +673,570 @@ async function deleteEdital(league) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ========== DIRETRIZES ==========
+async function showDirectives() {
+  appState.view = 'directives';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api('diretrizes.php?action=list_deadlines_admin');
+    const deadlines = data.deadlines || [];
+    
+    container.innerHTML = `
+      <div class="mb-4">
+        <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <button class="btn btn-orange float-end" onclick="showCreateDeadlineModal()">
+          <i class="bi bi-plus-circle me-2"></i>Criar Prazo
+        </button>
+      </div>
+      
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-header bg-transparent border-orange">
+          <h5 class="text-white mb-0"><i class="bi bi-calendar-event me-2"></i>Prazos de Diretrizes</h5>
+        </div>
+        <div class="card-body">
+          ${deadlines.length === 0 ? 
+            '<p class="text-light-gray text-center py-4">Nenhum prazo configurado</p>' :
+            `<div class="table-responsive"><table class="table table-dark">
+              <thead><tr>
+                <th>Liga</th><th>Data</th><th>Descrição</th><th>Fase</th><th>Status</th><th>Envios</th><th>Ações</th>
+              </tr></thead>
+              <tbody>${deadlines.map(d => `
+                <tr>
+                  <td><span class="badge bg-gradient-orange">${d.league}</span></td>
+                  <td>${new Date(d.deadline_date).toLocaleDateString('pt-BR')}</td>
+                  <td>${d.description || '-'}</td>
+                  <td>${(d.phase || 'regular') === 'playoffs' ? '<span class="badge bg-danger">Playoffs</span>' : '<span class="badge bg-info">Regular</span>'}</td>
+                  <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
+                  <td><span class="badge bg-info">${d.submissions_count} time(s)</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDirectives(${d.id}, '${d.league}')" title="Ver diretrizes">
+                      <i class="bi bi-eye"></i> Ver
+                    </button>
+                    <button class="btn btn-sm btn-outline-${d.is_active ? 'warning' : 'success'}" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})" title="${d.is_active ? 'Desativar' : 'Ativar'}">
+                      <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDeadline(${d.id}, '${d.league}')" title="Excluir prazo">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}</tbody>
+            </table></div>`
+          }
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar prazos</div>';
+  }
+}
+
+function showCreateDeadlineModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Criar Prazo de Diretrizes</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-white">Liga</label>
+            <select class="form-select bg-dark text-white border-orange" id="deadline-league">
+              <option value="ELITE">ELITE</option>
+              <option value="NEXT">NEXT</option>
+              <option value="RISE">RISE</option>
+              <option value="ROOKIE">ROOKIE</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Data do Prazo</label>
+            <input type="date" class="form-control bg-dark text-white border-orange" id="deadline-date" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Descrição</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="deadline-description" 
+                   placeholder="Ex: Diretrizes da Rodada 1">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Fase</label>
+            <select class="form-select bg-dark text-white border-orange" id="deadline-phase">
+              <option value="regular" selected>Temporada Regular (máx 40 min)</option>
+              <option value="playoffs">Playoffs (máx 45 min)</option>
+            </select>
+            <small class="text-light-gray">Define o limite máximo de minutagem por jogador no formulário.</small>
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="createDeadline()">Criar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function createDeadline() {
+  const league = document.getElementById('deadline-league').value;
+  const date = document.getElementById('deadline-date').value;
+  const description = document.getElementById('deadline-description').value;
+  const phase = document.getElementById('deadline-phase').value;
+  
+  if (!date) {
+    alert('Preencha a data');
+    return;
+  }
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, description, phase })
+    });
+    alert('Prazo criado com sucesso!');
+    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao criar prazo: ' + (e.error || e.message));
+  }
+}
+
+async function toggleDeadlineStatus(id, currentStatus) {
+  try {
+    await api('diretrizes.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, is_active: currentStatus ? 0 : 1 })
+    });
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao atualizar status');
+  }
+}
+
+async function deleteDeadline(id, league) {
+  const confirmMsg = `Tem certeza que deseja excluir este prazo de diretrizes da liga ${league}?\n\nTodas as diretrizes enviadas para este prazo também serão excluídas!`;
+  if (!confirm(confirmMsg)) return;
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    });
+    alert('Prazo excluído com sucesso!');
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao excluir prazo: ' + (e.error || e.message));
+  }
+}
+
+async function viewDirectives(deadlineId, league) {
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
+    const directives = data.directives || [];
+    
+    // Mapear labels para os novos valores
+    const gameStyleLabels = {
+      'balanced': 'Balanced', 'triangle': 'Triangle', 'grit_grind': 'Grit & Grind',
+      'pace_space': 'Pace & Space', 'perimeter_centric': 'Perimeter Centric',
+      'post_centric': 'Post Centric', 'seven_seconds': 'Seven Seconds',
+      'defense': 'Defense', 'defensive_focus': 'Defensive Focus',
+      'franchise_player': 'Franchise Player', 'most_stars': 'Maior nº de Estrelas'
+    };
+    const offenseStyleLabels = {
+      'no_preference': 'No Preference', 'pick_roll': 'Pick & Roll',
+      'neutral': 'Neutral Focus', 'play_through_star': 'Play Through Star',
+      'get_to_basket': 'Get to Basket', 'get_shooters_open': 'Get Shooters Open', 'feed_post': 'Feed Post'
+    };
+    const paceLabels = {
+      'no_preference': 'No Preference', 'patient': 'Patient', 'average': 'Average', 'shoot_at_will': 'Shoot at Will'
+    };
+    const defAggrLabels = {
+      'physical': 'Physical', 'no_preference': 'No Preference', 'conservative': 'Conservative', 'neutral': 'Neutral'
+    };
+    const offRebLabels = {
+      'limit_transition': 'Limit Transition', 'no_preference': 'No Preference', 
+      'crash_glass': 'Crash Offensive Glass', 'some_crash': 'Some Crash, Others Get Back'
+    };
+    const defRebLabels = {
+      'run_transition': 'Run in Transition', 'crash_glass': 'Crash Defensive Glass', 
+      'some_crash': 'Some Crash Others Run', 'no_preference': 'No Preference'
+    };
+    const rotationLabels = { 'manual': 'Manual', 'auto': 'Automática' };
+    
+    container.innerHTML = `
+      <div class="mb-4">
+        <button class="btn btn-back" onclick="showDirectives()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      </div>
+      
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-header bg-transparent border-orange">
+          <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
+        </div>
+        <div class="card-body">
+          ${directives.length === 0 ? 
+            '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
+            directives.map(d => {
+              const pm = d.player_minutes || {};
+              const starters = [1,2,3,4,5].map(i => {
+                const id = d['starter_' + i + '_id'];
+                const m = id && pm[id] ? `${pm[id]} min` : '';
+                const name = d['starter_' + i + '_name'] || '?';
+                const pos = d['starter_' + i + '_pos'] || '?';
+                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
+              }).join('');
+              const bench = [1,2,3].map(i => {
+                const id = d['bench_' + i + '_id'];
+                const m = id && pm[id] ? `${pm[id]} min` : '';
+                const name = d['bench_' + i + '_name'] || '?';
+                const pos = d['bench_' + i + '_pos'] || '?';
+                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
+              }).join('');
+              return `
+              <div class="card bg-dark mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
+                    <small class="text-light-gray">Enviado em ${new Date(d.submitted_at).toLocaleString('pt-BR')}</small>
+                  </div>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
+                    <i class="bi bi-trash"></i> Excluir
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <h6 class="text-orange">Quinteto Titular</h6>
+                      <ul class="text-light-gray">
+                        ${starters}
+                      </ul>
+                    </div>
+                    <div class="col-md-6">
+                      <h6 class="text-orange">Banco</h6>
+                      <ul class="text-light-gray">
+                        ${bench}
+                      </ul>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Estilo de Jogo</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-4">Game Style: ${gameStyleLabels[d.game_style] || d.game_style}</div>
+                        <div class="col-md-4">Offense Style: ${offenseStyleLabels[d.offense_style] || d.offense_style}</div>
+                        <div class="col-md-4">Rotação: ${rotationLabels[d.rotation_style] || d.rotation_style}</div>
+                      </div>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Configurações</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-3">Tempo Ataque: ${paceLabels[d.pace] || d.pace}</div>
+                        <div class="col-md-3">Agress. Def.: ${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</div>
+                        <div class="col-md-3">Reb. Ofensivo: ${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</div>
+                        <div class="col-md-3">Reb. Defensivo: ${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</div>
+                      </div>
+                    </div>
+                    <div class="col-12 mt-3">
+                      <h6 class="text-orange">Rotação e Foco</h6>
+                      <div class="row text-light-gray small">
+                        <div class="col-md-6">Jogadores na Rotação: ${d.rotation_players || 10}</div>
+                        <div class="col-md-6">Foco Veteranos: ${d.veteran_focus || 50}%</div>
+                      </div>
+                    </div>
+                    ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${d.notes}</p></div>` : ''}
+                  </div>
+                </div>
+              </div>
+            `;
+            }).join('')
+          }
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+  }
+}
+
+// Função para excluir diretriz
+async function deleteDirective(directiveId, deadlineId, league) {
+  if (!confirm('Tem certeza que deseja excluir esta diretriz? O time terá que enviar novamente.')) return;
+  
+  try {
+    await api('diretrizes.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ action: 'delete_directive', directive_id: directiveId })
+    });
+    alert('Diretriz excluída com sucesso');
+    viewDirectives(deadlineId, league);
+  } catch (e) {
+    alert(e.error || 'Erro ao excluir diretriz');
+  }
+}
+
+// ========== FREE AGENCY ADMIN ==========
+async function showFreeAgency() {
+  appState.view = 'freeagency';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-12 d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-orange active" onclick="loadFreeAgencyOffers('ELITE')" id="btn-fa-ELITE">ELITE</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('NEXT')" id="btn-fa-NEXT">NEXT</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('RISE')" id="btn-fa-RISE">RISE</button>
+          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
+        </div>
+        <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
+          <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
+        </button>
+      </div>
+    </div>
+    
+    <div id="faOffersContainer">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>
+  `;
+  
+  // Carregar ofertas da primeira liga
+  loadFreeAgencyOffers('ELITE');
+}
+
+async function loadFreeAgencyOffers(league) {
+  appState.currentFAleague = league;
+  // Atualizar botões ativos
+  document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`btn-fa-${league}`).classList.add('active');
+  
+  const container = document.getElementById('faOffersContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api(`free-agency.php?action=admin_offers&league=${league}`);
+    const players = data.players || [];
+    
+    if (players.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-5">
+          <i class="bi bi-person-x display-1 text-muted"></i>
+          <p class="text-light-gray mt-3">Nenhuma proposta pendente na liga ${league}</p>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = players.map(item => {
+      const player = item.player;
+      const offers = item.offers;
+      
+      return `
+        <div class="card mb-4" style="background: var(--fba-panel); border: 1px solid var(--fba-border);">
+          <div class="card-header d-flex justify-content-between align-items-center" style="background: rgba(241,117,7,0.1); border-bottom: 1px solid var(--fba-border);">
+            <div>
+              <h5 class="mb-0 text-white">${player.name}</h5>
+              <small class="text-light-gray">
+                ${player.position} | OVR ${player.ovr} | ${player.age} anos
+                ${player.original_team ? `| Ex: ${player.original_team}` : ''}
+              </small>
+            </div>
+            <span class="badge bg-orange">${offers.length} proposta(s)</span>
+          </div>
+          <div class="card-body">
+            <h6 class="text-orange mb-3">Times interessados:</h6>
+            <div class="row g-2">
+              ${offers.map(offer => `
+                <div class="col-md-6 col-lg-4">
+                  <div class="p-3 rounded" style="background: var(--fba-dark); border: 1px solid var(--fba-border);">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 class="mb-1 text-white">${offer.team_name}</h6>
+                        ${offer.notes ? `<small class="text-light-gray">${offer.notes}</small>` : ''}
+                      </div>
+                      <button class="btn btn-success btn-sm" onclick="approveFreeAgentOffer(${player.id}, ${offer.id}, ${offer.team_id})">
+                        <i class="bi bi-check-lg"></i> Aprovar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-outline-danger btn-sm" onclick="rejectAllOffers(${player.id}, '${league}')">
+                <i class="bi bi-x-lg"></i> Rejeitar Todas as Propostas
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar propostas: ${e.error || 'Desconhecido'}</div>`;
+  }
+}
+
+async function approveFreeAgentOffer(playerId, offerId, teamId) {
+  if (!confirm('Aprovar esta contratação? O jogador será transferido para o time selecionado.')) return;
+  
+  try {
+    await api('free-agency.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        action: 'approve',
+        offer_id: offerId,
+        free_agent_id: playerId,
+        team_id: teamId
+      })
+    });
+    
+    alert('Contratação aprovada com sucesso!');
+    
+    // Recarregar a lista
+    const activeBtn = document.querySelector('[id^="btn-fa-"].active');
+    if (activeBtn) {
+      const league = activeBtn.id.replace('btn-fa-', '');
+      loadFreeAgencyOffers(league);
+    }
+  } catch (e) {
+    alert('Erro ao aprovar: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function rejectAllOffers(playerId, league) {
+  if (!confirm('Rejeitar TODAS as propostas para este jogador? Ele continuará disponível na Free Agency.')) return;
+  
+  try {
+    await api('free-agency.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        action: 'reject_all',
+        free_agent_id: playerId
+      })
+    });
+    
+    alert('Todas as propostas foram rejeitadas.');
+    loadFreeAgencyOffers(league);
+  } catch (e) {
+    alert('Erro ao rejeitar: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+function openCreateFreeAgentModal() {
+  const league = appState.currentFAleague || 'ELITE';
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'createFreeAgentModal';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Novo Free Agent (${league})</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Nome</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="faName" placeholder="Nome do jogador">
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Idade</label>
+              <input type="number" class="form-control bg-dark text-white border-orange" id="faAge" min="16" max="45" value="25">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">OVR</label>
+              <input type="number" class="form-control bg-dark text-white border-orange" id="faOvr" min="40" max="99" value="70">
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Posição</label>
+              <select class="form-select bg-dark text-white border-orange" id="faPosition">
+                <option value="PG">PG - Armador</option>
+                <option value="SG">SG - Ala-Armador</option>
+                <option value="SF">SF - Ala</option>
+                <option value="PF">PF - Ala-Pivô</option>
+                <option value="C">C - Pivô</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Posição Secundária</label>
+              <select class="form-select bg-dark text-white border-orange" id="faSecondary">
+                <option value="">Nenhuma</option>
+                <option value="PG">PG - Armador</option>
+                <option value="SG">SG - Ala-Armador</option>
+                <option value="SF">SF - Ala</option>
+                <option value="PF">PF - Ala-Pivô</option>
+                <option value="C">C - Pivô</option>
+              </select>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label text-light-gray">Ex time (opcional)</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="faOriginal" placeholder="Ex: Cidade Time">
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="submitCreateFreeAgent()">
+            <i class="bi bi-check2-circle me-1"></i>Cadastrar
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  const modalInstance = new bootstrap.Modal(modal);
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+  modalInstance.show();
+}
+
+async function submitCreateFreeAgent() {
+  const league = appState.currentFAleague || 'ELITE';
+  const payload = {
+    action: 'create_free_agent',
+    league,
+    name: document.getElementById('faName').value.trim(),
+    age: parseInt(document.getElementById('faAge').value, 10),
+    ovr: parseInt(document.getElementById('faOvr').value, 10),
+    position: document.getElementById('faPosition').value,
+    secondary_position: document.getElementById('faSecondary').value || null,
+    original_team_name: document.getElementById('faOriginal').value.trim()
+  };
+
+  if (!payload.name || !payload.age || !payload.ovr || !payload.position) {
+    alert('Preencha nome, idade, OVR e posição.');
+    return;
+  }
+
+  try {
+    await api('free-agency.php', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const modalEl = document.getElementById('createFreeAgentModal');
+    if (modalEl) {
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+    }
+    alert('Free agent criado!');
+    loadFreeAgencyOffers(league);
+  } catch (e) {
+    alert('Erro ao criar free agent: ' + (e.error || 'Desconhecido'));
+  }
+}

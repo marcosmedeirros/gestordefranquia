@@ -16,17 +16,37 @@ function teamColumnExists(PDO $pdo, string $column): bool {
 if ($method === 'GET') {
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
-    
-    // Obter league do usuário da sessão
+    $leagueParam = isset($_GET['league']) ? strtoupper(trim($_GET['league'])) : null;
+
+    // Obter league do usuário da sessão ou do time vinculado
     $user = getUserSession();
-    $league = $user['league'] ?? 'ROOKIE';
+    if (!$user) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+
+    $league = null;
+    $isAdmin = ($user['user_type'] ?? '') === 'admin';
+
+    if ($leagueParam && $isAdmin) {
+        $league = $leagueParam;
+    } else {
+        $teamLeagueStmt = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+        $teamLeagueStmt->execute([$user['id']]);
+        $teamLeague = $teamLeagueStmt->fetch();
+        if ($teamLeague && !empty($teamLeague['league'])) {
+            $league = $teamLeague['league'];
+        }
+    }
+
+    if (!$league) {
+        $league = $user['league'] ?? 'ROOKIE';
+    }
     
-    $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo
+    $sql = 'SELECT t.id, t.name, t.city, t.mascot, t.photo_url, t.league, t.division_id, d.name AS division_name, t.user_id, u.photo_url AS user_photo, u.name AS owner_name, u.phone AS owner_phone
             FROM teams t
             LEFT JOIN divisions d ON d.id = t.division_id
             LEFT JOIN users u ON u.id = t.user_id
             WHERE t.league = ?';
-    $params = [$league];
     $params = [$league];
     $clauses = [];
     if ($teamId) {
@@ -48,6 +68,16 @@ if ($method === 'GET') {
 
     foreach ($teams as &$team) {
         $team['cap_top8'] = topEightCap($pdo, (int) $team['id']);
+        $rawPhone = $team['owner_phone'] ?? '';
+        $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+        if (!$normalizedPhone && $rawPhone !== '') {
+            $digits = preg_replace('/\D+/', '', $rawPhone);
+            if ($digits !== '') {
+                $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+            }
+        }
+        $team['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+        $team['owner_phone_whatsapp'] = $normalizedPhone;
     }
 
     jsonResponse(200, ['teams' => $teams]);

@@ -45,7 +45,7 @@ if ($method === 'GET') {
         $params[] = $teamId;
     } else { // history
         $conditions[] = '(t.from_team_id = ? OR t.to_team_id = ?)';
-        $conditions[] = "t.status IN ('accepted', 'rejected', 'cancelled')";
+        $conditions[] = "t.status IN ('accepted', 'rejected', 'cancelled', 'countered')";
         $params[] = $teamId;
         $params[] = $teamId;
     }
@@ -72,43 +72,60 @@ if ($method === 'GET') {
     
     // Para cada trade, buscar itens
     foreach ($trades as &$trade) {
-        // Jogadores oferecidos
-        $stmtOfferPlayers = $pdo->prepare('
-            SELECT p.* FROM players p
-            JOIN trade_items ti ON p.id = ti.player_id
-            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
-        ');
-        $stmtOfferPlayers->execute([$trade['id']]);
-        $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Picks oferecidas
-        $stmtOfferPicks = $pdo->prepare('
-            SELECT pk.*, t.city, t.name as team_name FROM picks pk
-            JOIN trade_items ti ON pk.id = ti.pick_id
-            JOIN teams t ON pk.original_team_id = t.id
-            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
-        ');
-        $stmtOfferPicks->execute([$trade['id']]);
-        $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Jogadores pedidos
-        $stmtRequestPlayers = $pdo->prepare('
-            SELECT p.* FROM players p
-            JOIN trade_items ti ON p.id = ti.player_id
-            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
-        ');
-        $stmtRequestPlayers->execute([$trade['id']]);
-        $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Picks pedidas
-        $stmtRequestPicks = $pdo->prepare('
-            SELECT pk.*, t.city, t.name as team_name FROM picks pk
-            JOIN trade_items ti ON pk.id = ti.pick_id
-            JOIN teams t ON pk.original_team_id = t.id
-            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
-        ');
-        $stmtRequestPicks->execute([$trade['id']]);
-        $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+        $trade['offer_players'] = [];
+        $trade['offer_picks'] = [];
+        $trade['request_players'] = [];
+        $trade['request_picks'] = [];
+
+        try {
+            $stmtOfferPlayers = $pdo->prepare('
+                SELECT p.* FROM players p
+                JOIN trade_items ti ON p.id = ti.player_id
+                WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
+            ');
+            $stmtOfferPlayers->execute([$trade['id']]);
+            $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar jogadores oferecidos da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtOfferPicks = $pdo->prepare('
+                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                JOIN trade_items ti ON pk.id = ti.pick_id
+                JOIN teams t ON pk.original_team_id = t.id
+                WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
+            ');
+            $stmtOfferPicks->execute([$trade['id']]);
+            $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar picks oferecidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtRequestPlayers = $pdo->prepare('
+                SELECT p.* FROM players p
+                JOIN trade_items ti ON p.id = ti.player_id
+                WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
+            ');
+            $stmtRequestPlayers->execute([$trade['id']]);
+            $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar jogadores pedidos da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtRequestPicks = $pdo->prepare('
+                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                JOIN trade_items ti ON pk.id = ti.pick_id
+                JOIN teams t ON pk.original_team_id = t.id
+                WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
+            ');
+            $stmtRequestPicks->execute([$trade['id']]);
+            $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar picks pedidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
     }
     
     echo json_encode(['success' => true, 'trades' => $trades]);
@@ -125,6 +142,8 @@ if ($method === 'POST') {
     $requestPlayers = $data['request_players'] ?? [];
     $requestPicks = $data['request_picks'] ?? [];
     $notes = $data['notes'] ?? '';
+    $counterTradeId = isset($data['counter_to_trade_id']) ? (int)$data['counter_to_trade_id'] : null;
+    $counterTrade = null;
     
     if (!$toTeamId) {
         http_response_code(400);
@@ -132,8 +151,21 @@ if ($method === 'POST') {
         exit;
     }
     
+    // Verificar se há algo para trocar
+    if (empty($offerPlayers) && empty($offerPicks)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Você precisa oferecer algo']);
+        exit;
+    }
+    
+    if (empty($requestPlayers) && empty($requestPicks)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Você precisa pedir algo em troca']);
+        exit;
+    }
+    
     // Buscar o time para obter a liga
-    $stmtTeamLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtTeamLeague = $pdo->prepare('SELECT league, city, name FROM teams WHERE id = ?');
     $stmtTeamLeague->execute([$teamId]);
     $teamData = $stmtTeamLeague->fetch();
     
@@ -142,28 +174,89 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
         exit;
     }
+
+    if ($counterTradeId) {
+        $stmtCounter = $pdo->prepare('SELECT * FROM trades WHERE id = ?');
+        $stmtCounter->execute([$counterTradeId]);
+        $counterTrade = $stmtCounter->fetch(PDO::FETCH_ASSOC);
+        if (!$counterTrade) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Trade original não encontrada para contraproposta']);
+            exit;
+        }
+        if ((int)$counterTrade['to_team_id'] !== (int)$teamId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não pode fazer contraproposta para esta trade']);
+            exit;
+        }
+        if ($counterTrade['status'] !== 'pending') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A trade original não está mais pendente']);
+            exit;
+        }
+        if ((int)$counterTrade['from_team_id'] !== (int)$toTeamId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Selecione o mesmo time da proposta original para contrapropor']);
+            exit;
+        }
+    }
     
-    // Buscar limite de trades da liga
-    $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
-    $stmtSettings->execute([$teamData['league']]);
-    $settings = $stmtSettings->fetch();
-    $maxTrades = $settings['max_trades'] ?? 10; // Default 10 se não configurado
+    // Verificar se a coluna max_trades existe em league_settings
+    $maxTrades = 10; // Default
+    try {
+        $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+        $stmtSettings->execute([$teamData['league']]);
+        $settings = $stmtSettings->fetch();
+        if ($settings && isset($settings['max_trades'])) {
+            $maxTrades = (int)$settings['max_trades'];
+        }
+    } catch (Exception $e) {
+        // Coluna não existe, usar default
+    }
     
-    // Verificar limite de trades por temporada
+    // Verificar limite de trades por ano (simplificado - sem ciclo)
     $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
     $stmtCount->execute([$teamId]);
-    $count = $stmtCount->fetch()['total'];
+    $count = (int)$stmtCount->fetch()['total'];
     
     if ($count >= $maxTrades) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
         exit;
     }
+
+    // Validar posse das picks oferecidas
+    if (!empty($offerPicks)) {
+        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        foreach ($offerPicks as $pickId) {
+            $pickId = (int)$pickId;
+            $stmtPickOwner->execute([$pickId, $teamId]);
+            if (!$stmtPickOwner->fetchColumn()) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Você só pode oferecer picks que pertencem ao seu time']);
+                exit;
+            }
+        }
+    }
+
+    // Validar posse das picks solicitadas
+    if (!empty($requestPicks)) {
+        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        foreach ($requestPicks as $pickId) {
+            $pickId = (int)$pickId;
+            $stmtPickOwner->execute([$pickId, $toTeamId]);
+            if (!$stmtPickOwner->fetchColumn()) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Só é possível pedir picks que pertencem ao time alvo']);
+                exit;
+            }
+        }
+    }
     
     try {
-        $pdo->beginTransaction();
+    $pdo->beginTransaction();
         
-        // Criar trade
+        // Criar trade (sem coluna cycle - ela é opcional)
         $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes) VALUES (?, ?, ?)');
         $stmtTrade->execute([$teamId, $toTeamId, $notes]);
         $tradeId = $pdo->lastInsertId();
@@ -187,13 +280,20 @@ if ($method === 'POST') {
         foreach ($requestPicks as $pickId) {
             $stmtItem->execute([$tradeId, null, $pickId, false]);
         }
+
+        if ($counterTrade) {
+            $counterNote = trim($notes) !== '' ? trim($notes) : 'Contraproposta enviada.';
+            $counterNote .= ' Nova proposta #' . $tradeId;
+            $stmtCounterUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
+            $stmtCounterUpdate->execute(['countered', $counterNote, $counterTradeId]);
+        }
         
         $pdo->commit();
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade']);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -204,6 +304,7 @@ if ($method === 'PUT') {
     
     $tradeId = $data['trade_id'] ?? null;
     $action = $data['action'] ?? null; // accepted, rejected, cancelled
+    $responseNotes = $data['response_notes'] ?? '';
     
     if (!$tradeId || !$action) {
         http_response_code(400);
@@ -239,9 +340,9 @@ if ($method === 'PUT') {
     try {
         $pdo->beginTransaction();
         
-        // Atualizar status
-        $stmtUpdate = $pdo->prepare('UPDATE trades SET status = ? WHERE id = ?');
-        $stmtUpdate->execute([$action, $tradeId]);
+        // Atualizar status e observação de resposta
+        $stmtUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
+        $stmtUpdate->execute([$action, $responseNotes, $tradeId]);
         
         // Se aceito, executar a trade (transferir jogadores e picks)
         if ($action === 'accepted') {
@@ -250,19 +351,28 @@ if ($method === 'PUT') {
             $stmtItems->execute([$tradeId]);
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
             
+            $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
+            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
+            
             foreach ($items as $item) {
                 if ($item['player_id']) {
                     // Transferir jogador
+                    $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransfer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
-                    $stmtTransfer->execute([$newTeamId, $item['player_id']]);
+                    $stmtTransferPlayer->execute([$newTeamId, $item['player_id'], $expectedOwner]);
+                    if ($stmtTransferPlayer->rowCount() === 0) {
+                        throw new Exception('Jogador não está mais disponível para transferência');
+                    }
                 }
                 
                 if ($item['pick_id']) {
                     // Transferir pick
+                    $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransfer = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
-                    $stmtTransfer->execute([$newTeamId, $item['pick_id']]);
+                    $stmtTransferPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
+                    if ($stmtTransferPick->rowCount() === 0) {
+                        throw new Exception('Pick não está mais disponível para transferência');
+                    }
                 }
             }
         }

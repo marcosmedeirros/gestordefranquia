@@ -477,7 +477,17 @@ pre{
 /* ---------- Login page ---------- */
 .login-page{
 	background: var(--fba-black);
-	overflow: hidden;
+	min-height: 100vh;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+@media (max-width: 992px) {
+	.login-page .container-fluid,
+	.login-page .row {
+		height: auto !important;
+		min-height: 100vh;
+	}
 }
 
 /* ---------- Sidebar ---------- */
@@ -517,8 +527,19 @@ pre{
 	object-fit: cover;
 	margin: 0 auto 15px;
 	display: block;
-	background: var(--fba-black);
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat;
 	box-shadow: 0 16px 44px rgba(0,0,0,.55);
+}
+
+/* Fallback para imagens quebradas */
+.team-avatar[src=""],
+.team-avatar:not([src]),
+img.broken-image {
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat !important;
+}
+
+.team-logo {
+	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat;
 }
 
 .sidebar-menu{
@@ -996,6 +1017,9 @@ pre{
 	-webkit-backdrop-filter: blur(6px);
 }
 
+/* Player cards container hidden by default; enabled via media queries */
+.player-card-mobile{ display: none; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 992px){
 	.dashboard-content{ margin-left: 0; }
@@ -1055,9 +1079,39 @@ pre{
 
 	.form-label, .form-control, .form-select{ font-size: .9rem; }
 
-	/* Mobile player cards */
-	.table-responsive{ display: none !important; }
+		/* Touch-friendly adjustments for mobile */
+		.btn, .btn-orange, .btn-white, .btn-outline-light, .btn-outline-orange{
+			padding: .6rem .9rem;
+			min-height: 44px; /* Apple recommended touch target */
+		}
+
+		.form-control, .form-select{
+			padding: .6rem .75rem;
+			min-height: 44px;
+		}
+
+		.table-responsive table tbody tr td, .table-responsive table tbody tr th{
+			padding: .75rem .5rem;
+		}
+
+	/* Mobile: tabelas responsivas */
+	.table-responsive{ 
+		display: block !important;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+	
+	/* Esconder elementos em mobile */
+	.hide-mobile,
+	.table .hide-mobile,
+	th.hide-mobile,
+	td.hide-mobile {
+		display: none !important;
+	}
+	
+	/* Player cards para páginas que implementarem */
 	.player-card-mobile{ display: block; }
+	#players-list { display: none !important; }
 
 	.player-card{
 		background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
@@ -1117,3 +1171,342 @@ pre{
 @media (prefers-reduced-motion: reduce){
 	*{ transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- PWA Styles ---------- */
+
+/* Install Banner */
+#pwa-install-banner {
+	position: fixed;
+	bottom: -100px;
+	left: 0;
+	right: 0;
+	z-index: 9999;
+	padding: 0 15px 15px;
+	transition: bottom var(--t) var(--ease);
+}
+
+#pwa-install-banner.show {
+	bottom: 0;
+}
+
+.pwa-banner {
+	background: linear-gradient(180deg, rgba(20,20,20,0.98) 0%, rgba(14,14,14,0.98) 100%);
+	border: 2px solid var(--fba-brand);
+	border-radius: 16px;
+	padding: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	box-shadow: 0 -10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(252,0,37,0.15);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+
+.pwa-banner-content {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex: 1;
+}
+
+.pwa-banner-icon {
+	width: 48px;
+	height: 48px;
+	border-radius: 12px;
+	border: 1px solid rgba(255,255,255,0.1);
+}
+
+.pwa-banner-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.pwa-banner-text strong {
+	color: var(--fba-text);
+	font-size: 0.95rem;
+}
+
+.pwa-banner-text span {
+	color: rgba(255,255,255,0.6);
+	font-size: 0.8rem;
+}
+
+.pwa-banner-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.pwa-banner-dismiss {
+	background: transparent;
+	border: 1px solid rgba(255,255,255,0.2);
+	color: rgba(255,255,255,0.7);
+	padding: 8px 16px;
+	border-radius: 10px;
+	font-weight: 600;
+	font-size: 0.85rem;
+	cursor: pointer;
+	transition: all var(--t-fast) var(--ease);
+}
+
+.pwa-banner-dismiss:hover {
+	border-color: rgba(255,255,255,0.4);
+	color: var(--fba-text);
+}
+
+.pwa-banner-install {
+	background: linear-gradient(135deg, var(--fba-brand), var(--fba-brand-2));
+	border: none;
+	color: var(--fba-white);
+	padding: 8px 20px;
+	border-radius: 10px;
+	font-weight: 700;
+	font-size: 0.85rem;
+	cursor: pointer;
+	box-shadow: 0 8px 20px rgba(252,0,37,0.25);
+	transition: all var(--t-fast) var(--ease);
+}
+
+.pwa-banner-install:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 12px 28px rgba(252,0,37,0.35);
+}
+
+/* Update Toast */
+#pwa-update-toast {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	z-index: 9999;
+	animation: slideInRight 0.3s var(--ease);
+}
+
+@keyframes slideInRight {
+	from { transform: translateX(100%); opacity: 0; }
+	to { transform: translateX(0); opacity: 1; }
+}
+
+.pwa-toast {
+	background: linear-gradient(180deg, rgba(20,20,20,0.98) 0%, rgba(14,14,14,0.98) 100%);
+	border: 1px solid var(--fba-brand);
+	border-radius: 12px;
+	padding: 12px 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+
+.pwa-toast-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--fba-text);
+	font-size: 0.9rem;
+}
+
+.pwa-toast-content i {
+	color: var(--fba-brand);
+	font-size: 1.1rem;
+}
+
+.pwa-toast-btn {
+	background: var(--fba-brand);
+	border: none;
+	color: var(--fba-white);
+	padding: 6px 14px;
+	border-radius: 8px;
+	font-weight: 700;
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: all var(--t-fast) var(--ease);
+}
+
+.pwa-toast-btn:hover {
+	filter: brightness(1.1);
+}
+
+/* Connection Status */
+.connection-status {
+	position: fixed;
+	top: 20px;
+	left: 50%;
+	transform: translateX(-50%) translateY(-100px);
+	z-index: 9999;
+	padding: 10px 20px;
+	border-radius: 30px;
+	font-size: 0.85rem;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	transition: transform 0.3s var(--ease);
+	box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.connection-status.show {
+	transform: translateX(-50%) translateY(0);
+}
+
+.connection-status.online {
+	background: linear-gradient(135deg, #16a34a, #22c55e);
+	color: white;
+}
+
+.connection-status.offline {
+	background: linear-gradient(135deg, #dc2626, #ef4444);
+	color: white;
+}
+
+/* Safe area padding para notch em iPhones */
+@supports (padding-top: env(safe-area-inset-top)) {
+	.dashboard-sidebar {
+		padding-top: calc(20px + env(safe-area-inset-top));
+	}
+	
+	.dashboard-content {
+		padding-bottom: calc(30px + env(safe-area-inset-bottom));
+	}
+	
+	#pwa-install-banner {
+		padding-bottom: calc(15px + env(safe-area-inset-bottom));
+	}
+}
+
+/* PWA standalone mode adjustments */
+@media (display-mode: standalone) {
+	.dashboard-sidebar {
+		padding-top: calc(20px + env(safe-area-inset-top, 0px));
+	}
+	
+	.sidebar-toggle {
+		top: calc(15px + env(safe-area-inset-top, 0px));
+	}
+	
+	.dashboard-content {
+		padding-top: calc(30px + env(safe-area-inset-top, 0px));
+	}
+}
+
+/* Mobile PWA adjustments */
+@media (max-width: 768px) {
+	#pwa-install-banner {
+		padding: 0 10px 10px;
+	}
+	
+	.pwa-banner {
+		flex-direction: column;
+		text-align: center;
+		padding: 14px;
+	}
+	
+	.pwa-banner-content {
+		flex-direction: column;
+	}
+	
+	.pwa-banner-actions {
+		width: 100%;
+	}
+	
+	.pwa-banner-dismiss,
+	.pwa-banner-install {
+		flex: 1;
+		padding: 10px;
+	}
+	
+	#pwa-update-toast {
+		top: auto;
+		bottom: 20px;
+		right: 10px;
+		left: 10px;
+	}
+	
+	.pwa-toast {
+		justify-content: space-between;
+	}
+	
+	.connection-status {
+		top: auto;
+		bottom: 80px;
+		font-size: 0.8rem;
+		padding: 8px 16px;
+	}
+}
+
+/* Pull to Refresh visual hint */
+.ptr-element {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--fba-brand);
+	font-size: 1.5rem;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.ptr-element.visible {
+	opacity: 1;
+}
+
+/* Offline state body class */
+body.offline .btn-orange,
+body.offline .btn-outline-orange {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+body.offline::after {
+	content: '';
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 3px;
+	background: linear-gradient(90deg, transparent, #ef4444, transparent);
+	animation: offlineBar 2s ease-in-out infinite;
+}
+
+@keyframes offlineBar {
+	0%, 100% { transform: translateX(-100%); }
+	50% { transform: translateX(100%); }
+}
+
+/* Touch feedback for mobile */
+@media (hover: none) and (pointer: coarse) {
+	.btn, .action-card, .team-card, .league-card, .sidebar-menu a {
+		-webkit-tap-highlight-color: rgba(252,0,37,0.1);
+	}
+	
+	.btn:active, .action-card:active, .team-card:active, 
+	.league-card:active, .sidebar-menu a:active {
+		transform: scale(0.98);
+	}
+}
+
+/* Improve scroll on iOS */
+.dashboard-sidebar,
+.dashboard-content,
+.modal-body,
+.table-responsive {
+	-webkit-overflow-scrolling: touch;
+}
+
+/* Fix 100vh on mobile browsers */
+@supports (-webkit-touch-callout: none) {
+	body {
+		min-height: -webkit-fill-available;
+	}
+	
+	.dashboard-sidebar {
+		height: -webkit-fill-available;
+	}
+}
+

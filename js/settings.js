@@ -56,6 +56,7 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
   const payload = {
     name: fd.get('name'),
     photo_url: profilePhotoFile ? await convertToBase64(profilePhotoFile) : null,
+    phone: (fd.get('phone') || '').replace(/\D/g, ''),
   };
   try {
     await api('user.php', { method: 'POST', body: JSON.stringify(payload) });

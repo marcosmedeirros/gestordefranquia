@@ -57,4 +57,61 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.style.overflow = '';
         }
     });
+    
+    // Tratar imagens quebradas - fallback para imagem padrão
+    handleBrokenImages();
 });
+
+// Função para tratar imagens quebradas
+function handleBrokenImages() {
+    const defaultTeamImg = '/img/default-team.png';
+    const defaultAvatarImg = '/img/default-avatar.png';
+    
+    // Tratar todas as imagens
+    document.querySelectorAll('img').forEach(img => {
+        // Se a src está vazia, definir fallback
+        if (!img.src || img.src === window.location.href || img.src.endsWith('/')) {
+            img.src = img.classList.contains('team-avatar') || img.classList.contains('team-logo') 
+                ? defaultTeamImg 
+                : defaultAvatarImg;
+        }
+        
+        // Adicionar handler de erro
+        img.addEventListener('error', function() {
+            if (!this.dataset.fallbackApplied) {
+                this.dataset.fallbackApplied = 'true';
+                this.src = this.classList.contains('team-avatar') || this.classList.contains('team-logo')
+                    ? defaultTeamImg
+                    : defaultAvatarImg;
+            }
+        });
+    });
+    
+    // Observer para novas imagens adicionadas dinamicamente
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1) {
+                    const imgs = node.tagName === 'IMG' ? [node] : node.querySelectorAll?.('img') || [];
+                    imgs.forEach(img => {
+                        if (!img.src || img.src === window.location.href) {
+                            img.src = img.classList.contains('team-avatar') || img.classList.contains('team-logo')
+                                ? defaultTeamImg
+                                : defaultAvatarImg;
+                        }
+                        img.addEventListener('error', function() {
+                            if (!this.dataset.fallbackApplied) {
+                                this.dataset.fallbackApplied = 'true';
+                                this.src = this.classList.contains('team-avatar') || this.classList.contains('team-logo')
+                                    ? defaultTeamImg
+                                    : defaultAvatarImg;
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+}

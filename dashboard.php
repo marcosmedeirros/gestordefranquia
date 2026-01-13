@@ -7,7 +7,14 @@ $user = getUserSession();
 $pdo = db();
 
 // Buscar time do usuário
-$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam = $pdo->prepare('
+  SELECT t.*, COUNT(p.id) as player_count
+  FROM teams t
+  LEFT JOIN players p ON p.team_id = t.id
+  WHERE t.user_id = ?
+  GROUP BY t.id
+  ORDER BY player_count DESC, t.id DESC
+');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
@@ -41,19 +48,81 @@ $stmtCap->execute([$team['id']]);
 $capData = $stmtCap->fetch();
 $teamCap = $capData['cap'] ?? 0;
 
+// Buscar limites de CAP da liga
+$capMin = 600;
+$capMax = 700;
+try {
+    $stmtCapLimits = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+    $stmtCapLimits->execute([$team['league']]);
+    $capLimits = $stmtCapLimits->fetch();
+    if ($capLimits) {
+        $capMin = (int)$capLimits['cap_min'];
+        $capMax = (int)$capLimits['cap_max'];
+    }
+} catch (Exception $e) {
+    // Tabela league_settings pode não existir ainda
+}
+
+// Determinar cor do CAP
+$capColor = '#00ff00'; // Verde
+if ($teamCap < $capMin || $teamCap > $capMax) {
+    $capColor = '#ff4444'; // Vermelho
+}
+
+// Buscar limites de CAP da liga
+$capMin = 0;
+$capMax = 999;
+try {
+    $stmtCapLimits = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+    $stmtCapLimits->execute([$team['league']]);
+    $capLimits = $stmtCapLimits->fetch();
+    if ($capLimits) {
+        $capMin = $capLimits['cap_min'] ?? 0;
+        $capMax = $capLimits['cap_max'] ?? 999;
+    }
+} catch (Exception $e) {
+    // Tabela league_settings pode não existir ainda
+}
+
+// Determinar cor do CAP
+$capColor = '#00ff00'; // Verde por padrão
+if ($teamCap < $capMin || $teamCap > $capMax) {
+    $capColor = '#ff4444'; // Vermelho se fora dos limites
+}
+
 // Buscar edital da liga
-$stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
-$stmtEdital->execute([$team['league']]);
-$editalData = $stmtEdital->fetch();
-$hasEdital = $editalData && !empty($editalData['edital_file']);
+$editalData = null;
+$hasEdital = false;
+try {
+    $stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
+    $stmtEdital->execute([$team['league']]);
+    $editalData = $stmtEdital->fetch();
+    $hasEdital = $editalData && !empty($editalData['edital_file']);
+} catch (Exception $e) {
+    // Pode ocorrer antes da migração criar a tabela
+}
 
 // Buscar temporada atual da liga
+// Buscar prazo ativo de diretrizes
+$activeDirectiveDeadline = null;
+try {
+    $stmtDirective = $pdo->prepare("
+        SELECT * FROM directive_deadlines 
+        WHERE league = ? AND is_active = 1 
+        ORDER BY deadline_date DESC LIMIT 1
+    ");
+    $stmtDirective->execute([$team['league']]);
+    $activeDirectiveDeadline = $stmtDirective->fetch();
+} catch (Exception $e) {
+    // Tabela pode não existir ainda
+}
+
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
-        SELECT season_number, year, status 
+        SELECT season_number, status 
         FROM seasons 
-        WHERE league = ? AND status IN ('draft', 'regular', 'playoffs')
+        WHERE league = ? AND (status IS NULL OR status NOT IN ('completed'))
         ORDER BY created_at DESC 
         LIMIT 1
     ");
@@ -68,7 +137,14 @@ try {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#fc0025">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FBA Manager">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/img/icon-192x192.png">
     <title>Dashboard - FBA Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -116,6 +192,12 @@ try {
                 <a href="/trades.php">
                     <i class="bi bi-arrow-left-right"></i>
                     Trades
+                </a>
+            </li>
+            <li>
+                <a href="/free-agency.php">
+                    <i class="bi bi-person-plus-fill"></i>
+                    Free Agency
                 </a>
             </li>
             <li>
@@ -185,8 +267,7 @@ try {
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>
-                    Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?> 
-                    (<?= $currentSeason['year'] ?>)
+                    Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
                 </span>
                 <?php else: ?>
                 <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
@@ -227,8 +308,11 @@ try {
                 <div class="stat-card">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <div class="stat-label">CAP Total</div>
-                            <div class="stat-value"><?= $teamCap ?></div>
+                            <div class="stat-label">CAP Top8</div>
+                            <div class="stat-value" style="color: <?= $capColor ?>;"><?= $teamCap ?></div>
+                            <small class="text-light-gray" style="font-size: 0.85rem;">
+                                Limite: <?= $capMin ?> - <?= $capMax ?>
+                            </small>
                         </div>
                         <i class="bi bi-cash-stack display-4 text-orange"></i>
                     </div>
@@ -240,9 +324,16 @@ try {
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
                             <div class="stat-label">Liga</div>
-                            <div class="stat-value" style="font-size: 1.8rem;"><?= htmlspecialchars($user['league']) ?></div>
                         </div>
-                        <i class="bi bi-trophy-fill display-4 text-orange"></i>
+                        <div class="d-flex align-items-center justify-content-end gap-2">
+                            <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
+                                 alt="<?= htmlspecialchars($user['league']) ?>" 
+                                 class="league-logo" 
+                                 style="height: 80px; width: auto; object-fit: contain;">
+                            <span class="text-light-gray" style="font-weight: 700; font-size: 1rem;">
+                                <?= htmlspecialchars($user['league']) ?>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -261,6 +352,50 @@ try {
             <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" class="btn btn-orange" download>
                 <i class="bi bi-download me-1"></i>Download
             </a>
+        </div>
+        <?php endif; ?>
+
+        <!-- Calendário da Temporada -->
+        <?php if ($currentSeason): ?>
+        <div class="card bg-dark-panel border-orange mb-4">
+            <div class="card-header bg-transparent border-orange">
+                <h4 class="mb-0 text-white">
+                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Exemplo de eventos do calendário -->
+                        <?php if ($activeDirectiveDeadline): ?>
+                        <div class="col-md-12">
+                            <div class="calendar-event" style="cursor: pointer; padding: 20px; border: 2px solid var(--fba-orange); border-radius: 8px; transition: all 0.3s; background: linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent);" 
+                                 onclick="window.location.href='/diretrizes.php'"
+                                 onmouseover="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.2), transparent)'"
+                                 onmouseout="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent)'">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                        <h5 class="text-white mb-2 fw-bold">
+                                        <i class="bi bi-clipboard-check text-orange me-2"></i>Enviar Rotação
+                                        </h5>
+                                        <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Envio de diretrizes de jogo') ?></p>
+                                        <p class="text-orange mb-0 fw-bold">
+                                            <i class="bi bi-calendar-event me-1"></i>Prazo: <?= date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date'])) ?>
+                                        </p>
+                                </div>
+                                    <i class="bi bi-arrow-right-circle-fill text-orange" style="font-size: 3rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                        <?php else: ?>
+                        <div class="col-12">
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-calendar-x display-4"></i>
+                                <p class="mt-3 mb-0">Nenhum evento ativo no momento</p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                </div>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -310,5 +445,21 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
+    <script src="/js/pwa.js"></script>
+    <script>
+        // Hover effect para eventos do calendário
+        document.querySelectorAll('.calendar-event').forEach(el => {
+            el.addEventListener('mouseenter', function() {
+                if (!this.style.opacity || this.style.opacity === '1') {
+                    this.style.background = 'rgba(255, 112, 67, 0.1)';
+                }
+            });
+            el.addEventListener('mouseleave', function() {
+                if (!this.style.opacity || this.style.opacity === '1') {
+                    this.style.background = 'transparent';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

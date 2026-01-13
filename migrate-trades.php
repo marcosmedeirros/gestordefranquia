@@ -12,7 +12,7 @@ try {
             id INT AUTO_INCREMENT PRIMARY KEY,
             from_team_id INT NOT NULL,
             to_team_id INT NOT NULL,
-            status ENUM('pending', 'accepted', 'rejected', 'cancelled') DEFAULT 'pending',
+            status ENUM('pending', 'accepted', 'rejected', 'cancelled', 'countered') DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             notes TEXT,
