@@ -475,6 +475,16 @@ function runMigrations() {
                 $pdo->exec("ALTER TABLE seasons ADD COLUMN season_number INT NOT NULL DEFAULT 1 AFTER league");
             }
 
+            $hasStartDate = $pdo->query("SHOW COLUMNS FROM seasons LIKE 'start_date'")->fetch();
+            if (!$hasStartDate) {
+                $pdo->exec("ALTER TABLE seasons ADD COLUMN start_date DATE NULL AFTER year");
+            }
+
+            $hasEndDate = $pdo->query("SHOW COLUMNS FROM seasons LIKE 'end_date'")->fetch();
+            if (!$hasEndDate) {
+                $pdo->exec("ALTER TABLE seasons ADD COLUMN end_date DATE NULL AFTER start_date");
+            }
+
             $hasStatusCol = $pdo->query("SHOW COLUMNS FROM seasons LIKE 'status'")->fetch();
             if (!$hasStatusCol) {
                 $pdo->exec("ALTER TABLE seasons ADD COLUMN status ENUM('draft','regular','playoffs','completed') DEFAULT 'draft' AFTER end_date");
@@ -571,6 +581,35 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_picks: " . $e->getMessage();
+    }
+
+    try {
+        $hasTeamsTable = $pdo->query("SHOW TABLES LIKE 'teams'")->fetch();
+        if ($hasTeamsTable) {
+            $hasCurrentCycle = $pdo->query("SHOW COLUMNS FROM teams LIKE 'current_cycle'")->fetch();
+            if (!$hasCurrentCycle) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN current_cycle INT NOT NULL DEFAULT 1 AFTER league");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_teams: " . $e->getMessage();
+    }
+
+    try {
+        $hasPlayersTable = $pdo->query("SHOW TABLES LIKE 'players'")->fetch();
+        if ($hasPlayersTable) {
+            $hasSeasonsInLeague = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'")->fetch();
+            if (!$hasSeasonsInLeague) {
+                $pdo->exec("ALTER TABLE players ADD COLUMN seasons_in_league INT NOT NULL DEFAULT 0 AFTER age");
+            }
+
+            $hasSecondaryPosition = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'")->fetch();
+            if (!$hasSecondaryPosition) {
+                $pdo->exec("ALTER TABLE players ADD COLUMN secondary_position VARCHAR(20) NULL AFTER position");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_players: " . $e->getMessage();
     }
 
     try {

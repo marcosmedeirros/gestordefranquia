@@ -63,13 +63,22 @@ $sql = "
     ORDER BY $orderBy $orderDir, p.id DESC
 ";
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-echo json_encode([
-    'success' => true,
-    'league' => $league,
-    'count' => count($players),
-    'players' => $players
-]);
+    echo json_encode([
+        'success' => true,
+        'league' => $league,
+        'count' => count($players),
+        'players' => $players
+    ]);
+} catch (PDOException $e) {
+    error_log('[TRADE LIST] Erro ao buscar jogadores: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Erro ao carregar lista de trocas'
+    ]);
+}

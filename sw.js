@@ -51,6 +51,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   
   const url = new URL(event.request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
   
   // Para APIs, sempre buscar da rede
   if (url.pathname.startsWith('/api/')) {
@@ -88,9 +91,9 @@ self.addEventListener('fetch', event => {
                url.pathname.endsWith('.jpg') ||
                url.pathname.endsWith('.ico'))) {
             const responseClone = fetchResponse.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseClone);
-            });
+            caches.open(CACHE_NAME)
+              .then(cache => cache.put(event.request, responseClone))
+              .catch(err => console.warn('[SW] Falha ao cachear recurso', url.href, err));
           }
           return fetchResponse;
         });
