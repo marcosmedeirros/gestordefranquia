@@ -9,6 +9,7 @@ require_once __DIR__ . '/../backend/auth.php';
 $pdo = db();
 $config = loadConfig();
 $method = $_SERVER['REQUEST_METHOD'];
+$MAX_WAIVERS = 3;
 
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
@@ -227,20 +228,70 @@ if ($method === 'DELETE') {
         jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
     }
 
-    $stmt = $pdo->prepare('SELECT p.id, p.name, p.team_id, t.user_id FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+    $stmt = $pdo->prepare('
+        SELECT 
+            p.*, 
+            t.user_id, t.city, t.name AS team_name, t.league,
+            COALESCE(t.waivers_used, 0) AS waivers_used
+        FROM players p 
+        INNER JOIN teams t ON t.id = p.team_id 
+        WHERE p.id = ?
+    ');
     $stmt->execute([$playerId]);
-    $row = $stmt->fetch();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) jsonResponse(404, ['error' => 'Jogador não encontrado.']);
     if ((int)$row['user_id'] !== (int)$sessionUser['id']) {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
-    // Deletar o jogador
-    $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
-    $del->execute([$playerId]);
-    
+    if ($row['waivers_used'] >= $MAX_WAIVERS) {
+        jsonResponse(400, ['error' => 'Limite de dispensas por temporada atingido.']);
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $league = strtoupper($row['league'] ?? 'ELITE');
+        $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+        if (!in_array($league, $validLeagues, true)) {
+            $league = 'ELITE';
+        }
+
+        $stmtFA = $pdo->prepare('
+            INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $stmtFA->execute([
+            $row['name'],
+            $row['age'],
+            $row['position'],
+            $row['secondary_position'] ?? null,
+            $row['ovr'],
+            $league,
+            $row['team_id'],
+            trim(($row['city'] ?? '') . ' ' . ($row['team_name'] ?? '')) ?: null
+        ]);
+
+        $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
+        $del->execute([$playerId]);
+
+        $stmtUpd = $pdo->prepare('UPDATE teams SET waivers_used = COALESCE(waivers_used, 0) + 1 WHERE id = ?');
+        $stmtUpd->execute([$row['team_id']]);
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(500, ['error' => 'Erro ao dispensar jogador: ' . $e->getMessage()]);
+    }
+
     $newCap = topEightCap($pdo, (int)$row['team_id']);
-    jsonResponse(200, ['message' => 'Jogador dispensado com sucesso.', 'cap_top8' => $newCap]);
+    $waiversRemaining = max(0, $MAX_WAIVERS - ($row['waivers_used'] + 1));
+
+    jsonResponse(200, [
+        'message' => 'Jogador dispensado e enviado para a Free Agency.',
+        'cap_top8' => $newCap,
+        'waivers_remaining' => $waiversRemaining
+    ]);
 }
 
 jsonResponse(405, ['error' => 'Method not allowed']);
