@@ -1,6 +1,19 @@
 <?php
-// Inicia sessão apenas se ainda não foi iniciada
+// Inicia sessão apenas se ainda não foi iniciada, mantendo usuário logado por mais tempo
 if (session_status() === PHP_SESSION_NONE) {
+    $sessionLifetime = 60 * 60 * 24 * 30; // 30 dias
+    ini_set('session.gc_maxlifetime', (string)$sessionLifetime);
+
+    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    session_set_cookie_params([
+        'lifetime' => $sessionLifetime,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+
     session_start();
 }
 

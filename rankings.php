@@ -79,14 +79,11 @@ $team = $stmtTeam->fetch();
       </h1>
     </div>
 
-    <div class="d-flex flex-wrap gap-2 mb-4" role="group">
-      <button type="button" class="btn btn-orange btn-sm" onclick="loadRanking('global')">
-        <i class="bi bi-globe me-1"></i>Geral
-      </button>
-      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('elite')">ELITE</button>
-      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('next')">NEXT</button>
-      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('rise')">RISE</button>
-      <button type="button" class="btn btn-outline-orange btn-sm" onclick="loadRanking('rookie')">ROOKIE</button>
+    <div class="d-flex flex-wrap gap-2 mb-4 ranking-filters" role="group">
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="ELITE" onclick="loadRanking('ELITE')">ELITE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
+      <button type="button" class="btn btn-outline-orange btn-sm" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
     </div>
 
     <div id="rankingContainer">
@@ -99,34 +96,30 @@ $team = $stmtTeam->fetch();
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
-    const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>';
-    let currentType = 'global';
+    const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>'.toUpperCase();
+    let currentLeague = userLeague;
 
-    async function loadRanking(type = 'global') {
-      currentType = type;
-      
-      // Atualizar botões ativos
-      document.querySelectorAll('.d-flex button').forEach(btn => {
-        btn.classList.remove('btn-orange');
-        btn.classList.add('btn-outline-orange');
+    function updateActiveButton() {
+      document.querySelectorAll('.ranking-filters button').forEach(btn => {
+        if (btn.dataset.league === currentLeague) {
+          btn.classList.remove('btn-outline-orange');
+          btn.classList.add('btn-orange');
+        } else {
+          btn.classList.add('btn-outline-orange');
+          btn.classList.remove('btn-orange');
+        }
       });
-      
-      // Ativar o botão correto
-      const activeBtn = document.querySelector(`button[onclick*="${type}"]`);
-      if (activeBtn) {
-        activeBtn.classList.remove('btn-outline-orange');
-        activeBtn.classList.add('btn-orange');
-      }
+    }
+
+    async function loadRanking(league = userLeague) {
+      currentLeague = league.toUpperCase();
+      updateActiveButton();
 
       const container = document.getElementById('rankingContainer');
       container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
 
       try {
-        // Usar a nova API simplificada
-        const league = type === 'global' ? '' : type.toUpperCase();
-        const endpoint = league 
-          ? `/api/history-points.php?action=get_ranking&league=${league}`
-          : `/api/history-points.php?action=get_ranking`;
+        const endpoint = `/api/history-points.php?action=get_ranking&league=${encodeURIComponent(currentLeague)}`;
         
         const response = await fetch(endpoint);
         const data = await response.json();
@@ -135,18 +128,7 @@ $team = $stmtTeam->fetch();
           throw new Error(data.error);
         }
 
-        // Processar ranking
-        let ranking = [];
-        if (type === 'global') {
-          // Juntar todas as ligas
-          for (const league in data.ranking) {
-            ranking = ranking.concat(data.ranking[league]);
-          }
-          // Ordenar por pontos totais
-          ranking.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
-        } else {
-          ranking = data.ranking[type.toUpperCase()] || [];
-        }
+        const ranking = data.ranking[currentLeague] || [];
 
         if (ranking.length === 0) {
           container.innerHTML = `
@@ -168,6 +150,9 @@ $team = $stmtTeam->fetch();
                       <th style="border-radius: 15px 0 0 0; width: 50px;">#</th>
                       <th>Time</th>
                       <th class="hide-mobile" style="width: 90px;">Liga</th>
+                      <th style="width: 90px; text-align: center;">
+                        <i class="bi bi-trophy text-info"></i><span class="d-none d-md-inline ms-1">Títulos</span>
+                      </th>
                       <th style="border-radius: 0 15px 0 0; width: 80px; text-align: center;">
                         <i class="bi bi-trophy-fill text-warning"></i><span class="d-none d-md-inline ms-1">Pontos</span>
                       </th>
@@ -187,6 +172,9 @@ $team = $stmtTeam->fetch();
                           <small class="d-md-none d-block text-light-gray">${team.league}</small>
                         </td>
                         <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
+                        <td class="text-center">
+                          <strong class="text-info">${team.total_titles || 0}</strong>
+                        </td>
                         <td class="text-center">
                           <strong class="text-warning">${team.total_points || 0}</strong>
                         </td>
@@ -210,7 +198,7 @@ $team = $stmtTeam->fetch();
 
     // Carregar ranking geral ao iniciar
     document.addEventListener('DOMContentLoaded', () => {
-      loadRanking('global');
+      loadRanking(userLeague);
     });
   </script>
   <script src="/js/pwa.js"></script>

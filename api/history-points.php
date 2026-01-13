@@ -393,34 +393,45 @@ try {
         
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
-            
+
             $sql = "SELECT 
                         t.id as team_id,
                         CONCAT(t.city, ' ', t.name) as team_name,
                         t.league,
-                        COALESCE(SUM(tsp.points), 0) as total_points
+                        COALESCE(points.total_points, 0) as total_points,
+                        COALESCE(titles.total_titles, 0) as total_titles
                     FROM teams t
-                    LEFT JOIN team_season_points tsp ON t.id = tsp.team_id";
-            
+                    LEFT JOIN (
+                        SELECT team_id, SUM(points) as total_points
+                        FROM team_season_points
+                        GROUP BY team_id
+                    ) points ON points.team_id = t.id
+                    LEFT JOIN (
+                        SELECT champion_team_id as team_id, COUNT(*) as total_titles
+                        FROM season_history
+                        WHERE champion_team_id IS NOT NULL
+                        GROUP BY champion_team_id
+                    ) titles ON titles.team_id = t.id";
+
             $params = [];
             if ($league) {
                 $sql .= " WHERE t.league = ?";
                 $params[] = $league;
             }
-            
-            $sql .= " GROUP BY t.id, t.city, t.name, t.league
-                      ORDER BY t.league, total_points DESC, t.city, t.name";
-            
+
+            $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
+                      ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // Agrupar por liga
             $grouped = [];
             foreach ($ranking as $row) {
                 $grouped[$row['league']][] = $row;
             }
-            
+
             echo json_encode(['success' => true, 'ranking' => $grouped]);
             break;
             
