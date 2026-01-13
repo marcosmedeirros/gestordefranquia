@@ -120,9 +120,9 @@ try {
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
-        SELECT season_number, year, status 
+        SELECT season_number, status 
         FROM seasons 
-        WHERE league = ? AND status IN ('draft', 'regular', 'playoffs')
+        WHERE league = ? AND (status IS NULL OR status NOT IN ('completed'))
         ORDER BY created_at DESC 
         LIMIT 1
     ");
@@ -267,8 +267,7 @@ try {
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>
-                    Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?> 
-                    (<?= $currentSeason['year'] ?>)
+                    Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
                 </span>
                 <?php else: ?>
                 <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
@@ -361,7 +360,7 @@ try {
         <div class="card bg-dark-panel border-orange mb-4">
             <div class="card-header bg-transparent border-orange">
                 <h4 class="mb-0 text-white">
-                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
+                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
                 </h4>
             </div>
             <div class="card-body">

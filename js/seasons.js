@@ -640,7 +640,11 @@ async function deleteDraftPlayer(id) {
     
     try {
         await api(`seasons.php?action=delete_draft_player&id=${id}`, { method: 'DELETE' });
-        loadDraftPlayers(seasonsState.currentSeason.id);
+        const seasonId = seasonsState.currentSeason ? seasonsState.currentSeason.id : null;
+        if (seasonId) {
+            loadDraftPlayers(seasonId);
+        }
+        alert('Jogador removido do draft!');
     } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
     }

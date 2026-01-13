@@ -511,6 +511,11 @@ function runMigrations() {
                 $pdo->exec("CREATE INDEX idx_season_status ON seasons(status)");
             }
 
+            $uniqueYearIdx = $pdo->query("SHOW INDEX FROM seasons WHERE Key_name = 'year' AND Non_unique = 0")->fetch();
+            if ($uniqueYearIdx) {
+                $pdo->exec("ALTER TABLE seasons DROP INDEX `year`");
+            }
+
             // Garante associação entre temporadas existentes e um sprint
             $seasonsMissingSprint = $pdo->query("SELECT DISTINCT league FROM seasons WHERE sprint_id IS NULL OR sprint_id = 0")->fetchAll(PDO::FETCH_COLUMN);
             foreach ($seasonsMissingSprint as $league) {

@@ -19,6 +19,49 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
+function resolveSeasonYear(PDO $pdo): int {
+    $currentYear = (int)date('Y');
+
+    try {
+        $hasSeasons = $pdo->query("SHOW TABLES LIKE 'seasons'")->fetch();
+        if (!$hasSeasons) {
+            return $currentYear;
+        }
+
+        $stmtIndexes = $pdo->query('SHOW INDEX FROM seasons');
+        if ($stmtIndexes) {
+            $uniqueIndexes = [];
+            while ($index = $stmtIndexes->fetch(PDO::FETCH_ASSOC)) {
+                if ((int)($index['Non_unique'] ?? 1) === 0) {
+                    $keyName = $index['Key_name'] ?? '';
+                    if (!isset($uniqueIndexes[$keyName])) {
+                        $uniqueIndexes[$keyName] = [];
+                    }
+                    $uniqueIndexes[$keyName][] = $index['Column_name'] ?? '';
+                }
+            }
+
+            $hasYearUnique = false;
+            foreach ($uniqueIndexes as $columns) {
+                if (count($columns) === 1 && $columns[0] === 'year') {
+                    $hasYearUnique = true;
+                    break;
+                }
+            }
+
+            if ($hasYearUnique) {
+                $stmtMaxYear = $pdo->query('SELECT COALESCE(MAX(year), 0) as max_year FROM seasons');
+                $maxYear = (int)($stmtMaxYear->fetch()['max_year'] ?? 0);
+                return max($currentYear, $maxYear + 1);
+            }
+        }
+    } catch (Exception $ignored) {
+        // Mantém ano atual se não for possível inspecionar os índices
+    }
+
+    return $currentYear;
+}
+
 $pdo = db();
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -132,7 +175,7 @@ try {
             
             // Criar nova temporada
             $seasonNumber = $seasonCount + 1;
-            $year = date('Y');
+            $year = resolveSeasonYear($pdo);
             
             $stmtSeason = $pdo->prepare("
                 INSERT INTO seasons (sprint_id, league, season_number, year, start_date, status, current_phase)
@@ -345,6 +388,27 @@ try {
             $pdo->commit();
             
             echo json_encode(['success' => true]);
+            break;
+
+        // ========== REMOVER JOGADOR DO DRAFT (ADMIN) ==========
+        case 'delete_draft_player':
+            if ($method === 'DELETE') {
+                $playerId = (int)($_GET['id'] ?? 0);
+            } elseif ($method === 'POST') {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $playerId = isset($payload['player_id']) ? (int)$payload['player_id'] : 0;
+            } else {
+                throw new Exception('Método inválido');
+            }
+
+            if (!$playerId) {
+                throw new Exception('player_id é obrigatório');
+            }
+
+            $stmtDelete = $pdo->prepare('DELETE FROM draft_pool WHERE id = ?');
+            $stmtDelete->execute([$playerId]);
+
+            echo json_encode(['success' => true, 'message' => 'Jogador removido do draft']);
             break;
 
         // ========== BUSCAR RANKING GLOBAL ==========
