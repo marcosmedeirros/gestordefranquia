@@ -37,6 +37,43 @@ const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
 let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
+const DEFAULT_FA_LIMITS = {
+  waiversUsed: 0,
+  waiversMax: 0,
+  signingsUsed: 0,
+  signingsMax: 0,
+};
+let currentFALimits = { ...DEFAULT_FA_LIMITS };
+
+async function loadFreeAgencyLimits() {
+  if (!window.__TEAM_ID__) return;
+  try {
+    const data = await api('free-agency.php?action=limits');
+    currentFALimits = {
+      waiversUsed: Number.isFinite(data.waivers_used) ? data.waivers_used : 0,
+      waiversMax: Number.isFinite(data.waivers_max) ? data.waivers_max : 0,
+      signingsUsed: Number.isFinite(data.signings_used) ? data.signings_used : 0,
+      signingsMax: Number.isFinite(data.signings_max) ? data.signings_max : 0,
+    };
+  } catch (err) {
+    console.warn('Não foi possível carregar limites de FA:', err);
+    currentFALimits = { ...DEFAULT_FA_LIMITS };
+  }
+  updateFreeAgencyCounters();
+}
+
+function updateFreeAgencyCounters() {
+  const waiversEl = document.getElementById('waivers-count');
+  const signingsEl = document.getElementById('signings-count');
+  if (waiversEl) {
+    waiversEl.textContent = `${currentFALimits.waiversUsed} / ${currentFALimits.waiversMax}`;
+    waiversEl.classList.toggle('text-danger', currentFALimits.waiversMax && currentFALimits.waiversUsed >= currentFALimits.waiversMax);
+  }
+  if (signingsEl) {
+    signingsEl.textContent = `${currentFALimits.signingsUsed} / ${currentFALimits.signingsMax}`;
+    signingsEl.classList.toggle('text-danger', currentFALimits.signingsMax && currentFALimits.signingsUsed >= currentFALimits.signingsMax);
+  }
+}
 
 function sortPlayers(field) {
   // Se clicou na mesma coluna, inverte ordem
@@ -440,3 +477,4 @@ document.getElementById('btn-save-edit')?.addEventListener('click', () => {
 
 // Initial
 loadPlayers();
+loadFreeAgencyLimits();

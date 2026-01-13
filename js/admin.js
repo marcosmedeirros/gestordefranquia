@@ -852,7 +852,8 @@ async function viewDirectives(deadlineId, league) {
       'balanced': 'Balanced', 'triangle': 'Triangle', 'grit_grind': 'Grit & Grind',
       'pace_space': 'Pace & Space', 'perimeter_centric': 'Perimeter Centric',
       'post_centric': 'Post Centric', 'seven_seconds': 'Seven Seconds',
-      'defense': 'Defense', 'franchise_player': 'Franchise Player', 'most_stars': 'Maior nº de Estrelas'
+      'defense': 'Defense', 'defensive_focus': 'Defensive Focus',
+      'franchise_player': 'Franchise Player', 'most_stars': 'Maior nº de Estrelas'
     };
     const offenseStyleLabels = {
       'no_preference': 'No Preference', 'pick_roll': 'Pick & Roll',
@@ -867,11 +868,11 @@ async function viewDirectives(deadlineId, league) {
     };
     const offRebLabels = {
       'limit_transition': 'Limit Transition', 'no_preference': 'No Preference', 
-      'crash_glass': 'Crash Glass', 'some_crash': 'Some Crash'
+      'crash_glass': 'Crash Offensive Glass', 'some_crash': 'Some Crash, Others Get Back'
     };
     const defRebLabels = {
-      'run_transition': 'Run Transition', 'crash_glass': 'Crash Glass', 
-      'some_crash': 'Some Crash', 'no_preference': 'No Preference'
+      'run_transition': 'Run in Transition', 'crash_glass': 'Crash Defensive Glass', 
+      'some_crash': 'Some Crash Others Run', 'no_preference': 'No Preference'
     };
     const rotationLabels = { 'manual': 'Manual', 'auto': 'Automática' };
     

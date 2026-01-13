@@ -18,6 +18,7 @@ const api = async (path, options = {}) => {
 let allPlayersData = [];
 let playersById = {};
 let currentDirective = null; // manter dados carregados para re-render confiável
+const STARTER_LABELS = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 // Buscar todos os jogadores do time para renderizar campos de minutagem
 async function loadPlayersData() {
@@ -83,12 +84,13 @@ function renderPlayerMinutes() {
     starters.forEach((id, idx) => {
       const player = playersById[id];
       if (!player) return;
+  const slotLabel = STARTER_LABELS[idx] || `${idx + 1}`;
       const row = document.createElement('div');
       row.className = 'col-12';
       row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">Titular ${idx + 1}: ${player.name}</span>
+            <span class="text-white small">Titular ${slotLabel}: ${player.name}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"

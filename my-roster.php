@@ -150,7 +150,7 @@ if ($teamId) {
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
-        <div class="d-flex gap-3">
+        <div class="d-flex gap-3 flex-wrap justify-content-end">
           <div class="text-center">
             <small class="text-light-gray">Total</small>
             <div class="text-white fw-bold" id="total-players" style="font-size: 1.5rem;">0</div>
@@ -158,6 +158,14 @@ if ($teamId) {
           <div class="text-center">
             <small class="text-light-gray">CAP Top8</small>
             <div class="text-orange fw-bold" id="cap-top8" style="font-size: 1.5rem;">0</div>
+          </div>
+          <div class="text-center">
+            <small class="text-light-gray">Dispensas (FA)</small>
+            <div class="text-white fw-bold" id="waivers-count" style="font-size: 1.1rem;">0 / 0</div>
+          </div>
+          <div class="text-center">
+            <small class="text-light-gray">Contratações FA</small>
+            <div class="text-white fw-bold" id="signings-count" style="font-size: 1.1rem;">0 / 0</div>
           </div>
         </div>
       </div>

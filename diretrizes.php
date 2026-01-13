@@ -153,9 +153,13 @@ try {
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                        <?php 
+                        $starterPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                        for ($i = 1; $i <= 5; $i++): 
+                            $posLabel = $starterPositions[$i - 1] ?? $i;
+                        ?>
                         <div class="col-md-4">
-                            <label class="form-label text-white">Titular <?= $i ?></label>
+                            <label class="form-label text-white">Titular <?= htmlspecialchars($posLabel) ?></label>
                             <select class="form-select bg-dark text-white border-orange" name="starter_<?= $i ?>_id" required>
                                 <option value="">Selecione...</option>
                                 <?php foreach ($players as $p): ?>
@@ -271,7 +275,7 @@ try {
                                 <option value="limit_transition">Limit Transition</option>
                                 <option value="no_preference" selected>No Preference</option>
                                 <option value="crash_glass">Crash Offensive Glass</option>
-                                <option value="some_crash">Some Crash Others Get Back</option>
+                                <option value="some_crash">Some Crash, Others Get Back</option>
                             </select>
                         </div>
                         <div class="col-md-6">
