@@ -21,15 +21,19 @@ if ($method === 'POST') {
     $body = readJsonBody();
     $name = trim($body['name'] ?? $user['name']);
     $photoUrl = trim($body['photo_url'] ?? '');
-    $phoneRaw = array_key_exists('phone', $body) ? trim((string)$body['phone']) : ($user['phone'] ?? '');
-    $phone = $phoneRaw === '' ? null : normalizeBrazilianPhone($phoneRaw);
+    $phoneRaw = trim((string)($body['phone'] ?? ''));
+    $phone = normalizeBrazilianPhone($phoneRaw);
 
     if ($name === '') {
         jsonResponse(422, ['error' => 'Nome é obrigatório.']);
     }
 
-    if ($phoneRaw !== '' && !$phone) {
-        jsonResponse(422, ['error' => 'Telefone inválido. Use DDD + número.']);
+    if ($phoneRaw === '') {
+        jsonResponse(422, ['error' => 'Telefone é obrigatório.']);
+    }
+
+    if (!$phone) {
+        jsonResponse(422, ['error' => 'Telefone inválido. Use DDD + número com 11 dígitos.']);
     }
 
     // Salvar foto se vier como data URL

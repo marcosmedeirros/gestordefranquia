@@ -162,7 +162,7 @@ function formatBrazilianPhone(?string $phone): ?string
     }
     $digits = preg_replace('/\D+/', '', $phone);
     if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
-        $digits = substr($digits, 2);
+        $digits = substr($digits, -11);
     }
 
     if (strlen($digits) === 11) {
