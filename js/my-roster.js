@@ -33,6 +33,7 @@ function getOvrColor(ovr) {
 
 // Ordem padrão de funções
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
+const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
 let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
@@ -99,6 +100,19 @@ function renderPlayers(players) {
 
     if (aVal < bVal) return currentSort.ascending ? -1 : 1;
     if (aVal > bVal) return currentSort.ascending ? 1 : -1;
+
+    // Quando ordenando por função, garantir ordem PG→C dentro dos titulares
+    if (
+      currentSort.field === 'role' &&
+      a.role === 'Titular' &&
+      b.role === 'Titular'
+    ) {
+      const aPos = starterPositionOrder[a.position] ?? 999;
+      const bPos = starterPositionOrder[b.position] ?? 999;
+      if (aPos !== bPos) {
+        return currentSort.ascending ? aPos - bPos : bPos - aPos;
+      }
+    }
     return 0;
   });
 

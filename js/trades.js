@@ -86,22 +86,23 @@ async function loadMyAssets() {
   try {
     // Meus jogadores disponíveis para troca
     const playersData = await api(`players.php?team_id=${myTeamId}`);
-    myPlayers = (playersData.players || []).filter(p => p.available_for_trade == 1);
+  myPlayers = playersData.players || [];
     
-    console.log('Meus jogadores para trade:', myPlayers.length);
+  console.log('Meus jogadores carregados:', myPlayers.length);
     
     const selectPlayers = document.getElementById('offerPlayers');
     selectPlayers.innerHTML = '';
     if (myPlayers.length === 0) {
       const option = document.createElement('option');
       option.disabled = true;
-      option.textContent = 'Nenhum jogador disponível para trade';
+      option.textContent = 'Nenhum jogador encontrado no seu elenco';
       selectPlayers.appendChild(option);
     } else {
       myPlayers.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
+        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})${statusLabel}`;
         selectPlayers.appendChild(option);
       });
     }
@@ -139,22 +140,23 @@ async function onTargetTeamChange(e) {
   try {
     // Carregar jogadores do time alvo
     const playersData = await api(`players.php?team_id=${teamId}`);
-    const players = (playersData.players || []).filter(p => p.available_for_trade == 1);
+  const players = playersData.players || [];
     
-    console.log('Jogadores do time alvo para trade:', players.length);
+  console.log('Jogadores do time alvo carregados:', players.length);
     
     const select = document.getElementById('requestPlayers');
     select.innerHTML = '';
     if (players.length === 0) {
       const option = document.createElement('option');
       option.disabled = true;
-      option.textContent = 'Nenhum jogador disponível para trade';
+      option.textContent = 'Nenhum jogador encontrado no elenco';
       select.appendChild(option);
     } else {
       players.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})`;
+        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
+        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})${statusLabel}`;
         select.appendChild(option);
       });
     }

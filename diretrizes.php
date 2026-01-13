@@ -212,6 +212,7 @@ try {
                                 <option value="post_centric">Post Centric</option>
                                 <option value="seven_seconds">Seven Seconds</option>
                                 <option value="defense">Defense</option>
+                                <option value="defensive_focus">Defensive Focus</option>
                                 <option value="franchise_player">Melhor esquema pro Franchise Player</option>
                                 <option value="most_stars">Maior nº de Estrelas</option>
                             </select>
