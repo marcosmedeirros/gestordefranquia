@@ -34,13 +34,22 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 $teamId = $team['id'] ?? null;
 $userLeague = $team['league'] ?? $user['league'];
+$validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
 // GET - Listar free agents ou propostas
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'list';
     
     if ($action === 'list') {
-        // Listar todos os free agents da liga
+        // Listar todos os free agents da liga (admin pode escolher liga)
+        $targetLeague = $userLeague;
+        if (($user['user_type'] ?? '') === 'admin') {
+            $requestedLeague = strtoupper($_GET['league'] ?? $targetLeague);
+            if (in_array($requestedLeague, $validLeagues, true)) {
+                $targetLeague = $requestedLeague;
+            }
+        }
+
         $stmt = $pdo->prepare('
             SELECT fa.*, 
                    (SELECT COUNT(*) FROM free_agent_offers WHERE free_agent_id = fa.id AND status = "pending") as pending_offers
@@ -48,10 +57,10 @@ if ($method === 'GET') {
             WHERE fa.league = ?
             ORDER BY fa.ovr DESC, fa.name ASC
         ');
-        $stmt->execute([$userLeague]);
+        $stmt->execute([$targetLeague]);
         $freeAgents = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        echo json_encode(['success' => true, 'free_agents' => $freeAgents]);
+        echo json_encode(['success' => true, 'league' => $targetLeague, 'free_agents' => $freeAgents]);
         exit;
     }
     
@@ -172,7 +181,6 @@ if ($method === 'POST') {
         $league = strtoupper($data['league'] ?? $userLeague);
         $originalTeamName = trim($data['original_team_name'] ?? '');
 
-        $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
         if (!in_array($league, $validLeagues, true)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Liga inválida']);
@@ -486,6 +494,53 @@ if ($method === 'POST') {
 if ($method === 'DELETE') {
     $action = $_GET['action'] ?? '';
     
+    // Admin: remover um free agent manualmente
+    if ($action === 'delete_free_agent') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+
+        $freeAgentId = isset($_GET['free_agent_id']) ? (int)$_GET['free_agent_id'] : null;
+        if (!$freeAgentId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID do free agent não informado']);
+            exit;
+        }
+
+        $leagueFilter = null;
+        if (isset($_GET['league'])) {
+            $requestedLeague = strtoupper($_GET['league']);
+            if (in_array($requestedLeague, $validLeagues, true)) {
+                $leagueFilter = $requestedLeague;
+            }
+        }
+
+        try {
+            $query = 'DELETE FROM free_agents WHERE id = ?';
+            $params = [$freeAgentId];
+            if ($leagueFilter) {
+                $query .= ' AND league = ?';
+                $params[] = $leagueFilter;
+            }
+            $stmtDelete = $pdo->prepare($query);
+            $stmtDelete->execute($params);
+
+            if ($stmtDelete->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Free agent não encontrado']);
+                exit;
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Free agent removido com sucesso']);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao remover free agent: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
     // Cancelar minha proposta
     if ($action === 'cancel_offer') {
         $offerId = $_GET['offer_id'] ?? null;

@@ -7,6 +7,7 @@ const api = async (path, options = {}) => {
 };
 
 let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null, currentFAleague: 'ELITE' };
+let adminFreeAgents = [];
 
 async function init() { showHome(); }
 
@@ -134,6 +135,18 @@ async function showTeam(teamId) {
 <div class="d-flex justify-content-between mb-3">
 <h5 class="text-white mb-0">Picks</h5>
 <button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
+
+  function setFreeAgencyLeague(league) {
+    appState.currentFAleague = league;
+    loadAdminFreeAgents(league);
+    loadFreeAgencyOffers(league);
+  }
+
+  function refreshAdminFreeAgency() {
+    const league = appState.currentFAleague || 'ELITE';
+    setFreeAgencyLeague(league);
+  }
+
 </div>
 ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
 <tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td>
@@ -998,24 +1011,133 @@ async function showFreeAgency() {
     <div class="row mb-4">
       <div class="col-12 d-flex flex-wrap gap-3 justify-content-between align-items-center">
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-orange active" onclick="loadFreeAgencyOffers('ELITE')" id="btn-fa-ELITE">ELITE</button>
-          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('NEXT')" id="btn-fa-NEXT">NEXT</button>
-          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('RISE')" id="btn-fa-RISE">RISE</button>
-          <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
+          <button class="btn btn-outline-orange active" onclick="setFreeAgencyLeague('ELITE')" id="btn-fa-ELITE">ELITE</button>
+          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('NEXT')" id="btn-fa-NEXT">NEXT</button>
+          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('RISE')" id="btn-fa-RISE">RISE</button>
+          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
         </div>
         <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
           <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
         </button>
       </div>
     </div>
-    
-    <div id="faOffersContainer">
-      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="bg-dark-panel border-orange rounded p-4 h-100">
+          <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
+            <div>
+              <h4 class="text-white mb-1">Jogadores disponíveis</h4>
+              <small class="text-light-gray" id="faAvailableCount">--</small>
+            </div>
+            <div class="flex-grow-1" style="min-width:200px;">
+              <input type="text" class="form-control bg-dark text-white border-orange" id="faAvailableSearch" placeholder="Buscar por nome ou posição">
+            </div>
+          </div>
+          <div id="faAvailableContainer" class="mt-3">
+            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="bg-dark-panel border-orange rounded p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-white mb-0">Propostas pendentes</h4>
+            <button class="btn btn-outline-orange btn-sm" onclick="refreshAdminFreeAgency()">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          </div>
+          <div id="faOffersContainer">
+            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
+          </div>
+        </div>
+      </div>
     </div>
   `;
+
+  document.getElementById('faAvailableSearch')?.addEventListener('input', (event) => {
+    renderAdminFreeAgents(event.target.value);
+  });
   
-  // Carregar ofertas da primeira liga
-  loadFreeAgencyOffers('ELITE');
+  setFreeAgencyLeague('ELITE');
+}
+
+async function loadAdminFreeAgents(league) {
+  const container = document.getElementById('faAvailableContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
+  try {
+    const data = await api(`free-agency.php?action=list&league=${league}`);
+    adminFreeAgents = data.free_agents || [];
+    const countEl = document.getElementById('faAvailableCount');
+    if (countEl) {
+      const qty = adminFreeAgents.length;
+      countEl.textContent = `${qty} jogador${qty === 1 ? '' : 'es'}`;
+    }
+    const searchValue = document.getElementById('faAvailableSearch')?.value || '';
+    renderAdminFreeAgents(searchValue);
+  } catch (e) {
+    adminFreeAgents = [];
+    const countEl = document.getElementById('faAvailableCount');
+    if (countEl) countEl.textContent = '0 jogadores';
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar jogadores livres: ${e.error || 'Desconhecido'}</div>`;
+  }
+}
+
+function renderAdminFreeAgents(filterTerm = '') {
+  const container = document.getElementById('faAvailableContainer');
+  if (!container) return;
+  if (!adminFreeAgents.length) {
+    container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Nenhum jogador disponível nesta liga.</div>';
+    return;
+  }
+
+  const term = filterTerm.trim().toLowerCase();
+  const filtered = term ? adminFreeAgents.filter(fa => {
+    const haystack = `${fa.name} ${fa.position} ${fa.secondary_position || ''}`.toLowerCase();
+    return haystack.includes(term);
+  }) : adminFreeAgents;
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="alert alert-warning"><i class="bi bi-search"></i> Nenhum jogador encontrado com este filtro.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(fa => {
+    const posDisplay = fa.secondary_position ? `${fa.position}/${fa.secondary_position}` : fa.position;
+    const origin = fa.original_team_name ? `<small class="text-light-gray d-block">Ex: ${fa.original_team_name}</small>` : '';
+    const pending = fa.pending_offers > 0 ? `<small class="text-warning d-block"><i class="bi bi-clock me-1"></i>${fa.pending_offers} proposta(s)</small>` : '';
+    return `
+      <div class="fa-card mb-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h5 class="text-white mb-1">${fa.name}</h5>
+            <div class="text-light-gray small">${posDisplay} | ${fa.age} anos</div>
+            ${origin}
+            ${pending}
+          </div>
+          <div class="text-end">
+            <span class="badge bg-secondary">OVR ${fa.ovr}</span>
+            <button class="btn btn-sm btn-outline-danger mt-2" onclick="deleteFreeAgent(${fa.id})" title="Remover">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteFreeAgent(freeAgentId) {
+  if (!confirm('Remover este free agent da lista?')) return;
+  const league = appState.currentFAleague || 'ELITE';
+  try {
+    await api(`free-agency.php?action=delete_free_agent&free_agent_id=${freeAgentId}&league=${league}`, { method: 'DELETE' });
+    alert('Free agent removido.');
+    loadAdminFreeAgents(league);
+  } catch (e) {
+    alert(e.error || 'Erro ao remover free agent');
+  }
 }
 
 async function loadFreeAgencyOffers(league) {
@@ -1096,23 +1218,15 @@ async function approveFreeAgentOffer(playerId, offerId, teamId) {
   
   try {
     await api('free-agency.php', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({
         action: 'approve',
-        offer_id: offerId,
-        free_agent_id: playerId,
-        team_id: teamId
+        offer_id: offerId
       })
     });
     
     alert('Contratação aprovada com sucesso!');
-    
-    // Recarregar a lista
-    const activeBtn = document.querySelector('[id^="btn-fa-"].active');
-    if (activeBtn) {
-      const league = activeBtn.id.replace('btn-fa-', '');
-      loadFreeAgencyOffers(league);
-    }
+    refreshAdminFreeAgency();
   } catch (e) {
     alert('Erro ao aprovar: ' + (e.error || 'Desconhecido'));
   }
@@ -1123,7 +1237,7 @@ async function rejectAllOffers(playerId, league) {
   
   try {
     await api('free-agency.php', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({
         action: 'reject_all',
         free_agent_id: playerId
@@ -1131,7 +1245,7 @@ async function rejectAllOffers(playerId, league) {
     });
     
     alert('Todas as propostas foram rejeitadas.');
-    loadFreeAgencyOffers(league);
+    refreshAdminFreeAgency();
   } catch (e) {
     alert('Erro ao rejeitar: ' + (e.error || 'Desconhecido'));
   }
@@ -1235,7 +1349,7 @@ async function submitCreateFreeAgent() {
       bootstrap.Modal.getInstance(modalEl)?.hide();
     }
     alert('Free agent criado!');
-    loadFreeAgencyOffers(league);
+    refreshAdminFreeAgency();
   } catch (e) {
     alert('Erro ao criar free agent: ' + (e.error || 'Desconhecido'));
   }
