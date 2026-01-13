@@ -477,7 +477,17 @@ pre{
 /* ---------- Login page ---------- */
 .login-page{
 	background: var(--fba-black);
-	overflow: hidden;
+	min-height: 100vh;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+@media (max-width: 992px) {
+	.login-page .container-fluid,
+	.login-page .row {
+		height: auto !important;
+		min-height: 100vh;
+	}
 }
 
 /* ---------- Sidebar ---------- */
