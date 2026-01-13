@@ -72,43 +72,60 @@ if ($method === 'GET') {
     
     // Para cada trade, buscar itens
     foreach ($trades as &$trade) {
-        // Jogadores oferecidos
-        $stmtOfferPlayers = $pdo->prepare('
-            SELECT p.* FROM players p
-            JOIN trade_items ti ON p.id = ti.player_id
-            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
-        ');
-        $stmtOfferPlayers->execute([$trade['id']]);
-        $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Picks oferecidas
-        $stmtOfferPicks = $pdo->prepare('
-            SELECT pk.*, t.city, t.name as team_name FROM picks pk
-            JOIN trade_items ti ON pk.id = ti.pick_id
-            JOIN teams t ON pk.original_team_id = t.id
-            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
-        ');
-        $stmtOfferPicks->execute([$trade['id']]);
-        $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Jogadores pedidos
-        $stmtRequestPlayers = $pdo->prepare('
-            SELECT p.* FROM players p
-            JOIN trade_items ti ON p.id = ti.player_id
-            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
-        ');
-        $stmtRequestPlayers->execute([$trade['id']]);
-        $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Picks pedidas
-        $stmtRequestPicks = $pdo->prepare('
-            SELECT pk.*, t.city, t.name as team_name FROM picks pk
-            JOIN trade_items ti ON pk.id = ti.pick_id
-            JOIN teams t ON pk.original_team_id = t.id
-            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
-        ');
-        $stmtRequestPicks->execute([$trade['id']]);
-        $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+        $trade['offer_players'] = [];
+        $trade['offer_picks'] = [];
+        $trade['request_players'] = [];
+        $trade['request_picks'] = [];
+
+        try {
+            $stmtOfferPlayers = $pdo->prepare('
+                SELECT p.* FROM players p
+                JOIN trade_items ti ON p.id = ti.player_id
+                WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
+            ');
+            $stmtOfferPlayers->execute([$trade['id']]);
+            $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar jogadores oferecidos da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtOfferPicks = $pdo->prepare('
+                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                JOIN trade_items ti ON pk.id = ti.pick_id
+                JOIN teams t ON pk.original_team_id = t.id
+                WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
+            ');
+            $stmtOfferPicks->execute([$trade['id']]);
+            $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar picks oferecidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtRequestPlayers = $pdo->prepare('
+                SELECT p.* FROM players p
+                JOIN trade_items ti ON p.id = ti.player_id
+                WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
+            ');
+            $stmtRequestPlayers->execute([$trade['id']]);
+            $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar jogadores pedidos da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
+
+        try {
+            $stmtRequestPicks = $pdo->prepare('
+                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                JOIN trade_items ti ON pk.id = ti.pick_id
+                JOIN teams t ON pk.original_team_id = t.id
+                WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
+            ');
+            $stmtRequestPicks->execute([$trade['id']]);
+            $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log('Erro ao buscar picks pedidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
+        }
     }
     
     echo json_encode(['success' => true, 'trades' => $trades]);
