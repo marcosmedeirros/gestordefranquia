@@ -6,7 +6,7 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null };
+let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null, currentFAleague: 'ELITE' };
 
 async function init() { showHome(); }
 
@@ -996,13 +996,16 @@ async function showFreeAgency() {
     </div>
     
     <div class="row mb-4">
-      <div class="col-12">
+      <div class="col-12 d-flex flex-wrap gap-3 justify-content-between align-items-center">
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-outline-orange active" onclick="loadFreeAgencyOffers('ELITE')" id="btn-fa-ELITE">ELITE</button>
           <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('NEXT')" id="btn-fa-NEXT">NEXT</button>
           <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('RISE')" id="btn-fa-RISE">RISE</button>
           <button class="btn btn-outline-orange" onclick="loadFreeAgencyOffers('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
         </div>
+        <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
+          <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
+        </button>
       </div>
     </div>
     
@@ -1016,6 +1019,7 @@ async function showFreeAgency() {
 }
 
 async function loadFreeAgencyOffers(league) {
+  appState.currentFAleague = league;
   // Atualizar botões ativos
   document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
   document.getElementById(`btn-fa-${league}`).classList.add('active');
@@ -1130,5 +1134,109 @@ async function rejectAllOffers(playerId, league) {
     loadFreeAgencyOffers(league);
   } catch (e) {
     alert('Erro ao rejeitar: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+function openCreateFreeAgentModal() {
+  const league = appState.currentFAleague || 'ELITE';
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'createFreeAgentModal';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Novo Free Agent (${league})</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Nome</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="faName" placeholder="Nome do jogador">
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Idade</label>
+              <input type="number" class="form-control bg-dark text-white border-orange" id="faAge" min="16" max="45" value="25">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">OVR</label>
+              <input type="number" class="form-control bg-dark text-white border-orange" id="faOvr" min="40" max="99" value="70">
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Posição</label>
+              <select class="form-select bg-dark text-white border-orange" id="faPosition">
+                <option value="PG">PG - Armador</option>
+                <option value="SG">SG - Ala-Armador</option>
+                <option value="SF">SF - Ala</option>
+                <option value="PF">PF - Ala-Pivô</option>
+                <option value="C">C - Pivô</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-light-gray">Posição Secundária</label>
+              <select class="form-select bg-dark text-white border-orange" id="faSecondary">
+                <option value="">Nenhuma</option>
+                <option value="PG">PG - Armador</option>
+                <option value="SG">SG - Ala-Armador</option>
+                <option value="SF">SF - Ala</option>
+                <option value="PF">PF - Ala-Pivô</option>
+                <option value="C">C - Pivô</option>
+              </select>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label text-light-gray">Ex time (opcional)</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="faOriginal" placeholder="Ex: Cidade Time">
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="submitCreateFreeAgent()">
+            <i class="bi bi-check2-circle me-1"></i>Cadastrar
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  const modalInstance = new bootstrap.Modal(modal);
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+  modalInstance.show();
+}
+
+async function submitCreateFreeAgent() {
+  const league = appState.currentFAleague || 'ELITE';
+  const payload = {
+    action: 'create_free_agent',
+    league,
+    name: document.getElementById('faName').value.trim(),
+    age: parseInt(document.getElementById('faAge').value, 10),
+    ovr: parseInt(document.getElementById('faOvr').value, 10),
+    position: document.getElementById('faPosition').value,
+    secondary_position: document.getElementById('faSecondary').value || null,
+    original_team_name: document.getElementById('faOriginal').value.trim()
+  };
+
+  if (!payload.name || !payload.age || !payload.ovr || !payload.position) {
+    alert('Preencha nome, idade, OVR e posição.');
+    return;
+  }
+
+  try {
+    await api('free-agency.php', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const modalEl = document.getElementById('createFreeAgentModal');
+    if (modalEl) {
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+    }
+    alert('Free agent criado!');
+    loadFreeAgencyOffers(league);
+  } catch (e) {
+    alert('Erro ao criar free agent: ' + (e.error || 'Desconhecido'));
   }
 }

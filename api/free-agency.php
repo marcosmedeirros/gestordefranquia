@@ -148,14 +148,66 @@ if ($method === 'GET') {
 
 // POST - Dispensar jogador ou enviar proposta
 if ($method === 'POST') {
-    if (!$teamId) {
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    $action = $data['action'] ?? '';
+    $adminOnlyActions = ['approve', 'reject', 'reject_all', 'create_free_agent'];
+
+    if (!$teamId && !in_array($action, $adminOnlyActions, true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Você não possui um time']);
         exit;
     }
-    
-    $data = json_decode(file_get_contents('php://input'), true);
-    $action = $data['action'] ?? '';
+    if ($action === 'create_free_agent') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+
+        $name = trim($data['name'] ?? '');
+        $age = isset($data['age']) ? (int)$data['age'] : null;
+        $position = strtoupper(trim($data['position'] ?? ''));
+        $secondaryPosition = $data['secondary_position'] ?? null;
+        $ovr = isset($data['ovr']) ? (int)$data['ovr'] : null;
+        $league = strtoupper($data['league'] ?? $userLeague);
+        $originalTeamName = trim($data['original_team_name'] ?? '');
+
+        $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+        if (!in_array($league, $validLeagues, true)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+            exit;
+        }
+
+        if ($name === '' || !$age || !$position || !$ovr) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Preencha nome, idade, posição e OVR']);
+            exit;
+        }
+
+        try {
+            $stmt = $pdo->prepare('
+                INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+            ');
+            $stmt->execute([
+                $name,
+                $age,
+                $position,
+                $secondaryPosition ?: null,
+                $ovr,
+                $league,
+                $originalTeamName ?: null
+            ]);
+
+            echo json_encode(['success' => true, 'message' => 'Free agent criado com sucesso!']);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao criar free agent: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
     
     // Dispensar jogador (waive)
     if ($action === 'waive') {
