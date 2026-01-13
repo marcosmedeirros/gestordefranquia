@@ -57,6 +57,8 @@ foreach ($teams as &$t) {
   $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
 }
 unset($t); // Importante: limpar referência do foreach
+
+$whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -213,6 +215,12 @@ unset($t); // Importante: limpar referência do foreach
                         </thead>
                         <tbody>
                             <?php foreach ($teams as $t): ?>
+                            <?php
+                                $hasContact = !empty($t['owner_phone_whatsapp']);
+                                $whatsAppLink = $hasContact
+                                    ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
+                                    : null;
+                            ?>
                             <tr>
                                 <td>
                                     <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
@@ -221,20 +229,39 @@ unset($t); // Importante: limpar referência do foreach
                                 </td>
                                 <td>
                                     <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                                    <small class="text-light-gray d-none d-md-block"><?= htmlspecialchars($t['mascot'] ?? '') ?></small>
-                                    <small class="text-light-gray d-md-none">
-                                        <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
-                                    </small>
-                                    <?php if (!empty($t['owner_phone_display'])): ?>
-                                        <small class="text-light-gray d-md-none">
-                                            <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
-                                        </small>
+                                    <?php if ($hasContact): ?>
+                                                     <a class="btn btn-sm btn-outline-success d-none d-md-inline-flex align-items-center mt-1"
+                                                         href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                            <i class="bi bi-whatsapp me-1"></i>Falar no WhatsApp
+                                        </a>
+                                    <?php else: ?>
+                                        <small class="text-muted d-none d-md-block">Sem contato</small>
                                     <?php endif; ?>
+                                    <div class="d-md-none mt-1">
+                                        <small class="text-light-gray d-block">
+                                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
+                                        </small>
+                                        <?php if ($hasContact): ?>
+                                                          <a class="d-inline-flex align-items-center text-success text-decoration-none small"
+                                                              href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                                <i class="bi bi-whatsapp me-1"></i>Chamar no Whats
+                                            </a>
+                                            <small class="text-light-gray d-block"><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                        <?php else: ?>
+                                            <small class="text-muted">Sem contato</small>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                                 <td class="hide-mobile">
                                     <div><i class="bi bi-person me-1 text-orange"></i><?= htmlspecialchars($t['owner_name']) ?></div>
-                                    <?php if (!empty($t['owner_phone_display'])): ?>
-                                        <small class="text-light-gray"><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                    <?php if ($hasContact): ?>
+                                                     <a class="d-inline-flex align-items-center text-success text-decoration-none small"
+                                                         href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                            <i class="bi bi-whatsapp me-1"></i>Falar no WhatsApp
+                                        </a>
+                                        <small class="text-light-gray d-block"><?= htmlspecialchars($t['owner_phone_display']) ?></small>
+                                    <?php else: ?>
+                                        <small class="text-muted">Sem contato</small>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
@@ -248,9 +275,8 @@ unset($t); // Importante: limpar referência do foreach
                                         <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                             <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
                                         </button>
-                                        <?php if (!empty($t['owner_phone_whatsapp'])): ?>
-                                            <?php $defaultMsg = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?'); ?>
-                                            <a class="btn btn-sm btn-outline-success" href="https://api.whatsapp.com/send/?phone=<?= htmlspecialchars($t['owner_phone_whatsapp']) ?>&text=<?= $defaultMsg ?>&type=phone_number&app_absent=0" target="_blank" rel="noopener">
+                                        <?php if ($hasContact): ?>
+                                            <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
                                                 <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">Falar</span>
                                             </a>
                                         <?php endif; ?>
