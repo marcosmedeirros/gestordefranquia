@@ -25,6 +25,18 @@ $stmtDeadline = $pdo->prepare("
 $stmtDeadline->execute([$team['league']]);
 $deadline = $stmtDeadline->fetch();
 
+$deadlineDisplay = null;
+$deadlineIso = null;
+if ($deadline && !empty($deadline['deadline_date'])) {
+    try {
+        $deadlineDateTime = new DateTime($deadline['deadline_date'], new DateTimeZone('America/Sao_Paulo'));
+        $deadlineDisplay = $deadlineDateTime->format('d/m/Y \à\s H:i');
+        $deadlineIso = $deadlineDateTime->format(DateTime::ATOM);
+    } catch (Exception $e) {
+        $deadlineDisplay = date('d/m/Y', strtotime($deadline['deadline_date']));
+    }
+}
+
 // Buscar jogadores do time
 $stmtPlayers = $pdo->prepare("
     SELECT id, name, position, ovr, role 
@@ -137,7 +149,7 @@ try {
                     <h5 class="text-white mb-1">Prazo de Envio</h5>
                     <p class="text-light-gray mb-0">
                         <?= htmlspecialchars($deadline['description'] ?? 'Envio de diretrizes') ?> - 
-                        <strong>Até <?= date('d/m/Y', strtotime($deadline['deadline_date'])) ?></strong>
+                        <strong>Até <?= htmlspecialchars($deadlineDisplay ?? date('d/m/Y', strtotime($deadline['deadline_date'] ?? 'now'))) ?> (Horário de Brasília)</strong>
                     </p>
                 </div>
             </div>
@@ -403,6 +415,7 @@ try {
         window.__DEADLINE_ID__ = <?= $deadline ? (int)$deadline['id'] : 'null' ?>;
         window.__SEASON_STATUS__ = <?= json_encode($currentSeason['status'] ?? null) ?>;
         window.__DEADLINE_PHASE__ = <?= json_encode($deadline['phase'] ?? null) ?>;
+        window.__DEADLINE_ISO__ = <?= json_encode($deadlineIso) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>

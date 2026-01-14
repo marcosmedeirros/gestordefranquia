@@ -15,6 +15,49 @@ if (!$user) {
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 
+function buildDeadlineDateTime(?string $date, ?string $time = null): string {
+    if (!$date) {
+        throw new Exception('Data do prazo obrigatória');
+    }
+
+    $time = $time ?: '23:59';
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $dateTimeString = trim($date . ' ' . $time);
+    $dateTime = DateTime::createFromFormat('Y-m-d H:i', $dateTimeString, $tz);
+
+    if (!$dateTime) {
+        try {
+            $dateTime = new DateTime($date, $tz);
+        } catch (Exception $e) {
+            $dateTime = false;
+        }
+    }
+
+    if (!$dateTime) {
+        throw new Exception('Formato de data/hora inválido');
+    }
+
+    return $dateTime->format('Y-m-d H:i:s');
+}
+
+function formatDeadlineRow(?array $deadline): ?array {
+    if (!$deadline || empty($deadline['deadline_date'])) {
+        return $deadline;
+    }
+
+    try {
+        $tz = new DateTimeZone('America/Sao_Paulo');
+        $dateTime = new DateTime($deadline['deadline_date'], $tz);
+        $deadline['deadline_date_iso'] = $dateTime->format(DateTime::ATOM);
+        $deadline['deadline_date_display'] = $dateTime->format('d/m/Y H:i');
+        $deadline['deadline_timezone'] = 'America/Sao_Paulo';
+    } catch (Exception $e) {
+        // Ignorar falha de formatação e retornar dados originais
+    }
+
+    return $deadline;
+}
+
 // GET - Buscar diretrizes ou prazos
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'active_deadline';
@@ -36,6 +79,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("SELECT * FROM directive_deadlines WHERE league = ? AND is_active = 1 ORDER BY deadline_date DESC LIMIT 1");
             $stmt->execute([$team['league']]);
             $deadline = $stmt->fetch();
+            $deadline = formatDeadlineRow($deadline);
             echo json_encode(['success' => true, 'deadline' => $deadline]);
             break;
 
@@ -98,6 +142,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("SELECT dd.*, (SELECT COUNT(*) FROM team_directives WHERE deadline_id = dd.id) as submissions_count FROM directive_deadlines dd $where ORDER BY deadline_date DESC");
             $stmt->execute($params);
             $deadlines = $stmt->fetchAll();
+            $deadlines = array_map('formatDeadlineRow', $deadlines);
             echo json_encode(['success' => true, 'deadlines' => $deadlines]);
             break;
 
@@ -320,6 +365,7 @@ if ($method === 'POST') {
             }
             $league = $data['league'] ?? null;
             $deadlineDate = $data['deadline_date'] ?? null;
+            $deadlineTime = $data['deadline_time'] ?? null;
             $description = $data['description'] ?? null;
             $phase = $data['phase'] ?? 'regular';
             if (!$league || !$deadlineDate) {
@@ -327,8 +373,15 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Liga e data obrigatórios']);
                 exit;
             }
+            try {
+                $deadlineDateTime = buildDeadlineDateTime($deadlineDate, $deadlineTime);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                exit;
+            }
             $stmt = $pdo->prepare('INSERT INTO directive_deadlines (league, deadline_date, description, phase) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$league, $deadlineDate, $description, $phase]);
+            $stmt->execute([$league, $deadlineDateTime, $description, $phase]);
             echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
             break;
 
@@ -353,14 +406,45 @@ if ($method === 'PUT') {
         echo json_encode(['success' => false, 'error' => 'ID obrigatório']);
         exit;
     }
-    $stmt = $pdo->prepare('UPDATE directive_deadlines SET deadline_date = ?, description = ?, is_active = ?, phase = ? WHERE id = ?');
-    $stmt->execute([
-        $data['deadline_date'] ?? null,
-        $data['description'] ?? null,
-        isset($data['is_active']) ? (int)$data['is_active'] : 1,
-        $data['phase'] ?? 'regular',
-        $deadlineId
-    ]);
+    $updates = [];
+    $params = [];
+
+    if (isset($data['deadline_date']) || isset($data['deadline_time'])) {
+        try {
+            $deadlineDateTime = buildDeadlineDateTime($data['deadline_date'] ?? null, $data['deadline_time'] ?? null);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        $updates[] = 'deadline_date = ?';
+        $params[] = $deadlineDateTime;
+    }
+
+    if (array_key_exists('description', $data)) {
+        $updates[] = 'description = ?';
+        $params[] = $data['description'];
+    }
+
+    if (array_key_exists('is_active', $data)) {
+        $updates[] = 'is_active = ?';
+        $params[] = (int)$data['is_active'];
+    }
+
+    if (array_key_exists('phase', $data)) {
+        $updates[] = 'phase = ?';
+        $params[] = $data['phase'] ?? 'regular';
+    }
+
+    if (empty($updates)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Nenhum campo para atualizar']);
+        exit;
+    }
+
+    $params[] = $deadlineId;
+    $stmt = $pdo->prepare('UPDATE directive_deadlines SET ' . implode(', ', $updates) . ' WHERE id = ?');
+    $stmt->execute($params);
     echo json_encode(['success' => true]);
     exit;
 }

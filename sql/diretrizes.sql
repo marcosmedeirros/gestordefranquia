@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS directive_deadlines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
     season_id INT NULL,
-    deadline_date DATE NOT NULL,
+    deadline_date DATETIME NOT NULL,
     description VARCHAR(255) NULL,
     phase ENUM('regular','playoffs') DEFAULT 'regular',
     is_active TINYINT(1) DEFAULT 1,

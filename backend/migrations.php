@@ -812,6 +812,18 @@ function runMigrations() {
         $errors[] = "ajuste_trades: " . $e->getMessage();
     }
 
+    try {
+        $hasDirectiveDeadlines = $pdo->query("SHOW TABLES LIKE 'directive_deadlines'")->fetch();
+        if ($hasDirectiveDeadlines) {
+            $deadlineColumn = $pdo->query("SHOW COLUMNS FROM directive_deadlines LIKE 'deadline_date'")->fetch(PDO::FETCH_ASSOC);
+            if ($deadlineColumn && stripos($deadlineColumn['Type'], 'datetime') === false) {
+                $pdo->exec("ALTER TABLE directive_deadlines MODIFY COLUMN deadline_date DATETIME NOT NULL");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_directive_deadline_datetime: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

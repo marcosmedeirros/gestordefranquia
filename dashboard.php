@@ -113,6 +113,14 @@ try {
     ");
     $stmtDirective->execute([$team['league']]);
     $activeDirectiveDeadline = $stmtDirective->fetch();
+        if ($activeDirectiveDeadline && !empty($activeDirectiveDeadline['deadline_date'])) {
+            try {
+                $deadlineDateTime = new DateTime($activeDirectiveDeadline['deadline_date'], new DateTimeZone('America/Sao_Paulo'));
+                $activeDirectiveDeadline['deadline_date_display'] = $deadlineDateTime->format('d/m/Y \à\s H:i');
+            } catch (Exception $e) {
+                $activeDirectiveDeadline['deadline_date_display'] = date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date']));
+            }
+        }
 } catch (Exception $e) {
     // Tabela pode não existir ainda
 }
@@ -379,7 +387,7 @@ try {
                                         </h5>
                                         <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Envio de diretrizes de jogo') ?></p>
                                         <p class="text-orange mb-0 fw-bold">
-                                            <i class="bi bi-calendar-event me-1"></i>Prazo: <?= date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date'])) ?>
+                                            <i class="bi bi-calendar-event me-1"></i>Prazo: <?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date'] ?? 'now'))) ?> (Horário de Brasília)
                                         </p>
                                 </div>
                                     <i class="bi bi-arrow-right-circle-fill text-orange" style="font-size: 3rem;"></i>

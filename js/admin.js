@@ -702,6 +702,23 @@ async function deleteEdital(league) {
 document.addEventListener('DOMContentLoaded', init);
 
 // ========== DIRETRIZES ==========
+function formatDeadlineDateTime(value) {
+  if (!value) return '-';
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    }).format(new Date(value));
+  } catch (e) {
+    try {
+      return new Date(value).toLocaleString('pt-BR');
+    } catch (err) {
+      return value;
+    }
+  }
+}
+
 async function showDirectives() {
   appState.view = 'directives';
   updateBreadcrumb();
@@ -730,12 +747,12 @@ async function showDirectives() {
             '<p class="text-light-gray text-center py-4">Nenhum prazo configurado</p>' :
             `<div class="table-responsive"><table class="table table-dark">
               <thead><tr>
-                <th>Liga</th><th>Data</th><th>Descrição</th><th>Fase</th><th>Status</th><th>Envios</th><th>Ações</th>
+                <th>Liga</th><th>Prazo (Horário de Brasília)</th><th>Descrição</th><th>Fase</th><th>Status</th><th>Envios</th><th>Ações</th>
               </tr></thead>
               <tbody>${deadlines.map(d => `
                 <tr>
                   <td><span class="badge bg-gradient-orange">${d.league}</span></td>
-                  <td>${new Date(d.deadline_date).toLocaleDateString('pt-BR')}</td>
+                  <td>${formatDeadlineDateTime(d.deadline_date_iso || d.deadline_date)}</td>
                   <td>${d.description || '-'}</td>
                   <td>${(d.phase || 'regular') === 'playoffs' ? '<span class="badge bg-danger">Playoffs</span>' : '<span class="badge bg-info">Regular</span>'}</td>
                   <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
@@ -788,6 +805,11 @@ function showCreateDeadlineModal() {
             <input type="date" class="form-control bg-dark text-white border-orange" id="deadline-date" required>
           </div>
           <div class="mb-3">
+            <label class="form-label text-white">Horário limite (Horário de São Paulo)</label>
+            <input type="time" class="form-control bg-dark text-white border-orange" id="deadline-time" value="23:59" required>
+            <small class="text-light-gray">O prazo será salvo considerando o fuso America/Sao_Paulo.</small>
+          </div>
+          <div class="mb-3">
             <label class="form-label text-white">Descrição</label>
             <input type="text" class="form-control bg-dark text-white border-orange" id="deadline-description" 
                    placeholder="Ex: Diretrizes da Rodada 1">
@@ -817,6 +839,7 @@ function showCreateDeadlineModal() {
 async function createDeadline() {
   const league = document.getElementById('deadline-league').value;
   const date = document.getElementById('deadline-date').value;
+  const time = document.getElementById('deadline-time').value;
   const description = document.getElementById('deadline-description').value;
   const phase = document.getElementById('deadline-phase').value;
   
@@ -824,14 +847,24 @@ async function createDeadline() {
     alert('Preencha a data');
     return;
   }
+  if (!time) {
+    alert('Preencha o horário');
+    return;
+  }
   
   try {
     await api('diretrizes.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, description, phase })
+      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, deadline_time: time, description, phase })
     });
     alert('Prazo criado com sucesso!');
-    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
+    if (modalEl) {
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+    }
     showDirectives();
   } catch (e) {
     alert('Erro ao criar prazo: ' + (e.error || e.message));
