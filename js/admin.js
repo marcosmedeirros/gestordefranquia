@@ -196,8 +196,16 @@ async function showTrades(status = 'all') {
       return;
     }
     
+    const formatAdminTradePlayer = (player) => {
+      if (!player) return '';
+      const position = player.position || '-';
+      const ovr = player.ovr ?? '?';
+      const age = player.age ?? '?';
+      return `${player.name} (${position}, ${ovr}/${age})`;
+    };
+
     const renderTradeAssets = (players = [], picks = []) => {
-      const playerItems = players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('');
+      const playerItems = players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${formatAdminTradePlayer(p)}</li>`).join('');
       const pickItems = picks.map(pk => {
         const roundNumber = parseInt(pk.round, 10);
         const roundLabel = Number.isNaN(roundNumber) ? `${pk.round}ª rodada` : `${roundNumber}ª rodada`;

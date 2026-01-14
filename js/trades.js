@@ -15,6 +15,15 @@ let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
 
+const formatTradePlayerDisplay = (player) => {
+  if (!player) return '';
+  const name = player.name || 'Jogador';
+  const position = player.position || '-';
+  const ovr = player.ovr ?? '?';
+  const age = player.age ?? '?';
+  return `${name} (${position}, ${ovr}/${age})`;
+};
+
 function clearCounterProposalState() {
   const modalEl = document.getElementById('proposeTradeModal');
   if (modalEl && modalEl.dataset.counterTo) {
@@ -103,7 +112,7 @@ async function loadMyAssets() {
         const option = document.createElement('option');
         option.value = p.id;
         const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})${statusLabel}`;
+        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
         selectPlayers.appendChild(option);
       });
     }
@@ -160,7 +169,7 @@ async function onTargetTeamChange(e) {
         const option = document.createElement('option');
         option.value = p.id;
         const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${p.name} (${p.position}, OVR ${p.ovr})${statusLabel}`;
+        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
         select.appendChild(option);
       });
     }
@@ -317,7 +326,7 @@ function createTradeCard(trade, type) {
       <div class="col-md-6">
         <h6 class="text-orange mb-2">${fromTeam} oferece:</h6>
         <ul class="list-unstyled text-white">
-          ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}
+          ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
           ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
           ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
@@ -325,7 +334,7 @@ function createTradeCard(trade, type) {
       <div class="col-md-6">
         <h6 class="text-orange mb-2">${toTeam} envia:</h6>
         <ul class="list-unstyled text-white">
-          ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}
+          ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
           ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
           ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
