@@ -434,12 +434,21 @@ if ($method === 'PUT') {
         
         $pdo->commit();
         echo json_encode(['success' => true]);
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        error_log('[trade_accept] ' . $e->getMessage());
+        if (str_contains($e->getMessage(), 'uniq_pick')) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Uma das picks já foi negociada e não pode ser transferida novamente. Atualize a proposta.']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar trade']);
+        }
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
         error_log('[trade_accept] ' . $e->getMessage());
-        $message = $e->getMessage() ?: 'Erro ao processar trade';
-        echo json_encode(['success' => false, 'error' => $message]);
+        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar trade']);
     }
     exit;
 }
