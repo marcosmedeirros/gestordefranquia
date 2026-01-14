@@ -146,6 +146,42 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
         error_log('[ensureDirectiveOptionalColumns] veteran_focus: ' . $e->getMessage());
     }
 
+    try {
+        $hasGleague1 = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'gleague_1_id'")->rowCount() > 0;
+        if (!$hasGleague1) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN gleague_1_id INT NULL COMMENT 'Jogador 1 a mandar para G-League' AFTER veteran_focus");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] gleague_1_id: ' . $e->getMessage());
+    }
+
+    try {
+        $hasGleague2 = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'gleague_2_id'")->rowCount() > 0;
+        if (!$hasGleague2) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN gleague_2_id INT NULL COMMENT 'Jogador 2 a mandar para G-League' AFTER gleague_1_id");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] gleague_2_id: ' . $e->getMessage());
+    }
+
+    try {
+        $fks = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'team_directives' AND REFERENCED_TABLE_NAME = 'players' AND COLUMN_NAME = 'gleague_1_id'")->rowCount();
+        if ($fks === 0) {
+            $pdo->exec("ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague1 FOREIGN KEY (gleague_1_id) REFERENCES players(id) ON DELETE SET NULL");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] fk gleague_1_id: ' . $e->getMessage());
+    }
+
+    try {
+        $fks = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'team_directives' AND REFERENCED_TABLE_NAME = 'players' AND COLUMN_NAME = 'gleague_2_id'")->rowCount();
+        if ($fks === 0) {
+            $pdo->exec("ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague2 FOREIGN KEY (gleague_2_id) REFERENCES players(id) ON DELETE SET NULL");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] fk gleague_2_id: ' . $e->getMessage());
+    }
+
     $checked = true;
 }
 
