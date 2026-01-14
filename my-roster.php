@@ -238,14 +238,6 @@ if ($teamId) {
                 </div>
               </div>
             </div>
-            <div class="bg-dark rounded border border-warning p-3 mt-4">
-              <small class="text-light-gray d-block mb-1"><i class="bi bi-info-circle text-orange me-1"></i>Regras rápidas</small>
-              <ul class="text-light-gray mb-0 small">
-                <li>Máximo de 5 titulares e 2 jogadores G-League por elenco.</li>
-                <li>Jogadores G-League precisam ter menos de 25 anos.</li>
-                <li>O CAP Top 8 é atualizado automaticamente após cada cadastro.</li>
-              </ul>
-            </div>
             <div class="text-end mt-3">
               <button type="button" class="btn btn-orange" id="btn-add-player">
                 <i class="bi bi-cloud-upload me-1"></i>Cadastrar Jogador
