@@ -24,8 +24,8 @@ if ($team) {
 $tradeCount = 0;
 if ($teamId) {
   try {
-    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
-    $stmtCount->execute([$teamId]);
+    $stmtCount = $pdo->prepare("SELECT COUNT(*) as total FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
+    $stmtCount->execute([$teamId, $teamId]);
     $tradeCount = $stmtCount->fetch()['total'] ?? 0;
   } catch (Exception $e) {
     $tradeCount = 0;
@@ -290,6 +290,11 @@ if ($teamId) {
         </button>
       </li>
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="league-tab" data-bs-toggle="tab" data-bs-target="#league" type="button">
+          <i class="bi bi-trophy me-1"></i>Todas da Liga
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="trade-list-tab" data-bs-toggle="tab" data-bs-target="#trade-list" type="button">
           <i class="bi bi-list-stars me-1"></i>Trade List
         </button>
@@ -311,6 +316,20 @@ if ($teamId) {
       <!-- Histórico -->
       <div class="tab-pane fade" id="history" role="tabpanel">
         <div id="historyTradesList"></div>
+      </div>
+
+      <!-- Todas as trades da liga -->
+      <div class="tab-pane fade" id="league" role="tabpanel">
+        <div class="trade-list-panel">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+              <h5 class="text-white mb-1"><i class="bi bi-trophy me-2 text-orange"></i>Todas as trocas desta liga</h5>
+              <p class="text-light-gray mb-0 small">Histórico completo de negociações aceitas na sua liga.</p>
+            </div>
+            <span class="badge bg-secondary" id="leagueTradesCount">0 trocas</span>
+          </div>
+          <div id="leagueTradesList"></div>
+        </div>
       </div>
 
       <!-- Trade List (Disponíveis para troca na sua liga) -->

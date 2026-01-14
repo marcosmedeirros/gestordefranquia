@@ -662,6 +662,21 @@ function runMigrations() {
                 $pdo->exec("ALTER TABLE trades ADD COLUMN notes TEXT NULL AFTER updated_at");
             }
 
+            $hasLeagueColumn = $pdo->query("SHOW COLUMNS FROM trades LIKE 'league'")->fetch();
+            if (!$hasLeagueColumn) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL AFTER to_team_id");
+                try {
+                    $pdo->exec("UPDATE trades t JOIN teams tf ON t.from_team_id = tf.id SET t.league = tf.league WHERE t.league IS NULL");
+                } catch (PDOException $e) {
+                    $errors[] = "populate_trade_league: " . $e->getMessage();
+                }
+                try {
+                    $pdo->exec("ALTER TABLE trades MODIFY COLUMN league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL");
+                } catch (PDOException $e) {
+                    $errors[] = "enforce_trade_league_not_null: " . $e->getMessage();
+                }
+            }
+
             $hasResponseNotes = $pdo->query("SHOW COLUMNS FROM trades LIKE 'response_notes'")->fetch();
             if (!$hasResponseNotes) {
                 $pdo->exec("ALTER TABLE trades ADD COLUMN response_notes TEXT NULL AFTER notes");

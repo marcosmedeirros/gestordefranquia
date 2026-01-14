@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS trades (
     id INT AUTO_INCREMENT PRIMARY KEY,
     from_team_id INT NOT NULL,
     to_team_id INT NOT NULL,
+    league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
     status ENUM('pending', 'accepted', 'rejected', 'cancelled', 'countered') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -23,8 +24,4 @@ CREATE TABLE IF NOT EXISTS trade_items (
     FOREIGN KEY (pick_id) REFERENCES picks(id) ON DELETE CASCADE
 );
 
--- Índices para performance
-CREATE INDEX idx_trades_from_team ON trades(from_team_id);
-CREATE INDEX idx_trades_to_team ON trades(to_team_id);
-CREATE INDEX idx_trades_status ON trades(status);
-CREATE INDEX idx_trade_items_trade ON trade_items(trade_id);
+-- Índices adicionais são gerenciados pelas migrações automáticas.

@@ -39,6 +39,7 @@ async function init() {
   loadTrades('received');
   loadTrades('sent');
   loadTrades('history');
+  loadTrades('league');
   
   // Event listeners
   document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
@@ -234,6 +235,7 @@ async function submitTrade() {
     loadTrades('sent');
     loadTrades('received');
     loadTrades('history');
+    loadTrades('league');
   } catch (err) {
     alert(err.error || 'Erro ao enviar trade');
   }
@@ -249,6 +251,10 @@ async function loadTrades(type) {
     
     if (trades.length === 0) {
       container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
+      if (type === 'league') {
+        const badge = document.getElementById('leagueTradesCount');
+        if (badge) badge.textContent = '0 trocas';
+      }
       return;
     }
     
@@ -257,6 +263,13 @@ async function loadTrades(type) {
       const card = createTradeCard(trade, type);
       container.appendChild(card);
     });
+
+    if (type === 'league') {
+      const badge = document.getElementById('leagueTradesCount');
+      if (badge) {
+        badge.textContent = `${trades.length} ${trades.length === 1 ? 'trade' : 'trocas'}`;
+      }
+    }
   } catch (err) {
     container.innerHTML = '<div class="text-center text-danger py-4">Erro ao carregar trades</div>';
   }
@@ -378,6 +391,7 @@ async function respondTrade(tradeId, action) {
     loadTrades('received');
     loadTrades('sent');
     loadTrades('history');
+  loadTrades('league');
     // Atualiza meus jogadores e picks imediatamente após a decisão
     try {
       await loadMyAssets();

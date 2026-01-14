@@ -14,6 +14,35 @@ if (!$user) {
 
 $pdo = db();
 
+function getTeamTradesUsed(PDO $pdo, int $teamId): int
+{
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
+    $stmt->execute([$teamId, $teamId]);
+    return (int) ($stmt->fetchColumn() ?? 0);
+}
+
+function getLeagueMaxTrades(PDO $pdo, string $league, int $default = 3): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+        $stmt->execute([$league]);
+        $settings = $stmt->fetch();
+        if ($settings && isset($settings['max_trades'])) {
+            return (int) $settings['max_trades'];
+        }
+    } catch (Exception $e) {
+        error_log('Erro ao buscar limite de trades: ' . $e->getMessage());
+    }
+    return $default;
+}
+
+function getTeamLeague(PDO $pdo, int $teamId): ?string
+{
+    $stmt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    return $stmt->fetchColumn() ?: null;
+}
+
 // Pegar time do usuário
 $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -43,6 +72,10 @@ if ($method === 'GET') {
         $conditions[] = 't.from_team_id = ?';
         $conditions[] = "t.status = 'pending'";
         $params[] = $teamId;
+    } elseif ($type === 'league') {
+        $conditions[] = 't.league = ?';
+        $conditions[] = "t.status = 'accepted'";
+        $params[] = $user['league'];
     } else { // history
         $conditions[] = '(t.from_team_id = ? OR t.to_team_id = ?)';
         $conditions[] = "t.status IN ('accepted', 'rejected', 'cancelled', 'countered')";
@@ -201,27 +234,27 @@ if ($method === 'POST') {
         }
     }
     
-    // Verificar se a coluna max_trades existe em league_settings
-    $maxTrades = 10; // Default
-    try {
-        $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
-        $stmtSettings->execute([$teamData['league']]);
-        $settings = $stmtSettings->fetch();
-        if ($settings && isset($settings['max_trades'])) {
-            $maxTrades = (int)$settings['max_trades'];
-        }
-    } catch (Exception $e) {
-        // Coluna não existe, usar default
+    // Validar liga do time alvo
+    $stmtTargetTeam = $pdo->prepare('SELECT id, league FROM teams WHERE id = ?');
+    $stmtTargetTeam->execute([$toTeamId]);
+    $targetTeamData = $stmtTargetTeam->fetch(PDO::FETCH_ASSOC);
+    if (!$targetTeamData) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Time alvo não encontrado']);
+        exit;
     }
-    
-    // Verificar limite de trades por ano (simplificado - sem ciclo)
-    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM trades WHERE from_team_id = ? AND YEAR(created_at) = YEAR(NOW())');
-    $stmtCount->execute([$teamId]);
-    $count = (int)$stmtCount->fetch()['total'];
-    
-    if ($count >= $maxTrades) {
+    if ($targetTeamData['league'] !== $teamData['league']) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades por temporada atingido"]);
+        echo json_encode(['success' => false, 'error' => 'Só é possível propor trades entre times da mesma liga']);
+        exit;
+    }
+
+    $maxTrades = getLeagueMaxTrades($pdo, $teamData['league'], 10);
+
+    $tradesUsed = getTeamTradesUsed($pdo, (int)$teamId);
+    if ($tradesUsed >= $maxTrades) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => "Limite de {$maxTrades} trades aceitas por temporada atingido"]);
         exit;
     }
 
@@ -257,8 +290,8 @@ if ($method === 'POST') {
     $pdo->beginTransaction();
         
         // Criar trade (sem coluna cycle - ela é opcional)
-        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, notes) VALUES (?, ?, ?)');
-        $stmtTrade->execute([$teamId, $toTeamId, $notes]);
+    $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, notes) VALUES (?, ?, ?, ?)');
+    $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $notes]);
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
@@ -337,6 +370,28 @@ if ($method === 'PUT') {
         exit;
     }
     
+    if ($action === 'accepted') {
+        $tradeLeague = $trade['league'] ?? null;
+        if (!$tradeLeague) {
+            $tradeLeague = getTeamLeague($pdo, (int)$trade['from_team_id'])
+                ?? getTeamLeague($pdo, (int)$trade['to_team_id'])
+                ?? $user['league'];
+        }
+        $maxTrades = getLeagueMaxTrades($pdo, $tradeLeague ?: $user['league'], 3);
+        $fromTradesUsed = getTeamTradesUsed($pdo, (int)$trade['from_team_id']);
+        if ($fromTradesUsed >= $maxTrades) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'O time proponente já atingiu o limite de trades para esta temporada.']);
+            exit;
+        }
+        $toTradesUsed = getTeamTradesUsed($pdo, (int)$trade['to_team_id']);
+        if ($toTradesUsed >= $maxTrades) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Seu time já atingiu o limite de trades para esta temporada.']);
+            exit;
+        }
+    }
+
     try {
         $pdo->beginTransaction();
         
