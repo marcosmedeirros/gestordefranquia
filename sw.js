@@ -1,14 +1,13 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v1';
+const CACHE_NAME = 'fba-manager-v2';
 const OFFLINE_URL = '/offline.html';
 
-// Arquivos essenciais para cache
+// Arquivos essenciais para cache (apenas CSS e imagens, não JS)
 const STATIC_ASSETS = [
   '/',
   '/dashboard.php',
   '/login.php',
   '/css/styles.css',
-  '/js/sidebar.js',
   '/img/default-team.png',
   '/manifest.json',
   '/offline.html',
@@ -75,35 +74,50 @@ self.addEventListener('fetch', event => {
     return;
   }
   
-  // Para assets estáticos: Cache First
+  // Para assets estáticos: Network First para JS, Cache First para outros
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).then(fetchResponse => {
-          // Cachear recursos estáticos
-          if (fetchResponse.ok && 
-              (url.pathname.endsWith('.css') || 
-               url.pathname.endsWith('.js') || 
-               url.pathname.endsWith('.png') || 
-               url.pathname.endsWith('.jpg') ||
-               url.pathname.endsWith('.ico'))) {
-            const responseClone = fetchResponse.clone();
-            caches.open(CACHE_NAME)
-              .then(cache => cache.put(event.request, responseClone))
-              .catch(err => console.warn('[SW] Falha ao cachear recurso', url.href, err));
+    (async () => {
+      // Para arquivos JS: sempre buscar da rede primeiro
+      if (url.pathname.endsWith('.js')) {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
           }
-          return fetchResponse;
-        });
-      })
-      .catch(() => {
+          return networkResponse;
+        } catch {
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) return cachedResponse;
+        }
+      }
+      
+      // Para outros assets: Cache First
+      const cachedResponse = await caches.match(event.request);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      
+      try {
+        const fetchResponse = await fetch(event.request);
+        // Cachear recursos estáticos (exceto JS que já é tratado acima)
+        if (fetchResponse.ok && 
+            (url.pathname.endsWith('.css') || 
+             url.pathname.endsWith('.png') || 
+             url.pathname.endsWith('.jpg') ||
+             url.pathname.endsWith('.ico'))) {
+          const responseClone = fetchResponse.clone();
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(event.request, responseClone);
+        }
+        return fetchResponse;
+      } catch {
         // Fallback para imagens
         if (event.request.destination === 'image') {
           return caches.match('/img/default-team.png');
         }
-      })
+      }
+    })()
   );
 });
 

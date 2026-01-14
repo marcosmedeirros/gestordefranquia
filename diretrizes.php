@@ -421,7 +421,7 @@ try {
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
-    <script src="/js/diretrizes.js"></script>
+    <script src="/js/diretrizes.js?v=<?= time() ?>"></script>
     <script src="/js/pwa.js"></script>
 </body>
 </html>

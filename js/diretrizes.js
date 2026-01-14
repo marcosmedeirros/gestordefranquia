@@ -346,6 +346,13 @@ async function loadExistingDirective() {
         }, 50);
       }
       
+      // Atualizar contador do banco
+      const benchCount = document.getElementById('bench-count');
+      if (benchCount) {
+        const checked = document.querySelectorAll('.bench-player-checkbox:checked').length;
+        benchCount.textContent = checked;
+      }
+      
       // Atualizar visibilidade após carregar dados
       updateRotationFieldsVisibility();
     }
