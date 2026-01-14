@@ -662,6 +662,11 @@ function runMigrations() {
                 $pdo->exec("ALTER TABLE trades ADD COLUMN notes TEXT NULL AFTER updated_at");
             }
 
+            $hasResponseNotes = $pdo->query("SHOW COLUMNS FROM trades LIKE 'response_notes'")->fetch();
+            if (!$hasResponseNotes) {
+                $pdo->exec("ALTER TABLE trades ADD COLUMN response_notes TEXT NULL AFTER notes");
+            }
+
             $idxFrom = $pdo->query("SHOW INDEX FROM trades WHERE Key_name = 'idx_trades_from_team'")->fetch();
             if (!$idxFrom) {
                 $pdo->exec("CREATE INDEX idx_trades_from_team ON trades(from_team_id)");
