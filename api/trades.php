@@ -133,7 +133,7 @@ if ($method === 'GET') {
         $conditions[] = "t.status = 'pending'";
         $params[] = $teamId;
     } elseif ($type === 'league') {
-        $conditions[] = 't.league = ?';
+        $conditions[] = '(COALESCE(t.league, from_team.league, to_team.league)) = ?';
         $conditions[] = "t.status = 'accepted'";
         $params[] = $user['league'];
     } else { // history
