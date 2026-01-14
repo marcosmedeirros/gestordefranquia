@@ -180,14 +180,13 @@ $picks = $stmtPicks->fetchAll();
                         <th class="text-white fw-bold">Ano</th>
                         <th class="text-white fw-bold">Rodada</th>
                         <th class="text-white fw-bold">Origem</th>
-                        <th class="text-white fw-bold">Status</th>
-                        <th class="text-white fw-bold text-end">Ações</th>
+                        <th class="text-white fw-bold text-end">Status</th>
                     </tr>
                 </thead>
                 <tbody id="picksTableBody">
                     <?php if (count($picks) === 0): ?>
                         <tr>
-                            <td colspan="5" class="text-center text-light-gray py-4">
+                            <td colspan="4" class="text-center text-light-gray py-4">
                                 <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
                                 Nenhuma pick ainda. As picks serão geradas automaticamente quando o admin criar uma temporada.
                             </td>
@@ -210,23 +209,13 @@ $picks = $stmtPicks->fetchAll();
                                         <span class="badge bg-secondary">-</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
+                                <td class="text-end">
                                     <?php if (!empty($pick['auto_generated'])): ?>
                                         <span class="badge bg-info">
                                             <i class="bi bi-cpu me-1"></i>Auto
                                         </span>
                                     <?php else: ?>
                                         <span class="badge bg-secondary">Manual</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-end">
-                                    <?php if (!empty($pick['auto_generated'])): ?>
-                                        <span class="text-light-gray small">Gerada pelo sistema</span>
-                                    <?php else: ?>
-                                        <button class="btn btn-outline-danger btn-sm btn-delete-pick" 
-                                                data-pick-id="<?= (int)$pick['id'] ?>">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -241,32 +230,7 @@ $picks = $stmtPicks->fetchAll();
     <script src="/js/sidebar.js"></script>
     <script src="/js/pwa.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.btn-delete-pick').forEach(button => {
-                button.addEventListener('click', async () => {
-                    const pickId = button.dataset.pickId;
-                    if (!pickId) return;
-                    if (!confirm('Deseja realmente remover esta pick manual?')) {
-                        return;
-                    }
-                    const originalLabel = button.innerHTML;
-                    button.disabled = true;
-                    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                    try {
-                        const response = await fetch(`/api/picks.php?id=${pickId}`, { method: 'DELETE' });
-                        const data = await response.json();
-                        if (!response.ok || !data.success) {
-                            throw new Error(data.error || 'Erro ao remover pick');
-                        }
-                        location.reload();
-                    } catch (err) {
-                        alert(err.message || 'Erro ao remover pick');
-                        button.disabled = false;
-                        button.innerHTML = originalLabel;
-                    }
-                });
-            });
-        });
+        // Nenhuma ação adicional necessária nas picks no momento.
     </script>
 </body>
 </html>
