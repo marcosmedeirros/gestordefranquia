@@ -407,7 +407,7 @@ if ($method === 'PUT') {
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
             
             $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
-            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
+            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, original_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
             
             foreach ($items as $item) {
                 if ($item['player_id']) {
@@ -424,7 +424,7 @@ if ($method === 'PUT') {
                     // Transferir pick
                     $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransferPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
+                    $stmtTransferPick->execute([$newTeamId, $expectedOwner, $item['pick_id'], $expectedOwner]);
                     if ($stmtTransferPick->rowCount() === 0) {
                         throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                     }
