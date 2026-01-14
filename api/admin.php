@@ -674,8 +674,8 @@ if ($method === 'PUT') {
                     if ($item['pick_id']) {
                         // Reverter pick para o time original
                         $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                        $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
-                        $stmtRevert->execute([$originalTeamId, $item['pick_id']]);
+                        $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
+                        $stmtRevert->execute([$originalTeamId, $originalTeamId, $item['pick_id']]);
                     }
                 }
 
