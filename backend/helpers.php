@@ -121,6 +121,34 @@ function ensureTeamFreeAgencyColumns(PDO $pdo): void
     $checked = true;
 }
 
+function ensureDirectiveOptionalColumns(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $hasRotationPlayers = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'rotation_players'")->rowCount() > 0;
+        if (!$hasRotationPlayers) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN rotation_players INT DEFAULT 10 COMMENT 'Jogadores na rotação (8-15)' AFTER offense_style");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] rotation_players: ' . $e->getMessage());
+    }
+
+    try {
+        $hasVeteranFocus = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'veteran_focus'")->rowCount() > 0;
+        if (!$hasVeteranFocus) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN veteran_focus INT DEFAULT 50 COMMENT 'Preferência por veteranos (0-100)' AFTER rotation_players");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] veteran_focus: ' . $e->getMessage());
+    }
+
+    $checked = true;
+}
+
 /**
  * Retorna URL de imagem válida ou imagem padrão
  */

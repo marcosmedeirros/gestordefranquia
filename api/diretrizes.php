@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
+require_once dirname(__DIR__) . '/backend/helpers.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -13,6 +14,7 @@ if (!$user) {
 }
 
 $pdo = db();
+ensureDirectiveOptionalColumns($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
 
 function buildDeadlineDateTime(?string $date, ?string $time = null): string {
