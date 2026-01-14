@@ -191,6 +191,104 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
         error_log('[ensureDirectiveOptionalColumns] fk gleague_2_id: ' . $e->getMessage());
     }
 
+    // Garantir que colunas que armazenam opções sejam compatíveis com os novos valores do formulário
+    $columnsToConvert = [
+        'pace' => [
+            'default' => 'no_preference',
+            'comment' => 'Tempo de ataque'
+        ],
+        'offensive_rebound' => [
+            'default' => 'no_preference',
+            'comment' => 'Rebote ofensivo'
+        ],
+        'offensive_aggression' => [
+            'default' => 'no_preference',
+            'comment' => 'Agressividade defensiva'
+        ],
+        'defensive_rebound' => [
+            'default' => 'no_preference',
+            'comment' => 'Rebote defensivo'
+        ],
+        'rotation_style' => [
+            'default' => 'auto',
+            'comment' => 'Estilo de rotação'
+        ],
+        'game_style' => [
+            'default' => 'balanced',
+            'comment' => 'Estilo de jogo'
+        ],
+        'offense_style' => [
+            'default' => 'no_preference',
+            'comment' => 'Estilo de ataque'
+        ]
+    ];
+
+    foreach ($columnsToConvert as $column => $meta) {
+        try {
+            $colInfo = $pdo->query("SHOW COLUMNS FROM team_directives LIKE '{$column}'")->fetch(PDO::FETCH_ASSOC);
+            if (!$colInfo) {
+                continue;
+            }
+            $type = strtolower((string)($colInfo['Type'] ?? ''));
+            if (!str_contains($type, 'varchar')) {
+                $pdo->exec("ALTER TABLE team_directives MODIFY COLUMN {$column} VARCHAR(50) DEFAULT '{$meta['default']}' COMMENT '{$meta['comment']}'");
+            }
+        } catch (Exception $e) {
+            error_log("[ensureDirectiveOptionalColumns] {$column} modify: " . $e->getMessage());
+        }
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET pace = 'no_preference' WHERE pace IS NULL OR pace NOT IN ('no_preference','patient','average','shoot_at_will')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] pace normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET offensive_rebound = 'no_preference' WHERE offensive_rebound IS NULL OR offensive_rebound NOT IN ('limit_transition','no_preference','crash_glass','some_crash')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] offensive_rebound normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET offensive_aggression = 'no_preference' WHERE offensive_aggression IS NULL OR offensive_aggression NOT IN ('physical','no_preference','conservative','neutral')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] offensive_aggression normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET defensive_rebound = 'no_preference' WHERE defensive_rebound IS NULL OR defensive_rebound NOT IN ('run_transition','crash_glass','some_crash','no_preference')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] defensive_rebound normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET rotation_style = 'auto' WHERE rotation_style IS NULL OR rotation_style NOT IN ('manual','auto')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] rotation_style normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET game_style = 'balanced' WHERE game_style IS NULL OR game_style NOT IN ('balanced','triangle','grit_grind','pace_space','perimeter_centric','post_centric','seven_seconds','defense','defensive_focus','franchise_player','most_stars')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] game_style normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $pdo->exec("UPDATE team_directives SET offense_style = 'no_preference' WHERE offense_style IS NULL OR offense_style NOT IN ('no_preference','pick_roll','neutral','play_through_star','get_to_basket','get_shooters_open','feed_post')");
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] offense_style normalize: ' . $e->getMessage());
+    }
+
+    try {
+        $hasDefenseStyle = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'defense_style'")->rowCount() > 0;
+        if ($hasDefenseStyle) {
+            $pdo->exec("ALTER TABLE team_directives DROP COLUMN defense_style");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] drop defense_style: ' . $e->getMessage());
+    }
+
     $checked = true;
 }
 
