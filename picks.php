@@ -23,9 +23,11 @@ $allTeams = $stmtTeams->fetchAll();
 
 // Buscar picks do time
 $stmtPicks = $pdo->prepare('
-    SELECT p.*, t.city, t.name as team_name 
+    SELECT p.*, orig.city AS original_city, orig.name AS original_name,
+           last_owner.city AS last_owner_city, last_owner.name AS last_owner_name
     FROM picks p
-    LEFT JOIN teams t ON p.original_team_id = t.id
+    LEFT JOIN teams orig ON p.original_team_id = orig.id
+    LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
     WHERE p.team_id = ?
     ORDER BY p.season_year, p.round
 ');
@@ -198,10 +200,14 @@ $picks = $stmtPicks->fetchAll();
                                     <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
                                 </td>
                                 <td class="text-light-gray">
-                                    <?php if ($pick['original_team_id'] == $team['id']): ?>
+                                    <?php if ((int)($pick['last_owner_team_id'] ?? 0) === (int)$team['id']): ?>
                                         <span class="badge bg-success">Própria</span>
+                                    <?php elseif (!empty($pick['last_owner_city'])): ?>
+                                        via <?= htmlspecialchars($pick['last_owner_city'] . ' ' . $pick['last_owner_name']) ?>
+                                    <?php elseif (!empty($pick['original_city'])): ?>
+                                        via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?>
                                     <?php else: ?>
-                                        via <?= htmlspecialchars($pick['city'] . ' ' . $pick['team_name']) ?>
+                                        <span class="badge bg-secondary">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>

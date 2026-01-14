@@ -80,9 +80,11 @@ CREATE TABLE IF NOT EXISTS picks (
     original_team_id INT NOT NULL,
     season_year INT NOT NULL,
     round ENUM('1','2') NOT NULL,
+    last_owner_team_id INT NULL,
     notes VARCHAR(255) NULL,
     CONSTRAINT fk_pick_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     CONSTRAINT fk_pick_original_team FOREIGN KEY (original_team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pick_last_owner_team FOREIGN KEY (last_owner_team_id) REFERENCES teams(id) ON DELETE SET NULL,
     UNIQUE KEY uniq_pick (original_team_id, season_year, round)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

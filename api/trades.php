@@ -43,6 +43,66 @@ function getTeamLeague(PDO $pdo, int $teamId): ?string
     return $stmt->fetchColumn() ?: null;
 }
 
+function normalizePickId(PDO $pdo, int $pickId): int
+{
+    $stmtPick = $pdo->prepare('SELECT * FROM picks WHERE id = ?');
+    $stmtPick->execute([$pickId]);
+    $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+
+    if (!$pick) {
+        throw new Exception('Pick ID ' . $pickId . ' não encontrada');
+    }
+
+    $stmtDuplicates = $pdo->prepare('SELECT * FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ? ORDER BY id ASC');
+    $stmtDuplicates->execute([$pick['original_team_id'], $pick['season_year'], $pick['round']]);
+    $duplicates = $stmtDuplicates->fetchAll(PDO::FETCH_ASSOC);
+
+    if (count($duplicates) <= 1) {
+        return $pickId;
+    }
+
+    // Prioriza o registro usado na trade ou qualquer registro manual
+    $canonical = $duplicates[0];
+    foreach ($duplicates as $dup) {
+        if ((int)$dup['id'] === (int)$pickId) {
+            $canonical = $dup;
+            break;
+        }
+        if ((int)($canonical['auto_generated'] ?? 1) === 1 && (int)($dup['auto_generated'] ?? 1) === 0) {
+            $canonical = $dup;
+        }
+    }
+
+    $canonicalId = (int)$canonical['id'];
+
+    $stmtUpdateTradeItems = $pdo->prepare('UPDATE trade_items SET pick_id = ? WHERE pick_id = ?');
+    $stmtDeletePick = $pdo->prepare('DELETE FROM picks WHERE id = ?');
+
+    foreach ($duplicates as $dup) {
+        if ((int)$dup['id'] === $canonicalId) {
+            continue;
+        }
+
+        // Atualiza o registro canônico com os dados do duplicado se ele for mais recente/manual
+        if ((int)$dup['id'] === (int)$pickId) {
+            $stmt = $pdo->prepare('UPDATE picks SET team_id = ?, season_id = ?, auto_generated = ?, notes = ?, last_owner_team_id = ? WHERE id = ?');
+            $stmt->execute([
+                $dup['team_id'],
+                $dup['season_id'],
+                $dup['auto_generated'],
+                $dup['notes'],
+                $dup['last_owner_team_id'],
+                $canonicalId
+            ]);
+        }
+
+        $stmtUpdateTradeItems->execute([$canonicalId, $dup['id']]);
+        $stmtDeletePick->execute([$dup['id']]);
+    }
+
+    return $canonicalId;
+}
+
 // Pegar time do usuário
 $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -405,9 +465,22 @@ if ($method === 'PUT') {
             $stmtItems = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
             $stmtItems->execute([$tradeId]);
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtUpdateTradeItemPick = $pdo->prepare('UPDATE trade_items SET pick_id = ? WHERE id = ?');
+
+            foreach ($items as &$item) {
+                if (!empty($item['pick_id'])) {
+                    $normalizedId = normalizePickId($pdo, (int)$item['pick_id']);
+                    if ($normalizedId !== (int)$item['pick_id']) {
+                        $stmtUpdateTradeItemPick->execute([$normalizedId, $item['id']]);
+                        $item['pick_id'] = $normalizedId;
+                    }
+                }
+            }
+            unset($item);
             
             $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
-            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, original_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
+            $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
             
             foreach ($items as $item) {
                 if ($item['player_id']) {

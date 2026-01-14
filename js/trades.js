@@ -125,7 +125,10 @@ async function loadMyAssets() {
       myPicks.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name || 'Time'})`;
+        const originLabel = p.last_owner_city && p.last_owner_name
+          ? `${p.last_owner_city} ${p.last_owner_name}`
+          : (p.original_team_name || 'Time');
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
         selectPicks.appendChild(option);
       });
     }
@@ -179,7 +182,10 @@ async function onTargetTeamChange(e) {
       picks.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${p.original_team_name || 'Time'})`;
+        const originLabel = p.last_owner_city && p.last_owner_name
+          ? `${p.last_owner_city} ${p.last_owner_name}`
+          : (p.original_team_name || 'Time');
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
         selectPicks.appendChild(option);
       });
     }

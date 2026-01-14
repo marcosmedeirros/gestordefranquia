@@ -217,8 +217,8 @@ try {
                 $teams = $stmtTeams->fetchAll();
                 
                 $stmtPick = $pdo->prepare("
-                    INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
-                    VALUES (?, ?, ?, ?, ?, 1)
+                    INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated, last_owner_team_id)
+                    VALUES (?, ?, ?, ?, ?, 1, ?)
                 ");
                 
                 // Gerar picks para as próximas 5 temporadas (numéricas para respeitar o schema)
@@ -228,8 +228,8 @@ try {
                         // season_year numérico (1,2,3,4,5...)
                         $seasonYearNumeric = $tempNum;
                         // round numérico (1 ou 2)
-                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId]);
-                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId]);
+                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId, $team['id']]);
+                        $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId, $team['id']]);
                     }
                 }
                 
@@ -251,8 +251,8 @@ try {
                     $teams = $stmtTeams->fetchAll();
                     
                     $stmtPick = $pdo->prepare("
-                        INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
-                        VALUES (?, ?, ?, ?, ?, 1)
+                        INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated, last_owner_team_id)
+                        VALUES (?, ?, ?, ?, ?, 1, ?)
                     ");
                     
                     $startYear = $maxYear + 1;
@@ -261,8 +261,8 @@ try {
                     foreach ($teams as $team) {
                         for ($tempNum = $startYear; $tempNum <= $endYear; $tempNum++) {
                             $seasonYearNumeric = $tempNum;
-                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId]);
-                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId]);
+                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 1, $seasonId, $team['id']]);
+                            $stmtPick->execute([$team['id'], $team['id'], $seasonYearNumeric, 2, $seasonId, $team['id']]);
                         }
                     }
                 }

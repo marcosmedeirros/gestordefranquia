@@ -47,16 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($existingId) {
             $stmtUpdate = $pdo->prepare('
-                UPDATE picks SET team_id = ?, auto_generated = 0 WHERE id = ?
+                UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?
             ');
-            $stmtUpdate->execute([$teamId, $existingId]);
+            $stmtUpdate->execute([$teamId, $teamId, $existingId]);
             echo json_encode(['success' => true, 'id' => $existingId, 'action' => 'transferred']);
         } else {
             $stmtInsert = $pdo->prepare('
-                INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated)
-                VALUES (?, ?, ?, ?, 0)
+                INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, last_owner_team_id)
+                VALUES (?, ?, ?, ?, 0, ?)
             ');
-            $stmtInsert->execute([$teamId, $originalTeamId, $year, $round]);
+            $stmtInsert->execute([$teamId, $originalTeamId, $year, $round, $teamId]);
             echo json_encode(['success' => true, 'id' => $pdo->lastInsertId(), 'action' => 'created']);
         }
     } catch (PDOException $e) {
@@ -113,9 +113,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     $stmt = $pdo->prepare('
-        SELECT p.*, t.city as original_team_city, t.name as original_team_name 
+        SELECT p.*, 
+               orig.city as original_team_city, orig.name as original_team_name,
+               last_t.city as last_owner_city, last_t.name as last_owner_name
         FROM picks p
-        LEFT JOIN teams t ON p.original_team_id = t.id
+        LEFT JOIN teams orig ON p.original_team_id = orig.id
+        LEFT JOIN teams last_t ON p.last_owner_team_id = last_t.id
         WHERE p.team_id = ?
         ORDER BY p.season_year, p.round
     ');

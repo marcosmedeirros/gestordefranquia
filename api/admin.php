@@ -711,10 +711,10 @@ if ($method === 'PUT') {
                 // Atualizar pick existente
                 $stmt = $pdo->prepare('
                     UPDATE picks 
-                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0
+                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $pickId]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $teamId, $pickId]);
             } else {
                 // Reutilizar pick existente com mesma origem/ano/rodada ou criar um novo
                 $stmtExisting = $pdo->prepare('
@@ -726,17 +726,17 @@ if ($method === 'PUT') {
                 if ($existingId) {
                     $stmt = $pdo->prepare('
                         UPDATE picks 
-                        SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0
+                        SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
                         WHERE id = ?
                     ');
-                    $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $existingId]);
+                    $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $teamId, $existingId]);
                     $pickId = $existingId;
                 } else {
                     $stmt = $pdo->prepare('
-                        INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, notes)
-                        VALUES (?, ?, ?, ?, 0, ?)
+                        INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, last_owner_team_id, notes)
+                        VALUES (?, ?, ?, ?, 0, ?, ?)
                     ');
-                    $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes]);
+                    $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $teamId, $notes]);
                     $pickId = $pdo->lastInsertId();
                 }
             }
@@ -821,17 +821,17 @@ if ($method === 'POST') {
             if ($existingId) {
                 $stmt = $pdo->prepare('
                     UPDATE picks 
-                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0
+                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $existingId]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $teamId, $existingId]);
                 $newPickId = $existingId;
             } else {
                 $stmt = $pdo->prepare('
-                    INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, notes)
-                    VALUES (?, ?, ?, ?, 0, ?)
+                    INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, last_owner_team_id, notes)
+                    VALUES (?, ?, ?, ?, 0, ?, ?)
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $teamId, $notes]);
                 $newPickId = $pdo->lastInsertId();
             }
 
