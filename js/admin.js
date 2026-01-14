@@ -196,6 +196,19 @@ async function showTrades(status = 'all') {
       return;
     }
     
+    const renderTradeAssets = (players = [], picks = []) => {
+      const playerItems = players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('');
+      const pickItems = picks.map(pk => {
+        const roundNumber = parseInt(pk.round, 10);
+        const roundLabel = Number.isNaN(roundNumber) ? `${pk.round}ª rodada` : `${roundNumber}ª rodada`;
+        const seasonLabel = pk.season_year ? `${pk.season_year}` : 'Temporada indefinida';
+        const originalTeam = `${pk.city} ${pk.team_name}`;
+        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}</li>`;
+      }).join('');
+      const content = playerItems + pickItems;
+      return content ? `<ul class="list-unstyled mb-0">${content}</ul>` : '<p class="text-light-gray">Nada</p>';
+    };
+
     tc.innerHTML = trades.map(tr => {
       const badge = { pending: 'bg-warning text-dark', accepted: 'bg-success', rejected: 'bg-danger', cancelled: 'bg-secondary' }[tr.status];
       return `<div class="bg-dark-panel border-orange rounded p-3 mb-3"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
@@ -205,9 +218,9 @@ async function showTrades(status = 'all') {
 ${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
 ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
 <div class="row"><div class="col-md-6"><h6 class="text-orange mb-2">${tr.from_city} ${tr.from_name} oferece:</h6>
-${tr.offer_players.length > 0 ? `<ul class="list-unstyled">${tr.offer_players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}</ul>` : '<p class="text-light-gray">Nada</p>'}</div>
+${renderTradeAssets(tr.offer_players || [], tr.offer_picks || [])}</div>
 <div class="col-md-6"><h6 class="text-orange mb-2">${tr.to_city} ${tr.to_name} oferece:</h6>
-${tr.request_players.length > 0 ? `<ul class="list-unstyled">${tr.request_players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${p.name} (${p.position}, ${p.ovr})</li>`).join('')}</ul>` : '<p class="text-light-gray">Nada</p>'}</div></div></div>`;
+${renderTradeAssets(tr.request_players || [], tr.request_picks || [])}</div></div></div>`;
     }).join('');
   } catch (e) {
     document.getElementById('tradesListContainer').innerHTML = '<div class="alert alert-danger">Erro</div>';
