@@ -362,6 +362,8 @@ async function addPlayer() {
   try {
     const res = await api('players.php', { method: 'POST', body: JSON.stringify(payload) });
     form.reset();
+    const tradeCheckbox = document.getElementById('available_for_trade');
+    if (tradeCheckbox) tradeCheckbox.checked = true;
     loadPlayers();
   } catch (err) {
     alert(err.error || 'Erro ao adicionar jogador');

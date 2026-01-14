@@ -174,13 +174,84 @@ if ($teamId) {
     <?php if (!$teamId): ?>
       <div class="alert alert-warning">Você ainda não possui um time. Crie um no onboarding.</div>
     <?php else: ?>
-    <!-- Aviso: adição de jogadores temporariamente indisponível -->
-    <div class="alert alert-warning bg-dark-panel border-orange text-white mb-4" role="alert">
-      <div class="d-flex align-items-center">
-        <i class="bi bi-exclamation-triangle-fill text-orange me-2"></i>
+    <div class="card bg-dark-panel border-orange mb-4">
+      <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-          <strong>Adicionar jogador desativado temporariamente.</strong>
-          <p class="mb-0 text-light-gray">Estamos ajustando o fluxo de cadastro. Enquanto isso, solicite reforços via trades ou free agency.</p>
+          <h5 class="mb-0 text-white"><i class="bi bi-plus-circle me-2 text-orange"></i>Adicionar Jogador</h5>
+          <small class="text-light-gray">Cadastre reforços rapidamente enquanto a temporada está em andamento.</small>
+        </div>
+        <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#addPlayerCollapse" aria-expanded="true" aria-controls="addPlayerCollapse">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      <div class="collapse show" id="addPlayerCollapse">
+        <div class="card-body">
+          <form id="form-player">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label text-white">Nome</label>
+                <input type="text" class="form-control bg-dark text-white border-orange" name="name" placeholder="Ex: John Doe" required>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label text-white">Idade</label>
+                <input type="number" class="form-control bg-dark text-white border-orange" name="age" min="16" max="45" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-white">Posição</label>
+                <select class="form-select bg-dark text-white border-orange" name="position" required>
+                  <option value="">Selecione</option>
+                  <option value="PG">PG</option>
+                  <option value="SG">SG</option>
+                  <option value="SF">SF</option>
+                  <option value="PF">PF</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-white">Posição Secundária</label>
+                <select class="form-select bg-dark text-white border-orange" name="secondary_position">
+                  <option value="">Nenhuma</option>
+                  <option value="PG">PG</option>
+                  <option value="SG">SG</option>
+                  <option value="SF">SF</option>
+                  <option value="PF">PF</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-white">Função</label>
+                <select class="form-select bg-dark text-white border-orange" name="role" required>
+                  <option value="Titular">Titular</option>
+                  <option value="Banco">Banco</option>
+                  <option value="Outro">Outro</option>
+                  <option value="G-League">G-League</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label text-white">OVR</label>
+                <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="40" max="99" required>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="available_for_trade" name="available_for_trade" checked>
+                  <label class="form-check-label text-light-gray" for="available_for_trade">Disponível para troca</label>
+                </div>
+              </div>
+            </div>
+            <div class="bg-dark rounded border border-warning p-3 mt-4">
+              <small class="text-light-gray d-block mb-1"><i class="bi bi-info-circle text-orange me-1"></i>Regras rápidas</small>
+              <ul class="text-light-gray mb-0 small">
+                <li>Máximo de 5 titulares e 2 jogadores G-League por elenco.</li>
+                <li>Jogadores G-League precisam ter menos de 25 anos.</li>
+                <li>O CAP Top 8 é atualizado automaticamente após cada cadastro.</li>
+              </ul>
+            </div>
+            <div class="text-end mt-3">
+              <button type="button" class="btn btn-orange" id="btn-add-player">
+                <i class="bi bi-cloud-upload me-1"></i>Cadastrar Jogador
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
