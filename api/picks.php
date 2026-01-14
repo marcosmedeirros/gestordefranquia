@@ -37,21 +37,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Inserir pick
+    // Inserir ou transferir pick
     try {
-        $stmt = $pdo->prepare('
-            INSERT INTO picks (team_id, original_team_id, season_year, round) 
-            VALUES (?, ?, ?, ?)
+        $stmtExisting = $pdo->prepare('
+            SELECT id FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ?
         ');
-        $stmt->execute([$teamId, $originalTeamId, $year, $round]);
-        
-        echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
-    } catch (PDOException $e) {
-        if ($e->getCode() == 23000) {
-            echo json_encode(['success' => false, 'error' => 'Já existe uma pick para este ano e rodada']);
+        $stmtExisting->execute([$originalTeamId, $year, $round]);
+        $existingId = $stmtExisting->fetchColumn();
+
+        if ($existingId) {
+            $stmtUpdate = $pdo->prepare('
+                UPDATE picks SET team_id = ?, auto_generated = 0 WHERE id = ?
+            ');
+            $stmtUpdate->execute([$teamId, $existingId]);
+            echo json_encode(['success' => true, 'id' => $existingId, 'action' => 'transferred']);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Erro ao salvar pick']);
+            $stmtInsert = $pdo->prepare('
+                INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated)
+                VALUES (?, ?, ?, ?, 0)
+            ');
+            $stmtInsert->execute([$teamId, $originalTeamId, $year, $round]);
+            echo json_encode(['success' => true, 'id' => $pdo->lastInsertId(), 'action' => 'created']);
         }
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao salvar ou transferir pick: ' . $e->getMessage()]);
     }
     exit;
 }

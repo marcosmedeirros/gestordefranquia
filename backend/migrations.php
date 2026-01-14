@@ -156,7 +156,7 @@ function runMigrations() {
                 CONSTRAINT fk_pick_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
                 CONSTRAINT fk_pick_original_team FOREIGN KEY (original_team_id) REFERENCES teams(id) ON DELETE CASCADE,
                 CONSTRAINT fk_pick_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL,
-                UNIQUE KEY uniq_pick (team_id, season_year, round),
+                UNIQUE KEY uniq_pick (original_team_id, season_year, round),
                 INDEX idx_pick_season (season_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
@@ -569,6 +569,81 @@ function runMigrations() {
             $idxPickSeason = $pdo->query("SHOW INDEX FROM picks WHERE Key_name = 'idx_pick_season'")->fetch();
             if (!$idxPickSeason) {
                 $pdo->exec("CREATE INDEX idx_pick_season ON picks(season_id)");
+            }
+
+            // Consolidar duplicatas de picks para garantir que cada combinação exista apenas uma vez
+            $dupStmt = $pdo->query("SELECT original_team_id, season_year, round
+                FROM picks
+                GROUP BY original_team_id, season_year, round
+                HAVING COUNT(*) > 1");
+            $duplicates = $dupStmt ? $dupStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+            if (!empty($duplicates)) {
+                $stmtDupRows = $pdo->prepare("SELECT id, team_id, auto_generated, season_id, notes
+                    FROM picks
+                    WHERE original_team_id = ? AND season_year = ? AND round = ?
+                    ORDER BY auto_generated ASC, id DESC");
+                $stmtUpdatePick = $pdo->prepare("UPDATE picks SET team_id = ?, auto_generated = ?, season_id = ?, notes = ? WHERE id = ?");
+                $stmtDeletePick = $pdo->prepare("DELETE FROM picks WHERE id = ?");
+
+                foreach ($duplicates as $dup) {
+                    $stmtDupRows->execute([$dup['original_team_id'], $dup['season_year'], $dup['round']]);
+                    $rows = $stmtDupRows->fetchAll(PDO::FETCH_ASSOC);
+                    if (count($rows) <= 1) {
+                        continue;
+                    }
+
+                    $chosen = $rows[0]; // Prioriza registros manuais (auto_generated = 0) mais recentes
+                    $canonical = null;
+                    foreach ($rows as $row) {
+                        if ((int)($row['auto_generated'] ?? 0) === 1) {
+                            $canonical = $row;
+                            break;
+                        }
+                    }
+                    if (!$canonical) {
+                        $canonical = $rows[0];
+                    }
+
+                    if ($canonical['id'] !== $chosen['id']) {
+                        $stmtUpdatePick->execute([
+                            $chosen['team_id'],
+                            $chosen['auto_generated'],
+                            $chosen['season_id'],
+                            $chosen['notes'],
+                            $canonical['id']
+                        ]);
+                    }
+
+                    foreach ($rows as $row) {
+                        if ($row['id'] == $canonical['id']) {
+                            continue;
+                        }
+                        $stmtDeletePick->execute([$row['id']]);
+                    }
+                }
+            }
+
+            // Garantir índice único correto para picks (considera time original)
+            $stmtUniqPick = $pdo->prepare("SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index) as cols
+                FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'picks'
+                  AND INDEX_NAME = 'uniq_pick'");
+            $stmtUniqPick->execute();
+            $uniqPickCols = $stmtUniqPick->fetchColumn();
+            $expectedCols = 'original_team_id,season_year,round';
+            if ($uniqPickCols !== $expectedCols) {
+                try {
+                    $pdo->exec("ALTER TABLE picks DROP INDEX uniq_pick");
+                } catch (PDOException $e) {
+                    $errors[] = "drop_uniq_pick: " . $e->getMessage();
+                }
+                try {
+                    $pdo->exec("ALTER TABLE picks ADD UNIQUE KEY uniq_pick (original_team_id, season_year, round)");
+                } catch (PDOException $e) {
+                    $errors[] = "create_uniq_pick: " . $e->getMessage();
+                }
             }
 
             $stmtFk = $pdo->prepare("

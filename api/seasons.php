@@ -217,7 +217,7 @@ try {
                 $teams = $stmtTeams->fetchAll();
                 
                 $stmtPick = $pdo->prepare("
-                    INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
+                    INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
                     VALUES (?, ?, ?, ?, ?, 1)
                 ");
                 
@@ -251,7 +251,7 @@ try {
                     $teams = $stmtTeams->fetchAll();
                     
                     $stmtPick = $pdo->prepare("
-                        INSERT INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
+                        INSERT IGNORE INTO picks (team_id, original_team_id, season_year, round, season_id, auto_generated)
                         VALUES (?, ?, ?, ?, ?, 1)
                     ");
                     

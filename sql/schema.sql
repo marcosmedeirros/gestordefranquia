@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS picks (
     notes VARCHAR(255) NULL,
     CONSTRAINT fk_pick_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     CONSTRAINT fk_pick_original_team FOREIGN KEY (original_team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    UNIQUE KEY uniq_pick (team_id, season_year, round)
+    UNIQUE KEY uniq_pick (original_team_id, season_year, round)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS drafts (
