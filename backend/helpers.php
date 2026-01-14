@@ -129,6 +129,15 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
     }
 
     try {
+        $tableExists = $pdo->query("SHOW TABLES LIKE 'directive_player_minutes'")->rowCount() > 0;
+        if (!$tableExists) {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS directive_player_minutes (\n                id INT AUTO_INCREMENT PRIMARY KEY,\n                directive_id INT NOT NULL,\n                player_id INT NOT NULL,\n                minutes_per_game INT NOT NULL,\n                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n                INDEX idx_directive_minutes_directive (directive_id),\n                INDEX idx_directive_minutes_player (player_id),\n                CONSTRAINT fk_minutes_directive FOREIGN KEY (directive_id) REFERENCES team_directives(id) ON DELETE CASCADE,\n                CONSTRAINT fk_minutes_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE\n            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] directive_player_minutes: ' . $e->getMessage());
+    }
+
+    try {
         $hasRotationPlayers = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'rotation_players'")->rowCount() > 0;
         if (!$hasRotationPlayers) {
             $pdo->exec("ALTER TABLE team_directives ADD COLUMN rotation_players INT DEFAULT 10 COMMENT 'Jogadores na rotação (8-15)' AFTER offense_style");
