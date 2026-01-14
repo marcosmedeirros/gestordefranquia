@@ -416,7 +416,7 @@ if ($method === 'PUT') {
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
                     $stmtTransferPlayer->execute([$newTeamId, $item['player_id'], $expectedOwner]);
                     if ($stmtTransferPlayer->rowCount() === 0) {
-                        throw new Exception('Jogador não está mais disponível para transferência');
+                        throw new Exception('Jogador ID ' . $item['player_id'] . ' não está mais disponível para transferência');
                     }
                 }
                 
@@ -426,7 +426,7 @@ if ($method === 'PUT') {
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
                     $stmtTransferPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
                     if ($stmtTransferPick->rowCount() === 0) {
-                        throw new Exception('Pick não está mais disponível para transferência');
+                        throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                     }
                 }
             }
@@ -437,7 +437,9 @@ if ($method === 'PUT') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao processar trade']);
+        error_log('[trade_accept] ' . $e->getMessage());
+        $message = $e->getMessage() ?: 'Erro ao processar trade';
+        echo json_encode(['success' => false, 'error' => $message]);
     }
     exit;
 }

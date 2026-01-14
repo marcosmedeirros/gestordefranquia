@@ -291,7 +291,7 @@ if ($teamId) {
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="league-tab" data-bs-toggle="tab" data-bs-target="#league" type="button">
-          <i class="bi bi-trophy me-1"></i>Todas da Liga
+          <i class="bi bi-trophy me-1"></i>Trocas Gerais
         </button>
       </li>
       <li class="nav-item" role="presentation">
