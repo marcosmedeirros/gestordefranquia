@@ -183,6 +183,40 @@ function updateRotationFieldsVisibility() {
   // Minutagem por jogador é sempre exibida
 }
 
+// Atualizar visibilidade dos checkboxes do banco (esconder titulares)
+function updateBenchCheckboxesVisibility() {
+  const starters = [];
+  for (let i = 1; i <= 5; i++) {
+    const sel = document.querySelector(`select[name="starter_${i}_id"]`);
+    if (sel && sel.value) starters.push(parseInt(sel.value));
+  }
+  
+  document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
+    const playerId = parseInt(checkbox.value);
+    const item = checkbox.closest('.bench-player-item');
+    const colWrapper = item ? item.closest('.col-md-4, .col-lg-3, [class*="col-"]') : null;
+    
+    if (starters.includes(playerId)) {
+      // Esconder completamente jogadores que são titulares
+      checkbox.checked = false;
+      if (colWrapper) colWrapper.style.display = 'none';
+    } else {
+      // Mostrar jogadores que não são titulares
+      if (colWrapper) colWrapper.style.display = '';
+    }
+  });
+  
+  // Atualizar contador
+  const benchCount = document.getElementById('bench-count');
+  if (benchCount) {
+    const checked = document.querySelectorAll('.bench-player-checkbox:checked').length;
+    benchCount.textContent = checked;
+  }
+  
+  // Re-renderizar minutagem
+  renderPlayerMinutes();
+}
+
 // Atualizar valores dos ranges
 document.querySelectorAll('input[type="range"]').forEach(range => {
   const valueSpan = document.getElementById(`${range.name}-value`);
@@ -203,65 +237,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Chamar ao iniciar
   updateRotationFieldsVisibility();
 
-  // Redesenhar minutagem quando os selects de titulares mudarem
+  // Redesenhar minutagem e atualizar banco quando os selects de titulares mudarem
   for (let i = 1; i <= 5; i++) {
     const sel = document.querySelector(`select[name="starter_${i}_id"]`);
-    if (sel) sel.addEventListener('change', renderPlayerMinutes);
+    if (sel) {
+      sel.addEventListener('change', () => {
+        updateBenchCheckboxesVisibility();
+      });
+    }
   }
   
   // Redesenhar minutagem quando checkboxes do banco mudarem
   document.querySelectorAll('.bench-player-checkbox').forEach(cb => {
     cb.addEventListener('change', () => {
-      // Desabilitar checkbox se jogador já está nos titulares
-      const starters = [];
-      for (let i = 1; i <= 5; i++) {
-        const sel = document.querySelector(`select[name="starter_${i}_id"]`);
-        if (sel && sel.value) starters.push(parseInt(sel.value));
+      // Atualizar contador e minutagem
+      const benchCount = document.getElementById('bench-count');
+      if (benchCount) {
+        const checked = document.querySelectorAll('.bench-player-checkbox:checked').length;
+        benchCount.textContent = checked;
       }
-      
-      document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
-        const playerId = parseInt(checkbox.value);
-        const item = checkbox.closest('.bench-player-item');
-        if (starters.includes(playerId)) {
-          checkbox.checked = false;
-          checkbox.disabled = true;
-          if (item) item.classList.add('opacity-50');
-        } else {
-          checkbox.disabled = false;
-          if (item) item.classList.remove('opacity-50');
-        }
-      });
-      
       renderPlayerMinutes();
     });
   });
   
-  // Atualizar estado dos checkboxes quando titulares mudam
-  for (let i = 1; i <= 5; i++) {
-    const sel = document.querySelector(`select[name="starter_${i}_id"]`);
-    if (sel) {
-      sel.addEventListener('change', () => {
-        const starters = [];
-        for (let j = 1; j <= 5; j++) {
-          const s = document.querySelector(`select[name="starter_${j}_id"]`);
-          if (s && s.value) starters.push(parseInt(s.value));
-        }
-        
-        document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
-          const playerId = parseInt(checkbox.value);
-          const item = checkbox.closest('.bench-player-item');
-          if (starters.includes(playerId)) {
-            checkbox.checked = false;
-            checkbox.disabled = true;
-            if (item) item.classList.add('opacity-50');
-          } else {
-            checkbox.disabled = false;
-            if (item) item.classList.remove('opacity-50');
-          }
-        });
-      });
-    }
-  }
+  // Inicializar visibilidade dos checkboxes do banco
+  updateBenchCheckboxesVisibility();
 });
 
 // Carregar diretriz existente
@@ -290,6 +290,9 @@ async function loadExistingDirective() {
         if (!isNaN(sid) && sid > 0) starterIds.push(sid);
       }
       
+      // Atualizar visibilidade dos checkboxes (esconder titulares)
+      updateBenchCheckboxesVisibility();
+      
       // Preencher banco via checkboxes (baseado nos player_minutes que não são titulares)
       if (d.player_minutes) {
         Object.keys(d.player_minutes).forEach(playerId => {
@@ -300,17 +303,6 @@ async function loadExistingDirective() {
           }
         });
       }
-      
-      // Desabilitar checkboxes de jogadores que são titulares
-      document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
-        const playerId = parseInt(checkbox.value);
-        const item = checkbox.closest('.bench-player-item');
-        if (starterIds.includes(playerId)) {
-          checkbox.checked = false;
-          checkbox.disabled = true;
-          if (item) item.classList.add('opacity-50');
-        }
-      });
       
       // Preencher estilos (selects)
       ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 
