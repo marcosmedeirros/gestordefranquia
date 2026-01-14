@@ -189,23 +189,25 @@ try {
             <!-- Banco -->
             <div class="card bg-dark-panel border-orange mb-4">
                 <div class="card-header bg-transparent border-orange">
-                    <h5 class="text-white mb-0"><i class="bi bi-people me-2"></i>Banco (3 jogadores)</h5>
+                    <h5 class="text-white mb-0"><i class="bi bi-people me-2"></i>Banco (selecione quantos quiser)</h5>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        <?php for ($i = 1; $i <= 3; $i++): ?>
-                        <div class="col-md-4">
-                            <label class="form-label text-white">Banco <?= $i ?></label>
-                            <select class="form-select bg-dark text-white border-orange" name="bench_<?= $i ?>_id" required>
-                                <option value="">Selecione...</option>
-                                <?php foreach ($players as $p): ?>
-                                <option value="<?= $p['id'] ?>">
-                                    <?= htmlspecialchars($p['name']) ?> - <?= $p['position'] ?> (<?= $p['ovr'] ?>)
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
+                    <p class="text-light-gray mb-3">Marque os jogadores que farão parte do banco. Cada jogador selecionado deve jogar no mínimo 5 minutos.</p>
+                    <div class="row g-2" id="bench-players-container">
+                        <?php foreach ($players as $p): ?>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="form-check bg-dark rounded p-2 border border-secondary bench-player-item">
+                                <input class="form-check-input bench-player-checkbox" type="checkbox" 
+                                       name="bench_players[]" value="<?= $p['id'] ?>" id="bench_<?= $p['id'] ?>">
+                                <label class="form-check-label text-white small" for="bench_<?= $p['id'] ?>">
+                                    <?= htmlspecialchars($p['name']) ?> <span class="text-light-gray">(<?= $p['position'] ?> - <?= $p['ovr'] ?>)</span>
+                                </label>
+                            </div>
                         </div>
-                        <?php endfor; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-orange"><i class="bi bi-info-circle me-1"></i>Selecionados: <span id="bench-count">0</span> jogadores</small>
                     </div>
                 </div>
             </div>

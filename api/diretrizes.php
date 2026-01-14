@@ -257,17 +257,17 @@ if ($method === 'POST') {
                 exit;
             }
 
-            // Validar banco (3 jogadores)
-            $bench = array_filter([
-                $data['bench_1_id'] ?? null,
-                $data['bench_2_id'] ?? null,
-                $data['bench_3_id'] ?? null
-            ]);
-            if (count($bench) !== 3) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Banco deve ter exatamente 3 jogadores']);
-                exit;
+            // Validar banco (dinâmico - pode ter 0 ou mais jogadores)
+            $benchPlayers = $data['bench_players'] ?? [];
+            if (!is_array($benchPlayers)) {
+                $benchPlayers = [];
             }
+            $benchPlayers = array_values(array_filter($benchPlayers));
+            
+            // Preencher bench_1_id, bench_2_id, bench_3_id para compatibilidade (primeiros 3)
+            $bench1 = $benchPlayers[0] ?? null;
+            $bench2 = $benchPlayers[1] ?? null;
+            $bench3 = $benchPlayers[2] ?? null;
 
             try {
                 $pdo->beginTransaction();
@@ -291,7 +291,7 @@ if ($method === 'POST') {
                     ");
                     $stmt->execute([
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
-                        $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
+                        $bench1, $bench2, $bench3,
                         $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
                         $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
@@ -314,7 +314,7 @@ if ($method === 'POST') {
                     $stmt->execute([
                         $team['id'], $deadlineId,
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
-                        $data['bench_1_id'], $data['bench_2_id'], $data['bench_3_id'],
+                        $bench1, $bench2, $bench3,
                         $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
                         $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
@@ -325,28 +325,35 @@ if ($method === 'POST') {
 
                 $directiveId = $existing['id'] ?? $pdo->lastInsertId();
 
-                // Salvar minutagem (sempre), validando por fase do prazo
-                if (!empty($data['player_minutes'])) {
-                    $maxMinutes = 40;
-                    $stmtDeadline = $pdo->prepare('SELECT phase FROM directive_deadlines WHERE id = ?');
-                    $stmtDeadline->execute([$deadlineId]);
-                    $deadlineRow = $stmtDeadline->fetch();
-                    if ($deadlineRow && strtolower($deadlineRow['phase'] ?? '') === 'playoffs') {
-                        $maxMinutes = 45;
-                    }
+                // Salvar minutagem para todos os jogadores selecionados (titulares + banco)
+                $allSelectedPlayers = array_merge($starters, $benchPlayers);
+                
+                // Validar por fase do prazo
+                $maxMinutes = 40;
+                $stmtDeadline = $pdo->prepare('SELECT phase FROM directive_deadlines WHERE id = ?');
+                $stmtDeadline->execute([$deadlineId]);
+                $deadlineRow = $stmtDeadline->fetch();
+                if ($deadlineRow && strtolower($deadlineRow['phase'] ?? '') === 'playoffs') {
+                    $maxMinutes = 45;
+                }
 
-                    // Limpar minutos antigos
-                    $stmtDelete = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
-                    $stmtDelete->execute([$directiveId]);
+                // Limpar minutos antigos
+                $stmtDelete = $pdo->prepare('DELETE FROM directive_player_minutes WHERE directive_id = ?');
+                $stmtDelete->execute([$directiveId]);
 
-                    $stmtMinutes = $pdo->prepare('INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game) VALUES (?, ?, ?)');
-                    foreach ($data['player_minutes'] as $playerId => $minutes) {
-                        $m = (int)$minutes;
-                        if ($m < 5 || $m > $maxMinutes) {
-                            throw new Exception("Minutos inválidos para o jogador {$playerId}. Deve estar entre 5 e {$maxMinutes}.");
-                        }
-                        $stmtMinutes->execute([$directiveId, (int)$playerId, $m]);
+                // Inserir minutagem para todos os jogadores selecionados
+                $playerMinutes = $data['player_minutes'] ?? [];
+                $stmtMinutes = $pdo->prepare('INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game) VALUES (?, ?, ?)');
+                
+                foreach ($allSelectedPlayers as $playerId) {
+                    $m = isset($playerMinutes[$playerId]) ? (int)$playerMinutes[$playerId] : 20;
+                    if ($m < 5) {
+                        throw new Exception("Jogador {$playerId} deve jogar no mínimo 5 minutos.");
                     }
+                    if ($m > $maxMinutes) {
+                        throw new Exception("Jogador {$playerId} não pode jogar mais de {$maxMinutes} minutos.");
+                    }
+                    $stmtMinutes->execute([$directiveId, (int)$playerId, $m]);
                 }
 
                 $pdo->commit();

@@ -971,6 +971,14 @@ async function viewDirectives(deadlineId, league) {
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
               const pm = d.player_minutes || {};
+              
+              // Coletar IDs dos titulares
+              const starterIds = [];
+              for (let i = 1; i <= 5; i++) {
+                const id = d['starter_' + i + '_id'];
+                if (id) starterIds.push(parseInt(id));
+              }
+              
               const starters = [1,2,3,4,5].map(i => {
                 const id = d['starter_' + i + '_id'];
                 const m = id && pm[id] ? `${pm[id]} min` : '';
@@ -978,13 +986,27 @@ async function viewDirectives(deadlineId, league) {
                 const pos = d['starter_' + i + '_pos'] || '?';
                 return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
               }).join('');
-              const bench = [1,2,3].map(i => {
-                const id = d['bench_' + i + '_id'];
-                const m = id && pm[id] ? `${pm[id]} min` : '';
-                const name = d['bench_' + i + '_name'] || '?';
-                const pos = d['bench_' + i + '_pos'] || '?';
-                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
-              }).join('');
+              
+              // Banco dinâmico: pegar dos player_minutes os que não são titulares
+              const benchItems = [];
+              Object.keys(pm).forEach(playerId => {
+                const id = parseInt(playerId);
+                if (!starterIds.includes(id)) {
+                  // Tentar pegar nome das colunas bench_X ou usar ID
+                  let name = '?', pos = '?';
+                  for (let i = 1; i <= 3; i++) {
+                    if (parseInt(d['bench_' + i + '_id']) === id) {
+                      name = d['bench_' + i + '_name'] || '?';
+                      pos = d['bench_' + i + '_pos'] || '?';
+                      break;
+                    }
+                  }
+                  if (name === '?') name = `Jogador #${id}`;
+                  benchItems.push(`<li>${name} (${pos}) - ${pm[playerId]} min</li>`);
+                }
+              });
+              const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
+              
               return `
               <div class="card bg-dark mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1005,7 +1027,7 @@ async function viewDirectives(deadlineId, league) {
                       </ul>
                     </div>
                     <div class="col-md-6">
-                      <h6 class="text-orange">Banco</h6>
+                      <h6 class="text-orange">Banco (${benchItems.length} jogadores)</h6>
                       <ul class="text-light-gray">
                         ${bench}
                       </ul>

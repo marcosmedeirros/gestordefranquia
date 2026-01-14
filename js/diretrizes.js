@@ -57,8 +57,18 @@ function renderPlayerMinutes() {
     return ids;
   };
 
+  // Coletar jogadores do banco via checkboxes
+  const getBenchIds = () => {
+    const ids = [];
+    document.querySelectorAll('.bench-player-checkbox:checked').forEach(cb => {
+      const val = parseInt(cb.value);
+      if (!isNaN(val) && val > 0) ids.push(val);
+    });
+    return ids;
+  };
+
   let starters = getSelectedIds('starter', 5);
-  let bench = getSelectedIds('bench', 3);
+  let bench = getBenchIds();
 
   // Fallback: se não houver seleção ainda, usar dados da diretriz existente
   if (starters.length === 0 && bench.length === 0 && currentDirective) {
@@ -68,11 +78,18 @@ function renderPlayerMinutes() {
       const sid = parseInt(currentDirective[`starter_${i}_id`]);
       if (!isNaN(sid) && sid > 0) starters.push(sid);
     }
-    for (let i = 1; i <= 3; i++) {
-      const bid = parseInt(currentDirective[`bench_${i}_id`]);
-      if (!isNaN(bid) && bid > 0) bench.push(bid);
+    // Pegar banco dos player_minutes que não são titulares
+    if (currentDirective.player_minutes) {
+      Object.keys(currentDirective.player_minutes).forEach(pid => {
+        const id = parseInt(pid);
+        if (!starters.includes(id)) bench.push(id);
+      });
     }
   }
+
+  // Atualizar contador de banco
+  const benchCount = document.getElementById('bench-count');
+  if (benchCount) benchCount.textContent = bench.length;
 
   // Render seção Titulares
   if (starters.length > 0) {
@@ -110,7 +127,7 @@ function renderPlayerMinutes() {
   if (bench.length > 0) {
     const titleB = document.createElement('div');
     titleB.className = 'col-12 mb-2 mt-2';
-    titleB.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>Banco</h6>`;
+    titleB.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>Banco (${bench.length} jogadores)</h6>`;
     container.appendChild(titleB);
 
     bench.forEach((id, idx) => {
@@ -137,33 +154,12 @@ function renderPlayerMinutes() {
     });
   }
 
-  // Mensagem de orientação se nada selecionado ainda
-  // Fallback final: se ainda não houver seleção nem diretriz, renderizar todos os jogadores
+  // Mensagem se não houver seleção
   if (starters.length === 0 && bench.length === 0) {
-    const titleAll = document.createElement('div');
-    titleAll.className = 'col-12 mb-2';
-    titleAll.innerHTML = `<h6 class="text-orange mb-2"><i class="bi bi-people me-2"></i>Jogadores do Elenco</h6>`;
-    container.appendChild(titleAll);
-    allPlayersData.forEach(player => {
-      const row = document.createElement('div');
-      row.className = 'col-12';
-      row.innerHTML = `
-        <div class="form-group mb-2">
-          <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">${player.name}</span>
-            <div class="input-group input-group-sm" style="max-width: 130px;">
-              <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
-                     name="minutes_player_${player.id}"
-                     data-player-id="${player.id}" data-player-name="${player.name}"
-                     min="5" max="${maxMinutes}" value="20" placeholder="Minutos">
-              <span class="input-group-text bg-dark text-orange border-orange">min</span>
-            </div>
-          </div>
-          <small class="text-light-gray d-block">Min: 5 | Max: ${maxMinutes} (${deadlinePhase === 'playoffs' ? 'playoffs' : 'regular'})</small>
-        </div>
-      `;
-      container.appendChild(row);
-    });
+    const msg = document.createElement('div');
+    msg.className = 'col-12';
+    msg.innerHTML = `<p class="text-light-gray">Selecione os titulares e jogadores do banco para configurar a minutagem.</p>`;
+    container.appendChild(msg);
   }
 }
 
@@ -207,14 +203,64 @@ document.addEventListener('DOMContentLoaded', () => {
   // Chamar ao iniciar
   updateRotationFieldsVisibility();
 
-  // Redesenhar minutagem quando os selects de titulares/banco mudarem
+  // Redesenhar minutagem quando os selects de titulares mudarem
   for (let i = 1; i <= 5; i++) {
     const sel = document.querySelector(`select[name="starter_${i}_id"]`);
     if (sel) sel.addEventListener('change', renderPlayerMinutes);
   }
-  for (let i = 1; i <= 3; i++) {
-    const sel = document.querySelector(`select[name="bench_${i}_id"]`);
-    if (sel) sel.addEventListener('change', renderPlayerMinutes);
+  
+  // Redesenhar minutagem quando checkboxes do banco mudarem
+  document.querySelectorAll('.bench-player-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      // Desabilitar checkbox se jogador já está nos titulares
+      const starters = [];
+      for (let i = 1; i <= 5; i++) {
+        const sel = document.querySelector(`select[name="starter_${i}_id"]`);
+        if (sel && sel.value) starters.push(parseInt(sel.value));
+      }
+      
+      document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
+        const playerId = parseInt(checkbox.value);
+        const item = checkbox.closest('.bench-player-item');
+        if (starters.includes(playerId)) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          if (item) item.classList.add('opacity-50');
+        } else {
+          checkbox.disabled = false;
+          if (item) item.classList.remove('opacity-50');
+        }
+      });
+      
+      renderPlayerMinutes();
+    });
+  });
+  
+  // Atualizar estado dos checkboxes quando titulares mudam
+  for (let i = 1; i <= 5; i++) {
+    const sel = document.querySelector(`select[name="starter_${i}_id"]`);
+    if (sel) {
+      sel.addEventListener('change', () => {
+        const starters = [];
+        for (let j = 1; j <= 5; j++) {
+          const s = document.querySelector(`select[name="starter_${j}_id"]`);
+          if (s && s.value) starters.push(parseInt(s.value));
+        }
+        
+        document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
+          const playerId = parseInt(checkbox.value);
+          const item = checkbox.closest('.bench-player-item');
+          if (starters.includes(playerId)) {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+            if (item) item.classList.add('opacity-50');
+          } else {
+            checkbox.disabled = false;
+            if (item) item.classList.remove('opacity-50');
+          }
+        });
+      });
+    }
   }
 });
 
@@ -237,13 +283,34 @@ async function loadExistingDirective() {
         }
       }
       
-      // Preencher banco
-      for (let i = 1; i <= 3; i++) {
-        const select = document.querySelector(`select[name="bench_${i}_id"]`);
-        if (select && d[`bench_${i}_id`]) {
-          select.value = d[`bench_${i}_id`];
-        }
+      // Coletar IDs dos titulares para excluir do banco
+      const starterIds = [];
+      for (let i = 1; i <= 5; i++) {
+        const sid = parseInt(d[`starter_${i}_id`]);
+        if (!isNaN(sid) && sid > 0) starterIds.push(sid);
       }
+      
+      // Preencher banco via checkboxes (baseado nos player_minutes que não são titulares)
+      if (d.player_minutes) {
+        Object.keys(d.player_minutes).forEach(playerId => {
+          const id = parseInt(playerId);
+          if (!starterIds.includes(id)) {
+            const checkbox = document.getElementById(`bench_${id}`);
+            if (checkbox) checkbox.checked = true;
+          }
+        });
+      }
+      
+      // Desabilitar checkboxes de jogadores que são titulares
+      document.querySelectorAll('.bench-player-checkbox').forEach(checkbox => {
+        const playerId = parseInt(checkbox.value);
+        const item = checkbox.closest('.bench-player-item');
+        if (starterIds.includes(playerId)) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          if (item) item.classList.add('opacity-50');
+        }
+      });
       
       // Preencher estilos (selects)
       ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 
@@ -308,7 +375,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   const form = e.target;
   const fd = new FormData(form);
   
-  // Validar jogadores únicos
+  // Validar jogadores únicos - titulares
   const allPlayers = [];
   for (let i = 1; i <= 5; i++) {
     const playerId = fd.get(`starter_${i}_id`);
@@ -323,18 +390,15 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     allPlayers.push(playerId);
   }
   
-  for (let i = 1; i <= 3; i++) {
-    const playerId = fd.get(`bench_${i}_id`);
-    if (!playerId) {
-      alert(`Selecione o Banco ${i}`);
-      return;
+  // Coletar jogadores do banco via checkboxes
+  const benchPlayers = [];
+  document.querySelectorAll('.bench-player-checkbox:checked').forEach(cb => {
+    const val = cb.value;
+    if (val && !allPlayers.includes(val)) {
+      benchPlayers.push(parseInt(val));
+      allPlayers.push(val);
     }
-    if (allPlayers.includes(playerId)) {
-      alert('Não pode selecionar o mesmo jogador mais de uma vez');
-      return;
-    }
-    allPlayers.push(playerId);
-  }
+  });
   
   // Validar G-League (não pode ser titular/banco)
   const gleague1 = fd.get('gleague_1_id');
@@ -353,9 +417,9 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     return;
   }
   
-  // Validar minutagem por jogador (sempre)
+  // Validar minutagem por jogador
   const playerMinutes = {};
-  {
+  try {
     const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
     const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
     const minutesInputs = document.querySelectorAll('.player-minutes-input');
@@ -364,12 +428,17 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
       const playerId = input.getAttribute('data-player-id');
       const playerName = input.getAttribute('data-player-name');
       
-      if (minutes < 5 || minutes > maxMinutes) {
-        alert(`${playerName}: minutos devem estar entre 5 e ${maxMinutes}`);
-        throw new Error('Validação de minutos falhou');
+      if (minutes < 5) {
+        throw new Error(`${playerName}: deve jogar no mínimo 5 minutos`);
+      }
+      if (minutes > maxMinutes) {
+        throw new Error(`${playerName}: não pode jogar mais de ${maxMinutes} minutos`);
       }
       playerMinutes[playerId] = minutes;
     });
+  } catch (validationError) {
+    alert(validationError.message);
+    return;
   }
   
   const payload = {
@@ -380,14 +449,12 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     starter_3_id: parseInt(fd.get('starter_3_id')),
     starter_4_id: parseInt(fd.get('starter_4_id')),
     starter_5_id: parseInt(fd.get('starter_5_id')),
-    bench_1_id: parseInt(fd.get('bench_1_id')),
-    bench_2_id: parseInt(fd.get('bench_2_id')),
-    bench_3_id: parseInt(fd.get('bench_3_id')),
+    bench_players: benchPlayers,
     pace: fd.get('pace'),
     offensive_rebound: fd.get('offensive_rebound'),
     offensive_aggression: fd.get('offensive_aggression'),
     defensive_rebound: fd.get('defensive_rebound'),
-  rotation_style: fd.get('rotation_style'),
+    rotation_style: fd.get('rotation_style'),
     game_style: fd.get('game_style'),
     offense_style: fd.get('offense_style'),
     rotation_players: parseInt(fd.get('rotation_players')) || 10,
