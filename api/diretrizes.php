@@ -191,18 +191,35 @@ if ($method === 'GET') {
                 $directiveIds = array_column($directives, 'id');
                 if (!empty($directiveIds)) {
                     $placeholders = implode(',', array_fill(0, count($directiveIds), '?'));
-                    $stmtMin = $pdo->prepare("SELECT directive_id, player_id, minutes_per_game FROM directive_player_minutes WHERE directive_id IN ($placeholders)");
+                    
+                    // Buscar minutagem com nome e posição do jogador
+                    $stmtMin = $pdo->prepare("
+                        SELECT dpm.directive_id, dpm.player_id, dpm.minutes_per_game, 
+                               p.name as player_name, p.position as player_position
+                        FROM directive_player_minutes dpm
+                        INNER JOIN players p ON dpm.player_id = p.id
+                        WHERE dpm.directive_id IN ($placeholders)
+                    ");
                     $stmtMin->execute($directiveIds);
                     $minRows = $stmtMin->fetchAll(PDO::FETCH_ASSOC);
+                    
                     $minutesByDirective = [];
+                    $playerInfoByDirective = [];
                     foreach ($minRows as $mr) {
                         $dId = (int)$mr['directive_id'];
+                        $pId = (int)$mr['player_id'];
                         if (!isset($minutesByDirective[$dId])) $minutesByDirective[$dId] = [];
-                        $minutesByDirective[$dId][(int)$mr['player_id']] = (int)$mr['minutes_per_game'];
+                        if (!isset($playerInfoByDirective[$dId])) $playerInfoByDirective[$dId] = [];
+                        $minutesByDirective[$dId][$pId] = (int)$mr['minutes_per_game'];
+                        $playerInfoByDirective[$dId][$pId] = [
+                            'name' => $mr['player_name'],
+                            'position' => $mr['player_position']
+                        ];
                     }
                     foreach ($directives as &$dRow) {
                         $id = (int)$dRow['id'];
                         $dRow['player_minutes'] = $minutesByDirective[$id] ?? [];
+                        $dRow['player_info'] = $playerInfoByDirective[$id] ?? [];
                     }
                     unset($dRow);
                 }
@@ -282,7 +299,7 @@ if ($method === 'POST') {
                         UPDATE team_directives SET
                             starter_1_id = ?, starter_2_id = ?, starter_3_id = ?, starter_4_id = ?, starter_5_id = ?,
                             bench_1_id = ?, bench_2_id = ?, bench_3_id = ?,
-                            pace = ?, offensive_rebound = ?, offensive_aggression = ?, defensive_rebound = ?,
+                            pace = ?, offensive_rebound = ?, offensive_aggression = ?, defensive_rebound = ?, defensive_focus = ?,
                             rotation_style = ?, game_style = ?, offense_style = ?,
                             rotation_players = ?, veteran_focus = ?,
                             gleague_1_id = ?, gleague_2_id = ?,
@@ -292,7 +309,7 @@ if ($method === 'POST') {
                     $stmt->execute([
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
                         $bench1, $bench2, $bench3,
-                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference', $data['defensive_focus'] ?? 'no_preference',
                         $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
@@ -305,17 +322,17 @@ if ($method === 'POST') {
                             team_id, deadline_id,
                             starter_1_id, starter_2_id, starter_3_id, starter_4_id, starter_5_id,
                             bench_1_id, bench_2_id, bench_3_id,
-                            pace, offensive_rebound, offensive_aggression, defensive_rebound,
+                            pace, offensive_rebound, offensive_aggression, defensive_rebound, defensive_focus,
                             rotation_style, game_style, offense_style,
                             rotation_players, veteran_focus,
                             gleague_1_id, gleague_2_id, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $team['id'], $deadlineId,
                         $data['starter_1_id'], $data['starter_2_id'], $data['starter_3_id'], $data['starter_4_id'], $data['starter_5_id'],
                         $bench1, $bench2, $bench3,
-                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference',
+                        $data['pace'] ?? 'no_preference', $data['offensive_rebound'] ?? 'no_preference', $data['offensive_aggression'] ?? 'no_preference', $data['defensive_rebound'] ?? 'no_preference', $data['defensive_focus'] ?? 'no_preference',
                         $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,

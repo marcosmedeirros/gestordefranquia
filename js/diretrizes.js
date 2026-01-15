@@ -305,7 +305,7 @@ async function loadExistingDirective() {
       }
       
       // Preencher estilos (selects)
-      ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 
+      ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 'defensive_focus',
        'rotation_style', 'game_style', 'offense_style', 'rotation_players'].forEach(field => {
         const select = document.querySelector(`select[name="${field}"]`);
         if (select && d[field]) {
@@ -453,6 +453,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     offensive_rebound: fd.get('offensive_rebound'),
     offensive_aggression: fd.get('offensive_aggression'),
     defensive_rebound: fd.get('defensive_rebound'),
+    defensive_focus: fd.get('defensive_focus'),
     rotation_style: fd.get('rotation_style'),
     game_style: fd.get('game_style'),
     offense_style: fd.get('offense_style'),

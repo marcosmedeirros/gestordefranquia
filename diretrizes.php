@@ -301,6 +301,15 @@ try {
                                 <option value="no_preference" selected>No Preference</option>
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Defensive Focus</label>
+                            <select class="form-select bg-dark text-white border-orange" name="defensive_focus">
+                                <option value="no_preference" selected>No Preference</option>
+                                <option value="neutral">Neutral Defensive Focus</option>
+                                <option value="protect_paint">Protect the Paint</option>
+                                <option value="limit_perimeter">Limit Perimeter Shots</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>

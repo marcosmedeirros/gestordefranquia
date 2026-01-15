@@ -955,6 +955,10 @@ async function viewDirectives(deadlineId, league) {
       'run_transition': 'Run in Transition', 'crash_glass': 'Crash Defensive Glass', 
       'some_crash': 'Some Crash Others Run', 'no_preference': 'No Preference'
     };
+    const defFocusLabels = {
+      'no_preference': 'No Preference', 'neutral': 'Neutral Defensive Focus',
+      'protect_paint': 'Protect the Paint', 'limit_perimeter': 'Limit Perimeter Shots'
+    };
     const rotationLabels = { 'manual': 'Manual', 'auto': 'Automática' };
     
     container.innerHTML = `
@@ -989,19 +993,25 @@ async function viewDirectives(deadlineId, league) {
               
               // Banco dinâmico: pegar dos player_minutes os que não são titulares
               const benchItems = [];
+              const playerInfo = d.player_info || {};
               Object.keys(pm).forEach(playerId => {
                 const id = parseInt(playerId);
                 if (!starterIds.includes(id)) {
-                  // Tentar pegar nome das colunas bench_X ou usar ID
+                  // Usar player_info para pegar nome e posição
                   let name = '?', pos = '?';
-                  for (let i = 1; i <= 3; i++) {
-                    if (parseInt(d['bench_' + i + '_id']) === id) {
-                      name = d['bench_' + i + '_name'] || '?';
-                      pos = d['bench_' + i + '_pos'] || '?';
-                      break;
+                  if (playerInfo[id]) {
+                    name = playerInfo[id].name || '?';
+                    pos = playerInfo[id].position || '?';
+                  } else {
+                    // Fallback para bench_X columns (compatibilidade)
+                    for (let i = 1; i <= 3; i++) {
+                      if (parseInt(d['bench_' + i + '_id']) === id) {
+                        name = d['bench_' + i + '_name'] || '?';
+                        pos = d['bench_' + i + '_pos'] || '?';
+                        break;
+                      }
                     }
                   }
-                  if (name === '?') name = `Jogador #${id}`;
                   benchItems.push(`<li>${name} (${pos}) - ${pm[playerId]} min</li>`);
                 }
               });
@@ -1047,6 +1057,9 @@ async function viewDirectives(deadlineId, league) {
                         <div class="col-md-3">Agress. Def.: ${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</div>
                         <div class="col-md-3">Reb. Ofensivo: ${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</div>
                         <div class="col-md-3">Reb. Defensivo: ${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</div>
+                      </div>
+                      <div class="row text-light-gray small mt-2">
+                        <div class="col-md-3">Defensive Focus: ${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</div>
                       </div>
                     </div>
                     <div class="col-12 mt-3">
