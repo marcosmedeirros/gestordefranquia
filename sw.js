@@ -1,5 +1,5 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v3';
+const CACHE_NAME = 'fba-manager-v4';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)
@@ -9,6 +9,8 @@ const STATIC_ASSETS = [
   '/login.php',
   '/css/styles.css',
   '/img/default-team.png',
+  '/img/icon-192x192.png?v=2',
+  '/img/icon-512x512.png?v=2',
   '/manifest.json',
   '/offline.html',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
