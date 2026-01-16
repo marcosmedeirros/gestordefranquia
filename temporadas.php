@@ -279,9 +279,18 @@ if (!$team) {
               <i class="bi bi-trophy text-orange me-2"></i>
               Gerenciar Draft
             </h4>
-            <button class="btn btn-orange" onclick="showDraftManagement(${season.id}, '${league}')">
-              <i class="bi bi-people me-2"></i>Gerenciar Jogadores do Draft
-            </button>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <button class="btn btn-orange w-100" onclick="showDraftManagement(${season.id}, '${league}')">
+                  <i class="bi bi-people me-2"></i>Gerenciar Jogadores do Draft
+                </button>
+              </div>
+              <div class="col-md-6">
+                <button class="btn btn-outline-orange w-100" onclick="showDraftSessionManagement(${season.id}, '${league}')">
+                  <i class="bi bi-list-ol me-2"></i>Configurar Sessão de Draft
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -1039,6 +1048,391 @@ if (!$team) {
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao salvar histórico: ' + (e.message || 'Desconhecido'));
+      }
+    }
+
+    // ========== GERENCIAR SESSÃO DE DRAFT ==========
+    async function showDraftSessionManagement(seasonId, league) {
+      currentSeasonId = seasonId;
+      currentLeague = league;
+      const container = document.getElementById('mainContainer');
+      
+      container.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-orange"></div>
+          <p class="text-light-gray mt-2">Carregando sessão de draft...</p>
+        </div>
+      `;
+      
+      try {
+        // Verificar se já existe uma sessão de draft para esta temporada
+        const draftData = await api(`draft.php?action=active_draft&league=${league}`);
+        const session = draftData.draft;
+        
+        // Buscar times da liga
+        const teamsData = await api(`admin.php?action=teams&league=${league}`);
+        const teams = teamsData.teams || [];
+        
+        if (session && session.season_id == seasonId) {
+          // Já existe sessão - mostrar configuração
+          await renderDraftSessionConfig(session, teams, league);
+        } else {
+          // Não existe sessão - mostrar botão para criar
+          renderCreateDraftSession(seasonId, league, teams);
+        }
+      } catch (e) {
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+          <div class="alert alert-danger">Erro: ${e.error || 'Desconhecido'}</div>
+        `;
+      }
+    }
+    
+    function renderCreateDraftSession(seasonId, league, teams) {
+      const container = document.getElementById('mainContainer');
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+          <i class="bi bi-arrow-left me-2"></i>Voltar
+        </button>
+        
+        <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+          <div class="card-body text-center py-5">
+            <i class="bi bi-trophy text-orange display-1 mb-4"></i>
+            <h3 class="text-white mb-3">Criar Sessão de Draft</h3>
+            <p class="text-light-gray mb-4">
+              Crie uma nova sessão de draft para a temporada atual.<br>
+              O draft terá 2 rodadas com ordem snake (a ordem inverte na 2ª rodada).
+            </p>
+            <button class="btn btn-orange btn-lg" onclick="createDraftSession(${seasonId}, '${league}')">
+              <i class="bi bi-plus-circle me-2"></i>Criar Sessão de Draft
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    
+    async function createDraftSession(seasonId, league) {
+      try {
+        const result = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'create_session',
+            season_id: seasonId
+          })
+        });
+        
+        alert('Sessão de draft criada com sucesso!');
+        showDraftSessionManagement(seasonId, league);
+      } catch (e) {
+        alert('Erro ao criar sessão: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function renderDraftSessionConfig(session, teams, league) {
+      const container = document.getElementById('mainContainer');
+      
+      // Buscar ordem do draft se existir
+      let orderData = { order: [] };
+      try {
+        orderData = await api(`draft.php?action=draft_order&draft_session_id=${session.id}`);
+      } catch (e) {}
+      
+      const picks = orderData.order || [];
+      const round1Picks = picks.filter(p => p.round == 1);
+      const round2Picks = picks.filter(p => p.round == 2);
+      
+      const statusBadge = {
+        'setup': '<span class="badge bg-warning">Configurando</span>',
+        'in_progress': '<span class="badge bg-success">Em Andamento</span>',
+        'completed': '<span class="badge bg-secondary">Concluído</span>'
+      };
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+          <i class="bi bi-arrow-left me-2"></i>Voltar
+        </button>
+        
+        <!-- Status da Sessão -->
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h4 class="text-white mb-0">
+                <i class="bi bi-trophy text-orange me-2"></i>
+                Sessão de Draft #${session.id}
+              </h4>
+              ${statusBadge[session.status]}
+            </div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="bg-dark p-3 rounded">
+                  <small class="text-light-gray d-block">Temporada</small>
+                  <strong class="text-white">${session.season_number || 'N/A'}</strong>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="bg-dark p-3 rounded">
+                  <small class="text-light-gray d-block">Rodada Atual</small>
+                  <strong class="text-orange">${session.current_round || 1}</strong>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="bg-dark p-3 rounded">
+                  <small class="text-light-gray d-block">Pick Atual</small>
+                  <strong class="text-orange">${session.current_pick || 1}</strong>
+                </div>
+              </div>
+            </div>
+            
+            ${session.status === 'setup' ? `
+              <div class="mt-4 d-flex gap-2 flex-wrap">
+                <button class="btn btn-success" onclick="startDraftSession(${session.id}, '${league}')" ${round1Picks.length === 0 ? 'disabled' : ''}>
+                  <i class="bi bi-play-fill me-2"></i>Iniciar Draft
+                </button>
+                <button class="btn btn-danger" onclick="deleteDraftSession(${session.id}, '${league}')">
+                  <i class="bi bi-trash me-2"></i>Excluir Sessão
+                </button>
+              </div>
+              ${round1Picks.length === 0 ? `
+                <div class="alert alert-warning mt-3 mb-0">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  Configure a ordem do draft antes de iniciar.
+                </div>
+              ` : ''}
+            ` : session.status === 'in_progress' ? `
+              <div class="mt-4">
+                <a href="/drafts.php" class="btn btn-orange">
+                  <i class="bi bi-eye me-2"></i>Ver Draft em Andamento
+                </a>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <!-- Configurar Ordem -->
+        ${session.status === 'setup' ? `
+          <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+            <div class="card-header bg-transparent border-orange">
+              <h5 class="text-white mb-0">
+                <i class="bi bi-list-ol text-orange me-2"></i>
+                Definir Ordem do Draft
+              </h5>
+            </div>
+            <div class="card-body">
+              <p class="text-light-gray mb-3">
+                Arraste os times para definir a ordem da 1ª rodada. A 2ª rodada terá ordem invertida (snake).
+              </p>
+              <div class="mb-3">
+                <label class="text-white mb-2">Selecione os times na ordem do draft:</label>
+                <div id="draftOrderList" class="border border-secondary rounded p-2" style="min-height: 100px;">
+                  ${round1Picks.length > 0 ? 
+                    round1Picks.map((p, idx) => `
+                      <div class="draft-order-item bg-dark p-2 mb-2 rounded d-flex justify-content-between align-items-center" data-team-id="${p.original_team_id}" data-pick-id="${p.id}">
+                        <span>
+                          <strong class="text-orange">#${idx + 1}</strong>
+                          <span class="text-white ms-2">${p.team_city} ${p.team_name}</span>
+                          ${p.traded_from_team_id ? '<span class="badge bg-info ms-2">Trocada</span>' : ''}
+                        </span>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeFromDraftOrder(${p.id}, ${session.id}, '${league}')">
+                          <i class="bi bi-x"></i>
+                        </button>
+                      </div>
+                    `).join('') 
+                    : '<p class="text-light-gray text-center my-3">Nenhum time adicionado ainda</p>'
+                  }
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="text-white mb-2">Adicionar time à ordem:</label>
+                <div class="input-group">
+                  <select class="form-select bg-dark text-white border-orange" id="addTeamSelect">
+                    <option value="">Selecione um time...</option>
+                    ${teams.filter(t => !round1Picks.some(p => p.original_team_id == t.id))
+                      .map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                  <button class="btn btn-orange" onclick="addTeamToDraftOrder(${session.id}, '${league}')">
+                    <i class="bi bi-plus"></i> Adicionar
+                  </button>
+                </div>
+              </div>
+              
+              <button class="btn btn-outline-success" onclick="autoGenerateDraftOrder(${session.id}, '${league}', ${JSON.stringify(teams).replace(/"/g, '&quot;')})">
+                <i class="bi bi-magic me-2"></i>Gerar Ordem Automática (${teams.length} times)
+              </button>
+            </div>
+          </div>
+        ` : ''}
+        
+        <!-- Visualizar Ordem -->
+        ${round1Picks.length > 0 ? `
+          <div class="row g-4">
+            <div class="col-md-6">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+                <div class="card-header bg-transparent border-orange">
+                  <h5 class="text-white mb-0">
+                    <i class="bi bi-1-circle-fill text-orange me-2"></i>
+                    1ª Rodada
+                  </h5>
+                </div>
+                <div class="card-body p-0">
+                  <ul class="list-group list-group-flush bg-transparent">
+                    ${round1Picks.map((p, idx) => `
+                      <li class="list-group-item bg-dark text-white d-flex justify-content-between align-items-center">
+                        <span>
+                          <strong class="text-orange me-2">#${idx + 1}</strong>
+                          ${p.team_city} ${p.team_name}
+                        </span>
+                        ${p.picked_player_id ? `<span class="badge bg-success">${p.player_name}</span>` : 
+                          p.traded_from_team_id ? '<span class="badge bg-info">Trocada</span>' : ''}
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+                <div class="card-header bg-transparent border-orange">
+                  <h5 class="text-white mb-0">
+                    <i class="bi bi-2-circle-fill text-orange me-2"></i>
+                    2ª Rodada (Snake)
+                  </h5>
+                </div>
+                <div class="card-body p-0">
+                  <ul class="list-group list-group-flush bg-transparent">
+                    ${round2Picks.map((p, idx) => `
+                      <li class="list-group-item bg-dark text-white d-flex justify-content-between align-items-center">
+                        <span>
+                          <strong class="text-orange me-2">#${idx + 1}</strong>
+                          ${p.team_city} ${p.team_name}
+                        </span>
+                        ${p.picked_player_id ? `<span class="badge bg-success">${p.player_name}</span>` : 
+                          p.traded_from_team_id ? '<span class="badge bg-info">Trocada</span>' : ''}
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+    
+    async function addTeamToDraftOrder(sessionId, league) {
+      const select = document.getElementById('addTeamSelect');
+      const teamId = select.value;
+      
+      if (!teamId) {
+        alert('Selecione um time');
+        return;
+      }
+      
+      try {
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'add_to_order',
+            draft_session_id: sessionId,
+            team_id: teamId
+          })
+        });
+        
+        showDraftSessionManagement(currentSeasonId, league);
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function removeFromDraftOrder(pickId, sessionId, league) {
+      if (!confirm('Remover este time da ordem?')) return;
+      
+      try {
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'remove_from_order',
+            pick_id: pickId,
+            draft_session_id: sessionId
+          })
+        });
+        
+        showDraftSessionManagement(currentSeasonId, league);
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function autoGenerateDraftOrder(sessionId, league, teams) {
+      if (!confirm(`Gerar ordem automática com ${teams.length} times? Isso substituirá a ordem atual.`)) return;
+      
+      try {
+        // Primeiro limpar a ordem existente
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'clear_order',
+            draft_session_id: sessionId
+          })
+        });
+        
+        // Adicionar cada time na ordem
+        for (let i = 0; i < teams.length; i++) {
+          await api('draft.php', {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'add_to_order',
+              draft_session_id: sessionId,
+              team_id: teams[i].id
+            })
+          });
+        }
+        
+        alert('Ordem gerada com sucesso!');
+        showDraftSessionManagement(currentSeasonId, league);
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function startDraftSession(sessionId, league) {
+      if (!confirm('Iniciar o draft? Os usuários poderão fazer suas picks.')) return;
+      
+      try {
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'start_draft',
+            draft_session_id: sessionId
+          })
+        });
+        
+        alert('Draft iniciado!');
+        showDraftSessionManagement(currentSeasonId, league);
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+    
+    async function deleteDraftSession(sessionId, league) {
+      if (!confirm('Tem certeza que deseja excluir esta sessão de draft?')) return;
+      
+      try {
+        await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'delete_session',
+            draft_session_id: sessionId
+          })
+        });
+        
+        alert('Sessão excluída!');
+        showDraftSessionManagement(currentSeasonId, league);
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
       }
     }
 
