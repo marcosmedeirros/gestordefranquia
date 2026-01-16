@@ -103,15 +103,18 @@ try {
 }
 
 // Buscar temporada atual da liga
-// Buscar prazo ativo de diretrizes (somente se ainda não expirou)
+// Buscar prazo ativo de diretrizes (somente se ainda não expirou - usando horário de Brasília)
 $activeDirectiveDeadline = null;
 try {
+    // Calcular horário atual de Brasília via PHP para comparação
+    $nowBrasilia = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+    
     $stmtDirective = $pdo->prepare("
         SELECT * FROM directive_deadlines 
-        WHERE league = ? AND is_active = 1 AND deadline_date > NOW()
+        WHERE league = ? AND is_active = 1 AND deadline_date > ?
         ORDER BY deadline_date ASC LIMIT 1
     ");
-    $stmtDirective->execute([$team['league']]);
+    $stmtDirective->execute([$team['league'], $nowBrasilia]);
     $activeDirectiveDeadline = $stmtDirective->fetch();
         if ($activeDirectiveDeadline && !empty($activeDirectiveDeadline['deadline_date'])) {
             try {
