@@ -103,13 +103,13 @@ try {
 }
 
 // Buscar temporada atual da liga
-// Buscar prazo ativo de diretrizes
+// Buscar prazo ativo de diretrizes (somente se ainda não expirou)
 $activeDirectiveDeadline = null;
 try {
     $stmtDirective = $pdo->prepare("
         SELECT * FROM directive_deadlines 
-        WHERE league = ? AND is_active = 1 
-        ORDER BY deadline_date DESC LIMIT 1
+        WHERE league = ? AND is_active = 1 AND deadline_date > NOW()
+        ORDER BY deadline_date ASC LIMIT 1
     ");
     $stmtDirective->execute([$team['league']]);
     $activeDirectiveDeadline = $stmtDirective->fetch();

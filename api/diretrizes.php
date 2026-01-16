@@ -77,8 +77,8 @@ if ($method === 'GET') {
 
     switch ($action) {
         case 'active_deadline':
-            // Buscar prazo ativo para a liga do time
-            $stmt = $pdo->prepare("SELECT * FROM directive_deadlines WHERE league = ? AND is_active = 1 ORDER BY deadline_date DESC LIMIT 1");
+            // Buscar prazo ativo para a liga do time (somente se ainda não expirou)
+            $stmt = $pdo->prepare("SELECT * FROM directive_deadlines WHERE league = ? AND is_active = 1 AND deadline_date > NOW() ORDER BY deadline_date ASC LIMIT 1");
             $stmt->execute([$team['league']]);
             $deadline = $stmt->fetch();
             $deadline = formatDeadlineRow($deadline);
@@ -257,6 +257,16 @@ if ($method === 'POST') {
             if (!$deadlineId) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
+                exit;
+            }
+
+            // Verificar se o prazo ainda está válido (não expirou)
+            $stmtCheckDeadline = $pdo->prepare("SELECT * FROM directive_deadlines WHERE id = ? AND is_active = 1 AND deadline_date > NOW()");
+            $stmtCheckDeadline->execute([$deadlineId]);
+            $validDeadline = $stmtCheckDeadline->fetch();
+            if (!$validDeadline) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'O prazo para envio de diretrizes já expirou']);
                 exit;
             }
 

@@ -16,11 +16,11 @@ if (!$team) {
     exit;
 }
 
-// Buscar prazo ativo
+// Buscar prazo ativo (somente se ainda não expirou)
 $stmtDeadline = $pdo->prepare("
     SELECT * FROM directive_deadlines 
-    WHERE league = ? AND is_active = 1 
-    ORDER BY deadline_date DESC LIMIT 1
+    WHERE league = ? AND is_active = 1 AND deadline_date > NOW()
+    ORDER BY deadline_date ASC LIMIT 1
 ");
 $stmtDeadline->execute([$team['league']]);
 $deadline = $stmtDeadline->fetch();
