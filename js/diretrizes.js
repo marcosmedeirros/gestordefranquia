@@ -168,6 +168,7 @@ function updateRotationFieldsVisibility() {
   const rotationStyle = document.querySelector('select[name="rotation_style"]');
   const rotationPlayersField = document.getElementById('rotation-players-field');
   const veteranFocusField = document.getElementById('veteran-focus-field');
+  const playerMinutesCard = document.getElementById('player-minutes-card');
 
   if (!rotationStyle) return;
 
@@ -180,7 +181,10 @@ function updateRotationFieldsVisibility() {
   if (veteranFocusField) {
     veteranFocusField.style.display = isManualRotation ? 'block' : 'none';
   }
-  // Minutagem por jogador é sempre exibida
+  // Minutagem por jogador só aparece quando rotação é manual
+  if (playerMinutesCard) {
+    playerMinutesCard.style.display = isManualRotation ? 'block' : 'none';
+  }
 }
 
 // Atualizar visibilidade dos checkboxes do banco (esconder titulares)

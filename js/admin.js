@@ -975,6 +975,7 @@ async function viewDirectives(deadlineId, league) {
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
               const pm = d.player_minutes || {};
+              const isManualRotation = d.rotation_style === 'manual';
               
               // Coletar IDs dos titulares
               const starterIds = [];
@@ -985,10 +986,11 @@ async function viewDirectives(deadlineId, league) {
               
               const starters = [1,2,3,4,5].map(i => {
                 const id = d['starter_' + i + '_id'];
-                const m = id && pm[id] ? `${pm[id]} min` : '';
+                // Só mostrar minutos se rotação for manual
+                const m = isManualRotation && id && pm[id] ? `${pm[id]} min` : '';
                 const name = d['starter_' + i + '_name'] || '?';
                 const pos = d['starter_' + i + '_pos'] || '?';
-                return `<li>${name} (${pos}) ${m ? ' - ' + m : ''}</li>`;
+                return `<li>${name} (${pos})${m ? ' - ' + m : ''}</li>`;
               }).join('');
               
               // Banco dinâmico: pegar dos player_minutes os que não são titulares
@@ -1012,7 +1014,9 @@ async function viewDirectives(deadlineId, league) {
                       }
                     }
                   }
-                  benchItems.push(`<li>${name} (${pos}) - ${pm[playerId]} min</li>`);
+                  // Só mostrar minutos se rotação for manual
+                  const minLabel = isManualRotation ? ` - ${pm[playerId]} min` : '';
+                  benchItems.push(`<li>${name} (${pos})${minLabel}</li>`);
                 }
               });
               const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
@@ -1062,13 +1066,13 @@ async function viewDirectives(deadlineId, league) {
                         <div class="col-md-3">Defensive Focus: ${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</div>
                       </div>
                     </div>
-                    <div class="col-12 mt-3">
+                    ${isManualRotation ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Rotação e Foco</h6>
                       <div class="row text-light-gray small">
                         <div class="col-md-6">Jogadores na Rotação: ${d.rotation_players || 10}</div>
                         <div class="col-md-6">Foco Veteranos: ${d.veteran_focus || 50}%</div>
                       </div>
-                    </div>
+                    </div>` : ''}
                     ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${d.notes}</p></div>` : ''}
                   </div>
                 </div>
