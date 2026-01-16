@@ -357,6 +357,9 @@ if ($method === 'POST') {
                 // Salvar minutagem para todos os jogadores selecionados (titulares + banco)
                 $allSelectedPlayers = array_merge($starters, $benchPlayers);
                 
+                // Verificar se rotação é manual
+                $rotationStyle = $data['rotation_style'] ?? 'auto';
+                
                 // Validar por fase do prazo
                 $maxMinutes = 40;
                 $stmtDeadline = $pdo->prepare('SELECT phase FROM directive_deadlines WHERE id = ?');
@@ -373,6 +376,19 @@ if ($method === 'POST') {
                 // Inserir minutagem para todos os jogadores selecionados
                 $playerMinutes = $data['player_minutes'] ?? [];
                 $stmtMinutes = $pdo->prepare('INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game) VALUES (?, ?, ?)');
+                
+                // Se rotação for manual, validar total de 240 minutos
+                if ($rotationStyle === 'manual') {
+                    $totalMinutes = 0;
+                    foreach ($allSelectedPlayers as $playerId) {
+                        $m = isset($playerMinutes[$playerId]) ? (int)$playerMinutes[$playerId] : 20;
+                        $totalMinutes += $m;
+                    }
+                    
+                    if ($totalMinutes !== 240) {
+                        throw new Exception("A soma dos minutos deve ser exatamente 240. Atual: {$totalMinutes} minutos.");
+                    }
+                }
                 
                 foreach ($allSelectedPlayers as $playerId) {
                     $m = isset($playerMinutes[$playerId]) ? (int)$playerMinutes[$playerId] : 20;

@@ -161,6 +161,59 @@ function renderPlayerMinutes() {
     msg.innerHTML = `<p class="text-light-gray">Selecione os titulares e jogadores do banco para configurar a minutagem.</p>`;
     container.appendChild(msg);
   }
+
+  // Adicionar contador de minutos totais
+  if (starters.length > 0 || bench.length > 0) {
+    const totalRow = document.createElement('div');
+    totalRow.className = 'col-12 mt-3';
+    totalRow.innerHTML = `
+      <div class="alert alert-dark border-orange mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-white">
+            <i class="bi bi-stopwatch me-2"></i>
+            <strong>Total de Minutos:</strong>
+          </span>
+          <span id="total-minutes-display" class="badge bg-secondary fs-6">0 / 240</span>
+        </div>
+        <small class="text-light-gray d-block mt-1">A soma dos minutos de todos os jogadores deve ser exatamente 240 minutos.</small>
+      </div>
+    `;
+    container.appendChild(totalRow);
+    
+    // Adicionar listeners para atualizar o total
+    setTimeout(() => {
+      updateTotalMinutesDisplay();
+      document.querySelectorAll('.player-minutes-input').forEach(input => {
+        input.addEventListener('input', updateTotalMinutesDisplay);
+        input.addEventListener('change', updateTotalMinutesDisplay);
+      });
+    }, 10);
+  }
+}
+
+// Função para atualizar o display de minutos totais
+function updateTotalMinutesDisplay() {
+  const display = document.getElementById('total-minutes-display');
+  if (!display) return;
+  
+  let total = 0;
+  document.querySelectorAll('.player-minutes-input').forEach(input => {
+    total += parseInt(input.value) || 0;
+  });
+  
+  display.textContent = `${total} / 240`;
+  
+  // Mudar cor baseado no total
+  display.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-secondary');
+  if (total === 240) {
+    display.classList.add('bg-success');
+  } else if (total > 240) {
+    display.classList.add('bg-danger');
+  } else if (total >= 200) {
+    display.classList.add('bg-warning');
+  } else {
+    display.classList.add('bg-secondary');
+  }
 }
 
 // Atualizar visibilidade dos campos de rotação automática
@@ -422,26 +475,43 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   
   // Validar minutagem por jogador
   const playerMinutes = {};
-  try {
-    const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
-    const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
-    const minutesInputs = document.querySelectorAll('.player-minutes-input');
-    minutesInputs.forEach(input => {
-      const minutes = parseInt(input.value) || 0;
-      const playerId = input.getAttribute('data-player-id');
-      const playerName = input.getAttribute('data-player-name');
+  let totalMinutes = 0;
+  const rotationStyle = fd.get('rotation_style');
+  
+  // Só validar minutagem se rotação for manual
+  if (rotationStyle === 'manual') {
+    try {
+      const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
+      const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
+      const minutesInputs = document.querySelectorAll('.player-minutes-input');
       
-      if (minutes < 5) {
-        throw new Error(`${playerName}: deve jogar no mínimo 5 minutos`);
+      if (minutesInputs.length === 0) {
+        throw new Error('Nenhum jogador selecionado para configurar minutagem');
       }
-      if (minutes > maxMinutes) {
-        throw new Error(`${playerName}: não pode jogar mais de ${maxMinutes} minutos`);
+      
+      minutesInputs.forEach(input => {
+        const minutes = parseInt(input.value) || 0;
+        const playerId = input.getAttribute('data-player-id');
+        const playerName = input.getAttribute('data-player-name');
+        
+        if (minutes < 5) {
+          throw new Error(`${playerName}: deve jogar no mínimo 5 minutos`);
+        }
+        if (minutes > maxMinutes) {
+          throw new Error(`${playerName}: não pode jogar mais de ${maxMinutes} minutos`);
+        }
+        playerMinutes[playerId] = minutes;
+        totalMinutes += minutes;
+      });
+      
+      // Validar total de 240 minutos
+      if (totalMinutes !== 240) {
+        throw new Error(`A soma dos minutos deve ser exatamente 240. Atual: ${totalMinutes} minutos.`);
       }
-      playerMinutes[playerId] = minutes;
-    });
-  } catch (validationError) {
-    alert(validationError.message);
-    return;
+    } catch (validationError) {
+      alert(validationError.message);
+      return;
+    }
   }
   
   const payload = {
