@@ -777,136 +777,814 @@ if (!$team) {
     }
 
     // ========== CADASTRO DE HISTÓRICO ==========
+    // Estado global do sistema de playoffs
+    let playoffState = {
+      step: 1,
+      seasonId: null,
+      league: null,
+      teams: [],
+      standings: { LESTE: [], OESTE: [] },
+      bracket: { LESTE: [], OESTE: [] },
+      matches: [],
+      awards: {}
+    };
+
     async function showHistoryForm(seasonId, league) {
       const container = document.getElementById('mainContainer');
+      playoffState.seasonId = seasonId;
+      playoffState.league = league;
+      playoffState.step = 1;
       
-      // Buscar times da liga
       try {
+        // Buscar times da liga
         const teamsData = await api(`admin.php?action=teams&league=${league}`);
-        const teams = teamsData.teams || [];
+        playoffState.teams = teamsData.teams || [];
         
-        container.innerHTML = `
-          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
-            <i class="bi bi-arrow-left me-2"></i>Voltar
-          </button>
-          
-          <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
-            <div class="card-body">
-              <h3 class="text-white mb-4">
-                <i class="bi bi-award text-orange me-2"></i>
-                Cadastrar Histórico - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
-              </h3>
-              
-              <form id="historyForm" onsubmit="saveHistory(event, ${seasonId}, '${league}')">
-                <!-- Campeão -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-trophy-fill text-warning me-2"></i>Campeão
-                  </label>
-                  <select class="form-select" name="champion_team_id" required>
-                    <option value="">Selecione o campeão</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
-                </div>
-
-                <!-- Vice-Campeão -->
-                <div class="mb-4">
-                  <label class="form-label text-white">
-                    <i class="bi bi-award text-secondary me-2"></i>Vice-Campeão
-                  </label>
-                  <select class="form-select" name="runner_up_team_id" required>
-                    <option value="">Selecione o vice-campeão</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                  </select>
-                </div>
-                
-                <!-- MVP -->
-                <div class="row mb-4">
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-star-fill text-warning me-2"></i>MVP (Nome do Jogador)
-                    </label>
-                    <input type="text" class="form-control" name="mvp_player" placeholder="Ex: LeBron James">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-people me-2"></i>Time do MVP
-                    </label>
-                    <select class="form-select" name="mvp_team_id">
-                      <option value="">Selecione o time</option>
-                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                    </select>
-                  </div>
-                </div>
-                
-                <!-- DPOY -->
-                <div class="row mb-4">
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-shield-fill text-info me-2"></i>DPOY (Nome do Jogador)
-                    </label>
-                    <input type="text" class="form-control" name="dpoy_player" placeholder="Ex: Rudy Gobert">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-people me-2"></i>Time do DPOY
-                    </label>
-                    <select class="form-select" name="dpoy_team_id">
-                      <option value="">Selecione o time</option>
-                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                    </select>
-                  </div>
-                </div>
-                
-                <!-- MIP -->
-                <div class="row mb-4">
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-graph-up-arrow text-success me-2"></i>MIP (Nome do Jogador)
-                    </label>
-                    <input type="text" class="form-control" name="mip_player" placeholder="Ex: Ja Morant">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-people me-2"></i>Time do MIP
-                    </label>
-                    <select class="form-select" name="mip_team_id">
-                      <option value="">Selecione o time</option>
-                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                    </select>
-                  </div>
-                </div>
-                
-                <!-- 6º Homem -->
-                <div class="row mb-4">
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-person-plus text-primary me-2"></i>6º Homem (Nome do Jogador)
-                    </label>
-                    <input type="text" class="form-control" name="sixth_man_player" placeholder="Ex: Tyler Herro">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label text-white">
-                      <i class="bi bi-people me-2"></i>Time do 6º Homem
-                    </label>
-                    <select class="form-select" name="sixth_man_team_id">
-                      <option value="">Selecione o time</option>
-                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
-                    </select>
-                  </div>
-                </div>
-                
-                <div class="d-grid gap-2">
-                  <button type="submit" class="btn btn-orange btn-lg">
-                    <i class="bi bi-save me-2"></i>Salvar Histórico
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        `;
+        // Separar por conferência
+        const teamsLeste = playoffState.teams.filter(t => t.conference === 'LESTE');
+        const teamsOeste = playoffState.teams.filter(t => t.conference === 'OESTE');
+        
+        // Verificar se há bracket existente
+        let existingBracket = null;
+        try {
+          const bracketData = await fetch(`/api/playoffs.php?action=bracket&season_id=${seasonId}&league=${league}`);
+          const bracketResult = await bracketData.json();
+          if (bracketResult.success && bracketResult.bracket && bracketResult.bracket.length > 0) {
+            existingBracket = bracketResult.bracket;
+          }
+        } catch (e) {}
+        
+        if (existingBracket) {
+          // Já existe bracket - ir para etapa de jogos
+          playoffState.bracket.LESTE = existingBracket.filter(b => b.conference === 'LESTE');
+          playoffState.bracket.OESTE = existingBracket.filter(b => b.conference === 'OESTE');
+          playoffState.step = 2;
+          renderPlayoffStep2();
+        } else {
+          // Não existe - mostrar seleção de classificação
+          renderPlayoffStep1(teamsLeste, teamsOeste);
+        }
       } catch (e) {
         alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    // PASSO 1: Definir classificação da temporada regular (1-8 por conferência)
+    function renderPlayoffStep1(teamsLeste, teamsOeste) {
+      const container = document.getElementById('mainContainer');
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="showLeagueManagement('${playoffState.league}')">
+          <i class="bi bi-arrow-left me-2"></i>Voltar
+        </button>
+        
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h3 class="text-white mb-2">
+              <i class="bi bi-trophy text-orange me-2"></i>
+              Playoffs - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+            </h3>
+            <p class="text-light-gray mb-0">
+              <span class="badge bg-orange me-2">Passo 1 de 4</span>
+              Defina a classificação da temporada regular para cada conferência (1º ao 8º lugar)
+            </p>
+          </div>
+        </div>
+
+        <div class="alert alert-info mb-4">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>Pontos por Classificação:</strong> 1º lugar +4pts | 2º ao 4º +3pts | 5º ao 8º +2pts
+        </div>
+        
+        <div class="row">
+          <!-- CONFERÊNCIA LESTE -->
+          <div class="col-lg-6 mb-4">
+            <div class="card bg-dark border-danger" style="border-radius: 15px;">
+              <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Conferência LESTE</h5>
+              </div>
+              <div class="card-body">
+                ${renderStandingsSelectors('LESTE', teamsLeste)}
+              </div>
+            </div>
+          </div>
+          
+          <!-- CONFERÊNCIA OESTE -->
+          <div class="col-lg-6 mb-4">
+            <div class="card bg-dark border-primary" style="border-radius: 15px;">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Conferência OESTE</h5>
+              </div>
+              <div class="card-body">
+                ${renderStandingsSelectors('OESTE', teamsOeste)}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="d-grid">
+          <button class="btn btn-orange btn-lg" onclick="submitStandings()">
+            <i class="bi bi-arrow-right me-2"></i>Prosseguir para Playoffs
+          </button>
+        </div>
+      `;
+    }
+
+    function renderStandingsSelectors(conference, teams) {
+      let html = '';
+      for (let i = 1; i <= 8; i++) {
+        const pointsLabel = i === 1 ? '+4pts' : (i <= 4 ? '+3pts' : '+2pts');
+        const badgeClass = i === 1 ? 'bg-warning text-dark' : (i <= 4 ? 'bg-success' : 'bg-secondary');
+        
+        html += `
+          <div class="d-flex align-items-center mb-2">
+            <span class="badge ${badgeClass} me-2" style="width: 30px;">${i}º</span>
+            <select class="form-select form-select-sm bg-dark text-white" id="standing_${conference}_${i}" onchange="updateStandingSelectors('${conference}')">
+              <option value="">Selecione o ${i}º lugar</option>
+              ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+            </select>
+            <span class="badge bg-orange ms-2" style="font-size: 0.7rem;">${pointsLabel}</span>
+          </div>
+        `;
+      }
+      return html;
+    }
+
+    function updateStandingSelectors(conference) {
+      const selected = [];
+      for (let i = 1; i <= 8; i++) {
+        const select = document.getElementById(`standing_${conference}_${i}`);
+        if (select && select.value) {
+          selected.push(select.value);
+        }
+      }
+      
+      // Desabilitar opções já selecionadas em outros selects
+      for (let i = 1; i <= 8; i++) {
+        const select = document.getElementById(`standing_${conference}_${i}`);
+        if (select) {
+          const currentValue = select.value;
+          Array.from(select.options).forEach(opt => {
+            if (opt.value && opt.value !== currentValue) {
+              opt.disabled = selected.includes(opt.value);
+            }
+          });
+        }
+      }
+    }
+
+    async function submitStandings() {
+      // Validar seleções
+      const standings = { LESTE: [], OESTE: [] };
+      
+      for (const conf of ['LESTE', 'OESTE']) {
+        for (let i = 1; i <= 8; i++) {
+          const select = document.getElementById(`standing_${conf}_${i}`);
+          if (!select || !select.value) {
+            alert(`Por favor, selecione todos os 8 times da conferência ${conf}`);
+            return;
+          }
+          standings[conf].push({
+            team_id: parseInt(select.value),
+            seed: i
+          });
+        }
+      }
+      
+      playoffState.standings = standings;
+      
+      // Enviar para criar o bracket
+      try {
+        const response = await fetch('/api/playoffs.php?action=setup_bracket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: playoffState.seasonId,
+            league: playoffState.league,
+            standings: standings
+          })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        // Buscar bracket criado
+        const bracketData = await fetch(`/api/playoffs.php?action=bracket&season_id=${playoffState.seasonId}&league=${playoffState.league}`);
+        const bracketResult = await bracketData.json();
+        
+        playoffState.bracket.LESTE = bracketResult.bracket.filter(b => b.conference === 'LESTE');
+        playoffState.bracket.OESTE = bracketResult.bracket.filter(b => b.conference === 'OESTE');
+        
+        playoffState.step = 2;
+        renderPlayoffStep2();
+      } catch (e) {
+        alert('Erro ao criar bracket: ' + (e.message || 'Desconhecido'));
+      }
+    }
+
+    // PASSO 2: Bracket de Playoffs (selecionar vencedores)
+    async function renderPlayoffStep2() {
+      const container = document.getElementById('mainContainer');
+      
+      // Buscar partidas existentes
+      try {
+        const matchesData = await fetch(`/api/playoffs.php?action=matches&season_id=${playoffState.seasonId}&league=${playoffState.league}`);
+        const matchesResult = await matchesData.json();
+        playoffState.matches = matchesResult.matches || [];
+      } catch (e) {
+        playoffState.matches = [];
+      }
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="showLeagueManagement('${playoffState.league}')">
+          <i class="bi bi-arrow-left me-2"></i>Voltar
+        </button>
+        
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h3 class="text-white mb-2">
+              <i class="bi bi-diagram-3 text-orange me-2"></i>
+              Bracket de Playoffs - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+            </h3>
+            <p class="text-light-gray mb-0">
+              <span class="badge bg-orange me-2">Passo 2 de 4</span>
+              Clique em cada confronto para selecionar o vencedor
+            </p>
+          </div>
+        </div>
+
+        <div class="alert alert-info mb-4">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>Pontos Playoffs:</strong> 
+          1ª Rodada +1pt | 2ª Rodada +2pts | Final Conferência +3pts | Vice +2pts | Campeão +5pts
+        </div>
+        
+        <div class="row">
+          <!-- CONFERÊNCIA LESTE -->
+          <div class="col-lg-6 mb-4">
+            <div class="card bg-dark border-danger" style="border-radius: 15px;">
+              <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-trophy me-2"></i>Playoffs LESTE</h5>
+              </div>
+              <div class="card-body">
+                ${renderBracket('LESTE')}
+              </div>
+            </div>
+          </div>
+          
+          <!-- CONFERÊNCIA OESTE -->
+          <div class="col-lg-6 mb-4">
+            <div class="card bg-dark border-primary" style="border-radius: 15px;">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-trophy me-2"></i>Playoffs OESTE</h5>
+              </div>
+              <div class="card-body">
+                ${renderBracket('OESTE')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FINAIS DA LIGA -->
+        <div class="card bg-dark border-warning mb-4" style="border-radius: 15px;">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-trophy-fill me-2"></i>FINAIS DA LIGA</h5>
+          </div>
+          <div class="card-body text-center">
+            ${renderFinals()}
+          </div>
+        </div>
+        
+        <div class="d-grid">
+          <button class="btn btn-orange btn-lg" onclick="goToStep3()" id="btnStep3" disabled>
+            <i class="bi bi-arrow-right me-2"></i>Prosseguir para Prêmios Individuais
+          </button>
+        </div>
+      `;
+      
+      checkFinalsComplete();
+    }
+
+    function renderBracket(conference) {
+      const bracket = playoffState.bracket[conference];
+      if (!bracket || bracket.length === 0) {
+        return '<p class="text-muted">Bracket não configurado</p>';
+      }
+      
+      // Organizar por seed
+      const teamsBySeed = {};
+      bracket.forEach(b => {
+        teamsBySeed[b.seed] = b;
+      });
+      
+      // Formato: 1v8, 4v5, 3v6, 2v7
+      const firstRoundMatchups = [
+        { match: 1, seeds: [1, 8] },
+        { match: 2, seeds: [4, 5] },
+        { match: 3, seeds: [3, 6] },
+        { match: 4, seeds: [2, 7] }
+      ];
+      
+      let html = `<div class="bracket-container">`;
+      
+      // PRIMEIRA RODADA
+      html += `<div class="mb-4"><h6 class="text-warning mb-3">1ª Rodada (+1pt)</h6>`;
+      firstRoundMatchups.forEach(m => {
+        const team1 = teamsBySeed[m.seeds[0]];
+        const team2 = teamsBySeed[m.seeds[1]];
+        const match = getMatch(conference, 'first_round', m.match);
+        html += renderMatchup(conference, 'first_round', m.match, team1, team2, match?.winner_id);
+      });
+      html += `</div>`;
+      
+      // SEMIFINAIS
+      html += `<div class="mb-4"><h6 class="text-info mb-3">Semifinais (+2pts)</h6>`;
+      html += renderMatchup(conference, 'semifinals', 1, null, null, getMatch(conference, 'semifinals', 1)?.winner_id, 'Vencedor 1v8', 'Vencedor 4v5');
+      html += renderMatchup(conference, 'semifinals', 2, null, null, getMatch(conference, 'semifinals', 2)?.winner_id, 'Vencedor 3v6', 'Vencedor 2v7');
+      html += `</div>`;
+      
+      // FINAL DA CONFERÊNCIA
+      html += `<div class="mb-4"><h6 class="text-success mb-3">Final da Conferência (+3pts)</h6>`;
+      html += renderMatchup(conference, 'conference_finals', 1, null, null, getMatch(conference, 'conference_finals', 1)?.winner_id, 'Vencedor Semi 1', 'Vencedor Semi 2');
+      html += `</div>`;
+      
+      html += `</div>`;
+      return html;
+    }
+
+    function getMatch(conference, round, matchNumber) {
+      return playoffState.matches.find(m => 
+        m.conference === conference && 
+        m.round === round && 
+        m.match_number === matchNumber
+      );
+    }
+
+    function getTeamInfo(teamId) {
+      const team = playoffState.teams.find(t => t.id == teamId);
+      return team ? `${team.city} ${team.name}` : 'TBD';
+    }
+
+    function renderMatchup(conference, round, matchNumber, team1, team2, winnerId, placeholder1 = null, placeholder2 = null) {
+      const t1Name = team1 ? `(${team1.seed}) ${getTeamInfo(team1.team_id)}` : placeholder1;
+      const t2Name = team2 ? `(${team2.seed}) ${getTeamInfo(team2.team_id)}` : placeholder2;
+      const t1Id = team1 ? team1.team_id : null;
+      const t2Id = team2 ? team2.team_id : null;
+      
+      // Para rodadas avançadas, buscar vencedores anteriores
+      let actualT1Id = t1Id, actualT2Id = t2Id;
+      let actualT1Name = t1Name, actualT2Name = t2Name;
+      
+      if (round === 'semifinals') {
+        if (matchNumber === 1) {
+          const prev1 = getMatch(conference, 'first_round', 1);
+          const prev2 = getMatch(conference, 'first_round', 2);
+          if (prev1?.winner_id) { actualT1Id = prev1.winner_id; actualT1Name = getTeamInfo(prev1.winner_id); }
+          if (prev2?.winner_id) { actualT2Id = prev2.winner_id; actualT2Name = getTeamInfo(prev2.winner_id); }
+        } else {
+          const prev3 = getMatch(conference, 'first_round', 3);
+          const prev4 = getMatch(conference, 'first_round', 4);
+          if (prev3?.winner_id) { actualT1Id = prev3.winner_id; actualT1Name = getTeamInfo(prev3.winner_id); }
+          if (prev4?.winner_id) { actualT2Id = prev4.winner_id; actualT2Name = getTeamInfo(prev4.winner_id); }
+        }
+      } else if (round === 'conference_finals') {
+        const semi1 = getMatch(conference, 'semifinals', 1);
+        const semi2 = getMatch(conference, 'semifinals', 2);
+        if (semi1?.winner_id) { actualT1Id = semi1.winner_id; actualT1Name = getTeamInfo(semi1.winner_id); }
+        if (semi2?.winner_id) { actualT2Id = semi2.winner_id; actualT2Name = getTeamInfo(semi2.winner_id); }
+      }
+      
+      const canSelect = actualT1Id && actualT2Id;
+      const t1Class = winnerId == actualT1Id ? 'btn-success' : 'btn-outline-light';
+      const t2Class = winnerId == actualT2Id ? 'btn-success' : 'btn-outline-light';
+      
+      return `
+        <div class="matchup mb-2 p-2 bg-dark-panel rounded">
+          <div class="d-flex justify-content-between align-items-center">
+            <button class="btn btn-sm ${t1Class} flex-grow-1 me-1 ${!canSelect ? 'disabled' : ''}" 
+                    onclick="selectWinner('${conference}', '${round}', ${matchNumber}, ${actualT1Id})"
+                    ${!canSelect ? 'disabled' : ''}>
+              ${actualT1Name || 'TBD'}
+            </button>
+            <span class="text-muted mx-1">vs</span>
+            <button class="btn btn-sm ${t2Class} flex-grow-1 ms-1 ${!canSelect ? 'disabled' : ''}"
+                    onclick="selectWinner('${conference}', '${round}', ${matchNumber}, ${actualT2Id})"
+                    ${!canSelect ? 'disabled' : ''}>
+              ${actualT2Name || 'TBD'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFinals() {
+      const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
+      const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
+      const finalsMatch = getMatch('FINALS', 'finals', 1);
+      
+      const lesteTeam = lesteChamp?.winner_id ? getTeamInfo(lesteChamp.winner_id) : 'Campeão LESTE';
+      const oesteTeam = oesteChamp?.winner_id ? getTeamInfo(oesteChamp.winner_id) : 'Campeão OESTE';
+      
+      const canSelect = lesteChamp?.winner_id && oesteChamp?.winner_id;
+      const lesteClass = finalsMatch?.winner_id == lesteChamp?.winner_id ? 'btn-warning' : 'btn-outline-danger';
+      const oesteClass = finalsMatch?.winner_id == oesteChamp?.winner_id ? 'btn-warning' : 'btn-outline-primary';
+      
+      return `
+        <div class="finals-matchup p-3">
+          <div class="d-flex justify-content-center align-items-center gap-3">
+            <button class="btn btn-lg ${lesteClass} ${!canSelect ? 'disabled' : ''}"
+                    onclick="selectFinalWinner(${lesteChamp?.winner_id})"
+                    ${!canSelect ? 'disabled' : ''}>
+              <i class="bi bi-trophy me-2"></i>${lesteTeam}
+            </button>
+            <span class="text-warning fs-4 fw-bold">VS</span>
+            <button class="btn btn-lg ${oesteClass} ${!canSelect ? 'disabled' : ''}"
+                    onclick="selectFinalWinner(${oesteChamp?.winner_id})"
+                    ${!canSelect ? 'disabled' : ''}>
+              ${oesteTeam}<i class="bi bi-trophy ms-2"></i>
+            </button>
+          </div>
+          ${finalsMatch?.winner_id ? `
+            <div class="mt-3">
+              <span class="badge bg-warning text-dark fs-5 p-2">
+                <i class="bi bi-trophy-fill me-2"></i>CAMPEÃO: ${getTeamInfo(finalsMatch.winner_id)}
+              </span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    async function selectWinner(conference, round, matchNumber, winnerId) {
+      if (!winnerId) return;
+      
+      try {
+        // Determinar os times do confronto
+        let team1Id, team2Id;
+        const bracket = playoffState.bracket[conference];
+        
+        if (round === 'first_round') {
+          const matchups = [[1,8], [4,5], [3,6], [2,7]];
+          const seeds = matchups[matchNumber - 1];
+          team1Id = bracket.find(b => b.seed == seeds[0])?.team_id;
+          team2Id = bracket.find(b => b.seed == seeds[1])?.team_id;
+        } else if (round === 'semifinals') {
+          if (matchNumber === 1) {
+            team1Id = getMatch(conference, 'first_round', 1)?.winner_id;
+            team2Id = getMatch(conference, 'first_round', 2)?.winner_id;
+          } else {
+            team1Id = getMatch(conference, 'first_round', 3)?.winner_id;
+            team2Id = getMatch(conference, 'first_round', 4)?.winner_id;
+          }
+        } else if (round === 'conference_finals') {
+          team1Id = getMatch(conference, 'semifinals', 1)?.winner_id;
+          team2Id = getMatch(conference, 'semifinals', 2)?.winner_id;
+        }
+        
+        const response = await fetch('/api/playoffs.php?action=record_result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: playoffState.seasonId,
+            league: playoffState.league,
+            conference: conference,
+            round: round,
+            match_number: matchNumber,
+            team1_id: team1Id,
+            team2_id: team2Id,
+            winner_id: winnerId
+          })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        // Recarregar a tela
+        renderPlayoffStep2();
+      } catch (e) {
+        alert('Erro ao registrar resultado: ' + (e.message || 'Desconhecido'));
+      }
+    }
+
+    async function selectFinalWinner(winnerId) {
+      if (!winnerId) return;
+      
+      const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
+      const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
+      
+      try {
+        const response = await fetch('/api/playoffs.php?action=record_result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: playoffState.seasonId,
+            league: playoffState.league,
+            conference: 'FINALS',
+            round: 'finals',
+            match_number: 1,
+            team1_id: lesteChamp.winner_id,
+            team2_id: oesteChamp.winner_id,
+            winner_id: winnerId
+          })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        renderPlayoffStep2();
+      } catch (e) {
+        alert('Erro ao registrar campeão: ' + (e.message || 'Desconhecido'));
+      }
+    }
+
+    function checkFinalsComplete() {
+      const finalsMatch = getMatch('FINALS', 'finals', 1);
+      const btn = document.getElementById('btnStep3');
+      if (btn) {
+        btn.disabled = !finalsMatch?.winner_id;
+      }
+    }
+
+    function goToStep3() {
+      playoffState.step = 3;
+      renderPlayoffStep3();
+    }
+
+    // PASSO 3: Prêmios Individuais
+    function renderPlayoffStep3() {
+      const container = document.getElementById('mainContainer');
+      const teams = playoffState.teams;
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="renderPlayoffStep2()">
+          <i class="bi bi-arrow-left me-2"></i>Voltar ao Bracket
+        </button>
+        
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h3 class="text-white mb-2">
+              <i class="bi bi-award text-orange me-2"></i>
+              Prêmios Individuais - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+            </h3>
+            <p class="text-light-gray mb-0">
+              <span class="badge bg-orange me-2">Passo 3 de 4</span>
+              Registre os prêmios individuais da temporada (+1 ponto cada para o time)
+            </p>
+          </div>
+        </div>
+
+        <div class="card bg-dark border-warning mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <form id="awardsForm">
+              <!-- MVP -->
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label class="form-label text-white">
+                    <i class="bi bi-star-fill text-warning me-2"></i>MVP (+1pt para o time)
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white" name="mvp_player" placeholder="Nome do jogador">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-white">Time do MVP</label>
+                  <select class="form-select bg-dark text-white" name="mvp_team_id">
+                    <option value="">Selecione o time</option>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              
+              <!-- DPOY -->
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label class="form-label text-white">
+                    <i class="bi bi-shield-fill text-info me-2"></i>DPOY (+1pt para o time)
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white" name="dpoy_player" placeholder="Nome do jogador">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-white">Time do DPOY</label>
+                  <select class="form-select bg-dark text-white" name="dpoy_team_id">
+                    <option value="">Selecione o time</option>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              
+              <!-- MIP -->
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label class="form-label text-white">
+                    <i class="bi bi-graph-up-arrow text-success me-2"></i>MIP (+1pt para o time)
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white" name="mip_player" placeholder="Nome do jogador">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-white">Time do MIP</label>
+                  <select class="form-select bg-dark text-white" name="mip_team_id">
+                    <option value="">Selecione o time</option>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              
+              <!-- 6º Homem -->
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <label class="form-label text-white">
+                    <i class="bi bi-person-plus text-primary me-2"></i>6º Homem (+1pt para o time)
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white" name="sixth_man_player" placeholder="Nome do jogador">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-white">Time do 6º Homem</label>
+                  <select class="form-select bg-dark text-white" name="sixth_man_team_id">
+                    <option value="">Selecione o time</option>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <div class="d-grid">
+          <button class="btn btn-orange btn-lg" onclick="goToStep4()">
+            <i class="bi bi-arrow-right me-2"></i>Revisar e Finalizar
+          </button>
+        </div>
+      `;
+    }
+
+    function goToStep4() {
+      // Salvar dados do formulário
+      const form = document.getElementById('awardsForm');
+      const formData = new FormData(form);
+      
+      playoffState.awards = {
+        mvp_player: formData.get('mvp_player') || null,
+        mvp_team_id: formData.get('mvp_team_id') || null,
+        dpoy_player: formData.get('dpoy_player') || null,
+        dpoy_team_id: formData.get('dpoy_team_id') || null,
+        mip_player: formData.get('mip_player') || null,
+        mip_team_id: formData.get('mip_team_id') || null,
+        sixth_man_player: formData.get('sixth_man_player') || null,
+        sixth_man_team_id: formData.get('sixth_man_team_id') || null
+      };
+      
+      playoffState.step = 4;
+      renderPlayoffStep4();
+    }
+
+    // PASSO 4: Revisão e Finalização
+    async function renderPlayoffStep4() {
+      const container = document.getElementById('mainContainer');
+      const finalsMatch = getMatch('FINALS', 'finals', 1);
+      const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
+      const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
+      
+      const champion = finalsMatch?.winner_id;
+      const runnerUp = champion == lesteChamp?.winner_id ? oesteChamp?.winner_id : lesteChamp?.winner_id;
+      
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="renderPlayoffStep3()">
+          <i class="bi bi-arrow-left me-2"></i>Voltar aos Prêmios
+        </button>
+        
+        <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+          <div class="card-body">
+            <h3 class="text-white mb-2">
+              <i class="bi bi-check-circle text-orange me-2"></i>
+              Revisão Final - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+            </h3>
+            <p class="text-light-gray mb-0">
+              <span class="badge bg-orange me-2">Passo 4 de 4</span>
+              Revise os dados e clique em Finalizar para salvar e calcular todos os pontos
+            </p>
+          </div>
+        </div>
+
+        <!-- Resumo dos Playoffs -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="card bg-dark border-warning h-100">
+              <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-trophy-fill me-2"></i>Resultado dos Playoffs</h5>
+              </div>
+              <div class="card-body">
+                <p class="mb-2"><strong class="text-warning">Campeão (+5pts):</strong> <span class="text-white">${champion ? getTeamInfo(champion) : 'N/A'}</span></p>
+                <p class="mb-2"><strong class="text-secondary">Vice-Campeão (+2pts):</strong> <span class="text-white">${runnerUp ? getTeamInfo(runnerUp) : 'N/A'}</span></p>
+                <p class="mb-2"><strong class="text-success">Finalista LESTE (+3pts):</strong> <span class="text-white">${lesteChamp?.winner_id ? getTeamInfo(lesteChamp.winner_id) : 'N/A'}</span></p>
+                <p class="mb-0"><strong class="text-primary">Finalista OESTE (+3pts):</strong> <span class="text-white">${oesteChamp?.winner_id ? getTeamInfo(oesteChamp.winner_id) : 'N/A'}</span></p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card bg-dark border-info h-100">
+              <div class="card-header bg-info text-dark">
+                <h5 class="mb-0"><i class="bi bi-award me-2"></i>Prêmios Individuais</h5>
+              </div>
+              <div class="card-body">
+                ${playoffState.awards.mvp_player ? `<p class="mb-2"><strong class="text-warning">MVP:</strong> <span class="text-white">${playoffState.awards.mvp_player}</span></p>` : ''}
+                ${playoffState.awards.dpoy_player ? `<p class="mb-2"><strong class="text-info">DPOY:</strong> <span class="text-white">${playoffState.awards.dpoy_player}</span></p>` : ''}
+                ${playoffState.awards.mip_player ? `<p class="mb-2"><strong class="text-success">MIP:</strong> <span class="text-white">${playoffState.awards.mip_player}</span></p>` : ''}
+                ${playoffState.awards.sixth_man_player ? `<p class="mb-0"><strong class="text-primary">6º Homem:</strong> <span class="text-white">${playoffState.awards.sixth_man_player}</span></p>` : ''}
+                ${!playoffState.awards.mvp_player && !playoffState.awards.dpoy_player && !playoffState.awards.mip_player && !playoffState.awards.sixth_man_player ? '<p class="text-muted mb-0">Nenhum prêmio registrado</p>' : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resumo de Pontos -->
+        <div class="card bg-dark border-success mb-4">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Sistema de Pontuação</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <h6 class="text-warning">Playoffs</h6>
+                <ul class="list-unstyled text-light-gray small">
+                  <li>• Campeão: +5 pts</li>
+                  <li>• Vice-Campeão: +2 pts</li>
+                  <li>• Finalista Conferência: +3 pts</li>
+                  <li>• Semifinalista: +2 pts</li>
+                  <li>• 1ª Rodada: +1 pt</li>
+                </ul>
+              </div>
+              <div class="col-md-4">
+                <h6 class="text-info">Temporada Regular</h6>
+                <ul class="list-unstyled text-light-gray small">
+                  <li>• 1º Lugar: +4 pts</li>
+                  <li>• 2º ao 4º Lugar: +3 pts</li>
+                  <li>• 5º ao 8º Lugar: +2 pts</li>
+                </ul>
+              </div>
+              <div class="col-md-4">
+                <h6 class="text-success">Prêmios Individuais</h6>
+                <ul class="list-unstyled text-light-gray small">
+                  <li>• MVP: +1 pt</li>
+                  <li>• DPOY: +1 pt</li>
+                  <li>• MIP: +1 pt</li>
+                  <li>• 6º Homem: +1 pt</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="d-grid">
+          <button class="btn btn-success btn-lg" onclick="finalizePlayoffs()" id="btnFinalize">
+            <i class="bi bi-check-circle me-2"></i>Finalizar e Calcular Pontos
+          </button>
+        </div>
+      `;
+    }
+
+    async function finalizePlayoffs() {
+      const btn = document.getElementById('btnFinalize');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
+      
+      try {
+        // 1. Salvar prêmios individuais
+        await fetch('/api/playoffs.php?action=save_awards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: playoffState.seasonId,
+            league: playoffState.league,
+            awards: playoffState.awards
+          })
+        });
+        
+        // 2. Finalizar e calcular pontos
+        const response = await fetch('/api/playoffs.php?action=finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: playoffState.seasonId,
+            league: playoffState.league
+          })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        alert('Playoffs finalizados com sucesso! Todos os pontos foram calculados e aplicados.');
+        showLeagueManagement(playoffState.league);
+      } catch (e) {
+        alert('Erro ao finalizar playoffs: ' + (e.message || 'Desconhecido'));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Finalizar e Calcular Pontos';
       }
     }
 
@@ -1011,46 +1689,6 @@ if (!$team) {
     }
 
     // ========== SALVAR HISTÓRICO ==========
-    async function saveHistory(event, seasonId, league) {
-      event.preventDefault();
-      
-      const form = event.target;
-      const formData = new FormData(form);
-
-      const data = {
-        season_id: seasonId,
-        league: league,
-        champion_team_id: formData.get('champion_team_id') || null,
-        runner_up_team_id: formData.get('runner_up_team_id') || null,
-        mvp_player: formData.get('mvp_player') || null,
-        mvp_team_id: formData.get('mvp_team_id') || null,
-        dpoy_player: formData.get('dpoy_player') || null,
-        dpoy_team_id: formData.get('dpoy_team_id') || null,
-        mip_player: formData.get('mip_player') || null,
-        mip_team_id: formData.get('mip_team_id') || null,
-        sixth_man_player: formData.get('sixth_man_player') || null,
-        sixth_man_team_id: formData.get('sixth_man_team_id') || null
-      };
-
-      try {
-        const response = await fetch('/api/history-points.php?action=save_history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error);
-        }
-
-        alert('Histórico salvo com sucesso!');
-        showLeagueManagement(league);
-      } catch (e) {
-        alert('Erro ao salvar histórico: ' + (e.message || 'Desconhecido'));
-      }
-    }
-
     // ========== GERENCIAR SESSÃO DE DRAFT ==========
     async function showDraftSessionManagement(seasonId, league) {
       currentSeasonId = seasonId;
