@@ -99,8 +99,8 @@ $picks = $stmtPicks->fetchAll();
             </li>
             <li>
                 <a href="/free-agency.php">
-                    <i class="bi bi-person-plus-fill"></i>
-                    Free Agency
+                    <i class="bi bi-hammer"></i>
+                    Leilões
                 </a>
             </li>
             <li>

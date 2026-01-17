@@ -207,8 +207,8 @@ try {
             </li>
             <li>
                 <a href="/free-agency.php">
-                    <i class="bi bi-person-plus-fill"></i>
-                    Free Agency
+                    <i class="bi bi-hammer"></i>
+                    Leilões
                 </a>
             </li>
             <li>
@@ -274,7 +274,11 @@ try {
                 <h1 class="text-white fw-bold mb-2">Dashboard</h1>
                 <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="badge bg-success" style="font-size: 1rem; padding: 0.6rem 1rem;">
+                    <i class="bi bi-coin me-1"></i>
+                    <?= (int)($team['ranking_points'] ?? 0) ?> pts
+                </span>
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>

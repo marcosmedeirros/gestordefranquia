@@ -10,6 +10,7 @@ $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 $teamId = $team['id'] ?? null;
+$teamPoints = (int)($team['ranking_points'] ?? 0);
 
 $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 ?>
@@ -19,153 +20,64 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
   <meta charset="UTF-8" />
   <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <meta name="theme-color" content="#fc0025">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="FBA Manager">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/img/icon-192x192.png">
-  <title>Free Agency - FBA Manager</title>
+  <title>Leiloes - FBA Manager</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
-    .fa-card {
-      background: var(--fba-panel);
-      border: 1px solid var(--fba-border);
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      transition: all 0.3s ease;
-    }
-    .fa-card:hover {
-      border-color: var(--fba-orange);
-      transform: translateY(-2px);
-    }
-    .fa-card .player-name {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: white;
-    }
-    .fa-card .player-ovr {
-      font-size: 1.5rem;
-      font-weight: bold;
-    }
-    .fa-card .player-info {
-      color: var(--fba-text-muted);
-      font-size: 0.9rem;
-    }
-    .fa-card.auction-card {
-      position: relative;
-      overflow: hidden;
-    }
-    .fa-card.auction-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--fba-orange), #ff6b00);
-    }
-    .fa-card.border-success {
-      border-color: #28a745 !important;
-    }
-    .fa-card.border-success::before {
-      background: linear-gradient(90deg, #28a745, #20c997);
-    }
-    .auction-info {
-      border: 1px solid var(--fba-border);
-    }
-    .offer-card {
-      background: rgba(241, 117, 7, 0.1);
-      border: 1px solid var(--fba-orange);
-      border-radius: 8px;
-      padding: 0.75rem;
-      margin-bottom: 0.5rem;
-    }
-    .nav-tabs {
-      border-bottom: 2px solid var(--fba-border);
-    }
-    .nav-tabs .nav-link {
-      background: transparent;
-      border: none;
-      color: var(--fba-text-muted);
-      font-weight: 500;
-      padding: 12px 24px;
-      border-bottom: 3px solid transparent;
-      margin-bottom: -2px;
-    }
-    .nav-tabs .nav-link:hover {
-      background: rgba(241, 117, 7, 0.1);
-      color: var(--fba-orange);
-    }
-    .nav-tabs .nav-link.active {
-      background: rgba(241, 117, 7, 0.15);
-      color: var(--fba-orange);
-      border-bottom-color: var(--fba-orange);
-    }
-    .limit-badge {
-      font-size: 0.85rem;
-      padding: 6px 12px;
-    }
+    .fa-card { background: var(--fba-panel); border: 1px solid var(--fba-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; transition: all 0.3s ease; }
+    .fa-card:hover { border-color: var(--fba-orange); transform: translateY(-2px); }
+    .fa-card.auction-card { position: relative; overflow: hidden; }
+    .fa-card.auction-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--fba-orange), #ff6b00); }
+    .fa-card.border-success { border-color: #28a745 !important; }
+    .fa-card.border-success::before { background: linear-gradient(90deg, #28a745, #20c997); }
+    .points-badge { font-size: 1rem; padding: 8px 16px; }
+    .auction-timer.ending-soon { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   </style>
 </head>
 <body>
-  <!-- Sidebar -->
   <div class="dashboard-sidebar">
     <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
-           alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
+      <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
       <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
       <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
     </div>
-
     <hr style="border-color: var(--fba-border);">
-
     <ul class="sidebar-menu">
       <li><a href="/dashboard.php"><i class="bi bi-house-door-fill"></i>Dashboard</a></li>
       <li><a href="/teams.php"><i class="bi bi-people-fill"></i>Times</a></li>
       <li><a href="/my-roster.php"><i class="bi bi-person-badge-fill"></i>Meu Elenco</a></li>
       <li><a href="/picks.php"><i class="bi bi-trophy-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
-      <li><a href="/free-agency.php" class="active"><i class="bi bi-person-plus-fill"></i>Free Agency</a></li>
+      <li><a href="/free-agency.php" class="active"><i class="bi bi-hammer"></i>Leiloes</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
-      <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
+      <li><a href="/history.php"><i class="bi bi-clock-history"></i>Historico</a></li>
       <?php if ($isAdmin): ?>
       <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
       <li><a href="/temporadas.php"><i class="bi bi-calendar3"></i>Temporadas</a></li>
       <?php endif; ?>
-      <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
+      <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configuracoes</a></li>
     </ul>
-
     <hr style="border-color: var(--fba-border);">
     <div class="text-center">
       <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-box-arrow-right me-2"></i>Sair</a>
     </div>
-    <div class="text-center mt-3">
-      <small class="text-light-gray"><i class="bi bi-person-circle me-1"></i><?= htmlspecialchars($user['name']) ?></small>
-    </div>
   </div>
 
-  <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h1 class="text-white fw-bold mb-0"><i class="bi bi-person-plus-fill me-2 text-orange"></i>Free Agency</h1>
+        <h1 class="text-white fw-bold mb-0"><i class="bi bi-hammer me-2 text-orange"></i>Leiloes</h1>
         <div class="d-flex gap-2 align-items-center">
-          <span class="badge bg-secondary limit-badge" id="waivers-badge">
-            <i class="bi bi-person-dash me-1"></i>Dispensas: <span id="waivers-count">0/3</span>
+          <span class="badge bg-orange points-badge">
+            <i class="bi bi-coin me-1"></i>Seus Pontos: <span id="available-points"><?= $teamPoints ?></span>
           </span>
-          <span class="badge bg-success limit-badge" id="signings-badge">
-            <i class="bi bi-person-plus me-1"></i>Contratações: <span id="signings-count">0/3</span>
-          </span>
-          <span id="team-points-display"></span>
           <?php if ($isAdmin): ?>
-          <button class="btn btn-orange" id="btn-open-create-fa">
-            <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
+          <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#adminAuctionModal">
+            <i class="bi bi-gear me-1"></i>Gerenciar Leiloes
           </button>
           <?php endif; ?>
         </div>
@@ -173,211 +85,126 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     </div>
 
     <?php if (!$teamId): ?>
-      <div class="alert alert-warning">Você ainda não possui um time.</div>
+      <div class="alert alert-warning">Voce ainda nao possui um time.</div>
     <?php else: ?>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="faTabs" role="tablist">
-      <li class="nav-item">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#auctions">
-          <i class="bi bi-hammer me-1 text-orange"></i>Leilões
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#available">
-          <i class="bi bi-people me-1"></i>Disponíveis
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#my-offers">
-          <i class="bi bi-send me-1"></i>Minhas Propostas
-        </button>
-      </li>
-      <?php if ($isAdmin): ?>
-      <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin-offers">
-          <i class="bi bi-shield-check me-1"></i>Gerenciar Propostas
-        </button>
-      </li>
-      <?php endif; ?>
-    </ul>
-
-    <div class="tab-content">
-      <!-- Leilões Ativos -->
-      <div class="tab-pane fade show active" id="auctions">
-        <div class="mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <p class="text-light-gray mb-0">
-              <i class="bi bi-info-circle me-1"></i>
-              Use seus pontos de ranking para dar lances nos jogadores. O maior lance vence quando o tempo acabar!
-            </p>
-            <button class="btn btn-outline-orange btn-sm" onclick="loadActiveAuctions()">
-              <i class="bi bi-arrow-repeat"></i> Atualizar
-            </button>
-          </div>
-        </div>
-        <div id="auctions-list" class="row">
-          <div class="col-12 text-center py-5">
-            <div class="spinner-border text-orange"></div>
-          </div>
+    <div class="alert alert-info bg-dark border-orange mb-4">
+      <div class="d-flex align-items-start">
+        <i class="bi bi-info-circle-fill text-orange me-3 fs-4"></i>
+        <div>
+          <h6 class="text-white mb-1">Como funciona o Leilao?</h6>
+          <ul class="text-light-gray mb-0 small">
+            <li>Cada leilao dura <strong class="text-orange">20 minutos</strong></li>
+            <li>O lance inicial e de <strong class="text-orange">1 ponto</strong></li>
+            <li>Para dar um lance, voce precisa cobrir o lance atual</li>
+            <li>Quando o tempo acabar, o <strong class="text-success">maior lance vence</strong></li>
+            <li>Os pontos sao deduzidos apenas do vencedor</li>
+          </ul>
         </div>
       </div>
+    </div>
 
-      <!-- Free Agents Disponíveis -->
-      <div class="tab-pane fade" id="available">
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <input type="text" class="form-control bg-dark text-white border-orange" 
-                   id="search-fa" placeholder="Buscar jogador...">
-          </div>
-          <div class="col-md-3">
-            <select class="form-select bg-dark text-white border-orange" id="filter-position">
-              <option value="">Todas posições</option>
-              <option value="PG">PG</option>
-              <option value="SG">SG</option>
-              <option value="SF">SF</option>
-              <option value="PF">PF</option>
-              <option value="C">C</option>
-            </select>
-          </div>
-        </div>
-        <div id="fa-list" class="row">
-          <div class="col-12 text-center py-5">
-            <div class="spinner-border text-orange"></div>
-          </div>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="text-white mb-0"><i class="bi bi-broadcast text-success me-2"></i>Leiloes Ativos</h4>
+      <button class="btn btn-outline-orange btn-sm" onclick="loadActiveAuctions()">
+        <i class="bi bi-arrow-repeat"></i> Atualizar
+      </button>
+    </div>
+    
+    <div id="auctions-list" class="row">
+      <div class="col-12 text-center py-5">
+        <div class="spinner-border text-orange"></div>
       </div>
+    </div>
 
-      <!-- Minhas Propostas -->
-      <div class="tab-pane fade" id="my-offers">
-        <div id="my-offers-list">
-          <div class="text-center py-5">
-            <div class="spinner-border text-orange"></div>
-          </div>
-        </div>
+    <div class="mt-5">
+      <h4 class="text-white mb-3"><i class="bi bi-clock-history text-secondary me-2"></i>Leiloes Recentes</h4>
+      <div id="recent-auctions-list">
+        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
       </div>
-
-      <?php if ($isAdmin): ?>
-      <!-- Admin: Gerenciar Propostas -->
-      <div class="tab-pane fade" id="admin-offers">
-        <div id="admin-offers-list">
-          <div class="text-center py-5">
-            <div class="spinner-border text-orange"></div>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
     </div>
 
     <?php endif; ?>
   </div>
 
   <?php if ($isAdmin): ?>
-  <!-- Modal: Criar Free Agent -->
-  <div class="modal fade" id="createFaModal" tabindex="-1">
-    <div class="modal-dialog">
+  <div class="modal fade" id="adminAuctionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content bg-dark-panel border-orange">
         <div class="modal-header border-bottom border-orange">
-          <h5 class="modal-title text-white"><i class="bi bi-person-plus-fill me-2 text-orange"></i>Novo Free Agent</h5>
+          <h5 class="modal-title text-white"><i class="bi bi-gear me-2 text-orange"></i>Gerenciar Leiloes</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <form id="createFaForm">
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Nome</label>
-              <input type="text" class="form-control bg-dark text-white border-orange" id="faName" required>
+          <div class="mb-4">
+            <h6 class="text-orange mb-3"><i class="bi bi-plus-circle me-1"></i>Cadastrar Jogador e Iniciar Leilao</h6>
+            <form id="createAuctionForm">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label text-light-gray">Nome do Jogador</label>
+                  <input type="text" class="form-control bg-dark text-white border-orange" id="auctionPlayerName" required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label text-light-gray">Idade</label>
+                  <input type="number" class="form-control bg-dark text-white border-orange" id="auctionPlayerAge" min="18" max="45" value="25" required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label text-light-gray">OVR</label>
+                  <input type="number" class="form-control bg-dark text-white border-orange" id="auctionPlayerOvr" min="40" max="99" value="70" required>
+                </div>
+              </div>
+              <div class="row g-3 mt-1">
+                <div class="col-md-4">
+                  <label class="form-label text-light-gray">Posicao</label>
+                  <select class="form-select bg-dark text-white border-orange" id="auctionPlayerPosition" required>
+                    <option value="PG">PG - Armador</option>
+                    <option value="SG">SG - Ala-Armador</option>
+                    <option value="SF">SF - Ala</option>
+                    <option value="PF">PF - Ala-Pivo</option>
+                    <option value="C">C - Pivo</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-light-gray">Posicao Secundaria</label>
+                  <select class="form-select bg-dark text-white border-orange" id="auctionPlayerSecondary">
+                    <option value="">Nenhuma</option>
+                    <option value="PG">PG</option>
+                    <option value="SG">SG</option>
+                    <option value="SF">SF</option>
+                    <option value="PF">PF</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-light-gray">Liga</label>
+                  <select class="form-select bg-dark text-white border-orange" id="auctionPlayerLeague">
+                    <option value="ELITE">ELITE</option>
+                    <option value="NEXT">NEXT</option>
+                    <option value="RISE">RISE</option>
+                    <option value="ROOKIE">ROOKIE</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button type="submit" class="btn btn-orange">
+                  <i class="bi bi-hammer me-1"></i>Cadastrar e Iniciar Leilao (20 min)
+                </button>
+              </div>
+            </form>
+          </div>
+          <hr class="border-orange">
+          <div>
+            <h6 class="text-orange mb-3"><i class="bi bi-broadcast me-1"></i>Leiloes em Andamento</h6>
+            <div id="admin-auctions-list">
+              <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-orange"></div></div>
             </div>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">Idade</label>
-                <input type="number" class="form-control bg-dark text-white border-orange" id="faAge" min="16" max="45" value="25" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">OVR</label>
-                <input type="number" class="form-control bg-dark text-white border-orange" id="faOvr" min="40" max="99" value="70" required>
-              </div>
-            </div>
-            <div class="row g-3 mt-1">
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">Posição</label>
-                <select class="form-select bg-dark text-white border-orange" id="faPosition" required>
-                  <option value="PG">PG - Armador</option>
-                  <option value="SG">SG - Ala-Armador</option>
-                  <option value="SF">SF - Ala</option>
-                  <option value="PF">PF - Ala-Pivô</option>
-                  <option value="C">C - Pivô</option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">Posição Secundária</label>
-                <select class="form-select bg-dark text-white border-orange" id="faSecondary">
-                  <option value="">Nenhuma</option>
-                  <option value="PG">PG - Armador</option>
-                  <option value="SG">SG - Ala-Armador</option>
-                  <option value="SF">SF - Ala</option>
-                  <option value="PF">PF - Ala-Pivô</option>
-                  <option value="C">C - Pivô</option>
-                </select>
-              </div>
-            </div>
-            <div class="row g-3 mt-1">
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">Liga</label>
-                <select class="form-select bg-dark text-white border-orange" id="faLeague">
-                  <option value="ELITE">ELITE</option>
-                  <option value="NEXT">NEXT</option>
-                  <option value="RISE">RISE</option>
-                  <option value="ROOKIE">ROOKIE</option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label text-light-gray">Ex-time (opcional)</label>
-                <input type="text" class="form-control bg-dark text-white border-orange" id="faOriginal" placeholder="Cidade Time">
-              </div>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer border-top border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" id="btn-create-fa">
-            <i class="bi bi-check2-circle me-1"></i>Adicionar
-          </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
   <?php endif; ?>
 
-  <!-- Modal: Enviar Proposta -->
-  <div class="modal fade" id="offerModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-dark-panel border-orange">
-        <div class="modal-header border-bottom border-orange">
-          <h5 class="modal-title text-white"><i class="bi bi-send me-2 text-orange"></i>Enviar Proposta</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="text-light-gray">Enviar proposta para contratar:</p>
-          <h5 class="text-white" id="offer-player-name"></h5>
-          <p class="text-light-gray" id="offer-player-info"></p>
-          <input type="hidden" id="offer-fa-id">
-          <div class="mb-3">
-            <label class="form-label text-white">Mensagem (opcional)</label>
-            <textarea class="form-control bg-dark text-white border-orange" id="offer-notes" rows="2" 
-                      placeholder="Ex: Preciso dele para reforçar o banco..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer border-top border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" id="btn-send-offer">
-            <i class="bi bi-send me-1"></i>Enviar Proposta
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Fazer Lance em Leilão -->
   <div class="modal fade" id="bidModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content bg-dark-panel border-orange">
@@ -387,11 +214,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         </div>
         <div class="modal-body">
           <input type="hidden" id="bid-auction-id">
-          
           <div class="text-center mb-4">
             <h4 class="text-white mb-0" id="bid-player-name"></h4>
+            <small class="text-light-gray" id="bid-player-info"></small>
           </div>
-          
           <div class="row g-3 mb-4">
             <div class="col-6">
               <div class="bg-dark rounded p-3 text-center">
@@ -408,16 +234,13 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
               </div>
             </div>
           </div>
-          
           <div class="mb-3">
-            <label class="form-label text-white">Seu Lance (mínimo: <span id="bid-min">1</span> pts)</label>
-            <input type="number" class="form-control bg-dark text-white border-orange fs-4 text-center" 
-                   id="bid-amount" min="1" step="1" required>
+            <label class="form-label text-white">Seu Lance (minimo: <span class="text-orange" id="bid-min">1</span> pts)</label>
+            <input type="number" class="form-control bg-dark text-white border-orange fs-4 text-center" id="bid-amount" min="1" step="1" required>
           </div>
-          
           <div class="alert alert-warning small mb-0">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            Os pontos serão reservados enquanto o leilão estiver ativo. Se você perder, os pontos voltam. Se vencer, os pontos são deduzidos e você recebe o jogador!
+            Se voce vencer, os pontos serao deduzidos e voce recebe o jogador!
           </div>
         </div>
         <div class="modal-footer border-top border-orange">
@@ -434,6 +257,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__IS_ADMIN__ = <?= $isAdmin ? 'true' : 'false' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
+    window.__TEAM_POINTS__ = <?= $teamPoints ?>;
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>

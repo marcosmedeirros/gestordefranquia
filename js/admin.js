@@ -58,8 +58,8 @@ function updateBreadcrumb() {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>';
       pageTitle.textContent = 'Rankings Globais';
     } else if (appState.view === 'freeagency') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>';
-      pageTitle.textContent = 'Aprovar Free Agency';
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>';
+      pageTitle.textContent = 'Gerenciar Leilões';
     }
   }
 }

@@ -695,6 +695,54 @@ if ($method === 'GET' && ($action ?? '') === 'team_points') {
     exit;
 }
 
+// GET - get_team_points (alias for team_points for compatibility)
+if ($method === 'GET' && ($action ?? '') === 'get_team_points') {
+    if (!$teamId) {
+        echo json_encode(['success' => true, 'available_points' => 0]);
+        exit;
+    }
+    
+    $stmt = $pdo->prepare("SELECT COALESCE(ranking_points, 0) as points FROM teams WHERE id = ?");
+    $stmt->execute([$teamId]);
+    $result = $stmt->fetch();
+    
+    echo json_encode([
+        'success' => true, 
+        'available_points' => (int)($result['points'] ?? 0)
+    ]);
+    exit;
+}
+
+// GET - Leilões recentes (finalizados)
+if ($method === 'GET' && ($action ?? '') === 'recent_auctions') {
+    $league = $_GET['league'] ?? $userLeague;
+    
+    $stmt = $pdo->prepare("
+        SELECT a.*,
+               wt.name as winner_team_name,
+               wt.city as winner_team_city,
+               (SELECT MAX(bid_amount) FROM free_agency_bids WHERE auction_id = a.id) as winning_bid
+        FROM free_agency_auctions a
+        LEFT JOIN free_agency_bids wb ON wb.auction_id = a.id AND wb.is_winning = 1
+        LEFT JOIN teams wt ON wt.id = wb.team_id
+        WHERE a.league = ?
+        AND a.status IN ('completed', 'cancelled')
+        ORDER BY a.end_time DESC
+        LIMIT 20
+    ");
+    $stmt->execute([$league]);
+    $auctions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Formatar saída
+    foreach ($auctions as &$a) {
+        $a['winner_team_name'] = $a['winner_team_city'] ? ($a['winner_team_city'] . ' ' . $a['winner_team_name']) : $a['winner_team_name'];
+        unset($a['winner_team_city']);
+    }
+    
+    echo json_encode(['success' => true, 'auctions' => $auctions]);
+    exit;
+}
+
 // POST - Ações de leilão
 if ($method === 'POST') {
     $action = $_POST['action'] ?? ($data['action'] ?? '');

@@ -114,7 +114,7 @@ try {
             <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a></li>
             <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a></li>
             <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a></li>
-            <li><a href="/free-agency.php"><i class="bi bi-person-plus-fill"></i> Free Agency</a></li>
+            <li><a href="/free-agency.php"><i class="bi bi-hammer"></i> Leilões</a></li>
             <li><a href="/diretrizes.php" class="active"><i class="bi bi-clipboard-check"></i> Diretrizes</a></li>
             <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
             <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a></li>
