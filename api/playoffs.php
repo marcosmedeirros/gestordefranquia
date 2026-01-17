@@ -378,6 +378,16 @@ if ($method === 'POST') {
             try {
                 $pdo->beginTransaction();
                 
+                // Garantir que a coluna ranking_points existe na tabela teams
+                try {
+                    $stmt = $pdo->query("SHOW COLUMNS FROM teams LIKE 'ranking_points'");
+                    if ($stmt->rowCount() === 0) {
+                        $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_points INT DEFAULT 0");
+                    }
+                } catch (Exception $e) {
+                    // Ignora erro se já existe
+                }
+                
                 // Buscar todos os times da liga
                 $stmtTeams = $pdo->prepare("SELECT id FROM teams WHERE league = ?");
                 $stmtTeams->execute([$league]);
@@ -505,19 +515,15 @@ if ($method === 'POST') {
                     }
                 }
                 
-                // 4. Aplicar pontos ao ranking geral
+                // 4. Aplicar pontos ao ranking geral (diretamente na tabela teams)
                 foreach ($teamPoints as $teamId => $points) {
                     if ($points > 0) {
-                        // Verificar se tabela team_ranking_points existe
-                        $tableExists = $pdo->query("SHOW TABLES LIKE 'team_ranking_points'")->rowCount() > 0;
-                        
-                        if ($tableExists) {
-                            $pdo->prepare("
-                                INSERT INTO team_ranking_points (team_id, points)
-                                VALUES (?, ?)
-                                ON DUPLICATE KEY UPDATE points = points + VALUES(points)
-                            ")->execute([$teamId, $points]);
-                        }
+                        // Atualizar diretamente na tabela teams
+                        $pdo->prepare("
+                            UPDATE teams 
+                            SET ranking_points = COALESCE(ranking_points, 0) + ?
+                            WHERE id = ?
+                        ")->execute([$points, $teamId]);
                     }
                 }
                 

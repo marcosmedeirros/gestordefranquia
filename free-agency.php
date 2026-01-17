@@ -56,6 +56,28 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       color: var(--fba-text-muted);
       font-size: 0.9rem;
     }
+    .fa-card.auction-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .fa-card.auction-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--fba-orange), #ff6b00);
+    }
+    .fa-card.border-success {
+      border-color: #28a745 !important;
+    }
+    .fa-card.border-success::before {
+      background: linear-gradient(90deg, #28a745, #20c997);
+    }
+    .auction-info {
+      border: 1px solid var(--fba-border);
+    }
     .offer-card {
       background: rgba(241, 117, 7, 0.1);
       border: 1px solid var(--fba-orange);
@@ -140,6 +162,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           <span class="badge bg-success limit-badge" id="signings-badge">
             <i class="bi bi-person-plus me-1"></i>Contratações: <span id="signings-count">0/3</span>
           </span>
+          <span id="team-points-display"></span>
           <?php if ($isAdmin): ?>
           <button class="btn btn-orange" id="btn-open-create-fa">
             <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
@@ -156,7 +179,12 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-4" id="faTabs" role="tablist">
       <li class="nav-item">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#available">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#auctions">
+          <i class="bi bi-hammer me-1 text-orange"></i>Leilões
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#available">
           <i class="bi bi-people me-1"></i>Disponíveis
         </button>
       </li>
@@ -175,8 +203,28 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     </ul>
 
     <div class="tab-content">
+      <!-- Leilões Ativos -->
+      <div class="tab-pane fade show active" id="auctions">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <p class="text-light-gray mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              Use seus pontos de ranking para dar lances nos jogadores. O maior lance vence quando o tempo acabar!
+            </p>
+            <button class="btn btn-outline-orange btn-sm" onclick="loadActiveAuctions()">
+              <i class="bi bi-arrow-repeat"></i> Atualizar
+            </button>
+          </div>
+        </div>
+        <div id="auctions-list" class="row">
+          <div class="col-12 text-center py-5">
+            <div class="spinner-border text-orange"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Free Agents Disponíveis -->
-      <div class="tab-pane fade show active" id="available">
+      <div class="tab-pane fade" id="available">
         <div class="row mb-3">
           <div class="col-md-4">
             <input type="text" class="form-control bg-dark text-white border-orange" 
@@ -323,6 +371,59 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="button" class="btn btn-orange" id="btn-send-offer">
             <i class="bi bi-send me-1"></i>Enviar Proposta
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Fazer Lance em Leilão -->
+  <div class="modal fade" id="bidModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-hammer me-2 text-orange"></i>Fazer Lance</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="bid-auction-id">
+          
+          <div class="text-center mb-4">
+            <h4 class="text-white mb-0" id="bid-player-name"></h4>
+          </div>
+          
+          <div class="row g-3 mb-4">
+            <div class="col-6">
+              <div class="bg-dark rounded p-3 text-center">
+                <small class="text-light-gray d-block">Lance Atual</small>
+                <span class="text-orange fw-bold fs-4" id="bid-current">0</span>
+                <small class="text-light-gray"> pts</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="bg-dark rounded p-3 text-center">
+                <small class="text-light-gray d-block">Seus Pontos</small>
+                <span class="text-success fw-bold fs-4" id="bid-available">0</span>
+                <small class="text-light-gray"> pts</small>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label text-white">Seu Lance (mínimo: <span id="bid-min">1</span> pts)</label>
+            <input type="number" class="form-control bg-dark text-white border-orange fs-4 text-center" 
+                   id="bid-amount" min="1" step="1" required>
+          </div>
+          
+          <div class="alert alert-warning small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Os pontos serão reservados enquanto o leilão estiver ativo. Se você perder, os pontos voltam. Se vencer, os pontos são deduzidos e você recebe o jogador!
+          </div>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="btn-place-bid">
+            <i class="bi bi-hammer me-1"></i>Confirmar Lance
           </button>
         </div>
       </div>

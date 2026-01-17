@@ -149,18 +149,6 @@ async function showTeam(teamId) {
 <div class="d-flex justify-content-between mb-3">
 <h5 class="text-white mb-0">Picks</h5>
 <button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
-
-  function setFreeAgencyLeague(league) {
-    appState.currentFAleague = league;
-    loadAdminFreeAgents(league);
-    loadFreeAgencyOffers(league);
-  }
-
-  function refreshAdminFreeAgency() {
-    const league = appState.currentFAleague || 'ELITE';
-    setFreeAgencyLeague(league);
-  }
-
 </div>
 ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
 <tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td>
@@ -1105,6 +1093,23 @@ async function deleteDirective(directiveId, deadlineId, league) {
 }
 
 // ========== FREE AGENCY ADMIN ==========
+function setFreeAgencyLeague(league) {
+  appState.currentFAleague = league;
+  // Atualizar botões ativos
+  document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById(`btn-fa-${league}`);
+  if (activeBtn) activeBtn.classList.add('active');
+  // Carregar dados
+  loadActiveAuctions();
+  loadAdminFreeAgents(league);
+  loadFreeAgencyOffers(league);
+}
+
+function refreshAdminFreeAgency() {
+  const league = appState.currentFAleague || 'ELITE';
+  setFreeAgencyLeague(league);
+}
+
 async function showFreeAgency() {
   appState.view = 'freeagency';
   updateBreadcrumb();
@@ -1126,6 +1131,23 @@ async function showFreeAgency() {
         <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
           <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
         </button>
+      </div>
+    </div>
+
+    <!-- Seção de Leilões Ativos -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="bg-dark-panel border-orange rounded p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-white mb-0"><i class="bi bi-hammer text-orange me-2"></i>Leilões Ativos</h4>
+            <button class="btn btn-outline-orange btn-sm" onclick="loadActiveAuctions()">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          </div>
+          <div id="activeAuctionsContainer">
+            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1167,6 +1189,206 @@ async function showFreeAgency() {
   });
   
   setFreeAgencyLeague('ELITE');
+  loadActiveAuctions();
+  
+  // Atualizar leilões a cada 30 segundos
+  if (window.auctionInterval) clearInterval(window.auctionInterval);
+  window.auctionInterval = setInterval(() => {
+    if (appState.view === 'freeagency') {
+      loadActiveAuctions();
+    } else {
+      clearInterval(window.auctionInterval);
+    }
+  }, 30000);
+}
+
+// ============================================
+// SISTEMA DE LEILÃO - FUNÇÕES
+// ============================================
+
+let activeAuctions = [];
+
+async function loadActiveAuctions() {
+  const container = document.getElementById('activeAuctionsContainer');
+  if (!container) return;
+  
+  const league = appState.currentFAleague || 'ELITE';
+  
+  try {
+    const data = await api(`free-agency.php?action=active_auctions&league=${league}`);
+    activeAuctions = data.auctions || [];
+    renderActiveAuctions();
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar leilões: ${e.error || 'Desconhecido'}</div>`;
+  }
+}
+
+function renderActiveAuctions() {
+  const container = document.getElementById('activeAuctionsContainer');
+  if (!container) return;
+  
+  if (!activeAuctions.length) {
+    container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Nenhum leilão ativo no momento. Use o botão "Iniciar Leilão" em um jogador para começar.</div>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-dark table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Jogador</th>
+            <th>Pos</th>
+            <th>OVR</th>
+            <th>Idade</th>
+            <th>Lance Atual</th>
+            <th>Vencedor</th>
+            <th>Tempo</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${activeAuctions.map(auction => {
+            const isActive = auction.status === 'active';
+            const secondsRemaining = parseInt(auction.seconds_remaining) || 0;
+            const timeDisplay = isActive ? formatAuctionTime(secondsRemaining) : 'Encerrado';
+            const timeClass = secondsRemaining <= 60 ? 'text-danger' : (secondsRemaining <= 300 ? 'text-warning' : 'text-success');
+            const statusBadge = isActive 
+              ? '<span class="badge bg-success"><i class="bi bi-broadcast me-1"></i>Ativo</span>'
+              : '<span class="badge bg-secondary">Finalizado</span>';
+            
+            return `
+              <tr>
+                <td class="text-white fw-bold">${auction.player_name}</td>
+                <td>${auction.player_position}</td>
+                <td><span class="badge bg-secondary">${auction.player_ovr}</span></td>
+                <td>${auction.player_age}</td>
+                <td class="text-orange fw-bold">${auction.current_bid || 0} pts</td>
+                <td>${auction.winning_team_name || '<span class="text-muted">-</span>'}</td>
+                <td class="${timeClass} fw-bold">${timeDisplay}</td>
+                <td>${statusBadge}</td>
+                <td>
+                  ${isActive ? `
+                    <button class="btn btn-sm btn-success me-1" onclick="finalizeAuction(${auction.id})" title="Finalizar">
+                      <i class="bi bi-check-lg"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="cancelAuction(${auction.id})" title="Cancelar">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  ` : `
+                    <span class="text-muted small">-</span>
+                  `}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function formatAuctionTime(seconds) {
+  if (seconds <= 0) return 'Encerrado';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+async function startAuction(freeAgentId, playerName) {
+  const duration = prompt(`Duração do leilão para ${playerName} (em minutos):`, '20');
+  if (!duration) return;
+  
+  const durationInt = parseInt(duration);
+  if (isNaN(durationInt) || durationInt < 1 || durationInt > 60) {
+    alert('Duração inválida. Use um valor entre 1 e 60 minutos.');
+    return;
+  }
+  
+  const league = appState.currentFAleague || 'ELITE';
+  
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'start_auction',
+        free_agent_id: freeAgentId,
+        duration: durationInt,
+        min_bid: 1,
+        league: league
+      })
+    });
+    
+    alert(data.message || 'Leilão iniciado!');
+    loadActiveAuctions();
+    loadAdminFreeAgents(league);
+  } catch (e) {
+    alert(e.error || 'Erro ao iniciar leilão');
+  }
+}
+
+async function finalizeAuction(auctionId) {
+  if (!confirm('Finalizar este leilão agora? O vencedor atual (se houver) receberá o jogador.')) return;
+  
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'finalize_auction',
+        auction_id: auctionId
+      })
+    });
+    
+    alert(data.message || 'Leilão finalizado!');
+    loadActiveAuctions();
+    loadAdminFreeAgents(appState.currentFAleague || 'ELITE');
+  } catch (e) {
+    alert(e.error || 'Erro ao finalizar leilão');
+  }
+}
+
+async function cancelAuction(auctionId) {
+  if (!confirm('Cancelar este leilão? Nenhum jogador será transferido.')) return;
+  
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'cancel_auction',
+        auction_id: auctionId
+      })
+    });
+    
+    alert(data.message || 'Leilão cancelado!');
+    loadActiveAuctions();
+  } catch (e) {
+    alert(e.error || 'Erro ao cancelar leilão');
+  }
+}
+
+async function processExpiredAuctions() {
+  const league = appState.currentFAleague || 'ELITE';
+  
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'process_expired_auctions',
+        league: league
+      })
+    });
+    
+    alert(data.message || 'Leilões processados!');
+    loadActiveAuctions();
+    loadAdminFreeAgents(league);
+  } catch (e) {
+    alert(e.error || 'Erro ao processar leilões');
+  }
 }
 
 async function loadAdminFreeAgents(league) {
@@ -1210,10 +1432,17 @@ function renderAdminFreeAgents(filterTerm = '') {
     return;
   }
 
+  // Verificar quais jogadores já tem leilão ativo
+  const auctionedPlayerIds = activeAuctions
+    .filter(a => a.status === 'active')
+    .map(a => parseInt(a.free_agent_id));
+
   container.innerHTML = filtered.map(fa => {
     const posDisplay = fa.secondary_position ? `${fa.position}/${fa.secondary_position}` : fa.position;
     const origin = fa.original_team_name ? `<small class="text-light-gray d-block">Ex: ${fa.original_team_name}</small>` : '';
     const pending = fa.pending_offers > 0 ? `<small class="text-warning d-block"><i class="bi bi-clock me-1"></i>${fa.pending_offers} proposta(s)</small>` : '';
+    const hasActiveAuction = auctionedPlayerIds.includes(fa.id);
+    
     return `
       <div class="fa-card mb-3">
         <div class="d-flex justify-content-between align-items-start">
@@ -1222,10 +1451,16 @@ function renderAdminFreeAgents(filterTerm = '') {
             <div class="text-light-gray small">${posDisplay} | ${fa.age} anos</div>
             ${origin}
             ${pending}
+            ${hasActiveAuction ? '<small class="text-success d-block"><i class="bi bi-broadcast me-1"></i>Leilão ativo</small>' : ''}
           </div>
           <div class="text-end">
             <span class="badge bg-secondary">OVR ${fa.ovr}</span>
             <div class="d-flex flex-column gap-2 mt-2">
+              ${!hasActiveAuction ? `
+                <button class="btn btn-sm btn-orange" onclick="startAuction(${fa.id}, '${fa.name.replace(/'/g, "\\'")}')">
+                  <i class="bi bi-hammer"></i> Iniciar Leilão
+                </button>
+              ` : ''}
               <button class="btn btn-sm btn-outline-light" onclick="openAssignFreeAgentModal(${fa.id})">
                 <i class="bi bi-check2-circle"></i> Definir Time
               </button>

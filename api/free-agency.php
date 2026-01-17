@@ -603,5 +603,534 @@ if ($method === 'DELETE') {
     }
 }
 
+// ============================================
+// SISTEMA DE LEILÃO - AUCTION SYSTEM
+// ============================================
+
+// GET - Leilões ativos
+if ($method === 'GET' && ($action ?? '') === 'active_auctions') {
+    $league = $_GET['league'] ?? $userLeague;
+    
+    if (($user['user_type'] ?? '') === 'admin') {
+        $requestedLeague = strtoupper($_GET['league'] ?? $userLeague);
+        if (in_array($requestedLeague, $validLeagues, true)) {
+            $league = $requestedLeague;
+        }
+    }
+    
+    // Verificar e finalizar leilões expirados
+    $stmtExpired = $pdo->prepare("
+        UPDATE free_agency_auctions 
+        SET status = 'completed'
+        WHERE status = 'active' 
+        AND end_time <= NOW()
+        AND league = ?
+    ");
+    $stmtExpired->execute([$league]);
+    
+    // Buscar leilões ativos e recentes
+    $stmt = $pdo->prepare("
+        SELECT a.*,
+               TIMESTAMPDIFF(SECOND, NOW(), a.end_time) as seconds_remaining,
+               (SELECT COUNT(*) FROM free_agency_bids WHERE auction_id = a.id) as total_bids,
+               wb.team_id as winning_team_id,
+               wt.name as winning_team_name
+        FROM free_agency_auctions a
+        LEFT JOIN free_agency_bids wb ON wb.auction_id = a.id AND wb.is_winning = 1
+        LEFT JOIN teams wt ON wt.id = wb.team_id
+        WHERE a.league = ?
+        AND (a.status = 'active' OR (a.status = 'completed' AND a.end_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)))
+        ORDER BY 
+            CASE a.status WHEN 'active' THEN 0 ELSE 1 END,
+            a.end_time ASC
+    ");
+    $stmt->execute([$league]);
+    $auctions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Adicionar informação de lance do time atual
+    if ($teamId) {
+        foreach ($auctions as &$auction) {
+            $stmtMyBid = $pdo->prepare("
+                SELECT bid_amount FROM free_agency_bids 
+                WHERE auction_id = ? AND team_id = ?
+            ");
+            $stmtMyBid->execute([$auction['id'], $teamId]);
+            $myBid = $stmtMyBid->fetch();
+            $auction['my_bid'] = $myBid ? (int)$myBid['bid_amount'] : null;
+        }
+    }
+    
+    echo json_encode(['success' => true, 'league' => $league, 'auctions' => $auctions]);
+    exit;
+}
+
+// GET - Pontos do time (ranking points)
+if ($method === 'GET' && ($action ?? '') === 'team_points') {
+    if (!$teamId) {
+        echo json_encode(['success' => true, 'points' => 0]);
+        exit;
+    }
+    
+    $stmt = $pdo->prepare("SELECT COALESCE(ranking_points, 0) as points FROM teams WHERE id = ?");
+    $stmt->execute([$teamId]);
+    $result = $stmt->fetch();
+    
+    // Calcular pontos já usados em leilões ativos
+    $stmtUsed = $pdo->prepare("
+        SELECT COALESCE(SUM(b.bid_amount), 0) as used_points
+        FROM free_agency_bids b
+        JOIN free_agency_auctions a ON a.id = b.auction_id
+        WHERE b.team_id = ? 
+        AND a.status = 'active'
+    ");
+    $stmtUsed->execute([$teamId]);
+    $usedResult = $stmtUsed->fetch();
+    
+    echo json_encode([
+        'success' => true, 
+        'total_points' => (int)($result['points'] ?? 0),
+        'used_points' => (int)($usedResult['used_points'] ?? 0),
+        'available_points' => (int)($result['points'] ?? 0) - (int)($usedResult['used_points'] ?? 0)
+    ]);
+    exit;
+}
+
+// POST - Ações de leilão
+if ($method === 'POST') {
+    $action = $_POST['action'] ?? ($data['action'] ?? '');
+    
+    // Admin: Iniciar leilão
+    if ($action === 'start_auction') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+        
+        $freeAgentId = $data['free_agent_id'] ?? null;
+        $duration = (int)($data['duration'] ?? 20); // minutos, padrão 20
+        $minBid = (int)($data['min_bid'] ?? 1);
+        $league = $data['league'] ?? $userLeague;
+        
+        if (!$freeAgentId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID do jogador não informado']);
+            exit;
+        }
+        
+        // Verificar se o jogador existe na free agency
+        $stmtFA = $pdo->prepare("SELECT * FROM free_agents WHERE id = ? AND league = ?");
+        $stmtFA->execute([$freeAgentId, $league]);
+        $freeAgent = $stmtFA->fetch();
+        
+        if (!$freeAgent) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Jogador não encontrado na Free Agency']);
+            exit;
+        }
+        
+        // Verificar se já existe leilão ativo para este jogador
+        $stmtCheck = $pdo->prepare("
+            SELECT id FROM free_agency_auctions 
+            WHERE free_agent_id = ? AND status IN ('pending', 'active')
+        ");
+        $stmtCheck->execute([$freeAgentId]);
+        if ($stmtCheck->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Já existe um leilão ativo para este jogador']);
+            exit;
+        }
+        
+        try {
+            $endTime = date('Y-m-d H:i:s', strtotime("+{$duration} minutes"));
+            
+            $stmtInsert = $pdo->prepare("
+                INSERT INTO free_agency_auctions 
+                (free_agent_id, player_name, player_position, player_ovr, player_age, league, status, start_time, end_time, min_bid, current_bid, created_by_admin_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', NOW(), ?, ?, 0, ?)
+            ");
+            $stmtInsert->execute([
+                $freeAgentId,
+                $freeAgent['name'],
+                $freeAgent['position'],
+                $freeAgent['ovr'],
+                $freeAgent['age'],
+                $league,
+                $endTime,
+                $minBid,
+                $user['id']
+            ]);
+            
+            $auctionId = $pdo->lastInsertId();
+            
+            echo json_encode([
+                'success' => true, 
+                'message' => "Leilão iniciado! Termina em {$duration} minutos.",
+                'auction_id' => $auctionId,
+                'end_time' => $endTime
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao iniciar leilão: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    // Usuário: Fazer lance
+    if ($action === 'place_bid') {
+        if (!$teamId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Você não tem um time']);
+            exit;
+        }
+        
+        $auctionId = (int)($data['auction_id'] ?? 0);
+        $bidAmount = (int)($data['bid_amount'] ?? 0);
+        
+        if (!$auctionId || $bidAmount < 1) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+            exit;
+        }
+        
+        try {
+            $pdo->beginTransaction();
+            
+            // Buscar leilão
+            $stmtAuction = $pdo->prepare("
+                SELECT * FROM free_agency_auctions 
+                WHERE id = ? AND status = 'active' AND end_time > NOW()
+                FOR UPDATE
+            ");
+            $stmtAuction->execute([$auctionId]);
+            $auction = $stmtAuction->fetch();
+            
+            if (!$auction) {
+                $pdo->rollBack();
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Leilão não encontrado ou já encerrado']);
+                exit;
+            }
+            
+            // Verificar se lance é maior que o atual
+            if ($bidAmount <= $auction['current_bid']) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => "Lance deve ser maior que {$auction['current_bid']} pontos"]);
+                exit;
+            }
+            
+            // Verificar se lance atinge o mínimo
+            if ($bidAmount < $auction['min_bid']) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => "Lance mínimo é {$auction['min_bid']} pontos"]);
+                exit;
+            }
+            
+            // Buscar pontos do time
+            $stmtPoints = $pdo->prepare("SELECT COALESCE(ranking_points, 0) as points FROM teams WHERE id = ?");
+            $stmtPoints->execute([$teamId]);
+            $teamPoints = (int)$stmtPoints->fetchColumn();
+            
+            // Calcular pontos já comprometidos em outros leilões (exceto este)
+            $stmtUsed = $pdo->prepare("
+                SELECT COALESCE(SUM(b.bid_amount), 0) as used_points
+                FROM free_agency_bids b
+                JOIN free_agency_auctions a ON a.id = b.auction_id
+                WHERE b.team_id = ? 
+                AND a.status = 'active'
+                AND a.id != ?
+            ");
+            $stmtUsed->execute([$teamId, $auctionId]);
+            $usedPoints = (int)$stmtUsed->fetchColumn();
+            
+            $availablePoints = $teamPoints - $usedPoints;
+            
+            if ($bidAmount > $availablePoints) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => "Pontos insuficientes. Disponível: {$availablePoints}"]);
+                exit;
+            }
+            
+            // Remover lance anterior vencedor
+            $stmtRemoveWinning = $pdo->prepare("
+                UPDATE free_agency_bids SET is_winning = 0 WHERE auction_id = ?
+            ");
+            $stmtRemoveWinning->execute([$auctionId]);
+            
+            // Verificar se já existe lance deste time
+            $stmtExisting = $pdo->prepare("
+                SELECT id FROM free_agency_bids WHERE auction_id = ? AND team_id = ?
+            ");
+            $stmtExisting->execute([$auctionId, $teamId]);
+            $existingBid = $stmtExisting->fetch();
+            
+            if ($existingBid) {
+                // Atualizar lance existente
+                $stmtUpdate = $pdo->prepare("
+                    UPDATE free_agency_bids 
+                    SET bid_amount = ?, is_winning = 1, created_at = NOW()
+                    WHERE auction_id = ? AND team_id = ?
+                ");
+                $stmtUpdate->execute([$bidAmount, $auctionId, $teamId]);
+            } else {
+                // Inserir novo lance
+                $stmtInsert = $pdo->prepare("
+                    INSERT INTO free_agency_bids (auction_id, team_id, bid_amount, is_winning)
+                    VALUES (?, ?, ?, 1)
+                ");
+                $stmtInsert->execute([$auctionId, $teamId, $bidAmount]);
+            }
+            
+            // Atualizar lance atual no leilão
+            $stmtUpdateAuction = $pdo->prepare("
+                UPDATE free_agency_auctions 
+                SET current_bid = ?, winning_team_id = ?, winning_bid = ?
+                WHERE id = ?
+            ");
+            $stmtUpdateAuction->execute([$bidAmount, $teamId, $bidAmount, $auctionId]);
+            
+            $pdo->commit();
+            
+            echo json_encode([
+                'success' => true, 
+                'message' => "Lance de {$bidAmount} pontos registrado!",
+                'bid_amount' => $bidAmount
+            ]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao registrar lance: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    // Admin: Finalizar leilão manualmente
+    if ($action === 'finalize_auction') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+        
+        $auctionId = (int)($data['auction_id'] ?? 0);
+        
+        if (!$auctionId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID do leilão não informado']);
+            exit;
+        }
+        
+        try {
+            $pdo->beginTransaction();
+            
+            // Buscar leilão
+            $stmtAuction = $pdo->prepare("
+                SELECT a.*, b.team_id as winner_team_id, b.bid_amount as winner_bid
+                FROM free_agency_auctions a
+                LEFT JOIN free_agency_bids b ON b.auction_id = a.id AND b.is_winning = 1
+                WHERE a.id = ? AND a.status = 'active'
+            ");
+            $stmtAuction->execute([$auctionId]);
+            $auction = $stmtAuction->fetch();
+            
+            if (!$auction) {
+                $pdo->rollBack();
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Leilão não encontrado ou não está ativo']);
+                exit;
+            }
+            
+            if ($auction['winner_team_id']) {
+                // Tem vencedor - transferir jogador e deduzir pontos
+                
+                // Adicionar jogador ao time vencedor
+                $stmtPlayer = $pdo->prepare("
+                    INSERT INTO players (team_id, name, age, position, ovr, role, available_for_trade)
+                    VALUES (?, ?, ?, ?, ?, 'Banco', 0)
+                ");
+                $stmtPlayer->execute([
+                    $auction['winner_team_id'],
+                    $auction['player_name'],
+                    $auction['player_age'],
+                    $auction['player_position'],
+                    $auction['player_ovr']
+                ]);
+                
+                // Deduzir pontos do time vencedor
+                $stmtDeduct = $pdo->prepare("
+                    UPDATE teams 
+                    SET ranking_points = GREATEST(0, COALESCE(ranking_points, 0) - ?)
+                    WHERE id = ?
+                ");
+                $stmtDeduct->execute([$auction['winner_bid'], $auction['winner_team_id']]);
+                
+                // Incrementar contador de contratações FA
+                $stmtFA = $pdo->prepare("
+                    UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?
+                ");
+                $stmtFA->execute([$auction['winner_team_id']]);
+                
+                // Remover da free agency
+                $stmtDelFA = $pdo->prepare("DELETE FROM free_agents WHERE id = ?");
+                $stmtDelFA->execute([$auction['free_agent_id']]);
+            }
+            
+            // Marcar leilão como completo
+            $stmtComplete = $pdo->prepare("
+                UPDATE free_agency_auctions 
+                SET status = 'completed', end_time = NOW()
+                WHERE id = ?
+            ");
+            $stmtComplete->execute([$auctionId]);
+            
+            $pdo->commit();
+            
+            if ($auction['winner_team_id']) {
+                $stmtTeamName = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
+                $stmtTeamName->execute([$auction['winner_team_id']]);
+                $winnerName = $stmtTeamName->fetchColumn();
+                
+                echo json_encode([
+                    'success' => true, 
+                    'message' => "{$auction['player_name']} foi para {$winnerName} por {$auction['winner_bid']} pontos!",
+                    'winner' => $winnerName,
+                    'bid' => $auction['winner_bid']
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => true, 
+                    'message' => "Leilão encerrado sem lances. {$auction['player_name']} permanece na Free Agency."
+                ]);
+            }
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao finalizar leilão: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    // Admin: Cancelar leilão
+    if ($action === 'cancel_auction') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+        
+        $auctionId = (int)($data['auction_id'] ?? 0);
+        
+        if (!$auctionId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID do leilão não informado']);
+            exit;
+        }
+        
+        $stmtCancel = $pdo->prepare("
+            UPDATE free_agency_auctions 
+            SET status = 'cancelled'
+            WHERE id = ? AND status = 'active'
+        ");
+        $stmtCancel->execute([$auctionId]);
+        
+        if ($stmtCancel->rowCount() > 0) {
+            echo json_encode(['success' => true, 'message' => 'Leilão cancelado']);
+        } else {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Leilão não encontrado ou não está ativo']);
+        }
+        exit;
+    }
+    
+    // Cron/Auto: Processar leilões expirados
+    if ($action === 'process_expired_auctions') {
+        if (($user['user_type'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            exit;
+        }
+        
+        $league = $data['league'] ?? null;
+        
+        try {
+            // Buscar leilões expirados
+            $query = "
+                SELECT a.*, b.team_id as winner_team_id, b.bid_amount as winner_bid
+                FROM free_agency_auctions a
+                LEFT JOIN free_agency_bids b ON b.auction_id = a.id AND b.is_winning = 1
+                WHERE a.status = 'active' AND a.end_time <= NOW()
+            ";
+            if ($league) {
+                $query .= " AND a.league = ?";
+            }
+            
+            $stmtExpired = $pdo->prepare($query);
+            $stmtExpired->execute($league ? [$league] : []);
+            $expiredAuctions = $stmtExpired->fetchAll();
+            
+            $processed = 0;
+            foreach ($expiredAuctions as $auction) {
+                $pdo->beginTransaction();
+                try {
+                    if ($auction['winner_team_id']) {
+                        // Adicionar jogador ao time
+                        $stmtPlayer = $pdo->prepare("
+                            INSERT INTO players (team_id, name, age, position, ovr, role, available_for_trade)
+                            VALUES (?, ?, ?, ?, ?, 'Banco', 0)
+                        ");
+                        $stmtPlayer->execute([
+                            $auction['winner_team_id'],
+                            $auction['player_name'],
+                            $auction['player_age'],
+                            $auction['player_position'],
+                            $auction['player_ovr']
+                        ]);
+                        
+                        // Deduzir pontos
+                        $stmtDeduct = $pdo->prepare("
+                            UPDATE teams 
+                            SET ranking_points = GREATEST(0, COALESCE(ranking_points, 0) - ?)
+                            WHERE id = ?
+                        ");
+                        $stmtDeduct->execute([$auction['winner_bid'], $auction['winner_team_id']]);
+                        
+                        // Incrementar contador FA
+                        $stmtFA = $pdo->prepare("
+                            UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?
+                        ");
+                        $stmtFA->execute([$auction['winner_team_id']]);
+                        
+                        // Remover da free agency
+                        $stmtDelFA = $pdo->prepare("DELETE FROM free_agents WHERE id = ?");
+                        $stmtDelFA->execute([$auction['free_agent_id']]);
+                    }
+                    
+                    // Marcar como completo
+                    $stmtComplete = $pdo->prepare("UPDATE free_agency_auctions SET status = 'completed' WHERE id = ?");
+                    $stmtComplete->execute([$auction['id']]);
+                    
+                    $pdo->commit();
+                    $processed++;
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                }
+            }
+            
+            echo json_encode([
+                'success' => true, 
+                'message' => "{$processed} leilões processados",
+                'processed' => $processed
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erro ao processar leilões: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+}
+
 http_response_code(405);
 echo json_encode(['success' => false, 'error' => 'Método não permitido']);

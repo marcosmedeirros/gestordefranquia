@@ -18,6 +18,9 @@ const DEFAULT_LIMITS = {
 
 let allFreeAgents = [];
 let currentLimits = { ...DEFAULT_LIMITS };
+let activeAuctions = [];
+let teamPoints = { total_points: 0, used_points: 0, available_points: 0 };
+let auctionRefreshInterval = null;
 
 // Cores por OVR
 function getOvrColor(ovr) {
@@ -31,6 +34,8 @@ function getOvrColor(ovr) {
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
   await loadLimits();
+  await loadTeamPoints();
+  await loadActiveAuctions();
   await loadFreeAgents();
   await loadMyOffers();
   
@@ -42,6 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('search-fa')?.addEventListener('input', filterFreeAgents);
   document.getElementById('filter-position')?.addEventListener('change', filterFreeAgents);
   document.getElementById('btn-send-offer')?.addEventListener('click', sendOffer);
+  document.getElementById('btn-place-bid')?.addEventListener('click', placeBid);
   if (window.__IS_ADMIN__) {
     document.getElementById('btn-open-create-fa')?.addEventListener('click', openCreateFaModal);
     document.getElementById('btn-create-fa')?.addEventListener('click', submitCreateFreeAgent);
@@ -53,9 +59,195 @@ document.addEventListener('DOMContentLoaded', async () => {
       const target = e.target.getAttribute('data-bs-target');
       if (target === '#my-offers') loadMyOffers();
       if (target === '#admin-offers') loadAdminOffers();
+      if (target === '#auctions') loadActiveAuctions();
     });
   });
+  
+  // Atualizar leilões a cada 15 segundos
+  auctionRefreshInterval = setInterval(() => {
+    loadActiveAuctions();
+  }, 15000);
 });
+
+// ============================================
+// SISTEMA DE PONTOS E LEILÕES
+// ============================================
+
+async function loadTeamPoints() {
+  try {
+    const data = await api('free-agency.php?action=team_points');
+    teamPoints = {
+      total_points: data.total_points || 0,
+      used_points: data.used_points || 0,
+      available_points: data.available_points || 0
+    };
+    updatePointsDisplay();
+  } catch (err) {
+    console.error('Erro ao carregar pontos:', err);
+  }
+}
+
+function updatePointsDisplay() {
+  const pointsEl = document.getElementById('team-points-display');
+  if (pointsEl) {
+    pointsEl.innerHTML = `
+      <span class="badge bg-orange me-2">
+        <i class="bi bi-coin me-1"></i>Pontos: ${teamPoints.available_points}
+      </span>
+      ${teamPoints.used_points > 0 ? `<small class="text-warning">(${teamPoints.used_points} em lances)</small>` : ''}
+    `;
+  }
+}
+
+async function loadActiveAuctions() {
+  const container = document.getElementById('auctions-list');
+  if (!container) return;
+  
+  try {
+    const data = await api('free-agency.php?action=active_auctions');
+    activeAuctions = data.auctions || [];
+    renderActiveAuctions();
+    await loadTeamPoints(); // Atualizar pontos também
+  } catch (err) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar leilões</div>';
+    console.error(err);
+  }
+}
+
+function renderActiveAuctions() {
+  const container = document.getElementById('auctions-list');
+  if (!container) return;
+  
+  // Filtrar só ativos
+  const active = activeAuctions.filter(a => a.status === 'active');
+  
+  if (active.length === 0) {
+    container.innerHTML = `
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>Nenhum leilão ativo no momento.
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = active.map(auction => {
+    const ovrColor = getOvrColor(auction.player_ovr);
+    const secondsRemaining = parseInt(auction.seconds_remaining) || 0;
+    const timeDisplay = formatAuctionTime(secondsRemaining);
+    const timeClass = secondsRemaining <= 60 ? 'text-danger' : (secondsRemaining <= 300 ? 'text-warning' : 'text-success');
+    
+    const myBid = auction.my_bid;
+    const isWinning = myBid && myBid >= auction.current_bid;
+    const bidStatus = myBid 
+      ? (isWinning 
+          ? '<span class="badge bg-success"><i class="bi bi-trophy me-1"></i>Você está vencendo!</span>' 
+          : '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Você foi superado!</span>')
+      : '';
+    
+    const minNextBid = (auction.current_bid || 0) + 1;
+    const canBid = teamPoints.available_points >= minNextBid;
+    
+    return `
+      <div class="col-md-6 col-lg-4">
+        <div class="fa-card auction-card ${isWinning ? 'border-success' : ''}">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h5 class="text-white mb-1">${auction.player_name}</h5>
+              <span class="badge bg-orange">${auction.player_position}</span>
+              <span class="ms-2 text-light-gray">${auction.player_age} anos</span>
+            </div>
+            <div class="text-end">
+              <div class="player-ovr" style="color: ${ovrColor}">${auction.player_ovr}</div>
+            </div>
+          </div>
+          
+          <div class="auction-info mt-3 p-2 bg-dark rounded">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <small class="text-light-gray">Lance atual:</small>
+                <div class="text-orange fw-bold fs-5">${auction.current_bid || 0} pts</div>
+                ${auction.winning_team_name ? `<small class="text-light-gray">por ${auction.winning_team_name}</small>` : '<small class="text-muted">Sem lances</small>'}
+              </div>
+              <div class="text-end">
+                <small class="text-light-gray">Tempo restante:</small>
+                <div class="${timeClass} fw-bold fs-5">${timeDisplay}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3">
+            ${bidStatus}
+            ${myBid ? `<div class="mt-1"><small class="text-light-gray">Seu lance: ${myBid} pts</small></div>` : ''}
+          </div>
+          
+          <div class="mt-3">
+            <button class="btn btn-orange w-100" onclick="openBidModal(${auction.id}, '${auction.player_name.replace(/'/g, "\\'")}', ${auction.current_bid || 0}, ${auction.min_bid})" ${!canBid ? 'disabled' : ''}>
+              <i class="bi bi-hammer me-1"></i>Fazer Lance
+            </button>
+            ${!canBid ? '<small class="text-danger d-block mt-1">Pontos insuficientes</small>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatAuctionTime(seconds) {
+  if (seconds <= 0) return 'Encerrado';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function openBidModal(auctionId, playerName, currentBid, minBid) {
+  const minNextBid = Math.max(minBid, currentBid + 1);
+  
+  document.getElementById('bid-auction-id').value = auctionId;
+  document.getElementById('bid-player-name').textContent = playerName;
+  document.getElementById('bid-current').textContent = currentBid;
+  document.getElementById('bid-min').textContent = minNextBid;
+  document.getElementById('bid-available').textContent = teamPoints.available_points;
+  
+  const bidInput = document.getElementById('bid-amount');
+  bidInput.value = minNextBid;
+  bidInput.min = minNextBid;
+  bidInput.max = teamPoints.available_points;
+  
+  new bootstrap.Modal(document.getElementById('bidModal')).show();
+}
+
+async function placeBid() {
+  const auctionId = document.getElementById('bid-auction-id').value;
+  const bidAmount = parseInt(document.getElementById('bid-amount').value);
+  
+  if (!bidAmount || bidAmount < 1) {
+    alert('Informe um valor válido para o lance');
+    return;
+  }
+  
+  if (bidAmount > teamPoints.available_points) {
+    alert('Você não tem pontos suficientes para este lance');
+    return;
+  }
+  
+  try {
+    const data = await api('free-agency.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'place_bid',
+        auction_id: parseInt(auctionId),
+        bid_amount: bidAmount
+      })
+    });
+    
+    alert(data.message || 'Lance registrado!');
+    bootstrap.Modal.getInstance(document.getElementById('bidModal'))?.hide();
+    await loadActiveAuctions();
+    await loadTeamPoints();
+  } catch (err) {
+    alert(err.error || 'Erro ao fazer lance');
+  }
+}
 
 async function loadLimits() {
   try {
