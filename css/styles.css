@@ -1,3 +1,9 @@
+/* Corrige sobreposição do menu lateral ao conteúdo principal em telas com sidebar fixa */
+.main-content {
+	margin-left: 280px;
+	padding: 30px;
+	min-height: 100vh;
+}
 /* =========================================================
    FBA BRASIL – CSS Modernizado v2 (mantém classes existentes)
    Paleta (IDV): #fc0025, #ffffff, #0a0a0c, #828282
