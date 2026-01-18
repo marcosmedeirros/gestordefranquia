@@ -70,14 +70,22 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
   <div class="dashboard-content">
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h1 class="text-white fw-bold mb-0"><i class="bi bi-hammer me-2 text-orange"></i>Leiloes</h1>
-        <div class="d-flex gap-2 align-items-center">
+        <h1 class="text-white fw-bold mb-0"><i class="bi bi-hammer me-2 text-orange"></i>Leilões</h1>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <?php if ($isAdmin): ?>
+          <select class="form-select bg-dark text-white border-orange" id="adminLeagueFilter" style="width: auto;">
+            <option value="ELITE" <?= ($user['league'] ?? '') === 'ELITE' ? 'selected' : '' ?>>ELITE</option>
+            <option value="NEXT" <?= ($user['league'] ?? '') === 'NEXT' ? 'selected' : '' ?>>NEXT</option>
+            <option value="RISE" <?= ($user['league'] ?? '') === 'RISE' ? 'selected' : '' ?>>RISE</option>
+            <option value="ROOKIE" <?= ($user['league'] ?? '') === 'ROOKIE' ? 'selected' : '' ?>>ROOKIE</option>
+          </select>
+          <?php endif; ?>
           <span class="badge bg-orange points-badge">
             <i class="bi bi-coin me-1"></i>Seus Pontos: <span id="available-points"><?= $teamPoints ?></span>
           </span>
           <?php if ($isAdmin): ?>
           <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#adminAuctionModal">
-            <i class="bi bi-gear me-1"></i>Gerenciar Leiloes
+            <i class="bi bi-gear me-1"></i>Gerenciar Leilões
           </button>
           <?php endif; ?>
         </div>

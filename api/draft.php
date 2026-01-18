@@ -152,6 +152,96 @@ if ($method === 'GET') {
             ]);
             break;
 
+        // Buscar histórico de draft de uma temporada (snapshot salvo)
+        case 'draft_history':
+            $seasonId = $_GET['season_id'] ?? null;
+            $league = $_GET['league'] ?? ($team['league'] ?? null);
+            
+            if (!$seasonId && !$league) {
+                echo json_encode(['success' => false, 'error' => 'season_id ou league obrigatório']);
+                exit;
+            }
+            
+            // Se tem season_id, buscar snapshot dessa temporada específica
+            if ($seasonId) {
+                $stmt = $pdo->prepare("
+                    SELECT s.*, ds.status as draft_status
+                    FROM seasons s
+                    LEFT JOIN draft_sessions ds ON ds.season_id = s.id
+                    WHERE s.id = ?
+                ");
+                $stmt->execute([$seasonId]);
+                $season = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$season) {
+                    echo json_encode(['success' => false, 'error' => 'Temporada não encontrada']);
+                    exit;
+                }
+                
+                // Se tem snapshot salvo, usar ele
+                if (!empty($season['draft_order_snapshot'])) {
+                    $snapshot = json_decode($season['draft_order_snapshot'], true);
+                    echo json_encode([
+                        'success' => true,
+                        'season' => $season,
+                        'draft_order' => $snapshot,
+                        'from_snapshot' => true
+                    ]);
+                    exit;
+                }
+                
+                // Senão, buscar da tabela draft_order (draft ainda ativo)
+                $stmtSession = $pdo->prepare("SELECT id FROM draft_sessions WHERE season_id = ?");
+                $stmtSession->execute([$seasonId]);
+                $sessionData = $stmtSession->fetch();
+                
+                if ($sessionData) {
+                    $stmtOrder = $pdo->prepare("
+                        SELECT do.*,
+                               t.city as team_city, t.name as team_name, t.photo_url as team_photo,
+                               ot.city as original_city, ot.name as original_name,
+                               tf.city as traded_from_city, tf.name as traded_from_name,
+                               dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                        FROM draft_order do
+                        INNER JOIN teams t ON do.team_id = t.id
+                        INNER JOIN teams ot ON do.original_team_id = ot.id
+                        LEFT JOIN teams tf ON do.traded_from_team_id = tf.id
+                        LEFT JOIN draft_pool dp ON do.picked_player_id = dp.id
+                        WHERE do.draft_session_id = ?
+                        ORDER BY do.round ASC, do.pick_position ASC
+                    ");
+                    $stmtOrder->execute([$sessionData['id']]);
+                    $order = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'season' => $season,
+                        'draft_order' => $order,
+                        'from_snapshot' => false
+                    ]);
+                    exit;
+                }
+                
+                echo json_encode(['success' => true, 'season' => $season, 'draft_order' => [], 'from_snapshot' => false]);
+                exit;
+            }
+            
+            // Se só tem league, listar todas temporadas que têm draft
+            $stmt = $pdo->prepare("
+                SELECT s.id, s.season_number, s.year, s.league, s.status,
+                       CASE WHEN s.draft_order_snapshot IS NOT NULL THEN 1 ELSE 0 END as has_snapshot,
+                       ds.status as draft_status
+                FROM seasons s
+                LEFT JOIN draft_sessions ds ON ds.season_id = s.id
+                WHERE s.league = ?
+                ORDER BY s.year DESC, s.season_number DESC
+            ");
+            $stmt->execute([$league]);
+            $seasons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            echo json_encode(['success' => true, 'seasons' => $seasons]);
+            break;
+
         default:
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
     }

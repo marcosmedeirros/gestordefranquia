@@ -15,6 +15,7 @@ let activeAuctions = [];
 let recentAuctions = [];
 let teamPoints = window.__TEAM_POINTS__ || 0;
 let auctionRefreshInterval = null;
+let currentLeague = window.__USER_LEAGUE__ || 'ELITE';
 
 // Cores por OVR
 function getOvrColor(ovr) {
@@ -27,6 +28,18 @@ function getOvrColor(ovr) {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
+  // Admin: Filtro de liga
+  const leagueFilter = document.getElementById('adminLeagueFilter');
+  if (leagueFilter && window.__IS_ADMIN__) {
+    leagueFilter.value = currentLeague;
+    leagueFilter.addEventListener('change', (e) => {
+      currentLeague = e.target.value;
+      loadActiveAuctions();
+      loadRecentAuctions();
+      loadAdminAuctions();
+    });
+  }
+  
   await loadActiveAuctions();
   await loadRecentAuctions();
   
@@ -67,7 +80,8 @@ async function loadActiveAuctions() {
   if (!container) return;
   
   try {
-    const data = await api('free-agency.php?action=active_auctions');
+    const league = window.__IS_ADMIN__ ? currentLeague : window.__USER_LEAGUE__;
+    const data = await api(`free-agency.php?action=active_auctions&league=${league}`);
     activeAuctions = data.auctions || [];
     renderActiveAuctions();
     await loadTeamPoints();
@@ -169,7 +183,8 @@ async function loadRecentAuctions() {
   if (!container) return;
   
   try {
-    const data = await api('free-agency.php?action=recent_auctions');
+    const league = window.__IS_ADMIN__ ? currentLeague : window.__USER_LEAGUE__;
+    const data = await api(`free-agency.php?action=recent_auctions&league=${league}`);
     recentAuctions = data.auctions || [];
     renderRecentAuctions();
   } catch (err) {
@@ -341,7 +356,7 @@ async function loadAdminAuctions() {
   if (!container) return;
   
   try {
-    const data = await api('free-agency.php?action=active_auctions');
+    const data = await api(`free-agency.php?action=active_auctions&league=${currentLeague}`);
     const auctions = data.auctions || [];
     
     if (auctions.length === 0) {

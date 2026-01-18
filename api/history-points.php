@@ -90,6 +90,20 @@ try {
         case 'get_history':
             $league = $_REQUEST['league'] ?? null;
             
+            // Verificar se coluna roy_player existe
+            $stmtRoy = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+            $hasRoy = $stmtRoy->rowCount() > 0;
+            
+            $royFields = $hasRoy ? ",
+                        sh.roy_player,
+                        sh.roy_team_id,
+                        CONCAT(troy.city, ' ', troy.name) as roy_team_name" : ",
+                        NULL as roy_player,
+                        NULL as roy_team_id,
+                        NULL as roy_team_name";
+            
+            $royJoin = $hasRoy ? "LEFT JOIN teams troy ON sh.roy_team_id = troy.id" : "";
+            
             $sql = "SELECT 
                         sh.id,
                         sh.season_id,
@@ -112,15 +126,19 @@ try {
                         CONCAT(ti.city, ' ', ti.name) as mip_team_name,
                         sh.sixth_man_player,
                         sh.sixth_man_team_id,
-                        CONCAT(ts.city, ' ', ts.name) as sixth_man_team_name,
-                        sh.created_at
+                        CONCAT(ts.city, ' ', ts.name) as sixth_man_team_name
+                        {$royFields},
+                        sh.created_at,
+                        CASE WHEN s.draft_order_snapshot IS NOT NULL THEN 1 ELSE 0 END as has_draft_history
                     FROM season_history sh
+                    LEFT JOIN seasons s ON sh.season_id = s.id
                     LEFT JOIN teams tc ON sh.champion_team_id = tc.id
                     LEFT JOIN teams tr ON sh.runner_up_team_id = tr.id
                     LEFT JOIN teams tm ON sh.mvp_team_id = tm.id
                     LEFT JOIN teams td ON sh.dpoy_team_id = td.id
                     LEFT JOIN teams ti ON sh.mip_team_id = ti.id
-                    LEFT JOIN teams ts ON sh.sixth_man_team_id = ts.id";
+                    LEFT JOIN teams ts ON sh.sixth_man_team_id = ts.id
+                    {$royJoin}";
             
             $params = [];
             if ($league) {
@@ -394,11 +412,13 @@ try {
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
 
+            // Usar ranking_points da tabela teams (onde os pontos são salvos pelo sistema de playoffs)
+            // Também somar pontos da team_season_points se existir
             $sql = "SELECT 
                         t.id as team_id,
                         CONCAT(t.city, ' ', t.name) as team_name,
                         t.league,
-                        COALESCE(points.total_points, 0) as total_points,
+                        (COALESCE(t.ranking_points, 0) + COALESCE(points.total_points, 0)) as total_points,
                         COALESCE(titles.total_titles, 0) as total_titles
                     FROM teams t
                     LEFT JOIN (

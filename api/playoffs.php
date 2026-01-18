@@ -336,25 +336,28 @@ if ($method === 'POST') {
                                 mvp_player = ?, mvp_team_id = ?,
                                 dpoy_player = ?, dpoy_team_id = ?,
                                 mip_player = ?, mip_team_id = ?,
-                                sixth_man_player = ?, sixth_man_team_id = ?
+                                sixth_man_player = ?, sixth_man_team_id = ?,
+                                roy_player = ?, roy_team_id = ?
                             WHERE id = ?
                         ")->execute([
                             $awards['mvp_player'], $awards['mvp_team_id'] ?: null,
                             $awards['dpoy_player'], $awards['dpoy_team_id'] ?: null,
                             $awards['mip_player'], $awards['mip_team_id'] ?: null,
                             $awards['sixth_man_player'], $awards['sixth_man_team_id'] ?: null,
+                            $awards['roy_player'] ?? null, $awards['roy_team_id'] ?? null,
                             $existing['id']
                         ]);
                     } else {
                         $pdo->prepare("
-                            INSERT INTO season_history (season_id, league, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO season_history (season_id, league, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id, roy_player, roy_team_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ")->execute([
                             $seasonId, $league,
                             $awards['mvp_player'], $awards['mvp_team_id'] ?: null,
                             $awards['dpoy_player'], $awards['dpoy_team_id'] ?: null,
                             $awards['mip_player'], $awards['mip_team_id'] ?: null,
-                            $awards['sixth_man_player'], $awards['sixth_man_team_id'] ?: null
+                            $awards['sixth_man_player'], $awards['sixth_man_team_id'] ?: null,
+                            $awards['roy_player'] ?? null, $awards['roy_team_id'] ?? null
                         ]);
                     }
                 }
@@ -493,7 +496,7 @@ if ($method === 'POST') {
                 $tableExists = $pdo->query("SHOW TABLES LIKE 'season_history'")->rowCount() > 0;
                 if ($tableExists) {
                     $stmtAwards = $pdo->prepare("
-                        SELECT mvp_team_id, dpoy_team_id, mip_team_id, sixth_man_team_id
+                        SELECT mvp_team_id, dpoy_team_id, mip_team_id, sixth_man_team_id, roy_team_id
                         FROM season_history WHERE season_id = ? AND league = ?
                     ");
                     $stmtAwards->execute([$seasonId, $league]);
@@ -504,6 +507,7 @@ if ($method === 'POST') {
                         if ($awards['dpoy_team_id']) $teamPoints[$awards['dpoy_team_id']] += 1;
                         if ($awards['mip_team_id']) $teamPoints[$awards['mip_team_id']] += 1;
                         if ($awards['sixth_man_team_id']) $teamPoints[$awards['sixth_man_team_id']] += 1;
+                        if (isset($awards['roy_team_id']) && $awards['roy_team_id']) $teamPoints[$awards['roy_team_id']] += 1;
                     }
                     
                     // Atualizar campeão/vice no histórico
@@ -549,7 +553,42 @@ if ($method === 'POST') {
                         ->execute([$seasonId, $league, $tid]);
                 }
                 
-                $pdo->commit();
+                // 6. Salvar snapshot da ordem do draft para histórico
+                try {
+                    $stmtSession = $pdo->prepare("SELECT id FROM draft_sessions WHERE season_id = ?");
+                    $stmtSession->execute([$seasonId]);
+                    $draftSession = $stmtSession->fetch();
+                    
+                    if ($draftSession) {
+                        $stmtOrder = $pdo->prepare("
+                            SELECT do.*,
+                                   t.city as team_city, t.name as team_name,
+                                   ot.city as original_city, ot.name as original_name,
+                                   tf.city as traded_from_city, tf.name as traded_from_name,
+                                   dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                            FROM draft_order do
+                            INNER JOIN teams t ON do.team_id = t.id
+                            INNER JOIN teams ot ON do.original_team_id = ot.id
+                            LEFT JOIN teams tf ON do.traded_from_team_id = tf.id
+                            LEFT JOIN draft_pool dp ON do.picked_player_id = dp.id
+                            WHERE do.draft_session_id = ?
+                            ORDER BY do.round ASC, do.pick_position ASC
+                        ");
+                        $stmtOrder->execute([$draftSession['id']]);
+                        $draftOrder = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        if (!empty($draftOrder)) {
+                            $snapshot = json_encode($draftOrder);
+                            $pdo->prepare("UPDATE seasons SET draft_order_snapshot = ? WHERE id = ?")
+                                ->execute([$snapshot, $seasonId]);
+                        }
+                    }
+                } catch (Exception $e) {
+                    // Log mas não falha a finalização
+                    error_log("Erro ao salvar snapshot do draft: " . $e->getMessage());
+                }
+                
+                $pdo->commit();;
                 echo json_encode([
                     'success' => true, 
                     'message' => 'Playoffs finalizados! Pontos aplicados.',

@@ -594,7 +594,7 @@ try {
             
             // Inserir prêmios na tabela auxiliar
             $stmtAward = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?, ?, ?, ?)");
-            $awardTypes = ['mvp', 'dpoy', 'mip', 'sixth_man'];
+            $awardTypes = ['mvp', 'dpoy', 'mip', 'sixth_man', 'roy'];
             $awardsMap = []; // Para usar no cálculo de pontos depois
             
             foreach ($awardTypes as $type) {

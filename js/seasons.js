@@ -327,6 +327,16 @@ function renderHistoryForm(seasonId, league) {
                             <label class="form-label text-light-gray">6th Man (Jogador)</label>
                             <input type="text" class="form-control bg-dark text-white border-orange" name="sixth_man_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">ROY (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="roy_team_id" style="border-radius: 15px;">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-light-gray">ROY (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="roy_player_name" placeholder="Nome do jogador" style="border-radius: 15px;">
+                        </div>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -443,7 +453,9 @@ function saveSeasonHistory(event, seasonId) {
         mip: form.mip_player_name.value || null,
         mip_team_id: form.mip_team_id.value || null,
         sixth_man: form.sixth_man_player_name.value || null,
-        sixth_man_team_id: form.sixth_man_team_id.value || null
+        sixth_man_team_id: form.sixth_man_team_id.value || null,
+        roy: form.roy_player_name?.value || null,
+        roy_team_id: form.roy_team_id?.value || null
     };
 
     const btn = form.querySelector('button[type="submit"]');
@@ -466,10 +478,6 @@ function saveSeasonHistory(event, seasonId) {
 }
 
 // ========== GERENCIAR DRAFT (continuação) ==========
-    `;
-    
-    loadDraftPlayers(seasonId);
-}
 
 async function loadDraftPlayers(seasonId) {
     try {
