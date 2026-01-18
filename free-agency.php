@@ -2,6 +2,7 @@
 session_start();
 require_once 'backend/config.php';
 require_once 'backend/db.php';
+$pdo = db();
 require_once 'backend/auth.php';
 
 if (!isset($_SESSION['user_id'])) {
