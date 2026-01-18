@@ -280,14 +280,19 @@ if (!$team) {
               Gerenciar Draft
             </h4>
             <div class="row g-2">
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <button class="btn btn-orange w-100" onclick="showDraftManagement(${season.id}, '${league}')">
-                  <i class="bi bi-people me-2"></i>Gerenciar Jogadores do Draft
+                  <i class="bi bi-people me-2"></i>Jogadores do Draft
                 </button>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <button class="btn btn-outline-orange w-100" onclick="showDraftSessionManagement(${season.id}, '${league}')">
-                  <i class="bi bi-list-ol me-2"></i>Configurar Sessão de Draft
+                  <i class="bi bi-list-ol me-2"></i>Configurar Sessão
+                </button>
+              </div>
+              <div class="col-md-4">
+                <button class="btn btn-success w-100" onclick="showDraftHistory('${league}')">
+                  <i class="bi bi-clock-history me-2"></i>Histórico de Drafts
                 </button>
               </div>
             </div>
@@ -2071,6 +2076,156 @@ if (!$team) {
         showDraftSessionManagement(currentSeasonId, league);
       } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    // ========== HISTÓRICO DE DRAFTS ==========
+    async function showDraftHistory(league) {
+      currentLeague = league;
+      const container = document.getElementById('mainContainer');
+      container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+      
+      try {
+        // Buscar todas temporadas com drafts
+        const data = await api(`draft.php?action=draft_history&league=${league}`);
+        const seasons = data.seasons || [];
+        
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+          
+          <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+            <div class="card-body">
+              <h4 class="text-white mb-0">
+                <i class="bi bi-clock-history text-orange me-2"></i>
+                Histórico de Drafts - ${league}
+              </h4>
+            </div>
+          </div>
+          
+          ${seasons.length === 0 ? `
+            <div class="alert alert-info bg-dark border-orange text-white">
+              <i class="bi bi-info-circle me-2"></i>
+              Nenhuma temporada encontrada com histórico de draft.
+            </div>
+          ` : `
+            <div class="accordion" id="draftHistoryAccordion">
+              ${seasons.map((s, idx) => `
+                <div class="accordion-item bg-dark border-orange mb-2" style="border-radius: 10px;">
+                  <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark-panel text-white" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#collapse${s.id}"
+                            onclick="loadDraftSeasonDetails(${s.id})">
+                      <span class="me-3">
+                        <span class="badge bg-gradient-orange me-2">T${s.season_number}</span>
+                        Ano ${s.year}
+                      </span>
+                      <span class="badge ${s.has_snapshot || s.draft_status === 'completed' ? 'bg-success' : (s.draft_status ? 'bg-warning text-dark' : 'bg-secondary')}">
+                        ${s.has_snapshot || s.draft_status === 'completed' ? 'Finalizado' : (s.draft_status === 'in_progress' ? 'Em Andamento' : (s.draft_status === 'setup' ? 'Configurando' : 'Sem Draft'))}
+                      </span>
+                    </button>
+                  </h2>
+                  <div id="collapse${s.id}" class="accordion-collapse collapse">
+                    <div class="accordion-body" id="draftDetails${s.id}">
+                      <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-orange"></div>
+                        <span class="ms-2 text-light-gray">Carregando...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        `;
+      } catch (e) {
+        container.innerHTML = `
+          <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+          </button>
+          <div class="alert alert-danger">Erro ao carregar histórico: ${e.error || 'Desconhecido'}</div>
+        `;
+      }
+    }
+    
+    async function loadDraftSeasonDetails(seasonId) {
+      const container = document.getElementById(`draftDetails${seasonId}`);
+      
+      // Se já tem conteúdo carregado (não é o spinner), não recarregar
+      if (!container.innerHTML.includes('spinner-border')) return;
+      
+      try {
+        const data = await api(`draft.php?action=draft_history&season_id=${seasonId}`);
+        const draftOrder = data.draft_order || [];
+        
+        if (draftOrder.length === 0) {
+          container.innerHTML = `
+            <div class="text-center text-light-gray py-3">
+              <i class="bi bi-inbox display-4"></i>
+              <p class="mt-2">Nenhuma escolha registrada nesta temporada.</p>
+            </div>
+          `;
+          return;
+        }
+        
+        // Agrupar por rodada
+        const rounds = {};
+        draftOrder.forEach(pick => {
+          const r = pick.round || 1;
+          if (!rounds[r]) rounds[r] = [];
+          rounds[r].push(pick);
+        });
+        
+        let html = '';
+        for (const [round, picks] of Object.entries(rounds)) {
+          html += `
+            <h6 class="text-orange mt-3 mb-2"><i class="bi bi-trophy-fill me-2"></i>Rodada ${round}</h6>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">Pick</th>
+                    <th>Time</th>
+                    <th>Jogador Escolhido</th>
+                    <th class="d-none d-md-table-cell">Pos</th>
+                    <th class="d-none d-md-table-cell">OVR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${picks.map(p => `
+                    <tr>
+                      <td><span class="badge bg-orange">#${p.pick_position}</span></td>
+                      <td>
+                        <strong class="text-white">${p.team_city || ''} ${p.team_name || ''}</strong>
+                        ${p.traded_from_team_id ? `<br><small class="text-muted">via ${p.traded_from_city || ''} ${p.traded_from_name || ''}</small>` : ''}
+                      </td>
+                      <td>
+                        ${p.player_name ? `
+                          <span class="text-success fw-bold">${p.player_name}</span>
+                        ` : `
+                          <span class="text-muted">-</span>
+                        `}
+                      </td>
+                      <td class="d-none d-md-table-cell">
+                        ${p.player_position ? `<span class="badge bg-secondary">${p.player_position}</span>` : '-'}
+                      </td>
+                      <td class="d-none d-md-table-cell">
+                        ${p.player_ovr ? `<span class="badge bg-success">${p.player_ovr}</span>` : '-'}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+        
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = `
+          <div class="alert alert-danger mb-0">Erro ao carregar detalhes: ${e.error || 'Desconhecido'}</div>
+        `;
       }
     }
 
