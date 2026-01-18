@@ -330,6 +330,22 @@ if (!$team) {
             </button>
           </div>
         </div>
+
+          <!-- MOEDAS DA TEMPORADA (MANUAL) -->
+          <div class="card bg-dark-panel border-success mt-4" style="border-radius: 15px;">
+            <div class="card-body">
+              <h4 class="text-white mb-3">
+                <i class="bi bi-coin text-success me-2"></i>
+                Gerenciar Moedas da Temporada
+              </h4>
+              <p class="text-light-gray mb-3">
+                Defina quantas moedas cada time terá nesta temporada. O valor pode ser editado a qualquer momento.
+              </p>
+              <button class="btn btn-outline-success" onclick="showSeasonCoinsForm(${season.id}, '${league}')">
+                <i class="bi bi-pencil-square me-2"></i>Editar Moedas
+              </button>
+            </div>
+          </div>
       `;
       
       // Iniciar contador se temporada ativa
@@ -361,6 +377,83 @@ if (!$team) {
         }
       }, 1000);
     }
+
+      // ========== MOEDAS DA TEMPORADA ==========
+      async function showSeasonCoinsForm(seasonId, league) {
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success"></div></div>';
+
+        try {
+          const data = await api(`seasons.php?action=season_coins&season_id=${seasonId}`);
+          const teams = data.teams || [];
+
+          container.innerHTML = `
+            <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
+              <i class="bi bi-arrow-left me-2"></i>Voltar
+            </button>
+            <div class="card bg-dark-panel border-success mb-4" style="border-radius: 15px;">
+              <div class="card-body">
+                <h4 class="text-white mb-0">
+                  <i class="bi bi-coin text-success me-2"></i>
+                  Moedas da Temporada
+                </h4>
+              </div>
+            </div>
+            <form id="coinsForm">
+              <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Moedas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${teams.map(t => `
+                      <tr>
+                        <td><strong>${t.city} ${t.name}</strong></td>
+                        <td>
+                          <input type="number" class="form-control bg-dark text-success border-success" 
+                            name="moedas_${t.id}" value="${t.moedas}" min="0" style="max-width:120px;">
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+              <div class="d-grid mt-4">
+                <button type="submit" class="btn btn-success btn-lg">
+                  <i class="bi bi-save me-2"></i>Salvar Moedas
+                </button>
+              </div>
+            </form>
+          `;
+
+          document.getElementById('coinsForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const updates = [];
+            teams.forEach(t => {
+              updates.push({
+                team_id: t.id,
+                moedas: parseInt(form[`moedas_${t.id}`].value, 10) || 0
+              });
+            });
+            try {
+              await api('seasons.php?action=season_coins&season_id=' + seasonId, {
+                method: 'POST',
+                body: JSON.stringify({ updates })
+              });
+              alert('Moedas atualizadas!');
+              showSeasonCoinsForm(seasonId, league);
+            } catch (err) {
+              alert('Erro ao salvar moedas: ' + (err.error || 'Desconhecido'));
+            }
+          };
+        } catch (e) {
+          container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times: ' + (e.error || 'Desconhecido') + '</div>';
+        }
+      }
 
     // ========== HELPERS ==========
     function getMaxSeasonsForLeague(league) {

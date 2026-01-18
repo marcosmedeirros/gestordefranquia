@@ -105,6 +105,56 @@ if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'a
 
 try {
     switch ($action) {
+        // ========== MOEDAS POR TEMPORADA ==========
+        case 'season_coins':
+            $seasonId = $_GET['season_id'] ?? null;
+            if (!$seasonId) throw new Exception('Season ID não especificado');
+
+            if ($method === 'GET') {
+                // Buscar times da temporada
+                $stmt = $pdo->prepare('SELECT league FROM seasons WHERE id = ?');
+                $stmt->execute([$seasonId]);
+                $season = $stmt->fetch();
+                if (!$season) throw new Exception('Temporada não encontrada');
+                $league = $season['league'];
+
+                $stmtTeams = $pdo->prepare('SELECT id, city, name, moedas FROM teams WHERE league = ? ORDER BY city, name');
+                $stmtTeams->execute([$league]);
+                $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+                echo json_encode(['success' => true, 'teams' => $teams, 'league' => $league]);
+                break;
+            }
+
+            if ($method === 'POST') {
+                if (($user['user_type'] ?? 'jogador') !== 'admin') {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                    exit;
+                }
+                $data = json_decode(file_get_contents('php://input'), true);
+                $updates = $data['updates'] ?? [];
+                if (!is_array($updates) || empty($updates)) throw new Exception('Nenhuma atualização enviada');
+
+                $pdo->beginTransaction();
+                try {
+                    foreach ($updates as $item) {
+                        $teamId = $item['team_id'] ?? null;
+                        $moedas = $item['moedas'] ?? null;
+                        if (!$teamId || $moedas === null) continue;
+                        $stmt = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
+                        $stmt->execute([(int)$moedas, $teamId]);
+                    }
+                    $pdo->commit();
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    throw $e;
+                }
+                echo json_encode(['success' => true, 'message' => 'Moedas atualizadas']);
+                break;
+            }
+            throw new Exception('Método não suportado');
+
         // ========== BUSCAR TEMPORADA ATUAL ==========
         case 'current_season':
             $league = $_GET['league'] ?? null;

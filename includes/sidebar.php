@@ -1,7 +1,11 @@
 <?php
+// Garantir que a conexão está disponível
+if (!function_exists('db')) {
+    require_once __DIR__ . '/../backend/db.php';
+}
 // Buscar dados do usuário e time se não existirem
 if (!isset($user) || !isset($team)) {
-    $pdo = getDB();
+    $pdo = db();
     $userId = $_SESSION['user_id'] ?? null;
     
     if ($userId) {
