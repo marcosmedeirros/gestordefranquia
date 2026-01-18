@@ -46,7 +46,7 @@ if ($is_admin) {
 </head>
 <body>
     <div class="d-flex">
-        <?php include 'includes/sidebar.php'; ?>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
         <div class="main-content flex-grow-1">
             <div class="container-fluid py-4">
