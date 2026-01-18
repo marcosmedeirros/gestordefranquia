@@ -223,6 +223,8 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     $body = readJsonBody();
     $playerId = (int) ($body['id'] ?? 0);
+    $isRetirement = (bool) ($body['retirement'] ?? false);
+    
     if (!$playerId) jsonResponse(422, ['error' => 'ID do jogador é obrigatório.']);
 
     $sessionUser = getUserSession();
@@ -246,6 +248,30 @@ if ($method === 'DELETE') {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
+    // Se for aposentadoria, verificar idade mínima (32 anos)
+    if ($isRetirement) {
+        if ((int)$row['age'] <= 31) {
+            jsonResponse(400, ['error' => 'Apenas jogadores com mais de 31 anos podem se aposentar.']);
+        }
+        
+        try {
+            // Aposentadoria: apenas remove o jogador, NÃO conta como waiver
+            $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
+            $del->execute([$playerId]);
+            
+            $newCap = topEightCap($pdo, (int)$row['team_id']);
+            
+            jsonResponse(200, [
+                'message' => $row['name'] . ' se aposentou após uma grande carreira!',
+                'cap_top8' => $newCap,
+                'retirement' => true
+            ]);
+        } catch (Exception $e) {
+            jsonResponse(500, ['error' => 'Erro ao aposentar jogador: ' . $e->getMessage()]);
+        }
+    }
+
+    // Dispensa normal - verifica limite de waivers
     if ($row['waivers_used'] >= $MAX_WAIVERS) {
         jsonResponse(400, ['error' => 'Limite de dispensas por temporada atingido.']);
     }

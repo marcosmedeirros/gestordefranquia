@@ -203,6 +203,11 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
           <i class="bi bi-person-x"></i> Dispensar
         </button>
+        ${p.age > 31 ? `
+        <button class="btn btn-sm btn-outline-secondary btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar jogador">
+          <i class="bi bi-person-dash"></i> Aposentar
+        </button>
+        ` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -261,6 +266,11 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
           <i class="bi bi-person-x"></i> Dispensar
         </button>
+        ${p.age > 31 ? `
+        <button class="btn btn-sm btn-outline-secondary btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
+          <i class="bi bi-person-dash"></i>
+        </button>
+        ` : ''}
       </div>
     `;
     cardsContainer.appendChild(card);
@@ -399,6 +409,22 @@ async function deletePlayer(id) {
   }
 }
 
+async function retirePlayer(id, name) {
+  if (!confirm(`Deseja aposentar ${name}? O jogador será removido permanentemente do elenco e NÃO contará como dispensa para waiver.`)) return;
+  try {
+    const res = await api('players.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id, retirement: true })
+    });
+    alert(res.message || `${name} se aposentou!`);
+    await loadPlayers();
+    // Não precisa atualizar limites de FA pois aposentadoria não conta
+  } catch (err) {
+    console.error('Erro ao aposentar jogador:', err);
+    alert(err.error || 'Erro ao aposentar jogador');
+  }
+}
+
 function openEditModal(player) {
   if (!player) return;
   
@@ -455,6 +481,13 @@ document.getElementById('players-tbody')?.addEventListener('click', (e) => {
     return;
   }
 
+  if (button.classList.contains('btn-retire-player')) {
+    const id = Number(button.dataset.id);
+    const name = button.dataset.name || 'jogador';
+    if (Number.isFinite(id) && id > 0) retirePlayer(id, name);
+    return;
+  }
+
   if (button.classList.contains('btn-edit-player')) {
     const id = Number(button.dataset.id);
     if (!Number.isFinite(id)) return;
@@ -479,6 +512,10 @@ document.getElementById('players-cards-mobile')?.addEventListener('click', (e) =
   if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
     deletePlayer(id);
+  } else if (target.classList.contains('btn-retire-player')) {
+    const id = Number(target.dataset.id);
+    const name = target.dataset.name || 'jogador';
+    retirePlayer(id, name);
   } else if (target.classList.contains('btn-edit-player')) {
     const id = Number(target.dataset.id);
     const p = getRowPlayer(id);
