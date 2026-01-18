@@ -114,6 +114,54 @@ try {
         echo "<p style='color:red'>✗ Erro: " . $e->getMessage() . "</p>";
     }
     
+    // 6. Criar tabela free_agents
+    echo "<h2>6. Criando tabela free_agents...</h2>";
+    
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS free_agents (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                league_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                position VARCHAR(10) NOT NULL,
+                age INT DEFAULT 25,
+                overall INT DEFAULT 70,
+                min_bid INT DEFAULT 0,
+                status ENUM('available', 'signed') DEFAULT 'available',
+                winner_team_id INT NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_fa_status (status),
+                INDEX idx_fa_league (league_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        echo "<p style='color:green'>✓ Tabela free_agents criada!</p>";
+    } catch (Exception $e) {
+        echo "<p style='color:red'>✗ Erro: " . $e->getMessage() . "</p>";
+    }
+    
+    // 7. Criar tabela fa_bids (lances na FA)
+    echo "<h2>7. Criando tabela fa_bids...</h2>";
+    
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS fa_bids (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                free_agent_id INT NOT NULL,
+                team_id INT NOT NULL,
+                amount INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL,
+                INDEX idx_bid_fa (free_agent_id),
+                INDEX idx_bid_team (team_id),
+                UNIQUE KEY uniq_fa_team_bid (free_agent_id, team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        echo "<p style='color:green'>✓ Tabela fa_bids criada!</p>";
+    } catch (Exception $e) {
+        echo "<p style='color:red'>✗ Erro: " . $e->getMessage() . "</p>";
+    }
+    
     echo "<h2 style='color:green'>✓ Migration concluída!</h2>";
     echo "<p><a href='dashboard.php'>Ir para Dashboard</a></p>";
     
