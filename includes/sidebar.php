@@ -80,12 +80,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
-            <a href="/leilao.php" class="<?= $currentPage === 'leilao.php' ? 'active' : '' ?>">
-                <i class="bi bi-hammer"></i>
-                Leilão
-            </a>
-        </li>
-        <li>
             <a href="/free-agency.php" class="<?= $currentPage === 'free-agency.php' ? 'active' : '' ?>">
                 <i class="bi bi-person-plus-fill"></i>
                 Free Agency
