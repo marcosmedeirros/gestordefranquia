@@ -60,6 +60,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'freeagency') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>';
       pageTitle.textContent = 'Gerenciar Leilões';
+    } else if (appState.view === 'coins') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>';
+      pageTitle.textContent = 'Gerenciar Moedas';
     }
   }
 }
@@ -77,7 +80,8 @@ async function showHome() {
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showCoins()"><i class="bi bi-coin"></i><h4>Moedas</h4><p>Gerencie moedas dos times</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -1777,3 +1781,352 @@ async function submitCreateFreeAgent() {
     alert('Erro ao criar free agent: ' + (e.error || 'Desconhecido'));
   }
 }
+
+// ========== MOEDAS ==========
+let coinsLeague = 'ELITE';
+
+async function showCoins() {
+  appState.view = 'coins';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <ul class="nav nav-tabs" id="coinsLeagueTabs">
+          <li class="nav-item">
+            <button class="nav-link ${coinsLeague === 'ELITE' ? 'active' : ''}" onclick="changeCoinsLeague('ELITE')">ELITE</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${coinsLeague === 'NEXT' ? 'active' : ''}" onclick="changeCoinsLeague('NEXT')">NEXT</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${coinsLeague === 'RISE' ? 'active' : ''}" onclick="changeCoinsLeague('RISE')">RISE</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${coinsLeague === 'ROOKIE' ? 'active' : ''}" onclick="changeCoinsLeague('ROOKIE')">ROOKIE</button>
+          </li>
+        </ul>
+      </div>
+      <div class="col-md-4 text-end">
+        <button class="btn btn-orange" onclick="openBulkCoinsModal()">
+          <i class="bi bi-people-fill me-2"></i>Distribuir para Liga
+        </button>
+      </div>
+    </div>
+    
+    <div id="coinsContainer">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>
+    
+    <!-- Modal Adicionar Moedas -->
+    <div class="modal fade" id="addCoinsModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark-panel border-orange">
+          <div class="modal-header border-orange">
+            <h5 class="modal-title text-white"><i class="bi bi-coin text-orange me-2"></i>Gerenciar Moedas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="coinsTeamId">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Time</label>
+              <input type="text" class="form-control bg-dark text-white" id="coinsTeamName" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Saldo Atual</label>
+              <div class="input-group">
+                <span class="input-group-text bg-dark text-orange border-orange"><i class="bi bi-coin"></i></span>
+                <input type="text" class="form-control bg-dark text-white" id="coinsCurrentBalance" readonly>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Operação</label>
+              <select class="form-select bg-dark text-white border-secondary" id="coinsOperation">
+                <option value="add">Adicionar</option>
+                <option value="remove">Remover</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Quantidade</label>
+              <input type="number" class="form-control bg-dark text-white border-secondary" id="coinsAmount" min="1" value="100">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Motivo</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="coinsReason" placeholder="Ex: Prêmio de temporada">
+            </div>
+          </div>
+          <div class="modal-footer border-orange">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" onclick="submitCoins()">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Modal Distribuir em Massa -->
+    <div class="modal fade" id="bulkCoinsModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark-panel border-orange">
+          <div class="modal-header border-orange">
+            <h5 class="modal-title text-white"><i class="bi bi-people-fill text-orange me-2"></i>Distribuir Moedas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info bg-dark border-orange text-white">
+              <i class="bi bi-info-circle me-2"></i>
+              Esta ação adicionará moedas para TODOS os times da liga selecionada.
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Liga</label>
+              <select class="form-select bg-dark text-white border-secondary" id="bulkCoinsLeague">
+                <option value="ELITE">ELITE</option>
+                <option value="NEXT">NEXT</option>
+                <option value="RISE">RISE</option>
+                <option value="ROOKIE">ROOKIE</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Quantidade por Time</label>
+              <input type="number" class="form-control bg-dark text-white border-secondary" id="bulkCoinsAmount" min="1" value="100">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Motivo</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="bulkCoinsReason" placeholder="Ex: Início de temporada">
+            </div>
+          </div>
+          <div class="modal-footer border-orange">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" onclick="submitBulkCoins()">Distribuir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  loadCoinsTeams();
+}
+
+function changeCoinsLeague(league) {
+  coinsLeague = league;
+  showCoins();
+}
+
+async function loadCoinsTeams() {
+  const container = document.getElementById('coinsContainer');
+  
+  try {
+    const data = await api(`admin.php?action=coins&league=${coinsLeague}`);
+    const teams = data.teams || [];
+    
+    if (teams.length === 0) {
+      container.innerHTML = '<div class="alert alert-info bg-dark border-orange text-white">Nenhum time encontrado nesta liga.</div>';
+      return;
+    }
+    
+    const totalCoins = teams.reduce((sum, t) => sum + parseInt(t.moedas), 0);
+    
+    container.innerHTML = `
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="bg-dark-panel border-orange rounded p-3">
+            <h6 class="text-light-gray mb-1">Total de Moedas na Liga</h6>
+            <h3 class="text-orange mb-0"><i class="bi bi-coin me-2"></i>${totalCoins.toLocaleString()}</h3>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="bg-dark-panel border-orange rounded p-3">
+            <h6 class="text-light-gray mb-1">Times</h6>
+            <h3 class="text-white mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>${teams.length}</h3>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Proprietário</th>
+              <th class="text-end">Moedas</th>
+              <th class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teams.map(t => `
+              <tr>
+                <td><strong>${t.city} ${t.name}</strong></td>
+                <td class="text-light-gray">${t.owner_name}</td>
+                <td class="text-end">
+                  <span class="badge ${parseInt(t.moedas) > 0 ? 'bg-success' : 'bg-secondary'} fs-6">
+                    <i class="bi bi-coin me-1"></i>${parseInt(t.moedas).toLocaleString()}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <button class="btn btn-sm btn-outline-orange me-1" onclick="openCoinsModal(${t.id}, '${t.city} ${t.name}', ${t.moedas})" title="Gerenciar moedas">
+                    <i class="bi bi-coin"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="showCoinsHistory(${t.id}, '${t.city} ${t.name}')" title="Ver histórico">
+                    <i class="bi bi-clock-history"></i>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+
+function openCoinsModal(teamId, teamName, currentBalance) {
+  document.getElementById('coinsTeamId').value = teamId;
+  document.getElementById('coinsTeamName').value = teamName;
+  document.getElementById('coinsCurrentBalance').value = parseInt(currentBalance).toLocaleString();
+  document.getElementById('coinsOperation').value = 'add';
+  document.getElementById('coinsAmount').value = 100;
+  document.getElementById('coinsReason').value = '';
+  
+  new bootstrap.Modal(document.getElementById('addCoinsModal')).show();
+}
+
+function openBulkCoinsModal() {
+  document.getElementById('bulkCoinsLeague').value = coinsLeague;
+  document.getElementById('bulkCoinsAmount').value = 100;
+  document.getElementById('bulkCoinsReason').value = '';
+  
+  new bootstrap.Modal(document.getElementById('bulkCoinsModal')).show();
+}
+
+async function submitCoins() {
+  const teamId = document.getElementById('coinsTeamId').value;
+  const operation = document.getElementById('coinsOperation').value;
+  const amount = parseInt(document.getElementById('coinsAmount').value);
+  const reason = document.getElementById('coinsReason').value.trim() || 'Ajuste administrativo';
+  
+  if (!teamId || !amount || amount <= 0) {
+    alert('Preencha uma quantidade válida.');
+    return;
+  }
+  
+  try {
+    const result = await api('admin.php?action=coins', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, operation, amount, reason })
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('addCoinsModal'))?.hide();
+    alert(result.message);
+    loadCoinsTeams();
+  } catch (e) {
+    alert('Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function submitBulkCoins() {
+  const league = document.getElementById('bulkCoinsLeague').value;
+  const amount = parseInt(document.getElementById('bulkCoinsAmount').value);
+  const reason = document.getElementById('bulkCoinsReason').value.trim() || 'Distribuição de moedas';
+  
+  if (!amount || amount <= 0) {
+    alert('Preencha uma quantidade válida.');
+    return;
+  }
+  
+  if (!confirm(`Tem certeza que deseja adicionar ${amount} moedas para TODOS os times da liga ${league}?`)) {
+    return;
+  }
+  
+  try {
+    const result = await api('admin.php?action=coins_bulk', {
+      method: 'POST',
+      body: JSON.stringify({ league, amount, reason })
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('bulkCoinsModal'))?.hide();
+    alert(result.message);
+    
+    // Atualizar para a liga que foi distribuída
+    coinsLeague = league;
+    showCoins();
+  } catch (e) {
+    alert('Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function showCoinsHistory(teamId, teamName) {
+  const container = document.getElementById('coinsContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  
+  try {
+    const data = await api(`admin.php?action=coins_log&team_id=${teamId}`);
+    const logs = data.logs || [];
+    
+    let html = `
+      <div class="mb-3">
+        <button class="btn btn-back" onclick="loadCoinsTeams()"><i class="bi bi-arrow-left"></i> Voltar para lista</button>
+      </div>
+      <div class="bg-dark-panel border-orange rounded p-3 mb-3">
+        <h5 class="text-white mb-0"><i class="bi bi-clock-history text-orange me-2"></i>Histórico de Moedas: ${teamName}</h5>
+      </div>
+    `;
+    
+    if (logs.length === 0) {
+      html += '<div class="alert alert-info bg-dark border-orange text-white">Nenhum histórico encontrado.</div>';
+    } else {
+      html += `
+        <div class="table-responsive">
+          <table class="table table-dark table-hover">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th class="text-end">Alteração</th>
+                <th class="text-end">Saldo</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${logs.map(log => {
+                const date = new Date(log.created_at);
+                const dateStr = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+                const typeLabels = {
+                  'admin_add': '<span class="badge bg-success">Adição Admin</span>',
+                  'admin_remove': '<span class="badge bg-danger">Remoção Admin</span>',
+                  'admin_bulk': '<span class="badge bg-info">Distribuição</span>',
+                  'fa_bid': '<span class="badge bg-warning text-dark">Lance FA</span>',
+                  'fa_win': '<span class="badge bg-primary">Vitória FA</span>',
+                  'fa_refund': '<span class="badge bg-secondary">Reembolso FA</span>'
+                };
+                return `
+                  <tr>
+                    <td class="text-light-gray">${dateStr}</td>
+                    <td>${typeLabels[log.type] || log.type}</td>
+                    <td class="text-end">
+                      <span class="${parseInt(log.amount) >= 0 ? 'text-success' : 'text-danger'}">
+                        ${parseInt(log.amount) >= 0 ? '+' : ''}${parseInt(log.amount).toLocaleString()}
+                      </span>
+                    </td>
+                    <td class="text-end">${parseInt(log.balance_after).toLocaleString()}</td>
+                    <td class="text-light-gray">${log.reason || '-'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar histórico: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+

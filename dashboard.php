@@ -276,8 +276,12 @@ try {
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
                 <span class="badge bg-success" style="font-size: 1rem; padding: 0.6rem 1rem;">
-                    <i class="bi bi-coin me-1"></i>
+                    <i class="bi bi-star-fill me-1"></i>
                     <?= (int)($team['ranking_points'] ?? 0) ?> pts
+                </span>
+                <span class="badge bg-warning text-dark" style="font-size: 1rem; padding: 0.6rem 1rem;">
+                    <i class="bi bi-coin me-1"></i>
+                    <?= (int)($team['moedas'] ?? 0) ?> moedas
                 </span>
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">

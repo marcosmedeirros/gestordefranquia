@@ -439,6 +439,54 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'league' => $league, 'teams' => $teams]);
             break;
 
+        case 'coins':
+            // Listar times com moedas
+            $league = isset($_GET['league']) ? strtoupper($_GET['league']) : null;
+            
+            $query = "
+                SELECT 
+                    t.id, t.city, t.name, t.league, 
+                    COALESCE(t.moedas, 0) as moedas,
+                    u.name as owner_name
+                FROM teams t
+                JOIN users u ON t.user_id = u.id
+            ";
+            
+            if ($league && in_array($league, $validLeagues, true)) {
+                $query .= " WHERE t.league = ? ORDER BY t.moedas DESC, t.city, t.name";
+                $stmt = $pdo->prepare($query);
+                $stmt->execute([$league]);
+            } else {
+                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.city, t.name";
+                $stmt = $pdo->query($query);
+            }
+            
+            $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'teams' => $teams, 'league' => $league]);
+            break;
+
+        case 'coins_log':
+            // Histórico de moedas de um time
+            $teamId = $_GET['team_id'] ?? null;
+            if (!$teamId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Team ID obrigatório']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT * FROM team_coins_log 
+                WHERE team_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 50
+            ");
+            $stmt->execute([$teamId]);
+            $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'logs' => $logs]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
@@ -844,6 +892,154 @@ if ($method === 'POST') {
 
         case 'free_agent_assign':
             handleFreeAgentAssignment($pdo, $data);
+            break;
+
+        case 'coins':
+            // Adicionar ou remover moedas de um time
+            $teamId = $data['team_id'] ?? null;
+            $amount = $data['amount'] ?? null;
+            $reason = $data['reason'] ?? 'Ajuste administrativo';
+            $operation = $data['operation'] ?? 'add'; // add ou remove
+
+            if (!$teamId || $amount === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Team ID e quantidade são obrigatórios']);
+                exit;
+            }
+
+            $amount = (int)$amount;
+            if ($amount <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Quantidade deve ser maior que zero']);
+                exit;
+            }
+
+            // Buscar time
+            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(moedas, 0) as moedas FROM teams WHERE id = ?');
+            $stmtTeam->execute([$teamId]);
+            $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+
+            if (!$team) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+
+            $currentCoins = (int)$team['moedas'];
+            
+            if ($operation === 'remove') {
+                if ($currentCoins < $amount) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Time não tem moedas suficientes']);
+                    exit;
+                }
+                $newBalance = $currentCoins - $amount;
+                $logAmount = -$amount;
+                $logType = 'admin_remove';
+            } else {
+                $newBalance = $currentCoins + $amount;
+                $logAmount = $amount;
+                $logType = 'admin_add';
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                // Atualizar moedas do time
+                $stmtUpdate = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
+                $stmtUpdate->execute([$newBalance, $teamId]);
+
+                // Registrar no log
+                $stmtLog = $pdo->prepare('
+                    INSERT INTO team_coins_log (team_id, amount, balance_after, reason, type)
+                    VALUES (?, ?, ?, ?, ?)
+                ');
+                $stmtLog->execute([$teamId, $logAmount, $newBalance, $reason, $logType]);
+
+                $pdo->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => sprintf(
+                        '%s %d moedas %s %s %s. Novo saldo: %d',
+                        $operation === 'add' ? 'Adicionadas' : 'Removidas',
+                        $amount,
+                        $operation === 'add' ? 'para' : 'de',
+                        $team['city'],
+                        $team['name'],
+                        $newBalance
+                    ),
+                    'new_balance' => $newBalance
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar moedas: ' . $e->getMessage()]);
+            }
+            break;
+
+        case 'coins_bulk':
+            // Adicionar moedas em massa para todos os times de uma liga
+            $league = $data['league'] ?? null;
+            $amount = $data['amount'] ?? null;
+            $reason = $data['reason'] ?? 'Distribuição de moedas';
+
+            if (!$league || $amount === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga e quantidade são obrigatórios']);
+                exit;
+            }
+
+            if (!in_array(strtoupper($league), $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+
+            $amount = (int)$amount;
+            if ($amount <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Quantidade deve ser maior que zero']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                // Buscar todos os times da liga
+                $stmtTeams = $pdo->prepare('SELECT id, COALESCE(moedas, 0) as moedas FROM teams WHERE league = ?');
+                $stmtTeams->execute([strtoupper($league)]);
+                $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+                $count = 0;
+                foreach ($teams as $team) {
+                    $newBalance = (int)$team['moedas'] + $amount;
+                    
+                    // Atualizar moedas do time
+                    $stmtUpdate = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
+                    $stmtUpdate->execute([$newBalance, $team['id']]);
+
+                    // Registrar no log
+                    $stmtLog = $pdo->prepare('
+                        INSERT INTO team_coins_log (team_id, amount, balance_after, reason, type)
+                        VALUES (?, ?, ?, ?, ?)
+                    ');
+                    $stmtLog->execute([$team['id'], $amount, $newBalance, $reason, 'admin_bulk']);
+                    $count++;
+                }
+
+                $pdo->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => sprintf('Adicionadas %d moedas para %d times da liga %s', $amount, $count, strtoupper($league)),
+                    'teams_updated' => $count
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas: ' . $e->getMessage()]);
+            }
             break;
 
         default:
