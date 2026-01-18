@@ -286,7 +286,7 @@ if ($method === 'DELETE') {
         }
 
         $stmtFA = $pdo->prepare('
-            INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
+            INSERT INTO free_agents (name, age, position, secondary_position, overall, league, original_team_id, original_team_name)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmtFA->execute([
