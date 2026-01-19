@@ -61,7 +61,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jogadores Livre - FBA Brasil</title>
+    <title>Free Agency - FBA Brasil</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,7 +78,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div class="mb-4">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <h1 class="text-white fw-bold mb-0">
-                        <i class="bi bi-coin text-orange me-2"></i>Jogadores Livre
+                        <i class="bi bi-coin text-orange me-2"></i>Free Agency
                     </h1>
                     <div class="d-flex flex-wrap gap-2">
                         <?php if ($team_league): ?>
@@ -104,7 +104,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <ul class="nav nav-tabs mb-4" id="freeAgencyTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
-                        <i class="bi bi-people-fill me-1"></i>Jogadores Livre
+                        <i class="bi bi-people-fill me-1"></i>Free Agency
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">

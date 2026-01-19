@@ -401,6 +401,16 @@ if ($method === 'POST') {
                 foreach ($allTeams as $tid) {
                     $teamPoints[$tid] = 0;
                 }
+
+                $addPoints = function(array $teamIds, int $points) use (&$teamPoints) {
+                    $unique = array_unique(array_filter($teamIds));
+                    foreach ($unique as $tid) {
+                        if (!isset($teamPoints[$tid])) {
+                            $teamPoints[$tid] = 0;
+                        }
+                        $teamPoints[$tid] += $points;
+                    }
+                };
                 
                 // 1. Pontos de classificação (standing)
                 $stmtBrackets = $pdo->prepare("
@@ -441,45 +451,64 @@ if ($method === 'POST') {
                     }
                 }
                 
-                // Finais de conferência (perdedores = +3)
+                // Finais de conferência
                 $stmtConfFinals = $pdo->prepare("
                     SELECT * FROM playoff_matches 
                     WHERE season_id = ? AND league = ? AND round = 'conference_finals' AND winner_id IS NOT NULL
                 ");
                 $stmtConfFinals->execute([$seasonId, $league]);
                 $confFinals = $stmtConfFinals->fetchAll(PDO::FETCH_ASSOC);
+
+                $confFinalTeams = [];
+                foreach ($confFinals as $g) {
+                    $confFinalTeams[] = $g['team1_id'] ?? null;
+                    $confFinalTeams[] = $g['team2_id'] ?? null;
+                }
+                $addPoints($confFinalTeams, 3);
                 
                 foreach ($confFinals as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
                     if ($loserId && $loserId != $champion && $loserId != $runnerUp) {
                         $conferenceFinalists[] = $loserId;
-                        $teamPoints[$loserId] += 3;
                     }
                 }
                 
-                // Semifinais (perdedores = +2)
+                // Semifinais
                 $stmtSemis = $pdo->prepare("
                     SELECT * FROM playoff_matches 
                     WHERE season_id = ? AND league = ? AND round = 'semifinals' AND winner_id IS NOT NULL
                 ");
                 $stmtSemis->execute([$seasonId, $league]);
                 $semis = $stmtSemis->fetchAll(PDO::FETCH_ASSOC);
+
+                $semifinalTeams = [];
+                foreach ($semis as $g) {
+                    $semifinalTeams[] = $g['team1_id'] ?? null;
+                    $semifinalTeams[] = $g['team2_id'] ?? null;
+                }
+                $addPoints($semifinalTeams, 2);
                 
                 foreach ($semis as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
                     if ($loserId && !in_array($loserId, [$champion, $runnerUp]) && !in_array($loserId, $conferenceFinalists)) {
                         $semifinalists[] = $loserId;
-                        $teamPoints[$loserId] += 2;
                     }
                 }
                 
-                // Primeira rodada (perdedores = +1)
+                // Primeira rodada
                 $stmtFirst = $pdo->prepare("
                     SELECT * FROM playoff_matches 
                     WHERE season_id = ? AND league = ? AND round = 'first_round' AND winner_id IS NOT NULL
                 ");
                 $stmtFirst->execute([$seasonId, $league]);
                 $firstRound = $stmtFirst->fetchAll(PDO::FETCH_ASSOC);
+
+                $firstRoundTeams = [];
+                foreach ($firstRound as $g) {
+                    $firstRoundTeams[] = $g['team1_id'] ?? null;
+                    $firstRoundTeams[] = $g['team2_id'] ?? null;
+                }
+                $addPoints($firstRoundTeams, 1);
                 
                 foreach ($firstRound as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
@@ -488,7 +517,6 @@ if ($method === 'POST') {
                         !in_array($loserId, $conferenceFinalists) &&
                         !in_array($loserId, $semifinalists)) {
                         $firstRoundLosers[] = $loserId;
-                        $teamPoints[$loserId] += 1;
                     }
                 }
                 

@@ -58,6 +58,11 @@ if (in_array($action, $adminActions)) {
 
 // Verificar se as tabelas existem
 $pdo = db();
+function teamColumnExists(PDO $pdo, string $column): bool {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
 function checkTablesExist($pdo) {
     $stmt = $pdo->query("SHOW TABLES LIKE 'season_history'");
     if ($stmt->rowCount() == 0) {
@@ -332,6 +337,13 @@ try {
                 foreach ($teamPoints as $tp) {
                     $teamId = $tp['team_id'];
                     $points = intval($tp['points']);
+                    $prevPoints = 0;
+                    $stmtPrev = $pdo->prepare("SELECT points FROM team_season_points WHERE team_id = ? AND season_id = ? LIMIT 1");
+                    $stmtPrev->execute([$teamId, $seasonId]);
+                    $prevRow = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+                    if ($prevRow) {
+                        $prevPoints = (int) $prevRow['points'];
+                    }
                     
                     // Buscar nome do time
                     $stmt = $pdo->prepare("SELECT CONCAT(city, ' ', name) as team_name FROM teams WHERE id = ?");
@@ -359,6 +371,16 @@ try {
                         $seasonNumber,
                         $points
                     ]);
+
+                    $delta = $points - $prevPoints;
+                    if ($delta !== 0 && teamColumnExists($pdo, 'ranking_points')) {
+                        $stmtUpdate = $pdo->prepare("
+                            UPDATE teams
+                            SET ranking_points = COALESCE(ranking_points, 0) + ?
+                            WHERE id = ?
+                        ");
+                        $stmtUpdate->execute([$delta, $teamId]);
+                    }
                 }
                 
                 $pdo->commit();
@@ -411,21 +433,20 @@ try {
         
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
+            $hasRankingPoints = teamColumnExists($pdo, 'ranking_points');
 
-            // Usar ranking_points da tabela teams (onde os pontos são salvos pelo sistema de playoffs)
-            // Também somar pontos da team_season_points se existir
             $sql = "SELECT 
                         t.id as team_id,
                         CONCAT(t.city, ' ', t.name) as team_name,
                         t.league,
-                        (COALESCE(t.ranking_points, 0) + COALESCE(points.total_points, 0)) as total_points,
+                        " . ($hasRankingPoints ? "COALESCE(t.ranking_points, 0)" : "COALESCE(points.total_points, 0)") . " as total_points,
                         COALESCE(titles.total_titles, 0) as total_titles
                     FROM teams t
-                    LEFT JOIN (
+                    " . ($hasRankingPoints ? "" : "LEFT JOIN (
                         SELECT team_id, SUM(points) as total_points
                         FROM team_season_points
                         GROUP BY team_id
-                    ) points ON points.team_id = t.id
+                    ) points ON points.team_id = t.id") . "
                     LEFT JOIN (
                         SELECT champion_team_id as team_id, COUNT(*) as total_titles
                         FROM season_history

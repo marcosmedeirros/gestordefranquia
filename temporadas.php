@@ -1507,6 +1507,23 @@ if (!$team) {
                   </select>
                 </div>
               </div>
+
+              <!-- ROY -->
+              <div class="row mb-2">
+                <div class="col-md-6">
+                  <label class="form-label text-white">
+                    <i class="bi bi-star-fill text-warning me-2"></i>ROY (+1pt para o time)
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white" name="roy_player" placeholder="Nome do jogador">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-white">Time do ROY</label>
+                  <select class="form-select bg-dark text-white" name="roy_team_id">
+                    <option value="">Selecione o time</option>
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
             </form>
           </div>
         </div>
@@ -1532,7 +1549,9 @@ if (!$team) {
         mip_player: formData.get('mip_player') || null,
         mip_team_id: formData.get('mip_team_id') || null,
         sixth_man_player: formData.get('sixth_man_player') || null,
-        sixth_man_team_id: formData.get('sixth_man_team_id') || null
+        sixth_man_team_id: formData.get('sixth_man_team_id') || null,
+        roy_player: formData.get('roy_player') || null,
+        roy_team_id: formData.get('roy_team_id') || null
       };
       
       playoffState.step = 4;
@@ -1593,7 +1612,8 @@ if (!$team) {
                 ${playoffState.awards.dpoy_player ? `<p class="mb-2"><strong class="text-info">DPOY:</strong> <span class="text-white">${playoffState.awards.dpoy_player}</span></p>` : ''}
                 ${playoffState.awards.mip_player ? `<p class="mb-2"><strong class="text-success">MIP:</strong> <span class="text-white">${playoffState.awards.mip_player}</span></p>` : ''}
                 ${playoffState.awards.sixth_man_player ? `<p class="mb-0"><strong class="text-primary">6º Homem:</strong> <span class="text-white">${playoffState.awards.sixth_man_player}</span></p>` : ''}
-                ${!playoffState.awards.mvp_player && !playoffState.awards.dpoy_player && !playoffState.awards.mip_player && !playoffState.awards.sixth_man_player ? '<p class="text-muted mb-0">Nenhum prêmio registrado</p>' : ''}
+                ${playoffState.awards.roy_player ? `<p class="mb-0"><strong class="text-warning">ROY:</strong> <span class="text-white">${playoffState.awards.roy_player}</span></p>` : ''}
+                ${!playoffState.awards.mvp_player && !playoffState.awards.dpoy_player && !playoffState.awards.mip_player && !playoffState.awards.sixth_man_player && !playoffState.awards.roy_player ? '<p class="text-muted mb-0">Nenhum prêmio registrado</p>' : ''}
               </div>
             </div>
           </div>
@@ -1631,6 +1651,7 @@ if (!$team) {
                   <li>• DPOY: +1 pt</li>
                   <li>• MIP: +1 pt</li>
                   <li>• 6º Homem: +1 pt</li>
+                  <li>• ROY: +1 pt</li>
                 </ul>
               </div>
             </div>

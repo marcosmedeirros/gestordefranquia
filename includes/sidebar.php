@@ -88,7 +88,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         <li>
             <a href="/free-agency.php" class="<?= $currentPage === 'free-agency.php' ? 'active' : '' ?>">
                 <i class="bi bi-coin"></i>
-                Jogadores Livre
+                Free Agency
             </a>
         </li>
         <li>
