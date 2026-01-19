@@ -274,7 +274,7 @@ function cadastrarLeilao($pdo, $body) {
     $data_fim = $body['data_fim'] ?? null;
     $new_player = $body['new_player'] ?? null;
     
-    if ((!$player_id && !$new_player) || !$team_id || !$league_id) {
+    if ((!$player_id && !$new_player) || !$league_id) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
         return;
     }
@@ -290,8 +290,23 @@ function cadastrarLeilao($pdo, $body) {
         }
         $ovrColumn = playerOvrColumn($pdo);
         $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
+        if (!$team_id) {
+            echo json_encode(['success' => false, 'error' => 'Selecione um time para criar jogador']);
+            return;
+        }
         $stmt->execute([$team_id, $name, $age, $position, $ovr]);
         $player_id = $pdo->lastInsertId();
+    }
+
+    if ($player_id && !$team_id) {
+        $stmt = $pdo->prepare("SELECT team_id FROM players WHERE id = ?");
+        $stmt->execute([$player_id]);
+        $playerRow = $stmt->fetch();
+        if (!$playerRow) {
+            echo json_encode(['success' => false, 'error' => 'Jogador nao encontrado']);
+            return;
+        }
+        $team_id = $playerRow['team_id'];
     }
     
     // Verificar se jogador ja esta em leilao ativo

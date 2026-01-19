@@ -23,8 +23,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupAdminEvents() {
     const selectLeague = document.getElementById('selectLeague');
-    const selectTeam = document.getElementById('selectTeam');
-    const selectPlayer = document.getElementById('selectPlayer');
     const btnCadastrar = document.getElementById('btnCadastrarLeilao');
     const toggleNewPlayer = document.getElementById('toggleNewAuctionPlayer');
     const newPlayerFields = document.getElementById('newAuctionPlayerFields');
@@ -38,85 +36,16 @@ function setupAdminEvents() {
         if (newPlayerFields) {
             newPlayerFields.style.display = this.checked ? 'flex' : 'none';
         }
-        selectPlayer.disabled = this.checked;
-        btnCadastrar.disabled = !this.checked && !selectPlayer.value && !selectedPlayerIdInput?.value;
+        btnCadastrar.disabled = !this.checked && !selectedPlayerIdInput?.value;
     });
-    
-    // Quando selecionar liga, carregar times
+
     selectLeague.addEventListener('change', async function() {
-        const leagueId = this.value;
-        const leagueOption = this.options?.[this.selectedIndex];
-        const leagueName = leagueOption?.dataset?.leagueName || '';
-        selectTeam.innerHTML = '<option value="">Carregando...</option>';
-        selectTeam.disabled = true;
-        selectPlayer.innerHTML = '<option value="">Selecione primeiro um time...</option>';
-        selectPlayer.disabled = true;
         btnCadastrar.disabled = true;
-        
-        if (!leagueId || !leagueName) {
-            selectTeam.innerHTML = '<option value="">Selecione primeiro uma liga...</option>';
-            return;
-        }
-        
-        try {
-            const response = await fetch(`api/team.php?league=${encodeURIComponent(leagueName)}`);
-            const data = await response.json();
-            
-            if (data.success && data.teams) {
-                selectTeam.innerHTML = '<option value="">Selecione um time...</option>';
-                data.teams.forEach(team => {
-                    selectTeam.innerHTML += `<option value="${team.id}">${team.name}</option>`;
-                });
-                selectTeam.disabled = false;
-            } else {
-                selectTeam.innerHTML = '<option value="">Nenhum time encontrado</option>';
-            }
-        } catch (error) {
-            console.error('Erro ao carregar times:', error);
-            selectTeam.innerHTML = '<option value="">Erro ao carregar</option>';
-        }
+        if (selectedPlayerIdInput) selectedPlayerIdInput.value = '';
+        if (selectedTeamIdInput) selectedTeamIdInput.value = '';
+        if (selectedLabel) selectedLabel.style.display = 'none';
     });
-    
-    // Quando selecionar time, carregar jogadores
-    selectTeam.addEventListener('change', async function() {
-        const teamId = this.value;
-        selectPlayer.innerHTML = '<option value="">Carregando...</option>';
-        selectPlayer.disabled = true;
-        btnCadastrar.disabled = true;
-        
-        if (!teamId) {
-            selectPlayer.innerHTML = '<option value="">Selecione primeiro um time...</option>';
-            return;
-        }
-        
-        try {
-            const response = await fetch(`api/team-players.php?team_id=${teamId}`);
-            const data = await response.json();
-            
-            if (data.success && data.players) {
-                selectPlayer.innerHTML = '<option value="">Selecione um jogador...</option>';
-                data.players.forEach(player => {
-                    selectPlayer.innerHTML += `<option value="${player.id}">${player.name} (${player.position}, ${player.age} anos, OVR ${player.ovr || player.overall})</option>`;
-                });
-                selectPlayer.disabled = false;
-            } else {
-                selectPlayer.innerHTML = '<option value="">Nenhum jogador encontrado</option>';
-            }
-        } catch (error) {
-            console.error('Erro ao carregar jogadores:', error);
-            selectPlayer.innerHTML = '<option value="">Erro ao carregar</option>';
-        }
-    });
-    
-    // Habilitar botao quando jogador selecionado
-    selectPlayer.addEventListener('change', function() {
-        if (!toggleNewPlayer || !toggleNewPlayer.checked) {
-            btnCadastrar.disabled = !this.value;
-        }
-        if (selectedPlayerIdInput) selectedPlayerIdInput.value = this.value || '';
-        if (selectedTeamIdInput) selectedTeamIdInput.value = selectTeam.value || '';
-    });
-    
+
     // Cadastrar jogador no leilao
     btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
 
@@ -158,13 +87,6 @@ function setupAdminEvents() {
 
             searchResults.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const leagueName = btn.dataset.league || '';
-                    const leagueId = leagueIdByName?.[leagueName];
-                    if (leagueId) {
-                        selectLeague.value = leagueId;
-                        selectLeague.dispatchEvent(new Event('change'));
-                    }
-
                     const teamId = btn.dataset.teamId;
                     const playerId = btn.dataset.playerId;
                     if (selectedPlayerIdInput) selectedPlayerIdInput.value = playerId;
@@ -188,20 +110,20 @@ function setupAdminEvents() {
 async function cadastrarJogadorLeilao() {
     const selectedPlayerId = document.getElementById('auctionSelectedPlayerId')?.value || '';
     const selectedTeamId = document.getElementById('auctionSelectedTeamId')?.value || '';
-    const playerId = selectedPlayerId || document.getElementById('selectPlayer').value;
-    const teamId = selectedTeamId || document.getElementById('selectTeam').value;
+    const playerId = selectedPlayerId;
+    const teamId = selectedTeamId;
     const leagueId = document.getElementById('selectLeague').value;
     const newPlayerEnabled = document.getElementById('toggleNewAuctionPlayer')?.checked;
     
-    if ((!playerId && !newPlayerEnabled) || !teamId || !leagueId) {
-        alert('Selecione liga, time e jogador');
+    if ((!playerId && !newPlayerEnabled) || !leagueId) {
+        alert('Selecione liga e jogador');
         return;
     }
 
     const payload = {
         action: 'cadastrar',
         player_id: playerId || null,
-        team_id: teamId,
+        team_id: teamId || null,
         league_id: leagueId
     };
 

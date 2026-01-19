@@ -213,17 +213,13 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
-                                    <label for="selectTeam" class="form-label">Time</label>
-                                    <select id="selectTeam" class="form-select" disabled>
-                                        <option value="">Selecione primeiro uma liga...</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="selectPlayer" class="form-label">Jogador</label>
-                                    <select id="selectPlayer" class="form-select" disabled>
-                                        <option value="">Selecione primeiro um time...</option>
-                                    </select>
+                                <div class="col-md-5">
+                                    <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
+                                    <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
+                                    <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
+                                    <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
+                                    <input type="hidden" id="auctionSelectedPlayerId">
+                                    <input type="hidden" id="auctionSelectedTeamId">
                                 </div>
                                 <div class="col-md-2">
                                     <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled>
@@ -238,16 +234,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     <label class="form-check-label" for="toggleNewAuctionPlayer">
                                         Criar novo jogador para leilao
                                     </label>
-                                </div>
-                                <div class="row g-2 mb-3">
-                                    <div class="col-md-6">
-                                        <label for="auctionPlayerSearch" class="form-label">Pesquisar jogador</label>
-                                        <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
-                                        <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
-                                        <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
-                                        <input type="hidden" id="auctionSelectedPlayerId">
-                                        <input type="hidden" id="auctionSelectedTeamId">
-                                    </div>
                                 </div>
                                 <div class="row g-2" id="newAuctionPlayerFields" style="display:none;">
                                     <div class="col-md-4">
