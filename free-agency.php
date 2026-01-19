@@ -26,6 +26,7 @@ if ($team_id) {
     $team_moedas = (int)($team['moedas'] ?? 0);
     $team_league = $team['league'] ?? null;
 }
+$team_league = $team_league ?? ($_SESSION['user_league'] ?? null);
 
 $leagues = [];
 if ($is_admin) {
@@ -104,7 +105,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                 <h5 class="mb-0 text-white"><i class="bi bi-people-fill text-orange me-2"></i>Jogadores Disponiveis</h5>
                                 <?php if ($is_admin): ?>
-                                    <button class="btn btn-sm btn-outline-orange" data-bs-toggle="tab" data-bs-target="#fa-admin" type="button">
+                                    <button class="btn btn-sm btn-outline-orange" type="button" id="btnOpenAdminTab">
                                         <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador
                                     </button>
                                 <?php endif; ?>

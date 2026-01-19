@@ -31,7 +31,7 @@ if ($team_id) {
     $team = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-$team_league = $team['league'] ?? null;
+$team_league = $team['league'] ?? ($_SESSION['user_league'] ?? null);
 $team_coins = (int)($team['moedas'] ?? 0);
 $valid_leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
@@ -261,9 +261,16 @@ function listFreeAgents(PDO $pdo, ?string $league, ?int $teamId): void
     }
     $fields .= ", fa.original_team_name";
     $params = [];
-    $where = 'fa.status = "available"';
+    $where = '(fa.status = "available" OR fa.status IS NULL)';
 
-    if (freeAgentsUseLeagueEnum($pdo)) {
+    if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        $where .= ' AND (fa.league = ?' . ($leagueId ? ' OR fa.league_id = ?' : '') . ')';
+        $params[] = $league;
+        if ($leagueId) {
+            $params[] = $leagueId;
+        }
+    } elseif (freeAgentsUseLeagueEnum($pdo)) {
         $where .= ' AND fa.league = ?';
         $params[] = $league;
     } elseif (freeAgentsUseLeagueId($pdo)) {
@@ -299,10 +306,11 @@ function listMyOffers(PDO $pdo, ?int $teamId): void
     }
 
     ensureOfferAmountColumn($pdo);
+    $ovrColumn = freeAgentOvrColumn($pdo);
 
     $stmt = $pdo->prepare('
         SELECT fao.id, fao.amount, fao.status, fao.created_at,
-               fa.name AS player_name, fa.position, fa.ovr
+               fa.name AS player_name, fa.position, fa.' . $ovrColumn . ' AS ovr
         FROM free_agent_offers fao
         JOIN free_agents fa ON fao.free_agent_id = fa.id
         WHERE fao.team_id = ?
@@ -318,10 +326,17 @@ function listAdminFreeAgents(PDO $pdo, string $league): void
 {
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
-    $where = 'fa.status = "available"';
+    $where = '(fa.status = "available" OR fa.status IS NULL)';
     $params = [];
 
-    if (freeAgentsUseLeagueEnum($pdo)) {
+    if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        $where .= ' AND (fa.league = ?' . ($leagueId ? ' OR fa.league_id = ?' : '') . ')';
+        $params[] = $league;
+        if ($leagueId) {
+            $params[] = $leagueId;
+        }
+    } elseif (freeAgentsUseLeagueEnum($pdo)) {
         $where .= ' AND fa.league = ?';
         $params[] = $league;
     } elseif (freeAgentsUseLeagueId($pdo)) {
@@ -363,7 +378,14 @@ function listAdminOffers(PDO $pdo, string $league): void
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
     $where = '';
     $params = [];
-    if (freeAgentsUseLeagueEnum($pdo)) {
+    if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        $where = '(fa.league = ?' . ($leagueId ? ' OR fa.league_id = ?' : '') . ')';
+        $params[] = $league;
+        if ($leagueId) {
+            $params[] = $leagueId;
+        }
+    } elseif (freeAgentsUseLeagueEnum($pdo)) {
         $where = 'fa.league = ?';
         $params[] = $league;
     } elseif (freeAgentsUseLeagueId($pdo)) {

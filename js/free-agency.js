@@ -346,93 +346,14 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
         alert('Erro ao enviar lance');
     }
 });
-<<<<<<< HEAD
-=======
 
-// ========== MODAL VENCEDOR (ADMIN) ==========
-
-async function abrirModalVencedor(playerId, playerName) {
-    document.getElementById('freeAgentIdVencedor').value = playerId;
-    document.getElementById('freeAgentNomeVencedor').textContent = playerName;
-    
-    const container = document.getElementById('listLancesVencedor');
-    container.innerHTML = '<p class="text-muted">Carregando...</p>';
-    
-    const modal = new bootstrap.Modal(document.getElementById('modalEscolherVencedor'));
-    modal.show();
-    
-    try {
-        const response = await fetch('api/free-agency.php?action=get_bids&player_id=' + playerId);
-        const data = await response.json();
-
-        // Buscar quantos jogadores cada time já contratou na FA
-        let teamSignings = {};
-        if (data.success && data.bids && data.bids.length > 0) {
-            // Buscar IDs dos times
-            const teamIds = data.bids.map(bid => bid.team_id);
-            // Buscar contagem para cada time
-            const signingsResp = await fetch('api/free-agency.php?action=fa_signings_count&team_ids=' + teamIds.join(','));
-            const signingsData = await signingsResp.json();
-            if (signingsData.success && signingsData.counts) {
-                teamSignings = signingsData.counts;
-            }
+const openAdminTabBtn = document.getElementById('btnOpenAdminTab');
+if (openAdminTabBtn) {
+    openAdminTabBtn.addEventListener('click', () => {
+        const adminTab = document.getElementById('fa-admin-tab');
+        if (adminTab) {
+            const tab = new bootstrap.Tab(adminTab);
+            tab.show();
         }
-
-        if (data.success && data.bids && data.bids.length > 0) {
-            let html = '<div class="table-responsive"><table class="table">';
-            html += '<thead><tr><th>Time</th><th>Lance</th><th>Contratados</th><th>Acao</th></tr></thead><tbody>';
-
-            data.bids.forEach(bid => {
-                const signCount = teamSignings[bid.team_id] || 0;
-                html += '<tr>';
-                html += '<td><strong>' + bid.team_name + '</strong></td>';
-                html += '<td>' + bid.amount + ' moedas</td>';
-                html += '<td>' + signCount + ' / 3</td>';
-                html += '<td>';
-                html += '<button class="btn btn-sm btn-success" onclick="confirmarVencedor(' + playerId + ', ' + bid.team_id + ', ' + bid.amount + ')"' + (signCount >= 3 ? ' disabled' : '') + '>';
-                html += '<i class="bi bi-check-lg"></i> Selecionar</button>';
-                html += '</td></tr>';
-            });
-
-            html += '</tbody></table></div>';
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<p class="text-muted">Nenhum lance recebido.</p>';
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
-    }
+    });
 }
-
-async function confirmarVencedor(playerId, teamId, amount) {
-    if (!confirm('Confirmar este time como vencedor? O jogador sera transferido e as moedas descontadas.')) return;
-    
-    try {
-        const response = await fetch('api/free-agency.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'select_winner',
-                player_id: playerId,
-                team_id: teamId,
-                amount: amount
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('Vencedor confirmado! Jogador transferido.');
-            bootstrap.Modal.getInstance(document.getElementById('modalEscolherVencedor')).hide();
-            carregarFreeAgentsAdmin();
-            carregarFreeAgents();
-        } else {
-            alert('Erro: ' + (data.error || 'Erro desconhecido'));
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao confirmar vencedor');
-    }
-}
->>>>>>> ea3fbb41ab30e4781ba6b0f9b99d37c202a32aae
