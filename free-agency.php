@@ -448,8 +448,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         <p class="text-muted">Carregando...</p>
                     </div>
                     <div class="mb-3">
-                        <label for="notasProposta" class="form-label">Mensagem da proposta</label>
-                        <textarea id="notasProposta" class="form-control" rows="3" placeholder="Digite sua proposta"></textarea>
+                        <label for="notasProposta" class="form-label">O que vai dar na proposta</label>
+                        <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -354,11 +354,6 @@ async function carregarLeiloesAtivos() {
                                 <i class="bi bi-send"></i> Enviar Proposta
                             </button>
                             ` : ''}
-                            ${isMyTeam ? `
-                            <button class="btn btn-success btn-sm w-100" onclick="verMinhasPropostasRecebidas(${leilao.id})">
-                                <i class="bi bi-inbox"></i> Ver Propostas (${leilao.total_propostas || 0})
-                            </button>
-                            ` : ''}
                         </div>
                     </div>
                 </div>`;
