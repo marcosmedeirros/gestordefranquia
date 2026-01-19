@@ -25,6 +25,16 @@ function setupAdminEvents() {
     const selectTeam = document.getElementById('selectTeam');
     const selectPlayer = document.getElementById('selectPlayer');
     const btnCadastrar = document.getElementById('btnCadastrarLeilao');
+    const toggleNewPlayer = document.getElementById('toggleNewAuctionPlayer');
+    const newPlayerFields = document.getElementById('newAuctionPlayerFields');
+
+    toggleNewPlayer?.addEventListener('change', function() {
+        if (newPlayerFields) {
+            newPlayerFields.style.display = this.checked ? 'flex' : 'none';
+        }
+        selectPlayer.disabled = this.checked;
+        btnCadastrar.disabled = !this.checked && !selectPlayer.value;
+    });
     
     // Quando selecionar liga, carregar times
     selectLeague.addEventListener('change', async function() {
@@ -78,7 +88,7 @@ function setupAdminEvents() {
             if (data.success && data.players) {
                 selectPlayer.innerHTML = '<option value="">Selecione um jogador...</option>';
                 data.players.forEach(player => {
-                    selectPlayer.innerHTML += `<option value="${player.id}">${player.name} (${player.position}, ${player.age} anos, OVR ${player.overall})</option>`;
+                    selectPlayer.innerHTML += `<option value="${player.id}">${player.name} (${player.position}, ${player.age} anos, OVR ${player.ovr || player.overall})</option>`;
                 });
                 selectPlayer.disabled = false;
             } else {
@@ -92,7 +102,9 @@ function setupAdminEvents() {
     
     // Habilitar botao quando jogador selecionado
     selectPlayer.addEventListener('change', function() {
-        btnCadastrar.disabled = !this.value;
+        if (!toggleNewPlayer || !toggleNewPlayer.checked) {
+            btnCadastrar.disabled = !this.value;
+        }
     });
     
     // Cadastrar jogador no leilao
@@ -103,26 +115,34 @@ async function cadastrarJogadorLeilao() {
     const playerId = document.getElementById('selectPlayer').value;
     const teamId = document.getElementById('selectTeam').value;
     const leagueId = document.getElementById('selectLeague').value;
-    const dataInicio = document.getElementById('dataInicio').value;
-    const dataFim = document.getElementById('dataFim').value;
+    const newPlayerEnabled = document.getElementById('toggleNewAuctionPlayer')?.checked;
     
-    if (!playerId || !teamId || !leagueId) {
+    if ((!playerId && !newPlayerEnabled) || !teamId || !leagueId) {
         alert('Selecione liga, time e jogador');
         return;
+    }
+
+    const payload = {
+        action: 'cadastrar',
+        player_id: playerId || null,
+        team_id: teamId,
+        league_id: leagueId
+    };
+
+    if (newPlayerEnabled) {
+        payload.new_player = {
+            name: document.getElementById('auctionPlayerName')?.value || '',
+            position: document.getElementById('auctionPlayerPosition')?.value || '',
+            age: document.getElementById('auctionPlayerAge')?.value || '',
+            ovr: document.getElementById('auctionPlayerOvr')?.value || ''
+        };
     }
     
     try {
         const response = await fetch('api/leilao.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'cadastrar',
-                player_id: playerId,
-                team_id: teamId,
-                league_id: leagueId,
-                data_inicio: dataInicio || null,
-                data_fim: dataFim || null
-            })
+            body: JSON.stringify(payload)
         });
         
         const data = await response.json();
@@ -136,8 +156,10 @@ async function cadastrarJogadorLeilao() {
             document.getElementById('selectPlayer').innerHTML = '<option value="">Selecione primeiro um time...</option>';
             document.getElementById('selectPlayer').disabled = true;
             document.getElementById('btnCadastrarLeilao').disabled = true;
-            document.getElementById('dataInicio').value = '';
-            document.getElementById('dataFim').value = '';
+            const toggleNew = document.getElementById('toggleNewAuctionPlayer');
+            if (toggleNew) toggleNew.checked = false;
+            const newFields = document.getElementById('newAuctionPlayerFields');
+            if (newFields) newFields.style.display = 'none';
             
             // Recarregar listas
             carregarLeiloesAdmin();
@@ -160,7 +182,7 @@ async function carregarLeiloesAdmin() {
         const data = await response.json();
         
         if (data.success && data.leiloes && data.leiloes.length > 0) {
-            let html = '<div class="table-responsive"><table class="table table-striped">';
+            let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
             html += '<thead><tr><th>Jogador</th><th>Time</th><th>Liga</th><th>Status</th><th>Propostas</th><th>Acoes</th></tr></thead><tbody>';
             
             data.leiloes.forEach(leilao => {
@@ -171,7 +193,7 @@ async function carregarLeiloesAdmin() {
                     : '<span class="badge bg-warning">Pendente</span>';
                 
                 html += `<tr>
-                    <td><strong>${leilao.player_name}</strong><br><small>${leilao.position} | OVR ${leilao.overall}</small></td>
+                    <td><strong class="text-orange">${leilao.player_name}</strong><br><small class="text-light-gray">${leilao.position} | OVR ${leilao.ovr}</small></td>
                     <td>${leilao.team_name}</td>
                     <td>${leilao.league_name}</td>
                     <td>${statusBadge}</td>
@@ -242,28 +264,29 @@ async function carregarLeiloesAtivos() {
         const data = await response.json();
         
         if (data.success && data.leiloes && data.leiloes.length > 0) {
-            let html = '<div class="row">';
+            let html = '<div class="row g-3">';
             
             data.leiloes.forEach(leilao => {
                 const isMyTeam = leilao.team_id == userTeamId;
-                const cardClass = isMyTeam ? 'border-warning' : '';
+                const cardClass = isMyTeam ? 'border-warning' : 'border-secondary';
                 
                 html += `
                 <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card ${cardClass}">
-                        <div class="card-header ${isMyTeam ? 'bg-warning' : 'bg-light'}">
-                            <strong>${leilao.player_name}</strong>
+                    <div class="card bg-dark text-white ${cardClass}">
+                        <div class="card-header bg-dark border-bottom border-secondary">
+                            <strong class="text-orange">${leilao.player_name}</strong>
                             ${isMyTeam ? '<span class="badge bg-dark ms-2">Seu Jogador</span>' : ''}
                         </div>
                         <div class="card-body">
                             <p class="mb-1"><i class="bi bi-person"></i> ${leilao.position} | ${leilao.age} anos</p>
-                            <p class="mb-1"><i class="bi bi-star-fill text-warning"></i> OVR: ${leilao.overall}</p>
+                            <p class="mb-1"><i class="bi bi-star-fill text-warning"></i> OVR: ${leilao.ovr}</p>
                             <p class="mb-1"><i class="bi bi-building"></i> Time: ${leilao.team_name}</p>
                             <p class="mb-2"><i class="bi bi-trophy"></i> Liga: ${leilao.league_name}</p>
+                            ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}">20:00</span></p>` : ''}
                             <hr>
                             <p class="mb-2"><i class="bi bi-chat-dots"></i> Propostas: <span class="badge bg-info">${leilao.total_propostas || 0}</span></p>
                             ${!isMyTeam && userTeamId ? `
-                            <button class="btn btn-primary btn-sm w-100" onclick="abrirModalProposta(${leilao.id}, '${leilao.player_name}')">
+                            <button class="btn btn-primary btn-sm w-100 auction-propose-btn" onclick="abrirModalProposta(${leilao.id}, '${leilao.player_name}')">
                                 <i class="bi bi-send"></i> Enviar Proposta
                             </button>
                             ` : ''}
@@ -279,6 +302,7 @@ async function carregarLeiloesAtivos() {
             
             html += '</div>';
             container.innerHTML = html;
+            iniciarCronometros();
         } else {
             container.innerHTML = '<p class="text-muted">Nenhum leilao em andamento.</p>';
         }
@@ -297,7 +321,7 @@ async function carregarMinhasPropostas() {
         const data = await response.json();
         
         if (data.success && data.propostas && data.propostas.length > 0) {
-            let html = '<div class="table-responsive"><table class="table">';
+            let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
             html += '<thead><tr><th>Jogador Desejado</th><th>Jogadores Oferecidos</th><th>Status</th><th>Data</th></tr></thead><tbody>';
             
             data.propostas.forEach(proposta => {
@@ -308,8 +332,8 @@ async function carregarMinhasPropostas() {
                     : '<span class="badge bg-danger">Recusada</span>';
                 
                 html += `<tr>
-                    <td><strong>${proposta.player_name}</strong><br><small>${proposta.team_name}</small></td>
-                    <td>${proposta.jogadores_oferecidos || 'N/A'}</td>
+                    <td><strong class="text-orange">${proposta.player_name}</strong><br><small class="text-light-gray">${proposta.team_name}</small></td>
+                    <td>${proposta.jogadores_oferecidos || proposta.notas || 'N/A'}</td>
                     <td>${statusBadge}</td>
                     <td>${proposta.created_at}</td>
                 </tr>`;
@@ -339,9 +363,9 @@ async function carregarPropostasRecebidas() {
             
             data.leiloes.forEach(leilao => {
                 html += `
-                <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><strong>${leilao.player_name}</strong> - ${leilao.position} | OVR ${leilao.overall}</span>
+                <div class="card bg-dark border border-secondary text-white mb-3">
+                    <div class="card-header bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
+                        <span><strong>${leilao.player_name}</strong> - ${leilao.position} | OVR ${leilao.ovr}</span>
                         <span class="badge bg-info">${leilao.total_propostas} proposta(s)</span>
                     </div>
                     <div class="card-body">
@@ -386,7 +410,7 @@ async function abrirModalProposta(leilaoId, playerName) {
                     <div class="form-check">
                         <input class="form-check-input player-checkbox" type="checkbox" value="${player.id}" id="player_${player.id}">
                         <label class="form-check-label" for="player_${player.id}">
-                            <strong>${player.name}</strong> (${player.position}, OVR ${player.overall})
+                            <strong>${player.name}</strong> (${player.position}, OVR ${player.ovr || player.overall})
                         </label>
                     </div>
                 </div>`;
@@ -412,8 +436,8 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
     const notas = document.getElementById('notasProposta').value;
     const checkboxes = document.querySelectorAll('.player-checkbox:checked');
     
-    if (checkboxes.length === 0) {
-        alert('Selecione pelo menos um jogador para oferecer em troca.');
+    if (checkboxes.length === 0 && !notas.trim()) {
+        alert('Informe uma mensagem ou selecione jogadores para oferecer.');
         return;
     }
     
@@ -467,16 +491,17 @@ async function verMinhasPropostasRecebidas(leilaoId) {
             
             data.propostas.forEach(proposta => {
                 html += `
-                <div class="card mb-3 ${proposta.status === 'aceita' ? 'border-success' : ''}">
-                    <div class="card-header d-flex justify-content-between">
+                <div class="card bg-dark border border-secondary text-white mb-3 ${proposta.status === 'aceita' ? 'border-success' : ''}">
+                    <div class="card-header bg-dark border-bottom border-secondary d-flex justify-content-between">
                         <span><strong>Proposta de:</strong> ${proposta.team_name}</span>
                         <span class="badge ${proposta.status === 'pendente' ? 'bg-warning' : proposta.status === 'aceita' ? 'bg-success' : 'bg-secondary'}">${proposta.status}</span>
                     </div>
                     <div class="card-body">
                         <h6>Jogadores oferecidos:</h6>
+                        ${proposta.jogadores.length ? `
                         <ul>
-                            ${proposta.jogadores.map(j => `<li><strong>${j.name}</strong> - ${j.position}, OVR ${j.overall}, ${j.age} anos</li>`).join('')}
-                        </ul>
+                            ${proposta.jogadores.map(j => `<li><strong>${j.name}</strong> - ${j.position}, OVR ${j.overall || j.ovr}, ${j.age} anos</li>`).join('')}
+                        </ul>` : '<p class="text-muted">Nenhum jogador ofertado.</p>'}
                         ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
                         ${proposta.status === 'pendente' ? `
                         <div class="d-flex gap-2">
@@ -504,6 +529,39 @@ async function verMinhasPropostasRecebidas(leilaoId) {
 
 async function verPropostasAdmin(leilaoId) {
     verMinhasPropostasRecebidas(leilaoId);
+}
+
+function iniciarCronometros() {
+    const timers = document.querySelectorAll('.auction-timer');
+    if (!timers.length) return;
+
+    const update = () => {
+        const now = Date.now();
+        timers.forEach(timer => {
+            const endTime = timer.getAttribute('data-end-time');
+            if (!endTime) return;
+            const end = new Date(endTime.replace(' ', 'T')).getTime();
+            const diff = end - now;
+            if (diff <= 0) {
+                timer.textContent = 'Encerrado';
+                const card = timer.closest('.card');
+                card?.querySelectorAll('.auction-propose-btn').forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.add('disabled');
+                });
+                return;
+            }
+            const totalSeconds = Math.floor(diff / 1000);
+            const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            timer.textContent = `${minutes}:${seconds}`;
+        });
+    };
+
+    update();
+    if (!window._leilaoTimerInterval) {
+        window._leilaoTimerInterval = setInterval(update, 1000);
+    }
 }
 
 async function aceitarProposta(propostaId) {

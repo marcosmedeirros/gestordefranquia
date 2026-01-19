@@ -17,11 +17,17 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$is_admin = $_SESSION['is_admin'] ?? false;
+$is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
+
+function playerOvrColumn(PDO $pdo): string
+{
+    $stmt = $pdo->query("SHOW COLUMNS FROM players LIKE 'ovr'");
+    return $stmt && $stmt->rowCount() > 0 ? 'ovr' : 'overall';
+}
 
 // GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -92,8 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ========== FUNCOES GET ==========
 
 function listarLeiloesAtivos($pdo, $league_id) {
+    $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.age, p.overall,
+                   p.name as player_name, p.position, p.age, p.{$ovrColumn} as ovr,
                    t.name as team_name,
                    lg.name as league_name,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
@@ -101,7 +108,7 @@ function listarLeiloesAtivos($pdo, $league_id) {
             JOIN players p ON l.player_id = p.id
             JOIN teams t ON l.team_id = t.id
             JOIN leagues lg ON l.league_id = lg.id
-            WHERE l.status = 'ativo'";
+            WHERE l.status = 'ativo' AND (l.data_fim IS NULL OR l.data_fim > NOW())";
     
     if ($league_id) {
         $sql .= " AND l.league_id = ?";
@@ -116,8 +123,9 @@ function listarLeiloesAtivos($pdo, $league_id) {
 }
 
 function listarLeiloesAdmin($pdo) {
+    $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.age, p.overall,
+                   p.name as player_name, p.position, p.age, p.{$ovrColumn} as ovr,
                    t.name as team_name,
                    lg.name as league_name,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
@@ -166,8 +174,9 @@ function propostasRecebidas($pdo, $team_id) {
     }
     
     // Buscar leiloes dos meus jogadores que tem propostas
+    $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.overall,
+                   p.name as player_name, p.position, p.{$ovrColumn} as ovr,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
             FROM leilao_jogadores l
             JOIN players p ON l.player_id = p.id
@@ -221,10 +230,26 @@ function cadastrarLeilao($pdo, $body) {
     $league_id = $body['league_id'] ?? null;
     $data_inicio = $body['data_inicio'] ?? null;
     $data_fim = $body['data_fim'] ?? null;
+    $new_player = $body['new_player'] ?? null;
     
-    if (!$player_id || !$team_id || !$league_id) {
+    if ((!$player_id && !$new_player) || !$team_id || !$league_id) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
         return;
+    }
+
+    if ($new_player) {
+        $name = trim((string)($new_player['name'] ?? ''));
+        $position = trim((string)($new_player['position'] ?? ''));
+        $age = (int)($new_player['age'] ?? 0);
+        $ovr = (int)($new_player['ovr'] ?? 0);
+        if (!$name || !$position || !$age || !$ovr) {
+            echo json_encode(['success' => false, 'error' => 'Dados do novo jogador incompletos']);
+            return;
+        }
+        $ovrColumn = playerOvrColumn($pdo);
+        $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$team_id, $name, $age, $position, $ovr]);
+        $player_id = $pdo->lastInsertId();
     }
     
     // Verificar se jogador ja esta em leilao ativo
@@ -235,6 +260,8 @@ function cadastrarLeilao($pdo, $body) {
         return;
     }
     
+    $data_inicio = $data_inicio ?: date('Y-m-d H:i:s');
+    $data_fim = $data_fim ?: date('Y-m-d H:i:s', time() + (20 * 60));
     $stmt = $pdo->prepare("INSERT INTO leilao_jogadores (player_id, team_id, league_id, data_inicio, data_fim, status, created_at) 
                            VALUES (?, ?, ?, ?, ?, 'ativo', NOW())");
     $stmt->execute([$player_id, $team_id, $league_id, $data_inicio, $data_fim]);
@@ -270,7 +297,7 @@ function enviarProposta($pdo, $body, $team_id) {
     $player_ids = $body['player_ids'] ?? [];
     $notas = $body['notas'] ?? '';
     
-    if (!$leilao_id || empty($player_ids)) {
+    if (!$leilao_id || (empty($player_ids) && trim($notas) === '')) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
         return;
     }
@@ -282,6 +309,11 @@ function enviarProposta($pdo, $body, $team_id) {
     
     if (!$leilao) {
         echo json_encode(['success' => false, 'error' => 'Leilao nao encontrado ou nao esta ativo']);
+        return;
+    }
+
+    if (!empty($leilao['data_fim']) && strtotime($leilao['data_fim']) <= time()) {
+        echo json_encode(['success' => false, 'error' => 'Leilao encerrado']);
         return;
     }
     
@@ -299,16 +331,17 @@ function enviarProposta($pdo, $body, $team_id) {
         return;
     }
     
-    // Verificar se os jogadores oferecidos pertencem ao time
-    $placeholders = implode(',', array_fill(0, count($player_ids), '?'));
-    $stmt = $pdo->prepare("SELECT id FROM players WHERE id IN ($placeholders) AND team_id = ?");
-    $params = array_merge($player_ids, [$team_id]);
-    $stmt->execute($params);
-    $jogadores_validos = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (count($jogadores_validos) !== count($player_ids)) {
-        echo json_encode(['success' => false, 'error' => 'Alguns jogadores selecionados nao pertencem ao seu time']);
-        return;
+    if (!empty($player_ids)) {
+        $placeholders = implode(',', array_fill(0, count($player_ids), '?'));
+        $stmt = $pdo->prepare("SELECT id FROM players WHERE id IN ($placeholders) AND team_id = ?");
+        $params = array_merge($player_ids, [$team_id]);
+        $stmt->execute($params);
+        $jogadores_validos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (count($jogadores_validos) !== count($player_ids)) {
+            echo json_encode(['success' => false, 'error' => 'Alguns jogadores selecionados nao pertencem ao seu time']);
+            return;
+        }
     }
     
     $pdo->beginTransaction();
@@ -320,9 +353,11 @@ function enviarProposta($pdo, $body, $team_id) {
         $proposta_id = $pdo->lastInsertId();
         
         // Adicionar jogadores da proposta
-        $stmt = $pdo->prepare("INSERT INTO leilao_proposta_jogadores (proposta_id, player_id) VALUES (?, ?)");
-        foreach ($player_ids as $pid) {
-            $stmt->execute([$proposta_id, $pid]);
+        if (!empty($player_ids)) {
+            $stmt = $pdo->prepare("INSERT INTO leilao_proposta_jogadores (proposta_id, player_id) VALUES (?, ?)");
+            foreach ($player_ids as $pid) {
+                $stmt->execute([$proposta_id, $pid]);
+            }
         }
         
         $pdo->commit();
@@ -342,7 +377,7 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     }
     
     // Buscar proposta e leilao
-    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id
+    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id, l.data_fim
                            FROM leilao_propostas lp
                            JOIN leilao_jogadores l ON lp.leilao_id = l.id
                            WHERE lp.id = ?");
@@ -357,6 +392,11 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     // Verificar se e dono do jogador ou admin
     if (!$is_admin && $proposta['leilao_team_id'] != $team_id) {
         echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+        return;
+    }
+
+    if (!empty($proposta['data_fim']) && strtotime($proposta['data_fim']) > time()) {
+        echo json_encode(['success' => false, 'error' => 'Leilao ainda esta em andamento']);
         return;
     }
     

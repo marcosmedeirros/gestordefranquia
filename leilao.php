@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$is_admin = $_SESSION['is_admin'] ?? false;
+$is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
