@@ -8,6 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminLeagueSelect && defaultAdminLeague) {
         adminLeagueSelect.value = defaultAdminLeague;
     }
+    const faLeagueSelect = document.getElementById('faLeague');
+    if (faLeagueSelect && defaultAdminLeague) {
+        faLeagueSelect.value = defaultAdminLeague;
+    }
 
     carregarFreeAgents();
 
@@ -88,7 +92,11 @@ async function addFreeAgent() {
         }
 
         document.getElementById('faPlayerName').value = '';
+        document.getElementById('faLeague').value = defaultAdminLeague || '';
         document.getElementById('faSecondaryPosition').value = '';
+        document.getElementById('faPosition').value = 'PG';
+        document.getElementById('faAge').value = '25';
+        document.getElementById('faOvr').value = '70';
         carregarFreeAgentsAdmin();
         carregarFreeAgents();
     } catch (error) {

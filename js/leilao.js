@@ -34,6 +34,8 @@ function setupAdminEvents() {
     const searchArea = document.getElementById('auctionSearchArea');
     const createArea = document.getElementById('auctionCreateArea');
     const createTeamSelect = document.getElementById('auctionCreateTeam');
+    const createTeamWrap = document.getElementById('auctionCreateTeamWrap');
+    const createTeamAuto = document.getElementById('auctionCreateTeamAuto');
     const searchBtn = document.getElementById('auctionSearchBtn');
 
     if (!selectLeague || !btnCadastrar) {
@@ -44,7 +46,12 @@ function setupAdminEvents() {
         const isCreate = modeCreate?.checked;
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
-        btnCadastrar.disabled = isCreate ? !(createTeamSelect?.value) : !selectedPlayerIdInput?.value;
+        const hasTeam = !!(createTeamSelect?.value);
+        if (createTeamWrap && createTeamAuto) {
+            createTeamWrap.classList.toggle('d-none', isCreate && hasTeam);
+            createTeamAuto.classList.toggle('d-none', !(isCreate && hasTeam));
+        }
+        btnCadastrar.disabled = isCreate ? !hasTeam : !selectedPlayerIdInput?.value;
     };
 
     modeSearch?.addEventListener('change', setMode);
@@ -73,11 +80,18 @@ function setupAdminEvents() {
                 data.teams.forEach(team => {
                     createTeamSelect.innerHTML += `<option value="${team.id}">${team.city} ${team.name}</option>`;
                 });
+                if (userTeamId && data.teams.some(team => String(team.id) === String(userTeamId))) {
+                    createTeamSelect.value = String(userTeamId);
+                } else if (data.teams.length === 1) {
+                    createTeamSelect.value = String(data.teams[0].id);
+                }
+                setMode();
             }
         } catch (error) {
             if (createTeamSelect) {
                 createTeamSelect.innerHTML = '<option value="">Erro ao carregar</option>';
             }
+            setMode();
         }
     });
 
