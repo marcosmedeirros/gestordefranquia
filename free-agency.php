@@ -260,15 +260,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
                                 <div id="auctionCreateArea" style="display:none;">
                                     <div class="row g-2">
-                                        <div class="col-md-4" id="auctionCreateTeamWrap">
-                                            <label for="auctionCreateTeam" class="form-label">Time</label>
-                                            <select id="auctionCreateTeam" class="form-select">
-                                                <option value="">Selecione um time...</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-4 d-none" id="auctionCreateTeamAuto">
-                                            <label class="form-label">Time</label>
-                                            <div class="form-control-plaintext text-light-gray">Selecionado automaticamente</div>
+                                        <div class="col-12">
+                                            <div class="text-light-gray small mb-1">O jogador sera criado no leilao e nao precisa selecionar time.</div>
                                         </div>
                                         <div class="col-md-4">
                                             <label for="auctionPlayerName" class="form-label">Nome</label>

@@ -332,6 +332,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <tr>
                                     <th>Jogador</th>
                                     <th>OVR</th>
+                                    <th>Idade</th>
                                     <th>Posição</th>
                                     <th>Função</th>
                                 </tr>
@@ -364,12 +365,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     tbody.innerHTML = '';
 
                     if (data.players.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum jogador</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador</td></tr>';
                     } else {
                         data.players.forEach(p => {
                             tbody.innerHTML += `<tr>
                                 <td><strong>${p.name}</strong></td>
                                 <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
+                                <td>${p.age}</td>
                                 <td>${p.position}</td>
                                 <td>${p.role}</td>
                             </tr>`;

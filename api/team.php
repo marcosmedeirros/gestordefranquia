@@ -13,23 +13,73 @@ function teamColumnExists(PDO $pdo, string $column): bool {
     return (bool) $stmt->fetch();
 }
 
+function appendPhoneFields(array &$row): void {
+    $rawPhone = $row['owner_phone'] ?? '';
+    $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+    if (!$normalizedPhone && $rawPhone !== '') {
+        $digits = preg_replace('/\D+/', '', $rawPhone);
+        if ($digits !== '') {
+            $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+        }
+    }
+    $row['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+    $row['owner_phone_whatsapp'] = $normalizedPhone;
+}
+
 if ($method === 'GET') {
     $action = $_GET['action'] ?? null;
-    if ($action === 'search_player') {
-        $query = trim($_GET['query'] ?? '');
+    if ($action === 'list_players' || $action === 'search_player') {
         $user = getUserSession();
         if (!$user) {
             jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
         }
         $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
-        if ($query === '' || mb_strlen($query) < 2) {
-            jsonResponse(200, ['players' => []]);
-        }
-
         $league = $user['league'] ?? 'ROOKIE';
         $leagueParam = strtoupper(trim($_GET['league'] ?? ''));
         if ($leagueParam !== '' && $isAdmin) {
             $league = $leagueParam;
+        }
+    }
+
+    if ($action === 'list_players') {
+        $query = trim($_GET['query'] ?? '');
+        $position = strtoupper(trim($_GET['position'] ?? ''));
+        $params = [$league];
+        $where = 't.league = ?';
+        if ($query !== '') {
+            $where .= ' AND p.name LIKE ?';
+            $params[] = '%' . $query . '%';
+        }
+        if ($position !== '') {
+            $where .= ' AND p.position = ?';
+            $params[] = $position;
+        }
+        $stmt = $pdo->prepare("
+            SELECT p.id, p.name, p.age, p.ovr, p.position,
+                   t.id as team_id, t.city, t.name as team_name, t.league,
+                   u.phone as owner_phone
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            JOIN users u ON t.user_id = u.id
+            WHERE {$where}
+            ORDER BY p.ovr DESC, p.name ASC
+            LIMIT 200
+        ");
+        $stmt->execute($params);
+        $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($players as &$player) {
+            appendPhoneFields($player);
+        }
+        unset($player);
+
+        jsonResponse(200, ['players' => $players]);
+    }
+
+    if ($action === 'search_player') {
+        $query = trim($_GET['query'] ?? '');
+        if ($query === '' || mb_strlen($query) < 2) {
+            jsonResponse(200, ['players' => []]);
         }
         $stmt = $pdo->prepare('
             SELECT p.id, p.name, p.age, p.ovr,
@@ -46,16 +96,7 @@ if ($method === 'GET') {
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($players as &$player) {
-            $rawPhone = $player['owner_phone'] ?? '';
-            $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
-            if (!$normalizedPhone && $rawPhone !== '') {
-                $digits = preg_replace('/\D+/', '', $rawPhone);
-                if ($digits !== '') {
-                    $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
-                }
-            }
-            $player['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
-            $player['owner_phone_whatsapp'] = $normalizedPhone;
+            appendPhoneFields($player);
         }
         unset($player);
 

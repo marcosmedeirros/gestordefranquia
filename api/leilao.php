@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
                 exit;
             }
-            cadastrarLeilao($pdo, $body);
+            cadastrarLeilao($pdo, $body, $user_id);
             break;
         case 'cancelar':
             if (!$is_admin) {
@@ -303,7 +303,7 @@ function historicoLeiloes($pdo, $league_id) {
 
 // ========== FUNCOES POST ==========
 
-function cadastrarLeilao($pdo, $body) {
+function cadastrarLeilao($pdo, $body, $user_id) {
     $player_id = $body['player_id'] ?? null;
     $team_id = $body['team_id'] ?? null;
     $league_id = $body['league_id'] ?? null;
@@ -326,11 +326,31 @@ function cadastrarLeilao($pdo, $body) {
             return;
         }
         $ovrColumn = playerOvrColumn($pdo);
-        $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
         if (!$team_id) {
-            echo json_encode(['success' => false, 'error' => 'Selecione um time para criar jogador']);
+            $leagueName = null;
+            if ($league_id) {
+                $stmt = $pdo->prepare("SELECT name FROM leagues WHERE id = ? LIMIT 1");
+                $stmt->execute([$league_id]);
+                $leagueRow = $stmt->fetch(PDO::FETCH_ASSOC);
+                $leagueName = $leagueRow['name'] ?? null;
+            }
+            if (teamColumnExists($pdo, 'league') && $leagueName) {
+                $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
+                $stmt->execute([$user_id, $leagueName]);
+            } else {
+                $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+                $stmt->execute([$user_id]);
+            }
+            $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($teamRow) {
+                $team_id = (int) $teamRow['id'];
+            }
+        }
+        if (!$team_id) {
+            echo json_encode(['success' => false, 'error' => 'Nao foi possivel definir um time para criar o jogador']);
             return;
         }
+        $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$team_id, $name, $age, $position, $ovr]);
         $player_id = $pdo->lastInsertId();
     }

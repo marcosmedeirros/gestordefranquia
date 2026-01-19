@@ -33,9 +33,10 @@ function setupAdminEvents() {
     const modeCreate = document.getElementById('auctionModeCreate');
     const searchArea = document.getElementById('auctionSearchArea');
     const createArea = document.getElementById('auctionCreateArea');
-    const createTeamSelect = document.getElementById('auctionCreateTeam');
-    const createTeamWrap = document.getElementById('auctionCreateTeamWrap');
-    const createTeamAuto = document.getElementById('auctionCreateTeamAuto');
+    const createNameInput = document.getElementById('auctionPlayerName');
+    const createPositionSelect = document.getElementById('auctionPlayerPosition');
+    const createAgeInput = document.getElementById('auctionPlayerAge');
+    const createOvrInput = document.getElementById('auctionPlayerOvr');
     const searchBtn = document.getElementById('auctionSearchBtn');
 
     if (!selectLeague || !btnCadastrar) {
@@ -46,59 +47,25 @@ function setupAdminEvents() {
         const isCreate = modeCreate?.checked;
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
-        const hasTeam = !!(createTeamSelect?.value);
-        if (createTeamWrap && createTeamAuto) {
-            createTeamWrap.classList.toggle('d-none', isCreate && hasTeam);
-            createTeamAuto.classList.toggle('d-none', !(isCreate && hasTeam));
-        }
-        btnCadastrar.disabled = isCreate ? !hasTeam : !selectedPlayerIdInput?.value;
+        const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value);
+        const hasLeague = !!selectLeague.value;
+        btnCadastrar.disabled = isCreate ? !(createReady && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
     };
 
     modeSearch?.addEventListener('change', setMode);
     modeCreate?.addEventListener('change', setMode);
 
-    selectLeague.addEventListener('change', async function() {
+    selectLeague.addEventListener('change', function() {
         btnCadastrar.disabled = true;
         if (selectedPlayerIdInput) selectedPlayerIdInput.value = '';
         if (selectedTeamIdInput) selectedTeamIdInput.value = '';
         if (selectedLabel) selectedLabel.style.display = 'none';
-        if (createTeamSelect) {
-            createTeamSelect.innerHTML = '<option value="">Carregando...</option>';
-        }
-
-        const leagueOption = this.options?.[this.selectedIndex];
-        const leagueName = leagueOption?.dataset?.leagueName || '';
-        if (!leagueName || !createTeamSelect) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`api/team.php?league=${encodeURIComponent(leagueName)}`);
-            const data = await response.json();
-            if (data.teams && createTeamSelect) {
-                createTeamSelect.innerHTML = '<option value="">Selecione um time...</option>';
-                data.teams.forEach(team => {
-                    createTeamSelect.innerHTML += `<option value="${team.id}">${team.city} ${team.name}</option>`;
-                });
-                if (userTeamId && data.teams.some(team => String(team.id) === String(userTeamId))) {
-                    createTeamSelect.value = String(userTeamId);
-                } else if (data.teams.length === 1) {
-                    createTeamSelect.value = String(data.teams[0].id);
-                }
-                setMode();
-            }
-        } catch (error) {
-            if (createTeamSelect) {
-                createTeamSelect.innerHTML = '<option value="">Erro ao carregar</option>';
-            }
-            setMode();
-        }
+        setMode();
     });
 
-    createTeamSelect?.addEventListener('change', () => {
-        if (modeCreate?.checked) {
-            btnCadastrar.disabled = !createTeamSelect.value;
-        }
+    [createNameInput, createPositionSelect, createAgeInput, createOvrInput].forEach(input => {
+        input?.addEventListener('input', setMode);
+        input?.addEventListener('change', setMode);
     });
 
     btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
@@ -170,7 +137,6 @@ async function cadastrarJogadorLeilao() {
     const teamId = selectedTeamId;
     const leagueId = document.getElementById('selectLeague').value;
     const newPlayerEnabled = document.getElementById('auctionModeCreate')?.checked;
-    const createTeam = document.getElementById('auctionCreateTeam')?.value || '';
     
     if ((!playerId && !newPlayerEnabled) || !leagueId) {
         alert('Selecione liga e jogador');
@@ -180,15 +146,11 @@ async function cadastrarJogadorLeilao() {
     const payload = {
         action: 'cadastrar',
         player_id: playerId || null,
-        team_id: (newPlayerEnabled ? createTeam : teamId) || null,
+        team_id: newPlayerEnabled ? null : (teamId || null),
         league_id: leagueId
     };
 
     if (newPlayerEnabled) {
-        if (!createTeam) {
-            alert('Selecione um time para criar o jogador.');
-            return;
-        }
         payload.new_player = {
             name: document.getElementById('auctionPlayerName')?.value || '',
             position: document.getElementById('auctionPlayerPosition')?.value || '',
@@ -211,10 +173,6 @@ async function cadastrarJogadorLeilao() {
             // Limpar selecoes
             const selectLeague = document.getElementById('selectLeague');
             if (selectLeague) selectLeague.value = '';
-            const createTeam = document.getElementById('auctionCreateTeam');
-            if (createTeam) {
-                createTeam.innerHTML = '<option value="">Selecione um time...</option>';
-            }
             const searchInput = document.getElementById('auctionPlayerSearch');
             if (searchInput) searchInput.value = '';
             const searchResults = document.getElementById('auctionPlayerResults');
