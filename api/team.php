@@ -21,6 +21,7 @@ if ($method === 'GET') {
         if (!$user) {
             jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
         }
+        $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
         if ($query === '' || mb_strlen($query) < 2) {
             jsonResponse(200, ['players' => []]);
         }
@@ -31,7 +32,7 @@ if ($method === 'GET') {
             $league = $leagueParam;
         }
         $stmt = $pdo->prepare('
-            SELECT p.name, p.age, p.ovr,
+            SELECT p.id, p.name, p.age, p.ovr,
                    t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p

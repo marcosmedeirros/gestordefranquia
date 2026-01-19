@@ -213,15 +213,19 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-5">
-                                    <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
-                                    <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
-                                    <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
-                                    <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
-                                    <input type="hidden" id="auctionSelectedPlayerId">
-                                    <input type="hidden" id="auctionSelectedTeamId">
+                                <div class="col-md-7">
+                                    <div class="d-flex flex-wrap gap-3 align-items-center text-white mt-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
+                                            <label class="form-check-label" for="auctionModeSearch">Buscar jogador</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
+                                            <label class="form-check-label" for="auctionModeCreate">Criar jogador</label>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-2 mt-4">
                                     <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled>
                                         <i class="bi bi-play-fill me-1"></i>Iniciar 20min
                                     </button>
@@ -229,30 +233,54 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
 
                             <div class="border-top border-secondary mt-3 pt-3">
-                                <div class="form-check mb-2 text-white">
-                                    <input class="form-check-input" type="checkbox" id="toggleNewAuctionPlayer">
-                                    <label class="form-check-label" for="toggleNewAuctionPlayer">
-                                        Criar novo jogador para leilao
-                                    </label>
+                                <div id="auctionSearchArea">
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-6">
+                                            <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
+                                            <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-outline-orange w-100" id="auctionSearchBtn">
+                                                <i class="bi bi-search"></i> Buscar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
+                                    <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
+                                    <input type="hidden" id="auctionSelectedPlayerId">
+                                    <input type="hidden" id="auctionSelectedTeamId">
                                 </div>
-                                <div class="row g-2" id="newAuctionPlayerFields" style="display:none;">
-                                    <div class="col-md-4">
-                                        <input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <select id="auctionPlayerPosition" class="form-select">
-                                            <option value="PG">PG</option>
-                                            <option value="SG">SG</option>
-                                            <option value="SF">SF</option>
-                                            <option value="PF">PF</option>
-                                            <option value="C">C</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <input type="number" id="auctionPlayerAge" class="form-control" placeholder="Idade" value="25">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <input type="number" id="auctionPlayerOvr" class="form-control" placeholder="OVR" value="70">
+
+                                <div id="auctionCreateArea" style="display:none;">
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <label for="auctionCreateTeam" class="form-label">Time</label>
+                                            <select id="auctionCreateTeam" class="form-select">
+                                                <option value="">Selecione um time...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="auctionPlayerName" class="form-label">Nome</label>
+                                            <input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label for="auctionPlayerPosition" class="form-label">Posicao</label>
+                                            <select id="auctionPlayerPosition" class="form-select">
+                                                <option value="PG">PG</option>
+                                                <option value="SG">SG</option>
+                                                <option value="SF">SF</option>
+                                                <option value="PF">PF</option>
+                                                <option value="C">C</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-1">
+                                            <label for="auctionPlayerAge" class="form-label">Idade</label>
+                                            <input type="number" id="auctionPlayerAge" class="form-control" value="25">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <label for="auctionPlayerOvr" class="form-label">OVR</label>
+                                            <input type="number" id="auctionPlayerOvr" class="form-control" value="70">
+                                        </div>
                                     </div>
                                 </div>
                             </div>

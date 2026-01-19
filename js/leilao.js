@@ -24,32 +24,72 @@ document.addEventListener('DOMContentLoaded', function() {
 function setupAdminEvents() {
     const selectLeague = document.getElementById('selectLeague');
     const btnCadastrar = document.getElementById('btnCadastrarLeilao');
-    const toggleNewPlayer = document.getElementById('toggleNewAuctionPlayer');
-    const newPlayerFields = document.getElementById('newAuctionPlayerFields');
     const searchInput = document.getElementById('auctionPlayerSearch');
     const searchResults = document.getElementById('auctionPlayerResults');
     const selectedLabel = document.getElementById('auctionSelectedLabel');
     const selectedPlayerIdInput = document.getElementById('auctionSelectedPlayerId');
     const selectedTeamIdInput = document.getElementById('auctionSelectedTeamId');
+    const modeSearch = document.getElementById('auctionModeSearch');
+    const modeCreate = document.getElementById('auctionModeCreate');
+    const searchArea = document.getElementById('auctionSearchArea');
+    const createArea = document.getElementById('auctionCreateArea');
+    const createTeamSelect = document.getElementById('auctionCreateTeam');
+    const searchBtn = document.getElementById('auctionSearchBtn');
 
-    toggleNewPlayer?.addEventListener('change', function() {
-        if (newPlayerFields) {
-            newPlayerFields.style.display = this.checked ? 'flex' : 'none';
-        }
-        btnCadastrar.disabled = !this.checked && !selectedPlayerIdInput?.value;
-    });
+    if (!selectLeague || !btnCadastrar) {
+        return;
+    }
+
+    const setMode = () => {
+        const isCreate = modeCreate?.checked;
+        if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
+        if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
+        btnCadastrar.disabled = isCreate ? !(createTeamSelect?.value) : !selectedPlayerIdInput?.value;
+    };
+
+    modeSearch?.addEventListener('change', setMode);
+    modeCreate?.addEventListener('change', setMode);
 
     selectLeague.addEventListener('change', async function() {
         btnCadastrar.disabled = true;
         if (selectedPlayerIdInput) selectedPlayerIdInput.value = '';
         if (selectedTeamIdInput) selectedTeamIdInput.value = '';
         if (selectedLabel) selectedLabel.style.display = 'none';
+        if (createTeamSelect) {
+            createTeamSelect.innerHTML = '<option value="">Carregando...</option>';
+        }
+
+        const leagueOption = this.options?.[this.selectedIndex];
+        const leagueName = leagueOption?.dataset?.leagueName || '';
+        if (!leagueName || !createTeamSelect) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`api/team.php?league=${encodeURIComponent(leagueName)}`);
+            const data = await response.json();
+            if (data.teams && createTeamSelect) {
+                createTeamSelect.innerHTML = '<option value="">Selecione um time...</option>';
+                data.teams.forEach(team => {
+                    createTeamSelect.innerHTML += `<option value="${team.id}">${team.city} ${team.name}</option>`;
+                });
+            }
+        } catch (error) {
+            if (createTeamSelect) {
+                createTeamSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            }
+        }
     });
 
-    // Cadastrar jogador no leilao
+    createTeamSelect?.addEventListener('change', () => {
+        if (modeCreate?.checked) {
+            btnCadastrar.disabled = !createTeamSelect.value;
+        }
+    });
+
     btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
 
-    searchInput?.addEventListener('input', async () => {
+    searchBtn?.addEventListener('click', async () => {
         const term = searchInput.value.trim();
         const leagueOption = selectLeague.options?.[selectLeague.selectedIndex];
         const leagueName = leagueOption?.dataset?.leagueName || '';
@@ -105,6 +145,8 @@ function setupAdminEvents() {
             if (searchResults) searchResults.style.display = 'none';
         }
     });
+
+    setMode();
 }
 
 async function cadastrarJogadorLeilao() {
@@ -113,7 +155,8 @@ async function cadastrarJogadorLeilao() {
     const playerId = selectedPlayerId;
     const teamId = selectedTeamId;
     const leagueId = document.getElementById('selectLeague').value;
-    const newPlayerEnabled = document.getElementById('toggleNewAuctionPlayer')?.checked;
+    const newPlayerEnabled = document.getElementById('auctionModeCreate')?.checked;
+    const createTeam = document.getElementById('auctionCreateTeam')?.value || '';
     
     if ((!playerId && !newPlayerEnabled) || !leagueId) {
         alert('Selecione liga e jogador');
@@ -123,11 +166,15 @@ async function cadastrarJogadorLeilao() {
     const payload = {
         action: 'cadastrar',
         player_id: playerId || null,
-        team_id: teamId || null,
+        team_id: (newPlayerEnabled ? createTeam : teamId) || null,
         league_id: leagueId
     };
 
     if (newPlayerEnabled) {
+        if (!createTeam) {
+            alert('Selecione um time para criar o jogador.');
+            return;
+        }
         payload.new_player = {
             name: document.getElementById('auctionPlayerName')?.value || '',
             position: document.getElementById('auctionPlayerPosition')?.value || '',
@@ -148,22 +195,35 @@ async function cadastrarJogadorLeilao() {
         if (data.success) {
             alert('Jogador cadastrado no leilao com sucesso!');
             // Limpar selecoes
-            document.getElementById('selectLeague').value = '';
-            document.getElementById('selectTeam').innerHTML = '<option value="">Selecione primeiro uma liga...</option>';
-            document.getElementById('selectTeam').disabled = true;
-            document.getElementById('selectPlayer').innerHTML = '<option value="">Selecione primeiro um time...</option>';
-            document.getElementById('selectPlayer').disabled = true;
-            document.getElementById('btnCadastrarLeilao').disabled = true;
-            const toggleNew = document.getElementById('toggleNewAuctionPlayer');
-            if (toggleNew) toggleNew.checked = false;
-            const newFields = document.getElementById('newAuctionPlayerFields');
-            if (newFields) newFields.style.display = 'none';
+            const selectLeague = document.getElementById('selectLeague');
+            if (selectLeague) selectLeague.value = '';
+            const createTeam = document.getElementById('auctionCreateTeam');
+            if (createTeam) {
+                createTeam.innerHTML = '<option value="">Selecione um time...</option>';
+            }
+            const searchInput = document.getElementById('auctionPlayerSearch');
+            if (searchInput) searchInput.value = '';
+            const searchResults = document.getElementById('auctionPlayerResults');
+            if (searchResults) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+            }
             const selectedPlayerId = document.getElementById('auctionSelectedPlayerId');
             const selectedTeamId = document.getElementById('auctionSelectedTeamId');
             const selectedLabel = document.getElementById('auctionSelectedLabel');
             if (selectedPlayerId) selectedPlayerId.value = '';
             if (selectedTeamId) selectedTeamId.value = '';
             if (selectedLabel) selectedLabel.style.display = 'none';
+            const modeSearch = document.getElementById('auctionModeSearch');
+            if (modeSearch) modeSearch.checked = true;
+            const btnCadastrarLeilao = document.getElementById('btnCadastrarLeilao');
+            if (btnCadastrarLeilao) btnCadastrarLeilao.disabled = true;
+            const playerName = document.getElementById('auctionPlayerName');
+            if (playerName) playerName.value = '';
+            const playerAge = document.getElementById('auctionPlayerAge');
+            if (playerAge) playerAge.value = '25';
+            const playerOvr = document.getElementById('auctionPlayerOvr');
+            if (playerOvr) playerOvr.value = '70';
             
             // Recarregar listas
             carregarLeiloesAdmin();
