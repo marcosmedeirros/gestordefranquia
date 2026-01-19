@@ -23,14 +23,39 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
 
+function teamColumnExists(PDO $pdo, string $column): bool
+{
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
 if (!$team_id) {
-    $stmt = $pdo->prepare("SELECT id, league_id FROM teams WHERE user_id = ? LIMIT 1");
+    $select = ['id'];
+    $hasLeagueId = teamColumnExists($pdo, 'league_id');
+    $hasLeagueName = teamColumnExists($pdo, 'league');
+    if ($hasLeagueId) {
+        $select[] = 'league_id';
+    }
+    if ($hasLeagueName) {
+        $select[] = 'league';
+    }
+    $stmt = $pdo->prepare("SELECT " . implode(', ', $select) . " FROM teams WHERE user_id = ? LIMIT 1");
     $stmt->execute([$user_id]);
-    $teamRow = $stmt->fetch();
+    $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($teamRow) {
         $team_id = (int) $teamRow['id'];
-        if (!$league_id && !empty($teamRow['league_id'])) {
-            $league_id = (int) $teamRow['league_id'];
+        if (!$league_id) {
+            if ($hasLeagueId && !empty($teamRow['league_id'])) {
+                $league_id = (int) $teamRow['league_id'];
+            } elseif ($hasLeagueName && !empty($teamRow['league'])) {
+                $stmt = $pdo->prepare("SELECT id FROM leagues WHERE name = ? LIMIT 1");
+                $stmt->execute([$teamRow['league']]);
+                $leagueRow = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($leagueRow && !empty($leagueRow['id'])) {
+                    $league_id = (int) $leagueRow['id'];
+                }
+            }
         }
     }
 }
