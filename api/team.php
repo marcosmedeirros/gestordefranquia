@@ -28,7 +28,7 @@ if ($method === 'GET') {
         $league = $user['league'] ?? 'ROOKIE';
         $stmt = $pdo->prepare('
             SELECT p.name, p.age, p.ovr,
-                   t.id as team_id, t.city, t.name as team_name,
+                   t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p
             JOIN teams t ON p.team_id = t.id

@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAdminEvents();
         carregarFreeAgentsAdmin();
         carregarPropostasAdmin();
+        carregarHistoricoContratacoes();
     }
 });
 
@@ -45,6 +46,7 @@ function setupAdminEvents() {
     document.getElementById('adminLeagueSelect')?.addEventListener('change', () => {
         carregarFreeAgentsAdmin();
         carregarPropostasAdmin();
+        carregarHistoricoContratacoes();
         if (!userLeague) {
             carregarFreeAgents();
         }
@@ -218,6 +220,43 @@ async function carregarPropostasAdmin() {
     } catch (error) {
         console.error('Erro:', error);
         container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
+    }
+}
+
+async function carregarHistoricoContratacoes() {
+    const container = document.getElementById('faContractsHistoryContainer');
+    if (!container) return;
+
+    const league = getAdminLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Selecione uma liga.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=admin_contracts&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+
+        if (!data.success || !data.contracts?.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma contratacao registrada.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Data</th></tr></thead><tbody>';
+        data.contracts.forEach(item => {
+            const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            html += `<tr>
+                <td><strong class="text-orange">${item.name}</strong></td>
+                <td>${item.ovr}</td>
+                <td>${teamName}</td>
+                <td>${item.waived_at || '-'}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
 }
 

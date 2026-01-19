@@ -172,17 +172,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
 
                     <?php if ($team_id): ?>
-                    <div class="card bg-dark-panel border-orange mb-4">
-                        <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-send text-orange me-2"></i>Minhas Propostas</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="minhasPropostasContainer">
-                                <p class="text-muted">Carregando...</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="card bg-dark-panel border-orange">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-inbox text-orange me-2"></i>Propostas Recebidas</h5>
@@ -194,6 +183,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                     </div>
                     <?php endif; ?>
+
+                    <div class="card bg-dark-panel border-orange mt-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico de Leiloes</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="leiloesHistoricoContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
 
                     <?php if ($is_admin): ?>
                     <div class="card bg-dark-panel border-orange mt-4">
@@ -233,11 +233,18 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
 
                             <div class="border-top border-secondary mt-3 pt-3">
-                                <div class="form-check mb-2">
+                                <div class="form-check mb-2 text-white">
                                     <input class="form-check-input" type="checkbox" id="toggleNewAuctionPlayer">
                                     <label class="form-check-label" for="toggleNewAuctionPlayer">
                                         Criar novo jogador para leilao
                                     </label>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-md-6">
+                                        <label for="auctionPlayerSearch" class="form-label">Pesquisar jogador</label>
+                                        <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
+                                        <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
+                                    </div>
                                 </div>
                                 <div class="row g-2" id="newAuctionPlayerFields" style="display:none;">
                                     <div class="col-md-4">
@@ -357,6 +364,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                     </div>
 
+                    <div class="card bg-dark-panel border-orange mt-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico de Contratacoes FA</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="faContractsHistoryContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
                 <?php endif; ?>
             </div>
@@ -451,6 +469,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         const userLeague = <?= $team_league ? "'" . addslashes($team_league) . "'" : 'null' ?>;
         const defaultAdminLeague = '<?= addslashes($default_admin_league) ?>';
         const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
+        const leagueIdByName = <?= json_encode(array_reduce($leagues_admin, function ($carry, $league) { $carry[$league['name']] = (int)$league['id']; return $carry; }, [])) ?>;
     </script>
     <script src="js/sidebar.js"></script>
     <script src="js/free-agency.js"></script>

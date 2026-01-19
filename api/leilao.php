@@ -54,6 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $leilao_id = $_GET['leilao_id'] ?? 0;
             verPropostas($pdo, $leilao_id, $team_id, $is_admin);
             break;
+        case 'historico':
+            $league_id_param = $_GET['league_id'] ?? null;
+            historicoLeiloes($pdo, $league_id_param);
+            break;
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
     }
@@ -220,6 +224,44 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
     }
     
     echo json_encode(['success' => true, 'propostas' => $propostas]);
+}
+
+function historicoLeiloes($pdo, $league_id) {
+    $params = [];
+    $where = "l.status = 'finalizado'";
+    if ($league_id) {
+        $where .= " AND l.league_id = ?";
+        $params[] = $league_id;
+    }
+    $sql = "SELECT l.id, l.data_fim, p.name as player_name,
+                   t.name as team_name,
+                   tw.city as winner_city, tw.name as winner_name
+            FROM leilao_jogadores l
+            JOIN players p ON l.player_id = p.id
+            JOIN teams t ON l.team_id = t.id
+            LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
+            LEFT JOIN teams tw ON lp.team_id = tw.id
+            WHERE {$where}
+            ORDER BY l.data_fim DESC
+            LIMIT 50";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $payload = array_map(static function ($row) {
+        $winner = null;
+        if (!empty($row['winner_name'])) {
+            $winner = trim(($row['winner_city'] ?? '') . ' ' . $row['winner_name']);
+        }
+        return [
+            'player_name' => $row['player_name'],
+            'team_name' => $row['team_name'],
+            'winner_team_name' => $winner,
+            'data_fim' => $row['data_fim']
+        ];
+    }, $items);
+
+    echo json_encode(['success' => true, 'leiloes' => $payload]);
 }
 
 // ========== FUNCOES POST ==========

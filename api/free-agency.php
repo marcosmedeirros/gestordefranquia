@@ -188,6 +188,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listAdminOffers($pdo, $league);
             break;
+        case 'admin_contracts':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            $league = getLeagueFromRequest($valid_leagues, null);
+            if (!$league) {
+                jsonError('Liga invalida');
+            }
+            listAdminContracts($pdo, $league);
+            break;
         case 'limits':
             freeAgencyLimits($team);
             break;
@@ -449,6 +459,49 @@ function listAdminOffers(PDO $pdo, string $league): void
     }
 
     jsonSuccess(['league' => $league, 'players' => array_values($grouped)]);
+}
+
+function listAdminContracts(PDO $pdo, string $league): void
+{
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $where = '(fa.status = "signed" OR fa.winner_team_id IS NOT NULL)';
+    $params = [];
+
+    if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        $where .= ' AND (fa.league = ?' . ($leagueId ? ' OR fa.league_id = ?' : '') . ')';
+        $params[] = $league;
+        if ($leagueId) {
+            $params[] = $leagueId;
+        }
+    } elseif (freeAgentsUseLeagueEnum($pdo)) {
+        $where .= ' AND fa.league = ?';
+        $params[] = $league;
+    } elseif (freeAgentsUseLeagueId($pdo)) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if (!$leagueId) {
+            jsonSuccess(['league' => $league, 'contracts' => []]);
+        }
+        $where .= ' AND fa.league_id = ?';
+        $params[] = $leagueId;
+    }
+
+    $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
+    $stmt = $pdo->prepare("
+        SELECT fa.id, fa.name, fa.position, {$secondarySelect} AS secondary_position, fa.{$ovrColumn} AS ovr,
+               fa.original_team_name, fa.waived_at,
+               t.city AS team_city, t.name AS team_name
+        FROM free_agents fa
+        LEFT JOIN teams t ON fa.winner_team_id = t.id
+        WHERE {$where}
+        ORDER BY fa.waived_at DESC
+        LIMIT 50
+    ");
+    $stmt->execute($params);
+    $contracts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonSuccess(['league' => $league, 'contracts' => $contracts]);
 }
 
 function freeAgencyLimits(?array $team): void

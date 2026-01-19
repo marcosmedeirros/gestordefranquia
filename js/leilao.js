@@ -8,9 +8,10 @@ document.addEventListener('DOMContentLoaded', function() {
     carregarLeiloesAtivos();
     
     if (userTeamId) {
-        carregarMinhasPropostas();
         carregarPropostasRecebidas();
     }
+
+    carregarHistoricoLeiloes();
     
     if (isAdmin) {
         carregarLeiloesAdmin();
@@ -27,6 +28,8 @@ function setupAdminEvents() {
     const btnCadastrar = document.getElementById('btnCadastrarLeilao');
     const toggleNewPlayer = document.getElementById('toggleNewAuctionPlayer');
     const newPlayerFields = document.getElementById('newAuctionPlayerFields');
+    const searchInput = document.getElementById('auctionPlayerSearch');
+    const searchResults = document.getElementById('auctionPlayerResults');
 
     toggleNewPlayer?.addEventListener('change', function() {
         if (newPlayerFields) {
@@ -111,6 +114,67 @@ function setupAdminEvents() {
     
     // Cadastrar jogador no leilao
     btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
+
+    searchInput?.addEventListener('input', async () => {
+        const term = searchInput.value.trim();
+        if (term.length < 2) {
+            if (searchResults) searchResults.style.display = 'none';
+            return;
+        }
+
+        try {
+            const response = await fetch(`api/team.php?action=search_player&query=${encodeURIComponent(term)}`);
+            const data = await response.json();
+            const players = data.players || [];
+
+            if (!searchResults) return;
+            if (!players.length) {
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            searchResults.innerHTML = players.map(player => `
+                <button type="button" class="list-group-item list-group-item-action" data-player-id="${player.id}" data-team-id="${player.team_id}" data-league="${player.league}">
+                    ${player.name} - ${player.team_name} (${player.ovr || player.overall})
+                </button>
+            `).join('');
+            searchResults.style.display = 'block';
+
+            searchResults.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const leagueName = btn.dataset.league || '';
+                    const leagueId = leagueIdByName?.[leagueName];
+                    if (leagueId) {
+                        selectLeague.value = leagueId;
+                        selectLeague.dispatchEvent(new Event('change'));
+                    }
+
+                    const teamId = btn.dataset.teamId;
+                    const playerId = btn.dataset.playerId;
+                    const waitForTeams = setInterval(() => {
+                        if (selectTeam.options.length > 1) {
+                            selectTeam.value = teamId;
+                            selectTeam.dispatchEvent(new Event('change'));
+                            clearInterval(waitForTeams);
+                        }
+                    }, 200);
+
+                    const waitForPlayers = setInterval(() => {
+                        if (selectPlayer.options.length > 1) {
+                            selectPlayer.value = playerId;
+                            selectPlayer.dispatchEvent(new Event('change'));
+                            clearInterval(waitForPlayers);
+                        }
+                    }, 200);
+
+                    searchResults.style.display = 'none';
+                    searchInput.value = `${btn.textContent.trim()}`;
+                });
+            });
+        } catch (error) {
+            if (searchResults) searchResults.style.display = 'none';
+        }
+    });
 }
 
 async function cadastrarJogadorLeilao() {
@@ -311,6 +375,37 @@ async function carregarLeiloesAtivos() {
     } catch (error) {
         console.error('Erro:', error);
         container.innerHTML = '<p class="text-danger">Erro ao carregar leiloes.</p>';
+    }
+}
+
+async function carregarHistoricoLeiloes() {
+    const container = document.getElementById('leiloesHistoricoContainer');
+    if (!container) return;
+
+    try {
+        const url = currentLeagueId ? `api/leilao.php?action=historico&league_id=${currentLeagueId}` : 'api/leilao.php?action=historico';
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!data.success || !data.leiloes?.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhum leilao finalizado.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>Time Origem</th><th>Vencedor</th><th>Fim</th></tr></thead><tbody>';
+        data.leiloes.forEach(item => {
+            html += `<tr>
+                <td><strong class="text-orange">${item.player_name}</strong></td>
+                <td>${item.team_name}</td>
+                <td>${item.winner_team_name || '-'}</td>
+                <td>${item.data_fim || '-'}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
 }
 
