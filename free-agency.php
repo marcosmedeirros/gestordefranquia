@@ -61,7 +61,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Free Agency - FBA Brasil</title>
+    <title>Jogadores Livre - FBA Brasil</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,7 +78,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div class="mb-4">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <h1 class="text-white fw-bold mb-0">
-                        <i class="bi bi-coin text-orange me-2"></i>Free Agency
+                        <i class="bi bi-coin text-orange me-2"></i>Jogadores Livre
                     </h1>
                     <div class="d-flex flex-wrap gap-2">
                         <?php if ($team_league): ?>
@@ -104,18 +104,23 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <ul class="nav nav-tabs mb-4" id="freeAgencyTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
-                        <i class="bi bi-people-fill me-1"></i>Free Agency
+                        <i class="bi bi-people-fill me-1"></i>Jogadores Livre
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="fa-auction-tab" data-bs-toggle="tab" data-bs-target="#fa-auction" type="button" role="tab">
-                        <i class="bi bi-hammer me-1"></i>Leilao
+                    <button class="nav-link" id="fa-active-auctions-tab" data-bs-toggle="tab" data-bs-target="#fa-active-auctions" type="button" role="tab">
+                        <i class="bi bi-hammer me-1"></i>Leiloes ativos
                     </button>
                 </li>
                 <?php if ($is_admin): ?>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fa-auction-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
+                        <i class="bi bi-hammer me-1"></i>Leilao admin
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="fa-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-admin" type="button" role="tab">
-                        <i class="bi bi-shield-lock-fill me-1"></i>Admin
+                        <i class="bi bi-shield-lock-fill me-1"></i>FA Admin
                     </button>
                 </li>
                 <?php endif; ?>
@@ -159,7 +164,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                 </div>
 
-                <div class="tab-pane fade" id="fa-auction" role="tabpanel">
+                <div class="tab-pane fade" id="fa-active-auctions" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leiloes Ativos</h5>
@@ -194,11 +199,13 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <?php if ($is_admin): ?>
-                    <div class="card bg-dark-panel border-orange mt-4">
+                <?php if ($is_admin): ?>
+                <div class="tab-pane fade" id="fa-auction-admin" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange">
                         <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Admin Leilao</h5>
+                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilao admin</h5>
                         </div>
                         <div class="card-body">
                             <div class="row g-3 align-items-end">
@@ -292,10 +299,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
                         </div>
                     </div>
-                    <?php endif; ?>
                 </div>
 
-                <?php if ($is_admin): ?>
                 <div class="tab-pane fade" id="fa-admin" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4">
                         <div class="card-header bg-dark border-bottom border-orange">

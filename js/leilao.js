@@ -635,7 +635,24 @@ function iniciarCronometros() {
         timers.forEach(timer => {
             const endTime = timer.getAttribute('data-end-time');
             if (!endTime) return;
-            const end = new Date(endTime.replace(' ', 'T')).getTime();
+            let end = Number(timer.getAttribute('data-end-fixed') || 0);
+            if (!end) {
+                const normalized = endTime.replace(' ', 'T');
+                const endLocal = new Date(normalized).getTime();
+                const endUtc = new Date(normalized + 'Z').getTime();
+                const target = 20 * 60 * 1000;
+                const diffLocal = endLocal - now;
+                const diffUtc = endUtc - now;
+                const pickLocal = Math.abs(diffLocal - target) <= Math.abs(diffUtc - target);
+                end = pickLocal ? endLocal : endUtc;
+                if (Number.isNaN(end)) {
+                    return;
+                }
+                if (end - now > target * 2) {
+                    end = now + target;
+                }
+                timer.setAttribute('data-end-fixed', String(end));
+            }
             const diff = end - now;
             if (diff <= 0) {
                 timer.textContent = 'Encerrado';
