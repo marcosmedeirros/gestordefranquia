@@ -21,7 +21,7 @@ $pdo = db();
 ensureTeamFreeAgencyColumns($pdo);
 
 $user_id = $_SESSION['user_id'];
-$is_admin = $_SESSION['is_admin'] ?? false;
+$is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
 $team_id = $_SESSION['team_id'] ?? null;
 
 $team = null;
@@ -584,7 +584,6 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
     if (!$offer || $offer['status'] !== 'pending') {
         jsonError('Proposta nao encontrada');
     }
-<<<<<<< HEAD
 
     if ((int)$offer['moedas'] < (int)$offer['amount']) {
         jsonError('Time nao tem moedas suficientes');
@@ -648,50 +647,6 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             WHERE free_agent_id = ? AND status = "pending"
         ');
         $stmtOffers->execute([(int)$offer['id'], (int)$offer['free_agent_id']]);
-=======
-    
-    // Verificar moedas do time vencedor
-    $stmt = $pdo->prepare("SELECT moedas FROM teams WHERE id = ?");
-    $stmt->execute([$team_id]);
-    $team = $stmt->fetch();
-
-    if (!$team || $team['moedas'] < $amount) {
-        echo json_encode(['success' => false, 'error' => 'Time nao tem moedas suficientes']);
-        return;
-    }
-
-    // Verificar limite de 3 contratações FA
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM free_agents WHERE winner_team_id = ? AND status = 'signed'");
-    $stmt->execute([$team_id]);
-    $signedCount = $stmt->fetchColumn();
-    if ($signedCount >= 3) {
-        echo json_encode(['success' => false, 'error' => 'Este time já contratou 3 jogadores na Free Agency.']);
-        return;
-    }
-
-    $pdo->beginTransaction();
-
-    try {
-        // Criar jogador na tabela players
-        $stmt = $pdo->prepare("INSERT INTO players (name, position, age, overall, team_id, league_id) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$player['name'], $player['position'], $player['age'], $player['overall'], $team_id, $player['league_id']]);
-
-        // Descontar moedas
-        $stmt = $pdo->prepare("UPDATE teams SET moedas = moedas - ? WHERE id = ?");
-        $stmt->execute([$amount, $team_id]);
-
-        // Registrar log de moedas
-        $stmt = $pdo->prepare("INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $stmt->execute([$team_id, -$amount, 'Contratacao FA: ' . $player['name'], $admin_id]);
-
-        // Marcar free agent como contratado
-        $stmt = $pdo->prepare("UPDATE free_agents SET status = 'signed', winner_team_id = ? WHERE id = ?");
-        $stmt->execute([$team_id, $player_id]);
-
-        // Remover lances
-        $stmt = $pdo->prepare("DELETE FROM fa_bids WHERE free_agent_id = ?");
-        $stmt->execute([$player_id]);
->>>>>>> ea3fbb41ab30e4781ba6b0f9b99d37c202a32aae
 
         $pdo->commit();
         jsonSuccess([
