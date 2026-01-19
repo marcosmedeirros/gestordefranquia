@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     carregarFreeAgents();
 
+    document.getElementById('faSearchInput')?.addEventListener('input', () => {
+        renderFreeAgents();
+    });
+    document.getElementById('faPositionFilter')?.addEventListener('change', () => {
+        renderFreeAgents();
+    });
+
     if (isAdmin) {
         setupAdminEvents();
         carregarFreeAgentsAdmin();
@@ -23,6 +30,8 @@ function getActiveLeague() {
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
 }
+
+let freeAgentsCache = [];
 
 function getAdminLeague() {
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
@@ -172,8 +181,8 @@ async function carregarPropostasAdmin() {
             const player = group.player;
             const offers = group.offers || [];
 
-            html += '<div class="card bg-dark-elevated border mb-3">';
-            html += '<div class="card-header bg-dark">';
+            html += '<div class="card bg-dark border border-secondary mb-3 text-white">';
+            html += '<div class="card-header bg-dark border-bottom border-secondary">';
             html += `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <strong class="text-orange">${player.name}</strong>
@@ -261,42 +270,64 @@ async function carregarFreeAgents() {
         const response = await fetch(`api/free-agency.php?action=list&league=${encodeURIComponent(league)}`);
         const data = await response.json();
 
-        if (!data.success || !data.players?.length) {
-            container.innerHTML = '<p class="text-muted">Nenhum jogador disponivel.</p>';
+        if (!data.success) {
+            container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
             return;
         }
 
-        let html = '<div class="row g-3">';
-        data.players.forEach(player => {
-            html += '<div class="col-md-6 col-xl-4">';
-            html += '<div class="card bg-dark-elevated border h-100">';
-            html += `<div class="card-header bg-dark border-bottom border-secondary">
-                <strong class="text-orange">${player.name}</strong>
-            </div>`;
-            html += '<div class="card-body">';
-            html += `<div class="mb-2 text-light-gray">
-                <i class="bi bi-person me-1"></i>${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos
-            </div>`;
-            html += `<div class="mb-2"><i class="bi bi-star-fill text-warning me-1"></i>OVR ${player.ovr}</div>`;
-            if (player.original_team_name) {
-                html += `<div class="small text-light-gray mb-2">Dispensado por: ${player.original_team_name}</div>`;
-            }
-            if (player.my_offer_amount) {
-                html += `<div class="badge bg-info mb-2">Sua proposta: ${player.my_offer_amount} moedas</div>`;
-            }
-            if (userTeamId) {
-                html += `<button class="btn btn-orange btn-sm w-100" onclick="abrirModalOferta(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
-                    <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Fazer'} lance
-                </button>`;
-            }
-            html += '</div></div></div>';
-        });
-        html += '</div>';
-        container.innerHTML = html;
+        freeAgentsCache = Array.isArray(data.players) ? data.players : [];
+        renderFreeAgents();
     } catch (error) {
         console.error('Erro:', error);
         container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
     }
+}
+
+function renderFreeAgents() {
+    const container = document.getElementById('freeAgentsContainer');
+    if (!container) return;
+
+    const term = (document.getElementById('faSearchInput')?.value || '').trim().toLowerCase();
+    const position = (document.getElementById('faPositionFilter')?.value || '').trim().toUpperCase();
+
+    const filtered = freeAgentsCache.filter(player => {
+        const matchesName = !term || (player.name || '').toLowerCase().includes(term);
+        const matchesPos = !position || (player.position || '').toUpperCase() === position;
+        return matchesName && matchesPos;
+    });
+
+    if (!filtered.length) {
+        container.innerHTML = '<p class="text-muted">Nenhum jogador disponivel.</p>';
+        return;
+    }
+
+    let html = '<div class="row g-3">';
+    filtered.forEach(player => {
+        html += '<div class="col-md-6 col-xl-4">';
+        html += '<div class="card bg-dark border border-secondary h-100 text-white">';
+        html += `<div class="card-header bg-dark border-bottom border-secondary">
+            <strong class="text-orange">${player.name}</strong>
+        </div>`;
+        html += '<div class="card-body">';
+        html += `<div class="mb-2 text-light-gray">
+            <i class="bi bi-person me-1"></i>${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos
+        </div>`;
+        html += `<div class="mb-2"><i class="bi bi-star-fill text-warning me-1"></i>OVR ${player.ovr}</div>`;
+        if (player.original_team_name) {
+            html += `<div class="small text-light-gray mb-2">Dispensado por: ${player.original_team_name}</div>`;
+        }
+        if (player.my_offer_amount) {
+            html += `<div class="badge bg-info mb-2">Seu lance: ${player.my_offer_amount} moedas</div>`;
+        }
+        if (userTeamId) {
+            html += `<button class="btn btn-orange btn-sm w-100" onclick="abrirModalOferta(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
+                <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Fazer'} lance
+            </button>`;
+        }
+        html += '</div></div></div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 
