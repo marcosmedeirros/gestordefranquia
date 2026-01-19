@@ -137,6 +137,13 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                 </div>
                 <?php endif; ?>
+    <div class="container-fluid p-0 min-vh-100 bg-light">
+        <div class="row g-0">
+            <div class="col-auto">
+                <?php include __DIR__ . '/includes/sidebar.php'; ?>
+            </div>
+            <div class="col px-2 px-md-4 py-4">
+                <h2 class="mb-4 fw-bold text-primary"><i class="bi bi-people-fill"></i> Free Agency</h2>
 
                 <?php if ($is_admin): ?>
                 <div class="tab-pane fade" id="fa-admin-offers" role="tabpanel">
@@ -211,6 +218,48 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                         <i class="bi bi-plus-circle me-1"></i>Adicionar
                                     </button>
                                 </div>
+                <div class="row g-4 mb-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-gear-fill"></i> Adicionar Jogador</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row align-items-end gy-2">
+                            <div class="col-md-3 mb-3">
+                                <label for="faLeague" class="form-label">Liga</label>
+                                <select id="faLeague" class="form-select">
+                                    <option value="">Selecione...</option>
+                                    <?php foreach ($leagues as $league): ?>
+                                        <option value="<?= $league['id'] ?>"><?= htmlspecialchars($league['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="faPlayerName" class="form-label">Nome</label>
+                                <input type="text" id="faPlayerName" class="form-control">
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <label for="faPosition" class="form-label">Posicao</label>
+                                <select id="faPosition" class="form-select">
+                                    <option value="PG">PG</option>
+                                    <option value="SG">SG</option>
+                                    <option value="SF">SF</option>
+                                    <option value="PF">PF</option>
+                                    <option value="C">C</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1 mb-3">
+                                <label for="faAge" class="form-label">Idade</label>
+                                <input type="number" id="faAge" class="form-control" value="25">
+                            </div>
+                            <div class="col-md-1 mb-3">
+                                <label for="faOverall" class="form-label">OVR</label>
+                                <input type="number" id="faOverall" class="form-control" value="70">
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <label for="faMinBid" class="form-label">Lance Min</label>
+                                <input type="number" id="faMinBid" class="form-control" value="0">
                             </div>
                         </div>
                     </div>
@@ -223,10 +272,57 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             <div id="adminFreeAgentsContainer">
                                 <p class="text-muted">Carregando...</p>
                             </div>
+
+                                <div class="col-12 col-md-3 mb-2">
+                                    <button id="btnAddFreeAgent" class="btn btn-success w-100">
+                                        <i class="bi bi-plus-lg"></i> Adicionar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-warning">
+                                <h5 class="mb-0"><i class="bi bi-list-ul"></i> Gerenciar</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="adminFreeAgentsContainer">
+                                    <div class="d-flex align-items-center gap-2"><div class="spinner-border spinner-border-sm text-warning" role="status"></div> <span>Carregando...</span></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <?php endif; ?>
+
+
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-people-fill"></i> Jogadores Disponíveis</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="freeAgentsContainer">
+                            <div class="d-flex align-items-center gap-2"><div class="spinner-border spinner-border-sm text-success" role="status"></div> <span>Carregando...</span></div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <?php if ($team_id): ?>
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-hand-index"></i> Meus Lances</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="meusLancesContainer">
+                            <div class="d-flex align-items-center gap-2"><div class="spinner-border spinner-border-sm text-info" role="status"></div> <span>Carregando...</span></div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+
             </div>
         </div>
     </div>
