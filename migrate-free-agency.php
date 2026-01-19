@@ -49,6 +49,7 @@ try {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 free_agent_id INT NOT NULL,
                 team_id INT NOT NULL,
+                amount INT NOT NULL DEFAULT 0,
                 notes TEXT NULL,
                 status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -65,6 +66,17 @@ try {
     }
 } catch (Exception $e) {
     echo "✗ Erro ao criar tabela free_agent_offers: " . $e->getMessage() . "\n";
+}
+
+try {
+    $checkCol = $pdo->query("SHOW COLUMNS FROM free_agent_offers LIKE 'amount'");
+    if ($checkCol->rowCount() === 0) {
+        echo "Adicionando coluna amount em free_agent_offers...\n";
+        $pdo->exec("ALTER TABLE free_agent_offers ADD COLUMN amount INT NOT NULL DEFAULT 0 AFTER team_id");
+        echo "✓ Coluna amount adicionada!\n";
+    }
+} catch (Exception $e) {
+    echo "Aviso: " . $e->getMessage() . "\n";
 }
 
 // Adicionar colunas na tabela teams

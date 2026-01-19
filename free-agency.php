@@ -17,19 +17,25 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 
 $team_name = '';
 $team_moedas = 0;
+$team_league = null;
 if ($team_id) {
-    $stmt = $pdo->prepare("SELECT name, moedas FROM teams WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name, moedas, league FROM teams WHERE id = ?");
     $stmt->execute([$team_id]);
     $team = $stmt->fetch();
     $team_name = $team['name'] ?? '';
     $team_moedas = (int)($team['moedas'] ?? 0);
+    $team_league = $team['league'] ?? null;
 }
 
 $leagues = [];
 if ($is_admin) {
-    $stmt = $pdo->query("SELECT id, name FROM leagues ORDER BY name");
-    $leagues = $stmt->fetchAll();
+    $stmt = $pdo->query("SELECT name FROM leagues ORDER BY name");
+    $leagues = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!$leagues) {
+        $leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+    }
 }
+$default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -49,114 +55,197 @@ if ($is_admin) {
     <div class="d-flex">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
-        <!-- Conteúdo removido: Free Agency -->
-
-                <?php if ($is_admin): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-gear-fill"></i> Adicionar Jogador</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3 mb-3">
-                                <label for="faLeague" class="form-label">Liga</label>
-                                <select id="faLeague" class="form-select">
-                                    <option value="">Selecione...</option>
-                                    <?php foreach ($leagues as $league): ?>
-                                        <option value="<?= $league['id'] ?>"><?= htmlspecialchars($league['name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label for="faPlayerName" class="form-label">Nome</label>
-                                <input type="text" id="faPlayerName" class="form-control">
-                            </div>
-                            <div class="col-md-2 mb-3">
-                                <label for="faPosition" class="form-label">Posicao</label>
-                                <select id="faPosition" class="form-select">
-                                    <option value="PG">PG</option>
-                                    <option value="SG">SG</option>
-                                    <option value="SF">SF</option>
-                                    <option value="PF">PF</option>
-                                    <option value="C">C</option>
-                                </select>
-                            </div>
-                            <div class="col-md-1 mb-3">
-                                <label for="faAge" class="form-label">Idade</label>
-                                <input type="number" id="faAge" class="form-control" value="25">
-                            </div>
-                            <div class="col-md-1 mb-3">
-                                <label for="faOverall" class="form-label">OVR</label>
-                                <input type="number" id="faOverall" class="form-control" value="70">
-                            </div>
-                            <div class="col-md-2 mb-3">
-                                <label for="faMinBid" class="form-label">Lance Min</label>
-                                <input type="number" id="faMinBid" class="form-control" value="0">
-                            </div>
-                        </div>
-                        <button id="btnAddFreeAgent" class="btn btn-success">
-                            <i class="bi bi-plus-lg"></i> Adicionar
-                        </button>
+        <div class="dashboard-content">
+            <div class="mb-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <h1 class="text-white fw-bold mb-0">
+                        <i class="bi bi-coin text-orange me-2"></i>Free Agency
+                    </h1>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php if ($team_league): ?>
+                            <span class="badge bg-dark border border-warning text-warning">
+                                <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($team_league) ?>
+                            </span>
+                        <?php endif; ?>
+                        <?php if ($team_id): ?>
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-coin me-1"></i><?= $team_moedas ?> moedas
+                            </span>
+                        <?php endif; ?>
+                        <?php if ($is_admin): ?>
+                            <span class="badge bg-danger">Admin</span>
+                        <?php endif; ?>
                     </div>
                 </div>
+                <p class="text-light-gray mb-0">
+                    Envie propostas com moedas para contratar jogadores dispensados. As moedas so sao descontadas apos aprovacao do admin.
+                </p>
+            </div>
 
-                <div class="card mb-4">
-                    <div class="card-header bg-warning">
-                        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Gerenciar</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="adminFreeAgentsContainer">
-                            <p class="text-muted">Carregando...</p>
-                        </div>
-                    </div>
-                </div>
+            <ul class="nav nav-tabs mb-4" id="freeAgencyTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
+                        <i class="bi bi-people-fill me-1"></i>Jogadores
+                    </button>
+                </li>
+                <?php if ($team_id): ?>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fa-my-offers-tab" data-bs-toggle="tab" data-bs-target="#fa-my-offers" type="button" role="tab">
+                        <i class="bi bi-hand-index me-1"></i>Minhas Propostas
+                    </button>
+                </li>
                 <?php endif; ?>
+                <?php if ($is_admin): ?>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fa-admin-offers-tab" data-bs-toggle="tab" data-bs-target="#fa-admin-offers" type="button" role="tab">
+                        <i class="bi bi-inbox-fill me-1"></i>Admin Propostas
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fa-admin-players-tab" data-bs-toggle="tab" data-bs-target="#fa-admin-players" type="button" role="tab">
+                        <i class="bi bi-gear-fill me-1"></i>Admin Jogadores
+                    </button>
+                </li>
+                <?php endif; ?>
+            </ul>
 
-                <div class="card mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="bi bi-people-fill"></i> Jogadores Disponiveis</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="freeAgentsContainer">
-                            <p class="text-muted">Carregando...</p>
+            <div class="tab-content" id="freeAgencyTabsContent">
+                <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-people-fill text-orange me-2"></i>Jogadores Disponiveis</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="freeAgentsContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <?php if ($team_id): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="bi bi-hand-index"></i> Meus Lances</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="meusLancesContainer">
-                            <p class="text-muted">Carregando...</p>
+                <div class="tab-pane fade" id="fa-my-offers" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-hand-index text-orange me-2"></i>Minhas Propostas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="myOffersContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <?php endif; ?>
 
+                <?php if ($is_admin): ?>
+                <div class="tab-pane fade" id="fa-admin-offers" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-inbox-fill text-orange me-2"></i>Propostas Pendentes</h5>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="adminLeagueSelect" class="text-light-gray">Liga</label>
+                                    <select id="adminLeagueSelect" class="form-select form-select-sm" style="min-width: 140px;">
+                                        <?php foreach ($leagues as $league): ?>
+                                            <option value="<?= htmlspecialchars($league) ?>" <?= $league === $default_admin_league ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($league) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="adminOffersContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="fa-admin-players" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-gear-fill text-orange me-2"></i>Adicionar Free Agent</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="faLeague" class="form-label">Liga</label>
+                                    <select id="faLeague" class="form-select">
+                                        <option value="">Selecione...</option>
+                                        <?php foreach ($leagues as $league): ?>
+                                            <option value="<?= htmlspecialchars($league) ?>"><?= htmlspecialchars($league) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="faPlayerName" class="form-label">Nome</label>
+                                    <input type="text" id="faPlayerName" class="form-control" placeholder="Nome do jogador">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faPosition" class="form-label">Posicao</label>
+                                    <select id="faPosition" class="form-select">
+                                        <option value="PG">PG</option>
+                                        <option value="SG">SG</option>
+                                        <option value="SF">SF</option>
+                                        <option value="PF">PF</option>
+                                        <option value="C">C</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="faSecondaryPosition" class="form-label">Posicao Secundaria</label>
+                                    <input type="text" id="faSecondaryPosition" class="form-control" placeholder="Opcional">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faAge" class="form-label">Idade</label>
+                                    <input type="number" id="faAge" class="form-control" value="25">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faOvr" class="form-label">OVR</label>
+                                    <input type="number" id="faOvr" class="form-control" value="70">
+                                </div>
+                                <div class="col-12">
+                                    <button id="btnAddFreeAgent" class="btn btn-orange">
+                                        <i class="bi bi-plus-circle me-1"></i>Adicionar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-list-ul text-orange me-2"></i>Gerenciar Jogadores</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="adminFreeAgentsContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="modalLance" tabindex="-1">
+    <div class="modal fade" id="modalOffer" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-coin"></i> Fazer Lance</h5>
+                    <h5 class="modal-title"><i class="bi bi-coin"></i> Enviar Proposta</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" id="freeAgentIdLance">
+                    <input type="hidden" id="freeAgentIdOffer">
                     <div class="alert alert-info">
-                        <strong>Jogador:</strong> <span id="freeAgentNomeLance"></span>
+                        <strong>Jogador:</strong> <span id="freeAgentNomeOffer"></span>
                     </div>
-                    <p>Lance Minimo: <span id="lanceMinimo">0</span> moedas</p>
-                    <p>Maior Lance: <span id="maiorLance">0</span> moedas</p>
                     <div class="mb-3">
-                        <label for="valorLance" class="form-label">Seu Lance</label>
-                        <input type="number" id="valorLance" class="form-control" min="0">
+                        <label for="offerAmount" class="form-label">Moedas da proposta</label>
+                        <input type="number" id="offerAmount" class="form-control" min="1" value="1">
                     </div>
                     <div class="alert alert-warning">
                         Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong>
@@ -164,30 +253,7 @@ if ($is_admin) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-success" id="btnConfirmarLance">Confirmar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="modalEscolherVencedor" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-trophy"></i> Escolher Vencedor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="freeAgentIdVencedor">
-                    <div class="alert alert-info">
-                        <strong>Jogador:</strong> <span id="freeAgentNomeVencedor"></span>
-                    </div>
-                    <div id="listLancesVencedor">
-                        <p class="text-muted">Carregando...</p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-success" id="btnConfirmOffer">Enviar Proposta</button>
                 </div>
             </div>
         </div>
@@ -199,7 +265,8 @@ if ($is_admin) {
         const userTeamId = <?= $team_id ? $team_id : 'null' ?>;
         const userTeamName = '<?= addslashes($team_name) ?>';
         const userMoedas = <?= $team_moedas ?>;
-        const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
+        const userLeague = <?= $team_league ? "'" . addslashes($team_league) . "'" : 'null' ?>;
+        const defaultAdminLeague = '<?= addslashes($default_admin_league) ?>';
     </script>
     <script src="js/sidebar.js"></script>
     <script src="js/free-agency.js"></script>

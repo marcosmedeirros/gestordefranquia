@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS free_agent_offers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     free_agent_id INT NOT NULL,
     team_id INT NOT NULL,
+    amount INT NOT NULL DEFAULT 0,
     notes TEXT NULL,
     status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,317 +1,488 @@
 <?php
 /**
- * API Free Agency - Sistema de Moedas
+ * API Free Agency - Propostas com moedas
  */
 
 session_start();
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/helpers.php';
 
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Nao autorizado']);
     exit;
 }
 
+$pdo = db();
+ensureTeamFreeAgencyColumns($pdo);
+
 $user_id = $_SESSION['user_id'];
 $is_admin = $_SESSION['is_admin'] ?? false;
 $team_id = $_SESSION['team_id'] ?? null;
-$league_id = $_SESSION['current_league_id'] ?? null;
 
-$pdo = db();
+$team = null;
+if ($team_id) {
+    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, fa_signings_used FROM teams WHERE id = ?');
+    $stmt->execute([$team_id]);
+    $team = $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+$team_league = $team['league'] ?? null;
+$team_coins = (int)($team['moedas'] ?? 0);
+$valid_leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+function jsonError(string $message, int $status = 400): void
+{
+    http_response_code($status);
+    echo json_encode(['success' => false, 'error' => $message]);
+    exit;
+}
+
+function jsonSuccess(array $payload = []): void
+{
+    echo json_encode(array_merge(['success' => true], $payload));
+    exit;
+}
+
+function tableExists(PDO $pdo, string $table): bool
+{
+    static $cache = [];
+    if (array_key_exists($table, $cache)) {
+        return $cache[$table];
+    }
+    $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+    $stmt->execute([$table]);
+    $cache[$table] = $stmt->rowCount() > 0;
+    return $cache[$table];
+}
+
+function columnExists(PDO $pdo, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . ':' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+    $stmt->execute([$column]);
+    $cache[$key] = $stmt->rowCount() > 0;
+    return $cache[$key];
+}
+
+function ensureOfferAmountColumn(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        if (!columnExists($pdo, 'free_agent_offers', 'amount')) {
+            $pdo->exec('ALTER TABLE free_agent_offers ADD COLUMN amount INT NOT NULL DEFAULT 0 AFTER team_id');
+        }
+    } catch (Exception $e) {
+        error_log('[free-agency] amount column: ' . $e->getMessage());
+    }
+
+    $checked = true;
+}
+
+function getLeagueFromRequest(array $validLeagues, ?string $fallback = null): ?string
+{
+    $league = strtoupper(trim((string)($_GET['league'] ?? $fallback ?? '')));
+    if (!$league) {
+        return null;
+    }
+    if (!in_array($league, $validLeagues, true)) {
+        return null;
+    }
+    return $league;
+}
 
 // GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
-    
+
     switch ($action) {
         case 'list':
-            listFreeAgents($pdo, $league_id);
+            $league = getLeagueFromRequest($valid_leagues, $team_league);
+            listFreeAgents($pdo, $league, $team_id);
             break;
-        case 'list_admin':
+        case 'my_offers':
+            listMyOffers($pdo, $team_id);
+            break;
+        case 'admin_free_agents':
             if (!$is_admin) {
-                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-                exit;
+                jsonError('Acesso negado', 403);
             }
-            listFreeAgentsAdmin($pdo);
+            $league = getLeagueFromRequest($valid_leagues, null);
+            if (!$league) {
+                jsonError('Liga invalida');
+            }
+            listAdminFreeAgents($pdo, $league);
             break;
-        case 'my_bids':
-            myBids($pdo, $team_id);
-            break;
-        case 'get_bids':
+        case 'admin_offers':
             if (!$is_admin) {
-                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-                exit;
+                jsonError('Acesso negado', 403);
             }
-            $player_id = $_GET['player_id'] ?? 0;
-            getBids($pdo, $player_id);
+            $league = getLeagueFromRequest($valid_leagues, null);
+            if (!$league) {
+                jsonError('Liga invalida');
+            }
+            listAdminOffers($pdo, $league);
+            break;
+        case 'limits':
+            freeAgencyLimits($team);
             break;
         default:
-            echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
+            jsonError('Acao nao reconhecida');
     }
-    exit;
 }
 
 // POST requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $body = json_decode(file_get_contents('php://input'), true);
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $action = $body['action'] ?? '';
-    
+
     switch ($action) {
         case 'add_player':
             if (!$is_admin) {
-                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-                exit;
+                jsonError('Acesso negado', 403);
             }
-            addPlayer($pdo, $body, $user_id);
+            addPlayer($pdo, $body);
             break;
         case 'remove_player':
             if (!$is_admin) {
-                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-                exit;
+                jsonError('Acesso negado', 403);
             }
             removePlayer($pdo, $body);
             break;
-        case 'place_bid':
-            placeBid($pdo, $body, $team_id);
+        case 'place_offer':
+            placeOffer($pdo, $body, $team_id, $team_league, $team_coins);
             break;
-        case 'select_winner':
+        case 'approve_offer':
             if (!$is_admin) {
-                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-                exit;
+                jsonError('Acesso negado', 403);
             }
-            selectWinner($pdo, $body, $user_id);
+            approveOffer($pdo, $body, $user_id);
             break;
         default:
-            echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
+            jsonError('Acao nao reconhecida');
     }
-    exit;
 }
 
-// ========== GET FUNCTIONS ==========
+jsonError('Metodo nao permitido', 405);
 
-function listFreeAgents($pdo, $league_id) {
-    $sql = "SELECT fa.*, l.name as league_name,
-                   (SELECT MAX(amount) FROM fa_bids WHERE free_agent_id = fa.id) as max_bid
-            FROM free_agents fa
-            LEFT JOIN leagues l ON fa.league_id = l.id
-            WHERE fa.status = 'available'";
-    
-    if ($league_id) {
-        $sql .= " AND fa.league_id = ?";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$league_id]);
-    } else {
-        $stmt = $pdo->query($sql);
+// ========== GET ==========
+
+function listFreeAgents(PDO $pdo, ?string $league, ?int $teamId): void
+{
+    if (!$league) {
+        jsonSuccess(['players' => []]);
     }
-    
+
+    $fields = 'fa.id, fa.name, fa.age, fa.position, fa.secondary_position, fa.ovr, fa.league, fa.original_team_name';
+    $params = [$league];
+
+    if ($teamId) {
+        $fields .= ', (SELECT amount FROM free_agent_offers WHERE free_agent_id = fa.id AND team_id = ? AND status = "pending" LIMIT 1) AS my_offer_amount';
+        $params = [$teamId, $league];
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT {$fields}
+        FROM free_agents fa
+        WHERE fa.league = ?
+        ORDER BY fa.ovr DESC, fa.name ASC
+    ");
+    $stmt->execute($params);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'players' => $players]);
+
+    jsonSuccess(['league' => $league, 'players' => $players]);
 }
 
-function listFreeAgentsAdmin($pdo) {
-    $sql = "SELECT fa.*, l.name as league_name,
-                   (SELECT COUNT(*) FROM fa_bids WHERE free_agent_id = fa.id) as total_bids,
-                   (SELECT MAX(amount) FROM fa_bids WHERE free_agent_id = fa.id) as max_bid
-            FROM free_agents fa
-            LEFT JOIN leagues l ON fa.league_id = l.id
-            WHERE fa.status = 'available'
-            ORDER BY fa.created_at DESC";
-    
-    $stmt = $pdo->query($sql);
+function listMyOffers(PDO $pdo, ?int $teamId): void
+{
+    if (!$teamId) {
+        jsonSuccess(['offers' => []]);
+    }
+
+    ensureOfferAmountColumn($pdo);
+
+    $stmt = $pdo->prepare('
+        SELECT fao.id, fao.amount, fao.status, fao.created_at,
+               fa.name AS player_name, fa.position, fa.ovr
+        FROM free_agent_offers fao
+        JOIN free_agents fa ON fao.free_agent_id = fa.id
+        WHERE fao.team_id = ?
+        ORDER BY fao.created_at DESC
+    ');
+    $stmt->execute([$teamId]);
+    $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonSuccess(['offers' => $offers]);
+}
+
+function listAdminFreeAgents(PDO $pdo, string $league): void
+{
+    $stmt = $pdo->prepare('
+        SELECT fa.*, (
+            SELECT COUNT(*) FROM free_agent_offers
+            WHERE free_agent_id = fa.id AND status = "pending"
+        ) AS pending_offers
+        FROM free_agents fa
+        WHERE fa.league = ?
+        ORDER BY fa.ovr DESC, fa.name ASC
+    ');
+    $stmt->execute([$league]);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'players' => $players]);
+
+    jsonSuccess(['league' => $league, 'players' => $players]);
 }
 
-function myBids($pdo, $team_id) {
-    if (!$team_id) {
-        echo json_encode(['success' => true, 'bids' => []]);
-        return;
+function listAdminOffers(PDO $pdo, string $league): void
+{
+    ensureOfferAmountColumn($pdo);
+
+    $stmt = $pdo->prepare('
+        SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, fao.status, fao.created_at,
+               fa.name AS player_name, fa.position, fa.secondary_position, fa.ovr, fa.age, fa.original_team_name,
+               t.city AS team_city, t.name AS team_name
+        FROM free_agent_offers fao
+        JOIN free_agents fa ON fao.free_agent_id = fa.id
+        JOIN teams t ON fao.team_id = t.id
+        WHERE fa.league = ? AND fao.status = "pending"
+        ORDER BY fa.name ASC, fao.created_at ASC
+    ');
+    $stmt->execute([$league]);
+    $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $grouped = [];
+    foreach ($offers as $offer) {
+        $faId = $offer['free_agent_id'];
+        if (!isset($grouped[$faId])) {
+            $grouped[$faId] = [
+                'player' => [
+                    'id' => $faId,
+                    'name' => $offer['player_name'],
+                    'position' => $offer['position'],
+                    'secondary_position' => $offer['secondary_position'],
+                    'ovr' => $offer['ovr'],
+                    'age' => $offer['age'],
+                    'original_team' => $offer['original_team_name']
+                ],
+                'offers' => []
+            ];
+        }
+        $grouped[$faId]['offers'][] = [
+            'id' => $offer['id'],
+            'team_id' => $offer['team_id'],
+            'team_name' => trim(($offer['team_city'] ?? '') . ' ' . ($offer['team_name'] ?? '')),
+            'amount' => $offer['amount'],
+            'created_at' => $offer['created_at']
+        ];
     }
-    
-    $sql = "SELECT b.*, fa.name as player_name,
-                   (SELECT MAX(amount) FROM fa_bids WHERE free_agent_id = fa.id) as max_bid
-            FROM fa_bids b
-            JOIN free_agents fa ON b.free_agent_id = fa.id
-            WHERE b.team_id = ? AND fa.status = 'available'
-            ORDER BY b.created_at DESC";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$team_id]);
-    $bids = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'bids' => $bids]);
+
+    jsonSuccess(['league' => $league, 'players' => array_values($grouped)]);
 }
 
-function getBids($pdo, $player_id) {
-    $sql = "SELECT b.*, t.name as team_name
-            FROM fa_bids b
-            JOIN teams t ON b.team_id = t.id
-            WHERE b.free_agent_id = ?
-            ORDER BY b.amount DESC";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$player_id]);
-    $bids = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'bids' => $bids]);
+function freeAgencyLimits(?array $team): void
+{
+    $waiversUsed = isset($team['waivers_used']) ? (int)$team['waivers_used'] : 0;
+    $signingsUsed = isset($team['fa_signings_used']) ? (int)$team['fa_signings_used'] : 0;
+    jsonSuccess([
+        'waivers_used' => $waiversUsed,
+        'waivers_max' => 3,
+        'signings_used' => $signingsUsed,
+        'signings_max' => 3
+    ]);
 }
 
-// ========== POST FUNCTIONS ==========
+// ========== POST ==========
 
-function addPlayer($pdo, $body, $admin_id) {
-    $league_id = $body['league_id'] ?? null;
-    $name = $body['name'] ?? '';
-    $position = $body['position'] ?? 'PG';
-    $age = $body['age'] ?? 25;
-    $overall = $body['overall'] ?? 70;
-    $min_bid = $body['min_bid'] ?? 0;
-    
-    if (!$league_id || !$name) {
-        echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
-        return;
+function addPlayer(PDO $pdo, array $body): void
+{
+    $league = strtoupper(trim((string)($body['league'] ?? '')));
+    $name = trim((string)($body['name'] ?? ''));
+    $position = trim((string)($body['position'] ?? 'PG'));
+    $secondary = trim((string)($body['secondary_position'] ?? ''));
+    $age = (int)($body['age'] ?? 25);
+    $ovr = (int)($body['ovr'] ?? 70);
+
+    if (!$league || !$name) {
+        jsonError('Dados incompletos');
     }
-    
-    $stmt = $pdo->prepare("INSERT INTO free_agents (league_id, name, position, age, overall, min_bid, status, created_by, created_at) 
-                           VALUES (?, ?, ?, ?, ?, ?, 'available', ?, NOW())");
-    $stmt->execute([$league_id, $name, $position, $age, $overall, $min_bid, $admin_id]);
-    
-    echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+
+    $stmt = $pdo->prepare('
+        INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)
+    ');
+    $stmt->execute([$name, $age, $position, $secondary ?: null, $ovr, $league]);
+
+    jsonSuccess(['id' => $pdo->lastInsertId()]);
 }
 
-function removePlayer($pdo, $body) {
-    $player_id = $body['player_id'] ?? null;
-    
+function removePlayer(PDO $pdo, array $body): void
+{
+    $player_id = (int)($body['player_id'] ?? 0);
     if (!$player_id) {
-        echo json_encode(['success' => false, 'error' => 'ID nao informado']);
-        return;
+        jsonError('ID nao informado');
     }
-    
-    // Remover lances primeiro
-    $stmt = $pdo->prepare("DELETE FROM fa_bids WHERE free_agent_id = ?");
+
+    $stmt = $pdo->prepare('DELETE FROM free_agent_offers WHERE free_agent_id = ?');
     $stmt->execute([$player_id]);
-    
-    // Remover jogador
-    $stmt = $pdo->prepare("DELETE FROM free_agents WHERE id = ?");
+    $stmt = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
     $stmt->execute([$player_id]);
-    
-    echo json_encode(['success' => true]);
+
+    jsonSuccess();
 }
 
-function placeBid($pdo, $body, $team_id) {
-    if (!$team_id) {
-        echo json_encode(['success' => false, 'error' => 'Voce precisa ter um time']);
-        return;
+function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, int $teamCoins): void
+{
+    ensureOfferAmountColumn($pdo);
+
+    if (!$teamId) {
+        jsonError('Voce precisa ter um time');
     }
-    
-    $player_id = $body['player_id'] ?? null;
+
+    $player_id = (int)($body['free_agent_id'] ?? 0);
     $amount = (int)($body['amount'] ?? 0);
-    
-    if (!$player_id || $amount < 0) {
-        echo json_encode(['success' => false, 'error' => 'Dados invalidos']);
-        return;
+
+    if (!$player_id || $amount <= 0) {
+        jsonError('Dados invalidos');
     }
-    
-    // Verificar se jogador existe e esta disponivel
-    $stmt = $pdo->prepare("SELECT * FROM free_agents WHERE id = ? AND status = 'available'");
+
+    $stmt = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
     $stmt->execute([$player_id]);
-    $player = $stmt->fetch();
-    
+    $player = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$player) {
-        echo json_encode(['success' => false, 'error' => 'Jogador nao encontrado']);
-        return;
+        jsonError('Jogador nao encontrado');
     }
-    
-    if ($amount < $player['min_bid']) {
-        echo json_encode(['success' => false, 'error' => 'Lance abaixo do minimo']);
-        return;
+
+    if ($teamLeague && strtoupper($player['league']) !== strtoupper($teamLeague)) {
+        jsonError('Jogador e time precisam ser da mesma liga');
     }
-    
-    // Verificar moedas do time
-    $stmt = $pdo->prepare("SELECT moedas FROM teams WHERE id = ?");
-    $stmt->execute([$team_id]);
-    $team = $stmt->fetch();
-    
-    if (!$team || $team['moedas'] < $amount) {
-        echo json_encode(['success' => false, 'error' => 'Moedas insuficientes']);
-        return;
+
+    if ($teamCoins < $amount) {
+        jsonError('Moedas insuficientes');
     }
-    
-    // Verificar se ja tem lance
-    $stmt = $pdo->prepare("SELECT id FROM fa_bids WHERE free_agent_id = ? AND team_id = ?");
-    $stmt->execute([$player_id, $team_id]);
-    $existing = $stmt->fetch();
-    
+
+    $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ?');
+    $stmt->execute([$player_id, $teamId]);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
     if ($existing) {
-        // Atualizar lance existente
-        $stmt = $pdo->prepare("UPDATE fa_bids SET amount = ?, updated_at = NOW() WHERE id = ?");
+        $stmt = $pdo->prepare('UPDATE free_agent_offers SET amount = ?, status = "pending" WHERE id = ?');
         $stmt->execute([$amount, $existing['id']]);
     } else {
-        // Criar novo lance
-        $stmt = $pdo->prepare("INSERT INTO fa_bids (free_agent_id, team_id, amount, created_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$player_id, $team_id, $amount]);
+        $stmt = $pdo->prepare('
+            INSERT INTO free_agent_offers (free_agent_id, team_id, amount, status, created_at)
+            VALUES (?, ?, ?, "pending", NOW())
+        ');
+        $stmt->execute([$player_id, $teamId, $amount]);
     }
-    
-    echo json_encode(['success' => true]);
+
+    jsonSuccess();
 }
 
-function selectWinner($pdo, $body, $admin_id) {
-    $player_id = $body['player_id'] ?? null;
-    $team_id = $body['team_id'] ?? null;
-    $amount = (int)($body['amount'] ?? 0);
-    
-    if (!$player_id || !$team_id) {
-        echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
-        return;
+function approveOffer(PDO $pdo, array $body, int $adminId): void
+{
+    ensureOfferAmountColumn($pdo);
+
+    $offer_id = (int)($body['offer_id'] ?? 0);
+    if (!$offer_id) {
+        jsonError('Proposta invalida');
     }
-    
-    // Verificar se jogador existe
-    $stmt = $pdo->prepare("SELECT * FROM free_agents WHERE id = ? AND status = 'available'");
-    $stmt->execute([$player_id]);
-    $player = $stmt->fetch();
-    
-    if (!$player) {
-        echo json_encode(['success' => false, 'error' => 'Jogador nao encontrado']);
-        return;
+
+    $stmt = $pdo->prepare('
+        SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, fao.status,
+               fa.name AS player_name, fa.age, fa.position, fa.secondary_position, fa.ovr, fa.league,
+               t.city AS team_city, t.name AS team_name, COALESCE(t.moedas, 0) AS moedas
+        FROM free_agent_offers fao
+        JOIN free_agents fa ON fao.free_agent_id = fa.id
+        JOIN teams t ON fao.team_id = t.id
+        WHERE fao.id = ?
+    ');
+    $stmt->execute([$offer_id]);
+    $offer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$offer || $offer['status'] !== 'pending') {
+        jsonError('Proposta nao encontrada');
     }
-    
-    // Verificar moedas do time vencedor
-    $stmt = $pdo->prepare("SELECT moedas FROM teams WHERE id = ?");
-    $stmt->execute([$team_id]);
-    $team = $stmt->fetch();
-    
-    if (!$team || $team['moedas'] < $amount) {
-        echo json_encode(['success' => false, 'error' => 'Time nao tem moedas suficientes']);
-        return;
+
+    if ((int)$offer['moedas'] < (int)$offer['amount']) {
+        jsonError('Time nao tem moedas suficientes');
     }
-    
+
     $pdo->beginTransaction();
-    
     try {
-        // Criar jogador na tabela players
-        $stmt = $pdo->prepare("INSERT INTO players (name, position, age, overall, team_id, league_id) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$player['name'], $player['position'], $player['age'], $player['overall'], $team_id, $player['league_id']]);
-        
-        // Descontar moedas
-        $stmt = $pdo->prepare("UPDATE teams SET moedas = moedas - ? WHERE id = ?");
-        $stmt->execute([$amount, $team_id]);
-        
-        // Registrar log de moedas
-        $stmt = $pdo->prepare("INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $stmt->execute([$team_id, -$amount, 'Contratacao FA: ' . $player['name'], $admin_id]);
-        
-        // Marcar free agent como contratado
-        $stmt = $pdo->prepare("UPDATE free_agents SET status = 'signed', winner_team_id = ? WHERE id = ?");
-        $stmt->execute([$team_id, $player_id]);
-        
-        // Remover lances
-        $stmt = $pdo->prepare("DELETE FROM fa_bids WHERE free_agent_id = ?");
-        $stmt->execute([$player_id]);
-        
+        $columns = ['team_id', 'name', 'age', 'position', 'ovr'];
+        $values = [
+            (int)$offer['team_id'],
+            $offer['player_name'],
+            (int)$offer['age'],
+            $offer['position'],
+            (int)$offer['ovr']
+        ];
+
+        if (columnExists($pdo, 'players', 'secondary_position')) {
+            $columns[] = 'secondary_position';
+            $values[] = $offer['secondary_position'];
+        }
+        if (columnExists($pdo, 'players', 'seasons_in_league')) {
+            $columns[] = 'seasons_in_league';
+            $values[] = 0;
+        }
+        if (columnExists($pdo, 'players', 'role')) {
+            $columns[] = 'role';
+            $values[] = 'Banco';
+        }
+        if (columnExists($pdo, 'players', 'available_for_trade')) {
+            $columns[] = 'available_for_trade';
+            $values[] = 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($columns), '?'));
+        $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
+        $stmtInsert->execute($values);
+
+        $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
+        $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+
+        if (columnExists($pdo, 'teams', 'fa_signings_used')) {
+            $stmtSign = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');
+            $stmtSign->execute([(int)$offer['team_id']]);
+        }
+
+        if (tableExists($pdo, 'team_coins_log')) {
+            $stmtLog = $pdo->prepare('
+                INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at)
+                VALUES (?, ?, ?, ?, NOW())
+            ');
+            $reason = 'Contratacao FA: ' . $offer['player_name'];
+            $stmtLog->execute([(int)$offer['team_id'], -(int)$offer['amount'], $reason, $adminId]);
+        }
+
+        $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
+        $stmtDelete->execute([(int)$offer['free_agent_id']]);
+
+        $stmtOffers = $pdo->prepare('
+            UPDATE free_agent_offers
+            SET status = CASE WHEN id = ? THEN "accepted" ELSE "rejected" END
+            WHERE free_agent_id = ? AND status = "pending"
+        ');
+        $stmtOffers->execute([(int)$offer['id'], (int)$offer['free_agent_id']]);
+
         $pdo->commit();
-        echo json_encode(['success' => true]);
+        jsonSuccess([
+            'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])
+        ]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+        jsonError('Erro ao aprovar proposta: ' . $e->getMessage(), 500);
     }
 }
