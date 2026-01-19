@@ -11,10 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     carregarFreeAgents();
 
-    if (userTeamId) {
-        carregarMinhasPropostas();
-    }
-
     if (isAdmin) {
         setupAdminEvents();
         carregarFreeAgentsAdmin();
@@ -290,7 +286,7 @@ async function carregarFreeAgents() {
             }
             if (userTeamId) {
                 html += `<button class="btn btn-orange btn-sm w-100" onclick="abrirModalOferta(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
-                    <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Enviar'} proposta
+                    <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Fazer'} lance
                 </button>`;
             }
             html += '</div></div></div>';
@@ -303,42 +299,6 @@ async function carregarFreeAgents() {
     }
 }
 
-async function carregarMinhasPropostas() {
-    const container = document.getElementById('myOffersContainer');
-    if (!container) return;
-
-    try {
-        const response = await fetch('api/free-agency.php?action=my_offers');
-        const data = await response.json();
-
-        if (!data.success || !data.offers?.length) {
-            container.innerHTML = '<p class="text-muted">Voce ainda nao enviou propostas.</p>';
-            return;
-        }
-
-        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>Proposta</th><th>Status</th></tr></thead><tbody>';
-
-        data.offers.forEach(offer => {
-            const statusMap = {
-                pending: '<span class="badge bg-warning text-dark">Pendente</span>',
-                accepted: '<span class="badge bg-success">Aceita</span>',
-                rejected: '<span class="badge bg-danger">Recusada</span>'
-            };
-            html += '<tr>';
-            html += `<td><strong class="text-orange">${offer.player_name}</strong><div class="small text-light-gray">${offer.position} • OVR ${offer.ovr}</div></td>`;
-            html += `<td>${offer.amount} moedas</td>`;
-            html += `<td>${statusMap[offer.status] || offer.status}</td>`;
-            html += '</tr>';
-        });
-
-        html += '</tbody></table></div>';
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('Erro:', error);
-        container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
-    }
-}
 
 // ========== MODAL PROPOSTA ==========
 
@@ -375,16 +335,15 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
 
         const data = await response.json();
         if (!data.success) {
-            alert(data.error || 'Erro ao enviar proposta');
+            alert(data.error || 'Erro ao enviar lance');
             return;
         }
 
         bootstrap.Modal.getInstance(document.getElementById('modalOffer'))?.hide();
         carregarFreeAgents();
-        carregarMinhasPropostas();
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao enviar proposta');
+        alert('Erro ao enviar lance');
     }
 });
 <<<<<<< HEAD

@@ -60,6 +60,43 @@ function tableExists(PDO $pdo, string $table): bool
     return $cache[$table];
 }
 
+function freeAgentsUseLeagueId(PDO $pdo): bool
+{
+    return columnExists($pdo, 'free_agents', 'league_id');
+}
+
+function freeAgentOvrColumn(PDO $pdo): string
+{
+    return columnExists($pdo, 'free_agents', 'ovr') ? 'ovr' : 'overall';
+}
+
+function freeAgentSecondaryColumn(PDO $pdo): ?string
+{
+    return columnExists($pdo, 'free_agents', 'secondary_position') ? 'secondary_position' : null;
+}
+
+function resolveLeagueId(PDO $pdo, string $leagueName): ?int
+{
+    if (!tableExists($pdo, 'leagues')) {
+        return null;
+    }
+    $stmt = $pdo->prepare('SELECT id FROM leagues WHERE UPPER(name) = ? LIMIT 1');
+    $stmt->execute([strtoupper($leagueName)]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? (int)$row['id'] : null;
+}
+
+function resolveLeagueName(PDO $pdo, int $leagueId): ?string
+{
+    if (!tableExists($pdo, 'leagues')) {
+        return null;
+    }
+    $stmt = $pdo->prepare('SELECT name FROM leagues WHERE id = ? LIMIT 1');
+    $stmt->execute([$leagueId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? $row['name'] : null;
+}
+
 function columnExists(PDO $pdo, string $table, string $column): bool
 {
     static $cache = [];
@@ -209,19 +246,40 @@ function listFreeAgents(PDO $pdo, ?string $league, ?int $teamId): void
         jsonSuccess(['players' => []]);
     }
 
-    $fields = 'fa.id, fa.name, fa.age, fa.position, fa.secondary_position, fa.ovr, fa.league, fa.original_team_name';
-    $params = [$league];
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $fields = "fa.id, fa.name, fa.age, fa.position, fa.{$ovrColumn} AS ovr";
+    if ($secondaryColumn) {
+        $fields .= ", fa.{$secondaryColumn} AS secondary_position";
+    } else {
+        $fields .= ", NULL AS secondary_position";
+    }
+    $fields .= ", fa.original_team_name";
+    $params = [];
+    $where = '';
+
+    if (freeAgentsUseLeagueId($pdo)) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if (!$leagueId) {
+            jsonSuccess(['players' => []]);
+        }
+        $where = 'fa.league_id = ?';
+        $params[] = $leagueId;
+    } else {
+        $where = 'fa.league = ?';
+        $params[] = $league;
+    }
 
     if ($teamId) {
         $fields .= ', (SELECT amount FROM free_agent_offers WHERE free_agent_id = fa.id AND team_id = ? AND status = "pending" LIMIT 1) AS my_offer_amount';
-        $params = [$teamId, $league];
+        array_unshift($params, $teamId);
     }
 
     $stmt = $pdo->prepare("
         SELECT {$fields}
         FROM free_agents fa
-        WHERE fa.league = ?
-        ORDER BY fa.ovr DESC, fa.name ASC
+        WHERE {$where}
+        ORDER BY fa.{$ovrColumn} DESC, fa.name ASC
     ");
     $stmt->execute($params);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -253,16 +311,37 @@ function listMyOffers(PDO $pdo, ?int $teamId): void
 
 function listAdminFreeAgents(PDO $pdo, string $league): void
 {
-    $stmt = $pdo->prepare('
-        SELECT fa.*, (
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $where = 'fa.league = ?';
+    $params = [$league];
+
+    if (freeAgentsUseLeagueId($pdo)) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if (!$leagueId) {
+            jsonSuccess(['league' => $league, 'players' => []]);
+        }
+        $where = 'fa.league_id = ?';
+        $params = [$leagueId];
+    }
+
+    $select = "fa.id, fa.name, fa.age, fa.position, fa.{$ovrColumn} AS ovr";
+    if ($secondaryColumn) {
+        $select .= ", fa.{$secondaryColumn} AS secondary_position";
+    } else {
+        $select .= ", NULL AS secondary_position";
+    }
+    $select .= ", fa.original_team_name";
+    $stmt = $pdo->prepare("
+        SELECT {$select}, (
             SELECT COUNT(*) FROM free_agent_offers
-            WHERE free_agent_id = fa.id AND status = "pending"
+            WHERE free_agent_id = fa.id AND status = 'pending'
         ) AS pending_offers
         FROM free_agents fa
-        WHERE fa.league = ?
-        ORDER BY fa.ovr DESC, fa.name ASC
-    ');
-    $stmt->execute([$league]);
+        WHERE {$where}
+        ORDER BY fa.{$ovrColumn} DESC, fa.name ASC
+    ");
+    $stmt->execute($params);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     jsonSuccess(['league' => $league, 'players' => $players]);
@@ -272,17 +351,31 @@ function listAdminOffers(PDO $pdo, string $league): void
 {
     ensureOfferAmountColumn($pdo);
 
-    $stmt = $pdo->prepare('
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $where = 'fa.league = ?';
+    $params = [$league];
+    if (freeAgentsUseLeagueId($pdo)) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if (!$leagueId) {
+            jsonSuccess(['league' => $league, 'players' => []]);
+        }
+        $where = 'fa.league_id = ?';
+        $params = [$leagueId];
+    }
+
+    $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
+    $stmt = $pdo->prepare("
         SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, fao.status, fao.created_at,
-               fa.name AS player_name, fa.position, fa.secondary_position, fa.ovr, fa.age, fa.original_team_name,
+               fa.name AS player_name, fa.position, {$secondarySelect} AS secondary_position, fa.{$ovrColumn} AS ovr, fa.age, fa.original_team_name,
                t.city AS team_city, t.name AS team_name
         FROM free_agent_offers fao
         JOIN free_agents fa ON fao.free_agent_id = fa.id
         JOIN teams t ON fao.team_id = t.id
-        WHERE fa.league = ? AND fao.status = "pending"
+        WHERE {$where} AND fao.status = 'pending'
         ORDER BY fa.name ASC, fao.created_at ASC
-    ');
-    $stmt->execute([$league]);
+    ");
+    $stmt->execute($params);
     $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $grouped = [];
@@ -341,11 +434,43 @@ function addPlayer(PDO $pdo, array $body): void
         jsonError('Dados incompletos');
     }
 
-    $stmt = $pdo->prepare('
-        INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
-        VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)
-    ');
-    $stmt->execute([$name, $age, $position, $secondary ?: null, $ovr, $league]);
+    $columns = ['name', 'age', 'position'];
+    $values = [$name, $age, $position];
+
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $columns[] = $ovrColumn;
+    $values[] = $ovr;
+
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    if ($secondaryColumn) {
+        $columns[] = $secondaryColumn;
+        $values[] = $secondary ?: null;
+    }
+
+    if (freeAgentsUseLeagueId($pdo)) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if (!$leagueId) {
+            jsonError('Liga invalida');
+        }
+        $columns[] = 'league_id';
+        $values[] = $leagueId;
+    } else {
+        $columns[] = 'league';
+        $values[] = $league;
+    }
+
+    if (columnExists($pdo, 'free_agents', 'original_team_id')) {
+        $columns[] = 'original_team_id';
+        $values[] = null;
+    }
+    if (columnExists($pdo, 'free_agents', 'original_team_name')) {
+        $columns[] = 'original_team_name';
+        $values[] = null;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($columns), '?'));
+    $stmt = $pdo->prepare('INSERT INTO free_agents (' . implode(',', $columns) . ") VALUES ({$placeholders})");
+    $stmt->execute($values);
 
     jsonSuccess(['id' => $pdo->lastInsertId()]);
 }
@@ -387,8 +512,14 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
         jsonError('Jogador nao encontrado');
     }
 
-    if ($teamLeague && strtoupper($player['league']) !== strtoupper($teamLeague)) {
-        jsonError('Jogador e time precisam ser da mesma liga');
+    if ($teamLeague) {
+        $playerLeague = $player['league'] ?? null;
+        if (!$playerLeague && isset($player['league_id'])) {
+            $playerLeague = resolveLeagueName($pdo, (int)$player['league_id']);
+        }
+        if ($playerLeague && strtoupper($playerLeague) !== strtoupper($teamLeague)) {
+            jsonError('Jogador e time precisam ser da mesma liga');
+        }
     }
 
     if ($teamCoins < $amount) {
@@ -422,15 +553,19 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         jsonError('Proposta invalida');
     }
 
-    $stmt = $pdo->prepare('
+    $ovrColumn = freeAgentOvrColumn($pdo);
+    $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
+    $selectLeague = columnExists($pdo, 'free_agents', 'league') ? ', fa.league' : '';
+    $stmt = $pdo->prepare("
         SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, fao.status,
-               fa.name AS player_name, fa.age, fa.position, fa.secondary_position, fa.ovr, fa.league,
+               fa.name AS player_name, fa.age, fa.position, {$secondarySelect} AS secondary_position, fa.{$ovrColumn} AS ovr{$selectLeague},
                t.city AS team_city, t.name AS team_name, COALESCE(t.moedas, 0) AS moedas
         FROM free_agent_offers fao
         JOIN free_agents fa ON fao.free_agent_id = fa.id
         JOIN teams t ON fao.team_id = t.id
         WHERE fao.id = ?
-    ');
+    ");
     $stmt->execute([$offer_id]);
     $offer = $stmt->fetch(PDO::FETCH_ASSOC);
 

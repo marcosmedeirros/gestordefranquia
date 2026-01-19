@@ -85,8 +85,8 @@ if ($teamId) {
       </li>
       <li>
         <a href="/free-agency.php">
-          <i class="bi bi-hammer"></i>
-          Leilões
+          <i class="bi bi-coin"></i>
+          Free Agency
         </a>
       </li>
       <li>
