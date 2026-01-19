@@ -319,15 +319,9 @@ function renderFreeAgents() {
         if (player.my_offer_amount) {
             html += `<div class="badge bg-info mb-2">Seu lance: ${player.my_offer_amount} moedas</div>`;
         }
-        if (userTeamId) {
-            html += `<button class="btn btn-orange btn-sm w-100" onclick="abrirModalOferta(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
-                <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Enviar'} proposta
-            </button>`;
-        } else {
-            html += `<button class="btn btn-outline-secondary btn-sm w-100" disabled>
-                <i class="bi bi-lock me-1"></i>Enviar proposta
-            </button>`;
-        }
+        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
+            <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Enviar'} proposta
+        </button>`;
         html += '</div></div></div>';
     });
     html += '</div>';
@@ -345,6 +339,14 @@ function abrirModalOferta(playerId, playerName, currentAmount = 1) {
 
     const modal = new bootstrap.Modal(document.getElementById('modalOffer'));
     modal.show();
+}
+
+function handleFreeAgencyOffer(playerId, playerName, currentAmount = 1) {
+    if (!userTeamId) {
+        alert('Voce precisa ter um time para enviar proposta.');
+        return;
+    }
+    abrirModalOferta(playerId, playerName, currentAmount);
 }
 
 document.getElementById('btnConfirmOffer')?.addEventListener('click', async () => {

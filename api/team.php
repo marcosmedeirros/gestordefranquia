@@ -14,6 +14,49 @@ function teamColumnExists(PDO $pdo, string $column): bool {
 }
 
 if ($method === 'GET') {
+    $action = $_GET['action'] ?? null;
+    if ($action === 'search_player') {
+        $query = trim($_GET['query'] ?? '');
+        $user = getUserSession();
+        if (!$user) {
+            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+        }
+        if ($query === '' || mb_strlen($query) < 2) {
+            jsonResponse(200, ['players' => []]);
+        }
+
+        $league = $user['league'] ?? 'ROOKIE';
+        $stmt = $pdo->prepare('
+            SELECT p.name, p.age, p.ovr,
+                   t.id as team_id, t.city, t.name as team_name,
+                   u.phone as owner_phone
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            JOIN users u ON t.user_id = u.id
+            WHERE t.league = ? AND p.name LIKE ?
+            ORDER BY p.ovr DESC, p.name ASC
+            LIMIT 50
+        ');
+        $stmt->execute([$league, '%' . $query . '%']);
+        $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($players as &$player) {
+            $rawPhone = $player['owner_phone'] ?? '';
+            $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
+            if (!$normalizedPhone && $rawPhone !== '') {
+                $digits = preg_replace('/\D+/', '', $rawPhone);
+                if ($digits !== '') {
+                    $normalizedPhone = str_starts_with($digits, '55') ? $digits : '55' . $digits;
+                }
+            }
+            $player['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
+            $player['owner_phone_whatsapp'] = $normalizedPhone;
+        }
+        unset($player);
+
+        jsonResponse(200, ['players' => $players]);
+    }
+
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
     $leagueParam = isset($_GET['league']) ? strtoupper(trim($_GET['league'])) : null;

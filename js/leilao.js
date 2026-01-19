@@ -305,7 +305,7 @@ async function carregarLeiloesAtivos() {
             container.innerHTML = html;
             iniciarCronometros();
         } else {
-            container.innerHTML = '<p class="text-muted">Nenhum leilao em andamento.</p>';
+            container.innerHTML = '<p class="text-light-gray">Nenhum leilao em andamento.</p>';
         }
     } catch (error) {
         console.error('Erro:', error);
@@ -343,7 +343,7 @@ async function carregarMinhasPropostas() {
             html += '</tbody></table></div>';
             container.innerHTML = html;
         } else {
-            container.innerHTML = '<p class="text-muted">Voce nao enviou nenhuma proposta.</p>';
+            container.innerHTML = '<p class="text-light-gray">Voce nao enviou nenhuma proposta.</p>';
         }
     } catch (error) {
         console.error('Erro:', error);
@@ -379,7 +379,7 @@ async function carregarPropostasRecebidas() {
             
             container.innerHTML = html;
         } else {
-            container.innerHTML = '<p class="text-muted">Nenhum jogador seu esta em leilao com propostas.</p>';
+            container.innerHTML = '<p class="text-light-gray">Nenhum jogador seu esta em leilao com propostas.</p>';
         }
     } catch (error) {
         console.error('Erro:', error);
@@ -520,7 +520,7 @@ async function verMinhasPropostasRecebidas(leilaoId) {
             
             container.innerHTML = html;
         } else {
-            container.innerHTML = '<p class="text-muted">Nenhuma proposta recebida ainda.</p>';
+            container.innerHTML = '<p class="text-light-gray">Nenhuma proposta recebida ainda.</p>';
         }
     } catch (error) {
         console.error('Erro:', error);
