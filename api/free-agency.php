@@ -62,7 +62,12 @@ function tableExists(PDO $pdo, string $table): bool
 
 function freeAgentsUseLeagueId(PDO $pdo): bool
 {
-    return columnExists($pdo, 'free_agents', 'league_id');
+    return columnExists($pdo, 'free_agents', 'league_id') && !columnExists($pdo, 'free_agents', 'league');
+}
+
+function freeAgentsUseLeagueEnum(PDO $pdo): bool
+{
+    return columnExists($pdo, 'free_agents', 'league');
 }
 
 function freeAgentOvrColumn(PDO $pdo): string
@@ -256,18 +261,18 @@ function listFreeAgents(PDO $pdo, ?string $league, ?int $teamId): void
     }
     $fields .= ", fa.original_team_name";
     $params = [];
-    $where = '';
+    $where = 'fa.status = "available"';
 
-    if (freeAgentsUseLeagueId($pdo)) {
+    if (freeAgentsUseLeagueEnum($pdo)) {
+        $where .= ' AND fa.league = ?';
+        $params[] = $league;
+    } elseif (freeAgentsUseLeagueId($pdo)) {
         $leagueId = resolveLeagueId($pdo, $league);
         if (!$leagueId) {
             jsonSuccess(['players' => []]);
         }
-        $where = 'fa.league_id = ?';
+        $where .= ' AND fa.league_id = ?';
         $params[] = $leagueId;
-    } else {
-        $where = 'fa.league = ?';
-        $params[] = $league;
     }
 
     if ($teamId) {
@@ -313,16 +318,19 @@ function listAdminFreeAgents(PDO $pdo, string $league): void
 {
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
-    $where = 'fa.league = ?';
-    $params = [$league];
+    $where = 'fa.status = "available"';
+    $params = [];
 
-    if (freeAgentsUseLeagueId($pdo)) {
+    if (freeAgentsUseLeagueEnum($pdo)) {
+        $where .= ' AND fa.league = ?';
+        $params[] = $league;
+    } elseif (freeAgentsUseLeagueId($pdo)) {
         $leagueId = resolveLeagueId($pdo, $league);
         if (!$leagueId) {
             jsonSuccess(['league' => $league, 'players' => []]);
         }
-        $where = 'fa.league_id = ?';
-        $params = [$leagueId];
+        $where .= ' AND fa.league_id = ?';
+        $params[] = $leagueId;
     }
 
     $select = "fa.id, fa.name, fa.age, fa.position, fa.{$ovrColumn} AS ovr";
@@ -353,15 +361,18 @@ function listAdminOffers(PDO $pdo, string $league): void
 
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
-    $where = 'fa.league = ?';
-    $params = [$league];
-    if (freeAgentsUseLeagueId($pdo)) {
+    $where = '';
+    $params = [];
+    if (freeAgentsUseLeagueEnum($pdo)) {
+        $where = 'fa.league = ?';
+        $params[] = $league;
+    } elseif (freeAgentsUseLeagueId($pdo)) {
         $leagueId = resolveLeagueId($pdo, $league);
         if (!$leagueId) {
             jsonSuccess(['league' => $league, 'players' => []]);
         }
         $where = 'fa.league_id = ?';
-        $params = [$leagueId];
+        $params[] = $leagueId;
     }
 
     $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
@@ -447,16 +458,17 @@ function addPlayer(PDO $pdo, array $body): void
         $values[] = $secondary ?: null;
     }
 
-    if (freeAgentsUseLeagueId($pdo)) {
-        $leagueId = resolveLeagueId($pdo, $league);
-        if (!$leagueId) {
-            jsonError('Liga invalida');
-        }
-        $columns[] = 'league_id';
-        $values[] = $leagueId;
-    } else {
+    if (freeAgentsUseLeagueEnum($pdo)) {
         $columns[] = 'league';
         $values[] = $league;
+    }
+
+    if (columnExists($pdo, 'free_agents', 'league_id')) {
+        $leagueId = resolveLeagueId($pdo, $league);
+        if ($leagueId) {
+            $columns[] = 'league_id';
+            $values[] = $leagueId;
+        }
     }
 
     if (columnExists($pdo, 'free_agents', 'original_team_id')) {

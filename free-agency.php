@@ -101,7 +101,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4">
                         <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-people-fill text-orange me-2"></i>Jogadores Disponiveis</h5>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-people-fill text-orange me-2"></i>Jogadores Disponiveis</h5>
+                                <?php if ($is_admin): ?>
+                                    <button class="btn btn-sm btn-outline-orange" data-bs-toggle="tab" data-bs-target="#fa-admin" type="button">
+                                        <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador
+                                    </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div id="freeAgentsContainer">
