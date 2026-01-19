@@ -194,7 +194,7 @@ $picks = $stmtPicks->fetchAll();
                     <?php else: ?>
                         <?php foreach ($picks as $pick): ?>
                             <tr>
-                                <td class="fw-bold text-orange"><?= 'Ano ' . str_pad((string)(int)$pick['season_year'], 2, '0', STR_PAD_LEFT) ?></td>
+                                <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
                                 <td>
                                     <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
                                 </td>

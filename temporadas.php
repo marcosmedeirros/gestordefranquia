@@ -467,15 +467,29 @@ if (!$team) {
     }
 
     // ========== INICIAR NOVA TEMPORADA ==========
+    function requestSeasonYear(defaultYear) {
+      const fallback = defaultYear ?? (currentSeasonData ? currentSeasonData.year + 1 : new Date().getFullYear() + 1);
+      const input = prompt('Informe o ano civil em que esta temporada inicia (ex: 2026):', fallback);
+      if (input === null) return null;
+      const parsed = parseInt(input, 10);
+      if (!parsed || parsed < 2000) {
+        alert('Ano inválido. Informe um número como 2026.');
+        return null;
+      }
+      return parsed;
+    }
+
     async function startNewSeason(league) {
-      if (!confirm(`Iniciar uma nova temporada para a liga ${league}?`)) return;
-      
+      const seasonYear = requestSeasonYear();
+      if (!seasonYear) return;
+      if (!confirm(`Iniciar uma nova temporada para a liga ${league} no ano ${seasonYear}?`)) return;
+
       try {
         await api('seasons.php?action=create_season', {
           method: 'POST',
-          body: JSON.stringify({ league })
+          body: JSON.stringify({ league, season_year: seasonYear })
         });
-        
+
         alert('Nova temporada iniciada com sucesso!');
         showLeagueManagement(league);
       } catch (e) {
@@ -485,14 +499,17 @@ if (!$team) {
 
     // ========== AVANÇAR PARA PRÓXIMA TEMPORADA ==========
     async function advanceToNextSeason(league) {
-      if (!confirm('Avançar para a próxima temporada? Isso criará uma nova temporada.')) return;
-      
+      const nextYear = currentSeasonData ? currentSeasonData.year + 1 : new Date().getFullYear() + 1;
+      const seasonYear = requestSeasonYear(nextYear);
+      if (!seasonYear) return;
+      if (!confirm(`Avançar para a próxima temporada da liga ${league} (ano ${seasonYear})?`)) return;
+
       try {
         await api('seasons.php?action=create_season', {
           method: 'POST',
-          body: JSON.stringify({ league })
+          body: JSON.stringify({ league, season_year: seasonYear })
         });
-        
+
         alert('Avançado para próxima temporada!');
         showLeagueManagement(league);
       } catch (e) {
