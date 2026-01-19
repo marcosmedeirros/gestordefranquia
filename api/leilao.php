@@ -23,6 +23,18 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
 
+if (!$team_id) {
+    $stmt = $pdo->prepare("SELECT id, league_id FROM teams WHERE user_id = ? LIMIT 1");
+    $stmt->execute([$user_id]);
+    $teamRow = $stmt->fetch();
+    if ($teamRow) {
+        $team_id = (int) $teamRow['id'];
+        if (!$league_id && !empty($teamRow['league_id'])) {
+            $league_id = (int) $teamRow['league_id'];
+        }
+    }
+}
+
 function playerOvrColumn(PDO $pdo): string
 {
     $stmt = $pdo->query("SHOW COLUMNS FROM players LIKE 'ovr'");
