@@ -28,6 +28,19 @@ if ($team_id) {
 }
 $team_league = $team_league ?? ($_SESSION['user_league'] ?? null);
 
+if (!$team_id && $user_id) {
+    $stmt = $pdo->prepare("SELECT id, name, moedas, league FROM teams WHERE user_id = ? LIMIT 1");
+    $stmt->execute([$user_id]);
+    $team = $stmt->fetch();
+    if ($team) {
+        $team_id = (int)$team['id'];
+        $team_name = $team['name'] ?? $team_name;
+        $team_moedas = (int)($team['moedas'] ?? $team_moedas);
+        $team_league = $team['league'] ?? $team_league;
+    }
+}
+$team_league = $team_league ?? ($_SESSION['user_league'] ?? null);
+
 $leagues = [];
 $leagues_admin = [];
 if ($is_admin) {

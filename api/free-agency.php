@@ -35,6 +35,17 @@ $team_league = $team['league'] ?? ($_SESSION['user_league'] ?? null);
 $team_coins = (int)($team['moedas'] ?? 0);
 $valid_leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
+if (!$team && $user_id) {
+    $stmt = $pdo->prepare('SELECT id, league, COALESCE(moedas, 0) as moedas, waivers_used, fa_signings_used FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user_id]);
+    $team = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($team) {
+        $team_id = (int)$team['id'];
+        $team_league = $team['league'] ?? $team_league;
+        $team_coins = (int)$team['moedas'];
+    }
+}
+
 function jsonError(string $message, int $status = 400): void
 {
     http_response_code($status);

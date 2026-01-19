@@ -39,7 +39,8 @@ function setupAdminEvents() {
     // Quando selecionar liga, carregar times
     selectLeague.addEventListener('change', async function() {
         const leagueId = this.value;
-        const leagueName = this.selectedOptions?.[0]?.dataset?.leagueName || '';
+        const leagueOption = this.options?.[this.selectedIndex];
+        const leagueName = leagueOption?.dataset?.leagueName || '';
         selectTeam.innerHTML = '<option value="">Carregando...</option>';
         selectTeam.disabled = true;
         selectPlayer.innerHTML = '<option value="">Selecione primeiro um time...</option>';

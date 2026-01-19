@@ -68,7 +68,7 @@ if ($method === 'GET') {
     }
 
     $league = null;
-    $isAdmin = ($user['user_type'] ?? '') === 'admin';
+    $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
 
     if ($leagueParam && $isAdmin) {
         $league = $leagueParam;
