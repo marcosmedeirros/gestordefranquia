@@ -285,21 +285,36 @@ async function abrirModalVencedor(playerId, playerName) {
     try {
         const response = await fetch('api/free-agency.php?action=get_bids&player_id=' + playerId);
         const data = await response.json();
-        
+
+        // Buscar quantos jogadores cada time já contratou na FA
+        let teamSignings = {};
+        if (data.success && data.bids && data.bids.length > 0) {
+            // Buscar IDs dos times
+            const teamIds = data.bids.map(bid => bid.team_id);
+            // Buscar contagem para cada time
+            const signingsResp = await fetch('api/free-agency.php?action=fa_signings_count&team_ids=' + teamIds.join(','));
+            const signingsData = await signingsResp.json();
+            if (signingsData.success && signingsData.counts) {
+                teamSignings = signingsData.counts;
+            }
+        }
+
         if (data.success && data.bids && data.bids.length > 0) {
             let html = '<div class="table-responsive"><table class="table">';
-            html += '<thead><tr><th>Time</th><th>Lance</th><th>Acao</th></tr></thead><tbody>';
-            
+            html += '<thead><tr><th>Time</th><th>Lance</th><th>Contratados</th><th>Acao</th></tr></thead><tbody>';
+
             data.bids.forEach(bid => {
+                const signCount = teamSignings[bid.team_id] || 0;
                 html += '<tr>';
                 html += '<td><strong>' + bid.team_name + '</strong></td>';
                 html += '<td>' + bid.amount + ' moedas</td>';
+                html += '<td>' + signCount + ' / 3</td>';
                 html += '<td>';
-                html += '<button class="btn btn-sm btn-success" onclick="confirmarVencedor(' + playerId + ', ' + bid.team_id + ', ' + bid.amount + ')">';
+                html += '<button class="btn btn-sm btn-success" onclick="confirmarVencedor(' + playerId + ', ' + bid.team_id + ', ' + bid.amount + ')"' + (signCount >= 3 ? ' disabled' : '') + '>';
                 html += '<i class="bi bi-check-lg"></i> Selecionar</button>';
                 html += '</td></tr>';
             });
-            
+
             html += '</tbody></table></div>';
             container.innerHTML = html;
         } else {

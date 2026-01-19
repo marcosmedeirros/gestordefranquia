@@ -48,6 +48,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $player_id = $_GET['player_id'] ?? 0;
             getBids($pdo, $player_id);
             break;
+        case 'fa_signings_count':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            $team_ids = isset($_GET['team_ids']) ? explode(',', $_GET['team_ids']) : [];
+            faSigningsCount($pdo, $team_ids);
+            break;
+        // Conta quantos jogadores cada time já contratou na FA
+        function faSigningsCount($pdo, $team_ids) {
+            $counts = [];
+            if (empty($team_ids)) {
+                echo json_encode(['success' => true, 'counts' => $counts]);
+                return;
+            }
+            $in = str_repeat('?,', count($team_ids) - 1) . '?';
+            $sql = "SELECT winner_team_id, COUNT(*) as total FROM free_agents WHERE winner_team_id IN ($in) AND status = 'signed' GROUP BY winner_team_id";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($team_ids);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $counts[$row['winner_team_id']] = (int)$row['total'];
+            }
+            echo json_encode(['success' => true, 'counts' => $counts]);
+        }
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
     }
@@ -279,35 +303,44 @@ function selectWinner($pdo, $body, $admin_id) {
     $stmt = $pdo->prepare("SELECT moedas FROM teams WHERE id = ?");
     $stmt->execute([$team_id]);
     $team = $stmt->fetch();
-    
+
     if (!$team || $team['moedas'] < $amount) {
         echo json_encode(['success' => false, 'error' => 'Time nao tem moedas suficientes']);
         return;
     }
-    
+
+    // Verificar limite de 3 contratações FA
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM free_agents WHERE winner_team_id = ? AND status = 'signed'");
+    $stmt->execute([$team_id]);
+    $signedCount = $stmt->fetchColumn();
+    if ($signedCount >= 3) {
+        echo json_encode(['success' => false, 'error' => 'Este time já contratou 3 jogadores na Free Agency.']);
+        return;
+    }
+
     $pdo->beginTransaction();
-    
+
     try {
         // Criar jogador na tabela players
         $stmt = $pdo->prepare("INSERT INTO players (name, position, age, overall, team_id, league_id) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$player['name'], $player['position'], $player['age'], $player['overall'], $team_id, $player['league_id']]);
-        
+
         // Descontar moedas
         $stmt = $pdo->prepare("UPDATE teams SET moedas = moedas - ? WHERE id = ?");
         $stmt->execute([$amount, $team_id]);
-        
+
         // Registrar log de moedas
         $stmt = $pdo->prepare("INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at) VALUES (?, ?, ?, ?, NOW())");
         $stmt->execute([$team_id, -$amount, 'Contratacao FA: ' . $player['name'], $admin_id]);
-        
+
         // Marcar free agent como contratado
         $stmt = $pdo->prepare("UPDATE free_agents SET status = 'signed', winner_team_id = ? WHERE id = ?");
         $stmt->execute([$team_id, $player_id]);
-        
+
         // Remover lances
         $stmt = $pdo->prepare("DELETE FROM fa_bids WHERE free_agent_id = ?");
         $stmt->execute([$player_id]);
-        
+
         $pdo->commit();
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
