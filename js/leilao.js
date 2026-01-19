@@ -39,19 +39,20 @@ function setupAdminEvents() {
     // Quando selecionar liga, carregar times
     selectLeague.addEventListener('change', async function() {
         const leagueId = this.value;
+        const leagueName = this.selectedOptions?.[0]?.dataset?.leagueName || '';
         selectTeam.innerHTML = '<option value="">Carregando...</option>';
         selectTeam.disabled = true;
         selectPlayer.innerHTML = '<option value="">Selecione primeiro um time...</option>';
         selectPlayer.disabled = true;
         btnCadastrar.disabled = true;
         
-        if (!leagueId) {
+        if (!leagueId || !leagueName) {
             selectTeam.innerHTML = '<option value="">Selecione primeiro uma liga...</option>';
             return;
         }
         
         try {
-            const response = await fetch(`api/teams.php?league_id=${leagueId}`);
+            const response = await fetch(`api/team.php?league=${encodeURIComponent(leagueName)}`);
             const data = await response.json();
             
             if (data.success && data.teams) {

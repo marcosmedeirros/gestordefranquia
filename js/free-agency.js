@@ -321,7 +321,11 @@ function renderFreeAgents() {
         }
         if (userTeamId) {
             html += `<button class="btn btn-orange btn-sm w-100" onclick="abrirModalOferta(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
-                <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Fazer'} lance
+                <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Enviar'} proposta
+            </button>`;
+        } else {
+            html += `<button class="btn btn-outline-secondary btn-sm w-100" disabled>
+                <i class="bi bi-lock me-1"></i>Enviar proposta
             </button>`;
         }
         html += '</div></div></div>';

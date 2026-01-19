@@ -194,7 +194,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     <select id="selectLeague" class="form-select">
                                         <option value="">Selecione...</option>
                                         <?php foreach ($leagues_admin as $league): ?>
-                                            <option value="<?= (int)$league['id'] ?>"><?= htmlspecialchars($league['name']) ?></option>
+                                            <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>">
+                                                <?= htmlspecialchars($league['name']) ?>
+                                            </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
@@ -265,9 +267,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <div class="d-flex align-items-center gap-2">
                                     <label for="adminLeagueSelect" class="text-light-gray">Liga</label>
                                     <select id="adminLeagueSelect" class="form-select form-select-sm" style="min-width: 140px;">
-                                        <?php foreach ($leagues as $league): ?>
-                                            <option value="<?= htmlspecialchars($league) ?>" <?= $league === $default_admin_league ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($league) ?>
+                                        <?php foreach ($leagues_admin as $league): ?>
+                                            <option value="<?= htmlspecialchars($league['name']) ?>" data-league-id="<?= (int)$league['id'] ?>" <?= $league['name'] === $default_admin_league ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($league['name']) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
