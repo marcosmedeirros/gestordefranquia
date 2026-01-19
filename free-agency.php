@@ -244,6 +244,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                         <label for="auctionPlayerSearch" class="form-label">Pesquisar jogador</label>
                                         <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
                                         <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
+                                        <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
+                                        <input type="hidden" id="auctionSelectedPlayerId">
+                                        <input type="hidden" id="auctionSelectedTeamId">
                                     </div>
                                 </div>
                                 <div class="row g-2" id="newAuctionPlayerFields" style="display:none;">

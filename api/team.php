@@ -26,6 +26,10 @@ if ($method === 'GET') {
         }
 
         $league = $user['league'] ?? 'ROOKIE';
+        $leagueParam = strtoupper(trim($_GET['league'] ?? ''));
+        if ($leagueParam !== '' && $isAdmin) {
+            $league = $leagueParam;
+        }
         $stmt = $pdo->prepare('
             SELECT p.name, p.age, p.ovr,
                    t.id as team_id, t.city, t.name as team_name, t.league,

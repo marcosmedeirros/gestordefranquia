@@ -30,13 +30,16 @@ function setupAdminEvents() {
     const newPlayerFields = document.getElementById('newAuctionPlayerFields');
     const searchInput = document.getElementById('auctionPlayerSearch');
     const searchResults = document.getElementById('auctionPlayerResults');
+    const selectedLabel = document.getElementById('auctionSelectedLabel');
+    const selectedPlayerIdInput = document.getElementById('auctionSelectedPlayerId');
+    const selectedTeamIdInput = document.getElementById('auctionSelectedTeamId');
 
     toggleNewPlayer?.addEventListener('change', function() {
         if (newPlayerFields) {
             newPlayerFields.style.display = this.checked ? 'flex' : 'none';
         }
         selectPlayer.disabled = this.checked;
-        btnCadastrar.disabled = !this.checked && !selectPlayer.value;
+        btnCadastrar.disabled = !this.checked && !selectPlayer.value && !selectedPlayerIdInput?.value;
     });
     
     // Quando selecionar liga, carregar times
@@ -110,6 +113,8 @@ function setupAdminEvents() {
         if (!toggleNewPlayer || !toggleNewPlayer.checked) {
             btnCadastrar.disabled = !this.value;
         }
+        if (selectedPlayerIdInput) selectedPlayerIdInput.value = this.value || '';
+        if (selectedTeamIdInput) selectedTeamIdInput.value = selectTeam.value || '';
     });
     
     // Cadastrar jogador no leilao
@@ -117,13 +122,24 @@ function setupAdminEvents() {
 
     searchInput?.addEventListener('input', async () => {
         const term = searchInput.value.trim();
+        const leagueOption = selectLeague.options?.[selectLeague.selectedIndex];
+        const leagueName = leagueOption?.dataset?.leagueName || '';
         if (term.length < 2) {
             if (searchResults) searchResults.style.display = 'none';
+            if (selectedLabel) selectedLabel.style.display = 'none';
+            return;
+        }
+        if (!leagueName) {
+            if (searchResults) searchResults.style.display = 'none';
+            if (selectedLabel) {
+                selectedLabel.textContent = 'Selecione uma liga para buscar jogadores.';
+                selectedLabel.style.display = 'block';
+            }
             return;
         }
 
         try {
-            const response = await fetch(`api/team.php?action=search_player&query=${encodeURIComponent(term)}`);
+            const response = await fetch(`api/team.php?action=search_player&query=${encodeURIComponent(term)}&league=${encodeURIComponent(leagueName)}`);
             const data = await response.json();
             const players = data.players || [];
 
@@ -151,24 +167,16 @@ function setupAdminEvents() {
 
                     const teamId = btn.dataset.teamId;
                     const playerId = btn.dataset.playerId;
-                    const waitForTeams = setInterval(() => {
-                        if (selectTeam.options.length > 1) {
-                            selectTeam.value = teamId;
-                            selectTeam.dispatchEvent(new Event('change'));
-                            clearInterval(waitForTeams);
-                        }
-                    }, 200);
-
-                    const waitForPlayers = setInterval(() => {
-                        if (selectPlayer.options.length > 1) {
-                            selectPlayer.value = playerId;
-                            selectPlayer.dispatchEvent(new Event('change'));
-                            clearInterval(waitForPlayers);
-                        }
-                    }, 200);
+                    if (selectedPlayerIdInput) selectedPlayerIdInput.value = playerId;
+                    if (selectedTeamIdInput) selectedTeamIdInput.value = teamId;
+                    btnCadastrar.disabled = false;
 
                     searchResults.style.display = 'none';
                     searchInput.value = `${btn.textContent.trim()}`;
+                    if (selectedLabel) {
+                        selectedLabel.textContent = `Selecionado: ${btn.textContent.trim()}`;
+                        selectedLabel.style.display = 'block';
+                    }
                 });
             });
         } catch (error) {
@@ -178,8 +186,10 @@ function setupAdminEvents() {
 }
 
 async function cadastrarJogadorLeilao() {
-    const playerId = document.getElementById('selectPlayer').value;
-    const teamId = document.getElementById('selectTeam').value;
+    const selectedPlayerId = document.getElementById('auctionSelectedPlayerId')?.value || '';
+    const selectedTeamId = document.getElementById('auctionSelectedTeamId')?.value || '';
+    const playerId = selectedPlayerId || document.getElementById('selectPlayer').value;
+    const teamId = selectedTeamId || document.getElementById('selectTeam').value;
     const leagueId = document.getElementById('selectLeague').value;
     const newPlayerEnabled = document.getElementById('toggleNewAuctionPlayer')?.checked;
     
@@ -226,6 +236,12 @@ async function cadastrarJogadorLeilao() {
             if (toggleNew) toggleNew.checked = false;
             const newFields = document.getElementById('newAuctionPlayerFields');
             if (newFields) newFields.style.display = 'none';
+            const selectedPlayerId = document.getElementById('auctionSelectedPlayerId');
+            const selectedTeamId = document.getElementById('auctionSelectedTeamId');
+            const selectedLabel = document.getElementById('auctionSelectedLabel');
+            if (selectedPlayerId) selectedPlayerId.value = '';
+            if (selectedTeamId) selectedTeamId.value = '';
+            if (selectedLabel) selectedLabel.style.display = 'none';
             
             // Recarregar listas
             carregarLeiloesAdmin();
