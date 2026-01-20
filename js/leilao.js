@@ -231,7 +231,8 @@ async function criarJogadorParaLista() {
     }
 
     try {
-        const res = await fetch('api/leilao.php', {
+        // Primeiro cria os dados temporários do jogador (sem time)
+        const resCreate = await fetch('api/leilao.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -240,27 +241,43 @@ async function criarJogadorParaLista() {
                 new_player: { name, position, age, ovr }
             })
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            throw new Error(data.error || 'Erro ao criar jogador');
+        const dataCreate = await resCreate.json();
+        if (!resCreate.ok || !dataCreate.success) {
+            throw new Error(dataCreate.error || 'Erro ao criar jogador');
         }
 
-        const selectedPlayerIdInput = document.getElementById('auctionSelectedPlayerId');
-        const selectedTeamIdInput = document.getElementById('auctionSelectedTeamId');
-        const selectedLabel = document.getElementById('auctionSelectedLabel');
-        const btnCadastrar = document.getElementById('btnCadastrarLeilao');
-        const modeCreate = document.getElementById('auctionModeCreate');
+        // Em seguida, inicia automaticamente o leilão com o jogador criado
+        const resAuction = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'cadastrar',
+                player_id: null,
+                team_id: null,
+                league_id: leagueId,
+                new_player: { name, position, age, ovr }
+            })
+        });
+        const dataAuction = await resAuction.json();
+        if (!resAuction.ok || !dataAuction.success) {
+            throw new Error(dataAuction.error || 'Erro ao iniciar leilão');
+        }
 
-        if (selectedPlayerIdInput) selectedPlayerIdInput.value = data.player_id;
-        if (selectedTeamIdInput) selectedTeamIdInput.value = data.team_id || '';
+        // Feedback visual e limpeza
+        const selectedLabel = document.getElementById('auctionSelectedLabel');
         if (selectedLabel) {
-            selectedLabel.textContent = `Criado: ${data.name} (${data.position}, OVR ${data.ovr})`;
+            selectedLabel.textContent = `Leilão iniciado: ${name} (${position}, OVR ${ovr})`;
             selectedLabel.style.display = 'block';
         }
-        if (modeCreate) modeCreate.checked = true;
-        if (btnCadastrar) btnCadastrar.disabled = false;
+        document.getElementById('auctionPlayerName').value = '';
+        document.getElementById('auctionPlayerAge').value = '25';
+        document.getElementById('auctionPlayerOvr').value = '70';
 
-        alert('Jogador criado! Agora é só iniciar o leilão.');
+        alert('Jogador criado e leilão iniciado!');
+
+        // Recarregar listas para aparecer abaixo
+        carregarLeiloesAdmin();
+        carregarLeiloesAtivos();
     } catch (error) {
         console.error(error);
         alert(error.message || 'Erro ao criar jogador');

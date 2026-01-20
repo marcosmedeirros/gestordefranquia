@@ -145,6 +145,14 @@ try {
     $currentSeason = null;
 }
 
+// Corrigir exibição do ano no dashboard: usar start_year + season_number - 1 quando disponível
+$seasonDisplayYear = null;
+if ($currentSeason && isset($currentSeason['start_year']) && isset($currentSeason['season_number'])) {
+    $seasonDisplayYear = (int)$currentSeason['start_year'] + (int)$currentSeason['season_number'] - 1;
+} elseif ($currentSeason && isset($currentSeason['year'])) {
+    $seasonDisplayYear = (int)$currentSeason['year'];
+}
+
 // Buscar jogadores e picks para cópia
 $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
 $stmtAllPlayers->execute([$team['id']]);
@@ -309,7 +317,7 @@ $tradesCount = (int)$stmtTrades->fetchColumn();
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>
-                    Temporada <?= (int)$currentSeason['year'] ?>
+                    Temporada <?= (int)$seasonDisplayYear ?>
                 </span>
                 <?php else: ?>
                 <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
@@ -402,7 +410,7 @@ $tradesCount = (int)$stmtTrades->fetchColumn();
         <div class="card bg-dark-panel border-orange mb-4">
             <div class="card-header bg-transparent border-orange">
                 <h4 class="mb-0 text-white">
-                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= (int)$currentSeason['year'] ?>
+                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= (int)$seasonDisplayYear ?>
                 </h4>
             </div>
             <div class="card-body">
