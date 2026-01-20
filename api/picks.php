@@ -126,12 +126,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         exit;
     }
 
-    $stmtUpdate = $pdo->prepare('
-        UPDATE picks 
-        SET season_year = ?, round = ?, original_team_id = ?, last_owner_team_id = team_id, notes = ?, auto_generated = 0
-        WHERE id = ?
-    ');
-    $stmtUpdate->execute([$year, $round, $originalTeamId, $notes ?: null, $pickId]);
+    try {
+        $stmtUpdate = $pdo->prepare('
+            UPDATE picks 
+            SET season_year = ?, round = ?, original_team_id = ?, last_owner_team_id = team_id, notes = ?, auto_generated = 0
+            WHERE id = ?
+        ');
+        $stmtUpdate->execute([$year, $round, $originalTeamId, $notes ?: null, $pickId]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao atualizar pick: ' . $e->getMessage()]);
+        exit;
+    }
 
     echo json_encode(['success' => true, 'message' => 'Pick atualizada']);
     exit;

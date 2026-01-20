@@ -159,7 +159,6 @@ function runMigrations() {
                 CONSTRAINT fk_pick_original_team FOREIGN KEY (original_team_id) REFERENCES teams(id) ON DELETE CASCADE,
                 CONSTRAINT fk_pick_last_owner_team FOREIGN KEY (last_owner_team_id) REFERENCES teams(id) ON DELETE SET NULL,
                 CONSTRAINT fk_pick_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL,
-                UNIQUE KEY uniq_pick (original_team_id, season_year, round),
                 INDEX idx_pick_season (season_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
@@ -832,6 +831,15 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_directive_deadline_datetime: " . $e->getMessage();
+    }
+
+    try {
+        $hasPickIndex = $pdo->query("SHOW INDEX FROM picks WHERE Key_name = 'uniq_pick'")->fetch();
+        if ($hasPickIndex) {
+            $pdo->exec("ALTER TABLE picks DROP INDEX uniq_pick");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_drop_uniq_pick: " . $e->getMessage();
     }
 
     return [
