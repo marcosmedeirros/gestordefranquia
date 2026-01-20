@@ -138,10 +138,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         const whatsappLink = p.owner_phone_whatsapp
                             ? `https://api.whatsapp.com/send/?phone=${encodeURIComponent(p.owner_phone_whatsapp)}&text=${defaultMessage}&type=phone_number&app_absent=0`
                             : '';
+                        const ovr = Number(p.ovr || 0);
+                        let ovrClass = 'bg-success';
+                        if (ovr >= 85) ovrClass = 'bg-success';
+                        else if (ovr >= 78) ovrClass = 'bg-info';
+                        else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
+                        else ovrClass = 'bg-secondary';
+
                         tableBody.innerHTML += `
                             <tr>
                                 <td><strong>${p.name}</strong></td>
-                                <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
+                                <td><span class="badge ${ovrClass}">${p.ovr}</span></td>
                                 <td>${p.age}</td>
                                 <td>${p.position}</td>
                                 <td>${teamName}</td>
