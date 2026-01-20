@@ -38,7 +38,7 @@ function setupAdminEvents() {
     const createPositionSelect = document.getElementById('auctionPlayerPosition');
     const createAgeInput = document.getElementById('auctionPlayerAge');
     const createOvrInput = document.getElementById('auctionPlayerOvr');
-    const createOriginTeamSelect = document.getElementById('auctionOriginTeam');
+    // No origin team for created players
     const searchBtn = document.getElementById('auctionSearchBtn');
     const createBtn = document.getElementById('btnCriarJogadorLeilao');
 
@@ -67,24 +67,7 @@ function setupAdminEvents() {
         if (selectedPlayerIdInput) selectedPlayerIdInput.value = '';
         if (selectedTeamIdInput) selectedTeamIdInput.value = '';
         if (selectedLabel) selectedLabel.style.display = 'none';
-        // Carregar times da liga para o seletor de origem
-        const leagueOption = selectLeague.options?.[selectLeague.selectedIndex];
-        const leagueName = leagueOption?.dataset?.leagueName || '';
-        if (createOriginTeamSelect) {
-            createOriginTeamSelect.innerHTML = '<option value="">Carregando times...</option>';
-            if (leagueName) {
-                try {
-                    const resTeams = await fetch(`api/admin.php?action=teams&league=${encodeURIComponent(leagueName)}`);
-                    const dataTeams = await resTeams.json();
-                    const teams = (dataTeams.teams || []).map(t => ({ id: t.id, label: `${t.city} ${t.name}` }));
-                    createOriginTeamSelect.innerHTML = '<option value="">Selecione o time de origem...</option>' + teams.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
-                } catch (e) {
-                    createOriginTeamSelect.innerHTML = '<option value="">Erro ao carregar</option>';
-                }
-            } else {
-                createOriginTeamSelect.innerHTML = '<option value="">Selecione uma liga acima</option>';
-            }
-        }
+        // No origin team to load for created players
         setMode();
     });
 
@@ -163,7 +146,6 @@ async function cadastrarJogadorLeilao() {
     const teamId = selectedTeamId;
     const leagueId = document.getElementById('selectLeague').value;
     const newPlayerEnabled = document.getElementById('auctionModeCreate')?.checked;
-    const originTeamId = document.getElementById('auctionOriginTeam')?.value || '';
     
     if ((!playerId && !newPlayerEnabled) || !leagueId) {
         alert('Selecione liga e jogador');
@@ -173,7 +155,8 @@ async function cadastrarJogadorLeilao() {
     const payload = {
         action: 'cadastrar',
         player_id: playerId || null,
-        team_id: newPlayerEnabled ? (originTeamId || null) : (teamId || null),
+        // For created players there is NO origin team; team_id comes only from search flow
+        team_id: newPlayerEnabled ? null : (teamId || null),
         league_id: leagueId
     };
 
