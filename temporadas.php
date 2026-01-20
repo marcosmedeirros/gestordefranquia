@@ -198,6 +198,10 @@ if (!$team) {
     function renderActiveSeasonView(league, season) {
       const container = document.getElementById('mainContainer');
       const sprintStartYear = resolveSprintStartYearFromSeason(season);
+      // Corrigir exibição do ano: usar fórmula start_year + season_number - 1 quando possível
+      const displayedYear = (sprintStartYear && season?.season_number)
+        ? (Number(sprintStartYear) + Number(season.season_number) - 1)
+        : Number(season.year);
       
       // Verificar se sprint acabou
       const maxSeasons = getMaxSeasonsForLeague(league);
@@ -225,7 +229,7 @@ if (!$team) {
                       Sprint iniciado em <span class="text-white fw-bold">${sprintStartYear || '??'}</span>
                     </p>
                   </div>
-                  <span class="badge bg-gradient-orange fs-5">Ano ${season.year}</span>
+                  <span class="badge bg-gradient-orange fs-5">Ano ${displayedYear}</span>
                 </div>
                 
                 ${sprintCompleted ? `
@@ -576,6 +580,10 @@ if (!$team) {
         // Buscar dados da temporada
         const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
         const season = seasonData.season;
+        const sprintStartYear = resolveSprintStartYearFromSeason(season);
+        const draftDisplayedYear = (sprintStartYear && season?.season_number)
+          ? (Number(sprintStartYear) + Number(season.season_number) - 1)
+          : Number(season.year);
         
         // Buscar times da liga
         const teamsData = await api(`admin.php?action=teams&league=${league}`);
@@ -591,7 +599,7 @@ if (!$team) {
               <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                 <div class="card-body">
                   <h4 class="text-white mb-1">Draft - Temporada ${season.season_number}</h4>
-                  <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${season.year}</p>
+                  <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${draftDisplayedYear}</p>
                 </div>
               </div>
             </div>
