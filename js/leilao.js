@@ -37,6 +37,7 @@ function setupAdminEvents() {
     const createPositionSelect = document.getElementById('auctionPlayerPosition');
     const createAgeInput = document.getElementById('auctionPlayerAge');
     const createOvrInput = document.getElementById('auctionPlayerOvr');
+    const createOriginTeamSelect = document.getElementById('auctionOriginTeam');
     const searchBtn = document.getElementById('auctionSearchBtn');
     const createBtn = document.getElementById('btnCriarJogadorLeilao');
 
@@ -48,7 +49,7 @@ function setupAdminEvents() {
         const isCreate = modeCreate?.checked;
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
-        const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value);
+        const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value && createOriginTeamSelect?.value);
         const hasLeague = !!selectLeague.value;
         btnCadastrar.disabled = isCreate ? !(createReady && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
         if (createBtn) {
@@ -59,11 +60,29 @@ function setupAdminEvents() {
     modeSearch?.addEventListener('change', setMode);
     modeCreate?.addEventListener('change', setMode);
 
-    selectLeague.addEventListener('change', function() {
+    selectLeague.addEventListener('change', async function() {
         btnCadastrar.disabled = true;
         if (selectedPlayerIdInput) selectedPlayerIdInput.value = '';
         if (selectedTeamIdInput) selectedTeamIdInput.value = '';
         if (selectedLabel) selectedLabel.style.display = 'none';
+        // Carregar times da liga para o seletor de origem
+        const leagueOption = selectLeague.options?.[selectLeague.selectedIndex];
+        const leagueName = leagueOption?.dataset?.leagueName || '';
+        if (createOriginTeamSelect) {
+            createOriginTeamSelect.innerHTML = '<option value="">Carregando times...</option>';
+            if (leagueName) {
+                try {
+                    const resTeams = await fetch(`api/admin.php?action=teams&league=${encodeURIComponent(leagueName)}`);
+                    const dataTeams = await resTeams.json();
+                    const teams = (dataTeams.teams || []).map(t => ({ id: t.id, label: `${t.city} ${t.name}` }));
+                    createOriginTeamSelect.innerHTML = '<option value="">Selecione o time de origem...</option>' + teams.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
+                } catch (e) {
+                    createOriginTeamSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                }
+            } else {
+                createOriginTeamSelect.innerHTML = '<option value="">Selecione uma liga acima</option>';
+            }
+        }
         setMode();
     });
 
@@ -142,6 +161,7 @@ async function cadastrarJogadorLeilao() {
     const teamId = selectedTeamId;
     const leagueId = document.getElementById('selectLeague').value;
     const newPlayerEnabled = document.getElementById('auctionModeCreate')?.checked;
+    const originTeamId = document.getElementById('auctionOriginTeam')?.value || '';
     
     if ((!playerId && !newPlayerEnabled) || !leagueId) {
         alert('Selecione liga e jogador');
@@ -151,7 +171,7 @@ async function cadastrarJogadorLeilao() {
     const payload = {
         action: 'cadastrar',
         player_id: playerId || null,
-        team_id: newPlayerEnabled ? null : (teamId || null),
+        team_id: newPlayerEnabled ? (originTeamId || null) : (teamId || null),
         league_id: leagueId
     };
 
