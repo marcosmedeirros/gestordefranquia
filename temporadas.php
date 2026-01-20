@@ -323,22 +323,6 @@ if (!$team) {
           </div>
         </div>
 
-        <!-- PONTOS DA TEMPORADA (MANUAL) -->
-        <div class="card bg-dark-panel border-warning mt-4" style="border-radius: 15px;">
-          <div class="card-body">
-            <h4 class="text-white mb-3">
-              <i class="bi bi-bar-chart-steps text-warning me-2"></i>
-              Registrar Pontos da Temporada (Manual)
-            </h4>
-            <p class="text-light-gray mb-3">
-              Informe quantos pontos cada time recebeu nesta temporada. Os valores serão enviados ao ranking.
-            </p>
-            <button class="btn btn-outline-warning" onclick="showSeasonPointsForm(${season.id}, '${league}')">
-              <i class="bi bi-pencil-square me-2"></i>Lançar Pontos
-            </button>
-          </div>
-        </div>
-
           <!-- MOEDAS DA TEMPORADA (MANUAL) -->
           <div class="card bg-dark-panel border-success mt-4" style="border-radius: 15px;">
             <div class="card-body">
