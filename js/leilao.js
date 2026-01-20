@@ -20,6 +20,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Helper: parse JSON safely and surface server HTML errors as readable text
+async function parseJsonSafe(response) {
+    const text = await response.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const snippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        throw new Error(snippet || 'Resposta inválida do servidor');
+    }
+}
+
 // ========== ADMIN FUNCTIONS ==========
 
 function setupAdminEvents() {
@@ -176,7 +187,7 @@ async function cadastrarJogadorLeilao() {
             body: JSON.stringify(payload)
         });
         
-        const data = await response.json();
+        const data = await parseJsonSafe(response);
         
         if (data.success) {
             alert('Jogador cadastrado no leilao com sucesso!');
@@ -246,7 +257,7 @@ async function criarJogadorParaLista() {
                 new_player: { name, position, age, ovr }
             })
         });
-        const dataCreate = await resCreate.json();
+        const dataCreate = await parseJsonSafe(resCreate);
         if (!resCreate.ok || !dataCreate.success) {
             throw new Error(dataCreate.error || 'Erro ao criar jogador');
         }
@@ -264,7 +275,7 @@ async function criarJogadorParaLista() {
                 status: 'pendente'
             })
         });
-        const dataAuction = await resAuction.json();
+        const dataAuction = await parseJsonSafe(resAuction);
         if (!resAuction.ok || !dataAuction.success) {
             throw new Error(dataAuction.error || 'Erro ao cadastrar jogador pendente');
         }
@@ -297,8 +308,8 @@ async function carregarPendentesCriados() {
 
     try {
         // Listar todos os jogadores criados especificamente para o leilão (sem time de origem)
-        const res = await fetch('api/leilao.php?action=listar_temp');
-        const data = await res.json();
+    const res = await fetch('api/leilao.php?action=listar_temp');
+    const data = await parseJsonSafe(res);
         const criados = data.leiloes || [];
 
         if (!criados.length) {
@@ -350,7 +361,7 @@ async function iniciarLeilaoPendente(leilaoId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'iniciar_leilao', leilao_id: leilaoId })
         });
-        const data = await res.json();
+        const data = await parseJsonSafe(res);
         if (!data.success) throw new Error(data.error || 'Erro ao iniciar leilão');
         carregarPendentesCriados();
         carregarLeiloesAdmin();
@@ -368,7 +379,7 @@ async function removerLeilaoPendente(leilaoId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'remover_temp', leilao_id: leilaoId })
         });
-        const data = await res.json();
+        const data = await parseJsonSafe(res);
         if (!data.success) throw new Error(data.error || 'Erro ao remover');
         carregarPendentesCriados();
         carregarLeiloesAdmin();

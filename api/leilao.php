@@ -272,7 +272,7 @@ function listarLeiloesTemporarios($pdo) {
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
-            JOIN leagues lg ON l.league_id = lg.id
+        LEFT JOIN leagues lg ON l.league_id = lg.id
             WHERE (l.is_temp_player = 1 OR l.temp_name IS NOT NULL)
             ORDER BY l.created_at DESC";
     $stmt = $pdo->query($sql);
