@@ -82,7 +82,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     </div>
                     <div class="table-responsive" id="playersTableWrap" style="display:none;">
                         <table class="table table-dark table-hover mb-0">
-                            <thead style="background: var(--fba-orange); color: #000;">
+                            <thead style="background: var(--fba-brand); color: #000;">
                                 <tr>
                                     <th>Jogador</th>
                                     <th>OVR</th>
@@ -95,6 +95,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <tbody id="playersTableBody"></tbody>
                         </table>
                     </div>
+                    <!-- Render móvel (cards) -->
+                    <div id="playersCardsWrap" class="player-card-mobile" style="display:none;"></div>
                     <div id="playersEmpty" class="text-center text-light-gray" style="display:none;">Nenhum jogador encontrado.</div>
                 </div>
             </div>
@@ -111,14 +113,46 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const loading = document.getElementById('playersLoading');
         const tableWrap = document.getElementById('playersTableWrap');
         const tableBody = document.getElementById('playersTableBody');
+        const cardsWrap = document.getElementById('playersCardsWrap');
         const emptyState = document.getElementById('playersEmpty');
+        const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+        function renderPlayerCard(p, whatsappLink, teamName){
+            const ovr = Number(p.ovr || 0);
+            let ovrClass = 'bg-success';
+            if (ovr >= 85) ovrClass = 'bg-success';
+            else if (ovr >= 78) ovrClass = 'bg-info';
+            else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
+            else ovrClass = 'bg-secondary';
+
+            return `
+                <div class="player-card">
+                    <div class="player-card-header">
+                        <div>
+                            <strong>${p.name}</strong>
+                            <div class="text-light-gray">${teamName}</div>
+                        </div>
+                        <span class="badge ${ovrClass}">${p.ovr}</span>
+                    </div>
+                    <div class="player-card-body">
+                        <div class="player-card-stat"><strong>Idade</strong>${p.age ?? '-'}</div>
+                        <div class="player-card-stat"><strong>Posição</strong>${p.position ?? '-'}</div>
+                    </div>
+                    <div class="player-card-actions">
+                        ${whatsappLink ? `<a class="btn btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-muted">Sem contato</span>'}
+                    </div>
+                </div>
+            `;
+        }
         async function carregarJogadores() {
             const query = searchInput.value.trim();
             const position = positionFilter.value;
             loading.style.display = 'block';
             tableWrap.style.display = 'none';
+            cardsWrap.style.display = 'none';
             emptyState.style.display = 'none';
             tableBody.innerHTML = '';
+            cardsWrap.innerHTML = '';
 
             const params = new URLSearchParams();
             params.set('action', 'list_players');
@@ -133,35 +167,45 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (!players.length) {
                     emptyState.style.display = 'block';
                 } else {
+                    const mobile = isMobile();
                     players.forEach(p => {
                         const teamName = `${p.city} ${p.team_name}`;
                         const whatsappLink = p.owner_phone_whatsapp
                             ? `https://api.whatsapp.com/send/?phone=${encodeURIComponent(p.owner_phone_whatsapp)}&text=${defaultMessage}&type=phone_number&app_absent=0`
                             : '';
-                        const ovr = Number(p.ovr || 0);
-                        let ovrClass = 'bg-success';
-                        if (ovr >= 85) ovrClass = 'bg-success';
-                        else if (ovr >= 78) ovrClass = 'bg-info';
-                        else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
-                        else ovrClass = 'bg-secondary';
 
-                        tableBody.innerHTML += `
-                            <tr>
-                                <td><strong>${p.name}</strong></td>
-                                <td><span class="badge ${ovrClass}">${p.ovr}</span></td>
-                                <td>${p.age}</td>
-                                <td>${p.position}</td>
-                                <td>${teamName}</td>
-                                <td>
-                                    ${whatsappLink ? `
-                                    <a class="btn btn-sm btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener">
-                                        <i class="bi bi-whatsapp"></i> Falar
-                                    </a>` : '<span class="text-muted">Sem contato</span>'}
-                                </td>
-                            </tr>
-                        `;
+                        if (mobile) {
+                            cardsWrap.innerHTML += renderPlayerCard(p, whatsappLink, teamName);
+                        } else {
+                            const ovr = Number(p.ovr || 0);
+                            let ovrClass = 'bg-success';
+                            if (ovr >= 85) ovrClass = 'bg-success';
+                            else if (ovr >= 78) ovrClass = 'bg-info';
+                            else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
+                            else ovrClass = 'bg-secondary';
+
+                            tableBody.innerHTML += `
+                                <tr>
+                                    <td><strong>${p.name}</strong></td>
+                                    <td><span class="badge ${ovrClass}">${p.ovr}</span></td>
+                                    <td>${p.age}</td>
+                                    <td>${p.position}</td>
+                                    <td>${teamName}</td>
+                                    <td>
+                                        ${whatsappLink ? `
+                                        <a class="btn btn-sm btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener">
+                                            <i class="bi bi-whatsapp"></i> Falar
+                                        </a>` : '<span class="text-muted">Sem contato</span>'}
+                                    </td>
+                                </tr>
+                            `;
+                        }
                     });
-                    tableWrap.style.display = 'block';
+                    if (mobile) {
+                        cardsWrap.style.display = 'block';
+                    } else {
+                        tableWrap.style.display = 'block';
+                    }
                 }
             } catch (err) {
                 emptyState.textContent = 'Erro ao carregar jogadores.';
@@ -177,6 +221,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         });
         positionFilter.addEventListener('change', carregarJogadores);
         carregarJogadores();
+        // Re-render layout on resize breakpoint changes (lightweight debounce)
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => carregarJogadores(), 250);
+        });
     </script>
 </body>
 </html>

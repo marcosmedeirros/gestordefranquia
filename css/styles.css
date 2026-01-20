@@ -1116,7 +1116,7 @@ img.broken-image {
 	
 	/* Player cards para páginas que implementarem */
 	.player-card-mobile{ display: block; }
-	#players-list { display: none !important; }
+	#playersTableWrap { display: none !important; }
 
 	.player-card{
 		background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
