@@ -45,7 +45,7 @@ if ($method === 'GET') {
     if ($action === 'list_players') {
         $query = trim($_GET['query'] ?? '');
         $position = strtoupper(trim($_GET['position'] ?? ''));
-        $params = [$league, $currentUserId];
+        $params = [$league];
         $where = 't.league = ?';
         if ($query !== '') {
             $where .= ' AND p.name LIKE ?';
@@ -58,12 +58,10 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare("
             SELECT p.id, p.name, p.age, p.ovr, p.position,
                    t.id as team_id, t.city, t.name as team_name, t.league,
-                   u.phone as owner_phone,
-                   pf.user_id IS NOT NULL AS is_favorite
+                   u.phone as owner_phone
             FROM players p
             JOIN teams t ON p.team_id = t.id
             JOIN users u ON t.user_id = u.id
-            LEFT JOIN player_favorites pf ON pf.player_id = p.id AND pf.user_id = ?
             WHERE {$where}
             ORDER BY p.ovr DESC, p.name ASC
             LIMIT 200
@@ -87,17 +85,15 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare('
             SELECT p.id, p.name, p.age, p.ovr,
                    t.id as team_id, t.city, t.name as team_name, t.league,
-                   u.phone as owner_phone,
-                   pf.user_id IS NOT NULL AS is_favorite
+                   u.phone as owner_phone
             FROM players p
             JOIN teams t ON p.team_id = t.id
             JOIN users u ON t.user_id = u.id
-            LEFT JOIN player_favorites pf ON pf.player_id = p.id AND pf.user_id = ?
             WHERE t.league = ? AND p.name LIKE ?
             ORDER BY p.ovr DESC, p.name ASC
             LIMIT 50
         ');
-        $stmt->execute([$currentUserId, $league, '%' . $query . '%']);
+        $stmt->execute([$league, '%' . $query . '%']);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($players as &$player) {
@@ -108,26 +104,6 @@ if ($method === 'GET') {
         jsonResponse(200, ['players' => $players]);
     }
 
-    if ($action === 'favorites') {
-        $user = getUserSession();
-        if (!$user) {
-            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
-        }
-        $userId = $user['id'];
-        $stmt = $pdo->prepare("
-            SELECT pf.player_id, p.name, p.position, p.age, p.ovr,
-                   t.city, t.name as team_name
-            FROM player_favorites pf
-            JOIN players p ON pf.player_id = p.id
-            JOIN teams t ON p.team_id = t.id
-            WHERE pf.user_id = ?
-            ORDER BY pf.created_at DESC
-            LIMIT 5
-        ");
-        $stmt->execute([$userId]);
-        $favorites = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        jsonResponse(200, ['favorites' => $favorites]);
-    }
 
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
@@ -199,38 +175,6 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    $action = $_GET['action'] ?? '';
-    if ($action === 'toggle_favorite') {
-        $user = getUserSession();
-        if (!$user) {
-            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
-        }
-        $userId = $user['id'];
-        $body = readJsonBody();
-        $playerId = isset($body['player_id']) ? (int)$body['player_id'] : 0;
-        $favorite = isset($body['favorite']) ? (bool)$body['favorite'] : true;
-        if (!$playerId) {
-            jsonResponse(400, ['error' => 'player_id obrigatório']);
-        }
-
-        // Garantir limite de 5 favoritos
-        if ($favorite) {
-            $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM player_favorites WHERE user_id = ?");
-            $stmtCount->execute([$userId]);
-            $count = (int)$stmtCount->fetchColumn();
-            if ($count >= 5) {
-                jsonResponse(400, ['error' => 'Limite de 5 favoritos atingido']);
-            }
-            $stmtInsert = $pdo->prepare("INSERT IGNORE INTO player_favorites (user_id, player_id) VALUES (?, ?)");
-            $stmtInsert->execute([$userId, $playerId]);
-        } else {
-            $stmtDel = $pdo->prepare("DELETE FROM player_favorites WHERE user_id = ? AND player_id = ?");
-            $stmtDel->execute([$userId, $playerId]);
-        }
-
-        jsonResponse(200, ['success' => true]);
-    }
-
     $body = readJsonBody();
     $name = trim($body['name'] ?? '');
     $city = trim($body['city'] ?? '');

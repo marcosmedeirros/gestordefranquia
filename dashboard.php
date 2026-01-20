@@ -527,7 +527,12 @@ $tradesCount = (int)$stmtTrades->fetchColumn();
                 .filter(p => (p.role || '').toLowerCase() === 'g-league')
                 .map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
 
-            const picksLines = picksData.map(pk => `${pk.season_year} - ${pk.round}ª (via ${pk.city} ${pk.team_name})`);
+            const picksLines = picksData.map(pk => {
+                const isOwn = pk.city === <?= json_encode($team['city']) ?> && pk.team_name === <?= json_encode($team['name']) ?>;
+                return isOwn
+                    ? `${pk.season_year} - ${pk.round}ª`
+                    : `${pk.season_year} - ${pk.round}ª (via ${pk.city} ${pk.team_name})`;
+            });
 
             return [
                 teamMeta.name,
