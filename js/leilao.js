@@ -669,6 +669,37 @@ async function abrirModalProposta(leilaoId, playerName) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar jogadores.</p>';
     }
     
+    // Carregar minhas picks
+    const picksContainer = document.getElementById('minhasPicksParaTroca');
+    if (picksContainer) {
+        picksContainer.innerHTML = '<p class="text-muted">Carregando suas picks...</p>';
+        try {
+            const resP = await fetch('api/leilao.php?action=minhas_picks');
+            const dataP = await resP.json();
+            const picks = (dataP.picks || []);
+            if (picks.length) {
+                let htmlP = '<div class="row">';
+                picks.forEach(pk => {
+                    const r = pk.round || pk.round_num || pk.rnd;
+                    const label = `${pk.season_year} R${r}${pk.original_team_name ? ' • ' + pk.original_team_name : ''}`;
+                    htmlP += `
+                    <div class="col-md-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input pick-checkbox" type="checkbox" value="${pk.id}" id="pick_${pk.id}">
+                            <label class="form-check-label" for="pick_${pk.id}">${label}</label>
+                        </div>
+                    </div>`;
+                });
+                htmlP += '</div>';
+                picksContainer.innerHTML = htmlP;
+            } else {
+                picksContainer.innerHTML = '<p class="text-warning">Voce nao tem picks disponiveis.</p>';
+            }
+        } catch (e) {
+            picksContainer.innerHTML = '<p class="text-danger">Erro ao carregar picks.</p>';
+        }
+    }
+
     // Abrir modal
     const modal = new bootstrap.Modal(document.getElementById('modalProposta'));
     modal.show();
@@ -678,13 +709,15 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
     const leilaoId = document.getElementById('leilaoIdProposta').value;
     const notas = document.getElementById('notasProposta').value;
     const checkboxes = document.querySelectorAll('.player-checkbox:checked');
+    const pickboxes = document.querySelectorAll('.pick-checkbox:checked');
     
-    if (checkboxes.length === 0 && !notas.trim()) {
-        alert('Informe uma mensagem ou selecione jogadores para oferecer.');
+    if (checkboxes.length === 0 && pickboxes.length === 0 && !notas.trim()) {
+        alert('Informe uma mensagem ou selecione jogadores/picks para oferecer.');
         return;
     }
     
     const playerIds = Array.from(checkboxes).map(cb => cb.value);
+    const pickIds = Array.from(pickboxes).map(cb => cb.value);
     
     try {
         const response = await fetch('api/leilao.php', {
@@ -694,6 +727,7 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
                 action: 'enviar_proposta',
                 leilao_id: leilaoId,
                 player_ids: playerIds,
+                pick_ids: pickIds,
                 notas: notas
             })
         });
@@ -726,7 +760,7 @@ async function verMinhasPropostasRecebidas(leilaoId) {
     modal.show();
     
     try {
-        const response = await fetch(`api/leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
+    const response = await fetch(`api/leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
         const data = await response.json();
         
         if (data.success && data.propostas && data.propostas.length > 0) {
@@ -745,6 +779,11 @@ async function verMinhasPropostasRecebidas(leilaoId) {
                         <ul>
                             ${proposta.jogadores.map(j => `<li><strong>${j.name}</strong> - ${j.position}, OVR ${j.overall || j.ovr}, ${j.age} anos</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhum jogador ofertado.</p>'}
+                        <h6 class="mt-3">Picks oferecidas:</h6>
+                        ${proposta.picks && proposta.picks.length ? `
+                        <ul>
+                            ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
+                        </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
                         ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
                         ${proposta.status === 'pendente' ? `
                         <div class="d-flex gap-2">

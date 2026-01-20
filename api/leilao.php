@@ -24,6 +24,7 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 $pdo = db();
 ensureTempPlayerColumns($pdo);
 ensureAuctionTableCompat($pdo);
+ensureProposalPicksTable($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
@@ -99,6 +100,18 @@ function ensureAuctionTableCompat(PDO $pdo): void
     } catch (Throwable $e) { /* ignore */ }
 }
 
+function ensureProposalPicksTable(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS leilao_proposta_picks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            proposta_id INT NOT NULL,
+            pick_id INT NOT NULL,
+            INDEX idx_proposta_pick (proposta_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) { /* ignore */ }
+}
+
 function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
 {
     $name = trim((string)($new_player['name'] ?? ''));
@@ -155,6 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'historico':
             $league_id_param = $_GET['league_id'] ?? null;
             historicoLeiloes($pdo, $league_id_param);
+            break;
+        case 'minhas_picks':
+            minhasPicks($pdo, $team_id);
             break;
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
@@ -375,6 +391,15 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
                                 WHERE lpj.proposta_id = ?");
         $stmt2->execute([$proposta['id']]);
         $proposta['jogadores'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+        // picks oferecidas
+        $stmt3 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round,
+                                       CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                FROM leilao_proposta_picks lpp
+                                JOIN picks pk ON pk.id = lpp.pick_id
+                                LEFT JOIN teams t ON t.id = pk.original_team_id
+                                WHERE lpp.proposta_id = ?");
+        $stmt3->execute([$proposta['id']]);
+        $proposta['picks'] = $stmt3->fetchAll(PDO::FETCH_ASSOC);
     }
     
     echo json_encode(['success' => true, 'propostas' => $propostas]);
@@ -421,6 +446,23 @@ function historicoLeiloes($pdo, $league_id) {
 }
 
 // ========== FUNCOES POST ==========
+
+function minhasPicks(PDO $pdo, ?int $team_id): void {
+    if (!$team_id) {
+        echo json_encode(['success' => true, 'picks' => []]);
+        return;
+    }
+    $sql = "SELECT p.id, p.season_year, p.round, p.notes,
+                   CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+            FROM picks p
+            LEFT JOIN teams t ON p.original_team_id = t.id
+            WHERE p.team_id = ?
+            ORDER BY p.season_year DESC, p.round ASC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$team_id]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['success' => true, 'picks' => $rows]);
+}
 
 function cadastrarLeilao($pdo, $body, $user_id) {
     $player_id = $body['player_id'] ?? null;
@@ -543,9 +585,10 @@ function enviarProposta($pdo, $body, $team_id) {
     
     $leilao_id = $body['leilao_id'] ?? null;
     $player_ids = $body['player_ids'] ?? [];
+    $pick_ids = $body['pick_ids'] ?? [];
     $notas = $body['notas'] ?? '';
     
-    if (!$leilao_id || (empty($player_ids) && trim($notas) === '')) {
+    if (!$leilao_id || (empty($player_ids) && empty($pick_ids) && trim($notas) === '')) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
         return;
     }
@@ -578,6 +621,12 @@ function enviarProposta($pdo, $body, $team_id) {
         echo json_encode(['success' => false, 'error' => 'Voce ja tem uma proposta pendente para este leilao']);
         return;
     }
+
+    // Se o leilão não tem time (jogador criado), não aceitar picks
+    if (!empty($pick_ids) && empty($leilao['team_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Este leilao nao aceita picks (jogador sem time).']);
+        return;
+    }
     
     if (!empty($player_ids)) {
         $placeholders = implode(',', array_fill(0, count($player_ids), '?'));
@@ -588,6 +637,18 @@ function enviarProposta($pdo, $body, $team_id) {
 
         if (count($jogadores_validos) !== count($player_ids)) {
             echo json_encode(['success' => false, 'error' => 'Alguns jogadores selecionados nao pertencem ao seu time']);
+            return;
+        }
+    }
+
+    if (!empty($pick_ids)) {
+        $placeholders = implode(',', array_fill(0, count($pick_ids), '?'));
+        $stmt = $pdo->prepare("SELECT id FROM picks WHERE id IN ($placeholders) AND team_id = ?");
+        $params = array_merge($pick_ids, [$team_id]);
+        $stmt->execute($params);
+        $picks_validas = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if (count($picks_validas) !== count($pick_ids)) {
+            echo json_encode(['success' => false, 'error' => 'Algumas picks nao pertencem ao seu time']);
             return;
         }
     }
@@ -605,6 +666,13 @@ function enviarProposta($pdo, $body, $team_id) {
             $stmt = $pdo->prepare("INSERT INTO leilao_proposta_jogadores (proposta_id, player_id) VALUES (?, ?)");
             foreach ($player_ids as $pid) {
                 $stmt->execute([$proposta_id, $pid]);
+            }
+        }
+        // Adicionar picks da proposta
+        if (!empty($pick_ids)) {
+            $stmt = $pdo->prepare("INSERT INTO leilao_proposta_picks (proposta_id, pick_id) VALUES (?, ?)");
+            foreach ($pick_ids as $pkid) {
+                $stmt->execute([$proposta_id, $pkid]);
             }
         }
         
@@ -674,6 +742,10 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         $stmt = $pdo->prepare("SELECT player_id FROM leilao_proposta_jogadores WHERE proposta_id = ?");
         $stmt->execute([$proposta_id]);
         $jogadores_oferecidos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        // Buscar picks oferecidas na proposta
+        $stmt = $pdo->prepare("SELECT pick_id FROM leilao_proposta_picks WHERE proposta_id = ?");
+        $stmt->execute([$proposta_id]);
+        $picks_oferecidas = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
         $winnerTeamId = $proposta['team_id'];
 
@@ -704,6 +776,12 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         if (!empty($proposta['leilao_team_id'])) {
             foreach ($jogadores_oferecidos as $player_id) {
                 $transferStmt->execute([$proposta['leilao_team_id'], $player_id]);
+            }
+            // Transferir picks oferecidas para o time do leilao
+            if (!empty($picks_oferecidas)) {
+                $placeholders = implode(',', array_fill(0, count($picks_oferecidas), '?'));
+                $params = array_merge([$proposta['leilao_team_id']], $picks_oferecidas);
+                $pdo->prepare("UPDATE picks SET team_id = ? WHERE id IN ($placeholders)")->execute($params);
             }
         }
         
