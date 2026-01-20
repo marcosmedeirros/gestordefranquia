@@ -49,7 +49,8 @@ function setupAdminEvents() {
         const isCreate = modeCreate?.checked;
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
-        const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value && createOriginTeamSelect?.value);
+        // Origin team is OPTIONAL for created players; only require name/position/age/ovr and league
+        const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value);
         const hasLeague = !!selectLeague.value;
         btnCadastrar.disabled = isCreate ? !(createReady && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
         if (createBtn) {
