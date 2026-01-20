@@ -1995,10 +1995,13 @@ if (!$team) {
                 </div>
               ` : ''}
             ` : session.status === 'in_progress' ? `
-              <div class="mt-4">
+              <div class="mt-4 d-flex gap-2 flex-wrap">
                 <a href="/drafts.php" class="btn btn-orange">
                   <i class="bi bi-eye me-2"></i>Ver Draft em Andamento
                 </a>
+                <button class="btn btn-outline-warning" onclick="showAdminPickPanel(${session.id}, ${session.season_id})">
+                  <i class="bi bi-shield-lock me-2"></i>Escolher Jogador (Admin)
+                </button>
               </div>
             ` : ''}
           </div>
@@ -2113,6 +2116,119 @@ if (!$team) {
           </div>
         ` : ''}
       `;
+    }
+
+    // ========== ADMIN: ESCOLHER JOGADOR NA VEZ ATUAL ==========
+    async function showAdminPickPanel(draftSessionId, seasonId) {
+      const container = document.getElementById('mainContainer');
+      const orderData = await api(`draft.php?action=draft_order&draft_session_id=${draftSessionId}`);
+      const session = orderData.session || {};
+      const currentRound = session.current_round;
+      const currentPickPos = session.current_pick;
+
+      // Buscar pick atual sem jogador
+      let currentPick = null;
+      const picks = orderData.order || [];
+      for (const p of picks) {
+        if (p.round == currentRound && p.pick_position == currentPickPos && !p.picked_player_id) {
+          currentPick = p;
+          break;
+        }
+      }
+
+      // Buscar jogadores disponíveis
+      const playersData = await api(`draft.php?action=available_players&season_id=${seasonId}`);
+      const players = playersData.players || [];
+
+      container.innerHTML = `
+        <button class="btn btn-back mb-4" onclick="showDraftSessionManagement(${session.season_id}, '${currentLeague || ''}')">
+          <i class="bi bi-arrow-left me-2"></i>Voltar
+        </button>
+
+        <div class="card bg-dark-panel border-warning" style="border-radius: 15px;">
+          <div class="card-header bg-transparent border-warning">
+            <h5 class="text-white mb-0">
+              <i class="bi bi-shield-lock text-warning me-2"></i>
+              Escolher Jogador (Admin)
+            </h5>
+          </div>
+          <div class="card-body">
+            ${currentPick ? `
+              <div class="alert alert-dark border-warning text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div><small class="text-light-gray">Rodada</small> <strong class="text-orange">${currentRound}</strong></div>
+                    <div><small class="text-light-gray">Pick</small> <strong class="text-orange">${currentPickPos}</strong></div>
+                    <div><small class="text-light-gray">Time</small> <strong class="text-white">${currentPick.team_city} ${currentPick.team_name}</strong></div>
+                  </div>
+                  <span class="badge bg-info">Vez do Time</span>
+                </div>
+              </div>
+            ` : `
+              <div class="alert alert-secondary">Nenhuma pick pendente no momento.</div>
+            `}
+
+            <div class="mb-3">
+              <input type="text" id="adminPickSearch" class="form-control bg-dark text-white border-warning" placeholder="Buscar jogador por nome ou posição..." oninput="filterAdminPickList()" />
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-dark table-hover" id="adminPickTable">
+                <thead>
+                  <tr>
+                    <th>Jogador</th>
+                    <th style="width:80px">Pos</th>
+                    <th style="width:80px">OVR</th>
+                    <th style="width:160px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${players.map(pl => `
+                    <tr>
+                      <td class="text-white">${pl.name}</td>
+                      <td>${pl.position}</td>
+                      <td>${pl.ovr}</td>
+                      <td>
+                        <button class="btn btn-warning btn-sm" onclick="adminMakePick(${draftSessionId}, ${pl.id})" ${currentPick ? '' : 'disabled'}>
+                          <i class="bi bi-check2-circle me-1"></i>Escolher
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function filterAdminPickList() {
+      const term = (document.getElementById('adminPickSearch').value || '').toLowerCase();
+      const rows = document.querySelectorAll('#adminPickTable tbody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(term) ? '' : 'none';
+      });
+    }
+
+    async function adminMakePick(draftSessionId, playerId) {
+      if (!confirm('Confirmar escolha deste jogador nesta pick?')) return;
+      try {
+        const res = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'make_pick',
+            draft_session_id: draftSessionId,
+            player_id: playerId
+          })
+        });
+        alert(res.message || 'Jogador escolhido com sucesso');
+        // Voltar para a gestão da sessão
+        showDraftSessionManagement(currentSeasonId, currentLeague);
+      } catch (e) {
+        alert('Erro ao escolher jogador: ' + (e.error || 'Desconhecido'));
+      }
     }
     
     async function addTeamToDraftOrder(sessionId, league) {
