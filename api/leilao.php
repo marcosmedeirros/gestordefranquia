@@ -152,6 +152,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             cadastrarLeilao($pdo, $body, $user_id);
             break;
+        case 'iniciar_leilao':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            iniciarLeilao($pdo, $body);
+            break;
+        case 'remover_temp':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            removerTempLeilao($pdo, $body);
+            break;
         case 'criar_jogador':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -371,6 +385,7 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     $data_inicio = $body['data_inicio'] ?? null;
     $data_fim = $body['data_fim'] ?? null;
     $new_player = $body['new_player'] ?? null;
+    $status = isset($body['status']) && $body['status'] === 'pendente' ? 'pendente' : 'ativo';
 
     if ((!$player_id && !$new_player) || !$league_id) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
@@ -408,10 +423,11 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     }
     
     $data_inicio = $data_inicio ?: date('Y-m-d H:i:s');
-    $data_fim = $data_fim ?: date('Y-m-d H:i:s', time() + (20 * 60));
+    // Para pendente, mantenha data_fim nula para iniciar depois
+    $data_fim = $status === 'ativo' ? ($data_fim ?: date('Y-m-d H:i:s', time() + (20 * 60))) : null;
     $stmt = $pdo->prepare("INSERT INTO leilao_jogadores (player_id, team_id, league_id, data_inicio, data_fim, status, created_at) 
-                           VALUES (?, ?, ?, ?, ?, 'ativo', NOW())");
-    $stmt->execute([$player_id, $team_id, $league_id, $data_inicio, $data_fim]);
+                           VALUES (?, ?, ?, ?, ?, ?, NOW())");
+    $stmt->execute([$player_id, $team_id, $league_id, $data_inicio, $data_fim, $status]);
     $leilaoId = $pdo->lastInsertId();
 
     if ($tempPlayer) {
@@ -420,6 +436,37 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     }
     
     echo json_encode(['success' => true, 'leilao_id' => $leilaoId]);
+}
+
+function iniciarLeilao($pdo, $body) {
+    if (!isset($_SESSION['is_admin']) && (($_SESSION['user_type'] ?? '') !== 'admin')) {
+        echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+        return;
+    }
+    $leilao_id = $body['leilao_id'] ?? null;
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilao nao informado']);
+        return;
+    }
+    $stmt = $pdo->prepare("UPDATE leilao_jogadores SET status = 'ativo', data_inicio = NOW(), data_fim = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE id = ?");
+    $stmt->execute([$leilao_id]);
+    echo json_encode(['success' => true]);
+}
+
+function removerTempLeilao($pdo, $body) {
+    if (!isset($_SESSION['is_admin']) && (($_SESSION['user_type'] ?? '') !== 'admin')) {
+        echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+        return;
+    }
+    $leilao_id = $body['leilao_id'] ?? null;
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilao nao informado']);
+        return;
+    }
+    // Remove somente registros pendentes e criados como temporarios
+    $stmt = $pdo->prepare("DELETE FROM leilao_jogadores WHERE id = ? AND status = 'pendente' AND (is_temp_player = 1 OR temp_name IS NOT NULL)");
+    $stmt->execute([$leilao_id]);
+    echo json_encode(['success' => true]);
 }
 
 function cancelarLeilao($pdo, $body) {

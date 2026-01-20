@@ -246,7 +246,7 @@ async function criarJogadorParaLista() {
             throw new Error(dataCreate.error || 'Erro ao criar jogador');
         }
 
-        // Em seguida, inicia automaticamente o leilão com o jogador criado
+        // Em seguida, cadastra como PENDENTE (sem iniciar) para aparecer na lista abaixo
         const resAuction = await fetch('api/leilao.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -255,12 +255,13 @@ async function criarJogadorParaLista() {
                 player_id: null,
                 team_id: null,
                 league_id: leagueId,
-                new_player: { name, position, age, ovr }
+                new_player: { name, position, age, ovr },
+                status: 'pendente'
             })
         });
         const dataAuction = await resAuction.json();
         if (!resAuction.ok || !dataAuction.success) {
-            throw new Error(dataAuction.error || 'Erro ao iniciar leilão');
+            throw new Error(dataAuction.error || 'Erro ao cadastrar jogador pendente');
         }
 
         // Feedback visual e limpeza
@@ -273,14 +274,89 @@ async function criarJogadorParaLista() {
         document.getElementById('auctionPlayerAge').value = '25';
         document.getElementById('auctionPlayerOvr').value = '70';
 
-        alert('Jogador criado e leilão iniciado!');
+        alert('Jogador criado! Ele aparece abaixo como pendente.');
 
         // Recarregar listas para aparecer abaixo
         carregarLeiloesAdmin();
+        carregarPendentesCriados();
         carregarLeiloesAtivos();
     } catch (error) {
         console.error(error);
         alert(error.message || 'Erro ao criar jogador');
+    }
+}
+
+async function carregarPendentesCriados() {
+    const container = document.getElementById('auctionTempList');
+    if (!container) return;
+
+    try {
+        const res = await fetch('api/leilao.php?action=listar_admin');
+        const data = await res.json();
+        const pendentes = (data.leiloes || []).filter(l => (l.status || '').toLowerCase() === 'pendente');
+
+        if (!pendentes.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhum jogador pendente.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>Liga</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+        pendentes.forEach(l => {
+            const teamLabel = l.team_name || 'Sem time';
+            html += `<tr>
+                <td><strong class="text-orange">${l.player_name}</strong><br><small class="text-light-gray">${l.position} | OVR ${l.ovr}</small></td>
+                <td>${l.league_name || '-'}</td>
+                <td><span class="badge bg-warning">Pendente</span> • ${teamLabel}</td>
+                <td>
+                    <button class="btn btn-sm btn-success me-2" onclick="iniciarLeilaoPendente(${l.id})">
+                        <i class="bi bi-play-fill"></i> Iniciar 20min
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removerLeilaoPendente(${l.id})">
+                        <i class="bi bi-trash"></i> Remover
+                    </button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = '<p class="text-danger">Erro ao carregar jogadores pendentes.</p>';
+    }
+}
+
+async function iniciarLeilaoPendente(leilaoId) {
+    try {
+        const res = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'iniciar_leilao', leilao_id: leilaoId })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao iniciar leilão');
+        carregarPendentesCriados();
+        carregarLeiloesAdmin();
+        carregarLeiloesAtivos();
+    } catch (error) {
+        alert(error.message || 'Erro ao iniciar leilão');
+    }
+}
+
+async function removerLeilaoPendente(leilaoId) {
+    if (!confirm('Remover este jogador pendente?')) return;
+    try {
+        const res = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'remover_temp', leilao_id: leilaoId })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao remover');
+        carregarPendentesCriados();
+        carregarLeiloesAdmin();
+    } catch (error) {
+        alert(error.message || 'Erro ao remover');
     }
 }
 

@@ -291,6 +291,10 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                             </button>
                                         </div>
                                     </div>
+                                    <div class="mt-3">
+                                        <h6 class="text-white mb-2"><i class="bi bi-person-plus text-orange me-2"></i>Jogadores criados (pendentes)</h6>
+                                        <div id="auctionTempList"><p class="text-light-gray">Nenhum jogador pendente.</p></div>
+                                    </div>
                                 </div>
                             </div>
 
