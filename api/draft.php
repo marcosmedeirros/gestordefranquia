@@ -673,7 +673,11 @@ if ($method === 'POST') {
                     UPDATE draft_pool SET draft_status = 'drafted', drafted_by_team_id = ?, draft_order = ?
                     WHERE id = ?
                 ");
-                $pickNumber = (($session['current_round'] - 1) * $session['current_pick']) + $session['current_pick'];
+                    // Calcular número absoluto da pick na classe
+                    $stmtTotalRound = $pdo->prepare("SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?");
+                    $stmtTotalRound->execute([$draftSessionId, $session['current_round']]);
+                    $roundSize = (int) $stmtTotalRound->fetchColumn();
+                    $pickNumber = (($session['current_round'] - 1) * $roundSize) + $session['current_pick'];
                 $stmtDrafted->execute([$currentPick['team_id'], $pickNumber, $playerId]);
 
                 // Adicionar jogador ao elenco do time

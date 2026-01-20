@@ -47,7 +47,7 @@ $action = $_REQUEST['action'] ?? '';
 $user = getUserSession();
 
 // Verificar se é admin para ações protegidas
-$adminActions = ['save_history', 'delete_history', 'save_season_points'];
+$adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals'];
 if (in_array($action, $adminActions)) {
     if (!$user || ($user['user_type'] ?? 'jogador') !== 'admin') {
         http_response_code(403);
@@ -73,6 +73,15 @@ function checkTablesExist($pdo) {
         return false;
     }
     return true;
+}
+
+// Garante que a coluna teams.ranking_points exista para sobrescrita manual do ranking
+function ensureRankingPointsColumn(PDO $pdo): void {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE 'ranking_points'");
+    $stmt->execute();
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_points INT NOT NULL DEFAULT 0 AFTER name");
+    }
 }
 
 try {
@@ -474,6 +483,38 @@ try {
             }
 
             echo json_encode(['success' => true, 'ranking' => $grouped]);
+            break;
+
+        case 'save_ranking_totals':
+            // Admin já verificado no início
+            // Edita diretamente o total de pontos de ranking por time (teams.ranking_points)
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $league = $payload['league'] ?? null;
+            $teamPoints = $payload['team_points'] ?? [];
+
+            if (!$league || !is_array($teamPoints)) {
+                throw new Exception('Liga e lista de pontos são obrigatórias');
+            }
+
+            // Garante coluna
+            ensureRankingPointsColumn($pdo);
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("UPDATE teams SET ranking_points = ? WHERE id = ? AND league = ?");
+                foreach ($teamPoints as $tp) {
+                    $teamId = (int)($tp['team_id'] ?? 0);
+                    $points = (int)($tp['points'] ?? 0);
+                    if ($teamId <= 0) continue;
+                    $stmt->execute([$points, $teamId, $league]);
+                }
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Ranking atualizado com sucesso']);
             break;
             
         // =====================================================
