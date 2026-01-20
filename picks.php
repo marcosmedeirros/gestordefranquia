@@ -230,11 +230,9 @@ $picks = $stmtPicks->fetchAll();
                                         <button class="btn btn-outline-light" onclick="openEditPick(this)">
                                             <i class="bi bi-pencil-square"></i>
                                         </button>
-                                        <?php if (empty($pick['auto_generated'])): ?>
                                         <button class="btn btn-outline-danger" onclick="deletePick(<?= (int)$pick['id'] ?>)">
                                             <i class="bi bi-trash"></i>
                                         </button>
-                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

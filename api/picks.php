@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
 
     // Verificar se a pick pertence a um time do usuário
     $stmt = $pdo->prepare('
-        SELECT p.id, COALESCE(p.auto_generated, 0) as auto_generated
+        SELECT p.id
         FROM picks p
         INNER JOIN teams t ON p.team_id = t.id
         WHERE p.id = ? AND t.user_id = ?
@@ -87,11 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     
     if (!$pick) {
         echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
-        exit;
-    }
-
-    if ((int)$pick['auto_generated'] === 1) {
-        echo json_encode(['success' => false, 'error' => 'Picks automáticas não podem ser removidas']);
         exit;
     }
 
