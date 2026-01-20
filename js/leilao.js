@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (isAdmin) {
         carregarLeiloesAdmin();
+        carregarPendentesCriados();
         setupAdminEvents();
     }
 });
@@ -312,30 +313,42 @@ async function carregarPendentesCriados() {
     if (!container) return;
 
     try {
-        const res = await fetch('api/leilao.php?action=listar_admin');
+        // Listar todos os jogadores criados especificamente para o leilão (sem time de origem)
+        const res = await fetch('api/leilao.php?action=listar_temp');
         const data = await res.json();
-        const pendentes = (data.leiloes || []).filter(l => (l.status || '').toLowerCase() === 'pendente');
+        const criados = data.leiloes || [];
 
-        if (!pendentes.length) {
-            container.innerHTML = '<p class="text-light-gray">Nenhum jogador pendente.</p>';
+        if (!criados.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhum jogador criado.</p>';
             return;
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
         html += '<thead><tr><th>Jogador</th><th>Liga</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
-        pendentes.forEach(l => {
+        criados.forEach(l => {
             const teamLabel = l.team_name || 'Sem time';
+            const status = (l.status || '').toLowerCase();
+            const statusBadge = status === 'pendente' ? '<span class="badge bg-warning">Pendente</span>'
+                               : status === 'ativo' ? '<span class="badge bg-success">Ativo</span>'
+                               : status === 'finalizado' ? '<span class="badge bg-secondary">Finalizado</span>'
+                               : `<span class="badge bg-dark">${l.status || '—'}</span>`;
             html += `<tr>
                 <td><strong class="text-orange">${l.player_name}</strong><br><small class="text-light-gray">${l.position} | OVR ${l.ovr}</small></td>
                 <td>${l.league_name || '-'}</td>
-                <td><span class="badge bg-warning">Pendente</span> • ${teamLabel}</td>
+                <td>${statusBadge} • ${teamLabel}</td>
                 <td>
-                    <button class="btn btn-sm btn-success me-2" onclick="iniciarLeilaoPendente(${l.id})">
-                        <i class="bi bi-play-fill"></i> Iniciar 20min
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="removerLeilaoPendente(${l.id})">
-                        <i class="bi bi-trash"></i> Remover
-                    </button>
+                    ${status === 'pendente' ? `
+                        <button class="btn btn-sm btn-success me-2" onclick="iniciarLeilaoPendente(${l.id})">
+                            <i class="bi bi-play-fill"></i> Iniciar 20min
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removerLeilaoPendente(${l.id})">
+                            <i class="bi bi-trash"></i> Remover
+                        </button>
+                    ` : status === 'ativo' ? `
+                        <button class="btn btn-sm btn-info" onclick="verPropostasAdmin(${l.id})">
+                            <i class="bi bi-eye"></i> Ver Propostas
+                        </button>
+                    ` : ''}
                 </td>
             </tr>`;
         });
@@ -343,7 +356,7 @@ async function carregarPendentesCriados() {
         container.innerHTML = html;
     } catch (error) {
         console.error(error);
-        container.innerHTML = '<p class="text-danger">Erro ao carregar jogadores pendentes.</p>';
+        container.innerHTML = '<p class="text-danger">Erro ao carregar jogadores criados.</p>';
     }
 }
 

@@ -119,6 +119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listarLeiloesAdmin($pdo);
             break;
+        case 'listar_temp':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            listarLeiloesTemporarios($pdo);
+            break;
         case 'minhas_propostas':
             minhasPropostas($pdo, $team_id);
             break;
@@ -247,6 +254,27 @@ function listarLeiloesAdmin($pdo) {
             JOIN leagues lg ON l.league_id = lg.id
             ORDER BY l.created_at DESC";
     
+    $stmt = $pdo->query($sql);
+    $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['success' => true, 'leiloes' => $leiloes]);
+}
+
+function listarLeiloesTemporarios($pdo) {
+    $ovrColumn = playerOvrColumn($pdo);
+    $sql = "SELECT l.*, 
+                   COALESCE(l.temp_name, p.name) as player_name, 
+                   COALESCE(l.temp_position, p.position) as position, 
+                   COALESCE(l.temp_age, p.age) as age, 
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
+                   t.name as team_name,
+                   lg.name as league_name,
+                   (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
+            FROM leilao_jogadores l
+            LEFT JOIN players p ON l.player_id = p.id
+            LEFT JOIN teams t ON l.team_id = t.id
+            JOIN leagues lg ON l.league_id = lg.id
+            WHERE (l.is_temp_player = 1 OR l.temp_name IS NOT NULL)
+            ORDER BY l.created_at DESC";
     $stmt = $pdo->query($sql);
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
