@@ -251,6 +251,95 @@ if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'a
 
 try {
     switch ($action) {
+        // ========== DEFINIR CLASSIFICAÇÃO (STANDINGS) E PONTOS DA TEMPORADA REGULAR ==========
+        case 'set_standings':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+
+            // Somente admin
+            if (($user['user_type'] ?? 'jogador') !== 'admin') {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : null;
+            $standings = isset($input['standings']) && is_array($input['standings']) ? $input['standings'] : [];
+
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            if (empty($standings)) throw new Exception('standings (array) é obrigatório');
+
+            // Buscar liga da temporada
+            $stmtSeason = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtSeason->execute([$seasonId]);
+            $seasonRow = $stmtSeason->fetch(PDO::FETCH_ASSOC);
+            if (!$seasonRow) throw new Exception('Temporada não encontrada');
+            $league = $seasonRow['league'];
+
+            // Garantir tabela season_standings
+            $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT NOT NULL,
+                position INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_season_team (season_id, team_id),
+                INDEX idx_season_pos (season_id, position),
+                FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->beginTransaction();
+            try {
+                // Limpar standings anteriores desta temporada
+                $pdo->prepare('DELETE FROM season_standings WHERE season_id = ?')->execute([$seasonId]);
+
+                // Mapa de pontos por posição
+                // 1º: 4, 2º-4º: 3, 5º-8º: 2
+                $pointsByPosition = function (int $pos): int {
+                    if ($pos === 1) return 4;
+                    if ($pos >= 2 && $pos <= 4) return 3;
+                    if ($pos >= 5 && $pos <= 8) return 2;
+                    return 0;
+                };
+
+                $stmtInsertStanding = $pdo->prepare('INSERT INTO season_standings (season_id, team_id, position) VALUES (?, ?, ?)');
+
+                // Inserir standings e atualizar pontos da temporada regular
+                $stmtUpsertPoints = $pdo->prepare("INSERT INTO team_ranking_points (
+                        team_id, season_id, league, regular_season_position, regular_season_points
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        league = VALUES(league),
+                        regular_season_position = VALUES(regular_season_position),
+                        regular_season_points = VALUES(regular_season_points)");
+
+                // Aceita array de IDs (ordenado) ou array de objetos {team_id, position}
+                $position = 1;
+                foreach ($standings as $item) {
+                    if (is_array($item)) {
+                        $teamId = (int)($item['team_id'] ?? 0);
+                        $pos = isset($item['position']) ? (int)$item['position'] : $position;
+                    } else {
+                        // item simples (id) indica ordem
+                        $teamId = (int)$item;
+                        $pos = $position;
+                    }
+                    if ($teamId <= 0) { $position++; continue; }
+
+                    $stmtInsertStanding->execute([$seasonId, $teamId, $pos]);
+                    $regularPoints = $pointsByPosition($pos);
+                    $stmtUpsertPoints->execute([$teamId, $seasonId, $league, $pos, $regularPoints]);
+                    $position++;
+                }
+
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'Standings e pontos de temporada regular salvos']);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            break;
         // ========== MOEDAS POR TEMPORADA ==========
         case 'season_coins':
             $seasonId = $_GET['season_id'] ?? null;
@@ -317,6 +406,27 @@ try {
                 INNER JOIN league_sprint_config lsc ON s.league = lsc.league
                 WHERE s.league = ? AND s.status != 'completed'
                 ORDER BY s.id DESC LIMIT 1
+            ");
+
+            // Substituir por UPSERT para mesclar com pontos da temporada regular (se já existirem)
+            $stmtInsertRanking = $pdo->prepare("
+                INSERT INTO team_ranking_points 
+                (team_id, season_id, league, 
+                 playoff_champion, playoff_runner_up, playoff_conference_finals, 
+                 playoff_second_round, playoff_first_round, playoff_points,
+                 awards_count, awards_points)
+                VALUES 
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    league = VALUES(league),
+                    playoff_champion = VALUES(playoff_champion),
+                    playoff_runner_up = VALUES(playoff_runner_up),
+                    playoff_conference_finals = VALUES(playoff_conference_finals),
+                    playoff_second_round = VALUES(playoff_second_round),
+                    playoff_first_round = VALUES(playoff_first_round),
+                    playoff_points = VALUES(playoff_points),
+                    awards_count = VALUES(awards_count),
+                    awards_points = VALUES(awards_points)
             ");
             $stmt->execute([$league]);
             $season = $stmt->fetch();
@@ -876,10 +986,10 @@ try {
                 }
             };
 
-            // Processar Campeão (11 pontos segundo seu código anterior)
+            // Processar Campeão (cumulativo conforme regra: 1ª(1) + 2ª(2) + F.Conf(3) + Vice(2) + Campeão(5) = 13)
             $initTeam($champion);
             $teamStats[$champion]['playoff_champion'] = 1;
-            $teamStats[$champion]['playoff_points'] = 11; 
+            $teamStats[$champion]['playoff_points'] = 13; 
 
             // Processar Vice (8 pontos)
             $initTeam($runnerUp);

@@ -4,7 +4,7 @@
  * 
  * Endpoints:
  * - get_history: Busca histórico de todas as temporadas
- * - save_history: Salva histórico (Campeão, Vice, MVP, DPOY, MIP, 6º Homem)
+ * - save_history: Salva histórico (Campeão, Vice, MVP, DPOY, MIP, 6º Homem, ROY)
  * - get_teams_for_points: Lista times por liga para registro de pontos
  * - save_season_points: Salva pontos dos times na temporada
  * - get_ranking: Busca ranking (soma de pontos)
@@ -58,6 +58,21 @@ if (in_array($action, $adminActions)) {
 
 // Verificar se as tabelas existem
 $pdo = db();
+// Garantir colunas ROY na tabela season_history (para compatibilidade)
+function ensureSeasonHistoryRoyColumns(PDO $pdo): void {
+    // roy_player
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+    $stmt->execute();
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_player VARCHAR(100) NULL AFTER sixth_man_team_id");
+    }
+    // roy_team_id
+    $stmt2 = $pdo->prepare("SHOW COLUMNS FROM season_history LIKE 'roy_team_id'");
+    $stmt2->execute();
+    if (!$stmt2->fetch()) {
+        $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_team_id INT NULL AFTER roy_player");
+    }
+}
 function teamColumnExists(PDO $pdo, string $column): bool {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
     $stmt->execute([$column]);
@@ -205,6 +220,9 @@ try {
             $stmt->execute([$seasonId]);
             $existing = $stmt->fetch();
             
+            // Garantir colunas ROY (para projetos que ainda não possuem)
+            ensureSeasonHistoryRoyColumns($pdo);
+
             $historyData = [
                 'season_id' => $seasonId,
                 'league' => $data['league'],
@@ -220,7 +238,9 @@ try {
                 'mip_player' => $data['mip_player'] ?: null,
                 'mip_team_id' => $data['mip_team_id'] ?: null,
                 'sixth_man_player' => $data['sixth_man_player'] ?: null,
-                'sixth_man_team_id' => $data['sixth_man_team_id'] ?: null
+                'sixth_man_team_id' => $data['sixth_man_team_id'] ?: null,
+                'roy_player' => $data['roy_player'] ?: null,
+                'roy_team_id' => $data['roy_team_id'] ?: null
             ];
             
             if ($existing) {
@@ -239,7 +259,9 @@ try {
                             mip_player = :mip_player,
                             mip_team_id = :mip_team_id,
                             sixth_man_player = :sixth_man_player,
-                            sixth_man_team_id = :sixth_man_team_id
+                            sixth_man_team_id = :sixth_man_team_id,
+                            roy_player = :roy_player,
+                            roy_team_id = :roy_team_id
                         WHERE season_id = :season_id";
             } else {
                 // Inserir
@@ -249,14 +271,16 @@ try {
                              mvp_player, mvp_team_id, 
                              dpoy_player, dpoy_team_id, 
                              mip_player, mip_team_id, 
-                             sixth_man_player, sixth_man_team_id)
+                             sixth_man_player, sixth_man_team_id,
+                             roy_player, roy_team_id)
                         VALUES 
                             (:season_id, :league, :sprint_number, :season_number, :year,
                              :champion_team_id, :runner_up_team_id,
                              :mvp_player, :mvp_team_id,
                              :dpoy_player, :dpoy_team_id,
                              :mip_player, :mip_team_id,
-                             :sixth_man_player, :sixth_man_team_id)";
+                             :sixth_man_player, :sixth_man_team_id,
+                             :roy_player, :roy_team_id)";
             }
             
             $stmt = $pdo->prepare($sql);
@@ -442,38 +466,83 @@ try {
         
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
-            $hasRankingPoints = teamColumnExists($pdo, 'ranking_points');
+            $hasRankingPointsCol = teamColumnExists($pdo, 'ranking_points');
 
-            $sql = "SELECT 
-                        t.id as team_id,
-                        CONCAT(t.city, ' ', t.name) as team_name,
-                        t.league,
-                        " . ($hasRankingPoints ? "COALESCE(t.ranking_points, 0)" : "COALESCE(points.total_points, 0)") . " as total_points,
-                        COALESCE(titles.total_titles, 0) as total_titles
-                    FROM teams t
-                    " . ($hasRankingPoints ? "" : "LEFT JOIN (
-                        SELECT team_id, SUM(points) as total_points
-                        FROM team_season_points
-                        GROUP BY team_id
-                    ) points ON points.team_id = t.id") . "
-                    LEFT JOIN (
-                        SELECT champion_team_id as team_id, COUNT(*) as total_titles
-                        FROM season_history
-                        WHERE champion_team_id IS NOT NULL
-                        GROUP BY champion_team_id
-                    ) titles ON titles.team_id = t.id";
+            // Verificar disponibilidade de team_ranking_points como fallback melhor que team_season_points
+            $stmtTbl = $pdo->query("SHOW TABLES LIKE 'team_ranking_points'");
+            $hasTeamRankingPoints = $stmtTbl && $stmtTbl->rowCount() > 0;
 
-            $params = [];
-            if ($league) {
-                $sql .= " WHERE t.league = ?";
-                $params[] = $league;
+            if ($hasRankingPointsCol) {
+                // 1) Preferir coluna teams.ranking_points (usada pelo editor manual)
+                $sql = "SELECT 
+                            t.id as team_id,
+                            CONCAT(t.city, ' ', t.name) as team_name,
+                            t.league,
+                            COALESCE(t.ranking_points, 0) as total_points,
+                            COALESCE(titles.total_titles, 0) as total_titles
+                        FROM teams t
+                        LEFT JOIN (
+                            SELECT champion_team_id as team_id, COUNT(*) as total_titles
+                            FROM season_history
+                            WHERE champion_team_id IS NOT NULL
+                            GROUP BY champion_team_id
+                        ) titles ON titles.team_id = t.id";
+                $params = [];
+                if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            } elseif ($hasTeamRankingPoints) {
+                // 2) Caso não exista coluna, usar soma do total_points da tabela team_ranking_points (automático)
+                $sql = "SELECT 
+                            t.id as team_id,
+                            CONCAT(t.city, ' ', t.name) as team_name,
+                            t.league,
+                            COALESCE(SUM(trp.total_points), 0) as total_points,
+                            COALESCE(titles.total_titles, 0) as total_titles
+                        FROM teams t
+                        LEFT JOIN team_ranking_points trp ON trp.team_id = t.id
+                        LEFT JOIN (
+                            SELECT champion_team_id as team_id, COUNT(*) as total_titles
+                            FROM season_history
+                            WHERE champion_team_id IS NOT NULL
+                            GROUP BY champion_team_id
+                        ) titles ON titles.team_id = t.id";
+                $params = [];
+                if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_titles
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            } else {
+                // 3) Fallback legado: somar team_season_points
+                $sql = "SELECT 
+                            t.id as team_id,
+                            CONCAT(t.city, ' ', t.name) as team_name,
+                            t.league,
+                            COALESCE(points.total_points, 0) as total_points,
+                            COALESCE(titles.total_titles, 0) as total_titles
+                        FROM teams t
+                        LEFT JOIN (
+                            SELECT team_id, SUM(points) as total_points
+                            FROM team_season_points
+                            GROUP BY team_id
+                        ) points ON points.team_id = t.id
+                        LEFT JOIN (
+                            SELECT champion_team_id as team_id, COUNT(*) as total_titles
+                            FROM season_history
+                            WHERE champion_team_id IS NOT NULL
+                            GROUP BY champion_team_id
+                        ) titles ON titles.team_id = t.id";
+                $params = [];
+                if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
+                          ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
             }
 
-            $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
-                      ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
-
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
             $ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Agrupar por liga
