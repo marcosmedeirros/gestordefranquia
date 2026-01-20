@@ -225,6 +225,18 @@ function runMigrations() {
                 INDEX idx_draft_pool_season_status (season_id, draft_status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ],
+        'create_player_favorites' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS player_favorites (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                player_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_player (user_id, player_id),
+                INDEX idx_pf_user (user_id),
+                CONSTRAINT fk_pf_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_pf_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
         'create_season_standings' => [
             'sql' => "CREATE TABLE IF NOT EXISTS season_standings (
                 id INT AUTO_INCREMENT PRIMARY KEY,

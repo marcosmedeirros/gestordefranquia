@@ -131,10 +131,11 @@ try {
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
-        SELECT season_number, status 
-        FROM seasons 
-        WHERE league = ? AND (status IS NULL OR status NOT IN ('completed'))
-        ORDER BY created_at DESC 
+        SELECT s.season_number, s.year, s.status, sp.sprint_number, sp.start_year
+        FROM seasons s
+        INNER JOIN sprints sp ON s.sprint_id = sp.id
+        WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed'))
+        ORDER BY s.created_at DESC 
         LIMIT 1
     ");
     $stmtSeason->execute([$team['league']]);
@@ -143,6 +144,25 @@ try {
     // Tabela seasons pode não existir ainda
     $currentSeason = null;
 }
+
+// Buscar jogadores e picks para cópia
+$stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+$stmtAllPlayers->execute([$team['id']]);
+$allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
+
+$stmtPicks = $pdo->prepare("
+    SELECT p.season_year, p.round, orig.city, orig.name AS team_name
+    FROM picks p
+    JOIN teams orig ON p.original_team_id = orig.id
+    WHERE p.team_id = ?
+    ORDER BY p.season_year ASC, p.round ASC
+");
+$stmtPicks->execute([$team['id']]);
+$teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+
+$stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE from_team_id = ? OR to_team_id = ?");
+$stmtTrades->execute([$team['id'], $team['id']]);
+$tradesCount = (int)$stmtTrades->fetchColumn();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -275,6 +295,9 @@ try {
                 <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
+                <button class="btn btn-outline-light" id="copyTeamBtn">
+                    <i class="bi bi-clipboard-check me-2"></i>Copiar time
+                </button>
                 <span class="badge bg-success" style="font-size: 1rem; padding: 0.6rem 1rem;">
                     <i class="bi bi-star-fill me-1"></i>
                     <?= (int)($team['ranking_points'] ?? 0) ?> pts
@@ -286,7 +309,7 @@ try {
                 <?php if ($currentSeason): ?>
                 <span class="badge bg-gradient-orange" style="font-size: 1.1rem; padding: 0.75rem 1.5rem;">
                     <i class="bi bi-calendar3 me-2"></i>
-                    Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
+                    Temporada <?= (int)$currentSeason['year'] ?>
                 </span>
                 <?php else: ?>
                 <span class="badge bg-secondary" style="font-size: 1rem; padding: 0.5rem 1rem;">
@@ -379,7 +402,7 @@ try {
         <div class="card bg-dark-panel border-orange mb-4">
             <div class="card-header bg-transparent border-orange">
                 <h4 class="mb-0 text-white">
-                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada Ano <?= str_pad($currentSeason['season_number'], 2, '0', STR_PAD_LEFT) ?>
+                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= (int)$currentSeason['year'] ?>
                 </h4>
             </div>
             <div class="card-body">
@@ -478,6 +501,71 @@ try {
                     this.style.background = 'transparent';
                 }
             });
+        });
+
+        const rosterData = <?= json_encode($allPlayers) ?>;
+        const picksData = <?= json_encode($teamPicks) ?>;
+        const teamMeta = {
+            name: <?= json_encode($team['city'] . ' ' . $team['name']) ?>,
+            cap: <?= (int)$teamCap ?>,
+            trades: <?= (int)$tradesCount ?>
+        };
+
+        function buildTeamSummary() {
+            const positions = ['PG','SG','SF','PF','C'];
+            const startersMap = {};
+            positions.forEach(pos => startersMap[pos] = '-');
+            rosterData.filter(p => p.role === 'Titular').forEach(p => {
+                if (positions.includes(p.position) && startersMap[p.position] === '-') {
+                    startersMap[p.position] = `${p.name} (OVR ${p.ovr})`;
+                }
+            });
+
+            const bench = rosterData.filter(p => p.role === 'Banco').map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
+            const others = rosterData.filter(p => p.role === 'Outro').map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
+            const gleague = rosterData
+                .filter(p => (p.role || '').toLowerCase() === 'g-league')
+                .map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
+
+            const picksLines = picksData.map(pk => `${pk.season_year} - ${pk.round}ª (via ${pk.city} ${pk.team_name})`);
+
+            return [
+                teamMeta.name,
+                '',
+                'Starters',
+                ...positions.map(pos => `${pos}: ${startersMap[pos]}`),
+                '',
+                'Bench',
+                ...(bench.length ? bench : ['-']),
+                '',
+                'Others',
+                ...(others.length ? others : ['-']),
+                '',
+                'G-league',
+                ...(gleague.length ? gleague : ['-']),
+                '',
+                'Picks',
+                ...(picksLines.length ? picksLines : ['-']),
+                '',
+                `CAP: ${teamMeta.cap}`,
+                `Trades: ${teamMeta.trades}`
+            ].join('\n');
+        }
+
+        document.getElementById('copyTeamBtn')?.addEventListener('click', async () => {
+            const text = buildTeamSummary();
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('Time copiado para a área de transferência!');
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Time copiado para a área de transferência!');
+            }
         });
     </script>
 </body>

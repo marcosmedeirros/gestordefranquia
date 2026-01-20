@@ -48,7 +48,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 </div>
                 <div class="card-body">
                     <div class="row g-2 align-items-end">
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <label for="playersSearchInput" class="form-label">Buscar por nome</label>
                             <input type="text" id="playersSearchInput" class="form-control" placeholder="Digite o nome do jogador">
                         </div>
@@ -63,10 +63,16 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <option value="C">C</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <button class="btn btn-orange w-100" id="playersSearchBtn">
                                 <i class="bi bi-search me-1"></i>Buscar
                             </button>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="d-flex justify-content-end align-items-center gap-2">
+                                <i class="bi bi-star-fill text-warning"></i>
+                                <span class="text-light-gray">Favoritos (máx 5)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -77,25 +83,41 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <h5 class="mb-0 text-white"><i class="bi bi-list-ul text-orange me-2"></i>Jogadores da Liga</h5>
                 </div>
                 <div class="card-body">
-                    <div id="playersLoading" class="text-center py-4">
-                        <div class="spinner-border text-orange" role="status"></div>
+                    <div class="row g-3">
+                        <div class="col-lg-8">
+                            <div id="playersLoading" class="text-center py-4">
+                                <div class="spinner-border text-orange" role="status"></div>
+                            </div>
+                            <div class="table-responsive" id="playersTableWrap" style="display:none;">
+                                <table class="table table-dark table-hover mb-0">
+                                    <thead style="background: var(--fba-orange); color: #000;">
+                                        <tr>
+                                            <th style="width:40px;"></th>
+                                            <th>Jogador</th>
+                                            <th>OVR</th>
+                                            <th>Idade</th>
+                                            <th>Posicao</th>
+                                            <th>Time</th>
+                                            <th>Contato</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="playersTableBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="playersEmpty" class="text-center text-light-gray" style="display:none;">Nenhum jogador encontrado.</div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card bg-dark border border-warning h-100">
+                                <div class="card-header bg-dark border-bottom border-warning d-flex align-items-center justify-content-between">
+                                    <span class="text-white"><i class="bi bi-star-fill text-warning me-2"></i>Favoritos</span>
+                                    <small class="text-light-gray" id="favCounter"></small>
+                                </div>
+                                <div class="card-body" id="favoritesList">
+                                    <p class="text-light-gray mb-0">Nenhum favorito ainda.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="table-responsive" id="playersTableWrap" style="display:none;">
-                        <table class="table table-dark table-hover mb-0">
-                            <thead style="background: var(--fba-orange); color: #000;">
-                                <tr>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                    <th>Posicao</th>
-                                    <th>Time</th>
-                                    <th>Contato</th>
-                                </tr>
-                            </thead>
-                            <tbody id="playersTableBody"></tbody>
-                        </table>
-                    </div>
-                    <div id="playersEmpty" class="text-center text-light-gray" style="display:none;">Nenhum jogador encontrado.</div>
                 </div>
             </div>
         </div>
@@ -112,6 +134,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const tableWrap = document.getElementById('playersTableWrap');
         const tableBody = document.getElementById('playersTableBody');
         const emptyState = document.getElementById('playersEmpty');
+        const favoritesList = document.getElementById('favoritesList');
+        const favCounter = document.getElementById('favCounter');
+        let favorites = new Set();
 
         async function carregarJogadores() {
             const query = searchInput.value.trim();
@@ -139,8 +164,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         const whatsappLink = p.owner_phone_whatsapp
                             ? `https://api.whatsapp.com/send/?phone=${encodeURIComponent(p.owner_phone_whatsapp)}&text=${defaultMessage}&type=phone_number&app_absent=0`
                             : '';
+                        const isFav = favorites.has(String(p.id)) || !!p.is_favorite;
+                        const starClass = isFav ? 'text-warning' : 'text-light-gray';
                         tableBody.innerHTML += `
                             <tr>
+                                <td class="text-center">
+                                    <button class="btn btn-link p-0 text-decoration-none fav-btn ${starClass}" data-player-id="${p.id}" title="Favorito">
+                                        <i class="bi ${isFav ? 'bi-star-fill' : 'bi-star'} fs-5"></i>
+                                    </button>
+                                </td>
                                 <td><strong>${p.name}</strong></td>
                                 <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
                                 <td>${p.age}</td>
@@ -155,6 +187,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             </tr>
                         `;
                     });
+                    bindFavoriteButtons();
                     tableWrap.style.display = 'block';
                 }
             } catch (err) {
@@ -171,7 +204,71 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         });
         positionFilter.addEventListener('change', carregarJogadores);
 
-        carregarJogadores();
+        function renderFavoritesList(list) {
+            favorites = new Set(list.map(f => String(f.player_id)));
+            favCounter.textContent = `${favorites.size}/5`;
+            if (!list.length) {
+                favoritesList.innerHTML = '<p class="text-light-gray mb-0">Nenhum favorito ainda.</p>';
+                return;
+            }
+            favoritesList.innerHTML = list.map(f => `
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary">
+                    <div>
+                        <strong class="text-white">${f.name}</strong>
+                        <div class="text-light-gray small">${f.position} | OVR ${f.ovr} — ${f.city} ${f.team_name}</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="toggleFavorite(${f.player_id}, false)">
+                        <i class="bi bi-star-fill"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function loadFavorites() {
+            try {
+                const res = await fetch('/api/team.php?action=favorites');
+                const data = await res.json();
+                renderFavoritesList(data.favorites || []);
+            } catch (err) {
+                favoritesList.innerHTML = '<p class="text-danger mb-0">Erro ao carregar favoritos.</p>';
+            }
+        }
+
+        async function toggleFavorite(playerId, setFavorite) {
+            try {
+                const res = await fetch('/api/team.php?action=toggle_favorite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: playerId, favorite: setFavorite })
+                });
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    throw new Error(data.error || 'Erro ao atualizar favorito');
+                }
+                await loadFavorites();
+                await carregarJogadores();
+            } catch (err) {
+                alert(err.message || 'Erro ao atualizar favorito');
+            }
+        }
+
+        function bindFavoriteButtons() {
+            document.querySelectorAll('.fav-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const playerId = btn.dataset.playerId;
+                    const isFav = favorites.has(String(playerId));
+                    if (!isFav && favorites.size >= 5) {
+                        alert('Limite de 5 favoritos atingido. Remova um para adicionar outro.');
+                        return;
+                    }
+                    toggleFavorite(playerId, !isFav);
+                };
+            });
+        }
+
+        loadFavorites().then(carregarJogadores);
+
+        
     </script>
 </body>
 </html>

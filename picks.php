@@ -166,6 +166,40 @@ $picks = $stmtPicks->fetchAll();
             <p class="text-light-gray">Visualize as picks de draft do seu time (geradas automaticamente pelo sistema)</p>
         </div>
 
+        <div class="card bg-dark-panel border-orange mb-4">
+            <div class="card-header bg-transparent border-orange d-flex align-items-center justify-content-between">
+                <h5 class="mb-0 text-white"><i class="bi bi-plus-circle me-2 text-orange"></i>Adicionar Pick</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label">Ano</label>
+                        <input type="number" id="addPickYear" class="form-control bg-dark text-white border-orange" placeholder="2026" min="2000">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Rodada</label>
+                        <select id="addPickRound" class="form-select bg-dark text-white border-orange">
+                            <option value="1">1ª</option>
+                            <option value="2">2ª</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Origem</label>
+                        <select id="addPickOrigin" class="form-select bg-dark text-white border-orange">
+                            <?php foreach ($allTeams as $t): ?>
+                                <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-orange w-100" id="addPickBtn">
+                            <i class="bi bi-save me-1"></i>Adicionar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Informação sobre picks automáticas -->
         <div class="alert alert-info mb-4" style="border-radius: 15px; background: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3);">
             <i class="bi bi-info-circle me-2"></i>
@@ -343,6 +377,35 @@ $picks = $stmtPicks->fetchAll();
                 location.reload();
             } catch (err) {
                 alert(err.message || 'Erro ao salvar pick');
+            }
+        });
+
+        document.getElementById('addPickBtn')?.addEventListener('click', async () => {
+            const year = parseInt(document.getElementById('addPickYear').value, 10);
+            const round = document.getElementById('addPickRound').value;
+            const original_team_id = document.getElementById('addPickOrigin').value;
+            if (!year || year < 2000) {
+                alert('Informe um ano válido');
+                return;
+            }
+            try {
+                const res = await fetch('/api/picks.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        team_id: <?= (int)$team['id'] ?>,
+                        original_team_id,
+                        year,
+                        round
+                    })
+                });
+                const body = await res.json();
+                if (!res.ok || !body.success) {
+                    throw new Error(body.error || 'Erro ao adicionar pick');
+                }
+                location.reload();
+            } catch (err) {
+                alert(err.message || 'Erro ao adicionar pick');
             }
         });
 
