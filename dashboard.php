@@ -168,7 +168,7 @@ $stmtPicks = $pdo->prepare("
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
-$stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE from_team_id = ? OR to_team_id = ?");
+$stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
 $stmtTrades->execute([$team['id'], $team['id']]);
 $tradesCount = (int)$stmtTrades->fetchColumn();
 ?>
