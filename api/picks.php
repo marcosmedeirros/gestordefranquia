@@ -126,17 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         exit;
     }
 
-    // Verificar conflito de duplicidade
-    $stmtDup = $pdo->prepare('
-        SELECT id FROM picks 
-        WHERE original_team_id = ? AND season_year = ? AND round = ? AND id != ?
-    ');
-    $stmtDup->execute([$originalTeamId, $year, $round, $pickId]);
-    if ($stmtDup->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Já existe uma pick para este time/ano/rodada']);
-        exit;
-    }
-
     $stmtUpdate = $pdo->prepare('
         UPDATE picks 
         SET season_year = ?, round = ?, original_team_id = ?, last_owner_team_id = team_id, notes = ?, auto_generated = 0
