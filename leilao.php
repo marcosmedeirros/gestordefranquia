@@ -66,6 +66,10 @@ if ($is_admin) {
                     <div id="meusJogadoresParaTroca" class="mb-3">
                         <p class="text-muted">Carregando...</p>
                     </div>
+                    <h6 class="text-light-gray">Selecione picks para oferecer (opcional):</h6>
+                    <div id="minhasPicksParaTroca" class="mb-3">
+                        <p class="text-muted">Carregando...</p>
+                    </div>
                     <div class="mb-3">
                         <label for="notasProposta" class="form-label">O que vai dar na proposta</label>
                         <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>

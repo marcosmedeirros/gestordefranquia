@@ -675,7 +675,7 @@ async function abrirModalProposta(leilaoId, playerName) {
         picksContainer.innerHTML = '<p class="text-muted">Carregando suas picks...</p>';
         try {
             const resP = await fetch('api/leilao.php?action=minhas_picks');
-            const dataP = await resP.json();
+            const dataP = await parseJsonSafe(resP);
             const picks = (dataP.picks || []);
             if (picks.length) {
                 let htmlP = '<div class="row">';
