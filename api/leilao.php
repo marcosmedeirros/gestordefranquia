@@ -23,6 +23,7 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
 ensureTempPlayerColumns($pdo);
+ensureAuctionTableCompat($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
@@ -81,6 +82,21 @@ function ensureTempPlayerColumns(PDO $pdo): void
     } catch (Throwable $e) {
         // Ignorar falhas de ALTER para compatibilidade
     }
+}
+
+function ensureAuctionTableCompat(PDO $pdo): void
+{
+    try {
+        // Permitir player_id e team_id nulos para jogadores criados sem time
+        $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN player_id INT NULL");
+    } catch (Throwable $e) { /* ignore */ }
+    try {
+        $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN team_id INT NULL");
+    } catch (Throwable $e) { /* ignore */ }
+    try {
+        // Incluir status 'pendente' e definir default como 'pendente'
+        $pdo->exec("ALTER TABLE leilao_jogadores MODIFY COLUMN status ENUM('pendente','ativo','finalizado','cancelado') DEFAULT 'pendente'");
+    } catch (Throwable $e) { /* ignore */ }
 }
 
 function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
@@ -223,7 +239,7 @@ function listarLeiloesAtivos($pdo, $league_id) {
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
-            JOIN leagues lg ON l.league_id = lg.id
+            LEFT JOIN leagues lg ON l.league_id = lg.id
             WHERE l.status = 'ativo' AND (l.data_fim IS NULL OR l.data_fim > NOW())";
     
     if ($league_id) {
@@ -251,7 +267,7 @@ function listarLeiloesAdmin($pdo) {
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
-            JOIN leagues lg ON l.league_id = lg.id
+            LEFT JOIN leagues lg ON l.league_id = lg.id
             ORDER BY l.created_at DESC";
     
     $stmt = $pdo->query($sql);
@@ -459,8 +475,12 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     $leilaoId = $pdo->lastInsertId();
 
     if ($tempPlayer) {
-        $stmtTemp = $pdo->prepare("UPDATE leilao_jogadores SET temp_name = ?, temp_position = ?, temp_age = ?, temp_ovr = ?, is_temp_player = 1 WHERE id = ?");
-        $stmtTemp->execute([$tempPlayer['name'], $tempPlayer['position'], $tempPlayer['age'], $tempPlayer['ovr'], $leilaoId]);
+        try {
+            $stmtTemp = $pdo->prepare("UPDATE leilao_jogadores SET temp_name = ?, temp_position = ?, temp_age = ?, temp_ovr = ?, is_temp_player = 1 WHERE id = ?");
+            $stmtTemp->execute([$tempPlayer['name'], $tempPlayer['position'], $tempPlayer['age'], $tempPlayer['ovr'], $leilaoId]);
+        } catch (Throwable $e) {
+            // ignora caso as colunas temporárias não existam por algum motivo
+        }
     }
     
     echo json_encode(['success' => true, 'leilao_id' => $leilaoId]);
