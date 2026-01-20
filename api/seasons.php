@@ -457,6 +457,7 @@ try {
             $data = json_decode(file_get_contents('php://input'), true);
             $league = isset($data['league']) ? strtoupper($data['league']) : null;
             $seasonId = isset($data['season_id']) ? (int)$data['season_id'] : 0;
+            $requestedStartYear = isset($data['start_year']) ? (int)$data['start_year'] : 0;
 
             if (!$league) {
                 throw new Exception('Liga não especificada');
@@ -484,11 +485,13 @@ try {
                 throw new Exception('A temporada informada não pertence à liga selecionada.');
             }
 
-            $startYear = (int)($season['start_year'] ?? 0);
-            if (!$startYear) {
-                $startYear = $season['year'] - $season['season_number'] + 1;
-                $pdo->prepare("UPDATE sprints SET start_year = ? WHERE id = ?")->execute([$startYear, $season['sprint_id']]);
-            }
+            $startYear = ensureSprintStartYear(
+                $pdo,
+                ['id' => $season['sprint_id'], 'start_year' => $season['start_year']],
+                $requestedStartYear,
+                $season['year'] ?? null,
+                $season['season_number'] ?? null
+            );
 
             $targetYears = getPickWindowYears($startYear, (int)$season['season_number']);
             $teams = fetchLeagueTeams($pdo, $league);

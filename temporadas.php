@@ -568,12 +568,16 @@ if (!$team) {
     }
 
     async function adjustSprintPicks(seasonId, league) {
-      if (!confirm('Ajustar picks deste sprint? Vamos renomear e gerar o que estiver faltando na janela atual.')) return;
+      const startYearDefault = resolveSprintStartYearFromSeason(currentSeasonData) ?? new Date().getFullYear();
+      const startYear = promptForStartYear(startYearDefault);
+      if (!startYear) return;
+
+      if (!confirm(`Ajustar picks deste sprint considerando início em ${startYear}? Vamos renomear e gerar o que estiver faltando na janela atual.`)) return;
 
       try {
         const res = await api('seasons.php?action=adjust_picks', {
           method: 'POST',
-          body: JSON.stringify({ league, season_id: seasonId })
+          body: JSON.stringify({ league, season_id: seasonId, start_year: startYear })
         });
 
         const stats = res.stats || {};
