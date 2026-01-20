@@ -5,6 +5,27 @@ const seasonsState = {
     draftPlayers: []
 };
 
+function resolveStartYear(season) {
+    if (!season) return null;
+    if (season.start_year) return Number(season.start_year);
+    if (season.year && season.season_number) {
+        return Number(season.year) - Number(season.season_number) + 1;
+    }
+    return null;
+}
+
+function promptStartYear(defaultYear) {
+    const fallback = defaultYear ?? new Date().getFullYear();
+    const input = prompt('Informe o ano inicial do sprint (ex: 2016):', fallback);
+    if (input === null) return null;
+    const parsed = parseInt(input, 10);
+    if (!parsed || parsed < 1900) {
+        alert('Ano inválido. Informe um número como 2016.');
+        return null;
+    }
+    return parsed;
+}
+
 // ========== TELA PRINCIPAL DE TEMPORADAS ==========
 async function showSeasonsManagement() {
     console.log('showSeasonsManagement chamada!'); // Debug
@@ -135,14 +156,21 @@ async function loadCurrentSeason(league) {
 
 // ========== CRIAR NOVA TEMPORADA ==========
 async function createNewSeason(league) {
-    if (!confirm(`Criar nova temporada para a liga ${league}?\n\nIsso irá:\n- Criar uma nova temporada\n- Gerar picks automaticamente (1ª e 2ª rodada) para todos os times`)) {
+    const currentSeason = await loadCurrentSeason(league);
+    const startYear = resolveStartYear(currentSeason) ?? promptStartYear(new Date().getFullYear());
+    if (!startYear) return;
+
+    const nextSeasonNumber = Number(currentSeason?.season_number || 0) + 1;
+    const seasonYear = startYear + nextSeasonNumber - 1;
+
+    if (!confirm(`Criar temporada ${String(nextSeasonNumber).padStart(2, '0')} para a liga ${league} (ano ${seasonYear})?`)) {
         return;
     }
     
     try {
         const data = await api('seasons.php?action=create_season', {
             method: 'POST',
-            body: JSON.stringify({ league })
+            body: JSON.stringify({ league, season_year: seasonYear, start_year: startYear })
         });
         
         alert(data.message);

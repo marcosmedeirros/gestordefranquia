@@ -38,6 +38,7 @@ function runMigrations() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
                 sprint_number INT NOT NULL,
+                start_year INT NULL,
                 start_date DATE NOT NULL,
                 end_date DATE NULL,
                 status ENUM('active','completed') DEFAULT 'active',
@@ -810,6 +811,15 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_trades: " . $e->getMessage();
+    }
+
+    try {
+        $hasStartYearColumn = $pdo->query("SHOW COLUMNS FROM sprints LIKE 'start_year'")->fetch();
+        if (!$hasStartYearColumn) {
+            $pdo->exec("ALTER TABLE sprints ADD COLUMN start_year INT NULL AFTER sprint_number");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_sprint_start_year: " . $e->getMessage();
     }
 
     try {

@@ -197,6 +197,8 @@ if (!$team) {
     // ========== RENDERIZAR TELA DE TEMPORADA ATIVA ==========
     function renderActiveSeasonView(league, season) {
       const container = document.getElementById('mainContainer');
+      const sprintStartYear = resolveSprintStartYearFromSeason(season);
+      const pickWindow = computePickWindowYears(season);
       
       // Verificar se sprint acabou
       const maxSeasons = getMaxSeasonsForLeague(league);
@@ -220,8 +222,11 @@ if (!$team) {
                     <p class="text-light-gray mb-0">
                       Temporada ${String(season.season_number).padStart(2, '0')} de ${maxSeasons}
                     </p>
+                    <p class="text-light-gray mb-0">
+                      Sprint iniciado em <span class="text-white fw-bold">${sprintStartYear || '??'}</span>
+                    </p>
                   </div>
-                  <span class="badge bg-gradient-orange fs-5">Ano ${String(season.season_number).padStart(2, '0')}</span>
+                  <span class="badge bg-gradient-orange fs-5">Ano ${season.year}</span>
                 </div>
                 
                 ${sprintCompleted ? `
@@ -269,6 +274,23 @@ if (!$team) {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <div class="card bg-dark-panel border-info mb-4" style="border-radius: 15px;">
+          <div class="card-body d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+            <div>
+              <h5 class="text-white mb-1">
+                <i class="bi bi-lightning-charge text-info me-2"></i>
+                Janela de Picks do Sprint
+              </h5>
+              <p class="text-light-gray mb-0">
+                ${pickWindow.length ? `Picks ativas: ${pickWindow.join(', ')}` : 'Defina o ano inicial do sprint para gerar as picks corretamente.'}
+              </p>
+            </div>
+            <button class="btn btn-outline-info" onclick="adjustSprintPicks(${season.id}, '${league}')">
+              <i class="bi bi-wrench-adjustable-circle me-2"></i>Ajustar Picks
+            </button>
           </div>
         </div>
         
@@ -466,28 +488,47 @@ if (!$team) {
       }
     }
 
-    // ========== INICIAR NOVA TEMPORADA ==========
-    function requestSeasonYear(defaultYear) {
-      const fallback = defaultYear ?? (currentSeasonData ? currentSeasonData.year + 1 : new Date().getFullYear() + 1);
-      const input = prompt('Informe o ano civil em que esta temporada inicia (ex: 2026):', fallback);
+    function resolveSprintStartYearFromSeason(season) {
+      if (!season) return null;
+      if (season.start_year) return Number(season.start_year);
+      if (season.year && season.season_number) {
+        return Number(season.year) - Number(season.season_number) + 1;
+      }
+      return null;
+    }
+
+    function computePickWindowYears(season) {
+      const startYear = resolveSprintStartYearFromSeason(season);
+      if (!startYear || !season) return [];
+      const seasonNumber = Number(season.season_number || 1);
+      const windowStart = startYear + seasonNumber;
+      return Array.from({ length: 5 }, (_, idx) => windowStart + idx);
+    }
+
+    function promptForStartYear(defaultYear) {
+      const fallback = defaultYear ?? new Date().getFullYear();
+      const input = prompt('Informe o ano inicial do sprint (ex: 2016):', fallback);
       if (input === null) return null;
       const parsed = parseInt(input, 10);
-      if (!parsed || parsed < 2000) {
-        alert('Ano inválido. Informe um número como 2026.');
+      if (!parsed || parsed < 1900) {
+        alert('Ano inválido. Informe um número como 2016.');
         return null;
       }
       return parsed;
     }
 
+    // ========== INICIAR NOVA TEMPORADA ==========
     async function startNewSeason(league) {
-      const seasonYear = requestSeasonYear();
-      if (!seasonYear) return;
-      if (!confirm(`Iniciar uma nova temporada para a liga ${league} no ano ${seasonYear}?`)) return;
+      const fallbackStart = resolveSprintStartYearFromSeason(currentSeasonData) ?? new Date().getFullYear();
+      const startYear = promptForStartYear(fallbackStart);
+      if (!startYear) return;
+      const seasonYear = startYear;
+      if (!confirm(`Iniciar uma nova temporada para a liga ${league} com sprint começando em ${startYear}?`)) return;
 
       try {
         await api('seasons.php?action=create_season', {
           method: 'POST',
-          body: JSON.stringify({ league, season_year: seasonYear })
+          body: JSON.stringify({ league, season_year: seasonYear, start_year: startYear })
         });
 
         alert('Nova temporada iniciada com sucesso!');
@@ -499,21 +540,48 @@ if (!$team) {
 
     // ========== AVANÇAR PARA PRÓXIMA TEMPORADA ==========
     async function advanceToNextSeason(league) {
-      const nextYear = currentSeasonData ? currentSeasonData.year + 1 : new Date().getFullYear() + 1;
-      const seasonYear = requestSeasonYear(nextYear);
-      if (!seasonYear) return;
-      if (!confirm(`Avançar para a próxima temporada da liga ${league} (ano ${seasonYear})?`)) return;
+      if (!currentSeasonData) {
+        return startNewSeason(league);
+      }
+
+      let sprintStart = resolveSprintStartYearFromSeason(currentSeasonData);
+      if (!sprintStart) {
+        sprintStart = promptForStartYear(new Date().getFullYear());
+      }
+      if (!sprintStart) return;
+
+      const nextSeasonNumber = Number(currentSeasonData.season_number || 0) + 1;
+      const seasonYear = sprintStart + nextSeasonNumber - 1;
+      if (!confirm(`Avançar para a próxima temporada da liga ${league} (Temporada ${String(nextSeasonNumber).padStart(2, '0')} - ano ${seasonYear})?`)) return;
 
       try {
         await api('seasons.php?action=create_season', {
           method: 'POST',
-          body: JSON.stringify({ league, season_year: seasonYear })
+          body: JSON.stringify({ league, season_year: seasonYear, start_year: sprintStart })
         });
 
         alert('Avançado para próxima temporada!');
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao avançar: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    async function adjustSprintPicks(seasonId, league) {
+      if (!confirm('Ajustar picks deste sprint? Vamos renomear e gerar o que estiver faltando na janela atual.')) return;
+
+      try {
+        const res = await api('seasons.php?action=adjust_picks', {
+          method: 'POST',
+          body: JSON.stringify({ league, season_id: seasonId })
+        });
+
+        const stats = res.stats || {};
+        const window = res.target_years ? res.target_years.join(', ') : 'N/D';
+        alert(`Picks ajustadas!\nJanela: ${window}\nNovas: ${stats.created || 0} | Renomeadas: ${stats.renamed || 0} | Removidas: ${stats.deleted || 0}`);
+        showLeagueManagement(league);
+      } catch (e) {
+        alert('Erro ao ajustar picks: ' + (e.error || 'Desconhecido'));
       }
     }
 

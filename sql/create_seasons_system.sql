@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS sprints (
     id INT AUTO_INCREMENT PRIMARY KEY,
     league ENUM('ELITE', 'NEXT', 'RISE', 'ROOKIE') NOT NULL,
     sprint_number INT NOT NULL,
+    start_year INT NULL,
     start_date DATE NOT NULL,
     end_date DATE,
     status ENUM('active', 'completed') DEFAULT 'active',

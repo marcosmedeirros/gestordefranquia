@@ -49,6 +49,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Garantir que o menu tenha o link para Jogadores
+    const sidebarMenu = sidebar.querySelector('.sidebar-menu');
+    if (sidebarMenu && !sidebarMenu.querySelector('a[href="/players.php"]')) {
+        const playersItem = document.createElement('li');
+        const currentPath = window.location.pathname.replace(/\/$/, '');
+        const isActive = currentPath === '/players.php';
+        playersItem.innerHTML = `
+            <a href="/players.php" class="${isActive ? 'active' : ''}">
+                <i class="bi bi-person-lines-fill"></i>
+                Jogadores
+            </a>`;
+        const picksLink = sidebarMenu.querySelector('a[href="/picks.php"]');
+        if (picksLink && picksLink.parentElement) {
+            picksLink.parentElement.insertAdjacentElement('afterend', playersItem);
+        } else {
+            sidebarMenu.appendChild(playersItem);
+        }
+    }
+    
     // Fechar ao pressionar ESC
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && sidebar.classList.contains('active')) {
