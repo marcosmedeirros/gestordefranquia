@@ -22,6 +22,7 @@ $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
+ensureTempPlayerColumns($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
@@ -66,6 +67,22 @@ function playerOvrColumn(PDO $pdo): string
     return $stmt && $stmt->rowCount() > 0 ? 'ovr' : 'overall';
 }
 
+function ensureTempPlayerColumns(PDO $pdo): void
+{
+    try {
+        $pdo->exec("
+            ALTER TABLE leilao_jogadores 
+            ADD COLUMN IF NOT EXISTS temp_name VARCHAR(120) NULL,
+            ADD COLUMN IF NOT EXISTS temp_position VARCHAR(10) NULL,
+            ADD COLUMN IF NOT EXISTS temp_age INT NULL,
+            ADD COLUMN IF NOT EXISTS temp_ovr INT NULL,
+            ADD COLUMN IF NOT EXISTS is_temp_player TINYINT(1) DEFAULT 0
+        ");
+    } catch (Throwable $e) {
+        // Ignorar falhas de ALTER para compatibilidade
+    }
+}
+
 function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
 {
     $name = trim((string)($new_player['name'] ?? ''));
@@ -77,41 +94,9 @@ function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int 
         throw new InvalidArgumentException('Dados do novo jogador incompletos');
     }
 
-    $team_id = $_SESSION['team_id'] ?? null;
-    $ovrColumn = playerOvrColumn($pdo);
-
-    if (!$team_id) {
-        $leagueName = null;
-        if ($league_id) {
-            $stmt = $pdo->prepare("SELECT name FROM leagues WHERE id = ? LIMIT 1");
-            $stmt->execute([$league_id]);
-            $leagueRow = $stmt->fetch(PDO::FETCH_ASSOC);
-            $leagueName = $leagueRow['name'] ?? null;
-        }
-        if (teamColumnExists($pdo, 'league') && $leagueName) {
-            $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
-            $stmt->execute([$user_id, $leagueName]);
-        } else {
-            $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
-            $stmt->execute([$user_id]);
-        }
-        $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($teamRow) {
-            $team_id = (int) $teamRow['id'];
-        }
-    }
-
-    if (!$team_id) {
-        throw new RuntimeException('Nao foi possivel definir um time para criar o jogador');
-    }
-
-    $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$team_id, $name, $age, $position, $ovr]);
-    $player_id = $pdo->lastInsertId();
-
     return [
-        'player_id' => (int)$player_id,
-        'team_id' => (int)$team_id,
+        'player_id' => null,
+        'team_id' => null,
         'name' => $name,
         'position' => $position,
         'age' => $age,
@@ -207,13 +192,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 function listarLeiloesAtivos($pdo, $league_id) {
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.age, p.{$ovrColumn} as ovr,
+                   COALESCE(l.temp_name, p.name) as player_name, 
+                   COALESCE(l.temp_position, p.position) as position, 
+                   COALESCE(l.temp_age, p.age) as age, 
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
                    t.name as team_name,
                    lg.name as league_name,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
             FROM leilao_jogadores l
-            JOIN players p ON l.player_id = p.id
-            JOIN teams t ON l.team_id = t.id
+            LEFT JOIN players p ON l.player_id = p.id
+            LEFT JOIN teams t ON l.team_id = t.id
             JOIN leagues lg ON l.league_id = lg.id
             WHERE l.status = 'ativo' AND (l.data_fim IS NULL OR l.data_fim > NOW())";
     
@@ -232,13 +220,16 @@ function listarLeiloesAtivos($pdo, $league_id) {
 function listarLeiloesAdmin($pdo) {
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.age, p.{$ovrColumn} as ovr,
+                   COALESCE(l.temp_name, p.name) as player_name, 
+                   COALESCE(l.temp_position, p.position) as position, 
+                   COALESCE(l.temp_age, p.age) as age, 
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
                    t.name as team_name,
                    lg.name as league_name,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
             FROM leilao_jogadores l
-            JOIN players p ON l.player_id = p.id
-            JOIN teams t ON l.team_id = t.id
+            LEFT JOIN players p ON l.player_id = p.id
+            LEFT JOIN teams t ON l.team_id = t.id
             JOIN leagues lg ON l.league_id = lg.id
             ORDER BY l.created_at DESC";
     
@@ -255,13 +246,13 @@ function minhasPropostas($pdo, $team_id) {
     
     $sql = "SELECT lp.*, 
                    l.player_id,
-                   p.name as player_name,
+                   COALESCE(l.temp_name, p.name) as player_name,
                    t.name as team_name,
                    GROUP_CONCAT(po.name SEPARATOR ', ') as jogadores_oferecidos
             FROM leilao_propostas lp
             JOIN leilao_jogadores l ON lp.leilao_id = l.id
-            JOIN players p ON l.player_id = p.id
-            JOIN teams t ON l.team_id = t.id
+            LEFT JOIN players p ON l.player_id = p.id
+            LEFT JOIN teams t ON l.team_id = t.id
             LEFT JOIN leilao_proposta_jogadores lpj ON lp.id = lpj.proposta_id
             LEFT JOIN players po ON lpj.player_id = po.id
             WHERE lp.team_id = ?
@@ -283,10 +274,12 @@ function propostasRecebidas($pdo, $team_id) {
     // Buscar leiloes dos meus jogadores que tem propostas
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
-                   p.name as player_name, p.position, p.{$ovrColumn} as ovr,
+                   COALESCE(l.temp_name, p.name) as player_name, 
+                   COALESCE(l.temp_position, p.position) as position, 
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
             FROM leilao_jogadores l
-            JOIN players p ON l.player_id = p.id
+            LEFT JOIN players p ON l.player_id = p.id
             WHERE l.team_id = ? AND l.status = 'ativo'
             HAVING total_propostas > 0";
     
@@ -336,12 +329,14 @@ function historicoLeiloes($pdo, $league_id) {
         $where .= " AND l.league_id = ?";
         $params[] = $league_id;
     }
-    $sql = "SELECT l.id, l.data_fim, p.name as player_name,
-                   t.name as team_name,
+    $ovrColumn = playerOvrColumn($pdo);
+    $sql = "SELECT l.id, l.data_fim, 
+                   COALESCE(l.temp_name, p.name) as player_name,
+                   COALESCE(t.name, 'Sem time') as team_name,
                    tw.city as winner_city, tw.name as winner_name
             FROM leilao_jogadores l
-            JOIN players p ON l.player_id = p.id
-            JOIN teams t ON l.team_id = t.id
+            LEFT JOIN players p ON l.player_id = p.id
+            LEFT JOIN teams t ON l.team_id = t.id
             LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
             LEFT JOIN teams tw ON lp.team_id = tw.id
             WHERE {$where}
@@ -382,11 +377,11 @@ function cadastrarLeilao($pdo, $body, $user_id) {
         return;
     }
 
+    $tempPlayer = null;
+
     if ($new_player) {
         try {
-            $created = criarJogadorParaLeilao($pdo, $new_player, $user_id, $league_id);
-            $player_id = $created['player_id'];
-            $team_id = $created['team_id'];
+            $tempPlayer = criarJogadorParaLeilao($pdo, $new_player, $user_id, $league_id);
         } catch (Throwable $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             return;
@@ -417,8 +412,14 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     $stmt = $pdo->prepare("INSERT INTO leilao_jogadores (player_id, team_id, league_id, data_inicio, data_fim, status, created_at) 
                            VALUES (?, ?, ?, ?, ?, 'ativo', NOW())");
     $stmt->execute([$player_id, $team_id, $league_id, $data_inicio, $data_fim]);
+    $leilaoId = $pdo->lastInsertId();
+
+    if ($tempPlayer) {
+        $stmtTemp = $pdo->prepare("UPDATE leilao_jogadores SET temp_name = ?, temp_position = ?, temp_age = ?, temp_ovr = ?, is_temp_player = 1 WHERE id = ?");
+        $stmtTemp->execute([$tempPlayer['name'], $tempPlayer['position'], $tempPlayer['age'], $tempPlayer['ovr'], $leilaoId]);
+    }
     
-    echo json_encode(['success' => true, 'leilao_id' => $pdo->lastInsertId()]);
+    echo json_encode(['success' => true, 'leilao_id' => $leilaoId]);
 }
 
 function cancelarLeilao($pdo, $body) {
@@ -529,7 +530,8 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     }
     
     // Buscar proposta e leilao
-    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id, l.data_fim
+    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id, l.data_fim,
+                           l.is_temp_player, l.temp_name, l.temp_position, l.temp_age, l.temp_ovr
                            FROM leilao_propostas lp
                            JOIN leilao_jogadores l ON lp.leilao_id = l.id
                            WHERE lp.id = ?");
@@ -542,9 +544,15 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     }
     
     // Verificar se e dono do jogador ou admin
-    if (!$is_admin && $proposta['leilao_team_id'] != $team_id) {
-        echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-        return;
+    if (!$is_admin) {
+        if (!empty($proposta['leilao_team_id']) && $proposta['leilao_team_id'] != $team_id) {
+            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+            return;
+        }
+        if (empty($proposta['leilao_team_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Somente admin pode aceitar este leilao sem time de origem']);
+            return;
+        }
     }
 
     if (!empty($proposta['data_fim']) && strtotime($proposta['data_fim']) > time()) {
@@ -572,13 +580,36 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         $stmt->execute([$proposta_id]);
         $jogadores_oferecidos = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
-        // Transferir jogador do leilao para o time que fez a proposta
-        $stmt = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
-        $stmt->execute([$proposta['team_id'], $proposta['player_id']]);
+        $winnerTeamId = $proposta['team_id'];
+
+        $transferStmt = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
+
+        // Se for jogador criado especificamente para o leilao, criar no time vencedor agora
+        if (empty($proposta['player_id']) && !empty($proposta['is_temp_player'])) {
+            $ovrColumn = playerOvrColumn($pdo);
+            $stmtCreate = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
+            $stmtCreate->execute([
+                $winnerTeamId,
+                $proposta['temp_name'],
+                $proposta['temp_age'],
+                $proposta['temp_position'],
+                $proposta['temp_ovr']
+            ]);
+            $proposta['player_id'] = $pdo->lastInsertId();
+            $updateLeilao = $pdo->prepare("UPDATE leilao_jogadores SET player_id = ?, team_id = ? WHERE id = ?");
+            $updateLeilao->execute([$proposta['player_id'], $winnerTeamId, $proposta['leilao_id']]);
+        }
+
+        // Transferir jogador do leilao para o time que fez a proposta (se existir player_id)
+        if (!empty($proposta['player_id'])) {
+            $transferStmt->execute([$winnerTeamId, $proposta['player_id']]);
+        }
         
         // Transferir jogadores oferecidos para o time do leilao
-        foreach ($jogadores_oferecidos as $player_id) {
-            $stmt->execute([$proposta['leilao_team_id'], $player_id]);
+        if (!empty($proposta['leilao_team_id'])) {
+            foreach ($jogadores_oferecidos as $player_id) {
+                $transferStmt->execute([$proposta['leilao_team_id'], $player_id]);
+            }
         }
         
         $pdo->commit();

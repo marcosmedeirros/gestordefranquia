@@ -49,9 +49,8 @@ function setupAdminEvents() {
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
         const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value);
-        const hasSelectedPlayer = !!(selectedPlayerIdInput?.value);
         const hasLeague = !!selectLeague.value;
-        btnCadastrar.disabled = isCreate ? !(hasSelectedPlayer && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
+        btnCadastrar.disabled = isCreate ? !(createReady && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
         if (createBtn) {
             createBtn.disabled = !(isCreate && createReady && hasLeague);
         }
@@ -286,10 +285,11 @@ async function carregarLeiloesAdmin() {
                     : leilao.status === 'finalizado'
                     ? '<span class="badge bg-secondary">Finalizado</span>'
                     : '<span class="badge bg-warning">Pendente</span>';
+                const teamLabel = leilao.team_name || 'Sem time';
                 
                 html += `<tr>
                     <td><strong class="text-orange">${leilao.player_name}</strong><br><small class="text-light-gray">${leilao.position} | OVR ${leilao.ovr}</small></td>
-                    <td>${leilao.team_name}</td>
+                    <td>${teamLabel}</td>
                     <td>${leilao.league_name}</td>
                     <td>${statusBadge}</td>
                     <td><span class="badge bg-info">${leilao.total_propostas || 0}</span></td>
@@ -365,6 +365,7 @@ async function carregarLeiloesAtivos() {
                 const isMyTeam = leilao.team_id == userTeamId;
                 const cardClass = isMyTeam ? 'border-warning' : 'border-secondary';
                 
+                const teamLabel = leilao.team_name || 'Sem time';
                 html += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card bg-dark text-white ${cardClass}">
@@ -375,7 +376,7 @@ async function carregarLeiloesAtivos() {
                         <div class="card-body">
                             <p class="mb-1"><i class="bi bi-person"></i> ${leilao.position} | ${leilao.age} anos</p>
                             <p class="mb-1"><i class="bi bi-star-fill text-warning"></i> OVR: ${leilao.ovr}</p>
-                            <p class="mb-1"><i class="bi bi-building"></i> Time: ${leilao.team_name}</p>
+                            <p class="mb-1"><i class="bi bi-building"></i> Time: ${teamLabel}</p>
                             <p class="mb-2"><i class="bi bi-trophy"></i> Liga: ${leilao.league_name}</p>
                             ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}">20:00</span></p>` : ''}
                             <hr>

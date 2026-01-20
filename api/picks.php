@@ -131,11 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         exit;
     }
 
-    if ((int)$pick['auto_generated'] === 1) {
-        echo json_encode(['success' => false, 'error' => 'Picks automáticas não podem ser editadas']);
-        exit;
-    }
-
     // Verificar conflito de duplicidade
     $stmtDup = $pdo->prepare('
         SELECT id FROM picks 

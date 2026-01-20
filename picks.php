@@ -199,7 +199,8 @@ $picks = $stmtPicks->fetchAll();
                               data-year="<?= (int)$pick['season_year'] ?>" 
                               data-round="<?= htmlspecialchars($pick['round']) ?>" 
                               data-original-team-id="<?= (int)$pick['original_team_id'] ?>" 
-                              data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>">
+                              data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>"
+                              data-auto="<?= (int)($pick['auto_generated'] ?? 0) ?>">
                                 <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
                                 <td>
                                     <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
@@ -225,18 +226,16 @@ $picks = $stmtPicks->fetchAll();
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end">
-                                    <?php if (empty($pick['auto_generated'])): ?>
-                                        <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-light" onclick="openEditPick(this)">
-                                                <i class="bi bi-pencil-square"></i>
-                                            </button>
-                                            <button class="btn btn-outline-danger" onclick="deletePick(<?= (int)$pick['id'] ?>)">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    <?php else: ?>
-                                        <span class="text-light-gray small">-</span>
-                                    <?php endif; ?>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-light" onclick="openEditPick(this)">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        <?php if (empty($pick['auto_generated'])): ?>
+                                        <button class="btn btn-outline-danger" onclick="deletePick(<?= (int)$pick['id'] ?>)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -305,12 +304,14 @@ $picks = $stmtPicks->fetchAll();
             const round = row.dataset.round;
             const origin = row.dataset.originalTeamId;
             const notes = row.dataset.notes || '';
+            const isAuto = row.dataset.auto === '1';
 
             document.getElementById('editPickId').value = id;
             document.getElementById('editPickYear').value = year;
             document.getElementById('editPickRound').value = round;
             document.getElementById('editPickOrigin').value = origin;
             document.getElementById('editPickNotes').value = notes;
+            document.getElementById('editPickNotes').placeholder = isAuto ? 'Esta pick era auto; edições salvam como manual' : '';
 
             if (!editModal) {
                 editModal = new bootstrap.Modal(document.getElementById('editPickModal'));
