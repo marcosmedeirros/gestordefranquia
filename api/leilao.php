@@ -66,6 +66,59 @@ function playerOvrColumn(PDO $pdo): string
     return $stmt && $stmt->rowCount() > 0 ? 'ovr' : 'overall';
 }
 
+function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
+{
+    $name = trim((string)($new_player['name'] ?? ''));
+    $position = trim((string)($new_player['position'] ?? ''));
+    $age = (int)($new_player['age'] ?? 0);
+    $ovr = (int)($new_player['ovr'] ?? 0);
+
+    if (!$name || !$position || !$age || !$ovr) {
+        throw new InvalidArgumentException('Dados do novo jogador incompletos');
+    }
+
+    $team_id = $_SESSION['team_id'] ?? null;
+    $ovrColumn = playerOvrColumn($pdo);
+
+    if (!$team_id) {
+        $leagueName = null;
+        if ($league_id) {
+            $stmt = $pdo->prepare("SELECT name FROM leagues WHERE id = ? LIMIT 1");
+            $stmt->execute([$league_id]);
+            $leagueRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            $leagueName = $leagueRow['name'] ?? null;
+        }
+        if (teamColumnExists($pdo, 'league') && $leagueName) {
+            $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
+            $stmt->execute([$user_id, $leagueName]);
+        } else {
+            $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+            $stmt->execute([$user_id]);
+        }
+        $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($teamRow) {
+            $team_id = (int) $teamRow['id'];
+        }
+    }
+
+    if (!$team_id) {
+        throw new RuntimeException('Nao foi possivel definir um time para criar o jogador');
+    }
+
+    $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
+    $stmt->execute([$team_id, $name, $age, $position, $ovr]);
+    $player_id = $pdo->lastInsertId();
+
+    return [
+        'player_id' => (int)$player_id,
+        'team_id' => (int)$team_id,
+        'name' => $name,
+        'position' => $position,
+        'age' => $age,
+        'ovr' => $ovr
+    ];
+}
+
 // GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
@@ -113,6 +166,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
             cadastrarLeilao($pdo, $body, $user_id);
+            break;
+        case 'criar_jogador':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            try {
+                $created = criarJogadorParaLeilao($pdo, $body['new_player'] ?? [], $user_id, $body['league_id'] ?? null);
+                echo json_encode(['success' => true] + $created);
+            } catch (Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
             break;
         case 'cancelar':
             if (!$is_admin) {
@@ -310,49 +376,21 @@ function cadastrarLeilao($pdo, $body, $user_id) {
     $data_inicio = $body['data_inicio'] ?? null;
     $data_fim = $body['data_fim'] ?? null;
     $new_player = $body['new_player'] ?? null;
-    
+
     if ((!$player_id && !$new_player) || !$league_id) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
         return;
     }
 
     if ($new_player) {
-        $name = trim((string)($new_player['name'] ?? ''));
-        $position = trim((string)($new_player['position'] ?? ''));
-        $age = (int)($new_player['age'] ?? 0);
-        $ovr = (int)($new_player['ovr'] ?? 0);
-        if (!$name || !$position || !$age || !$ovr) {
-            echo json_encode(['success' => false, 'error' => 'Dados do novo jogador incompletos']);
+        try {
+            $created = criarJogadorParaLeilao($pdo, $new_player, $user_id, $league_id);
+            $player_id = $created['player_id'];
+            $team_id = $created['team_id'];
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             return;
         }
-        $ovrColumn = playerOvrColumn($pdo);
-        if (!$team_id) {
-            $leagueName = null;
-            if ($league_id) {
-                $stmt = $pdo->prepare("SELECT name FROM leagues WHERE id = ? LIMIT 1");
-                $stmt->execute([$league_id]);
-                $leagueRow = $stmt->fetch(PDO::FETCH_ASSOC);
-                $leagueName = $leagueRow['name'] ?? null;
-            }
-            if (teamColumnExists($pdo, 'league') && $leagueName) {
-                $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1");
-                $stmt->execute([$user_id, $leagueName]);
-            } else {
-                $stmt = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
-                $stmt->execute([$user_id]);
-            }
-            $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($teamRow) {
-                $team_id = (int) $teamRow['id'];
-            }
-        }
-        if (!$team_id) {
-            echo json_encode(['success' => false, 'error' => 'Nao foi possivel definir um time para criar o jogador']);
-            return;
-        }
-        $stmt = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$team_id, $name, $age, $position, $ovr]);
-        $player_id = $pdo->lastInsertId();
     }
 
     if ($player_id && !$team_id) {

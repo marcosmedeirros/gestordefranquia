@@ -198,7 +198,6 @@ if (!$team) {
     function renderActiveSeasonView(league, season) {
       const container = document.getElementById('mainContainer');
       const sprintStartYear = resolveSprintStartYearFromSeason(season);
-      const pickWindow = computePickWindowYears(season);
       
       // Verificar se sprint acabou
       const maxSeasons = getMaxSeasonsForLeague(league);
@@ -274,23 +273,6 @@ if (!$team) {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <div class="card bg-dark-panel border-info mb-4" style="border-radius: 15px;">
-          <div class="card-body d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-            <div>
-              <h5 class="text-white mb-1">
-                <i class="bi bi-lightning-charge text-info me-2"></i>
-                Janela de Picks do Sprint
-              </h5>
-              <p class="text-light-gray mb-0">
-                ${pickWindow.length ? `Picks ativas: ${pickWindow.join(', ')}` : 'Defina o ano inicial do sprint para gerar as picks corretamente.'}
-              </p>
-            </div>
-            <button class="btn btn-outline-info" onclick="adjustSprintPicks(${season.id}, '${league}')">
-              <i class="bi bi-wrench-adjustable-circle me-2"></i>Ajustar Picks
-            </button>
           </div>
         </div>
         
@@ -497,14 +479,6 @@ if (!$team) {
       return null;
     }
 
-    function computePickWindowYears(season) {
-      const startYear = resolveSprintStartYearFromSeason(season);
-      if (!startYear || !season) return [];
-      const seasonNumber = Number(season.season_number || 1);
-      const windowStart = startYear + seasonNumber;
-      return Array.from({ length: 5 }, (_, idx) => windowStart + idx);
-    }
-
     function promptForStartYear(defaultYear) {
       const fallback = defaultYear ?? new Date().getFullYear();
       const input = prompt('Informe o ano inicial do sprint (ex: 2016):', fallback);
@@ -564,28 +538,6 @@ if (!$team) {
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao avançar: ' + (e.error || 'Desconhecido'));
-      }
-    }
-
-    async function adjustSprintPicks(seasonId, league) {
-      const startYearDefault = resolveSprintStartYearFromSeason(currentSeasonData) ?? new Date().getFullYear();
-      const startYear = promptForStartYear(startYearDefault);
-      if (!startYear) return;
-
-      if (!confirm(`Ajustar picks deste sprint considerando início em ${startYear}? Vamos renomear e gerar o que estiver faltando na janela atual.`)) return;
-
-      try {
-        const res = await api('seasons.php?action=adjust_picks', {
-          method: 'POST',
-          body: JSON.stringify({ league, season_id: seasonId, start_year: startYear })
-        });
-
-        const stats = res.stats || {};
-        const window = res.target_years ? res.target_years.join(', ') : 'N/D';
-        alert(`Picks ajustadas!\nJanela: ${window}\nNovas: ${stats.created || 0} | Renomeadas: ${stats.renamed || 0} | Removidas: ${stats.deleted || 0}`);
-        showLeagueManagement(league);
-      } catch (e) {
-        alert('Erro ao ajustar picks: ' + (e.error || 'Desconhecido'));
       }
     }
 

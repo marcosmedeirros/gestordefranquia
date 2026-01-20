@@ -285,6 +285,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                             <label for="auctionPlayerOvr" class="form-label">OVR</label>
                                             <input type="number" id="auctionPlayerOvr" class="form-control" value="70">
                                         </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-success w-100" type="button" id="btnCriarJogadorLeilao">
+                                                <i class="bi bi-plus-circle me-1"></i>Criar jogador
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

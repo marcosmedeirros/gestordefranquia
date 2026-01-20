@@ -181,19 +181,25 @@ $picks = $stmtPicks->fetchAll();
                         <th class="text-white fw-bold">Rodada</th>
                         <th class="text-white fw-bold">Origem</th>
                         <th class="text-white fw-bold text-end">Status</th>
+                        <th class="text-white fw-bold text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody id="picksTableBody">
                     <?php if (count($picks) === 0): ?>
                         <tr>
-                            <td colspan="4" class="text-center text-light-gray py-4">
+                            <td colspan="5" class="text-center text-light-gray py-4">
                                 <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
                                 Nenhuma pick ainda. As picks serão geradas automaticamente quando o admin criar uma temporada.
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($picks as $pick): ?>
-                            <tr>
+                            <tr 
+                              data-pick-id="<?= (int)$pick['id'] ?>" 
+                              data-year="<?= (int)$pick['season_year'] ?>" 
+                              data-round="<?= htmlspecialchars($pick['round']) ?>" 
+                              data-original-team-id="<?= (int)$pick['original_team_id'] ?>" 
+                              data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>">
                                 <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
                                 <td>
                                     <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
@@ -218,6 +224,20 @@ $picks = $stmtPicks->fetchAll();
                                         <span class="badge bg-secondary">Manual</span>
                                     <?php endif; ?>
                                 </td>
+                                <td class="text-end">
+                                    <?php if (empty($pick['auto_generated'])): ?>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-light" onclick="openEditPick(this)">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="deletePick(<?= (int)$pick['id'] ?>)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="text-light-gray small">-</span>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -229,8 +249,117 @@ $picks = $stmtPicks->fetchAll();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script src="/js/pwa.js"></script>
+
+    <!-- Modal Editar Pick -->
+    <div class="modal fade" id="editPickModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white border border-orange">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil-square text-orange me-2"></i>Editar pick</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editPickId">
+                    <div class="mb-3">
+                        <label class="form-label">Ano</label>
+                        <input type="number" class="form-control bg-dark text-white border-orange" id="editPickYear" min="2000">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rodada</label>
+                        <select class="form-select bg-dark text-white border-orange" id="editPickRound">
+                            <option value="1">1ª rodada</option>
+                            <option value="2">2ª rodada</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Origem</label>
+                        <select class="form-select bg-dark text-white border-orange" id="editPickOrigin">
+                            <?php foreach ($allTeams as $t): ?>
+                                <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">Notas (opcional)</label>
+                        <input type="text" class="form-control bg-dark text-white border-orange" id="editPickNotes" maxlength="255">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-orange" id="savePickBtn">
+                        <i class="bi bi-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Nenhuma ação adicional necessária nas picks no momento.
+        const teamsOptions = <?= json_encode($allTeams) ?>;
+        let editModal = null;
+
+        function openEditPick(button) {
+            const row = button.closest('tr');
+            const id = row.dataset.pickId;
+            const year = row.dataset.year;
+            const round = row.dataset.round;
+            const origin = row.dataset.originalTeamId;
+            const notes = row.dataset.notes || '';
+
+            document.getElementById('editPickId').value = id;
+            document.getElementById('editPickYear').value = year;
+            document.getElementById('editPickRound').value = round;
+            document.getElementById('editPickOrigin').value = origin;
+            document.getElementById('editPickNotes').value = notes;
+
+            if (!editModal) {
+                editModal = new bootstrap.Modal(document.getElementById('editPickModal'));
+            }
+            editModal.show();
+        }
+
+        document.getElementById('savePickBtn')?.addEventListener('click', async () => {
+            const id = document.getElementById('editPickId').value;
+            const year = parseInt(document.getElementById('editPickYear').value, 10);
+            const round = document.getElementById('editPickRound').value;
+            const original_team_id = document.getElementById('editPickOrigin').value;
+            const notes = document.getElementById('editPickNotes').value.trim();
+
+            if (!year || year < 2000) {
+                alert('Informe um ano válido');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/picks.php', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, year, round, original_team_id, notes })
+                });
+                const body = await res.json();
+                if (!res.ok || !body.success) {
+                    throw new Error(body.error || 'Erro ao salvar');
+                }
+                editModal?.hide();
+                location.reload();
+            } catch (err) {
+                alert(err.message || 'Erro ao salvar pick');
+            }
+        });
+
+        async function deletePick(id) {
+            if (!confirm('Deseja excluir esta pick manual?')) return;
+            try {
+                const res = await fetch(`/api/picks.php?id=${id}`, { method: 'DELETE' });
+                const body = await res.json();
+                if (!res.ok || !body.success) {
+                    throw new Error(body.error || 'Erro ao excluir');
+                }
+                location.reload();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir pick');
+            }
+        }
     </script>
 </body>
 </html>

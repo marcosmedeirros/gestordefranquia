@@ -38,6 +38,7 @@ function setupAdminEvents() {
     const createAgeInput = document.getElementById('auctionPlayerAge');
     const createOvrInput = document.getElementById('auctionPlayerOvr');
     const searchBtn = document.getElementById('auctionSearchBtn');
+    const createBtn = document.getElementById('btnCriarJogadorLeilao');
 
     if (!selectLeague || !btnCadastrar) {
         return;
@@ -48,8 +49,12 @@ function setupAdminEvents() {
         if (searchArea) searchArea.style.display = isCreate ? 'none' : 'block';
         if (createArea) createArea.style.display = isCreate ? 'block' : 'none';
         const createReady = !!(createNameInput?.value.trim() && createPositionSelect?.value && createAgeInput?.value && createOvrInput?.value);
+        const hasSelectedPlayer = !!(selectedPlayerIdInput?.value);
         const hasLeague = !!selectLeague.value;
-        btnCadastrar.disabled = isCreate ? !(createReady && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
+        btnCadastrar.disabled = isCreate ? !(hasSelectedPlayer && hasLeague) : !(selectedPlayerIdInput?.value && hasLeague);
+        if (createBtn) {
+            createBtn.disabled = !(isCreate && createReady && hasLeague);
+        }
     };
 
     modeSearch?.addEventListener('change', setMode);
@@ -69,6 +74,7 @@ function setupAdminEvents() {
     });
 
     btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
+    createBtn?.addEventListener('click', criarJogadorParaLista);
 
     searchBtn?.addEventListener('click', async () => {
         const term = searchInput.value.trim();
@@ -205,7 +211,60 @@ async function cadastrarJogadorLeilao() {
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao cadastrar jogador no leilao');
+            alert('Erro ao cadastrar jogador no leilao');
+    }
+}
+
+async function criarJogadorParaLista() {
+    const leagueId = document.getElementById('selectLeague')?.value;
+    const name = document.getElementById('auctionPlayerName')?.value.trim();
+    const position = document.getElementById('auctionPlayerPosition')?.value;
+    const age = parseInt(document.getElementById('auctionPlayerAge')?.value || '0', 10);
+    const ovr = parseInt(document.getElementById('auctionPlayerOvr')?.value || '0', 10);
+
+    if (!leagueId) {
+        alert('Selecione a liga antes de criar o jogador.');
+        return;
+    }
+    if (!name || !position || !age || !ovr) {
+        alert('Preencha nome, posição, idade e OVR para criar o jogador.');
+        return;
+    }
+
+    try {
+        const res = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'criar_jogador',
+                league_id: leagueId,
+                new_player: { name, position, age, ovr }
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Erro ao criar jogador');
+        }
+
+        const selectedPlayerIdInput = document.getElementById('auctionSelectedPlayerId');
+        const selectedTeamIdInput = document.getElementById('auctionSelectedTeamId');
+        const selectedLabel = document.getElementById('auctionSelectedLabel');
+        const btnCadastrar = document.getElementById('btnCadastrarLeilao');
+        const modeCreate = document.getElementById('auctionModeCreate');
+
+        if (selectedPlayerIdInput) selectedPlayerIdInput.value = data.player_id;
+        if (selectedTeamIdInput) selectedTeamIdInput.value = data.team_id || '';
+        if (selectedLabel) {
+            selectedLabel.textContent = `Criado: ${data.name} (${data.position}, OVR ${data.ovr})`;
+            selectedLabel.style.display = 'block';
+        }
+        if (modeCreate) modeCreate.checked = true;
+        if (btnCadastrar) btnCadastrar.disabled = false;
+
+        alert('Jogador criado! Agora é só iniciar o leilão.');
+    } catch (error) {
+        console.error(error);
+        alert(error.message || 'Erro ao criar jogador');
     }
 }
 
