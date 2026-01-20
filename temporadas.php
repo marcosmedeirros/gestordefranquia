@@ -1753,8 +1753,11 @@ if (!$team) {
       const container = document.getElementById('mainContainer');
 
       try {
-        const teamsData = await api(`admin.php?action=teams&league=${league}`);
-        const teams = teamsData.teams || [];
+        // Buscar times com pontos atuais desta temporada
+        const pointsResp = await fetch(`/api/history-points.php?action=get_teams_for_points&season_id=${seasonId}&league=${league}`);
+        const pointsData = await pointsResp.json();
+        if (!pointsData.success) throw new Error(pointsData.error || 'Erro ao carregar pontos');
+        const teams = pointsData.teams || [];
 
         container.innerHTML = `
           <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
@@ -1783,12 +1786,12 @@ if (!$team) {
                         <tr>
                           <td>
                             <div class="d-flex align-items-center gap-2">
-                              <img src="${t.photo_url || '/img/default-team.png'}" alt="${t.city} ${t.name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-                              <span>${t.city} ${t.name}</span>
+                              <img src="${t.photo_url || '/img/default-team.png'}" alt="${t.team_name}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+                              <span>${t.team_name}</span>
                             </div>
                           </td>
                           <td>
-                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="0" min="0" />
+                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="${Number(t.current_points || 0)}" min="0" />
                           </td>
                           <td class="d-none d-md-table-cell">
                             <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" />
@@ -1801,7 +1804,7 @@ if (!$team) {
 
                 <div class="d-grid gap-2">
                   <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-save me-2"></i>Salvar Pontos
+                    <i class="bi bi-save me-2"></i>Salvar Pontos (Editar)
                   </button>
                 </div>
               </form>

@@ -14,11 +14,41 @@ if (!$user) {
 
 $pdo = db();
 
+// Garante coluna 'cycle' para controle de limite por ciclo de temporadas
+function ensureTradeCycleColumn(PDO $pdo): void
+{
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM trades LIKE 'cycle'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE trades ADD COLUMN cycle INT NULL AFTER league");
+        }
+    } catch (Exception $e) {
+        // Se não conseguir (permissões/sem tabela), segue sem ciclo
+    }
+}
+
+ensureTradeCycleColumn($pdo);
+
 function getTeamTradesUsed(PDO $pdo, int $teamId): int
 {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
-    $stmt->execute([$teamId, $teamId]);
-    return (int) ($stmt->fetchColumn() ?? 0);
+    // Conta trades aceitas no ciclo atual do time
+    try {
+        $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+        $stmtCycle->execute([$teamId]);
+        $cycle = (int)($stmtCycle->fetchColumn() ?: 0);
+        if ($cycle <= 0) {
+            // Fallback: se não houver ciclo, considera zero usado
+            return 0;
+        }
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND cycle = ? AND (from_team_id = ? OR to_team_id = ?)");
+        $stmt->execute([$cycle, $teamId, $teamId]);
+        return (int) ($stmt->fetchColumn() ?? 0);
+    } catch (Exception $e) {
+        // Fallback para contagem por ano se não houver coluna ou erro
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
+        $stmt->execute([$teamId, $teamId]);
+        return (int) ($stmt->fetchColumn() ?? 0);
+    }
 }
 
 function getLeagueMaxTrades(PDO $pdo, string $league, int $default = 3): int
@@ -350,8 +380,30 @@ if ($method === 'POST') {
     $pdo->beginTransaction();
         
         // Criar trade (sem coluna cycle - ela é opcional)
-    $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, notes) VALUES (?, ?, ?, ?)');
-    $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $notes]);
+    // Definir ciclo atual do time proponente, quando disponível
+    $cycle = null;
+    try {
+        $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+        $stmtCycle->execute([$teamId]);
+        $cycleVal = $stmtCycle->fetchColumn();
+        if ($cycleVal !== false && $cycleVal !== null) {
+            $cycle = (int)$cycleVal;
+        }
+    } catch (Exception $e) {}
+
+    // Inserir com coluna cycle se existir
+    $hasCycleCol = false;
+    try {
+        $hasCycleCol = (bool)$pdo->query("SHOW COLUMNS FROM trades LIKE 'cycle'")->fetch();
+    } catch (Exception $e) {}
+
+    if ($hasCycleCol) {
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, cycle, notes) VALUES (?, ?, ?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $cycle, $notes]);
+    } else {
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, notes) VALUES (?, ?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $notes]);
+    }
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
@@ -450,6 +502,18 @@ if ($method === 'PUT') {
             echo json_encode(['success' => false, 'error' => 'Seu time já atingiu o limite de trades para esta temporada.']);
             exit;
         }
+        // Preenche ciclo da trade, se existir a coluna, com o ciclo do time receptor no momento da aceitação
+        try {
+            $hasCycleCol = (bool)$pdo->query("SHOW COLUMNS FROM trades LIKE 'cycle'")->fetch();
+            if ($hasCycleCol) {
+                $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+                $stmtCycle->execute([$trade['to_team_id']]);
+                $cycle = (int)($stmtCycle->fetchColumn() ?: 0);
+                if ($cycle > 0) {
+                    $pdo->prepare('UPDATE trades SET cycle = ? WHERE id = ?')->execute([$cycle, $tradeId]);
+                }
+            }
+        } catch (Exception $e) {}
     }
 
     try {

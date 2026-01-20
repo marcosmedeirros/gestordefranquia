@@ -15,131 +15,24 @@ if (!$user) {
 
 $pdo = db();
 
-// POST - Adicionar pick
+// POST - Desabilitado: sistema gera picks automaticamente
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    
-    $teamId = $input['team_id'] ?? null;
-    $originalTeamId = $input['original_team_id'] ?? null;
-    $year = $input['year'] ?? null;
-    $round = $input['round'] ?? null;
-
-    if (!$teamId || !$originalTeamId || !$year || !$round) {
-        echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
-        exit;
-    }
-
-    // Verificar se o time pertence ao usuário
-    $stmt = $pdo->prepare('SELECT id FROM teams WHERE id = ? AND user_id = ?');
-    $stmt->execute([$teamId, $user['id']]);
-    if (!$stmt->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
-        exit;
-    }
-
-    // Inserir ou transferir pick
-    try {
-        $stmtExisting = $pdo->prepare('
-            SELECT id FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ?
-        ');
-        $stmtExisting->execute([$originalTeamId, $year, $round]);
-        $existingId = $stmtExisting->fetchColumn();
-
-        if ($existingId) {
-            $stmtUpdate = $pdo->prepare('
-                UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?
-            ');
-            $stmtUpdate->execute([$teamId, $teamId, $existingId]);
-            echo json_encode(['success' => true, 'id' => $existingId, 'action' => 'transferred']);
-        } else {
-            $stmtInsert = $pdo->prepare('
-                INSERT INTO picks (team_id, original_team_id, season_year, round, auto_generated, last_owner_team_id)
-                VALUES (?, ?, ?, ?, 0, ?)
-            ');
-            $stmtInsert->execute([$teamId, $originalTeamId, $year, $round, $teamId]);
-            echo json_encode(['success' => true, 'id' => $pdo->lastInsertId(), 'action' => 'created']);
-        }
-    } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao salvar ou transferir pick: ' . $e->getMessage()]);
-    }
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Edição manual de picks desabilitada. As picks são geradas automaticamente.']);
     exit;
 }
 
-// DELETE - Excluir pick
+// DELETE - Desabilitado
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-    $pickId = $_GET['id'] ?? null;
-
-    if (!$pickId) {
-        echo json_encode(['success' => false, 'error' => 'ID não informado']);
-        exit;
-    }
-
-    // Verificar se a pick pertence a um time do usuário
-    $stmt = $pdo->prepare('
-        SELECT p.id
-        FROM picks p
-        INNER JOIN teams t ON p.team_id = t.id
-        WHERE p.id = ? AND t.user_id = ?
-    ');
-    $stmt->execute([$pickId, $user['id']]);
-    $pick = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$pick) {
-        echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
-        exit;
-    }
-
-    // Excluir pick
-    $stmt = $pdo->prepare('DELETE FROM picks WHERE id = ?');
-    $stmt->execute([$pickId]);
-    
-    echo json_encode(['success' => true]);
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Exclusão manual de picks desabilitada. As picks são geridas automaticamente.']);
     exit;
 }
 
-// PUT - Atualizar pick manual
+// PUT - Desabilitado
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    $pickId = $input['id'] ?? null;
-    $year = isset($input['year']) ? (int)$input['year'] : null;
-    $round = $input['round'] ?? null;
-    $originalTeamId = $input['original_team_id'] ?? null;
-    $notes = trim((string)($input['notes'] ?? ''));
-
-    if (!$pickId || !$year || !$round || !$originalTeamId) {
-        echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
-        exit;
-    }
-
-    $stmt = $pdo->prepare('
-        SELECT p.id, p.team_id, p.auto_generated
-        FROM picks p
-        INNER JOIN teams t ON p.team_id = t.id
-        WHERE p.id = ? AND t.user_id = ?
-    ');
-    $stmt->execute([$pickId, $user['id']]);
-    $pick = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$pick) {
-        echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
-        exit;
-    }
-
-    try {
-        $stmtUpdate = $pdo->prepare('
-            UPDATE picks 
-            SET season_year = ?, round = ?, original_team_id = ?, last_owner_team_id = team_id, notes = ?, auto_generated = 0
-            WHERE id = ?
-        ');
-        $stmtUpdate->execute([$year, $round, $originalTeamId, $notes ?: null, $pickId]);
-    } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao atualizar pick: ' . $e->getMessage()]);
-        exit;
-    }
-
-    echo json_encode(['success' => true, 'message' => 'Pick atualizada']);
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Atualização manual de picks desabilitada. As picks são geradas automaticamente.']);
     exit;
 }
 
