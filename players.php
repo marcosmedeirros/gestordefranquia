@@ -265,11 +265,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         });
         positionFilter.addEventListener('change', carregarJogadores);
         carregarJogadores();
-        // Re-render layout on resize breakpoint changes (lightweight debounce)
+        
+        // Re-render layout apenas se mudar de mobile para desktop ou vice-versa
+        let lastIsMobile = isMobile();
         let resizeTimer;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(() => carregarJogadores(), 250);
+            resizeTimer = setTimeout(() => {
+                const currentIsMobile = isMobile();
+                // Só recarrega se mudou de mobile para desktop ou vice-versa
+                if (lastIsMobile !== currentIsMobile) {
+                    lastIsMobile = currentIsMobile;
+                    carregarJogadores();
+                }
+            }, 500);
         });
     </script>
     <script src="/js/sidebar.js"></script>
