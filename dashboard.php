@@ -154,7 +154,7 @@ if ($currentSeason && isset($currentSeason['start_year']) && isset($currentSeaso
 }
 
 // Buscar jogadores e picks para cópia
-$stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+$stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
 $stmtAllPlayers->execute([$team['id']]);
 $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
 
@@ -171,6 +171,19 @@ $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 $stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
 $stmtTrades->execute([$team['id'], $team['id']]);
 $tradesCount = (int)$stmtTrades->fetchColumn();
+
+// Limite de trades por temporada (por liga)
+$maxTrades = 3;
+try {
+    $stmtMaxTrades = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+    $stmtMaxTrades->execute([$team['league']]);
+    $rowMax = $stmtMaxTrades->fetch();
+    if ($rowMax && isset($rowMax['max_trades'])) {
+        $maxTrades = (int)$rowMax['max_trades'];
+    }
+} catch (Exception $e) {
+    // Tabela league_settings pode não existir ainda
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -515,54 +528,94 @@ $tradesCount = (int)$stmtTrades->fetchColumn();
         const picksData = <?= json_encode($teamPicks) ?>;
         const teamMeta = {
             name: <?= json_encode($team['city'] . ' ' . $team['name']) ?>,
+            userName: <?= json_encode($user['name']) ?>,
             cap: <?= (int)$teamCap ?>,
-            trades: <?= (int)$tradesCount ?>
+            capMin: <?= (int)$capMin ?>,
+            capMax: <?= (int)$capMax ?>,
+            trades: <?= (int)$tradesCount ?>,
+            maxTrades: <?= (int)$maxTrades ?>
         };
 
         function buildTeamSummary() {
             const positions = ['PG','SG','SF','PF','C'];
             const startersMap = {};
-            positions.forEach(pos => startersMap[pos] = '-');
-            rosterData.filter(p => p.role === 'Titular').forEach(p => {
-                if (positions.includes(p.position) && startersMap[p.position] === '-') {
-                    startersMap[p.position] = `${p.name} (OVR ${p.ovr})`;
+            positions.forEach(pos => startersMap[pos] = null);
+
+            const formatLine = (label, player) => {
+                if (!player) return `${label}: -`;
+                const ovr = player.ovr ?? '-';
+                const age = player.age ?? '-';
+                return `${label}: ${player.name} - ${ovr} | ${age}/y`;
+            };
+
+            const starters = rosterData.filter(p => p.role === 'Titular');
+            // Preencher mapa por posição
+            starters.forEach(p => {
+                if (positions.includes(p.position) && !startersMap[p.position]) {
+                    startersMap[p.position] = p;
                 }
             });
 
-            const bench = rosterData.filter(p => p.role === 'Banco').map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
-            const others = rosterData.filter(p => p.role === 'Outro').map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
-            const gleague = rosterData
-                .filter(p => (p.role || '').toLowerCase() === 'g-league')
-                .map(p => `${p.name} (${p.position}, OVR ${p.ovr})`);
+            const benchPlayers = rosterData.filter(p => p.role === 'Banco');
+            const othersPlayers = rosterData.filter(p => p.role === 'Outro');
+            const gleaguePlayers = rosterData.filter(p => (p.role || '').toLowerCase() === 'g-league');
 
-            const picksLines = picksData.map(pk => {
-                const isOwn = pk.city === <?= json_encode($team['city']) ?> && pk.team_name === <?= json_encode($team['name']) ?>;
-                return isOwn
-                    ? `${pk.season_year} - ${pk.round}ª`
-                    : `${pk.season_year} - ${pk.round}ª (via ${pk.city} ${pk.team_name})`;
+            // Picks por round
+            const round1Years = picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}`);
+            const round2Years = picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}`);
+
+            const lines = [];
+            lines.push(`*${teamMeta.name}*`);
+            lines.push(teamMeta.userName);
+            lines.push('');
+            lines.push('_Starters_');
+            positions.forEach(pos => {
+                lines.push(formatLine(pos, startersMap[pos]));
             });
+            lines.push('');
+            lines.push('_Bench_');
+            if (benchPlayers.length) {
+                benchPlayers.forEach(p => {
+                    const ovr = p.ovr ?? '-';
+                    const age = p.age ?? '-';
+                    lines.push(`${p.position}: ${p.name} - ${ovr} | ${age}/y`);
+                });
+            } else {
+                lines.push('-');
+            }
+            lines.push('');
+            lines.push('_Others_');
+            if (othersPlayers.length) {
+                othersPlayers.forEach(p => {
+                    const ovr = p.ovr ?? '-';
+                    const age = p.age ?? '-';
+                    lines.push(`${p.name} - ${ovr} | ${age}/y`);
+                });
+            } else {
+                lines.push('-');
+            }
+            lines.push('');
+            lines.push('_G-League_');
+            if (gleaguePlayers.length) {
+                gleaguePlayers.forEach(p => {
+                    const ovr = p.ovr ?? '-';
+                    const age = p.age ?? '-';
+                    lines.push(`${p.name} - ${ovr} | ${age}/y`);
+                });
+            } else {
+                lines.push('-');
+            }
+            lines.push('');
+            lines.push('_Picks 1º round_:');
+            lines.push(...(round1Years.length ? round1Years : ['-']));
+            lines.push('');
+            lines.push('_Picks 2º round_:');
+            lines.push(...(round2Years.length ? round2Years : ['-']));
+            lines.push('');
+            lines.push(`_CAP_: cap min/ ${teamMeta.capMin} / *${teamMeta.cap}* / cap max/ ${teamMeta.capMax}`);
+            lines.push(`_Trades_: ${teamMeta.trades} / ${teamMeta.maxTrades}`);
 
-            return [
-                teamMeta.name,
-                '',
-                'Starters',
-                ...positions.map(pos => `${pos}: ${startersMap[pos]}`),
-                '',
-                'Bench',
-                ...(bench.length ? bench : ['-']),
-                '',
-                'Others',
-                ...(others.length ? others : ['-']),
-                '',
-                'G-league',
-                ...(gleague.length ? gleague : ['-']),
-                '',
-                'Picks',
-                ...(picksLines.length ? picksLines : ['-']),
-                '',
-                `CAP: ${teamMeta.cap}`,
-                `Trades: ${teamMeta.trades}`
-            ].join('\n');
+            return lines.join('\n');
         }
 
         document.getElementById('copyTeamBtn')?.addEventListener('click', async () => {
