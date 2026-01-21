@@ -33,21 +33,6 @@ function clearCounterProposalState() {
   if (targetSelect) {
     targetSelect.disabled = false;
   }
-  
-  // Limpar todas as seleções visuais
-  document.querySelectorAll('.trade-selectable-item.selected').forEach(item => {
-    item.classList.remove('selected');
-    const checkIcon = item.querySelector('.trade-item-check i');
-    if (checkIcon) checkIcon.style.display = 'none';
-  });
-  
-  // Limpar selects escondidos
-  ['offerPlayers', 'offerPicks', 'requestPlayers', 'requestPicks'].forEach(id => {
-    const select = document.getElementById(id);
-    if (select) {
-      Array.from(select.options).forEach(opt => opt.selected = false);
-    }
-  });
 }
 
 async function init() {
@@ -98,21 +83,14 @@ async function openTradeWithPreselectedPlayer(playerId, teamId) {
     // Carregar jogadores do time alvo
     await onTargetTeamChange({ target: targetTeamSelect });
     
-    // Aguardar um pouco para garantir que os cards foram renderizados
+    // Aguardar um pouco para garantir que os selects foram populados
     setTimeout(() => {
-      // Encontrar e selecionar o card do jogador
-      const requestPlayersContainer = document.getElementById('requestPlayersContainer');
-      const playerCard = requestPlayersContainer.querySelector(`.trade-selectable-item[data-id="${playerId}"]`);
-      
-      if (playerCard && !playerCard.classList.contains('unavailable')) {
-        // Simular clique no card
-        playerCard.click();
-        
-        // Scroll até o jogador
-        playerCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Adicionar efeito visual temporário
-        playerCard.style.animation = 'pulse 0.5s ease 3';
+      // Pré-selecionar o jogador solicitado
+      const requestPlayersSelect = document.getElementById('requestPlayers');
+      const playerOption = requestPlayersSelect.querySelector(`option[value="${playerId}"]`);
+      if (playerOption) {
+        playerOption.selected = true;
+        playerOption.scrollIntoView({ block: 'nearest' });
       }
       
       // Abrir o modal
@@ -121,18 +99,9 @@ async function openTradeWithPreselectedPlayer(playerId, teamId) {
       
       // Adicionar nota sugerindo a trade
       document.getElementById('tradeNotes').value = 'Olá! Tenho interesse neste jogador. Vamos negociar?';
-      
-      // Focar no container de jogadores oferecidos para facilitar a seleção
-      setTimeout(() => {
-        const offerPlayersContainer = document.getElementById('offerPlayersContainer');
-        if (offerPlayersContainer) {
-          offerPlayersContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 500);
-    }, 400);
+    }, 300);
   } catch (err) {
     console.error('Erro ao pré-selecionar jogador:', err);
-    alert('Erro ao preparar a proposta de trade. Por favor, tente novamente.');
   }
 }
 
@@ -170,12 +139,26 @@ async function loadMyAssets() {
   try {
     // Meus jogadores disponíveis para troca
     const playersData = await api(`players.php?team_id=${myTeamId}`);
-    myPlayers = playersData.players || [];
+  myPlayers = playersData.players || [];
     
-    console.log('Meus jogadores carregados:', myPlayers.length);
+  console.log('Meus jogadores carregados:', myPlayers.length);
     
-    // Renderizar jogadores como cards clicáveis
-    renderSelectablePlayers('offer', myPlayers);
+    const selectPlayers = document.getElementById('offerPlayers');
+    selectPlayers.innerHTML = '';
+    if (myPlayers.length === 0) {
+      const option = document.createElement('option');
+      option.disabled = true;
+      option.textContent = 'Nenhum jogador encontrado no seu elenco';
+      selectPlayers.appendChild(option);
+    } else {
+      myPlayers.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
+        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
+        selectPlayers.appendChild(option);
+      });
+    }
     
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
@@ -183,201 +166,56 @@ async function loadMyAssets() {
     
     console.log('Minhas picks:', myPicks.length);
     
-    // Renderizar picks como cards clicáveis
-    renderSelectablePicks('offer', myPicks);
+    const selectPicks = document.getElementById('offerPicks');
+    selectPicks.innerHTML = '';
+    if (myPicks.length === 0) {
+      const option = document.createElement('option');
+      option.disabled = true;
+      option.textContent = 'Nenhuma pick disponível';
+      selectPicks.appendChild(option);
+    } else {
+      myPicks.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        const originLabel = p.last_owner_city && p.last_owner_name
+          ? `${p.last_owner_city} ${p.last_owner_name}`
+          : (p.original_team_name || 'Time');
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
+        selectPicks.appendChild(option);
+      });
+    }
   } catch (err) {
     console.error('Erro ao carregar assets:', err);
   }
 }
 
-function renderSelectablePlayers(type, players) {
-  const containerId = type === 'offer' ? 'offerPlayersContainer' : 'requestPlayersContainer';
-  const container = document.getElementById(containerId);
-  const countBadge = document.getElementById(`${type}PlayersCount`);
-  
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (players.length === 0) {
-    container.innerHTML = `
-      <div class="text-center text-muted py-4">
-        <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
-        <p class="mb-0">Nenhum jogador disponível</p>
-      </div>
-    `;
-    if (countBadge) countBadge.textContent = '0';
-    return;
-  }
-  
-  if (countBadge) countBadge.textContent = players.length;
-  
-  players.forEach(player => {
-    const isAvailable = player.available_for_trade;
-    const itemDiv = document.createElement('div');
-    itemDiv.className = `trade-selectable-item ${!isAvailable ? 'unavailable' : ''}`;
-    itemDiv.dataset.id = player.id;
-    itemDiv.dataset.type = 'player';
-    
-    itemDiv.innerHTML = `
-      <div class="trade-item-check">
-        <i class="bi bi-check" style="display: none;"></i>
-      </div>
-      <div class="trade-item-icon-small">
-        <i class="bi bi-person-fill"></i>
-      </div>
-      <div class="trade-item-info">
-        <div class="trade-item-name-small">${player.name || 'Jogador'}</div>
-        <div class="trade-item-meta-small">
-          <span class="badge bg-dark">${player.position || '-'}</span>
-          <span>${player.age ?? '?'} anos</span>
-          ${!isAvailable ? '<span class="badge bg-warning text-dark">Bloqueado</span>' : ''}
-        </div>
-      </div>
-      <div class="trade-item-ovr-small">${player.ovr ?? '?'}</div>
-    `;
-    
-    if (isAvailable) {
-      itemDiv.addEventListener('click', () => toggleTradeItem(itemDiv, type, 'player'));
-    }
-    
-    container.appendChild(itemDiv);
-  });
-}
-
-function renderSelectablePicks(type, picks) {
-  const containerId = type === 'offer' ? 'offerPicksContainer' : 'requestPicksContainer';
-  const container = document.getElementById(containerId);
-  const countBadge = document.getElementById(`${type}PicksCount`);
-  
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  if (picks.length === 0) {
-    container.innerHTML = `
-      <div class="text-center text-muted py-4">
-        <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
-        <p class="mb-0">Nenhuma pick disponível</p>
-      </div>
-    `;
-    if (countBadge) countBadge.textContent = '0';
-    return;
-  }
-  
-  if (countBadge) countBadge.textContent = picks.length;
-  
-  picks.forEach(pick => {
-    const itemDiv = document.createElement('div');
-    itemDiv.className = 'trade-selectable-item';
-    itemDiv.dataset.id = pick.id;
-    itemDiv.dataset.type = 'pick';
-    
-    const originLabel = pick.last_owner_city && pick.last_owner_name
-      ? `${pick.last_owner_city} ${pick.last_owner_name}`
-      : (pick.original_team_name || 'Time');
-    
-    itemDiv.innerHTML = `
-      <div class="trade-item-check">
-        <i class="bi bi-check" style="display: none;"></i>
-      </div>
-      <div class="trade-item-icon-small pick">
-        <i class="bi bi-trophy-fill"></i>
-      </div>
-      <div class="trade-item-info">
-        <div class="trade-item-name-small">Pick ${pick.season_year}</div>
-        <div class="trade-item-meta-small">
-          <span class="badge bg-warning text-dark">${pick.round}ª Rodada</span>
-          <span class="text-muted small">de ${originLabel}</span>
-        </div>
-      </div>
-    `;
-    
-    itemDiv.addEventListener('click', () => toggleTradeItem(itemDiv, type, 'pick'));
-    
-    container.appendChild(itemDiv);
-  });
-}
-
-function toggleTradeItem(itemDiv, type, itemType) {
-  if (itemDiv.classList.contains('unavailable')) return;
-  
-  const isSelected = itemDiv.classList.contains('selected');
-  const itemId = itemDiv.dataset.id;
-  const checkIcon = itemDiv.querySelector('.trade-item-check i');
-  
-  if (isSelected) {
-    itemDiv.classList.remove('selected');
-    checkIcon.style.display = 'none';
-    
-    // Remover do select escondido
-    const selectId = type === 'offer' 
-      ? (itemType === 'player' ? 'offerPlayers' : 'offerPicks')
-      : (itemType === 'player' ? 'requestPlayers' : 'requestPicks');
-    const select = document.getElementById(selectId);
-    const option = select.querySelector(`option[value="${itemId}"]`);
-    if (option) option.selected = false;
-  } else {
-    itemDiv.classList.add('selected');
-    checkIcon.style.display = 'block';
-    
-    // Adicionar ao select escondido
-    const selectId = type === 'offer' 
-      ? (itemType === 'player' ? 'offerPlayers' : 'offerPicks')
-      : (itemType === 'player' ? 'requestPlayers' : 'requestPicks');
-    const select = document.getElementById(selectId);
-    const option = select.querySelector(`option[value="${itemId}"]`);
-    if (option) option.selected = true;
-  }
-}
-
 async function onTargetTeamChange(e) {
   const teamId = e.target.value;
-  if (!teamId) {
-    // Limpar containers
-    const requestPlayersContainer = document.getElementById('requestPlayersContainer');
-    const requestPicksContainer = document.getElementById('requestPicksContainer');
-    
-    if (requestPlayersContainer) {
-      requestPlayersContainer.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
-          <p class="mb-0">Selecione um time primeiro</p>
-        </div>
-      `;
-    }
-    
-    if (requestPicksContainer) {
-      requestPicksContainer.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
-          <p class="mb-0">Selecione um time primeiro</p>
-        </div>
-      `;
-    }
-    
-    return;
-  }
+  if (!teamId) return;
   
   try {
     // Carregar jogadores do time alvo
     const playersData = await api(`players.php?team_id=${teamId}`);
-    const players = playersData.players || [];
+  const players = playersData.players || [];
     
-    console.log('Jogadores do time alvo carregados:', players.length);
+  console.log('Jogadores do time alvo carregados:', players.length);
     
-    // Renderizar jogadores
-    renderSelectablePlayers('request', players);
-    
-    // Popular select escondido para compatibilidade
-    const selectPlayers = document.getElementById('requestPlayers');
-    selectPlayers.innerHTML = '';
-    players.forEach(p => {
+    const select = document.getElementById('requestPlayers');
+    select.innerHTML = '';
+    if (players.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = formatTradePlayerDisplay(p);
-      selectPlayers.appendChild(option);
-    });
+      option.disabled = true;
+      option.textContent = 'Nenhum jogador encontrado no elenco';
+      select.appendChild(option);
+    } else {
+      players.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
+        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
+        select.appendChild(option);
+      });
+    }
     
     // Carregar picks do time alvo
     const picksData = await api(`picks.php?team_id=${teamId}`);
@@ -385,21 +223,24 @@ async function onTargetTeamChange(e) {
     
     console.log('Picks do time alvo:', picks.length);
     
-    // Renderizar picks
-    renderSelectablePicks('request', picks);
-    
-    // Popular select escondido para compatibilidade
     const selectPicks = document.getElementById('requestPicks');
     selectPicks.innerHTML = '';
-    picks.forEach(p => {
+    if (picks.length === 0) {
       const option = document.createElement('option');
-      option.value = p.id;
-      const originLabel = p.last_owner_city && p.last_owner_name
-        ? `${p.last_owner_city} ${p.last_owner_name}`
-        : (p.original_team_name || 'Time');
-      option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
+      option.disabled = true;
+      option.textContent = 'Nenhuma pick disponível';
       selectPicks.appendChild(option);
-    });
+    } else {
+      picks.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        const originLabel = p.last_owner_city && p.last_owner_name
+          ? `${p.last_owner_city} ${p.last_owner_name}`
+          : (p.original_team_name || 'Time');
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
+        selectPicks.appendChild(option);
+      });
+    }
   } catch (err) {
     console.error('Erro ao carregar assets do time:', err);
   }
@@ -494,14 +335,14 @@ async function loadTrades(type) {
 
 function createTradeCard(trade, type) {
   const card = document.createElement('div');
-  card.className = 'trade-card-modern mb-4';
+  card.className = 'bg-dark-panel border-orange rounded p-4 mb-3';
   
   const statusBadge = {
-    'pending': '<span class="badge bg-warning text-dark px-3 py-2"><i class="bi bi-clock-fill me-1"></i>Pendente</span>',
-    'accepted': '<span class="badge bg-success px-3 py-2"><i class="bi bi-check-circle-fill me-1"></i>Aceita</span>',
-    'rejected': '<span class="badge bg-danger px-3 py-2"><i class="bi bi-x-circle-fill me-1"></i>Rejeitada</span>',
-    'cancelled': '<span class="badge bg-secondary px-3 py-2"><i class="bi bi-dash-circle-fill me-1"></i>Cancelada</span>',
-    'countered': '<span class="badge bg-info px-3 py-2"><i class="bi bi-arrow-repeat me-1"></i>Contraproposta</span>'
+    'pending': '<span class="badge bg-warning text-dark">Pendente</span>',
+    'accepted': '<span class="badge bg-success">Aceita</span>',
+    'rejected': '<span class="badge bg-danger">Rejeitada</span>',
+    'cancelled': '<span class="badge bg-secondary">Cancelada</span>',
+    'countered': '<span class="badge bg-info">Contraproposta</span>'
   }[trade.status];
   
   const fromTeam = `${trade.from_city} ${trade.from_name}`;
@@ -509,150 +350,73 @@ function createTradeCard(trade, type) {
   
   // Verificar se tem observação de resposta
   const responseNotes = trade.response_notes ? `
-    <div class="trade-response-note">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-chat-dots-fill text-warning"></i>
-        <strong class="text-warning">Resposta do GM:</strong>
-      </div>
-      <p class="mb-0 text-light-gray">${trade.response_notes}</p>
+    <div class="mt-2 p-2 bg-dark rounded border-start border-warning border-3">
+      <small class="text-warning fw-bold"><i class="bi bi-chat-dots me-1"></i>Resposta:</small>
+      <small class="text-light-gray d-block">${trade.response_notes}</small>
     </div>
   ` : '';
   
-  // Criar HTML dos itens com visual melhorado
-  const renderPlayerItem = (p) => `
-    <div class="trade-item-card">
-      <div class="d-flex align-items-center gap-3">
-        <div class="trade-item-icon">
-          <i class="bi bi-person-fill"></i>
-        </div>
-        <div class="flex-grow-1">
-          <div class="trade-item-name">${p.name || 'Jogador'}</div>
-          <div class="trade-item-meta">
-            <span class="badge bg-dark">${p.position || '-'}</span>
-            <span class="text-muted">OVR ${p.ovr ?? '?'}</span>
-            <span class="text-muted">${p.age ?? '?'} anos</span>
-          </div>
-        </div>
-        <div class="trade-item-ovr">${p.ovr ?? '?'}</div>
-      </div>
-    </div>
-  `;
-  
-  const renderPickItem = (p) => `
-    <div class="trade-item-card">
-      <div class="d-flex align-items-center gap-3">
-        <div class="trade-item-icon pick-icon">
-          <i class="bi bi-trophy-fill"></i>
-        </div>
-        <div class="flex-grow-1">
-          <div class="trade-item-name">Pick ${p.season_year}</div>
-          <div class="trade-item-meta">
-            <span class="badge bg-warning text-dark">${p.round}ª Rodada</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  const offerPlayersHTML = trade.offer_players.map(renderPlayerItem).join('');
-  const offerPicksHTML = trade.offer_picks.map(renderPickItem).join('');
-  const requestPlayersHTML = trade.request_players.map(renderPlayerItem).join('');
-  const requestPicksHTML = trade.request_picks.map(renderPickItem).join('');
-  
-  const hasOfferItems = trade.offer_players.length > 0 || trade.offer_picks.length > 0;
-  const hasRequestItems = trade.request_players.length > 0 || trade.request_picks.length > 0;
-  
   card.innerHTML = `
-    <div class="trade-card-header">
-      <div class="trade-card-teams">
-        <div class="trade-team">
-          <div class="trade-team-name">${fromTeam}</div>
-          <small class="text-muted">${new Date(trade.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</small>
-        </div>
-        <div class="trade-arrow">
-          <i class="bi bi-arrow-left-right"></i>
-        </div>
-        <div class="trade-team text-end">
-          <div class="trade-team-name">${toTeam}</div>
-          <small class="text-muted">Trade #${trade.id}</small>
-        </div>
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="text-white mb-1">${fromTeam} <i class="bi bi-arrow-right text-orange"></i> ${toTeam}</h5>
+        <small class="text-light-gray">${new Date(trade.created_at).toLocaleDateString('pt-BR')}</small>
       </div>
-      <div class="mt-3">
-        ${statusBadge}
+      <div>${statusBadge}</div>
+    </div>
+    
+    <div class="row">
+      <div class="col-md-6">
+        <h6 class="text-orange mb-2">${fromTeam} oferece:</h6>
+        <ul class="list-unstyled text-white">
+          ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
+          ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <h6 class="text-orange mb-2">${toTeam} envia:</h6>
+        <ul class="list-unstyled text-white">
+          ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
+          ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
+        </ul>
       </div>
     </div>
     
-    <div class="trade-card-body">
-      <div class="row g-3">
-        <div class="col-md-6">
-          <div class="trade-section">
-            <div class="trade-section-header">
-              <i class="bi bi-box-arrow-right me-2"></i>
-              <span>${fromTeam} envia</span>
-            </div>
-            <div class="trade-items">
-              ${hasOfferItems ? offerPlayersHTML + offerPicksHTML : '<div class="text-center text-muted py-3">Nenhum item oferecido</div>'}
-            </div>
-          </div>
-        </div>
-        
-        <div class="col-md-6">
-          <div class="trade-section">
-            <div class="trade-section-header">
-              <i class="bi bi-box-arrow-in-left me-2"></i>
-              <span>${toTeam} envia</span>
-            </div>
-            <div class="trade-items">
-              ${hasRequestItems ? requestPlayersHTML + requestPicksHTML : '<div class="text-center text-muted py-3">Nenhum item solicitado</div>'}
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      ${trade.notes ? `
-        <div class="trade-notes">
-          <i class="bi bi-chat-left-text-fill me-2"></i>
-          <span>${trade.notes}</span>
-        </div>
-      ` : ''}
-      
-      ${responseNotes}
-    </div>
+    ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
+    ${responseNotes}
     
     ${trade.status === 'pending' && type === 'received' ? `
-      <div class="trade-card-footer">
-        <div class="mb-3">
-          <label class="form-label text-light-gray small fw-bold">
-            <i class="bi bi-pencil me-1"></i>Adicionar observação (opcional):
-          </label>
-          <textarea class="form-control bg-dark text-white border-secondary" 
+      <div class="mt-3">
+        <div class="mb-2">
+          <label class="form-label text-light-gray small">Observação (opcional):</label>
+          <textarea class="form-control form-control-sm bg-dark text-white border-secondary" 
                     id="responseNotes_${trade.id}" rows="2" 
-                    placeholder="Digite sua resposta ou comentário..."></textarea>
+                    placeholder="Adicione uma mensagem..."></textarea>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-success" onclick="respondTrade(${trade.id}, 'accepted')">
-            <i class="bi bi-check-circle-fill me-2"></i>Aceitar Trade
+          <button class="btn btn-success btn-sm" onclick="respondTrade(${trade.id}, 'accepted')">
+            <i class="bi bi-check-circle me-1"></i>Aceitar
           </button>
-          <button class="btn btn-danger" onclick="respondTrade(${trade.id}, 'rejected')">
-            <i class="bi bi-x-circle-fill me-2"></i>Rejeitar
+          <button class="btn btn-danger btn-sm" onclick="respondTrade(${trade.id}, 'rejected')">
+            <i class="bi bi-x-circle me-1"></i>Rejeitar
           </button>
-          <button class="btn btn-info" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
-            <i class="bi bi-arrow-repeat me-2"></i>Fazer Contraproposta
+          <button class="btn btn-info btn-sm" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+            <i class="bi bi-arrow-repeat me-1"></i>Contraproposta
           </button>
         </div>
       </div>
     ` : ''}
     
     ${trade.status === 'pending' && type === 'sent' ? `
-      <div class="trade-card-footer">
-        <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-warning" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
-            <i class="bi bi-pencil-fill me-2"></i>Modificar Proposta
-          </button>
-          <button class="btn btn-secondary" onclick="respondTrade(${trade.id}, 'cancelled')">
-            <i class="bi bi-x-circle me-2"></i>Cancelar Trade
-          </button>
-        </div>
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-warning btn-sm" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+          <i class="bi bi-pencil me-1"></i>Modificar
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="respondTrade(${trade.id}, 'cancelled')">
+          <i class="bi bi-x-circle me-1"></i>Cancelar
+        </button>
       </div>
     ` : ''}
   `;
@@ -709,9 +473,6 @@ async function openCounterProposal(originalTradeId, originalTrade) {
     originalTrade = JSON.parse(originalTrade.replace(/&quot;/g, '"'));
   }
   
-  // Limpar seleções anteriores
-  clearCounterProposalState();
-  
   // Preencher o modal com dados invertidos
   document.getElementById('targetTeam').value = originalTrade.from_team_id;
   document.getElementById('targetTeam').disabled = true; // Não pode mudar o time
@@ -719,38 +480,36 @@ async function openCounterProposal(originalTradeId, originalTrade) {
   // Carregar jogadores e picks do time que enviou a proposta original
   await onTargetTeamChange({ target: document.getElementById('targetTeam') });
   
-  // Aguardar renderização dos cards
+  // Pré-selecionar jogadores/picks que estavam sendo pedidos (agora vou oferecer)
   setTimeout(() => {
-    // Selecionar os jogadores que eu deveria enviar na proposta original (agora vou oferecer)
+    const offerPlayersSelect = document.getElementById('offerPlayers');
+    const offerPicksSelect = document.getElementById('offerPicks');
+    
+    // Selecionar os jogadores que eu deveria enviar na proposta original
     originalTrade.request_players.forEach(p => {
-      const card = document.querySelector(`#offerPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
-      if (card && !card.classList.contains('unavailable')) {
-        card.click();
-      }
+      const option = offerPlayersSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
     });
     
     originalTrade.request_picks.forEach(p => {
-      const card = document.querySelector(`#offerPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
-      if (card) {
-        card.click();
-      }
+      const option = offerPicksSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
     });
     
     // Selecionar os jogadores/picks que estavam sendo oferecidos (agora vou pedir)
+    const requestPlayersSelect = document.getElementById('requestPlayers');
+    const requestPicksSelect = document.getElementById('requestPicks');
+    
     originalTrade.offer_players.forEach(p => {
-      const card = document.querySelector(`#requestPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
-      if (card && !card.classList.contains('unavailable')) {
-        card.click();
-      }
+      const option = requestPlayersSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
     });
     
     originalTrade.offer_picks.forEach(p => {
-      const card = document.querySelector(`#requestPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
-      if (card) {
-        card.click();
-      }
+      const option = requestPicksSelect.querySelector(`option[value="${p.id}"]`);
+      if (option) option.selected = true;
     });
-  }, 600);
+  }, 500);
   
   // Adicionar nota de contraproposta
   document.getElementById('tradeNotes').value = `[CONTRAPROPOSTA] Em resposta à proposta #${originalTradeId}`;
@@ -781,43 +540,32 @@ async function openModifyTrade(tradeId, trade) {
       body: JSON.stringify({ trade_id: tradeId, action: 'cancelled' })
     });
     
-    // Limpar seleções
-    clearCounterProposalState();
-    
     // Preencher o modal com os dados da trade
     document.getElementById('targetTeam').value = trade.to_team_id;
     await onTargetTeamChange({ target: document.getElementById('targetTeam') });
     
-    // Pré-selecionar itens após renderização
+    // Pré-selecionar itens
     setTimeout(() => {
       trade.offer_players.forEach(p => {
-        const card = document.querySelector(`#offerPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
-        if (card && !card.classList.contains('unavailable')) {
-          card.click();
-        }
+        const option = document.querySelector(`#offerPlayers option[value="${p.id}"]`);
+        if (option) option.selected = true;
       });
       
       trade.offer_picks.forEach(p => {
-        const card = document.querySelector(`#offerPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
-        if (card) {
-          card.click();
-        }
+        const option = document.querySelector(`#offerPicks option[value="${p.id}"]`);
+        if (option) option.selected = true;
       });
       
       trade.request_players.forEach(p => {
-        const card = document.querySelector(`#requestPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
-        if (card && !card.classList.contains('unavailable')) {
-          card.click();
-        }
+        const option = document.querySelector(`#requestPlayers option[value="${p.id}"]`);
+        if (option) option.selected = true;
       });
       
       trade.request_picks.forEach(p => {
-        const card = document.querySelector(`#requestPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
-        if (card) {
-          card.click();
-        }
+        const option = document.querySelector(`#requestPicks option[value="${p.id}"]`);
+        if (option) option.selected = true;
       });
-    }, 600);
+    }, 500);
     
     document.getElementById('tradeNotes').value = trade.notes || '';
     
