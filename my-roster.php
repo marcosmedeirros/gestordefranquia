@@ -41,6 +41,14 @@ if ($teamId) {
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
+  <!-- Botão Hamburguer para Mobile -->
+  <button class="sidebar-toggle" id="sidebarToggle">
+    <i class="bi bi-list fs-4"></i>
+  </button>
+  
+  <!-- Overlay para fechar sidebar no mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
   <!-- Sidebar -->
   <div class="dashboard-sidebar">
     <div class="text-center mb-4">
