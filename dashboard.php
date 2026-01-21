@@ -543,11 +543,13 @@ try {
             const startersMap = {};
             positions.forEach(pos => startersMap[pos] = null);
 
+            const formatAge = (age) => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
+
             const formatLine = (label, player) => {
                 if (!player) return `${label}: -`;
                 const ovr = player.ovr ?? '-';
                 const age = player.age ?? '-';
-                return `${label}: ${player.name} - ${ovr} | ${age}/y`;
+                return `${label}: ${player.name} - ${ovr} | ${formatAge(age)}`;
             };
 
             const starters = rosterData.filter(p => p.role === 'Titular');
@@ -586,7 +588,7 @@ try {
                 benchPlayers.forEach(p => {
                     const ovr = p.ovr ?? '-';
                     const age = p.age ?? '-';
-                    lines.push(`${p.position}: ${p.name} - ${ovr} | ${age}/y`);
+                    lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
                 });
             } else {
                 lines.push('-');
@@ -597,7 +599,7 @@ try {
                 othersPlayers.forEach(p => {
                     const ovr = p.ovr ?? '-';
                     const age = p.age ?? '-';
-                    lines.push(`${p.name} - ${ovr} | ${age}/y`);
+                    lines.push(`${p.name} - ${ovr} | ${formatAge(age)}`);
                 });
             } else {
                 lines.push('-');
@@ -608,7 +610,7 @@ try {
                 gleaguePlayers.forEach(p => {
                     const ovr = p.ovr ?? '-';
                     const age = p.age ?? '-';
-                    lines.push(`${p.name} - ${ovr} | ${age}/y`);
+                    lines.push(`${p.name} - ${ovr} | ${formatAge(age)}`);
                 });
             } else {
                 lines.push('-');
