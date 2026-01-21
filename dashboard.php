@@ -528,6 +528,8 @@ try {
         const picksData = <?= json_encode($teamPicks) ?>;
         const teamMeta = {
             name: <?= json_encode($team['city'] . ' ' . $team['name']) ?>,
+            city: <?= json_encode($team['city']) ?>,
+            teamName: <?= json_encode($team['name']) ?>,
             userName: <?= json_encode($user['name']) ?>,
             cap: <?= (int)$teamCap ?>,
             capMin: <?= (int)$capMin ?>,
@@ -561,8 +563,14 @@ try {
             const gleaguePlayers = rosterData.filter(p => (p.role || '').toLowerCase() === 'g-league');
 
             // Picks por round
-            const round1Years = picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}`);
-            const round2Years = picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}`);
+            const round1Years = picksData.filter(pk => pk.round == 1).map(pk => {
+                const isOwn = (pk.city === teamMeta.city && pk.team_name === teamMeta.teamName);
+                return `-${pk.season_year}${isOwn ? '' : ` (via ${pk.city} ${pk.team_name})`} `;
+            });
+            const round2Years = picksData.filter(pk => pk.round == 2).map(pk => {
+                const isOwn = (pk.city === teamMeta.city && pk.team_name === teamMeta.teamName);
+                return `-${pk.season_year}${isOwn ? '' : ` (via ${pk.city} ${pk.team_name})`} `;
+            });
 
             const lines = [];
             lines.push(`*${teamMeta.name}*`);
@@ -612,7 +620,7 @@ try {
             lines.push('_Picks 2º round_:');
             lines.push(...(round2Years.length ? round2Years : ['-']));
             lines.push('');
-            lines.push(`_CAP_: cap min/ ${teamMeta.capMin} / *${teamMeta.cap}* / cap max/ ${teamMeta.capMax}`);
+            lines.push(`_CAP_: ${teamMeta.capMin} / *${teamMeta.cap}* / ${teamMeta.capMax}`);
             lines.push(`_Trades_: ${teamMeta.trades} / ${teamMeta.maxTrades}`);
 
             return lines.join('\n');
