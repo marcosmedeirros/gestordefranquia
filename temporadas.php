@@ -2154,7 +2154,7 @@ if (!$team) {
           </div>
           <div class="card-body">
             ${currentPick ? `
-              <div class="alert alert-dark border-warning text-white">
+              <div class="bg-dark p-3 rounded border border-warning text-white">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div><small class="text-light-gray">Rodada</small> <strong class="text-orange">${currentRound}</strong></div>
