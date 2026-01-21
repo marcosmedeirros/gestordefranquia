@@ -1,3 +1,6 @@
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
 /* Corrige sobreposição do menu lateral ao conteúdo principal em telas com sidebar fixa */
 .main-content {
 	margin-left: 280px;
@@ -69,7 +72,7 @@
 html, body{ height: 100%; }
 
 body{
-	font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+	font-family: 'Poppins', system-ui, -apple-system, sans-serif;
 	color: var(--fba-text);
 	min-height: 100vh;
 	line-height: 1.45;
