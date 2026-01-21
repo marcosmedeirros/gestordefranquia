@@ -52,31 +52,6 @@ if ($teamId) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
-    .nav-tabs {
-      border-bottom: 2px solid var(--fba-border);
-    }
-    .nav-tabs .nav-link {
-      background: transparent;
-      border: none;
-      color: var(--fba-text-muted);
-      font-weight: 500;
-      padding: 12px 24px;
-      transition: all 0.3s ease;
-      border-bottom: 3px solid transparent;
-      margin-bottom: -2px;
-    }
-    .nav-tabs .nav-link:hover {
-      background: rgba(241, 117, 7, 0.1);
-      color: var(--fba-orange);
-      border-bottom-color: var(--fba-orange);
-    }
-    .nav-tabs .nav-link.active {
-      background: rgba(241, 117, 7, 0.15);
-      color: var(--fba-orange);
-      border-bottom-color: var(--fba-orange);
-      font-weight: 600;
-    }
-
     .trade-list-panel {
       background: var(--fba-card-bg);
       border: 1px solid var(--fba-border);
@@ -328,6 +303,345 @@ if ($teamId) {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
+
+    /* Modern Trade Modal Styles */
+    .trade-modal-modern {
+      background: linear-gradient(135deg, #0a0a0c 0%, #141414 100%);
+      border: 2px solid var(--fba-brand);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .trade-modal-header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0c 100%);
+      border-bottom: 2px solid var(--fba-brand);
+      padding: 24px 32px;
+    }
+
+    .trade-modal-body {
+      padding: 32px;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+
+    .trade-modal-body::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .trade-modal-body::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+    }
+
+    .trade-modal-body::-webkit-scrollbar-thumb {
+      background: var(--fba-brand);
+      border-radius: 10px;
+    }
+
+    .trade-team-selector .trade-select {
+      background: var(--fba-dark-bg);
+      color: var(--fba-white);
+      border: 2px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .trade-team-selector .trade-select:focus {
+      border-color: var(--fba-brand);
+      box-shadow: 0 0 0 0.25rem rgba(252, 0, 37, 0.25);
+      background: rgba(252, 0, 37, 0.05);
+    }
+
+    .trade-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 991px) {
+      .trade-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      
+      .trade-divider {
+        display: none;
+      }
+    }
+
+    .trade-side {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--fba-border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .trade-side-offer {
+      border-left: 3px solid #ff9800;
+    }
+
+    .trade-side-request {
+      border-left: 3px solid #4caf50;
+    }
+
+    .trade-side-header {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--fba-white);
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--fba-border);
+      display: flex;
+      align-items: center;
+    }
+
+    .trade-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .trade-divider-icon {
+      width: 60px;
+      height: 60px;
+      background: var(--fba-brand);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      color: white;
+      box-shadow: 0 4px 20px rgba(252, 0, 37, 0.5);
+      animation: pulse 2s infinite;
+    }
+
+    .trade-category {
+      margin-bottom: 20px;
+    }
+
+    .trade-category:last-child {
+      margin-bottom: 0;
+    }
+
+    .trade-category-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--fba-text-muted);
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+    }
+
+    .trade-category-header .badge {
+      margin-left: auto;
+    }
+
+    .trade-items-container {
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+
+    .trade-items-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .trade-items-container::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+
+    .trade-items-container::-webkit-scrollbar-thumb {
+      background: var(--fba-brand);
+      border-radius: 10px;
+    }
+
+    .trade-selectable-item {
+      background: var(--fba-dark-bg);
+      border: 2px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .trade-selectable-item:hover {
+      border-color: var(--fba-brand);
+      transform: translateX(4px);
+      background: rgba(252, 0, 37, 0.05);
+    }
+
+    .trade-selectable-item.selected {
+      border-color: var(--fba-brand);
+      background: rgba(252, 0, 37, 0.15);
+      box-shadow: 0 4px 12px rgba(252, 0, 37, 0.3);
+    }
+
+    .trade-selectable-item.unavailable {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .trade-selectable-item.unavailable:hover {
+      transform: none;
+      border-color: var(--fba-border);
+      background: var(--fba-dark-bg);
+    }
+
+    .trade-item-check {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--fba-border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .trade-selectable-item.selected .trade-item-check {
+      background: var(--fba-brand);
+      border-color: var(--fba-brand);
+    }
+
+    .trade-selectable-item.selected .trade-item-check i {
+      color: white;
+      font-size: 0.9rem;
+    }
+
+    .trade-item-icon-small {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--fba-brand) 0%, #ff2a44 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .trade-item-icon-small.pick {
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    }
+
+    .trade-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .trade-item-name-small {
+      font-weight: 600;
+      color: var(--fba-white);
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .trade-item-meta-small {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--fba-text-muted);
+      flex-wrap: wrap;
+    }
+
+    .trade-item-ovr-small {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--fba-brand);
+      flex-shrink: 0;
+    }
+
+    .trade-notes-section {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .trade-textarea {
+      background: var(--fba-dark-bg);
+      color: var(--fba-white);
+      border: 2px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 12px;
+      resize: vertical;
+      transition: all 0.3s ease;
+    }
+
+    .trade-textarea:focus {
+      border-color: var(--fba-brand);
+      box-shadow: 0 0 0 0.25rem rgba(252, 0, 37, 0.25);
+      background: rgba(252, 0, 37, 0.05);
+    }
+
+    .trade-modal-footer {
+      background: rgba(0, 0, 0, 0.3);
+      border-top: 2px solid var(--fba-border);
+      padding: 20px 32px;
+    }
+
+    .trade-modal-footer .btn-lg {
+      padding: 12px 32px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+
+    @media (max-width: 576px) {
+      .trade-modal-header {
+        padding: 20px;
+      }
+
+      .trade-modal-body {
+        padding: 20px;
+      }
+
+      .trade-modal-footer {
+        padding: 16px 20px;
+      }
+
+      .trade-modal-footer .btn-lg {
+        padding: 10px 20px;
+        font-size: 1rem;
+      }
+
+      .trade-side {
+        padding: 16px;
+      }
+
+      .trade-item-name-small {
+        font-size: 0.9rem;
+      }
+
+      .trade-item-meta-small {
+        font-size: 0.75rem;
+      }
+
+      .trade-item-ovr-small {
+        font-size: 1.1rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -548,67 +862,136 @@ if ($teamId) {
 
   <!-- Modal: Propor Trade -->
   <div class="modal fade" id="proposeTradeModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-content bg-dark-panel border-orange">
-        <div class="modal-header border-bottom border-orange">
-          <h5 class="modal-title text-white"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Propor Trade</h5>
+    <div class="modal-dialog modal-fullscreen-lg-down modal-xl">
+      <div class="modal-content trade-modal-modern">
+        <div class="modal-header trade-modal-header">
+          <div>
+            <h5 class="modal-title text-white mb-1">
+              <i class="bi bi-arrow-left-right me-2 text-orange"></i>Propor Trade
+            </h5>
+            <small class="text-muted">Selecione os itens que deseja trocar</small>
+          </div>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body trade-modal-body">
           <form id="proposeTradeForm">
             <!-- Selecionar time -->
-            <div class="mb-4">
-              <label class="form-label text-white fw-bold">Para qual time?</label>
-              <select class="form-select bg-dark text-white border-orange" id="targetTeam" required>
-                <option value="">Selecione...</option>
+            <div class="trade-team-selector mb-4">
+              <label class="form-label text-white fw-bold mb-3">
+                <i class="bi bi-building me-2"></i>Para qual time?
+              </label>
+              <select class="form-select trade-select" id="targetTeam" required>
+                <option value="">Selecione um time...</option>
               </select>
             </div>
 
-            <div class="row">
+            <div class="trade-grid">
               <!-- O que você oferece -->
-              <div class="col-md-6">
-                <h6 class="text-orange mb-3">Você oferece</h6>
-                <div class="mb-3">
-                  <label class="form-label text-white">Jogadores</label>
-                  <select class="form-select bg-dark text-white border-orange" id="offerPlayers" multiple size="5">
-                  </select>
-                  <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
+              <div class="trade-side trade-side-offer">
+                <div class="trade-side-header">
+                  <i class="bi bi-box-arrow-right me-2"></i>
+                  <span>Você oferece</span>
                 </div>
-                <div class="mb-3">
-                  <label class="form-label text-white">Picks</label>
-                  <select class="form-select bg-dark text-white border-orange" id="offerPicks" multiple size="3">
-                  </select>
+                
+                <!-- Jogadores oferecidos -->
+                <div class="trade-category">
+                  <div class="trade-category-header">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <span>Jogadores</span>
+                    <span class="badge bg-secondary" id="offerPlayersCount">0</span>
+                  </div>
+                  <div class="trade-items-container" id="offerPlayersContainer">
+                    <div class="text-center text-muted py-4">
+                      <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+                      <p class="mb-0">Nenhum jogador disponível</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Picks oferecidas -->
+                <div class="trade-category">
+                  <div class="trade-category-header">
+                    <i class="bi bi-trophy-fill me-2"></i>
+                    <span>Picks</span>
+                    <span class="badge bg-secondary" id="offerPicksCount">0</span>
+                  </div>
+                  <div class="trade-items-container" id="offerPicksContainer">
+                    <div class="text-center text-muted py-4">
+                      <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+                      <p class="mb-0">Nenhuma pick disponível</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Divisor central -->
+              <div class="trade-divider">
+                <div class="trade-divider-icon">
+                  <i class="bi bi-arrow-left-right"></i>
                 </div>
               </div>
 
               <!-- O que você quer -->
-              <div class="col-md-6">
-                <h6 class="text-orange mb-3">Você quer</h6>
-                <div class="mb-3">
-                  <label class="form-label text-white">Jogadores</label>
-                  <select class="form-select bg-dark text-white border-orange" id="requestPlayers" multiple size="5">
-                  </select>
-                  <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
+              <div class="trade-side trade-side-request">
+                <div class="trade-side-header">
+                  <i class="bi bi-box-arrow-in-left me-2"></i>
+                  <span>Você recebe</span>
                 </div>
-                <div class="mb-3">
-                  <label class="form-label text-white">Picks</label>
-                  <select class="form-select bg-dark text-white border-orange" id="requestPicks" multiple size="3">
-                  </select>
+
+                <!-- Jogadores solicitados -->
+                <div class="trade-category">
+                  <div class="trade-category-header">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <span>Jogadores</span>
+                    <span class="badge bg-secondary" id="requestPlayersCount">0</span>
+                  </div>
+                  <div class="trade-items-container" id="requestPlayersContainer">
+                    <div class="text-center text-muted py-4">
+                      <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+                      <p class="mb-0">Selecione um time primeiro</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Picks solicitadas -->
+                <div class="trade-category">
+                  <div class="trade-category-header">
+                    <i class="bi bi-trophy-fill me-2"></i>
+                    <span>Picks</span>
+                    <span class="badge bg-secondary" id="requestPicksCount">0</span>
+                  </div>
+                  <div class="trade-items-container" id="requestPicksContainer">
+                    <div class="text-center text-muted py-4">
+                      <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+                      <p class="mb-0">Selecione um time primeiro</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <!-- Nota -->
-            <div class="mb-3">
-              <label class="form-label text-white">Mensagem (opcional)</label>
-              <textarea class="form-control bg-dark text-white border-orange" id="tradeNotes" rows="2"></textarea>
+            <div class="trade-notes-section">
+              <label class="form-label text-white fw-bold mb-2">
+                <i class="bi bi-chat-left-text me-2"></i>Mensagem (opcional)
+              </label>
+              <textarea class="form-control trade-textarea" id="tradeNotes" rows="3" 
+                        placeholder="Adicione uma mensagem para o outro GM..."></textarea>
             </div>
+
+            <!-- Selects escondidos (compatibilidade) -->
+            <select id="offerPlayers" multiple style="display: none;"></select>
+            <select id="offerPicks" multiple style="display: none;"></select>
+            <select id="requestPlayers" multiple style="display: none;"></select>
+            <select id="requestPicks" multiple style="display: none;"></select>
           </form>
         </div>
-        <div class="modal-footer border-top border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" id="submitTradeBtn">
-            <i class="bi bi-send me-1"></i>Enviar Proposta
+        <div class="modal-footer trade-modal-footer">
+          <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-2"></i>Cancelar
+          </button>
+          <button type="button" class="btn btn-orange btn-lg" id="submitTradeBtn">
+            <i class="bi bi-send-fill me-2"></i>Enviar Proposta
           </button>
         </div>
       </div>

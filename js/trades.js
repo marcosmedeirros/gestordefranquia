@@ -33,6 +33,21 @@ function clearCounterProposalState() {
   if (targetSelect) {
     targetSelect.disabled = false;
   }
+  
+  // Limpar todas as seleções visuais
+  document.querySelectorAll('.trade-selectable-item.selected').forEach(item => {
+    item.classList.remove('selected');
+    const checkIcon = item.querySelector('.trade-item-check i');
+    if (checkIcon) checkIcon.style.display = 'none';
+  });
+  
+  // Limpar selects escondidos
+  ['offerPlayers', 'offerPicks', 'requestPlayers', 'requestPicks'].forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      Array.from(select.options).forEach(opt => opt.selected = false);
+    }
+  });
 }
 
 async function init() {
@@ -83,14 +98,21 @@ async function openTradeWithPreselectedPlayer(playerId, teamId) {
     // Carregar jogadores do time alvo
     await onTargetTeamChange({ target: targetTeamSelect });
     
-    // Aguardar um pouco para garantir que os selects foram populados
+    // Aguardar um pouco para garantir que os cards foram renderizados
     setTimeout(() => {
-      // Pré-selecionar o jogador solicitado
-      const requestPlayersSelect = document.getElementById('requestPlayers');
-      const playerOption = requestPlayersSelect.querySelector(`option[value="${playerId}"]`);
-      if (playerOption) {
-        playerOption.selected = true;
-        playerOption.scrollIntoView({ block: 'nearest' });
+      // Encontrar e selecionar o card do jogador
+      const requestPlayersContainer = document.getElementById('requestPlayersContainer');
+      const playerCard = requestPlayersContainer.querySelector(`.trade-selectable-item[data-id="${playerId}"]`);
+      
+      if (playerCard && !playerCard.classList.contains('unavailable')) {
+        // Simular clique no card
+        playerCard.click();
+        
+        // Scroll até o jogador
+        playerCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Adicionar efeito visual temporário
+        playerCard.style.animation = 'pulse 0.5s ease 3';
       }
       
       // Abrir o modal
@@ -99,9 +121,18 @@ async function openTradeWithPreselectedPlayer(playerId, teamId) {
       
       // Adicionar nota sugerindo a trade
       document.getElementById('tradeNotes').value = 'Olá! Tenho interesse neste jogador. Vamos negociar?';
-    }, 300);
+      
+      // Focar no container de jogadores oferecidos para facilitar a seleção
+      setTimeout(() => {
+        const offerPlayersContainer = document.getElementById('offerPlayersContainer');
+        if (offerPlayersContainer) {
+          offerPlayersContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+    }, 400);
   } catch (err) {
     console.error('Erro ao pré-selecionar jogador:', err);
+    alert('Erro ao preparar a proposta de trade. Por favor, tente novamente.');
   }
 }
 
@@ -139,26 +170,12 @@ async function loadMyAssets() {
   try {
     // Meus jogadores disponíveis para troca
     const playersData = await api(`players.php?team_id=${myTeamId}`);
-  myPlayers = playersData.players || [];
+    myPlayers = playersData.players || [];
     
-  console.log('Meus jogadores carregados:', myPlayers.length);
+    console.log('Meus jogadores carregados:', myPlayers.length);
     
-    const selectPlayers = document.getElementById('offerPlayers');
-    selectPlayers.innerHTML = '';
-    if (myPlayers.length === 0) {
-      const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhum jogador encontrado no seu elenco';
-      selectPlayers.appendChild(option);
-    } else {
-      myPlayers.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
-        selectPlayers.appendChild(option);
-      });
-    }
+    // Renderizar jogadores como cards clicáveis
+    renderSelectablePlayers('offer', myPlayers);
     
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
@@ -166,56 +183,201 @@ async function loadMyAssets() {
     
     console.log('Minhas picks:', myPicks.length);
     
-    const selectPicks = document.getElementById('offerPicks');
-    selectPicks.innerHTML = '';
-    if (myPicks.length === 0) {
-      const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhuma pick disponível';
-      selectPicks.appendChild(option);
-    } else {
-      myPicks.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const originLabel = p.last_owner_city && p.last_owner_name
-          ? `${p.last_owner_city} ${p.last_owner_name}`
-          : (p.original_team_name || 'Time');
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
-        selectPicks.appendChild(option);
-      });
-    }
+    // Renderizar picks como cards clicáveis
+    renderSelectablePicks('offer', myPicks);
   } catch (err) {
     console.error('Erro ao carregar assets:', err);
   }
 }
 
+function renderSelectablePlayers(type, players) {
+  const containerId = type === 'offer' ? 'offerPlayersContainer' : 'requestPlayersContainer';
+  const container = document.getElementById(containerId);
+  const countBadge = document.getElementById(`${type}PlayersCount`);
+  
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (players.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+        <p class="mb-0">Nenhum jogador disponível</p>
+      </div>
+    `;
+    if (countBadge) countBadge.textContent = '0';
+    return;
+  }
+  
+  if (countBadge) countBadge.textContent = players.length;
+  
+  players.forEach(player => {
+    const isAvailable = player.available_for_trade;
+    const itemDiv = document.createElement('div');
+    itemDiv.className = `trade-selectable-item ${!isAvailable ? 'unavailable' : ''}`;
+    itemDiv.dataset.id = player.id;
+    itemDiv.dataset.type = 'player';
+    
+    itemDiv.innerHTML = `
+      <div class="trade-item-check">
+        <i class="bi bi-check" style="display: none;"></i>
+      </div>
+      <div class="trade-item-icon-small">
+        <i class="bi bi-person-fill"></i>
+      </div>
+      <div class="trade-item-info">
+        <div class="trade-item-name-small">${player.name || 'Jogador'}</div>
+        <div class="trade-item-meta-small">
+          <span class="badge bg-dark">${player.position || '-'}</span>
+          <span>${player.age ?? '?'} anos</span>
+          ${!isAvailable ? '<span class="badge bg-warning text-dark">Bloqueado</span>' : ''}
+        </div>
+      </div>
+      <div class="trade-item-ovr-small">${player.ovr ?? '?'}</div>
+    `;
+    
+    if (isAvailable) {
+      itemDiv.addEventListener('click', () => toggleTradeItem(itemDiv, type, 'player'));
+    }
+    
+    container.appendChild(itemDiv);
+  });
+}
+
+function renderSelectablePicks(type, picks) {
+  const containerId = type === 'offer' ? 'offerPicksContainer' : 'requestPicksContainer';
+  const container = document.getElementById(containerId);
+  const countBadge = document.getElementById(`${type}PicksCount`);
+  
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (picks.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+        <p class="mb-0">Nenhuma pick disponível</p>
+      </div>
+    `;
+    if (countBadge) countBadge.textContent = '0';
+    return;
+  }
+  
+  if (countBadge) countBadge.textContent = picks.length;
+  
+  picks.forEach(pick => {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'trade-selectable-item';
+    itemDiv.dataset.id = pick.id;
+    itemDiv.dataset.type = 'pick';
+    
+    const originLabel = pick.last_owner_city && pick.last_owner_name
+      ? `${pick.last_owner_city} ${pick.last_owner_name}`
+      : (pick.original_team_name || 'Time');
+    
+    itemDiv.innerHTML = `
+      <div class="trade-item-check">
+        <i class="bi bi-check" style="display: none;"></i>
+      </div>
+      <div class="trade-item-icon-small pick">
+        <i class="bi bi-trophy-fill"></i>
+      </div>
+      <div class="trade-item-info">
+        <div class="trade-item-name-small">Pick ${pick.season_year}</div>
+        <div class="trade-item-meta-small">
+          <span class="badge bg-warning text-dark">${pick.round}ª Rodada</span>
+          <span class="text-muted small">de ${originLabel}</span>
+        </div>
+      </div>
+    `;
+    
+    itemDiv.addEventListener('click', () => toggleTradeItem(itemDiv, type, 'pick'));
+    
+    container.appendChild(itemDiv);
+  });
+}
+
+function toggleTradeItem(itemDiv, type, itemType) {
+  if (itemDiv.classList.contains('unavailable')) return;
+  
+  const isSelected = itemDiv.classList.contains('selected');
+  const itemId = itemDiv.dataset.id;
+  const checkIcon = itemDiv.querySelector('.trade-item-check i');
+  
+  if (isSelected) {
+    itemDiv.classList.remove('selected');
+    checkIcon.style.display = 'none';
+    
+    // Remover do select escondido
+    const selectId = type === 'offer' 
+      ? (itemType === 'player' ? 'offerPlayers' : 'offerPicks')
+      : (itemType === 'player' ? 'requestPlayers' : 'requestPicks');
+    const select = document.getElementById(selectId);
+    const option = select.querySelector(`option[value="${itemId}"]`);
+    if (option) option.selected = false;
+  } else {
+    itemDiv.classList.add('selected');
+    checkIcon.style.display = 'block';
+    
+    // Adicionar ao select escondido
+    const selectId = type === 'offer' 
+      ? (itemType === 'player' ? 'offerPlayers' : 'offerPicks')
+      : (itemType === 'player' ? 'requestPlayers' : 'requestPicks');
+    const select = document.getElementById(selectId);
+    const option = select.querySelector(`option[value="${itemId}"]`);
+    if (option) option.selected = true;
+  }
+}
+
 async function onTargetTeamChange(e) {
   const teamId = e.target.value;
-  if (!teamId) return;
+  if (!teamId) {
+    // Limpar containers
+    const requestPlayersContainer = document.getElementById('requestPlayersContainer');
+    const requestPicksContainer = document.getElementById('requestPicksContainer');
+    
+    if (requestPlayersContainer) {
+      requestPlayersContainer.innerHTML = `
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+          <p class="mb-0">Selecione um time primeiro</p>
+        </div>
+      `;
+    }
+    
+    if (requestPicksContainer) {
+      requestPicksContainer.innerHTML = `
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox mb-2" style="font-size: 2rem;"></i>
+          <p class="mb-0">Selecione um time primeiro</p>
+        </div>
+      `;
+    }
+    
+    return;
+  }
   
   try {
     // Carregar jogadores do time alvo
     const playersData = await api(`players.php?team_id=${teamId}`);
-  const players = playersData.players || [];
+    const players = playersData.players || [];
     
-  console.log('Jogadores do time alvo carregados:', players.length);
+    console.log('Jogadores do time alvo carregados:', players.length);
     
-    const select = document.getElementById('requestPlayers');
-    select.innerHTML = '';
-    if (players.length === 0) {
+    // Renderizar jogadores
+    renderSelectablePlayers('request', players);
+    
+    // Popular select escondido para compatibilidade
+    const selectPlayers = document.getElementById('requestPlayers');
+    selectPlayers.innerHTML = '';
+    players.forEach(p => {
       const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhum jogador encontrado no elenco';
-      select.appendChild(option);
-    } else {
-      players.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
-        select.appendChild(option);
-      });
-    }
+      option.value = p.id;
+      option.textContent = formatTradePlayerDisplay(p);
+      selectPlayers.appendChild(option);
+    });
     
     // Carregar picks do time alvo
     const picksData = await api(`picks.php?team_id=${teamId}`);
@@ -223,24 +385,21 @@ async function onTargetTeamChange(e) {
     
     console.log('Picks do time alvo:', picks.length);
     
+    // Renderizar picks
+    renderSelectablePicks('request', picks);
+    
+    // Popular select escondido para compatibilidade
     const selectPicks = document.getElementById('requestPicks');
     selectPicks.innerHTML = '';
-    if (picks.length === 0) {
+    picks.forEach(p => {
       const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhuma pick disponível';
+      option.value = p.id;
+      const originLabel = p.last_owner_city && p.last_owner_name
+        ? `${p.last_owner_city} ${p.last_owner_name}`
+        : (p.original_team_name || 'Time');
+      option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
       selectPicks.appendChild(option);
-    } else {
-      picks.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const originLabel = p.last_owner_city && p.last_owner_name
-          ? `${p.last_owner_city} ${p.last_owner_name}`
-          : (p.original_team_name || 'Time');
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
-        selectPicks.appendChild(option);
-      });
-    }
+    });
   } catch (err) {
     console.error('Erro ao carregar assets do time:', err);
   }
@@ -550,6 +709,9 @@ async function openCounterProposal(originalTradeId, originalTrade) {
     originalTrade = JSON.parse(originalTrade.replace(/&quot;/g, '"'));
   }
   
+  // Limpar seleções anteriores
+  clearCounterProposalState();
+  
   // Preencher o modal com dados invertidos
   document.getElementById('targetTeam').value = originalTrade.from_team_id;
   document.getElementById('targetTeam').disabled = true; // Não pode mudar o time
@@ -557,36 +719,38 @@ async function openCounterProposal(originalTradeId, originalTrade) {
   // Carregar jogadores e picks do time que enviou a proposta original
   await onTargetTeamChange({ target: document.getElementById('targetTeam') });
   
-  // Pré-selecionar jogadores/picks que estavam sendo pedidos (agora vou oferecer)
+  // Aguardar renderização dos cards
   setTimeout(() => {
-    const offerPlayersSelect = document.getElementById('offerPlayers');
-    const offerPicksSelect = document.getElementById('offerPicks');
-    
-    // Selecionar os jogadores que eu deveria enviar na proposta original
+    // Selecionar os jogadores que eu deveria enviar na proposta original (agora vou oferecer)
     originalTrade.request_players.forEach(p => {
-      const option = offerPlayersSelect.querySelector(`option[value="${p.id}"]`);
-      if (option) option.selected = true;
+      const card = document.querySelector(`#offerPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
+      if (card && !card.classList.contains('unavailable')) {
+        card.click();
+      }
     });
     
     originalTrade.request_picks.forEach(p => {
-      const option = offerPicksSelect.querySelector(`option[value="${p.id}"]`);
-      if (option) option.selected = true;
+      const card = document.querySelector(`#offerPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
+      if (card) {
+        card.click();
+      }
     });
     
     // Selecionar os jogadores/picks que estavam sendo oferecidos (agora vou pedir)
-    const requestPlayersSelect = document.getElementById('requestPlayers');
-    const requestPicksSelect = document.getElementById('requestPicks');
-    
     originalTrade.offer_players.forEach(p => {
-      const option = requestPlayersSelect.querySelector(`option[value="${p.id}"]`);
-      if (option) option.selected = true;
+      const card = document.querySelector(`#requestPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
+      if (card && !card.classList.contains('unavailable')) {
+        card.click();
+      }
     });
     
     originalTrade.offer_picks.forEach(p => {
-      const option = requestPicksSelect.querySelector(`option[value="${p.id}"]`);
-      if (option) option.selected = true;
+      const card = document.querySelector(`#requestPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
+      if (card) {
+        card.click();
+      }
     });
-  }, 500);
+  }, 600);
   
   // Adicionar nota de contraproposta
   document.getElementById('tradeNotes').value = `[CONTRAPROPOSTA] Em resposta à proposta #${originalTradeId}`;
@@ -617,32 +781,43 @@ async function openModifyTrade(tradeId, trade) {
       body: JSON.stringify({ trade_id: tradeId, action: 'cancelled' })
     });
     
+    // Limpar seleções
+    clearCounterProposalState();
+    
     // Preencher o modal com os dados da trade
     document.getElementById('targetTeam').value = trade.to_team_id;
     await onTargetTeamChange({ target: document.getElementById('targetTeam') });
     
-    // Pré-selecionar itens
+    // Pré-selecionar itens após renderização
     setTimeout(() => {
       trade.offer_players.forEach(p => {
-        const option = document.querySelector(`#offerPlayers option[value="${p.id}"]`);
-        if (option) option.selected = true;
+        const card = document.querySelector(`#offerPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
+        if (card && !card.classList.contains('unavailable')) {
+          card.click();
+        }
       });
       
       trade.offer_picks.forEach(p => {
-        const option = document.querySelector(`#offerPicks option[value="${p.id}"]`);
-        if (option) option.selected = true;
+        const card = document.querySelector(`#offerPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
+        if (card) {
+          card.click();
+        }
       });
       
       trade.request_players.forEach(p => {
-        const option = document.querySelector(`#requestPlayers option[value="${p.id}"]`);
-        if (option) option.selected = true;
+        const card = document.querySelector(`#requestPlayersContainer .trade-selectable-item[data-id="${p.id}"]`);
+        if (card && !card.classList.contains('unavailable')) {
+          card.click();
+        }
       });
       
       trade.request_picks.forEach(p => {
-        const option = document.querySelector(`#requestPicks option[value="${p.id}"]`);
-        if (option) option.selected = true;
+        const card = document.querySelector(`#requestPicksContainer .trade-selectable-item[data-id="${p.id}"]`);
+        if (card) {
+          card.click();
+        }
       });
-    }, 500);
+    }, 600);
     
     document.getElementById('tradeNotes').value = trade.notes || '';
     
