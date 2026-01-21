@@ -24,6 +24,33 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .btn-trade-action {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #000;
+            font-weight: 600;
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+        }
+
+        .btn-trade-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 193, 7, 0.5);
+            color: #000;
+        }
+
+        .player-card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .player-card-actions .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+    </style>
 </head>
 <body>
     <div class="d-flex">
@@ -90,6 +117,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     <th>Posicao</th>
                                     <th>Time</th>
                                     <th>Contato</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="playersTableBody"></tbody>
@@ -140,6 +168,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     </div>
                     <div class="player-card-actions">
                         ${whatsappLink ? `<a class="btn btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-muted">Sem contato</span>'}
+                        <a class="btn btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
+                            <i class="bi bi-arrow-left-right"></i> Trocar
+                        </a>
                     </div>
                 </div>
             `;
@@ -196,6 +227,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <a class="btn btn-sm btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener">
                                             <i class="bi bi-whatsapp"></i> Falar
                                         </a>` : '<span class="text-muted">Sem contato</span>'}
+                                    </td>
+                                    <td>
+                                        <a class="btn btn-sm btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
+                                            <i class="bi bi-arrow-left-right"></i> Trocar
+                                        </a>
                                     </td>
                                 </tr>
                             `;

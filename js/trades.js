@@ -60,6 +60,49 @@ async function init() {
       clearCounterProposalState();
     });
   }
+
+  // Verificar se há jogador pré-selecionado na URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const preselectedPlayerId = urlParams.get('player');
+  const preselectedTeamId = urlParams.get('team');
+  
+  if (preselectedPlayerId && preselectedTeamId) {
+    // Abrir modal automaticamente com o jogador e time pré-selecionado
+    setTimeout(async () => {
+      await openTradeWithPreselectedPlayer(preselectedPlayerId, preselectedTeamId);
+    }, 500);
+  }
+}
+
+async function openTradeWithPreselectedPlayer(playerId, teamId) {
+  try {
+    // Selecionar o time
+    const targetTeamSelect = document.getElementById('targetTeam');
+    targetTeamSelect.value = teamId;
+    
+    // Carregar jogadores do time alvo
+    await onTargetTeamChange({ target: targetTeamSelect });
+    
+    // Aguardar um pouco para garantir que os selects foram populados
+    setTimeout(() => {
+      // Pré-selecionar o jogador solicitado
+      const requestPlayersSelect = document.getElementById('requestPlayers');
+      const playerOption = requestPlayersSelect.querySelector(`option[value="${playerId}"]`);
+      if (playerOption) {
+        playerOption.selected = true;
+        playerOption.scrollIntoView({ block: 'nearest' });
+      }
+      
+      // Abrir o modal
+      const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
+      modal.show();
+      
+      // Adicionar nota sugerindo a trade
+      document.getElementById('tradeNotes').value = 'Olá! Tenho interesse neste jogador. Vamos negociar?';
+    }, 300);
+  } catch (err) {
+    console.error('Erro ao pré-selecionar jogador:', err);
+  }
 }
 
 async function loadTeams() {
@@ -292,14 +335,14 @@ async function loadTrades(type) {
 
 function createTradeCard(trade, type) {
   const card = document.createElement('div');
-  card.className = 'bg-dark-panel border-orange rounded p-4 mb-3';
+  card.className = 'trade-card-modern mb-4';
   
   const statusBadge = {
-    'pending': '<span class="badge bg-warning text-dark">Pendente</span>',
-    'accepted': '<span class="badge bg-success">Aceita</span>',
-    'rejected': '<span class="badge bg-danger">Rejeitada</span>',
-    'cancelled': '<span class="badge bg-secondary">Cancelada</span>',
-    'countered': '<span class="badge bg-info">Contraproposta</span>'
+    'pending': '<span class="badge bg-warning text-dark px-3 py-2"><i class="bi bi-clock-fill me-1"></i>Pendente</span>',
+    'accepted': '<span class="badge bg-success px-3 py-2"><i class="bi bi-check-circle-fill me-1"></i>Aceita</span>',
+    'rejected': '<span class="badge bg-danger px-3 py-2"><i class="bi bi-x-circle-fill me-1"></i>Rejeitada</span>',
+    'cancelled': '<span class="badge bg-secondary px-3 py-2"><i class="bi bi-dash-circle-fill me-1"></i>Cancelada</span>',
+    'countered': '<span class="badge bg-info px-3 py-2"><i class="bi bi-arrow-repeat me-1"></i>Contraproposta</span>'
   }[trade.status];
   
   const fromTeam = `${trade.from_city} ${trade.from_name}`;
@@ -307,73 +350,150 @@ function createTradeCard(trade, type) {
   
   // Verificar se tem observação de resposta
   const responseNotes = trade.response_notes ? `
-    <div class="mt-2 p-2 bg-dark rounded border-start border-warning border-3">
-      <small class="text-warning fw-bold"><i class="bi bi-chat-dots me-1"></i>Resposta:</small>
-      <small class="text-light-gray d-block">${trade.response_notes}</small>
+    <div class="trade-response-note">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-chat-dots-fill text-warning"></i>
+        <strong class="text-warning">Resposta do GM:</strong>
+      </div>
+      <p class="mb-0 text-light-gray">${trade.response_notes}</p>
     </div>
   ` : '';
   
+  // Criar HTML dos itens com visual melhorado
+  const renderPlayerItem = (p) => `
+    <div class="trade-item-card">
+      <div class="d-flex align-items-center gap-3">
+        <div class="trade-item-icon">
+          <i class="bi bi-person-fill"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="trade-item-name">${p.name || 'Jogador'}</div>
+          <div class="trade-item-meta">
+            <span class="badge bg-dark">${p.position || '-'}</span>
+            <span class="text-muted">OVR ${p.ovr ?? '?'}</span>
+            <span class="text-muted">${p.age ?? '?'} anos</span>
+          </div>
+        </div>
+        <div class="trade-item-ovr">${p.ovr ?? '?'}</div>
+      </div>
+    </div>
+  `;
+  
+  const renderPickItem = (p) => `
+    <div class="trade-item-card">
+      <div class="d-flex align-items-center gap-3">
+        <div class="trade-item-icon pick-icon">
+          <i class="bi bi-trophy-fill"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="trade-item-name">Pick ${p.season_year}</div>
+          <div class="trade-item-meta">
+            <span class="badge bg-warning text-dark">${p.round}ª Rodada</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const offerPlayersHTML = trade.offer_players.map(renderPlayerItem).join('');
+  const offerPicksHTML = trade.offer_picks.map(renderPickItem).join('');
+  const requestPlayersHTML = trade.request_players.map(renderPlayerItem).join('');
+  const requestPicksHTML = trade.request_picks.map(renderPickItem).join('');
+  
+  const hasOfferItems = trade.offer_players.length > 0 || trade.offer_picks.length > 0;
+  const hasRequestItems = trade.request_players.length > 0 || trade.request_picks.length > 0;
+  
   card.innerHTML = `
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <div>
-        <h5 class="text-white mb-1">${fromTeam} <i class="bi bi-arrow-right text-orange"></i> ${toTeam}</h5>
-        <small class="text-light-gray">${new Date(trade.created_at).toLocaleDateString('pt-BR')}</small>
+    <div class="trade-card-header">
+      <div class="trade-card-teams">
+        <div class="trade-team">
+          <div class="trade-team-name">${fromTeam}</div>
+          <small class="text-muted">${new Date(trade.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</small>
+        </div>
+        <div class="trade-arrow">
+          <i class="bi bi-arrow-left-right"></i>
+        </div>
+        <div class="trade-team text-end">
+          <div class="trade-team-name">${toTeam}</div>
+          <small class="text-muted">Trade #${trade.id}</small>
+        </div>
       </div>
-      <div>${statusBadge}</div>
-    </div>
-    
-    <div class="row">
-      <div class="col-md-6">
-        <h6 class="text-orange mb-2">${fromTeam} oferece:</h6>
-        <ul class="list-unstyled text-white">
-          ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
-          ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
-        </ul>
-      </div>
-      <div class="col-md-6">
-        <h6 class="text-orange mb-2">${toTeam} envia:</h6>
-        <ul class="list-unstyled text-white">
-          ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
-          ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
-        </ul>
+      <div class="mt-3">
+        ${statusBadge}
       </div>
     </div>
     
-    ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
-    ${responseNotes}
+    <div class="trade-card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="trade-section">
+            <div class="trade-section-header">
+              <i class="bi bi-box-arrow-right me-2"></i>
+              <span>${fromTeam} envia</span>
+            </div>
+            <div class="trade-items">
+              ${hasOfferItems ? offerPlayersHTML + offerPicksHTML : '<div class="text-center text-muted py-3">Nenhum item oferecido</div>'}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="trade-section">
+            <div class="trade-section-header">
+              <i class="bi bi-box-arrow-in-left me-2"></i>
+              <span>${toTeam} envia</span>
+            </div>
+            <div class="trade-items">
+              ${hasRequestItems ? requestPlayersHTML + requestPicksHTML : '<div class="text-center text-muted py-3">Nenhum item solicitado</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      ${trade.notes ? `
+        <div class="trade-notes">
+          <i class="bi bi-chat-left-text-fill me-2"></i>
+          <span>${trade.notes}</span>
+        </div>
+      ` : ''}
+      
+      ${responseNotes}
+    </div>
     
     ${trade.status === 'pending' && type === 'received' ? `
-      <div class="mt-3">
-        <div class="mb-2">
-          <label class="form-label text-light-gray small">Observação (opcional):</label>
-          <textarea class="form-control form-control-sm bg-dark text-white border-secondary" 
+      <div class="trade-card-footer">
+        <div class="mb-3">
+          <label class="form-label text-light-gray small fw-bold">
+            <i class="bi bi-pencil me-1"></i>Adicionar observação (opcional):
+          </label>
+          <textarea class="form-control bg-dark text-white border-secondary" 
                     id="responseNotes_${trade.id}" rows="2" 
-                    placeholder="Adicione uma mensagem..."></textarea>
+                    placeholder="Digite sua resposta ou comentário..."></textarea>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-success btn-sm" onclick="respondTrade(${trade.id}, 'accepted')">
-            <i class="bi bi-check-circle me-1"></i>Aceitar
+          <button class="btn btn-success" onclick="respondTrade(${trade.id}, 'accepted')">
+            <i class="bi bi-check-circle-fill me-2"></i>Aceitar Trade
           </button>
-          <button class="btn btn-danger btn-sm" onclick="respondTrade(${trade.id}, 'rejected')">
-            <i class="bi bi-x-circle me-1"></i>Rejeitar
+          <button class="btn btn-danger" onclick="respondTrade(${trade.id}, 'rejected')">
+            <i class="bi bi-x-circle-fill me-2"></i>Rejeitar
           </button>
-          <button class="btn btn-info btn-sm" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
-            <i class="bi bi-arrow-repeat me-1"></i>Contraproposta
+          <button class="btn btn-info" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+            <i class="bi bi-arrow-repeat me-2"></i>Fazer Contraproposta
           </button>
         </div>
       </div>
     ` : ''}
     
     ${trade.status === 'pending' && type === 'sent' ? `
-      <div class="mt-3 d-flex gap-2 flex-wrap">
-        <button class="btn btn-warning btn-sm" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
-          <i class="bi bi-pencil me-1"></i>Modificar
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="respondTrade(${trade.id}, 'cancelled')">
-          <i class="bi bi-x-circle me-1"></i>Cancelar
-        </button>
+      <div class="trade-card-footer">
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-warning" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+            <i class="bi bi-pencil-fill me-2"></i>Modificar Proposta
+          </button>
+          <button class="btn btn-secondary" onclick="respondTrade(${trade.id}, 'cancelled')">
+            <i class="bi bi-x-circle me-2"></i>Cancelar Trade
+          </button>
+        </div>
       </div>
     ` : ''}
   `;

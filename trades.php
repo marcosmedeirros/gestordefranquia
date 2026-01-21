@@ -147,6 +147,187 @@ if ($teamId) {
       border: 1px solid var(--fba-border);
       color: var(--fba-text);
     }
+
+    /* Modern Trade Card Styles */
+    .trade-card-modern {
+      background: linear-gradient(135deg, rgba(20, 20, 20, 0.95) 0%, rgba(26, 26, 26, 0.95) 100%);
+      border: 1px solid var(--fba-border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s ease;
+    }
+
+    .trade-card-modern:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 15px 50px rgba(252, 0, 37, 0.2);
+      border-color: var(--fba-brand);
+    }
+
+    .trade-card-header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #141414 100%);
+      padding: 24px;
+      border-bottom: 2px solid var(--fba-border);
+    }
+
+    .trade-card-teams {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .trade-team {
+      flex: 1;
+    }
+
+    .trade-team-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--fba-white);
+      margin-bottom: 4px;
+    }
+
+    .trade-arrow {
+      background: var(--fba-brand);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: white;
+      box-shadow: 0 4px 15px rgba(252, 0, 37, 0.4);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .trade-card-body {
+      padding: 24px;
+    }
+
+    .trade-section {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 16px;
+      height: 100%;
+    }
+
+    .trade-section-header {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--fba-brand);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--fba-border);
+      display: flex;
+      align-items: center;
+    }
+
+    .trade-items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .trade-item-card {
+      background: var(--fba-dark-bg);
+      border: 1px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .trade-item-card:hover {
+      border-color: var(--fba-brand);
+      transform: translateX(4px);
+      background: rgba(252, 0, 37, 0.05);
+    }
+
+    .trade-item-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--fba-brand) 0%, #ff2a44 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      color: white;
+      box-shadow: 0 4px 12px rgba(252, 0, 37, 0.3);
+    }
+
+    .trade-item-icon.pick-icon {
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+    }
+
+    .trade-item-name {
+      font-weight: 600;
+      color: var(--fba-white);
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .trade-item-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .trade-item-ovr {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--fba-brand);
+      min-width: 45px;
+      text-align: center;
+    }
+
+    .trade-notes {
+      background: rgba(252, 0, 37, 0.1);
+      border: 1px solid rgba(252, 0, 37, 0.3);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      color: var(--fba-text-muted);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: start;
+      gap: 8px;
+    }
+
+    .trade-response-note {
+      background: rgba(255, 193, 7, 0.1);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .trade-card-footer {
+      padding: 20px 24px;
+      background: rgba(0, 0, 0, 0.3);
+      border-top: 1px solid var(--fba-border);
+    }
+
+    .trade-card-footer .btn {
+      padding: 10px 20px;
+      font-weight: 600;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .trade-card-footer .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
   </style>
 </head>
 <body>
