@@ -288,22 +288,17 @@ if (!$team) {
               Gerenciar Draft
             </h4>
             <div class="row g-2">
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <button class="btn btn-orange w-100" onclick="showDraftManagement(${season.id}, '${league}')">
                   <i class="bi bi-people me-2"></i>Jogadores do Draft
                 </button>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <button class="btn btn-outline-orange w-100" onclick="showDraftSessionManagement(${season.id}, '${league}')">
                   <i class="bi bi-list-ol me-2"></i>Configurar Sessão
                 </button>
               </div>
-              <div class="col-md-3">
-                <button class="btn btn-info w-100" onclick="window.location.href='/import-draft-players.php'">
-                  <i class="bi bi-file-earmark-arrow-up me-2"></i>Importar CSV
-                </button>
-              </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <button class="btn btn-success w-100" onclick="showDraftHistory('${league}')">
                   <i class="bi bi-clock-history me-2"></i>Histórico
                 </button>
@@ -592,9 +587,14 @@ if (!$team) {
                 </div>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-2">
               <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal()" style="border-radius: 15px;">
-                <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador ao Draft
+                <i class="bi bi-plus-circle me-1"></i>Adicionar
+              </button>
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-info w-100 h-100" onclick="showImportCSVModal(${season.id}, '${league}', ${season.season_number})" style="border-radius: 15px;">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar CSV
               </button>
             </div>
           </div>
@@ -804,6 +804,127 @@ if (!$team) {
       } catch (e) {
         alert('Erro ao adicionar jogador: ' + (e.error || 'Desconhecido'));
       }
+    }
+
+    // ========== IMPORTAR CSV ==========
+    function showImportCSVModal(seasonId, league, seasonNumber) {
+      const modal = document.createElement('div');
+      modal.innerHTML = `
+        <div class="modal fade" id="importCSVModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+              <div class="modal-header border-orange">
+                <h5 class="modal-title text-white">
+                  <i class="bi bi-file-earmark-arrow-up me-2"></i>
+                  Importar Jogadores via CSV
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                  <strong>Temporada:</strong> ${league} - Temporada ${seasonNumber}
+                </div>
+                
+                <div class="card bg-dark-panel border-orange mb-3">
+                  <div class="card-body">
+                    <h6 class="text-white mb-2">
+                      <i class="bi bi-info-circle me-2"></i>Formato do CSV
+                    </h6>
+                    <p class="text-light-gray mb-2 small">
+                      O arquivo deve ter as colunas: <code class="text-success">nome,posicao,idade,ovr</code>
+                    </p>
+                    <div class="bg-dark rounded p-2 mb-2">
+                      <code class="text-white small" style="display: block; white-space: pre;">nome,posicao,idade,ovr
+LeBron James,SF,39,96
+Stephen Curry,PG,35,95</code>
+                    </div>
+                    <button class="btn btn-sm btn-outline-orange" onclick="downloadCSVTemplate()">
+                      <i class="bi bi-download me-1"></i>Baixar Template
+                    </button>
+                  </div>
+                </div>
+                
+                <form id="importCSVForm" onsubmit="submitImportCSV(event, ${seasonId})">
+                  <div class="mb-3">
+                    <label class="form-label text-white">Selecione o arquivo CSV</label>
+                    <input type="file" class="form-control bg-dark text-white border-orange" 
+                           id="csvFileInput" accept=".csv" required>
+                  </div>
+                  <button type="submit" class="btn btn-success w-100">
+                    <i class="bi bi-upload me-2"></i>Importar Jogadores
+                  </button>
+                </form>
+                
+                <div id="importResult" class="mt-3" style="display: none;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const bsModal = new bootstrap.Modal(document.getElementById('importCSVModal'));
+      bsModal.show();
+      document.getElementById('importCSVModal').addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+      });
+    }
+
+    async function submitImportCSV(event, seasonId) {
+      event.preventDefault();
+      
+      const fileInput = document.getElementById('csvFileInput');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        alert('Selecione um arquivo CSV');
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('csv_file', file);
+      formData.append('season_id', seasonId);
+      
+      const resultDiv = document.getElementById('importResult');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Importando...</div>';
+      
+      try {
+        const response = await fetch('/api/import-draft-players.php', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+          
+          setTimeout(() => {
+            bootstrap.Modal.getInstance(document.getElementById('importCSVModal')).hide();
+            showDraftManagement(currentSeasonId, currentLeague);
+          }, 2000);
+        } else {
+          let errorMsg = data.error || 'Erro desconhecido';
+          if (data.file && data.line) {
+            errorMsg += ` (${data.file}:${data.line})`;
+          }
+          resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>Erro: ${errorMsg}</div>`;
+        }
+      } catch (e) {
+        console.error('Erro na importação:', e);
+        resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>Erro: ${e.message || 'Desconhecido'}</div>`;
+      }
+    }
+
+    function downloadCSVTemplate() {
+      const csv = 'nome,posicao,idade,ovr\\nLeBron James,SF,39,96\\nStephen Curry,PG,35,95\\nKevin Durant,PF,35,94\\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'template-draft-players.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
     }
     
     async function deleteDraftPlayer(playerId) {
