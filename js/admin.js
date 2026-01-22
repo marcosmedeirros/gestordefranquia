@@ -2246,7 +2246,8 @@ async function approveUser(userId, username) {
     
     if (result.success) {
       showAlert('success', `Usuário "${username}" aprovado com sucesso!`);
-      showUserApprovals(); // Recarrega a lista
+      await showUserApprovals(); // Recarrega a lista
+      updatePendingUsersCount(); // Atualiza o badge no home
     }
   } catch (e) {
     showAlert('danger', 'Erro ao aprovar usuário: ' + (e.error || 'Desconhecido'));
@@ -2267,10 +2268,29 @@ async function rejectUser(userId, username) {
     
     if (result.success) {
       showAlert('success', `Usuário "${username}" rejeitado e removido.`);
-      showUserApprovals(); // Recarrega a lista
+      await showUserApprovals(); // Recarrega a lista
+      updatePendingUsersCount(); // Atualiza o badge no home
     }
   } catch (e) {
     showAlert('danger', 'Erro ao rejeitar usuário: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function updatePendingUsersCount() {
+  try {
+    const approvalData = await api('user-approval.php');
+    const pendingCount = (approvalData.users || []).length;
+    const badge = document.getElementById('pending-users-count');
+    if (badge) {
+      if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao atualizar contagem de usuários pendentes:', e);
   }
 }
 
