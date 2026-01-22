@@ -310,24 +310,20 @@ $lastRunnerUp = null;
 $lastMVP = null;
 $lastSprintInfo = null;
 try {
-    // Buscar o sprint anterior (último sprint completado)
+    // Buscar o último registro de season_history (onde ficam os vencedores)
     $stmtLastSprint = $pdo->prepare("
-        SELECT sp.*, 
+        SELECT sh.*, 
                t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, 
                t1.photo_url as champion_photo, u1.name as champion_owner,
                t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name,
-               t2.photo_url as runner_up_photo, u2.name as runner_up_owner,
-               p.id as mvp_id, p.name as mvp_name, p.position as mvp_position, p.ovr as mvp_ovr,
-               t3.city as mvp_team_city, t3.name as mvp_team_name
-        FROM sprints sp
-        LEFT JOIN teams t1 ON sp.champion_team_id = t1.id
+               t2.photo_url as runner_up_photo, u2.name as runner_up_owner
+        FROM season_history sh
+        LEFT JOIN teams t1 ON sh.champion_team_id = t1.id
         LEFT JOIN users u1 ON t1.user_id = u1.id
-        LEFT JOIN teams t2 ON sp.runner_up_team_id = t2.id
+        LEFT JOIN teams t2 ON sh.runner_up_team_id = t2.id
         LEFT JOIN users u2 ON t2.user_id = u2.id
-        LEFT JOIN players p ON sp.mvp_player_id = p.id
-        LEFT JOIN teams t3 ON p.team_id = t3.id
-        WHERE sp.league = ? 
-        ORDER BY sp.start_year DESC, sp.sprint_number DESC
+        WHERE sh.league = ?
+        ORDER BY sh.id DESC
         LIMIT 1
     ");
     $stmtLastSprint->execute([$team['league']]);
@@ -356,20 +352,30 @@ try {
             ];
         }
         
-        // Montar dados do MVP
-        if ($lastSprintInfo['mvp_id']) {
+        // Montar dados do MVP (nome do jogador está diretamente na tabela)
+        if (!empty($lastSprintInfo['mvp_player'])) {
             $lastMVP = [
-                'id' => $lastSprintInfo['mvp_id'],
-                'name' => $lastSprintInfo['mvp_name'],
-                'position' => $lastSprintInfo['mvp_position'],
-                'ovr' => $lastSprintInfo['mvp_ovr'],
-                'team_city' => $lastSprintInfo['mvp_team_city'],
-                'team_name' => $lastSprintInfo['mvp_team_name']
+                'name' => $lastSprintInfo['mvp_player'],
+                'position' => null, // Não temos essa info na season_history
+                'ovr' => null,
+                'team_city' => null,
+                'team_name' => null
             ];
+            
+            // Tentar buscar time do MVP se tiver mvp_team_id
+            if (!empty($lastSprintInfo['mvp_team_id'])) {
+                $stmtMvpTeam = $pdo->prepare("SELECT city, name FROM teams WHERE id = ?");
+                $stmtMvpTeam->execute([$lastSprintInfo['mvp_team_id']]);
+                $mvpTeam = $stmtMvpTeam->fetch();
+                if ($mvpTeam) {
+                    $lastMVP['team_city'] = $mvpTeam['city'];
+                    $lastMVP['team_name'] = $mvpTeam['name'];
+                }
+            }
         }
     }
 } catch (Exception $e) {
-    // Pode falhar se colunas não existirem
+    // Pode falhar se tabela não existir
     // Debug: descomentar linha abaixo para ver erro
     // error_log("Erro ao buscar vencedores: " . $e->getMessage());
 }
@@ -912,9 +918,14 @@ try {
                                         <div class="text-orange small fw-bold">MVP</div>
                                         <div class="text-white"><?= htmlspecialchars($lastMVP['name']) ?></div>
                                         <small class="text-light-gray">
-                                            <?= htmlspecialchars($lastMVP['position']) ?> - <?= (int)($lastMVP['ovr'] ?? 0) ?> OVR
+                                            <?php if (!empty($lastMVP['position']) && !empty($lastMVP['ovr'])): ?>
+                                                <?= htmlspecialchars($lastMVP['position']) ?> - <?= (int)$lastMVP['ovr'] ?> OVR
+                                                <?php if (!empty($lastMVP['team_city']) && !empty($lastMVP['team_name'])): ?>
+                                                    <br>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
                                             <?php if (!empty($lastMVP['team_city']) && !empty($lastMVP['team_name'])): ?>
-                                                <br><?= htmlspecialchars($lastMVP['team_city'] . ' ' . $lastMVP['team_name']) ?>
+                                                <?= htmlspecialchars($lastMVP['team_city'] . ' ' . $lastMVP['team_name']) ?>
                                             <?php endif; ?>
                                         </small>
                                     </div>
