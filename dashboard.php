@@ -734,12 +734,12 @@ try {
                             </div>
                             
                             <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
-                                <a href="/rankings.php" class="text-decoration-none">
+                                <a href="/players.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
-                                            <i class="bi bi-trophy-fill display-1 text-warning mb-2"></i>
-                                            <h5 class="text-white mb-1">Rankings</h5>
-                                            <p class="text-light-gray small mb-0">Veja sua posição</p>
+                                            <i class="bi bi-search display-1 text-success mb-2"></i>
+                                            <h5 class="text-white mb-1">Buscar Jogadores</h5>
+                                            <p class="text-light-gray small mb-0">Encontre novos talentos</p>
                                         </div>
                                     </div>
                                 </a>
