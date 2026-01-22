@@ -22,6 +22,16 @@ function requireAuth() {
         header('Location: /login.php');
         exit;
     }
+    
+    // Verificar se o usuário está aprovado
+    if (isset($_SESSION['user_approved']) && $_SESSION['user_approved'] == 0) {
+        // Se não estiver na página de aprovação pendente, redireciona
+        $currentPage = basename($_SERVER['PHP_SELF']);
+        if ($currentPage !== 'pending-approval.php' && $currentPage !== 'logout.php') {
+            header('Location: /pending-approval.php');
+            exit;
+        }
+    }
 }
 
 function getUserSession() {
@@ -36,6 +46,7 @@ function getUserSession() {
         'league' => $_SESSION['user_league'] ?? 'ROOKIE',
         'photo_url' => $_SESSION['user_photo'] ?? null,
         'phone' => $_SESSION['user_phone'] ?? null,
+        'approved' => $_SESSION['user_approved'] ?? 1,
     ];
 }
 
@@ -47,6 +58,7 @@ function setUserSession($user) {
     $_SESSION['user_league'] = $user['league'];
     $_SESSION['user_photo'] = $user['photo_url'] ?? null;
     $_SESSION['user_phone'] = $user['phone'] ?? null;
+    $_SESSION['user_approved'] = $user['approved'] ?? 1;
 }
 
 function destroyUserSession() {

@@ -41,12 +41,13 @@ try {
     $token = bin2hex(random_bytes(16));
     $hash = password_hash($password, PASSWORD_BCRYPT);
 
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    // Novos usuários começam como não aprovados (approved = 0)
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url, phone, approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)');
     $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null, $phone]);
 
     sendVerificationEmail($email, $token);
 
-    jsonResponse(201, ['message' => 'Usuário criado. Verifique seu e-mail.', 'user_id' => $pdo->lastInsertId()]);
+    jsonResponse(201, ['message' => 'Usuário criado. Aguarde aprovação do administrador.', 'user_id' => $pdo->lastInsertId()]);
 } catch (PDOException $e) {
     error_log('Erro SQL no register.php: ' . $e->getMessage());
     

@@ -63,6 +63,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'coins') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>';
       pageTitle.textContent = 'Gerenciar Moedas';
+    } else if (appState.view === 'userApprovals') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>';
+      pageTitle.textContent = 'Aprovar Usuários';
     }
   }
 }
@@ -78,6 +81,7 @@ async function showHome() {
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('RISE')"><h3>RISE</h3><p class="text-light-gray mb-2">Liga Rise</p><span class="badge bg-gradient-orange" id="rise-teams">Ver mais</span></div></div>
 <div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
+<div class="col-md-6"><div class="action-card" onclick="showUserApprovals()"><i class="bi bi-person-check"></i><h4>Aprovar Usuários <span class="badge bg-danger" id="pending-users-count" style="display:none;">0</span></h4><p>Aprovar ou rejeitar novos cadastros</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
@@ -89,6 +93,17 @@ async function showHome() {
       const el = document.getElementById(`${league.league.toLowerCase()}-teams`);
       if (el) el.textContent = `${league.team_count} ${league.team_count === 1 ? 'time' : 'times'}`;
     });
+  } catch (e) {}
+  
+  // Carregar contagem de usuários pendentes
+  try {
+    const approvalData = await api('user-approval.php');
+    const pendingCount = (approvalData.users || []).length;
+    const badge = document.getElementById('pending-users-count');
+    if (badge && pendingCount > 0) {
+      badge.textContent = pendingCount;
+      badge.style.display = 'inline-block';
+    }
   } catch (e) {}
 }
 
@@ -2129,4 +2144,134 @@ async function showCoinsHistory(teamId, teamName) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar histórico: ' + (e.error || 'Desconhecido') + '</div>';
   }
 }
+
+// ========================================
+// APROVAÇÃO DE USUÁRIOS
+// ========================================
+
+async function showUserApprovals() {
+  appState.view = 'userApprovals';
+  updateBreadcrumb();
+  
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-orange" role="status"></div></div>';
+  
+  try {
+    const data = await api('user-approval.php');
+    const users = data.users || [];
+    
+    let html = `
+      <div class="row">
+        <div class="col-12">
+          <h2 class="text-white mb-4">
+            <i class="bi bi-person-check text-orange me-2"></i>
+            Aprovação de Usuários
+          </h2>
+        </div>
+      </div>
+    `;
+    
+    if (users.length === 0) {
+      html += `
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          Não há usuários aguardando aprovação.
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="row g-4">
+          ${users.map(user => {
+            const createdDate = new Date(user.created_at);
+            const dateStr = createdDate.toLocaleDateString('pt-BR') + ' ' + 
+                          createdDate.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+            
+            return `
+              <div class="col-md-6 col-lg-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-gradient-orange rounded-circle d-flex align-items-center justify-content-center" 
+                           style="width: 50px; height: 50px; min-width: 50px;">
+                        <i class="bi bi-person-fill text-white fs-4"></i>
+                      </div>
+                      <div class="ms-3 flex-grow-1">
+                        <h5 class="text-white mb-1">${user.username}</h5>
+                        <p class="text-light-gray mb-0 small">
+                          <i class="bi bi-clock me-1"></i>${dateStr}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <p class="text-light-gray mb-1 small">
+                        <i class="bi bi-envelope me-2"></i>${user.email}
+                      </p>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-success flex-fill" onclick="approveUser(${user.id}, '${user.username}')">
+                        <i class="bi bi-check-circle me-1"></i>Aprovar
+                      </button>
+                      <button class="btn btn-danger flex-fill" onclick="rejectUser(${user.id}, '${user.username}')">
+                        <i class="bi bi-x-circle me-1"></i>Rejeitar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar usuários: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+
+async function approveUser(userId, username) {
+  if (!confirm(`Deseja aprovar o usuário "${username}"?`)) return;
+  
+  try {
+    const result = await api('user-approval.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        user_id: userId,
+        action: 'approve'
+      })
+    });
+    
+    if (result.success) {
+      showAlert('success', `Usuário "${username}" aprovado com sucesso!`);
+      showUserApprovals(); // Recarrega a lista
+    }
+  } catch (e) {
+    showAlert('danger', 'Erro ao aprovar usuário: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function rejectUser(userId, username) {
+  if (!confirm(`Deseja REJEITAR e EXCLUIR o usuário "${username}"?\n\nEsta ação não pode ser desfeita!`)) return;
+  
+  try {
+    const result = await api('user-approval.php', {
+      method: 'PUT',
+      body: JSON.stringify({
+        user_id: userId,
+        action: 'reject'
+      })
+    });
+    
+    if (result.success) {
+      showAlert('success', `Usuário "${username}" rejeitado e removido.`);
+      showUserApprovals(); // Recarrega a lista
+    }
+  } catch (e) {
+    showAlert('danger', 'Erro ao rejeitar usuário: ' + (e.error || 'Desconhecido'));
+  }
+}
+
 
