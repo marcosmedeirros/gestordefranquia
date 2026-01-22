@@ -159,15 +159,20 @@ Kevin Durant,PF,35,94</code>
                     method: 'POST'
                 });
 
+                console.log('Draft response:', data);
+
                 if (data.draft) {
                     currentDraftId = data.draft.id;
                     document.getElementById('selectedDraftInfo').textContent = 
                         `${data.draft.league} ${data.draft.year} (ID: ${data.draft.id})`;
                     document.getElementById('uploadSection').style.display = 'block';
                     document.getElementById('resultSection').style.display = 'none';
+                } else {
+                    throw new Error('Draft não retornado pela API');
                 }
             } catch (e) {
-                alert('Erro ao carregar draft: ' + (e.error || 'Desconhecido'));
+                console.error('Erro ao carregar draft:', e);
+                alert('Erro ao carregar draft: ' + (e.error || e.message || 'Desconhecido'));
             }
         }
 
@@ -197,14 +202,20 @@ Kevin Durant,PF,35,94</code>
 
                 const data = await response.json();
 
-                if (data.success) {
+                if (response.ok && data.success) {
                     showResult('success', data.message);
                     fileInput.value = '';
                 } else {
-                    throw data;
+                    // Monta mensagem de erro detalhada
+                    let errorMsg = data.error || 'Erro desconhecido';
+                    if (data.file && data.line) {
+                        errorMsg += ` (${data.file}:${data.line})`;
+                    }
+                    throw new Error(errorMsg);
                 }
             } catch (e) {
-                showResult('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+                console.error('Erro na importação:', e);
+                showResult('danger', 'Erro: ' + (e.message || e.error || 'Desconhecido'));
             }
         }
 
