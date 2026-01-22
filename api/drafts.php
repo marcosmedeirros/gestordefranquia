@@ -7,11 +7,23 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $year = isset($_GET['year']) ? (int) $_GET['year'] : null;
-    $sql = 'SELECT id, year FROM drafts';
+    $league = isset($_GET['league']) ? $_GET['league'] : null;
+    
+    $sql = 'SELECT id, year, league FROM drafts';
     $params = [];
+    $where = [];
+    
     if ($year) {
-        $sql .= ' WHERE year = ?';
+        $where[] = 'year = ?';
         $params[] = $year;
+    }
+    if ($league) {
+        $where[] = 'league = ?';
+        $params[] = $league;
+    }
+    
+    if (count($where) > 0) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
     }
     $sql .= ' ORDER BY year DESC';
 
@@ -29,24 +41,69 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $action = isset($_GET['action']) ? $_GET['action'] : null;
+    
+    // Get or Create draft
+    if ($action === 'get_or_create') {
+        $year = isset($_GET['year']) ? (int) $_GET['year'] : 0;
+        $league = isset($_GET['league']) ? $_GET['league'] : null;
+        
+        if (!$year || !$league) {
+            jsonResponse(422, ['error' => 'Ano e liga são obrigatórios.']);
+        }
+        
+        // Busca draft existente
+        $stmt = $pdo->prepare('SELECT id, year, league FROM drafts WHERE year = ? AND league = ?');
+        $stmt->execute([$year, $league]);
+        $existing = $stmt->fetch();
+        
+        if ($existing) {
+            jsonResponse(200, ['draft' => $existing, 'created' => false]);
+        }
+        
+        // Cria novo draft
+        try {
+            $stmt = $pdo->prepare('INSERT INTO drafts (year, league) VALUES (?, ?)');
+            $stmt->execute([$year, $league]);
+            $draftId = (int) $pdo->lastInsertId();
+            
+            jsonResponse(201, [
+                'draft' => [
+                    'id' => $draftId,
+                    'year' => $year,
+                    'league' => $league
+                ],
+                'created' => true
+            ]);
+        } catch (Throwable $e) {
+            jsonResponse(500, ['error' => 'Erro ao criar draft.', 'details' => $e->getMessage()]);
+        }
+    }
+    
+    // Create draft com jogadores
     $body = readJsonBody();
     $year = (int) ($body['year'] ?? 0);
+    $league = $body['league'] ?? null;
     $players = $body['players'] ?? [];
 
     if (!$year) {
         jsonResponse(422, ['error' => 'Ano é obrigatório.']);
     }
+    
+    if (!$league) {
+        jsonResponse(422, ['error' => 'Liga é obrigatória.']);
+    }
 
-    $exists = $pdo->prepare('SELECT id FROM drafts WHERE year = ?');
-    $exists->execute([$year]);
+    $exists = $pdo->prepare('SELECT id FROM drafts WHERE year = ? AND league = ?');
+    $exists->execute([$year, $league]);
     if ($exists->fetch()) {
-        jsonResponse(409, ['error' => 'Draft para esse ano já existe.']);
+        jsonResponse(409, ['error' => 'Draft para esse ano e liga já existe.']);
     }
 
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare('INSERT INTO drafts (year) VALUES (?)');
-        $stmt->execute([$year]);
+        $stmt = $pdo->prepare('INSERT INTO drafts (year, league) VALUES (?, ?)');
+        $stmt->execute([$year, $league]);
         $draftId = (int) $pdo->lastInsertId();
 
         if (is_array($players)) {
