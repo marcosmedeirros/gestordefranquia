@@ -15,6 +15,12 @@ $user = getUserSession();
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-dark-main">
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="bi bi-list fs-4"></i>
+    </button>
+    
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
     <?php include 'includes/sidebar.php'; ?>
     
     <div class="main-content">
@@ -226,5 +232,6 @@ Kevin Durant,PF,35,94</code>
             window.URL.revokeObjectURL(url);
         }
     </script>
+    <script src="js/sidebar.js"></script>
 </body>
 </html>

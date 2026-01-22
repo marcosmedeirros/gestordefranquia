@@ -288,19 +288,24 @@ if (!$team) {
               Gerenciar Draft
             </h4>
             <div class="row g-2">
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <button class="btn btn-orange w-100" onclick="showDraftManagement(${season.id}, '${league}')">
                   <i class="bi bi-people me-2"></i>Jogadores do Draft
                 </button>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <button class="btn btn-outline-orange w-100" onclick="showDraftSessionManagement(${season.id}, '${league}')">
                   <i class="bi bi-list-ol me-2"></i>Configurar Sessão
                 </button>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
+                <button class="btn btn-info w-100" onclick="window.location.href='/import-draft-players.php'">
+                  <i class="bi bi-file-earmark-arrow-up me-2"></i>Importar CSV
+                </button>
+              </div>
+              <div class="col-md-3">
                 <button class="btn btn-success w-100" onclick="showDraftHistory('${league}')">
-                  <i class="bi bi-clock-history me-2"></i>Histórico de Drafts
+                  <i class="bi bi-clock-history me-2"></i>Histórico
                 </button>
               </div>
             </div>
