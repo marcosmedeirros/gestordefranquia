@@ -762,10 +762,12 @@ try {
             <div class="col-lg-4">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-body text-center py-4">
-                        <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
-                             alt="<?= htmlspecialchars($user['league']) ?>" 
-                             class="league-logo mb-3" 
-                             style="height: 80px; width: auto; object-fit: contain;">
+                        <div class="mb-3">
+                            <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
+                                 alt="<?= htmlspecialchars($user['league']) ?>" 
+                                 class="league-logo" 
+                                 style="height: 80px; width: auto; object-fit: contain; display: block; margin: 0 auto;">
+                        </div>
                         <h4 class="text-orange mb-3"><?= htmlspecialchars($user['league']) ?></h4>
                         
                         <div class="row g-2">
