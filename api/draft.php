@@ -81,7 +81,12 @@ if ($method === 'GET') {
             $order = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Buscar info da sessão
-            $stmtSession = $pdo->prepare("SELECT * FROM draft_sessions WHERE id = ?");
+            $stmtSession = $pdo->prepare("
+                SELECT ds.*, s.season_number, s.year
+                FROM draft_sessions ds
+                INNER JOIN seasons s ON ds.season_id = s.id
+                WHERE ds.id = ?
+            ");
             $stmtSession->execute([$draftSessionId]);
             $session = $stmtSession->fetch(PDO::FETCH_ASSOC);
 
