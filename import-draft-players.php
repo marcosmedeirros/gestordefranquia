@@ -39,10 +39,10 @@ $user = getUserSession();
                 <div class="col-md-6">
                     <div class="card bg-dark-panel border-orange">
                         <div class="card-body">
-                            <h5 class="text-white mb-3">1. Selecione o Draft</h5>
+                            <h5 class="text-white mb-3">1. Selecione a Temporada</h5>
                             <div class="mb-3">
                                 <label class="form-label text-white">Liga</label>
-                                <select class="form-select bg-dark text-white border-orange" id="leagueSelect">
+                                <select class="form-select bg-dark text-white border-orange" id="leagueSelect" onchange="loadSeasons()">
                                     <option value="">Selecione...</option>
                                     <option value="ELITE">ELITE</option>
                                     <option value="NEXT">NEXT</option>
@@ -51,12 +51,14 @@ $user = getUserSession();
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label text-white">Ano</label>
-                                <input type="number" class="form-control bg-dark text-white border-orange" 
-                                       id="yearInput" value="<?= date('Y') ?>" min="2020" max="2050">
+                                <label class="form-label text-white">Temporada</label>
+                                <select class="form-select bg-dark text-white border-orange" id="seasonSelect" disabled>
+                                    <option value="">Selecione uma liga primeiro...</option>
+                                </select>
+                                <small class="text-light-gray">Selecione a temporada para importar os jogadores</small>
                             </div>
-                            <button class="btn btn-orange w-100" onclick="loadOrCreateDraft()">
-                                <i class="bi bi-check-circle me-2"></i>Confirmar Draft
+                            <button class="btn btn-orange w-100" onclick="confirmSeason()">
+                                <i class="bi bi-check-circle me-2"></i>Confirmar Temporada
                             </button>
                         </div>
                     </div>
@@ -99,7 +101,7 @@ Kevin Durant,PF,35,94</code>
                             <h5 class="text-white mb-3">2. Importar Arquivo CSV</h5>
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle me-2"></i>
-                                Draft selecionado: <strong id="selectedDraftInfo"></strong>
+                                Temporada selecionada: <strong id="selectedSeasonInfo"></strong>
                             </div>
                             
                             <div class="mb-3">
@@ -130,7 +132,8 @@ Kevin Durant,PF,35,94</code>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentDraftId = null;
+        let currentSeasonId = null;
+        let currentSeasonInfo = null;
 
         async function api(endpoint, options = {}) {
             const response = await fetch(`/api/${endpoint}`, {
@@ -144,36 +147,62 @@ Kevin Durant,PF,35,94</code>
             return data;
         }
 
-        async function loadOrCreateDraft() {
+        async function loadSeasons() {
             const league = document.getElementById('leagueSelect').value;
-            const year = document.getElementById('yearInput').value;
-
+            const seasonSelect = document.getElementById('seasonSelect');
+            
             if (!league) {
-                alert('Selecione uma liga');
+                seasonSelect.disabled = true;
+                seasonSelect.innerHTML = '<option value="">Selecione uma liga primeiro...</option>';
                 return;
             }
 
             try {
-                // Tenta buscar ou criar o draft
-                const data = await api(`drafts.php?action=get_or_create&league=${league}&year=${year}`, {
-                    method: 'POST'
-                });
-
-                console.log('Draft response:', data);
-
-                if (data.draft) {
-                    currentDraftId = data.draft.id;
-                    document.getElementById('selectedDraftInfo').textContent = 
-                        `${data.draft.league} ${data.draft.year} (ID: ${data.draft.id})`;
-                    document.getElementById('uploadSection').style.display = 'block';
-                    document.getElementById('resultSection').style.display = 'none';
-                } else {
-                    throw new Error('Draft não retornado pela API');
+                seasonSelect.disabled = true;
+                seasonSelect.innerHTML = '<option value="">Carregando...</option>';
+                
+                const data = await api(`seasons.php?action=list&league=${league}`);
+                const seasons = data.seasons || [];
+                
+                if (seasons.length === 0) {
+                    seasonSelect.innerHTML = '<option value="">Nenhuma temporada encontrada</option>';
+                    return;
                 }
+                
+                seasonSelect.innerHTML = '<option value="">Selecione uma temporada...</option>';
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season.id;
+                    option.textContent = `Temporada ${season.season_number} - Sprint ${season.sprint_number} (${season.year})`;
+                    option.dataset.seasonInfo = JSON.stringify(season);
+                    seasonSelect.appendChild(option);
+                });
+                
+                seasonSelect.disabled = false;
             } catch (e) {
-                console.error('Erro ao carregar draft:', e);
-                alert('Erro ao carregar draft: ' + (e.error || e.message || 'Desconhecido'));
+                console.error('Erro ao carregar temporadas:', e);
+                seasonSelect.innerHTML = '<option value="">Erro ao carregar temporadas</option>';
+                alert('Erro ao carregar temporadas: ' + (e.error || e.message || 'Desconhecido'));
             }
+        }
+
+        async function confirmSeason() {
+            const seasonSelect = document.getElementById('seasonSelect');
+            const seasonId = seasonSelect.value;
+
+            if (!seasonId) {
+                alert('Selecione uma temporada');
+                return;
+            }
+
+            const selectedOption = seasonSelect.options[seasonSelect.selectedIndex];
+            currentSeasonId = parseInt(seasonId);
+            currentSeasonInfo = JSON.parse(selectedOption.dataset.seasonInfo);
+            
+            document.getElementById('selectedSeasonInfo').textContent = 
+                `${currentSeasonInfo.league} - Temporada ${currentSeasonInfo.season_number} - ${currentSeasonInfo.year}`;
+            document.getElementById('uploadSection').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
         }
 
         async function importPlayers() {
@@ -185,14 +214,14 @@ Kevin Durant,PF,35,94</code>
                 return;
             }
 
-            if (!currentDraftId) {
-                alert('Selecione um draft primeiro');
+            if (!currentSeasonId) {
+                alert('Selecione uma temporada primeiro');
                 return;
             }
 
             const formData = new FormData();
             formData.append('csv_file', file);
-            formData.append('draft_id', currentDraftId);
+            formData.append('season_id', currentSeasonId);
 
             try {
                 const response = await fetch('/api/import-draft-players.php', {

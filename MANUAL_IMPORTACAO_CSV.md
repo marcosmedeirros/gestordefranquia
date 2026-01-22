@@ -5,6 +5,8 @@
 ### 1. Acesse a página de importação
 Acesse: `https://seusite.com/import-draft-players.php`
 
+Ou através da página de **Temporadas** → seção **Gerenciar Draft** → botão **Importar CSV**
+
 > ⚠️ **Apenas administradores** têm acesso a esta página
 
 ### 2. Formato do arquivo CSV
@@ -44,10 +46,12 @@ O sistema valida automaticamente:
 ### 5. Passo a Passo
 
 1. **Selecione a Liga**: ELITE, NEXT, RISE ou ROOKIE
-2. **Escolha o Ano**: Ano do draft (ex: 2024)
-3. **Clique em "Confirmar Draft"**: O sistema vai buscar ou criar o draft
+2. **Escolha a Temporada**: O sistema listará todas as temporadas disponíveis da liga selecionada
+3. **Clique em "Confirmar Temporada"**: Verifique se selecionou a temporada correta
 4. **Escolha o arquivo CSV**: Selecione seu arquivo .csv preparado
-5. **Clique em "Importar Jogadores"**: Os jogadores serão importados
+5. **Clique em "Importar Jogadores"**: Os jogadores serão adicionados ao draft pool da temporada
+
+**Importante:** Os jogadores são importados para a lista de "Jogadores do Draft" da temporada selecionada, e ficam disponíveis para seleção durante o draft.
 
 ### 6. Template CSV
 

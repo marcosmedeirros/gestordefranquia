@@ -11,19 +11,19 @@ try {
     
     // Verifica se é upload de arquivo
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
-        $draftId = (int)($_POST['draft_id'] ?? 0);
+        $seasonId = (int)($_POST['season_id'] ?? 0);
         
-        if ($draftId <= 0) {
-            throw new Exception('ID do draft inválido');
+        if ($seasonId <= 0) {
+            throw new Exception('ID da temporada inválido');
         }
         
-        // Verifica se o draft existe
-        $stmt = $db->prepare("SELECT id, year, league FROM drafts WHERE id = ?");
-        $stmt->execute([$draftId]);
-        $draft = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Verifica se a temporada existe
+        $stmt = $db->prepare("SELECT id, league, season_number, year FROM seasons WHERE id = ?");
+        $stmt->execute([$seasonId]);
+        $season = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if (!$draft) {
-            throw new Exception('Draft não encontrado');
+        if (!$season) {
+            throw new Exception('Temporada não encontrada');
         }
         
         $file = $_FILES['csv_file'];
@@ -101,18 +101,18 @@ try {
             throw new Exception('Nenhum jogador válido encontrado no arquivo');
         }
         
-        // Insere os jogadores
+        // Insere os jogadores no draft_pool da temporada
         $db->beginTransaction();
         
         $stmt = $db->prepare("
-            INSERT INTO draft_players (draft_id, name, position, age, ovr)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status)
+            VALUES (?, ?, ?, ?, ?, 'available')
         ");
         
         $inserted = 0;
         foreach ($players as $player) {
             $stmt->execute([
-                $draftId,
+                $seasonId,
                 $player['name'],
                 $player['position'],
                 $player['age'],
@@ -125,9 +125,9 @@ try {
         
         echo json_encode([
             'success' => true,
-            'message' => "{$inserted} jogadores importados com sucesso",
+            'message' => "{$inserted} jogadores importados com sucesso para a Temporada {$season['season_number']}",
             'inserted' => $inserted,
-            'draft' => $draft
+            'season' => $season
         ]);
         
     } else {
