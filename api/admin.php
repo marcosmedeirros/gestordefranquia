@@ -147,9 +147,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1];
 
                 $stmtTeams = $pdo->prepare('SELECT COUNT(*) as total FROM teams WHERE league = ?');
                 $stmtTeams->execute([$league]);
@@ -161,6 +161,8 @@ if ($method === 'GET') {
                     'cap_max' => (int)$cfg['cap_max'],
                     'max_trades' => (int)$cfg['max_trades'],
                     'edital' => $cfg['edital'],
+                    'edital_file' => $cfg['edital'],
+                    'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -513,6 +515,7 @@ if ($method === 'PUT') {
             $cap_max = isset($data['cap_max']) ? (int)$data['cap_max'] : null;
             $max_trades = isset($data['max_trades']) ? (int)$data['max_trades'] : null;
             $edital = $data['edital'] ?? null;
+            $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -538,6 +541,10 @@ if ($method === 'PUT') {
             if ($edital !== null) {
                 $updates[] = 'edital = ?';
                 $params[] = $edital;
+            }
+            if ($trades_enabled !== null) {
+                $updates[] = 'trades_enabled = ?';
+                $params[] = $trades_enabled;
             }
 
             if (empty($updates)) {

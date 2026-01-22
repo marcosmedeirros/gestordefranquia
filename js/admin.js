@@ -268,6 +268,24 @@ async function showConfig() {
 <input type="number" class="form-control bg-dark text-white border-orange" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" /></div>
 <div class="col-md-3 d-flex align-items-end"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max} CAP</div></div>
 </div>
+<div class="row mb-3">
+<div class="col-md-6">
+<label class="form-label text-light-gray mb-2">Status das Trocas</label>
+<div class="d-flex gap-2">
+<button class="btn ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1" 
+        onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">
+<i class="bi bi-check-circle me-1"></i>Trocas Ativas
+</button>
+<button class="btn ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" 
+        onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">
+<i class="bi bi-x-circle me-1"></i>Trocas Bloqueadas
+</button>
+</div>
+<small class="text-light-gray mt-1 d-block">
+${(lg.trades_enabled ?? 1) == 1 ? '✅ Usuários podem propor e aceitar trades' : '🚫 Botão de trade desativado para esta liga'}
+</small>
+</div>
+</div>
 <div class="row">
 <div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (PDF/Word)</label>
 <div class="input-group">
@@ -2229,6 +2247,34 @@ async function showUserApprovals() {
     container.innerHTML = html;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar usuários: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+
+async function toggleTrades(league, enabled) {
+  try {
+    await api('admin.php?action=league_settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        league: league,
+        trades_enabled: enabled
+      })
+    });
+    
+    // Atualiza os botões visualmente
+    const onBtn = document.getElementById(`tradesOnBtn_${league}`);
+    const offBtn = document.getElementById(`tradesOffBtn_${league}`);
+    
+    if (enabled == 1) {
+      onBtn.className = 'btn btn-success flex-grow-1';
+      offBtn.className = 'btn btn-outline-danger flex-grow-1';
+    } else {
+      onBtn.className = 'btn btn-outline-success flex-grow-1';
+      offBtn.className = 'btn btn-danger flex-grow-1';
+    }
+    
+    showAlert('success', `Trocas ${enabled == 1 ? 'ativadas' : 'desativadas'} para a liga ${league}!`);
+  } catch (e) {
+    showAlert('danger', 'Erro ao atualizar status de trades');
   }
 }
 

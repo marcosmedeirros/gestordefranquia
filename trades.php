@@ -13,11 +13,13 @@ $teamId = $team['id'] ?? null;
 
 // Buscar limite de trades da liga
 $maxTrades = 10; // Default
+$tradesEnabled = 1; // Default: ativas
 if ($team) {
-    $stmtSettings = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+    $stmtSettings = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
     $stmtSettings->execute([$team['league']]);
     $settings = $stmtSettings->fetch();
     $maxTrades = $settings['max_trades'] ?? 10;
+    $tradesEnabled = $settings['trades_enabled'] ?? 1;
 }
 
 // Contar trades criadas pelo usuário nesta temporada
@@ -261,9 +263,15 @@ if ($teamId) {
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
         <div>
           <span class="badge bg-secondary me-2"><?= $tradeCount ?> / <?= $maxTrades ?> Trades esta temporada</span>
-          <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
-            <i class="bi bi-plus-circle me-1"></i>Nova Trade
-          </button>
+          <?php if ($tradesEnabled == 0): ?>
+            <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
+              <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
+            </button>
+          <?php else: ?>
+            <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+              <i class="bi bi-plus-circle me-1"></i>Nova Trade
+            </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>

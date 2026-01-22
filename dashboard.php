@@ -172,17 +172,47 @@ $stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepte
 $stmtTrades->execute([$team['id'], $team['id']]);
 $tradesCount = (int)$stmtTrades->fetchColumn();
 
-// Limite de trades por temporada (por liga)
-$maxTrades = 3;
+// Buscar última trade da liga (mais recente)
+$lastTrade = null;
 try {
-    $stmtMaxTrades = $pdo->prepare('SELECT max_trades FROM league_settings WHERE league = ?');
+    $stmtLastTrade = $pdo->prepare("
+        SELECT 
+            t.*,
+            t1.city as from_city, t1.name as from_name, t1.photo_url as from_photo,
+            t2.city as to_city, t2.name as to_name, t2.photo_url as to_photo,
+            u1.name as from_owner, u2.name as to_owner
+        FROM trades t
+        JOIN teams t1 ON t.from_team_id = t1.id
+        JOIN teams t2 ON t.to_team_id = t2.id
+        LEFT JOIN users u1 ON t1.user_id = u1.id
+        LEFT JOIN users u2 ON t2.user_id = u2.id
+        WHERE t.status = 'accepted' AND t1.league = ?
+        ORDER BY t.updated_at DESC
+        LIMIT 1
+    ");
+    $stmtLastTrade->execute([$team['league']]);
+    $lastTrade = $stmtLastTrade->fetch();
+} catch (Exception $e) {
+    // Pode falhar se tabela ainda não existe
+}
+
+// Limite de trades por temporada (por liga) e verificar se trades estão ativas
+$maxTrades = 3;
+$tradesEnabled = 1; // Padrão: ativas
+try {
+    $stmtMaxTrades = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
     $stmtMaxTrades->execute([$team['league']]);
     $rowMax = $stmtMaxTrades->fetch();
-    if ($rowMax && isset($rowMax['max_trades'])) {
-        $maxTrades = (int)$rowMax['max_trades'];
+    if ($rowMax) {
+        if (isset($rowMax['max_trades'])) {
+            $maxTrades = (int)$rowMax['max_trades'];
+        }
+        if (isset($rowMax['trades_enabled'])) {
+            $tradesEnabled = (int)$rowMax['trades_enabled'];
+        }
     }
 } catch (Exception $e) {
-    // Tabela league_settings pode não existir ainda
+    // Tabela league_settings pode não existir ainda ou coluna trades_enabled não migrada
 }
 ?>
 <!DOCTYPE html>
@@ -243,6 +273,13 @@ try {
 
         .pick-item:hover {
             background: rgba(255, 107, 0, 0.1) !important;
+        }
+
+        .last-trade-card {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.05), transparent);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px dashed rgba(255, 107, 0, 0.3);
         }
 
         @media (max-width: 768px) {
@@ -626,6 +663,103 @@ try {
                             <div class="text-center text-light-gray py-4">
                                 <i class="bi bi-calendar-x display-4"></i>
                                 <p class="mt-3 mb-0">Nenhuma pick disponível</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Última Trade ou Status -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card bg-dark-panel border-orange">
+                    <div class="card-header bg-transparent border-orange">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades na Liga
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($tradesEnabled == 0): ?>
+                            <!-- Trades Desativadas -->
+                            <div class="alert alert-danger border-danger mb-0" role="alert">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h5 class="alert-heading mb-2">
+                                            <i class="bi bi-x-circle-fill me-2"></i>Trades Desativadas
+                                        </h5>
+                                        <p class="mb-0">O administrador bloqueou temporariamente as trocas nesta liga. Você não pode propor ou aceitar trades no momento.</p>
+                                    </div>
+                                    <i class="bi bi-lock-fill" style="font-size: 3rem; opacity: 0.5;"></i>
+                                </div>
+                            </div>
+                        <?php elseif ($lastTrade): ?>
+                            <!-- Última Trade Realizada -->
+                            <div class="last-trade-card">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                                    <!-- Time 1 -->
+                                    <div class="text-center flex-shrink-0" style="min-width: 150px;">
+                                        <img src="<?= htmlspecialchars($lastTrade['from_photo'] ?? '/img/default-team.png') ?>" 
+                                             alt="<?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?>"
+                                             class="rounded-circle mb-2" 
+                                             style="width: 60px; height: 60px; object-fit: cover; border: 2px solid var(--fba-orange);">
+                                        <h6 class="text-white mb-1"><?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?></h6>
+                                        <small class="text-light-gray"><?= htmlspecialchars($lastTrade['from_owner'] ?? '') ?></small>
+                                    </div>
+                                    
+                                    <!-- Seta -->
+                                    <div class="text-center flex-shrink-0">
+                                        <i class="bi bi-arrow-left-right text-orange" style="font-size: 2.5rem;"></i>
+                                        <div class="mt-2">
+                                            <small class="text-light-gray">
+                                                <?php
+                                                if (!empty($lastTrade['updated_at'])) {
+                                                    $tradeDate = new DateTime($lastTrade['updated_at']);
+                                                    $now = new DateTime();
+                                                    $diff = $now->diff($tradeDate);
+                                                    
+                                                    if ($diff->days == 0) {
+                                                        echo "Hoje";
+                                                    } elseif ($diff->days == 1) {
+                                                        echo "Ontem";
+                                                    } elseif ($diff->days < 7) {
+                                                        echo $diff->days . " dias atrás";
+                                                    } else {
+                                                        echo $tradeDate->format('d/m/Y');
+                                                    }
+                                                }
+                                                ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Time 2 -->
+                                    <div class="text-center flex-shrink-0" style="min-width: 150px;">
+                                        <img src="<?= htmlspecialchars($lastTrade['to_photo'] ?? '/img/default-team.png') ?>" 
+                                             alt="<?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?>"
+                                             class="rounded-circle mb-2" 
+                                             style="width: 60px; height: 60px; object-fit: cover; border: 2px solid var(--fba-orange);">
+                                        <h6 class="text-white mb-1"><?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?></h6>
+                                        <small class="text-light-gray"><?= htmlspecialchars($lastTrade['to_owner'] ?? '') ?></small>
+                                    </div>
+                                    
+                                    <!-- Botão Ver Detalhes -->
+                                    <div class="flex-shrink-0 ms-auto">
+                                        <a href="/trades.php" class="btn btn-orange">
+                                            <i class="bi bi-eye me-1"></i>Ver Todas as Trades
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <!-- Nenhuma trade ainda -->
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-arrow-left-right display-4"></i>
+                                <p class="mt-3 mb-1 text-white fw-bold">Nenhuma trade realizada ainda</p>
+                                <p class="mb-0">Seja o primeiro a fazer uma troca na liga <?= htmlspecialchars($team['league']) ?>!</p>
+                                <a href="/trades.php" class="btn btn-orange mt-3">
+                                    <i class="bi bi-plus-circle me-1"></i>Propor Trade
+                                </a>
                             </div>
                         <?php endif; ?>
                     </div>
