@@ -50,6 +50,33 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             flex: 1;
             min-width: 100px;
         }
+
+        /* Forçar texto branco nos cards mobile */
+        .player-card,
+        .player-card * {
+            color: #ffffff !important;
+        }
+
+        .player-card strong {
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+
+        .player-card .text-light-gray {
+            color: #cfcfcf !important;
+        }
+
+        .player-card-stat strong {
+            color: #fc0025 !important;
+        }
+
+        .player-card .badge {
+            color: #fff !important;
+        }
+
+        .player-card .bg-warning {
+            color: #000 !important;
+        }
     </style>
 </head>
 <body>
