@@ -286,6 +286,79 @@ try {
 } catch (Exception $e) {
     // Tabelas podem não existir
 }
+
+// Buscar Top 5 do Ranking
+$topRanking = [];
+try {
+    $stmtTopRanking = $pdo->prepare("
+        SELECT t.id, t.city, t.name, t.photo_url, t.ranking_points, u.name as owner_name
+        FROM teams t
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE t.league = ?
+        ORDER BY t.ranking_points DESC
+        LIMIT 5
+    ");
+    $stmtTopRanking->execute([$team['league']]);
+    $topRanking = $stmtTopRanking->fetchAll();
+} catch (Exception $e) {
+    // Pode falhar
+}
+
+// Buscar último campeão, vice e MVP
+$lastChampion = null;
+$lastRunnerUp = null;
+$lastMVP = null;
+try {
+    // Buscar a temporada mais recente completada
+    $stmtLastSeason = $pdo->prepare("
+        SELECT * FROM seasons 
+        WHERE league = ? AND status = 'completed'
+        ORDER BY year DESC
+        LIMIT 1
+    ");
+    $stmtLastSeason->execute([$team['league']]);
+    $lastCompletedSeason = $stmtLastSeason->fetch();
+    
+    if ($lastCompletedSeason) {
+        // Buscar campeão (1º colocado)
+        if (!empty($lastCompletedSeason['champion_team_id'])) {
+            $stmtChampion = $pdo->prepare("
+                SELECT t.*, u.name as owner_name 
+                FROM teams t 
+                LEFT JOIN users u ON t.user_id = u.id
+                WHERE t.id = ?
+            ");
+            $stmtChampion->execute([$lastCompletedSeason['champion_team_id']]);
+            $lastChampion = $stmtChampion->fetch();
+        }
+        
+        // Buscar vice (2º colocado)
+        if (!empty($lastCompletedSeason['runner_up_team_id'])) {
+            $stmtRunnerUp = $pdo->prepare("
+                SELECT t.*, u.name as owner_name 
+                FROM teams t 
+                LEFT JOIN users u ON t.user_id = u.id
+                WHERE t.id = ?
+            ");
+            $stmtRunnerUp->execute([$lastCompletedSeason['runner_up_team_id']]);
+            $lastRunnerUp = $stmtRunnerUp->fetch();
+        }
+        
+        // Buscar MVP
+        if (!empty($lastCompletedSeason['mvp_player_id'])) {
+            $stmtMVP = $pdo->prepare("
+                SELECT p.*, t.city as team_city, t.name as team_name 
+                FROM players p 
+                LEFT JOIN teams t ON p.team_id = t.id
+                WHERE p.id = ?
+            ");
+            $stmtMVP->execute([$lastCompletedSeason['mvp_player_id']]);
+            $lastMVP = $stmtMVP->fetch();
+        }
+    }
+} catch (Exception $e) {
+    // Pode falhar se colunas não existirem
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -352,6 +425,22 @@ try {
             border-radius: 12px;
             padding: 1.5rem;
             border: 1px dashed rgba(255, 107, 0, 0.3);
+        }
+
+        .ranking-item {
+            transition: all 0.2s ease;
+        }
+
+        .ranking-item:hover {
+            transform: translateX(5px);
+        }
+
+        .winner-item {
+            transition: all 0.2s ease;
+        }
+
+        .winner-item:hover {
+            transform: scale(1.02);
         }
 
         @media (max-width: 768px) {
@@ -647,42 +736,43 @@ try {
             </div>
         </div>
 
-        <!-- Informações da Liga (Card único centralizado) -->
+        <!-- Informações da Liga, Top 5 Ranking e Últimos Vencedores (3 cards) -->
         <div class="row g-4 mb-4">
-            <div class="col-12">
-                <div class="card bg-dark-panel border-orange">
+            <!-- Card 1: Informações da Liga -->
+            <div class="col-lg-4">
+                <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-body text-center py-4">
                         <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
                              alt="<?= htmlspecialchars($user['league']) ?>" 
                              class="league-logo mb-3" 
-                             style="height: 100px; width: auto; object-fit: contain;">
-                        <h3 class="text-orange mb-3"><?= htmlspecialchars($user['league']) ?></h3>
+                             style="height: 80px; width: auto; object-fit: contain;">
+                        <h4 class="text-orange mb-3"><?= htmlspecialchars($user['league']) ?></h4>
                         
-                        <div class="row g-3 justify-content-center">
-                            <div class="col-md-2 col-6">
+                        <div class="row g-2">
+                            <div class="col-6">
                                 <div class="p-2 bg-dark rounded">
                                     <small class="text-light-gray d-block mb-1">Ranking</small>
-                                    <strong class="text-white"><?= (int)($team['ranking_points'] ?? 0) ?> pts</strong>
+                                    <strong class="text-white"><?= (int)($team['ranking_points'] ?? 0) ?></strong>
                                 </div>
                             </div>
                             <?php if ($currentSeason): ?>
-                            <div class="col-md-2 col-6">
+                            <div class="col-6">
                                 <div class="p-2 bg-dark rounded">
                                     <small class="text-light-gray d-block mb-1">Temporada</small>
                                     <strong class="text-white"><?= (int)$seasonDisplayYear ?></strong>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-6">
+                            <div class="col-6">
                                 <div class="p-2 bg-dark rounded">
                                     <small class="text-light-gray d-block mb-1">Sprint</small>
                                     <strong class="text-white"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></strong>
                                 </div>
                             </div>
                             <?php endif; ?>
-                            <div class="col-md-3 col-6">
+                            <div class="col-<?= $currentSeason ? '6' : '12' ?>">
                                 <div class="p-2 bg-dark rounded">
-                                    <small class="text-light-gray d-block mb-1">CAP Permitido</small>
-                                    <strong class="text-white"><?= $capMin ?> - <?= $capMax ?></strong>
+                                    <small class="text-light-gray d-block mb-1">CAP</small>
+                                    <strong class="text-white small"><?= $capMin ?>-<?= $capMax ?></strong>
                                 </div>
                             </div>
                         </div>
@@ -690,10 +780,126 @@ try {
                         <?php if ($hasEdital): ?>
                         <div class="mt-3">
                             <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" 
-                               class="btn btn-orange" download>
-                                <i class="bi bi-download me-2"></i>Baixar Edital da Liga
+                               class="btn btn-orange btn-sm w-100" download>
+                                <i class="bi bi-download me-1"></i>Edital
                             </a>
                         </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Top 5 Ranking -->
+            <div class="col-lg-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange">
+                        <h5 class="mb-0 text-white">
+                            <i class="bi bi-trophy-fill me-2 text-orange"></i>Top 5 Ranking
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (count($topRanking) > 0): ?>
+                            <div class="ranking-list">
+                                <?php foreach ($topRanking as $index => $rankTeam): ?>
+                                    <div class="ranking-item d-flex align-items-center mb-3 p-2 rounded <?= $rankTeam['id'] == $team['id'] ? 'bg-dark border border-orange' : 'bg-dark' ?>">
+                                        <div class="rank-number me-3">
+                                            <span class="badge <?= $index == 0 ? 'bg-warning' : ($index == 1 ? 'bg-secondary' : ($index == 2 ? 'bg-danger' : 'bg-dark-gray')) ?> fw-bold">
+                                                <?= $index + 1 ?>º
+                                            </span>
+                                        </div>
+                                        <img src="<?= htmlspecialchars($rankTeam['photo_url'] ?? '/img/default-team.png') ?>" 
+                                             alt="<?= htmlspecialchars($rankTeam['city'] . ' ' . $rankTeam['name']) ?>"
+                                             class="rounded-circle me-2" 
+                                             style="width: 35px; height: 35px; object-fit: cover;">
+                                        <div class="flex-grow-1">
+                                            <div class="text-white small fw-bold"><?= htmlspecialchars($rankTeam['city'] . ' ' . $rankTeam['name']) ?></div>
+                                            <small class="text-light-gray"><?= htmlspecialchars($rankTeam['owner_name'] ?? '') ?></small>
+                                        </div>
+                                        <div class="text-end">
+                                            <strong class="text-orange"><?= (int)$rankTeam['ranking_points'] ?></strong>
+                                            <small class="text-light-gray d-block">pts</small>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-trophy display-4"></i>
+                                <p class="mt-3 mb-0">Ranking em breve</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Últimos Vencedores -->
+            <div class="col-lg-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange">
+                        <h5 class="mb-0 text-white">
+                            <i class="bi bi-award-fill me-2 text-orange"></i>Última Temporada
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($lastChampion || $lastRunnerUp || $lastMVP): ?>
+                            <!-- Campeão -->
+                            <?php if ($lastChampion): ?>
+                            <div class="winner-item mb-3 p-2 bg-dark rounded border border-warning">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-trophy-fill text-warning fs-4 me-2"></i>
+                                    <img src="<?= htmlspecialchars($lastChampion['photo_url'] ?? '/img/default-team.png') ?>" 
+                                         alt="<?= htmlspecialchars($lastChampion['city'] . ' ' . $lastChampion['name']) ?>"
+                                         class="rounded-circle me-2" 
+                                         style="width: 40px; height: 40px; object-fit: cover;">
+                                    <div>
+                                        <div class="text-warning small fw-bold">CAMPEÃO</div>
+                                        <div class="text-white small"><?= htmlspecialchars($lastChampion['city'] . ' ' . $lastChampion['name']) ?></div>
+                                        <small class="text-light-gray"><?= htmlspecialchars($lastChampion['owner_name'] ?? '') ?></small>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <!-- Vice -->
+                            <?php if ($lastRunnerUp): ?>
+                            <div class="winner-item mb-3 p-2 bg-dark rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-award text-secondary fs-4 me-2"></i>
+                                    <img src="<?= htmlspecialchars($lastRunnerUp['photo_url'] ?? '/img/default-team.png') ?>" 
+                                         alt="<?= htmlspecialchars($lastRunnerUp['city'] . ' ' . $lastRunnerUp['name']) ?>"
+                                         class="rounded-circle me-2" 
+                                         style="width: 35px; height: 35px; object-fit: cover;">
+                                    <div>
+                                        <div class="text-secondary small fw-bold">VICE-CAMPEÃO</div>
+                                        <div class="text-white small"><?= htmlspecialchars($lastRunnerUp['city'] . ' ' . $lastRunnerUp['name']) ?></div>
+                                        <small class="text-light-gray"><?= htmlspecialchars($lastRunnerUp['owner_name'] ?? '') ?></small>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <!-- MVP -->
+                            <?php if ($lastMVP): ?>
+                            <div class="winner-item p-2 bg-dark rounded border border-orange">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-star-fill text-orange fs-4 me-2"></i>
+                                    <div>
+                                        <div class="text-orange small fw-bold">MVP</div>
+                                        <div class="text-white"><?= htmlspecialchars($lastMVP['name']) ?></div>
+                                        <small class="text-light-gray">
+                                            <?= htmlspecialchars($lastMVP['position']) ?> - 
+                                            <?= htmlspecialchars(($lastMVP['team_city'] ?? '') . ' ' . ($lastMVP['team_name'] ?? '')) ?>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-award display-4"></i>
+                                <p class="mt-3 mb-0">Primeira temporada</p>
+                                <small>Vencedores em breve</small>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
