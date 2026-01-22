@@ -550,6 +550,7 @@ if (!$team) {
 
     // ========== GERENCIAR DRAFT ==========
     async function showDraftManagement(seasonId, league) {
+      console.log('showDraftManagement called - Version with Import Button');
       currentSeasonId = seasonId;
       currentLeague = league;
       const container = document.getElementById('mainContainer');
@@ -572,6 +573,8 @@ if (!$team) {
         // Buscar times da liga
         const teamsData = await api(`admin.php?action=teams&league=${league}`);
         const teams = teamsData.teams || [];
+        
+        console.log('Rendering with season:', season);
         
         container.innerHTML = `
           <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
