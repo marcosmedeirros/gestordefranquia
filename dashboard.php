@@ -308,52 +308,66 @@ try {
 $lastChampion = null;
 $lastRunnerUp = null;
 $lastMVP = null;
+$lastSprintInfo = null;
 try {
-    // Buscar a temporada mais recente completada
-    $stmtLastSeason = $pdo->prepare("
-        SELECT * FROM seasons 
-        WHERE league = ? AND status = 'completed'
-        ORDER BY year DESC
+    // Buscar o sprint anterior (último sprint completado)
+    $stmtLastSprint = $pdo->prepare("
+        SELECT sp.*, 
+               s.year as season_year,
+               t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, 
+               t1.photo_url as champion_photo, u1.name as champion_owner,
+               t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name,
+               t2.photo_url as runner_up_photo, u2.name as runner_up_owner,
+               p.id as mvp_id, p.name as mvp_name, p.position as mvp_position, p.ovr as mvp_ovr,
+               t3.city as mvp_team_city, t3.name as mvp_team_name
+        FROM sprints sp
+        LEFT JOIN seasons s ON sp.id = s.sprint_id AND s.league = ?
+        LEFT JOIN teams t1 ON sp.champion_team_id = t1.id
+        LEFT JOIN users u1 ON t1.user_id = u1.id
+        LEFT JOIN teams t2 ON sp.runner_up_team_id = t2.id
+        LEFT JOIN users u2 ON t2.user_id = u2.id
+        LEFT JOIN players p ON sp.mvp_player_id = p.id
+        LEFT JOIN teams t3 ON p.team_id = t3.id
+        WHERE sp.league = ? AND sp.status = 'completed'
+        ORDER BY sp.end_date DESC
         LIMIT 1
     ");
-    $stmtLastSeason->execute([$team['league']]);
-    $lastCompletedSeason = $stmtLastSeason->fetch();
+    $stmtLastSprint->execute([$team['league'], $team['league']]);
+    $lastSprintInfo = $stmtLastSprint->fetch();
     
-    if ($lastCompletedSeason) {
-        // Buscar campeão (1º colocado)
-        if (!empty($lastCompletedSeason['champion_team_id'])) {
-            $stmtChampion = $pdo->prepare("
-                SELECT t.*, u.name as owner_name 
-                FROM teams t 
-                LEFT JOIN users u ON t.user_id = u.id
-                WHERE t.id = ?
-            ");
-            $stmtChampion->execute([$lastCompletedSeason['champion_team_id']]);
-            $lastChampion = $stmtChampion->fetch();
+    if ($lastSprintInfo) {
+        // Montar dados do campeão
+        if ($lastSprintInfo['champion_id']) {
+            $lastChampion = [
+                'id' => $lastSprintInfo['champion_id'],
+                'city' => $lastSprintInfo['champion_city'],
+                'name' => $lastSprintInfo['champion_name'],
+                'photo_url' => $lastSprintInfo['champion_photo'],
+                'owner_name' => $lastSprintInfo['champion_owner']
+            ];
         }
         
-        // Buscar vice (2º colocado)
-        if (!empty($lastCompletedSeason['runner_up_team_id'])) {
-            $stmtRunnerUp = $pdo->prepare("
-                SELECT t.*, u.name as owner_name 
-                FROM teams t 
-                LEFT JOIN users u ON t.user_id = u.id
-                WHERE t.id = ?
-            ");
-            $stmtRunnerUp->execute([$lastCompletedSeason['runner_up_team_id']]);
-            $lastRunnerUp = $stmtRunnerUp->fetch();
+        // Montar dados do vice
+        if ($lastSprintInfo['runner_up_id']) {
+            $lastRunnerUp = [
+                'id' => $lastSprintInfo['runner_up_id'],
+                'city' => $lastSprintInfo['runner_up_city'],
+                'name' => $lastSprintInfo['runner_up_name'],
+                'photo_url' => $lastSprintInfo['runner_up_photo'],
+                'owner_name' => $lastSprintInfo['runner_up_owner']
+            ];
         }
         
-        // Buscar MVP
-        if (!empty($lastCompletedSeason['mvp_player_id'])) {
-            $stmtMVP = $pdo->prepare("
-                SELECT p.*, t.city as team_city, t.name as team_name 
-                FROM players p 
-                LEFT JOIN teams t ON p.team_id = t.id
-                WHERE p.id = ?
-            ");
-            $stmtMVP->execute([$lastCompletedSeason['mvp_player_id']]);
-            $lastMVP = $stmtMVP->fetch();
+        // Montar dados do MVP
+        if ($lastSprintInfo['mvp_id']) {
+            $lastMVP = [
+                'id' => $lastSprintInfo['mvp_id'],
+                'name' => $lastSprintInfo['mvp_name'],
+                'position' => $lastSprintInfo['mvp_position'],
+                'ovr' => $lastSprintInfo['mvp_ovr'],
+                'team_city' => $lastSprintInfo['mvp_team_city'],
+                'team_name' => $lastSprintInfo['mvp_team_name']
+            ];
         }
     }
 } catch (Exception $e) {
@@ -837,11 +851,22 @@ try {
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange">
                         <h5 class="mb-0 text-white">
-                            <i class="bi bi-award-fill me-2 text-orange"></i>Última Temporada
+                            <i class="bi bi-award-fill me-2 text-orange"></i>Último Sprint
                         </h5>
                     </div>
                     <div class="card-body">
                         <?php if ($lastChampion || $lastRunnerUp || $lastMVP): ?>
+                            <?php if ($lastSprintInfo): ?>
+                            <div class="text-center mb-3">
+                                <small class="text-light-gray">
+                                    Sprint <?= (int)($lastSprintInfo['sprint_number'] ?? 0) ?>
+                                    <?php if (!empty($lastSprintInfo['season_year'])): ?>
+                                        - Temporada <?= (int)$lastSprintInfo['season_year'] ?>
+                                    <?php endif; ?>
+                                </small>
+                            </div>
+                            <?php endif; ?>
+                            
                             <!-- Campeão -->
                             <?php if ($lastChampion): ?>
                             <div class="winner-item mb-3 p-2 bg-dark rounded border border-warning">
@@ -887,8 +912,10 @@ try {
                                         <div class="text-orange small fw-bold">MVP</div>
                                         <div class="text-white"><?= htmlspecialchars($lastMVP['name']) ?></div>
                                         <small class="text-light-gray">
-                                            <?= htmlspecialchars($lastMVP['position']) ?> - 
-                                            <?= htmlspecialchars(($lastMVP['team_city'] ?? '') . ' ' . ($lastMVP['team_name'] ?? '')) ?>
+                                            <?= htmlspecialchars($lastMVP['position']) ?> - <?= (int)($lastMVP['ovr'] ?? 0) ?> OVR
+                                            <?php if (!empty($lastMVP['team_city']) && !empty($lastMVP['team_name'])): ?>
+                                                <br><?= htmlspecialchars($lastMVP['team_city'] . ' ' . $lastMVP['team_name']) ?>
+                                            <?php endif; ?>
                                         </small>
                                     </div>
                                 </div>
@@ -897,8 +924,8 @@ try {
                         <?php else: ?>
                             <div class="text-center text-light-gray py-4">
                                 <i class="bi bi-award display-4"></i>
-                                <p class="mt-3 mb-0">Primeira temporada</p>
-                                <small>Vencedores em breve</small>
+                                <p class="mt-3 mb-0 text-white fw-bold">Temporada não iniciada</p>
+                                <small>Vencedores aparecerão após o primeiro sprint</small>
                             </div>
                         <?php endif; ?>
                     </div>
