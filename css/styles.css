@@ -1142,14 +1142,24 @@ img.broken-image {
 		margin-bottom: .75rem;
 		padding-bottom: .75rem;
 		border-bottom: 1px solid rgba(255,255,255,.08);
+		color: var(--fba-text);
+	}
+	.player-card-header strong,
+	.player-card-header > div > strong {
+		color: var(--fba-text) !important;
+		font-weight: 600;
 	}
 	.player-card-body{
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: .5rem;
 		margin-bottom: .75rem;
+		color: var(--fba-text);
 	}
-	.player-card-stat{ font-size: .85rem; }
+	.player-card-stat{ 
+		font-size: .85rem;
+		color: var(--fba-text);
+	}
 	.player-card-stat strong{
 		color: var(--fba-brand);
 		display: block;
