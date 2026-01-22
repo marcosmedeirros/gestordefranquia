@@ -202,6 +202,59 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/styles.css" />
+    <style>
+        .hover-lift {
+            transition: all 0.3s ease;
+        }
+
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(255, 107, 0, 0.3);
+        }
+
+        .quick-action-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .quick-action-card:hover {
+            border-color: var(--fba-orange);
+            box-shadow: 0 4px 12px rgba(255, 107, 0, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .quick-action-card.urgent {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), transparent);
+        }
+
+        .quick-action-card.urgent:hover {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), transparent);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        .pick-item {
+            transition: all 0.2s ease;
+        }
+
+        .pick-item:hover {
+            background: rgba(255, 107, 0, 0.1) !important;
+        }
+
+        @media (max-width: 768px) {
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .quick-action-card .display-1 {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Botão Hamburguer para Mobile -->
@@ -349,30 +402,21 @@ try {
             </div>
         </div>
 
-        <!-- Stats Cards -->
+        <!-- Quick Actions -->
         <div class="row g-4 mb-4">
             <div class="col-md-3">
-                <div class="stat-card">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <div class="stat-label">Jogadores</div>
-                            <div class="stat-value"><?= $totalPlayers ?></div>
+                <a href="/my-roster.php" class="text-decoration-none">
+                    <div class="stat-card hover-lift">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="stat-label">Jogadores</div>
+                                <div class="stat-value"><?= $totalPlayers ?>/15</div>
+                                <small class="text-light-gray">OVR Médio: <?= $avgOvr ?></small>
+                            </div>
+                            <i class="bi bi-people-fill display-4 text-orange"></i>
                         </div>
-                        <i class="bi bi-people-fill display-4 text-orange"></i>
                     </div>
-                </div>
-            </div>
-
-            <div class="col-md-3">
-                <div class="stat-card">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <div class="stat-label">OVR Médio</div>
-                            <div class="stat-value"><?= $avgOvr ?></div>
-                        </div>
-                        <i class="bi bi-star-fill display-4 text-orange"></i>
-                    </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
@@ -381,96 +425,215 @@ try {
                         <div>
                             <div class="stat-label">CAP Top8</div>
                             <div class="stat-value" style="color: <?= $capColor ?>;"><?= $teamCap ?></div>
-                            <small class="text-light-gray" style="font-size: 0.85rem;">
-                                Limite: <?= $capMin ?> - <?= $capMax ?>
-                            </small>
+                            <small class="text-light-gray">Limite: <?= $capMin ?>-<?= $capMax ?></small>
                         </div>
-                        <i class="bi bi-cash-stack display-4 text-orange"></i>
+                        <i class="bi bi-cash-stack display-4" style="color: <?= $capColor ?>;"></i>
                     </div>
                 </div>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <div class="stat-label">Liga</div>
+                <a href="/picks.php" class="text-decoration-none">
+                    <div class="stat-card hover-lift">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="stat-label">Picks</div>
+                                <div class="stat-value"><?= count($teamPicks) ?></div>
+                                <small class="text-light-gray">Próximas escolhas</small>
+                            </div>
+                            <i class="bi bi-calendar-check-fill display-4 text-success"></i>
                         </div>
-                        <div class="d-flex align-items-center justify-content-end gap-2">
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-3">
+                <a href="/trades.php" class="text-decoration-none">
+                    <div class="stat-card hover-lift">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="stat-label">Trades</div>
+                                <div class="stat-value"><?= $tradesCount ?>/<?= $maxTrades ?></div>
+                                <small class="text-light-gray">Realizadas</small>
+                            </div>
+                            <i class="bi bi-arrow-left-right display-4 text-info"></i>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Ações Rápidas -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card bg-dark-panel border-orange">
+                    <div class="card-header bg-transparent border-orange">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-lightning-fill me-2 text-orange"></i>Ações Rápidas
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <?php if ($activeDirectiveDeadline): ?>
+                            <div class="col-md-6">
+                                <a href="/diretrizes.php" class="text-decoration-none">
+                                    <div class="quick-action-card urgent">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <h5 class="text-white mb-2">
+                                                    <i class="bi bi-clipboard-check text-danger me-2"></i>
+                                                    Enviar Rotação
+                                                </h5>
+                                                <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Diretrizes de jogo') ?></p>
+                                                <p class="text-danger mb-0 fw-bold">
+                                                    <i class="bi bi-clock-fill me-1"></i>
+                                                    Prazo: <?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? '') ?>
+                                                </p>
+                                            </div>
+                                            <i class="bi bi-arrow-right-circle-fill text-danger" style="font-size: 3rem;"></i>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                                <a href="/trades.php" class="text-decoration-none">
+                                    <div class="quick-action-card">
+                                        <div class="text-center py-3">
+                                            <i class="bi bi-arrow-left-right display-1 text-orange mb-2"></i>
+                                            <h5 class="text-white mb-1">Propor Trade</h5>
+                                            <p class="text-light-gray small mb-0">Negocie jogadores e picks</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            
+                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                                <a href="/teams.php" class="text-decoration-none">
+                                    <div class="quick-action-card">
+                                        <div class="text-center py-3">
+                                            <i class="bi bi-search display-1 text-info mb-2"></i>
+                                            <h5 class="text-white mb-1">Explorar Times</h5>
+                                            <p class="text-light-gray small mb-0">Veja elencos de outros times</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            
+                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                                <a href="/rankings.php" class="text-decoration-none">
+                                    <div class="quick-action-card">
+                                        <div class="text-center py-3">
+                                            <i class="bi bi-trophy-fill display-1 text-warning mb-2"></i>
+                                            <h5 class="text-white mb-1">Rankings</h5>
+                                            <p class="text-light-gray small mb-0">Veja sua posição</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informações da Liga -->
+        <div class="row g-4 mb-4">
+            <!-- Liga Info -->
+            <div class="col-md-6">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-shield-fill me-2 text-orange"></i>Informações da Liga
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
                             <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
                                  alt="<?= htmlspecialchars($user['league']) ?>" 
-                                 class="league-logo" 
-                                 style="height: 80px; width: auto; object-fit: contain;">
-                            <span class="text-light-gray" style="font-weight: 700; font-size: 1rem;">
-                                <?= htmlspecialchars($user['league']) ?>
-                            </span>
+                                 class="league-logo mb-3" 
+                                 style="height: 120px; width: auto; object-fit: contain;">
+                            <h3 class="text-orange mb-3"><?= htmlspecialchars($user['league']) ?></h3>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Edital da Liga -->
-        <?php if ($hasEdital): ?>
-        <div class="alert alert-info bg-dark-panel border-orange d-flex align-items-center justify-content-between mb-4" role="alert">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-file-earmark-text-fill text-orange me-3 fs-2"></i>
-                <div>
-                    <h5 class="mb-1 text-white">Edital da Liga <?= htmlspecialchars($team['league']) ?></h5>
-                    <p class="mb-0 text-light-gray">Baixe o arquivo oficial com as regras e informações da temporada</p>
-                </div>
-            </div>
-            <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" class="btn btn-orange" download>
-                <i class="bi bi-download me-1"></i>Download
-            </a>
-        </div>
-        <?php endif; ?>
-
-        <!-- Calendário da Temporada -->
-        <?php if ($currentSeason): ?>
-        <div class="card bg-dark-panel border-orange mb-4">
-            <div class="card-header bg-transparent border-orange">
-                <h4 class="mb-0 text-white">
-                    <i class="bi bi-calendar3 me-2 text-orange"></i>Calendário - Temporada <?= (int)$seasonDisplayYear ?>
-                </h4>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <!-- Exemplo de eventos do calendário -->
-                        <?php if ($activeDirectiveDeadline): ?>
-                        <div class="col-md-12">
-                            <div class="calendar-event" style="cursor: pointer; padding: 20px; border: 2px solid var(--fba-orange); border-radius: 8px; transition: all 0.3s; background: linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent);" 
-                                 onclick="window.location.href='/diretrizes.php'"
-                                 onmouseover="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.2), transparent)'"
-                                 onmouseout="this.style.background='linear-gradient(135deg, rgba(255, 107, 0, 0.1), transparent)'">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                        <h5 class="text-white mb-2 fw-bold">
-                                        <i class="bi bi-clipboard-check text-orange me-2"></i>Enviar Rotação
-                                        </h5>
-                                        <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Envio de diretrizes de jogo') ?></p>
-                                        <p class="text-orange mb-0 fw-bold">
-                                            <i class="bi bi-calendar-event me-1"></i>Prazo: <?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date'] ?? 'now'))) ?> (Horário de Brasília)
-                                        </p>
-                                </div>
-                                    <i class="bi bi-arrow-right-circle-fill text-orange" style="font-size: 3rem;"></i>
-                            </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+                            <span class="text-light-gray">Ranking Global:</span>
+                            <span class="text-white fw-bold"><?= (int)($team['ranking_points'] ?? 0) ?> pontos</span>
                         </div>
-                    </div>
-                        <?php else: ?>
-                        <div class="col-12">
-                            <div class="text-center text-light-gray py-4">
-                                <i class="bi bi-calendar-x display-4"></i>
-                                <p class="mt-3 mb-0">Nenhum evento ativo no momento</p>
-                            </div>
+                        
+                        <?php if ($currentSeason): ?>
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+                            <span class="text-light-gray">Temporada:</span>
+                            <span class="text-white fw-bold"><?= (int)$seasonDisplayYear ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+                            <span class="text-light-gray">Sprint:</span>
+                            <span class="text-white fw-bold"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></span>
                         </div>
                         <?php endif; ?>
+                        
+                        <div class="d-flex justify-content-between align-items-center p-2 bg-dark rounded">
+                            <span class="text-light-gray">CAP Permitido:</span>
+                            <span class="text-white fw-bold"><?= $capMin ?> - <?= $capMax ?></span>
+                        </div>
+                        
+                        <?php if ($hasEdital): ?>
+                        <div class="mt-3">
+                            <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>" 
+                               class="btn btn-orange w-100" download>
+                                <i class="bi bi-download me-2"></i>Baixar Edital da Liga
+                            </a>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Próximas Picks -->
+            <div class="col-md-6">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-calendar-check me-2 text-orange"></i>Próximas Picks
+                        </h4>
+                        <a href="/picks.php" class="btn btn-sm btn-outline-orange">Ver Todas</a>
+                    </div>
+                    <div class="card-body">
+                        <?php if (count($teamPicks) > 0): ?>
+                            <div class="picks-list">
+                                <?php 
+                                $displayedPicks = array_slice($teamPicks, 0, 5);
+                                foreach ($displayedPicks as $pick): 
+                                ?>
+                                    <div class="pick-item d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
+                                        <div>
+                                            <span class="badge bg-orange me-2"><?= htmlspecialchars($pick['season_year']) ?></span>
+                                            <span class="badge bg-secondary"><?= $pick['round'] ?>ª Rodada</span>
+                                        </div>
+                                        <small class="text-light-gray">
+                                            <?= htmlspecialchars($pick['city'] . ' ' . $pick['team_name']) ?>
+                                        </small>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (count($teamPicks) > 5): ?>
+                                    <div class="text-center mt-2">
+                                        <small class="text-light-gray">+ <?= count($teamPicks) - 5 ?> picks</small>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-calendar-x display-4"></i>
+                                <p class="mt-3 mb-0">Nenhuma pick disponível</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
-        <?php endif; ?>
 
-        <!-- Titular -->
+        <!-- Quinteto Titular -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card bg-dark-panel border-orange">
