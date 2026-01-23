@@ -262,39 +262,36 @@ try {
     // Tabela league_settings pode não existir ainda ou coluna trades_enabled não migrada
 }
 
-// Buscar draft ativo
+// Buscar draft ativo e próxima pick
 $activeDraft = null;
 $currentDraftPick = null;
 try {
-    $stmtActiveDraft = $pdo->prepare("
-        SELECT ds.*, s.year as season_year, s.season_number
-        FROM draft_sessions ds
-        JOIN seasons s ON ds.season_id = s.id
-        WHERE ds.league = ? AND ds.status = 'in_progress'
+    // Buscar próxima pick diretamente (query simplificada e correta)
+    $stmtCurrentPick = $pdo->prepare("
+        SELECT 
+            do.round,
+            do.pick_position,
+            t.id as team_id,
+            t.city,
+            t.name as team_name,
+            t.photo_url,
+            u.name as owner_name
+        FROM draft_order do
+        JOIN draft_sessions ds ON do.draft_session_id = ds.id
+        JOIN teams t ON do.team_id = t.id
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE ds.league = ? 
+          AND ds.status = 'in_progress'
+          AND do.picked_player_id IS NULL
+        ORDER BY do.round ASC, do.pick_position ASC
         LIMIT 1
     ");
-    $stmtActiveDraft->execute([$team['league']]);
-    $activeDraft = $stmtActiveDraft->fetch();
+    $stmtCurrentPick->execute([$team['league']]);
+    $currentDraftPick = $stmtCurrentPick->fetch();
     
-    if ($activeDraft) {
-        // Buscar a pick atual (quem está escolhendo agora)
-        $stmtCurrentPick = $pdo->prepare("
-            SELECT do.*, t.city, t.name as team_name, t.photo_url, u.name as owner_name,
-                   t.id as debug_team_id
-            FROM draft_order do
-            JOIN teams t ON do.team_id = t.id
-            LEFT JOIN users u ON t.user_id = u.id
-            WHERE do.draft_session_id = ? AND do.picked_player_id IS NULL
-            ORDER BY do.round ASC, do.pick_position ASC
-            LIMIT 1
-        ");
-        $stmtCurrentPick->execute([$activeDraft['id']]);
-        $currentDraftPick = $stmtCurrentPick->fetch();
-        
-        // Debug temporário
-        if ($currentDraftPick) {
-            error_log("DRAFT DASHBOARD: Session ID={$activeDraft['id']}, Team ID={$currentDraftPick['debug_team_id']}, Team={$currentDraftPick['city']} {$currentDraftPick['team_name']}, Round={$currentDraftPick['round']}, Pick={$currentDraftPick['pick_position']}");
-        }
+    // Se encontrou pick pendente, considera que há draft ativo
+    if ($currentDraftPick) {
+        $activeDraft = true;
     }
 } catch (Exception $e) {
     // Silencioso - não há draft ativo
@@ -974,13 +971,15 @@ try {
                         <?php if ($activeDraft && $currentDraftPick): ?>
                             <!-- Draft Ativo - Próxima Pick -->
                             <div class="text-center py-4">
-                                <p class="text-orange fw-bold mb-3">
+                                <p class="text-orange fw-bold mb-4">
                                     <i class="bi bi-alarm me-2"></i>PRÓXIMA PICK
                                 </p>
-                                <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
-                                     alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
-                                     class="rounded-circle mb-3" 
-                                     style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange);">
+                                <div class="mb-3">
+                                    <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
+                                         alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
+                                         class="rounded-circle" 
+                                         style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange); display: block; margin: 0 auto;">
+                                </div>
                                 <h5 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h5>
                             </div>
                         <?php else: ?>
