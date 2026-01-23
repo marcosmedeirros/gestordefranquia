@@ -109,7 +109,8 @@ function setupAdminEvents() {
     }
 }
 
-async function addFreeAgent() {
+// Função global para adicionar Free Agent
+window.addFreeAgent = async function() {
     console.log('➕ addFreeAgent chamada');
     const league = document.getElementById('faLeague').value;
     const name = document.getElementById('faPlayerName').value.trim();
@@ -164,7 +165,7 @@ async function addFreeAgent() {
         console.error('❌ Erro:', error);
         alert('Erro ao adicionar jogador');
     }
-}
+};
 
 async function carregarFreeAgentsAdmin() {
     const container = document.getElementById('adminFreeAgentsContainer');

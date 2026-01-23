@@ -381,7 +381,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     <input type="number" id="faOvr" class="form-control" value="70">
                                 </div>
                                 <div class="col-12">
-                                    <button id="btnAddFreeAgent" class="btn btn-orange">
+                                    <button id="btnAddFreeAgent" class="btn btn-orange" onclick="addFreeAgent()">
                                         <i class="bi bi-plus-circle me-1"></i>Adicionar
                                     </button>
                                 </div>
