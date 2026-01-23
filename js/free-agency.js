@@ -4,9 +4,15 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Free Agency JS carregado');
+    console.log('🔐 isAdmin:', isAdmin);
+    console.log('🏀 userLeague:', userLeague);
+    console.log('🎯 defaultAdminLeague:', defaultAdminLeague);
+    
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     if (adminLeagueSelect && defaultAdminLeague) {
         adminLeagueSelect.value = defaultAdminLeague;
+        console.log('✅ adminLeagueSelect configurado com:', defaultAdminLeague);
     }
     const faLeagueSelect = document.getElementById('faLeague');
     if (faLeagueSelect && defaultAdminLeague) {
@@ -23,10 +29,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (isAdmin) {
+        console.log('👑 Configurando modo admin...');
         setupAdminEvents();
         carregarFreeAgentsAdmin();
         carregarPropostasAdmin();
         carregarHistoricoContratacoes();
+        
+        // Listener para quando a aba FA Admin for exibida
+        const faAdminTab = document.getElementById('fa-admin-tab');
+        if (faAdminTab) {
+            console.log('📑 Adicionando listener na aba FA Admin');
+            faAdminTab.addEventListener('shown.bs.tab', () => {
+                console.log('👁️ Aba FA Admin foi aberta, recarregando dados...');
+                carregarFreeAgentsAdmin();
+                carregarPropostasAdmin();
+                carregarHistoricoContratacoes();
+            });
+        }
     }
 });
 
@@ -46,15 +65,26 @@ function getAdminLeague() {
 // ========== ADMIN ==========
 
 function setupAdminEvents() {
+    console.log('🎬 Configurando eventos admin...');
+    const adminLeagueSelect = document.getElementById('adminLeagueSelect');
+    console.log('📋 adminLeagueSelect encontrado:', adminLeagueSelect);
+    
     document.getElementById('btnAddFreeAgent')?.addEventListener('click', addFreeAgent);
-    document.getElementById('adminLeagueSelect')?.addEventListener('change', () => {
-        carregarFreeAgentsAdmin();
-        carregarPropostasAdmin();
-        carregarHistoricoContratacoes();
-        if (!userLeague) {
-            carregarFreeAgents();
-        }
-    });
+    
+    if (adminLeagueSelect) {
+        console.log('✅ Adicionando listener ao adminLeagueSelect');
+        adminLeagueSelect.addEventListener('change', () => {
+            console.log('🔄 Liga mudou! Nova liga:', adminLeagueSelect.value);
+            carregarFreeAgentsAdmin();
+            carregarPropostasAdmin();
+            carregarHistoricoContratacoes();
+            if (!userLeague) {
+                carregarFreeAgents();
+            }
+        });
+    } else {
+        console.error('❌ adminLeagueSelect não encontrado!');
+    }
 }
 
 async function addFreeAgent() {
