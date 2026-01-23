@@ -263,7 +263,7 @@ try {
         SELECT ds.*, s.year as season_year
         FROM draft_sessions ds
         JOIN seasons s ON ds.season_id = s.id
-        WHERE ds.league = ? AND ds.status = 'active'
+        WHERE ds.league = ? AND ds.status = 'in_progress'
         LIMIT 1
     ");
     $stmtActiveDraft->execute([$team['league']]);
