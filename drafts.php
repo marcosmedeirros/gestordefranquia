@@ -142,9 +142,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
             </div>
             <div class="col-md-6">
               <select id="leagueSelector" class="form-select bg-dark text-white border-secondary" onchange="loadHistoryForLeague()">
-                <option value="ROOKIE">ROOKIE</option>
                 <option value="ELITE">ELITE</option>
-                <option value="PRO">PRO</option>
+                <option value="NEXT">NEXT</option>
+                <option value="RISE">RISE</option>
+                <option value="ROOKIE">ROOKIE</option>
               </select>
             </div>
             <div class="col-md-3 text-end">
