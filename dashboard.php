@@ -766,6 +766,188 @@ try {
             </div>
         </div>
 
+        <!-- Draft e Trades (lado a lado) -->
+        <div class="row g-4 mb-4">
+            <!-- Draft Ativo -->
+            <div class="col-md-6">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-trophy me-2 text-orange"></i>Draft
+                        </h4>
+                        <a href="/drafts.php" class="btn btn-sm btn-outline-orange">Ver Drafts</a>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($activeDraft && $currentDraftPick): ?>
+                            <!-- Draft Ativo - Próxima Pick -->
+                            <div class="text-center py-4">
+                                <p class="text-orange fw-bold mb-4">
+                                    <i class="bi bi-alarm me-2"></i>PRÓXIMA PICK
+                                </p>
+                                <div class="mb-3">
+                                    <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
+                                         alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
+                                         class="rounded-circle" 
+                                         style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange); display: block; margin: 0 auto;">
+                                </div>
+                                <h5 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h5>
+                            </div>
+                        <?php else: ?>
+                            <!-- Sem draft ativo -->
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-trophy display-4"></i>
+                                <p class="mt-3 mb-0 text-white fw-bold">Sem draft atualmente</p>
+                                <small>Aguarde o próximo draft da liga</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Última Trade -->
+            <div class="col-md-6">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades
+                        </h4>
+                        <a href="/trades.php" class="btn btn-sm btn-outline-orange">Ver Todas</a>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($tradesEnabled == 0): ?>
+                            <!-- Trades Desativadas -->
+                            <div class="text-center text-danger py-4">
+                                <i class="bi bi-x-circle-fill display-4"></i>
+                                <p class="mt-3 mb-0 fw-bold">Trades Desativadas</p>
+                                <small class="text-light-gray">Bloqueado pelo administrador</small>
+                            </div>
+                        <?php elseif ($lastTrade): ?>
+                            <!-- Última Trade Realizada -->
+                            <div class="last-trade-compact">
+                                <div class="row align-items-center g-2 mb-3">
+                                    <!-- Time 1 -->
+                                    <div class="col-5 text-center">
+                                        <div class="mb-2">
+                                            <img src="<?= htmlspecialchars($lastTrade['from_photo'] ?? '/img/default-team.png') ?>" 
+                                                 alt="<?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?>"
+                                                 class="rounded-circle" 
+                                                 style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--fba-orange); display: block; margin: 0 auto;">
+                                        </div>
+                                        <h6 class="text-white mb-0 small"><?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?></h6>
+                                    </div>
+                                    
+                                    <!-- Seta -->
+                                    <div class="col-2 text-center">
+                                        <i class="bi bi-arrow-left-right text-orange" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    
+                                    <!-- Time 2 -->
+                                    <div class="col-5 text-center">
+                                        <div class="mb-2">
+                                            <img src="<?= htmlspecialchars($lastTrade['to_photo'] ?? '/img/default-team.png') ?>" 
+                                                 alt="<?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?>"
+                                                 class="rounded-circle" 
+                                                 style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--fba-orange); display: block; margin: 0 auto;">
+                                        </div>
+                                        <h6 class="text-white mb-0 small"><?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?></h6>
+                                    </div>
+                                </div>
+                                
+                                <!-- Itens trocados -->
+                                <div class="trade-items">
+                                    <div class="row g-2">
+                                        <!-- Do Time 1 -->
+                                        <div class="col-6">
+                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
+                                                <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
+                                                <?php if (count($lastTradeFromPlayers) > 0): ?>
+                                                    <?php foreach ($lastTradeFromPlayers as $player): ?>
+                                                        <div class="text-white small mb-1">
+                                                            <i class="bi bi-person-fill text-orange"></i>
+                                                            <?= htmlspecialchars($player['name']) ?> 
+                                                            <span class="text-light-gray">(<?= $player['position'] ?> - <?= $player['ovr'] ?>)</span>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                                <?php if (count($lastTradeFromPicks) > 0): ?>
+                                                    <?php foreach ($lastTradeFromPicks as $pick): ?>
+                                                        <div class="text-white small mb-1">
+                                                            <i class="bi bi-calendar-check text-orange"></i>
+                                                            Pick <?= $pick['season_year'] ?> - R<?= $pick['round'] ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                                <?php if (count($lastTradeFromPlayers) == 0 && count($lastTradeFromPicks) == 0): ?>
+                                                    <small class="text-light-gray">-</small>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Do Time 2 -->
+                                        <div class="col-6">
+                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
+                                                <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
+                                                <?php if (count($lastTradeToPlayers) > 0): ?>
+                                                    <?php foreach ($lastTradeToPlayers as $player): ?>
+                                                        <div class="text-white small mb-1">
+                                                            <i class="bi bi-person-fill text-orange"></i>
+                                                            <?= htmlspecialchars($player['name']) ?> 
+                                                            <span class="text-light-gray">(<?= $player['position'] ?> - <?= $player['ovr'] ?>)</span>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                                <?php if (count($lastTradeToPicks) > 0): ?>
+                                                    <?php foreach ($lastTradeToPicks as $pick): ?>
+                                                        <div class="text-white small mb-1">
+                                                            <i class="bi bi-calendar-check text-orange"></i>
+                                                            Pick <?= $pick['season_year'] ?> - R<?= $pick['round'] ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                                <?php if (count($lastTradeToPlayers) == 0 && count($lastTradeToPicks) == 0): ?>
+                                                    <small class="text-light-gray">-</small>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Data -->
+                                <div class="text-center mt-2">
+                                    <small class="text-light-gray">
+                                        <?php
+                                        if (!empty($lastTrade['updated_at'])) {
+                                            $tradeDate = new DateTime($lastTrade['updated_at']);
+                                            $now = new DateTime();
+                                            $diff = $now->diff($tradeDate);
+                                            
+                                            if ($diff->days == 0) {
+                                                echo "Hoje";
+                                            } elseif ($diff->days == 1) {
+                                                echo "Ontem";
+                                            } elseif ($diff->days < 7) {
+                                                echo $diff->days . " dias atrás";
+                                            } else {
+                                                echo $tradeDate->format('d/m/Y');
+                                            }
+                                        }
+                                        ?>
+                                    </small>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <!-- Nenhuma trade ainda -->
+                            <div class="text-center text-light-gray py-4">
+                                <i class="bi bi-arrow-left-right display-4"></i>
+                                <p class="mt-3 mb-0 text-white fw-bold">Nenhuma trade realizada</p>
+                                <small>Seja o primeiro a trocar!</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Informações da Liga, Top 5 Ranking e Últimos Vencedores (3 cards) -->
         <div class="row g-4 mb-4">
             <!-- Card 1: Informações da Liga -->
@@ -949,184 +1131,6 @@ try {
                                 <i class="bi bi-award display-4"></i>
                                 <p class="mt-3 mb-0 text-white fw-bold">Temporada não iniciada</p>
                                 <small>Vencedores aparecerão após o primeiro sprint</small>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Draft e Trades (lado a lado) -->
-        <div class="row g-4 mb-4">
-            <!-- Draft Ativo -->
-            <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 text-white">
-                            <i class="bi bi-trophy me-2 text-orange"></i>Draft
-                        </h4>
-                        <a href="/drafts.php" class="btn btn-sm btn-outline-orange">Ver Drafts</a>
-                    </div>
-                    <div class="card-body">
-                        <?php if ($activeDraft && $currentDraftPick): ?>
-                            <!-- Draft Ativo - Próxima Pick -->
-                            <div class="text-center py-4">
-                                <p class="text-orange fw-bold mb-4">
-                                    <i class="bi bi-alarm me-2"></i>PRÓXIMA PICK
-                                </p>
-                                <div class="mb-3">
-                                    <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
-                                         alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
-                                         class="rounded-circle" 
-                                         style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange); display: block; margin: 0 auto;">
-                                </div>
-                                <h5 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h5>
-                            </div>
-                        <?php else: ?>
-                            <!-- Sem draft ativo -->
-                            <div class="text-center text-light-gray py-4">
-                                <i class="bi bi-trophy display-4"></i>
-                                <p class="mt-3 mb-0 text-white fw-bold">Sem draft atualmente</p>
-                                <small>Aguarde o próximo draft da liga</small>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Última Trade -->
-            <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 text-white">
-                            <i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades
-                        </h4>
-                        <a href="/trades.php" class="btn btn-sm btn-outline-orange">Ver Todas</a>
-                    </div>
-                    <div class="card-body">
-                        <?php if ($tradesEnabled == 0): ?>
-                            <!-- Trades Desativadas -->
-                            <div class="text-center text-danger py-4">
-                                <i class="bi bi-x-circle-fill display-4"></i>
-                                <p class="mt-3 mb-0 fw-bold">Trades Desativadas</p>
-                                <small class="text-light-gray">Bloqueado pelo administrador</small>
-                            </div>
-                        <?php elseif ($lastTrade): ?>
-                            <!-- Última Trade Realizada -->
-                            <div class="last-trade-compact">
-                                <div class="row align-items-center g-2 mb-3">
-                                    <!-- Time 1 -->
-                                    <div class="col-5 text-center">
-                                        <img src="<?= htmlspecialchars($lastTrade['from_photo'] ?? '/img/default-team.png') ?>" 
-                                             alt="<?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?>"
-                                             class="rounded-circle mb-1" 
-                                             style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--fba-orange);">
-                                        <h6 class="text-white mb-0 small"><?= htmlspecialchars($lastTrade['from_city'] . ' ' . $lastTrade['from_name']) ?></h6>
-                                    </div>
-                                    
-                                    <!-- Seta -->
-                                    <div class="col-2 text-center">
-                                        <i class="bi bi-arrow-left-right text-orange" style="font-size: 1.5rem;"></i>
-                                    </div>
-                                    
-                                    <!-- Time 2 -->
-                                    <div class="col-5 text-center">
-                                        <img src="<?= htmlspecialchars($lastTrade['to_photo'] ?? '/img/default-team.png') ?>" 
-                                             alt="<?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?>"
-                                             class="rounded-circle mb-1" 
-                                             style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--fba-orange);">
-                                        <h6 class="text-white mb-0 small"><?= htmlspecialchars($lastTrade['to_city'] . ' ' . $lastTrade['to_name']) ?></h6>
-                                    </div>
-                                </div>
-                                
-                                <!-- Itens trocados -->
-                                <div class="trade-items">
-                                    <div class="row g-2">
-                                        <!-- Do Time 1 -->
-                                        <div class="col-6">
-                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
-                                                <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
-                                                <?php if (count($lastTradeFromPlayers) > 0): ?>
-                                                    <?php foreach ($lastTradeFromPlayers as $player): ?>
-                                                        <div class="text-white small mb-1">
-                                                            <i class="bi bi-person-fill text-orange"></i>
-                                                            <?= htmlspecialchars($player['name']) ?> 
-                                                            <span class="text-light-gray">(<?= $player['position'] ?> - <?= $player['ovr'] ?>)</span>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                                <?php if (count($lastTradeFromPicks) > 0): ?>
-                                                    <?php foreach ($lastTradeFromPicks as $pick): ?>
-                                                        <div class="text-white small mb-1">
-                                                            <i class="bi bi-calendar-check text-orange"></i>
-                                                            Pick <?= $pick['season_year'] ?> - R<?= $pick['round'] ?>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                                <?php if (count($lastTradeFromPlayers) == 0 && count($lastTradeFromPicks) == 0): ?>
-                                                    <small class="text-light-gray">-</small>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Do Time 2 -->
-                                        <div class="col-6">
-                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
-                                                <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
-                                                <?php if (count($lastTradeToPlayers) > 0): ?>
-                                                    <?php foreach ($lastTradeToPlayers as $player): ?>
-                                                        <div class="text-white small mb-1">
-                                                            <i class="bi bi-person-fill text-orange"></i>
-                                                            <?= htmlspecialchars($player['name']) ?> 
-                                                            <span class="text-light-gray">(<?= $player['position'] ?> - <?= $player['ovr'] ?>)</span>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                                <?php if (count($lastTradeToPicks) > 0): ?>
-                                                    <?php foreach ($lastTradeToPicks as $pick): ?>
-                                                        <div class="text-white small mb-1">
-                                                            <i class="bi bi-calendar-check text-orange"></i>
-                                                            Pick <?= $pick['season_year'] ?> - R<?= $pick['round'] ?>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                                <?php if (count($lastTradeToPlayers) == 0 && count($lastTradeToPicks) == 0): ?>
-                                                    <small class="text-light-gray">-</small>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Data -->
-                                <div class="text-center mt-2">
-                                    <small class="text-light-gray">
-                                        <?php
-                                        if (!empty($lastTrade['updated_at'])) {
-                                            $tradeDate = new DateTime($lastTrade['updated_at']);
-                                            $now = new DateTime();
-                                            $diff = $now->diff($tradeDate);
-                                            
-                                            if ($diff->days == 0) {
-                                                echo "Hoje";
-                                            } elseif ($diff->days == 1) {
-                                                echo "Ontem";
-                                            } elseif ($diff->days < 7) {
-                                                echo $diff->days . " dias atrás";
-                                            } else {
-                                                echo $tradeDate->format('d/m/Y');
-                                            }
-                                        }
-                                        ?>
-                                    </small>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <!-- Nenhuma trade ainda -->
-                            <div class="text-center text-light-gray py-4">
-                                <i class="bi bi-arrow-left-right display-4"></i>
-                                <p class="mt-3 mb-0 text-white fw-bold">Nenhuma trade realizada</p>
-                                <small>Seja o primeiro a trocar!</small>
                             </div>
                         <?php endif; ?>
                     </div>
