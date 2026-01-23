@@ -198,49 +198,45 @@ try {
     $lastTrade = $stmtLastTrade->fetch();
     
     if ($lastTrade) {
-        // Buscar jogadores trocados - FROM
-        if (!empty($lastTrade['from_player_ids']) && trim($lastTrade['from_player_ids']) !== '') {
-            $fromPlayerIds = array_filter(explode(',', $lastTrade['from_player_ids']));
-            if (count($fromPlayerIds) > 0) {
-                $placeholders = implode(',', array_fill(0, count($fromPlayerIds), '?'));
-                $stmtFromPlayers = $pdo->prepare("SELECT name, position, ovr FROM players WHERE id IN ($placeholders)");
-                $stmtFromPlayers->execute($fromPlayerIds);
-                $lastTradeFromPlayers = $stmtFromPlayers->fetchAll();
-            }
-        }
+        // Buscar jogadores oferecidos (FROM team)
+        $stmtFromPlayers = $pdo->prepare('
+            SELECT p.name, p.position, p.ovr 
+            FROM players p
+            JOIN trade_items ti ON p.id = ti.player_id
+            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
+        ');
+        $stmtFromPlayers->execute([$lastTrade['id']]);
+        $lastTradeFromPlayers = $stmtFromPlayers->fetchAll();
         
-        // Buscar jogadores trocados - TO
-        if (!empty($lastTrade['to_player_ids']) && trim($lastTrade['to_player_ids']) !== '') {
-            $toPlayerIds = array_filter(explode(',', $lastTrade['to_player_ids']));
-            if (count($toPlayerIds) > 0) {
-                $placeholders = implode(',', array_fill(0, count($toPlayerIds), '?'));
-                $stmtToPlayers = $pdo->prepare("SELECT name, position, ovr FROM players WHERE id IN ($placeholders)");
-                $stmtToPlayers->execute($toPlayerIds);
-                $lastTradeToPlayers = $stmtToPlayers->fetchAll();
-            }
-        }
+        // Buscar picks oferecidas (FROM team)
+        $stmtFromPicks = $pdo->prepare('
+            SELECT pk.season_year, pk.round 
+            FROM picks pk
+            JOIN trade_items ti ON pk.id = ti.pick_id
+            WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
+        ');
+        $stmtFromPicks->execute([$lastTrade['id']]);
+        $lastTradeFromPicks = $stmtFromPicks->fetchAll();
         
-        // Buscar picks trocadas - FROM
-        if (!empty($lastTrade['from_pick_ids']) && trim($lastTrade['from_pick_ids']) !== '') {
-            $fromPickIds = array_filter(explode(',', $lastTrade['from_pick_ids']));
-            if (count($fromPickIds) > 0) {
-                $placeholders = implode(',', array_fill(0, count($fromPickIds), '?'));
-                $stmtFromPicks = $pdo->prepare("SELECT season_year, round FROM picks WHERE id IN ($placeholders)");
-                $stmtFromPicks->execute($fromPickIds);
-                $lastTradeFromPicks = $stmtFromPicks->fetchAll();
-            }
-        }
+        // Buscar jogadores pedidos (TO team)
+        $stmtToPlayers = $pdo->prepare('
+            SELECT p.name, p.position, p.ovr 
+            FROM players p
+            JOIN trade_items ti ON p.id = ti.player_id
+            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
+        ');
+        $stmtToPlayers->execute([$lastTrade['id']]);
+        $lastTradeToPlayers = $stmtToPlayers->fetchAll();
         
-        // Buscar picks trocadas - TO
-        if (!empty($lastTrade['to_pick_ids']) && trim($lastTrade['to_pick_ids']) !== '') {
-            $toPickIds = array_filter(explode(',', $lastTrade['to_pick_ids']));
-            if (count($toPickIds) > 0) {
-                $placeholders = implode(',', array_fill(0, count($toPickIds), '?'));
-                $stmtToPicks = $pdo->prepare("SELECT season_year, round FROM picks WHERE id IN ($placeholders)");
-                $stmtToPicks->execute($toPickIds);
-                $lastTradeToPicks = $stmtToPicks->fetchAll();
-            }
-        }
+        // Buscar picks pedidas (TO team)
+        $stmtToPicks = $pdo->prepare('
+            SELECT pk.season_year, pk.round 
+            FROM picks pk
+            JOIN trade_items ti ON pk.id = ti.pick_id
+            WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
+        ');
+        $stmtToPicks->execute([$lastTrade['id']]);
+        $lastTradeToPicks = $stmtToPicks->fetchAll();
     }
 } catch (Exception $e) {
     // Debug: descomentar para ver erro
@@ -271,7 +267,7 @@ $activeDraft = null;
 $currentDraftPick = null;
 try {
     $stmtActiveDraft = $pdo->prepare("
-        SELECT ds.*, s.year as season_year, s.start_year
+        SELECT ds.*, s.year as season_year, s.start_year, s.season_number
         FROM draft_sessions ds
         JOIN seasons s ON ds.season_id = s.id
         WHERE ds.league = ? AND ds.status = 'in_progress'
@@ -287,8 +283,8 @@ try {
             FROM draft_order do
             JOIN teams t ON do.team_id = t.id
             LEFT JOIN users u ON t.user_id = u.id
-            WHERE do.session_id = ? AND do.player_id IS NULL
-            ORDER BY do.pick_number ASC
+            WHERE do.draft_session_id = ? AND do.picked_player_id IS NULL
+            ORDER BY do.round ASC, do.pick_position ASC
             LIMIT 1
         ");
         $stmtCurrentPick->execute([$activeDraft['id']]);

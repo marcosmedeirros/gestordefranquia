@@ -6,21 +6,21 @@
 -- ========================================
 
 -- Verificar se existe draft em progresso
-SELECT ds.*, s.year, s.start_year
+SELECT ds.*, s.year, s.start_year, s.season_number
 FROM draft_sessions ds
 JOIN seasons s ON ds.season_id = s.id
 WHERE ds.league = 'ROOKIE' AND ds.status = 'in_progress';
 
--- Verificar próxima pick do draft
+-- Verificar próxima pick do draft (QUERY CORRETA)
 SELECT do.*, t.city, t.name as team_name, t.photo_url, u.name as owner_name
 FROM draft_order do
-JOIN draft_sessions ds ON do.session_id = ds.id
+JOIN draft_sessions ds ON do.draft_session_id = ds.id
 JOIN teams t ON do.team_id = t.id
 LEFT JOIN users u ON t.user_id = u.id
 WHERE ds.league = 'ROOKIE' 
   AND ds.status = 'in_progress'
-  AND do.player_id IS NULL
-ORDER BY do.pick_number ASC
+  AND do.picked_player_id IS NULL
+ORDER BY do.round ASC, do.pick_position ASC
 LIMIT 1;
 
 -- ========================================
@@ -42,30 +42,32 @@ WHERE t.status = 'accepted' AND t1.league = 'ROOKIE'
 ORDER BY t.updated_at DESC
 LIMIT 1;
 
--- Verificar jogadores da última trade (use o ID da trade acima)
--- Substitua 'from_player_ids_aqui' pelos IDs que aparecerem acima
--- Exemplo: se from_player_ids = '45,67', use: WHERE id IN (45, 67)
+-- Buscar itens da última trade (use o ID da trade acima)
+-- Substitua X pelo ID da trade retornada acima
 
--- Jogadores do Time 1 (FROM)
-SELECT id, name, position, ovr FROM players WHERE id IN (
-    -- COLE AQUI os IDs de from_player_ids da query acima, separados por vírgula
-    -- Exemplo: 45, 67, 89
-);
+-- Jogadores do Time 1 (FROM team - ofereceu)
+SELECT p.name, p.position, p.ovr 
+FROM players p
+JOIN trade_items ti ON p.id = ti.player_id
+WHERE ti.trade_id = X AND ti.from_team = TRUE AND ti.player_id IS NOT NULL;
 
--- Jogadores do Time 2 (TO)
-SELECT id, name, position, ovr FROM players WHERE id IN (
-    -- COLE AQUI os IDs de to_player_ids da query acima, separados por vírgula
-);
+-- Jogadores do Time 2 (TO team - recebeu/ofereceu de volta)
+SELECT p.name, p.position, p.ovr 
+FROM players p
+JOIN trade_items ti ON p.id = ti.player_id
+WHERE ti.trade_id = X AND ti.from_team = FALSE AND ti.player_id IS NOT NULL;
 
--- Picks do Time 1 (FROM)
-SELECT id, season_year, round FROM picks WHERE id IN (
-    -- COLE AQUI os IDs de from_pick_ids da query acima, separados por vírgula
-);
+-- Picks do Time 1 (FROM team - ofereceu)
+SELECT pk.season_year, pk.round 
+FROM picks pk
+JOIN trade_items ti ON pk.id = ti.pick_id
+WHERE ti.trade_id = X AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL;
 
--- Picks do Time 2 (TO)
-SELECT id, season_year, round FROM picks WHERE id IN (
-    -- COLE AQUI os IDs de to_pick_ids da query acima, separados por vírgula
-);
+-- Picks do Time 2 (TO team - recebeu/ofereceu de volta)
+SELECT pk.season_year, pk.round 
+FROM picks pk
+JOIN trade_items ti ON pk.id = ti.pick_id
+WHERE ti.trade_id = X AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL;
 
 -- ========================================
 -- 3. VERIFICAR ESTRUTURA DAS TABELAS
