@@ -130,6 +130,30 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     <!-- View do Histórico de Drafts (oculta por padrão) -->
     <?php if ($isAdmin): ?>
     <div id="historyView" style="display: none;">
+      <!-- Seletor de Liga -->
+      <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-3">
+              <label class="text-white mb-0">
+                <i class="bi bi-funnel text-orange me-2"></i>
+                Selecionar Liga:
+              </label>
+            </div>
+            <div class="col-md-6">
+              <select id="leagueSelector" class="form-select bg-dark text-white border-secondary" onchange="loadHistoryForLeague()">
+                <option value="ROOKIE">ROOKIE</option>
+                <option value="ELITE">ELITE</option>
+                <option value="PRO">PRO</option>
+              </select>
+            </div>
+            <div class="col-md-3 text-end">
+              <span class="badge bg-gradient-orange" id="selectedLeagueBadge">ROOKIE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div id="historyContainer">
         <div class="text-center py-5">
           <div class="spinner-border text-orange"></div>
@@ -197,6 +221,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     let currentDraftSessionForFill = null;
     let currentSeasonIdView = null; // Para rastrear qual temporada está sendo visualizada
     let currentDraftStatusView = null;
+    let selectedLeague = userLeague; // Liga atualmente selecionada no histórico
 
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -501,6 +526,15 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         document.getElementById('historyView').style.display = 'block';
         document.getElementById('viewToggleText').textContent = 'Ver Draft Ativo';
         if (refreshInterval) clearInterval(refreshInterval);
+        
+        // Configurar seletor de liga com a liga atual do usuário
+        const leagueSelector = document.getElementById('leagueSelector');
+        if (leagueSelector) {
+          leagueSelector.value = userLeague;
+          selectedLeague = userLeague;
+          document.getElementById('selectedLeagueBadge').textContent = userLeague;
+        }
+        
         loadHistory();
       } else {
         currentView = 'active';
@@ -511,17 +545,25 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       }
     }
 
+    // Carregar histórico da liga selecionada
+    function loadHistoryForLeague() {
+      const leagueSelector = document.getElementById('leagueSelector');
+      selectedLeague = leagueSelector.value;
+      document.getElementById('selectedLeagueBadge').textContent = selectedLeague;
+      loadHistory();
+    }
+
     // Carregar histórico de drafts
     async function loadHistory() {
       try {
-        const data = await api(`draft.php?action=draft_history&league=${userLeague}`);
+        const data = await api(`draft.php?action=draft_history&league=${selectedLeague}`);
         const seasons = data.seasons || [];
         
         if (seasons.length === 0) {
           document.getElementById('historyContainer').innerHTML = `
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              Nenhum histórico de draft encontrado para a liga ${userLeague}.
+              Nenhum histórico de draft encontrado para a liga ${selectedLeague}.
             </div>
           `;
           return;
