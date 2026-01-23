@@ -73,8 +73,10 @@ function setupAdminEvents() {
     
     if (adminLeagueSelect) {
         console.log('✅ Adicionando listener ao adminLeagueSelect');
-        adminLeagueSelect.addEventListener('change', () => {
+        adminLeagueSelect.addEventListener('change', (e) => {
+            console.log('🔄🔄🔄 EVENTO CHANGE DISPARADO! 🔄🔄🔄');
             console.log('🔄 Liga mudou! Nova liga:', adminLeagueSelect.value);
+            console.log('🔄 Event target:', e.target.value);
             carregarFreeAgentsAdmin();
             carregarPropostasAdmin();
             carregarHistoricoContratacoes();
