@@ -1275,7 +1275,7 @@ try {
                 othersPlayers.forEach(p => {
                     const ovr = p.ovr ?? '-';
                     const age = p.age ?? '-';
-                    lines.push(`${p.name} - ${ovr} | ${formatAge(age)}`);
+                    lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
                 });
             } else {
                 lines.push('-');
@@ -1286,7 +1286,7 @@ try {
                 gleaguePlayers.forEach(p => {
                     const ovr = p.ovr ?? '-';
                     const age = p.age ?? '-';
-                    lines.push(`${p.name} - ${ovr} | ${formatAge(age)}`);
+                    lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
                 });
             } else {
                 lines.push('-');
