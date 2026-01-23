@@ -322,7 +322,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <h5 class="mb-0 text-white"><i class="bi bi-inbox-fill text-orange me-2"></i>Propostas Pendentes</h5>
                                 <div class="d-flex align-items-center gap-2">
                                     <label for="adminLeagueSelect" class="text-light-gray">Liga</label>
-                                    <select id="adminLeagueSelect" class="form-select form-select-sm" style="min-width: 140px;">
+                                    <select id="adminLeagueSelect" class="form-select form-select-sm" style="min-width: 140px;" onchange="onAdminLeagueChange()">
                                         <?php foreach ($leagues_admin as $league): ?>
                                             <option value="<?= htmlspecialchars($league['name']) ?>" data-league-id="<?= (int)$league['id'] ?>" <?= $league['name'] === $default_admin_league ? 'selected' : '' ?>>
                                                 <?= htmlspecialchars($league['name']) ?>

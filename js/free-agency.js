@@ -57,6 +57,19 @@ function getActiveLeague() {
 
 let freeAgentsCache = [];
 
+// Função global para o onchange inline do select
+window.onAdminLeagueChange = function() {
+    console.log('🎯🎯🎯 onAdminLeagueChange CHAMADA! 🎯🎯🎯');
+    const adminLeagueSelect = document.getElementById('adminLeagueSelect');
+    console.log('Nova liga selecionada:', adminLeagueSelect?.value);
+    carregarFreeAgentsAdmin();
+    carregarPropostasAdmin();
+    carregarHistoricoContratacoes();
+    if (!userLeague) {
+        carregarFreeAgents();
+    }
+};
+
 function getAdminLeague() {
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
