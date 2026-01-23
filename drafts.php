@@ -195,6 +195,8 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     let currentView = 'active'; // 'active' ou 'history'
     let currentPickForFill = null;
     let currentDraftSessionForFill = null;
+    let currentSeasonIdView = null; // Para rastrear qual temporada está sendo visualizada
+    let currentDraftStatusView = null;
 
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -591,6 +593,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     // Visualizar draft histórico
     async function viewDraftHistory(seasonId, draftStatus, draftSessionId) {
+      currentSeasonIdView = seasonId;
+      currentDraftStatusView = draftStatus;
+      currentDraftSessionForFill = draftSessionId;
+      
       try {
         const data = await api(`draft.php?action=draft_history&season_id=${seasonId}`);
         const order = data.draft_order || [];
@@ -747,12 +753,15 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       container.innerHTML = '<div class="col-12 text-center py-3"><div class="spinner-border text-orange"></div></div>';
 
       try {
-        const data = await api('draft.php?action=all_players');
+        // Buscar jogadores do draft_pool dessa sessão de draft
+        const data = await api(`draft.php?action=available_players_for_past_draft&draft_session_id=${draftSessionId}`);
         allPlayersList = data.players || [];
         renderPastPlayers(allPlayersList);
         
         // Setup search
-        document.getElementById('pastPlayerSearch').addEventListener('input', (e) => {
+        const searchInput = document.getElementById('pastPlayerSearch');
+        searchInput.value = ''; // Limpar busca anterior
+        searchInput.addEventListener('input', (e) => {
           const q = e.target.value.toLowerCase();
           const filtered = allPlayersList.filter(p => 
             p.name.toLowerCase().includes(q) || 
@@ -768,17 +777,17 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     function renderPastPlayers(players) {
       const container = document.getElementById('pastPlayersDropdown');
       if (players.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center text-light-gray py-3">Nenhum jogador encontrado</div>';
+        container.innerHTML = '<div class="col-12 text-center text-light-gray py-3">Nenhum jogador disponível no draft pool</div>';
         return;
       }
       container.innerHTML = players.map(p => `
         <div class="col-md-4 col-lg-3">
-          <div class="card bg-dark border-secondary player-select-card" onclick="fillPastPick(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="border-radius: 10px;">
+          <div class="card bg-dark border-secondary player-select-card" onclick="fillPastPick(${p.id}, '${(p.name || '').replace(/'/g, "\\'")}')" style="border-radius: 10px;">
             <div class="card-body p-3 text-center">
-              <h6 class="text-white mb-1">${p.name}</h6>
-              ${p.position ? `<span class="badge bg-orange">${p.position}</span>` : ''}
-              ${p.ovr ? `<span class="badge bg-success">OVR ${p.ovr}</span>` : ''}
-              ${p.age ? `<p class="text-light-gray mb-0 mt-2" style="font-size: 0.8rem;">${p.age} anos</p>` : ''}
+              <h6 class="text-white mb-1">${p.name || 'Sem nome'}</h6>
+              <span class="badge bg-orange">${p.position || 'N/A'}</span>
+              <span class="badge bg-success">OVR ${p.ovr || '0'}</span>
+              <p class="text-light-gray mb-0 mt-2" style="font-size: 0.8rem;">${p.age || '?'} anos</p>
             </div>
           </div>
         </div>
@@ -802,12 +811,9 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         alert(result.message);
         bootstrap.Modal.getInstance(document.getElementById('fillPastPickModal')).hide();
         
-        // Recarregar a visualização do draft histórico
-        // Buscar o season_id atual
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentSeasonId = urlParams.get('season_id');
-        if (currentSeasonId) {
-          viewDraftHistory(currentSeasonId, 'completed', currentDraftSessionForFill);
+        // Recarregar a visualização do draft atual
+        if (currentSeasonIdView && currentDraftStatusView && currentDraftSessionForFill) {
+          viewDraftHistory(currentSeasonIdView, currentDraftStatusView, currentDraftSessionForFill);
         } else {
           loadHistory();
         }

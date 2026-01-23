@@ -248,28 +248,38 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'seasons' => $seasons]);
             break;
         
-        // Buscar todos os jogadores disponíveis (do elenco geral) para preencher draft passado
-        case 'all_players':
+        // Buscar jogadores disponíveis do draft_pool para preencher draft passado
+        case 'available_players_for_past_draft':
             if (!$isAdmin) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
 
-            $search = $_GET['search'] ?? '';
+            $draftSessionId = $_GET['draft_session_id'] ?? null;
             
-            $sql = "SELECT * FROM players WHERE 1=1";
-            $params = [];
-            
-            if ($search) {
-                $sql .= " AND name LIKE ?";
-                $params[] = "%{$search}%";
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
             }
+
+            // Buscar season_id da sessão de draft
+            $stmtSession = $pdo->prepare("SELECT season_id FROM draft_sessions WHERE id = ?");
+            $stmtSession->execute([$draftSessionId]);
+            $session = $stmtSession->fetch();
             
-            $sql .= " ORDER BY ovr DESC, name ASC LIMIT 100";
-            
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Sessão de draft não encontrada']);
+                exit;
+            }
+
+            // Buscar jogadores disponíveis do draft_pool dessa temporada
+            $stmt = $pdo->prepare("
+                SELECT * FROM draft_pool 
+                WHERE season_id = ? AND draft_status = 'available'
+                ORDER BY ovr DESC, name ASC
+            ");
+            $stmt->execute([$session['season_id']]);
             $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             echo json_encode(['success' => true, 'players' => $players]);
@@ -795,18 +805,25 @@ if ($method === 'POST') {
                     throw new Exception('Pick não encontrada');
                 }
 
-                // Buscar informações do jogador da tabela players (não draft_pool)
-                $stmtPlayer = $pdo->prepare("SELECT * FROM players WHERE id = ?");
+                // Buscar informações do jogador do draft_pool
+                $stmtPlayer = $pdo->prepare("SELECT * FROM draft_pool WHERE id = ? AND draft_status = 'available'");
                 $stmtPlayer->execute([$playerId]);
                 $player = $stmtPlayer->fetch();
 
                 if (!$player) {
-                    throw new Exception('Jogador não encontrado');
+                    throw new Exception('Jogador não disponível no draft pool');
                 }
 
-                // Atualizar a pick com o player_id
-                // Nota: Aqui estamos usando o ID da tabela players, não draft_pool
-                // Se a estrutura for diferente, ajuste conforme necessário
+                // Buscar informações da sessão para calcular o número da pick
+                $stmtSession = $pdo->prepare("SELECT * FROM draft_sessions WHERE id = ?");
+                $stmtSession->execute([$draftSessionId]);
+                $session = $stmtSession->fetch();
+
+                if (!$session) {
+                    throw new Exception('Sessão de draft não encontrada');
+                }
+
+                // Atualizar a pick com o player_id do draft_pool
                 $stmtUpdate = $pdo->prepare("
                     UPDATE draft_order 
                     SET picked_player_id = ?, picked_at = NOW() 
@@ -814,11 +831,40 @@ if ($method === 'POST') {
                 ");
                 $stmtUpdate->execute([$playerId, $pickId]);
 
+                // Calcular número absoluto da pick
+                $stmtTotalRound = $pdo->prepare("SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?");
+                $stmtTotalRound->execute([$draftSessionId, $pick['round']]);
+                $roundSize = (int) $stmtTotalRound->fetchColumn();
+                $pickNumber = (($pick['round'] - 1) * $roundSize) + $pick['pick_position'];
+
+                // Marcar jogador como draftado no draft_pool
+                $stmtDrafted = $pdo->prepare("
+                    UPDATE draft_pool 
+                    SET draft_status = 'drafted', 
+                        drafted_by_team_id = ?, 
+                        draft_order = ?
+                    WHERE id = ?
+                ");
+                $stmtDrafted->execute([$pick['team_id'], $pickNumber, $playerId]);
+
+                // Adicionar jogador ao elenco do time (tabela players)
+                $stmtAddPlayer = $pdo->prepare("
+                    INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade)
+                    VALUES (?, ?, ?, ?, ?, 'Banco', 0)
+                ");
+                $stmtAddPlayer->execute([
+                    $pick['team_id'],
+                    $player['name'],
+                    $player['position'],
+                    $player['age'],
+                    $player['ovr']
+                ]);
+
                 $pdo->commit();
 
                 echo json_encode([
                     'success' => true,
-                    'message' => "Pick preenchida com {$player['name']}",
+                    'message' => "Pick preenchida! {$player['name']} foi adicionado ao elenco de {$pick['team_id']}",
                     'player' => $player
                 ]);
             } catch (Exception $e) {
