@@ -265,7 +265,28 @@ try {
 // Buscar draft ativo
 $activeDraft = null;
 $currentDraftPick = null;
+$draftDebugInfo = null;
 try {
+    // Primeiro, verificar se existe draft em qualquer status
+    $stmtCheckDraft = $pdo->prepare("
+        SELECT ds.*, s.year as season_year, s.start_year, s.season_number
+        FROM draft_sessions ds
+        JOIN seasons s ON ds.season_id = s.id
+        WHERE ds.league = ?
+        ORDER BY ds.id DESC
+        LIMIT 1
+    ");
+    $stmtCheckDraft->execute([$team['league']]);
+    $anyDraft = $stmtCheckDraft->fetch();
+    
+    if ($anyDraft) {
+        $draftDebugInfo = "Último draft: ID={$anyDraft['id']}, Status={$anyDraft['status']}, Season={$anyDraft['season_year']}";
+        error_log("DEBUG DRAFT: " . $draftDebugInfo);
+    } else {
+        $draftDebugInfo = "Nenhum draft encontrado para a liga {$team['league']}";
+        error_log("DEBUG DRAFT: " . $draftDebugInfo);
+    }
+    
     $stmtActiveDraft = $pdo->prepare("
         SELECT ds.*, s.year as season_year, s.start_year, s.season_number
         FROM draft_sessions ds
@@ -277,6 +298,8 @@ try {
     $activeDraft = $stmtActiveDraft->fetch();
     
     if ($activeDraft) {
+        error_log("DEBUG DRAFT: Draft ativo encontrado! ID={$activeDraft['id']}");
+        
         // Buscar a pick atual (quem está escolhendo agora)
         $stmtCurrentPick = $pdo->prepare("
             SELECT do.*, t.city, t.name as team_name, t.photo_url, u.name as owner_name
@@ -289,10 +312,18 @@ try {
         ");
         $stmtCurrentPick->execute([$activeDraft['id']]);
         $currentDraftPick = $stmtCurrentPick->fetch();
+        
+        if ($currentDraftPick) {
+            error_log("DEBUG DRAFT: Próxima pick encontrada! Time={$currentDraftPick['team_name']}, Round={$currentDraftPick['round']}, Pick={$currentDraftPick['pick_position']}");
+        } else {
+            error_log("DEBUG DRAFT: Draft ativo mas nenhuma pick pendente encontrada!");
+        }
+    } else {
+        error_log("DEBUG DRAFT: Nenhum draft com status 'in_progress' encontrado");
     }
 } catch (Exception $e) {
-    // Debug: descomentar para ver erro
-    error_log("Erro ao buscar draft ativo: " . $e->getMessage());
+    error_log("ERRO DRAFT: " . $e->getMessage());
+    $draftDebugInfo = "Erro: " . $e->getMessage();
 }
 
 // Buscar Top 5 do Ranking
@@ -1000,6 +1031,11 @@ try {
                                 <i class="bi bi-trophy display-4"></i>
                                 <p class="mt-3 mb-0 text-white fw-bold">Sem draft atualmente</p>
                                 <small>Aguarde o próximo draft da liga</small>
+                                <?php if (isset($draftDebugInfo)): ?>
+                                    <div class="alert alert-info mt-3 small">
+                                        <strong>Debug:</strong> <?= htmlspecialchars($draftDebugInfo) ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
