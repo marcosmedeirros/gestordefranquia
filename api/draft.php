@@ -170,7 +170,7 @@ if ($method === 'GET') {
             // Se tem season_id, buscar snapshot dessa temporada específica
             if ($seasonId) {
                 $stmt = $pdo->prepare("
-                    SELECT s.*, ds.status as draft_status
+                    SELECT s.*, ds.status as draft_status, ds.id as draft_session_id
                     FROM seasons s
                     LEFT JOIN draft_sessions ds ON ds.season_id = s.id
                     WHERE s.id = ?
@@ -222,6 +222,7 @@ if ($method === 'GET') {
                         'success' => true,
                         'season' => $season,
                         'draft_order' => $order,
+                        'draft_session_id' => $sessionData['id'],
                         'from_snapshot' => false
                     ]);
                     exit;
@@ -235,7 +236,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("
                 SELECT s.id, s.season_number, s.year, s.league, s.status,
                        CASE WHEN s.draft_order_snapshot IS NOT NULL THEN 1 ELSE 0 END as has_snapshot,
-                       ds.status as draft_status
+                       ds.status as draft_status, ds.id as draft_session_id
                 FROM seasons s
                 LEFT JOIN draft_sessions ds ON ds.season_id = s.id
                 WHERE s.league = ?
@@ -245,6 +246,33 @@ if ($method === 'GET') {
             $seasons = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             echo json_encode(['success' => true, 'seasons' => $seasons]);
+            break;
+        
+        // Buscar todos os jogadores disponíveis (do elenco geral) para preencher draft passado
+        case 'all_players':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $search = $_GET['search'] ?? '';
+            
+            $sql = "SELECT * FROM players WHERE 1=1";
+            $params = [];
+            
+            if ($search) {
+                $sql .= " AND name LIKE ?";
+                $params[] = "%{$search}%";
+            }
+            
+            $sql .= " ORDER BY ovr DESC, name ASC LIMIT 100";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            echo json_encode(['success' => true, 'players' => $players]);
             break;
 
         default:
@@ -735,6 +763,67 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
+            }
+            break;
+
+        // ADMIN: Preencher pick de draft passado/completado
+        case 'fill_past_pick':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $pickId = $data['pick_id'] ?? null;
+            $playerId = $data['player_id'] ?? null;
+            $draftSessionId = $data['draft_session_id'] ?? null;
+
+            if (!$pickId || !$playerId || !$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                // Buscar informações da pick
+                $stmtPick = $pdo->prepare("SELECT * FROM draft_order WHERE id = ?");
+                $stmtPick->execute([$pickId]);
+                $pick = $stmtPick->fetch();
+
+                if (!$pick) {
+                    throw new Exception('Pick não encontrada');
+                }
+
+                // Buscar informações do jogador da tabela players (não draft_pool)
+                $stmtPlayer = $pdo->prepare("SELECT * FROM players WHERE id = ?");
+                $stmtPlayer->execute([$playerId]);
+                $player = $stmtPlayer->fetch();
+
+                if (!$player) {
+                    throw new Exception('Jogador não encontrado');
+                }
+
+                // Atualizar a pick com o player_id
+                // Nota: Aqui estamos usando o ID da tabela players, não draft_pool
+                // Se a estrutura for diferente, ajuste conforme necessário
+                $stmtUpdate = $pdo->prepare("
+                    UPDATE draft_order 
+                    SET picked_player_id = ?, picked_at = NOW() 
+                    WHERE id = ?
+                ");
+                $stmtUpdate->execute([$playerId, $pickId]);
+
+                $pdo->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Pick preenchida com {$player['name']}",
+                    'player' => $player
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
             break;
 
