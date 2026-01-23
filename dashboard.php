@@ -969,6 +969,9 @@ try {
                             </div>
                             
                             <div class="draft-pick-card p-3 bg-dark rounded border border-orange">
+                                <small class="text-orange fw-bold d-block text-center mb-3">
+                                    <i class="bi bi-alarm me-1"></i>PRÓXIMA PICK
+                                </small>
                                 <div class="text-center mb-2">
                                     <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
                                          alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
@@ -978,8 +981,9 @@ try {
                                     <small class="text-light-gray"><?= htmlspecialchars($currentDraftPick['owner_name'] ?? '') ?></small>
                                 </div>
                                 <div class="text-center mt-3">
-                                    <i class="bi bi-hourglass-split text-orange" style="font-size: 1.5rem;"></i>
-                                    <p class="text-white mb-0 mt-2 fw-bold">Escolhendo agora...</p>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-hourglass-split me-1"></i>Draftando agora
+                                    </span>
                                 </div>
                             </div>
                         <?php else: ?>
