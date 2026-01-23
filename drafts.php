@@ -649,7 +649,8 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           </div>
         </div>
 
-        ${draftStatus === 'completed' ? `
+        <!-- Mensagem informativa para Admin -->
+        ${isAdmin ? `
           <div class="alert alert-info mb-4">
             <i class="bi bi-info-circle me-2"></i>
             <strong>Admin:</strong> Você pode preencher picks vazias clicando nos cards "Aguardando".
@@ -695,7 +696,8 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       let cardClass = 'pick-card';
       if (isCompleted) cardClass += ' completed';
 
-      const canEdit = isAdmin && draftStatus === 'completed' && !isCompleted;
+      // Admin pode preencher qualquer pick vazia no histórico (completed ou in_progress)
+      const canEdit = isAdmin && !isCompleted;
 
       return `
         <div class="col-md-4 col-lg-3">
