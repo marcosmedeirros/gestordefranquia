@@ -269,7 +269,7 @@ $draftDebugInfo = null;
 try {
     // Primeiro, verificar se existe draft em qualquer status
     $stmtCheckDraft = $pdo->prepare("
-        SELECT ds.*, s.year as season_year, s.start_year, s.season_number
+        SELECT ds.*, s.year as season_year, s.season_number
         FROM draft_sessions ds
         JOIN seasons s ON ds.season_id = s.id
         WHERE ds.league = ?
@@ -288,7 +288,7 @@ try {
     }
     
     $stmtActiveDraft = $pdo->prepare("
-        SELECT ds.*, s.year as season_year, s.start_year, s.season_number
+        SELECT ds.*, s.year as season_year, s.season_number
         FROM draft_sessions ds
         JOIN seasons s ON ds.season_id = s.id
         WHERE ds.league = ? AND ds.status = 'in_progress'
