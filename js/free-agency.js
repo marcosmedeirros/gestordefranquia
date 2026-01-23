@@ -80,9 +80,16 @@ function getAdminLeague() {
 function setupAdminEvents() {
     console.log('🎬 Configurando eventos admin...');
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
+    const btnAddFreeAgent = document.getElementById('btnAddFreeAgent');
     console.log('📋 adminLeagueSelect encontrado:', adminLeagueSelect);
+    console.log('🔘 btnAddFreeAgent encontrado:', btnAddFreeAgent);
     
-    document.getElementById('btnAddFreeAgent')?.addEventListener('click', addFreeAgent);
+    if (btnAddFreeAgent) {
+        console.log('✅ Registrando evento click no btnAddFreeAgent');
+        btnAddFreeAgent.addEventListener('click', addFreeAgent);
+    } else {
+        console.error('❌ btnAddFreeAgent não encontrado!');
+    }
     
     if (adminLeagueSelect) {
         console.log('✅ Adicionando listener ao adminLeagueSelect');
@@ -103,6 +110,7 @@ function setupAdminEvents() {
 }
 
 async function addFreeAgent() {
+    console.log('➕ addFreeAgent chamada');
     const league = document.getElementById('faLeague').value;
     const name = document.getElementById('faPlayerName').value.trim();
     const position = document.getElementById('faPosition').value;
@@ -110,32 +118,40 @@ async function addFreeAgent() {
     const age = parseInt(document.getElementById('faAge').value, 10);
     const ovr = parseInt(document.getElementById('faOvr').value, 10);
 
+    console.log('📝 Dados coletados:', { league, name, position, secondaryPosition, age, ovr });
+
     if (!league || !name) {
         alert('Preencha liga e nome do jogador');
         return;
     }
 
     try {
+        const payload = {
+            action: 'add_player',
+            league,
+            name,
+            position,
+            secondary_position: secondaryPosition || null,
+            age: Number.isFinite(age) ? age : 25,
+            ovr: Number.isFinite(ovr) ? ovr : 70
+        };
+        console.log('📤 Enviando:', payload);
+        
         const response = await fetch('api/free-agency.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'add_player',
-                league,
-                name,
-                position,
-                secondary_position: secondaryPosition || null,
-                age: Number.isFinite(age) ? age : 25,
-                ovr: Number.isFinite(ovr) ? ovr : 70
-            })
+            body: JSON.stringify(payload)
         });
 
         const data = await response.json();
+        console.log('📥 Resposta recebida:', data);
+        
         if (!data.success) {
             alert(data.error || 'Erro ao adicionar jogador');
             return;
         }
 
+        alert('Jogador adicionado com sucesso!');
         document.getElementById('faPlayerName').value = '';
         document.getElementById('faLeague').value = defaultAdminLeague || '';
         document.getElementById('faSecondaryPosition').value = '';
@@ -145,7 +161,7 @@ async function addFreeAgent() {
         carregarFreeAgentsAdmin();
         carregarFreeAgents();
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('❌ Erro:', error);
         alert('Erro ao adicionar jogador');
     }
 }
