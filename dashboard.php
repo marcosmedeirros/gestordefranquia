@@ -279,7 +279,8 @@ try {
     if ($activeDraft) {
         // Buscar a pick atual (quem está escolhendo agora)
         $stmtCurrentPick = $pdo->prepare("
-            SELECT do.*, t.city, t.name as team_name, t.photo_url, u.name as owner_name
+            SELECT do.*, t.city, t.name as team_name, t.photo_url, u.name as owner_name,
+                   t.id as debug_team_id
             FROM draft_order do
             JOIN teams t ON do.team_id = t.id
             LEFT JOIN users u ON t.user_id = u.id
@@ -289,6 +290,11 @@ try {
         ");
         $stmtCurrentPick->execute([$activeDraft['id']]);
         $currentDraftPick = $stmtCurrentPick->fetch();
+        
+        // Debug temporário
+        if ($currentDraftPick) {
+            error_log("DRAFT DASHBOARD: Session ID={$activeDraft['id']}, Team ID={$currentDraftPick['debug_team_id']}, Team={$currentDraftPick['city']} {$currentDraftPick['team_name']}, Round={$currentDraftPick['round']}, Pick={$currentDraftPick['pick_position']}");
+        }
     }
 } catch (Exception $e) {
     // Silencioso - não há draft ativo
