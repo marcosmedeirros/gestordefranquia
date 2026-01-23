@@ -110,14 +110,18 @@ async function carregarFreeAgentsAdmin() {
     if (!container) return;
 
     const league = getAdminLeague();
+    console.log('🔍 League selecionada no admin:', league);
     if (!league) {
         container.innerHTML = '<p class="text-muted">Selecione uma liga.</p>';
         return;
     }
 
     try {
-        const response = await fetch(`api/free-agency.php?action=admin_free_agents&league=${encodeURIComponent(league)}`);
+        const url = `api/free-agency.php?action=admin_free_agents&league=${encodeURIComponent(league)}`;
+        console.log('📡 Fazendo request para:', url);
+        const response = await fetch(url);
         const data = await response.json();
+        console.log('📦 Dados recebidos:', data);
 
         if (!data.success || !data.players?.length) {
             container.innerHTML = '<p class="text-muted">Nenhum jogador cadastrado.</p>';

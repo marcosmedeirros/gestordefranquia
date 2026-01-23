@@ -173,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 jsonError('Acesso negado', 403);
             }
             $league = getLeagueFromRequest($valid_leagues, null);
+            error_log("🔍 Free Agency Admin - Liga recebida via GET: " . ($_GET['league'] ?? 'null'));
+            error_log("🔍 Free Agency Admin - Liga processada: " . ($league ?? 'null'));
+            error_log("🔍 Free Agency Admin - Team league (não deve interferir): " . ($team_league ?? 'null'));
             if (!$league) {
                 jsonError('Liga invalida');
             }
@@ -345,6 +348,7 @@ function listMyOffers(PDO $pdo, ?int $teamId): void
 
 function listAdminFreeAgents(PDO $pdo, string $league): void
 {
+    error_log("🏀 listAdminFreeAgents chamada com league: " . $league);
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
     $where = '(fa.status = "available" OR fa.status IS NULL)';
@@ -352,22 +356,28 @@ function listAdminFreeAgents(PDO $pdo, string $league): void
 
     if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
         $leagueId = resolveLeagueId($pdo, $league);
+        error_log("🔑 Usando league enum + league_id. League: $league, LeagueId: " . ($leagueId ?? 'null'));
         $where .= ' AND (fa.league = ?' . ($leagueId ? ' OR fa.league_id = ?' : '') . ')';
         $params[] = $league;
         if ($leagueId) {
             $params[] = $leagueId;
         }
     } elseif (freeAgentsUseLeagueEnum($pdo)) {
+        error_log("🔑 Usando apenas league enum. League: $league");
         $where .= ' AND fa.league = ?';
         $params[] = $league;
     } elseif (freeAgentsUseLeagueId($pdo)) {
         $leagueId = resolveLeagueId($pdo, $league);
+        error_log("🔑 Usando apenas league_id. League: $league, LeagueId: " . ($leagueId ?? 'null'));
         if (!$leagueId) {
             jsonSuccess(['league' => $league, 'players' => []]);
         }
         $where .= ' AND fa.league_id = ?';
         $params[] = $leagueId;
     }
+
+    error_log("📝 Query WHERE: $where");
+    error_log("📝 Query PARAMS: " . json_encode($params));
 
     $select = "fa.id, fa.name, fa.age, fa.position, fa.{$ovrColumn} AS ovr";
     if ($secondaryColumn) {
