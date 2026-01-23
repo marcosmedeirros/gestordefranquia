@@ -9,9 +9,9 @@ WHERE ds.league = 'ROOKIE' AND ds.status = 'in_progress';
 
 -- 2. Ver TODAS as picks do draft em ordem (com e sem jogador)
 SELECT 
+    do.id,
     do.round,
     do.pick_position,
-    do.pick_number,
     t.city,
     t.name as team_name,
     t.photo_url,
@@ -31,7 +31,6 @@ ORDER BY do.round ASC, do.pick_position ASC;
 SELECT 
     do.round,
     do.pick_position,
-    do.pick_number,
     t.id as team_id,
     t.city,
     t.name as team_name,

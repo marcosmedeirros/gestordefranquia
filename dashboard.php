@@ -981,8 +981,7 @@ try {
                                     Temporada <?= (int)($activeDraft['year'] ?? $activeDraft['season_year'] ?? date('Y')) ?>
                                 </h5>
                                 <small class="text-light-gray">
-                                    Round <?= (int)($currentDraftPick['round'] ?? 1) ?> - 
-                                    Pick #<?= (int)($currentDraftPick['pick_position'] ?? 0) ?>
+                                    Round <?= (int)($currentDraftPick['round'] ?? 1) ?>
                                 </small>
                             </div>
                             
