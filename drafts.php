@@ -403,7 +403,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                         !pick.picked_player_id;
       const isCompleted = pick.picked_player_id !== null;
       const isMyPick = parseInt(pick.team_id) === userTeamId;
-      const wasTraded = pick.traded_from_team_id !== null;
+      const wasTraded = pick.traded_from_team_id !== null && pick.traded_from_team_id !== '';
 
       let cardClass = 'pick-card';
       if (isCurrent) cardClass += ' current';
@@ -419,15 +419,17 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                   #${pick.pick_position}
                 </span>
                 ${wasTraded ? `
-                  <span class="badge bg-info traded-badge" title="Pick trocada de ${pick.traded_from_city} ${pick.traded_from_name}">
-                    <i class="bi bi-arrow-left-right"></i>
+                  <span class="badge bg-info traded-badge" title="Pick trocada${pick.traded_from_city ? ' de ' + pick.traded_from_city + ' ' + pick.traded_from_name : ''}">
+                    <i class="bi bi-arrow-left-right"></i> Trocada
                   </span>
                 ` : ''}
               </div>
               <div class="text-center">
-                <small class="text-light-gray d-block" style="font-size: 0.7rem;">
-                  ${wasTraded ? `Original: ${pick.original_city}` : ''}
-                </small>
+                ${wasTraded && pick.original_city ? `
+                  <small class="text-info d-block fw-bold" style="font-size: 0.7rem;">
+                    <i class="bi bi-arrow-right-circle-fill"></i> Original: ${pick.original_city}
+                  </small>
+                ` : ''}
                 <strong class="text-white" style="font-size: 0.85rem;">
                   ${pick.team_city} ${pick.team_name}
                 </strong>
@@ -733,7 +735,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     function renderHistoricalPickCard(pick, draftStatus, draftSessionId) {
       const isCompleted = pick.picked_player_id !== null;
-      const wasTraded = pick.traded_from_team_id !== null;
+      const wasTraded = pick.traded_from_team_id !== null && pick.traded_from_team_id !== '';
 
       let cardClass = 'pick-card';
       if (isCompleted) cardClass += ' completed';
@@ -752,15 +754,17 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                   #${pick.pick_position}
                 </span>
                 ${wasTraded ? `
-                  <span class="badge bg-info traded-badge" title="Pick trocada de ${pick.traded_from_city} ${pick.traded_from_name}">
-                    <i class="bi bi-arrow-left-right"></i>
+                  <span class="badge bg-info traded-badge" title="Pick trocada${pick.traded_from_city ? ' de ' + pick.traded_from_city + ' ' + pick.traded_from_name : ''}">
+                    <i class="bi bi-arrow-left-right"></i> Trocada
                   </span>
                 ` : ''}
               </div>
               <div class="text-center">
-                <small class="text-light-gray d-block" style="font-size: 0.7rem;">
-                  ${wasTraded ? `Original: ${pick.original_city}` : ''}
-                </small>
+                ${wasTraded && pick.original_city ? `
+                  <small class="text-info d-block fw-bold" style="font-size: 0.7rem;">
+                    <i class="bi bi-arrow-right-circle-fill"></i> Original: ${pick.original_city}
+                  </small>
+                ` : ''}
                 <strong class="text-white" style="font-size: 0.85rem;">
                   ${pick.team_city} ${pick.team_name}
                 </strong>
