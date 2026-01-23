@@ -972,36 +972,16 @@ try {
                     </div>
                     <div class="card-body">
                         <?php if ($activeDraft && $currentDraftPick): ?>
-                            <!-- Draft Ativo -->
-                            <div class="text-center mb-3">
-                                <span class="badge bg-success fs-6 mb-3">
-                                    <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>DRAFT ATIVO
-                                </span>
-                                <h5 class="text-white mb-1">
-                                    Temporada <?= (int)($activeDraft['year'] ?? $activeDraft['season_year'] ?? date('Y')) ?>
-                                </h5>
-                                <small class="text-light-gray">
-                                    Round <?= (int)($currentDraftPick['round'] ?? 1) ?>
-                                </small>
-                            </div>
-                            
-                            <div class="draft-pick-card p-3 bg-dark rounded border border-orange">
-                                <small class="text-orange fw-bold d-block text-center mb-3">
-                                    <i class="bi bi-alarm me-1"></i>PRÓXIMA PICK
-                                </small>
-                                <div class="text-center mb-2">
-                                    <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
-                                         alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
-                                         class="rounded-circle mb-2" 
-                                         style="width: 60px; height: 60px; object-fit: cover; border: 2px solid var(--fba-orange);">
-                                    <h6 class="text-white mb-1"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h6>
-                                    <small class="text-light-gray"><?= htmlspecialchars($currentDraftPick['owner_name'] ?? '') ?></small>
-                                </div>
-                                <div class="text-center mt-3">
-                                    <span class="badge bg-warning text-dark">
-                                        <i class="bi bi-hourglass-split me-1"></i>Draftando agora
-                                    </span>
-                                </div>
+                            <!-- Draft Ativo - Próxima Pick -->
+                            <div class="text-center py-4">
+                                <p class="text-orange fw-bold mb-3">
+                                    <i class="bi bi-alarm me-2"></i>PRÓXIMA PICK
+                                </p>
+                                <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
+                                     alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
+                                     class="rounded-circle mb-3" 
+                                     style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange);">
+                                <h5 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h5>
                             </div>
                         <?php else: ?>
                             <!-- Sem draft ativo -->
