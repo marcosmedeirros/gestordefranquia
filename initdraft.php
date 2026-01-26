@@ -270,6 +270,87 @@ if (!$token) {
             color: #fff;
         }
 
+        .lottery-stage {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 1rem;
+            min-height: 120px;
+        }
+
+        .lottery-track {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .lottery-ball {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(252, 0, 37, 0.18);
+            border: 2px solid rgba(252, 0, 37, 0.6);
+            display: grid;
+            place-items: center;
+            transition: transform 200ms ease, box-shadow 200ms ease;
+            animation: floatBall 2.8s ease-in-out infinite;
+        }
+
+        .lottery-ball img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #0a0a0c;
+        }
+
+        .lottery-ball.active {
+            transform: scale(1.1);
+            box-shadow: 0 0 18px rgba(252, 0, 37, 0.6);
+        }
+
+        .lottery-results {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .lottery-result {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 0.6rem 0.8rem;
+        }
+
+        .lottery-result img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #0a0a0c;
+        }
+
+        .lottery-rank {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(252, 0, 37, 0.2);
+            border: 1px solid rgba(252, 0, 37, 0.6);
+            display: grid;
+            place-items: center;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        @keyframes floatBall {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
         .form-label,
         .modal-title,
         .card h5,
@@ -438,6 +519,10 @@ if (!$token) {
                 <div class="alert alert-warning small">
                     Utilize os botões para ajustar manualmente ou clique em "Sortear" para gerar uma ordem aleatória estilo lottery. O formato snake será aplicado automaticamente nas demais rodadas.
                 </div>
+                <div class="lottery-stage mb-3" id="lotteryStage">
+                    <div class="lottery-track" id="lotteryTrack"></div>
+                </div>
+                <div class="lottery-results" id="lotteryResults"></div>
                 <div id="manualOrderList" class="d-grid gap-2"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">
@@ -557,6 +642,9 @@ if (!$token) {
         roundsContainer: document.getElementById('rounds'),
         roundsMeta: document.getElementById('roundsMeta'),
         feedback: document.getElementById('feedback'),
+            lotteryStage: document.getElementById('lotteryStage'),
+            lotteryTrack: document.getElementById('lotteryTrack'),
+            lotteryResults: document.getElementById('lotteryResults'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -732,6 +820,68 @@ if (!$token) {
             .join('');
     }
 
+        function resetLotteryView() {
+            if (!elements.lotteryTrack || !elements.lotteryResults) return;
+            const teams = state.teams || [];
+            elements.lotteryResults.innerHTML = '';
+            elements.lotteryTrack.innerHTML = teams
+                .map((team) => `
+                    <div class="lottery-ball">
+                        <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                    </div>`)
+                .join('');
+        }
+
+        function runLotteryAnimation(orderDetails = []) {
+            if (!elements.lotteryTrack || !elements.lotteryResults) {
+                return Promise.resolve();
+            }
+
+            const picks = orderDetails.length ? orderDetails : state.teams;
+            elements.lotteryResults.innerHTML = '';
+            elements.lotteryTrack.innerHTML = picks
+                .map((team) => `
+                    <div class="lottery-ball">
+                        <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                    </div>`)
+                .join('');
+
+            const balls = Array.from(elements.lotteryTrack.querySelectorAll('.lottery-ball'));
+
+            return new Promise((resolve) => {
+                let index = 0;
+                const revealNext = () => {
+                    balls.forEach((ball) => ball.classList.remove('active'));
+                    if (balls[index]) {
+                        balls[index].classList.add('active');
+                    }
+                    const team = picks[index] || {};
+                    elements.lotteryResults.insertAdjacentHTML(
+                        'beforeend',
+                        `<div class="lottery-result">
+                            <span class="lottery-rank">${index + 1}</span>
+                            <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                            <div>
+                                <strong>${team.city || ''} ${team.name || ''}</strong>
+                                <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
+                            </div>
+                        </div>`
+                    );
+                    index += 1;
+                    if (index < picks.length) {
+                        setTimeout(revealNext, 380);
+                    } else {
+                        setTimeout(() => {
+                            balls.forEach((ball) => ball.classList.remove('active'));
+                            resolve();
+                        }, 420);
+                    }
+                };
+
+                setTimeout(revealNext, 300);
+            });
+        }
+
     function renderPool() {
         const list = (state.pool || []).filter((player) => {
             if (!state.search) return true;
@@ -861,6 +1011,7 @@ if (!$token) {
 
     function openOrderModal() {
         renderManualOrderList();
+        resetLotteryView();
         orderModal.show();
     }
 
@@ -876,6 +1027,7 @@ if (!$token) {
             state.manualOrder = data.order;
             renderManualOrderList();
             renderOrder();
+            await runLotteryAnimation(data.order_details || []);
             showMessage('Ordem sorteada com sucesso.');
         } catch (error) {
             showMessage(error.message, 'danger');
