@@ -1102,9 +1102,10 @@ img.broken-image {
 			padding: .75rem .5rem;
 		}
 
-	/* Mobile: tabelas responsivas */
+	/* Mobile: tabelas responsivas
+	   Observação: não usar !important para não sobrescrever utilitários como d-none/d-md-block */
 	.table-responsive{ 
-		display: block !important;
+		display: block;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
 	}
