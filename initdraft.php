@@ -1,623 +1,948 @@
 <?php
-// Página única do Draft Inicial (acesso por token). Não aparece em menus.
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/auth.php';
 
 $token = $_GET['token'] ?? null;
 if (!$token) {
-    http_response_code(400);
-    echo 'Token obrigatório.';
+    http_response_code(403);
+    echo 'Token inválido.';
     exit;
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Draft Inicial</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-  <style>
-    body { background: #111; color: #fff; }
-    .border-orange { border-color: #ff7a00 !important; }
-    .text-orange { color: #ff7a00 !important; }
-    .bg-orange { background: #ff7a00 !important; color: #111 !important; }
-    .card { background: #1a1a1a; border-color: #333; color: #fff; }
-    .table-dark { --bs-table-bg: #101010; }
-    .table-dark thead th { color: #fff; }
-    .form-label, .form-select, .form-control { color: #fff; }
-    .form-select, .form-control { background-color: #0f0f0f; border-color: #444; }
-    .form-select:focus, .form-control:focus {
-      background-color: #0f0f0f !important;
-      color: #fff !important;
-      border-color: #ff7a00 !important;
-      box-shadow: none !important;
-    }
-    input[type="file"].form-control:focus {
-      background-color: #0f0f0f !important;
-      color: #fff !important;
-      border-color: #ff7a00 !important;
-      box-shadow: none !important;
-    }
-    .order-list-item { background: transparent; border-color: #333; color: #fff; }
-    .order-list-item .badge { width: 48px; }
-    .order-actions button { min-width: 36px; }
-    .lottery-row { border: 1px solid rgba(255,122,0,0.3); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
-    .lottery-row img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,122,0,0.6); }
-    .lottery-placeholder { border: 1px dashed rgba(255,122,0,0.5); border-radius: 8px; padding: 1.25rem; text-align: center; color: #bbb; }
-  </style>
-  <script>
-    const TOKEN = new URLSearchParams(location.search).get('token');
-    async function api(path, opts={}) {
-      const res = await fetch(path, opts);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Erro de API');
-      return data;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Draft Inicial</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --initdraft-bg: #05060b;
+            --initdraft-panel: rgba(15, 16, 25, 0.92);
+            --initdraft-panel-alt: rgba(22, 24, 39, 0.95);
+            --initdraft-border: rgba(255, 255, 255, 0.08);
+            --initdraft-muted: #a6acc3;
+            --initdraft-orange: #ff7a00;
+            --initdraft-green: #38d07d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: radial-gradient(circle at top, rgba(255, 122, 0, 0.15), transparent 55%), var(--initdraft-bg);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .initdraft-app {
+            max-width: 1200px;
+        }
+
+        .card-dark {
+            background: var(--initdraft-panel);
+            border: 1px solid var(--initdraft-border);
+            border-radius: 20px;
+        }
+
+        .hero-card {
+            background: linear-gradient(120deg, rgba(255, 122, 0, 0.25), rgba(7, 7, 13, 0.85));
+            border-radius: 28px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .hero-card h1 {
+            font-size: clamp(1.75rem, 3vw, 2.5rem);
+            margin-bottom: 0.5rem;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.2rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-setup {
+            background: rgba(255, 193, 7, 0.18);
+            color: #ffc107;
+        }
+
+        .status-in_progress {
+            background: rgba(56, 208, 125, 0.18);
+            color: var(--initdraft-green);
+        }
+
+        .status-completed {
+            background: rgba(173, 181, 189, 0.2);
+            color: #adb5bd;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1.25rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 1rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--initdraft-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .session-card {
+            background: var(--initdraft-panel-alt);
+            border-radius: 22px;
+            padding: 1.5rem;
+            border: 1px solid var(--initdraft-border);
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-wrapper {
+            margin-top: 1rem;
+        }
+
+        .progress {
+            height: 0.55rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--initdraft-orange), #ffba42);
+        }
+
+        .table-dark {
+            --bs-table-bg: transparent;
+            --bs-table-striped-bg: rgba(255, 255, 255, 0.04);
+            color: #fff;
+        }
+
+        .table thead th {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            color: var(--initdraft-muted);
+        }
+
+        .table-responsive {
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .team-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .team-chip img {
+            width: 38px;
+            height: 38px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .order-list-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+        }
+
+        .order-list-item + .order-list-item {
+            margin-top: 0.5rem;
+        }
+
+        .order-rank {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: grid;
+            place-items: center;
+            font-weight: 600;
+            color: var(--initdraft-orange);
+        }
+
+        .order-actions button {
+            border-radius: 999px;
+            width: 34px;
+            height: 34px;
+        }
+
+        .badge-status {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.55rem;
+            border-radius: 999px;
+        }
+
+        .badge-available {
+            background: rgba(56, 208, 125, 0.18);
+            color: var(--initdraft-green);
+        }
+
+        .badge-drafted {
+            background: rgba(255, 255, 255, 0.08);
+            color: #adb5bd;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .search-input:focus {
+            border-color: var(--initdraft-orange);
+            box-shadow: none;
+            background: rgba(0, 0, 0, 0.35);
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .hero-card {
+                padding: 1.5rem;
+            }
+            .order-list-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .order-actions {
+                width: 100%;
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="initdraft-app container py-4">
+    <div id="feedback"></div>
+
+    <section class="hero-card" id="heroSection">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start">
+            <div>
+                <p class="text-uppercase text-warning fw-semibold mb-2">Painel do Draft Inicial</p>
+                <h1 class="mb-1">Draft Inicial</h1>
+                <p class="mb-0 text-light">Configure a ordem, acompanhe as rodadas e registre cada pick em um layout otimizado para qualquer tela.</p>
+            </div>
+            <div class="text-md-end">
+                <p class="text-uppercase small text-muted mb-1">Token de Acesso</p>
+                <div class="d-flex align-items-center gap-2">
+                    <code id="tokenDisplay" class="text-break"></code>
+                    <button class="btn btn-outline-warning btn-sm" onclick="copyToken()">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="stat-grid" id="statGrid"></div>
+    </section>
+
+    <section class="session-card">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start">
+            <div>
+                <h5 class="mb-1">Status da Sessão</h5>
+                <div id="sessionSummary" class="text-muted"></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2" id="actionButtons"></div>
+        </div>
+        <div class="progress-wrapper">
+            <div class="d-flex justify-content-between mb-1 small text-muted">
+                <span id="progressLabel"></span>
+                <span id="progressPercent"></span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card-dark h-100 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-1">Ordem da 1ª Rodada</h5>
+                        <p class="text-muted mb-0 small">Edite manualmente ou utilize o sorteio animado.</p>
+                    </div>
+                    <button class="btn btn-outline-light btn-sm" onclick="openOrderModal()">
+                        <i class="bi bi-sliders me-2"></i>Editar
+                    </button>
+                </div>
+                <div id="orderList" class="small"></div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card-dark p-4 h-100">
+                <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center mb-3">
+                    <div>
+                        <h5 class="mb-1">Jogadores do Pool</h5>
+                        <p class="text-muted mb-0 small">Importe via CSV, adicione manualmente e escolha jogadores em tempo real.</p>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#importCSVModal">
+                            <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar CSV
+                        </button>
+                        <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
+                            <i class="bi bi-person-plus me-1"></i>Novo Jogador
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <input type="text" id="poolSearch" class="form-control search-input" placeholder="Filtrar por nome ou posição" />
+                </div>
+                <div class="table-responsive" id="poolWrapper">
+                    <table class="table table-dark table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Jogador</th>
+                                <th>Posição</th>
+                                <th>OVR</th>
+                                <th>Status</th>
+                                <th class="text-end">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="poolTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="card-dark p-4 mt-4" id="roundsSection">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h5 class="mb-0">Rodadas e Picks</h5>
+            <span class="text-muted small" id="roundsMeta"></span>
+        </div>
+        <div id="rounds"></div>
+    </section>
+</div>
+
+<!-- Order Modal -->
+<div class="modal fade" id="orderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Configurar Ordem do Draft</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning small">
+                    Utilize os botões para ajustar manualmente ou clique em "Sortear" para gerar uma ordem aleatória estilo lottery. O formato snake será aplicado automaticamente nas demais rodadas.
+                </div>
+                <div id="manualOrderList" class="d-grid gap-2"></div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-light" type="button" onclick="resetManualOrder()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar
+                    </button>
+                    <button class="btn btn-outline-warning" type="button" onclick="randomizeOrder()">
+                        <i class="bi bi-shuffle me-1"></i>Sortear Ordem
+                    </button>
+                </div>
+                <button class="btn btn-success" type="button" onclick="submitManualOrder()">
+                    <i class="bi bi-check2-circle me-1"></i>Aplicar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Player Modal -->
+<div class="modal fade" id="addPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <form id="addPlayerForm">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Adicionar Jogador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">Nome</label>
+                            <input type="text" name="name" class="form-control" required />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Posição</label>
+                            <select name="position" class="form-select">
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF" selected>SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label">Idade</label>
+                            <input type="number" name="age" min="16" max="45" class="form-control" required />
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label">OVR</label>
+                            <input type="number" name="ovr" min="40" max="99" class="form-control" required />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal fade" id="importCSVModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <form id="importCSVForm" enctype="multipart/form-data">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Importar Jogadores via CSV</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">Formato: <code>name,position,age,ovr</code>. Utilize o template para evitar erros.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Arquivo CSV</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required />
+                    </div>
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="downloadCSVTemplate()">
+                        <i class="bi bi-download me-1"></i>Baixar Template
+                    </button>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const TOKEN = '<?php echo htmlspecialchars($token, ENT_QUOTES); ?>';
+    const API_URL = 'api/initdraft.php';
+
+    const state = {
+        session: null,
+        order: [],
+        teams: [],
+        pool: [],
+        manualOrder: [],
+        search: '',
+    };
+
+    const elements = {
+        tokenDisplay: document.getElementById('tokenDisplay'),
+        statGrid: document.getElementById('statGrid'),
+        sessionSummary: document.getElementById('sessionSummary'),
+        actionButtons: document.getElementById('actionButtons'),
+        progressLabel: document.getElementById('progressLabel'),
+        progressPercent: document.getElementById('progressPercent'),
+        progressBar: document.getElementById('progressBar'),
+        orderList: document.getElementById('orderList'),
+        manualOrderList: document.getElementById('manualOrderList'),
+        poolTable: document.getElementById('poolTable'),
+        roundsContainer: document.getElementById('rounds'),
+        roundsMeta: document.getElementById('roundsMeta'),
+        feedback: document.getElementById('feedback'),
+    };
+
+    elements.tokenDisplay.textContent = TOKEN;
+
+    document.getElementById('poolSearch').addEventListener('input', (event) => {
+        state.search = event.target.value.toLowerCase();
+        renderPool();
+    });
+
+    document.getElementById('addPlayerForm').addEventListener('submit', handleAddPlayer);
+    document.getElementById('importCSVForm').addEventListener('submit', handleImportCSV);
+
+    const orderModal = new bootstrap.Modal(document.getElementById('orderModal'));
+
+    document.getElementById('orderModal').addEventListener('show.bs.modal', () => {
+        renderManualOrderList();
+    });
+
+    function showMessage(message, type = 'success') {
+        elements.feedback.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>`;
     }
 
-    let gState = { session: null, order: [], teams: [] };
-    let manualOrderIds = [];
-    let lotteryTimers = [];
-    let activeOrderTab = 'manual';
-
-    function escapeHtml(str = '') {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    function copyToken() {
+        navigator.clipboard.writeText(TOKEN).then(() => showMessage('Token copiado para a área de transferência.'));
     }
 
     async function loadState() {
-      const data = await api(`/api/initdraft.php?action=state&token=${TOKEN}`);
-      gState = data;
-      gState.teams = data.teams || [];
-      render();
+        try {
+            const [stateRes, poolRes] = await Promise.all([
+                fetch(`${API_URL}?action=state&token=${TOKEN}`).then((r) => r.json()),
+                fetch(`${API_URL}?action=pool&token=${TOKEN}`).then((r) => r.json()),
+            ]);
+
+            if (!stateRes.success) throw new Error(stateRes.error || 'Erro ao carregar sessão');
+            state.session = stateRes.session;
+            state.order = stateRes.order || [];
+            state.teams = stateRes.teams || [];
+            state.pool = poolRes.success ? poolRes.players : [];
+            state.manualOrder = getRoundOneOrder();
+            render();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
     }
 
     function render() {
-      const s = gState.session;
-      const order = gState.order || [];
-      document.getElementById('sessionInfo').innerHTML = `
-        <div class="d-flex gap-3 align-items-center">
-          <span class="badge bg-orange">${s.league}</span>
-          <span class="badge ${s.status==='completed'?'bg-success':'bg-secondary'}">${s.status}</span>
-          <span>Rodada Atual: <strong>${s.current_round}</strong></span>
-          <span>Pick Atual: <strong>${s.current_pick}</strong></span>
-          <span>Total de Rodadas: <strong>${s.total_rounds}</strong></span>
-          <span>Token: <code>${s.access_token}</code></span>
-        </div>
-      `;
+        renderStats();
+        renderActions();
+        renderOrder();
+        renderPool();
+        renderRounds();
+    }
 
-      // Agrupar por rodada
-      const rounds = {};
-      for (const p of order) {
-        if (!rounds[p.round]) rounds[p.round] = [];
-        rounds[p.round].push(p);
-      }
+    function renderStats() {
+        const session = state.session;
+        if (!session) return;
 
-      // Tabs: Rodadas | Jogadores
-      const container = document.getElementById('rounds');
-      container.innerHTML = `
-        <ul class="nav nav-tabs mb-3" id="initTabs" role="tablist">
-          <li class="nav-item" role="presentation"><button class="nav-link active" id="tab-rounds" data-bs-toggle="tab" data-bs-target="#tabRounds" type="button" role="tab">Rodadas</button></li>
-          <li class="nav-item" role="presentation"><button class="nav-link" id="tab-players" data-bs-toggle="tab" data-bs-target="#tabPlayers" type="button" role="tab">Jogadores</button></li>
-        </ul>
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="tabRounds" role="tabpanel"><div id="roundsInner"></div></div>
-          <div class="tab-pane fade" id="tabPlayers" role="tabpanel"><div id="playersList"></div></div>
-        </div>
-      `;
-      const roundsContainer = document.getElementById('roundsInner');
-      roundsContainer.innerHTML = '';
-      Object.keys(rounds).sort((a,b)=>a-b).forEach(r => {
-        const picks = rounds[r];
-        const rows = picks.map(p => `
-          <tr>
-            <td><span class="badge ${p.round%2? 'bg-orange':'bg-secondary'}">R${p.round} #${p.pick_position}</span></td>
-            <td>${p.team_city} ${p.team_name}</td>
-            <td>${p.player_name ? `<strong>${p.player_name}</strong>` : '<em>-</em>'}</td>
-            <td>${p.player_position || '-'}</td>
-            <td>${p.player_ovr || '-'}</td>
-          </tr>
-        `).join('');
-        const card = document.createElement('div');
-        card.className = 'card mb-3';
-        card.innerHTML = `
-          <div class="card-header border-orange">
-            <strong class="text-orange">Rodada ${r}</strong>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-dark table-sm align-middle">
-                <thead>
-                  <tr><th>Pick</th><th>Time</th><th>Jogador</th><th>Pos</th><th>OVR</th></tr>
-                </thead>
-                <tbody>${rows}</tbody>
-              </table>
+        const order = state.order || [];
+        const drafted = order.filter((pick) => pick.picked_player_id).length;
+        const total = order.length || (session.total_rounds ?? 0) * (state.teams.length || 0);
+        const progress = total ? Math.round((drafted / total) * 100) : 0;
+        const nextPick = order.find((pick) => !pick.picked_player_id);
+        const statusLabel = { setup: 'Configuração', in_progress: 'Em andamento', completed: 'Concluído' }[session.status] || 'Status';
+
+        elements.statGrid.innerHTML = `
+            <div class="stat-card">
+                <p class="stat-label">Status</p>
+                <div class="status-pill status-${session.status}">${statusLabel}</div>
             </div>
-          </div>
+            <div class="stat-card">
+                <p class="stat-label">Rodada Atual</p>
+                <p class="stat-value">${session.current_round ?? '-'}</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Próximo Time</p>
+                <p class="stat-value">${formatTeamLabel(nextPick)}</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Total de Rodadas</p>
+                <p class="stat-value">${session.total_rounds}</p>
+            </div>
         `;
-        roundsContainer.appendChild(card);
-      });
 
-      // Botões
-  const actions = document.getElementById('actions');
-  actions.innerHTML = '';
-      if (s.status === 'setup') {
-        actions.innerHTML = `
-          <button class="btn btn-outline-light me-2" onclick="openImport()"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
-          <button class="btn btn-outline-info me-2" onclick="openAddPlayer()"><i class="bi bi-person-plus"></i> Adicionar Jogador</button>
-          <button class="btn btn-outline-warning me-2" onclick="openOrderModal()"><i class="bi bi-shuffle"></i> Definir / Sortear Ordem</button>
-          <button class="btn btn-success" onclick="startDraft()"><i class="bi bi-play"></i> Iniciar Draft</button>
-        `;
-      } else if (s.status === 'in_progress') {
-        actions.innerHTML = `
-          <button class="btn btn-primary me-2" onclick="openPickModal()"><i class="bi bi-hand-index-thumb"></i> Fazer Pick</button>
-          <button class="btn btn-danger" onclick="finalizeDraft()"><i class="bi bi-flag"></i> Finalizar Draft</button>
-        `;
-      } else if (s.status === 'completed') {
-        actions.innerHTML = `<span class="badge bg-success">Draft Finalizado</span>`;
-      }
-
-      // Ensure pool is loaded for players tab
-      loadPool();
+        elements.sessionSummary.innerHTML = `Liga: <strong>${session.league}</strong> · Temporada #${session.season_id}`;
+        elements.progressLabel.textContent = `${drafted} de ${total} picks realizados`;
+        elements.progressPercent.textContent = `${progress}%`;
+        elements.progressBar.style.width = `${progress}%`;
     }
 
-    function openImport() {
-      const el = document.getElementById('importCSVModal');
-      new bootstrap.Modal(el).show();
+    function renderActions() {
+        const session = state.session;
+        if (!session) return;
+
+        const buttons = [];
+
+        buttons.push(`<button class="btn btn-outline-light btn-sm" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
+
+        if (session.status === 'setup') {
+            buttons.push(`<button class="btn btn-success btn-sm" onclick="startDraft()"><i class="bi bi-play-circle me-1"></i>Iniciar Draft</button>`);
+        }
+
+        if (session.status === 'in_progress') {
+            buttons.push(`<button class="btn btn-outline-info btn-sm" onclick="loadState()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>`);
+            buttons.push(`<button class="btn btn-danger btn-sm" onclick="finalizeDraft()"><i class="bi bi-flag me-1"></i>Finalizar</button>`);
+        }
+
+        if (session.status === 'completed') {
+            buttons.push(`<span class="badge bg-success">Draft concluído</span>`);
+        }
+
+        elements.actionButtons.innerHTML = buttons.join('');
     }
 
-    function openAddPlayer() {
-      const el = document.getElementById('addPlayerModal');
-      el.querySelector('form').reset();
-      new bootstrap.Modal(el).show();
-    }
+    function renderOrder() {
+        if (!state.manualOrder.length) {
+            elements.orderList.innerHTML = '<p class="text-muted mb-0">Defina a ordem para desbloquear o draft.</p>';
+            return;
+        }
 
-    async function doAddPlayer(ev) {
-      ev?.preventDefault();
-      const form = document.getElementById('addPlayerForm');
-      const payload = Object.fromEntries(new FormData(form).entries());
-      payload.age = Number(payload.age||0);
-      payload.ovr = Number(payload.ovr||0);
-      try {
-        await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add_player', token: TOKEN, ...payload }) });
-        bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
-        await loadState();
-        // refresh pool view as well
-        await loadPool();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function loadPool() {
-      try {
-        const data = await api(`/api/initdraft.php?action=pool&token=${TOKEN}`);
-        renderPlayers(data.players || []);
-      } catch (e) {
-        console.error('Erro ao carregar pool', e);
-      }
-    }
-
-    function renderPlayers(players) {
-      const el = document.getElementById('playersList');
-      if (!el) return;
-      if (players.length === 0) {
-        el.innerHTML = '<div class="alert alert-secondary">Nenhum jogador no pool.</div>';
-        return;
-      }
-      el.innerHTML = `
-        <div class="table-responsive">
-          <table class="table table-dark table-sm align-middle">
-            <thead><tr><th>Nome</th><th>Pos</th><th>Idade</th><th>OVR</th><th>Status</th></tr></thead>
-            <tbody>
-              ${players.map(p => `
-                <tr class="${p.draft_status === 'drafted' ? 'table-secondary' : ''}">
-                  <td>${p.name}</td>
-                  <td><span class="badge bg-orange">${p.position}</span></td>
-                  <td>${p.age}</td>
-                  <td>${p.ovr}</td>
-                  <td>${p.draft_status === 'drafted' ? '<span class="badge bg-success">Draftado</span>' : '<span class="badge bg-secondary">Disponível</span>'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-
-    async function submitImportCSV(ev) {
-      ev?.preventDefault();
-      const fileInput = document.getElementById('csvFileInput');
-      const file = fileInput.files[0];
-      if (!file) { alert('Selecione um arquivo CSV'); return; }
-      const fd = new FormData();
-      fd.append('action', 'import_csv');
-      fd.append('token', TOKEN);
-      fd.append('csv_file', file);
-      try {
-        const res = await fetch('/api/initdraft.php', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Falha ao importar');
-        bootstrap.Modal.getInstance(document.getElementById('importCSVModal')).hide();
-        await loadState();
-      } catch (e) {
-        alert('Erro ao importar: ' + e.message);
-      }
-    }
-
-    function downloadCSVTemplate() {
-      const rows = [
-        ['name','position','age','ovr'],
-        ['John Doe','SG',22,78],
-        ['Jane Smith','PF',24,82]
-      ];
-      const csv = rows.map(r => r.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'initdraft_template.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function getRoundOneOrderIds() {
-      const roundOne = (gState.order || []).filter(p => p.round === 1).sort((a,b) => a.pick_position - b.pick_position);
-      if (roundOne.length > 0) {
-        return roundOne.map(p => parseInt(p.team_id, 10));
-      }
-      return (gState.teams || []).map(t => parseInt(t.id, 10));
-    }
-
-    function openOrderModal() {
-      if (!gState.teams || gState.teams.length === 0) {
-        alert('Nenhum time encontrado para esta liga.');
-        return;
-      }
-      manualOrderIds = getRoundOneOrderIds();
-      renderManualOrderList();
-      resetLotteryView();
-      const modal = new bootstrap.Modal(document.getElementById('orderModal'));
-      const manualTabTrigger = document.querySelector('#orderTabs button[data-bs-target="#manualTab"]');
-      if (manualTabTrigger) {
-        new bootstrap.Tab(manualTabTrigger).show();
-      }
-      modal.show();
-      setActiveOrderTab('manual');
-    }
-
-    function setActiveOrderTab(tab) {
-      activeOrderTab = tab;
-      const saveBtn = document.getElementById('manualOrderSave');
-      const randomBtn = document.getElementById('lotteryActionBtn');
-      if (tab === 'manual') {
-        saveBtn?.classList.remove('d-none');
-        randomBtn?.classList.add('d-none');
-      } else {
-        saveBtn?.classList.add('d-none');
-        randomBtn?.classList.remove('d-none');
-      }
+        const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
+        elements.orderList.innerHTML = state.manualOrder
+            .map((teamId, index) => {
+                const team = teamsById[teamId] || {};
+                return `
+                    <div class="order-list-item">
+                        <div class="d-flex align-items-center gap-3 flex-grow-1">
+                            <div class="order-rank">${index + 1}</div>
+                            <div class="team-chip">
+                                <img src="${team.photo_url || 'https://placehold.co/60x60?text=T'}" alt="${team.name || 'Time'}" onerror="this.src='https://placehold.co/60x60?text=T'">
+                                <div>
+                                    <strong>${team.city || ''} ${team.name || ''}</strong>
+                                    <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="order-actions">
+                            <button class="btn btn-outline-light btn-sm" ${index === 0 ? 'disabled' : ''} onclick="moveManualTeam(${index}, -1)"><i class="bi bi-arrow-up"></i></button>
+                            <button class="btn btn-outline-light btn-sm" ${index === state.manualOrder.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${index}, 1)"><i class="bi bi-arrow-down"></i></button>
+                        </div>
+                    </div>`;
+            })
+            .join('');
     }
 
     function renderManualOrderList() {
-      const list = document.getElementById('manualOrderList');
-      if (!list) return;
-      const teamsById = Object.fromEntries((gState.teams || []).map(t => [parseInt(t.id, 10), t]));
-      list.innerHTML = manualOrderIds.map((teamId, idx) => {
-        const t = teamsById[teamId];
-        const label = t ? `${t.city} ${t.name}` : `Time #${teamId}`;
-        const safeLabel = escapeHtml(label);
-        const ownerInfo = t && t.owner_name ? `<div class="text-muted small">Manager: ${escapeHtml(t.owner_name)}</div>` : '';
-        return `
-          <li class="list-group-item order-list-item d-flex align-items-center justify-content-between">
-            <div class="d-flex align-items-center gap-3">
-              <span class="badge bg-orange">#${idx + 1}</span>
-              <div>
-                <strong>${safeLabel}</strong>
-                ${ownerInfo}
-              </div>
-            </div>
-            <div class="order-actions btn-group">
-              <button class="btn btn-sm btn-outline-light" ${idx === 0 ? 'disabled' : ''} onclick="moveManualTeam(${idx}, -1)"><i class="bi bi-arrow-up"></i></button>
-              <button class="btn btn-sm btn-outline-light" ${idx === manualOrderIds.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${idx}, 1)"><i class="bi bi-arrow-down"></i></button>
-            </div>
-          </li>
-        `;
-      }).join('');
+        if (!state.manualOrder.length) {
+            elements.manualOrderList.innerHTML = '<div class="text-muted">Carregando...</div>';
+            return;
+        }
+        const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
+        elements.manualOrderList.innerHTML = state.manualOrder
+            .map((teamId, index) => {
+                const team = teamsById[teamId] || {};
+                return `
+                    <div class="order-list-item">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="order-rank">${index + 1}</div>
+                            <div>
+                                <strong>${team.city || ''} ${team.name || ''}</strong>
+                                <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
+                            </div>
+                        </div>
+                        <div class="order-actions">
+                            <button class="btn btn-outline-light btn-sm" ${index === 0 ? 'disabled' : ''} onclick="moveManualTeam(${index}, -1)"><i class="bi bi-arrow-up"></i></button>
+                            <button class="btn btn-outline-light btn-sm" ${index === state.manualOrder.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${index}, 1)"><i class="bi bi-arrow-down"></i></button>
+                        </div>
+                    </div>`;
+            })
+            .join('');
     }
 
-    function moveManualTeam(index, direction) {
-      const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= manualOrderIds.length) return;
-      [manualOrderIds[index], manualOrderIds[targetIndex]] = [manualOrderIds[targetIndex], manualOrderIds[index]];
-      renderManualOrderList();
+    function renderPool() {
+        const list = (state.pool || []).filter((player) => {
+            if (!state.search) return true;
+            const needle = state.search;
+            return (
+                (player.name || '').toLowerCase().includes(needle) ||
+                (player.position || '').toLowerCase().includes(needle)
+            );
+        });
+
+        if (!list.length) {
+            elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum jogador no pool.</td></tr>';
+            return;
+        }
+
+        elements.poolTable.innerHTML = list
+            .map((player, index) => {
+                const drafted = player.draft_status === 'drafted';
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${player.name}</td>
+                        <td>${player.position}</td>
+                        <td>${player.ovr}</td>
+                        <td><span class="badge badge-${drafted ? 'drafted' : 'available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-success" ${drafted ? 'disabled' : ''} onclick="makePick(${player.id})">
+                                <i class="bi bi-check2 me-1"></i>Escolher
+                            </button>
+                        </td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    function renderRounds() {
+        if (!state.order.length) {
+            elements.roundsContainer.innerHTML = '<div class="text-muted">Nenhuma ordem configurada ainda.</div>';
+            elements.roundsMeta.textContent = '';
+            return;
+        }
+
+        const grouped = state.order.reduce((acc, pick) => {
+            acc[pick.round] = acc[pick.round] || [];
+            acc[pick.round].push(pick);
+            return acc;
+        }, {});
+
+        elements.roundsMeta.textContent = `${Object.keys(grouped).length} rodadas · ${state.order.length} picks`;
+
+        const roundsHtml = Object.keys(grouped)
+            .sort((a, b) => a - b)
+            .map((round) => {
+                const picks = grouped[round].sort((a, b) => a.pick_position - b.pick_position);
+                const rows = picks
+                    .map((pick) => {
+                        const player = pick.player_name ? `${pick.player_name} (${pick.player_position ?? ''} - ${pick.player_ovr ?? '-'})` : '<span class="text-muted">—</span>';
+                        return `
+                            <tr class="${pick.picked_player_id ? 'table-success' : ''}">
+                                <td class="fw-semibold">${pick.pick_position}</td>
+                                <td>
+                                    <div class="team-chip">
+                                        <img src="${pick.team_photo || 'https://placehold.co/60x60?text=T'}" alt="${pick.team_name}" onerror="this.src='https://placehold.co/60x60?text=T'">
+                                        <div>
+                                            <strong>${pick.team_city || ''} ${pick.team_name || ''}</strong>
+                                            <div class="small text-muted">${pick.team_owner || ''}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>${player}</td>
+                                <td class="text-end">${pick.picked_player_id ? '<i class="bi bi-check2-circle text-success"></i>' : ''}</td>
+                            </tr>`;
+                    })
+                    .join('');
+                return `
+                    <div class="card-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-uppercase text-muted">Rodada ${round}</h6>
+                            <span class="badge bg-secondary">${picks.length} picks</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Pick</th>
+                                        <th>Time</th>
+                                        <th>Jogador</th>
+                                        <th class="text-end">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+            })
+            .join('');
+
+        elements.roundsContainer.innerHTML = roundsHtml;
+    }
+
+    function getRoundOneOrder() {
+        if (!state.order.length) {
+            return state.teams.map((team) => team.id);
+        }
+        return state.order
+            .filter((pick) => pick.round === 1)
+            .sort((a, b) => a.pick_position - b.pick_position)
+            .map((pick) => pick.team_id);
+    }
+
+    function moveManualTeam(index, delta) {
+        const newIndex = index + delta;
+        if (newIndex < 0 || newIndex >= state.manualOrder.length) return;
+        const updated = [...state.manualOrder];
+        const [removed] = updated.splice(index, 1);
+        updated.splice(newIndex, 0, removed);
+        state.manualOrder = updated;
+        renderManualOrderList();
+        renderOrder();
+    }
+
+    function resetManualOrder() {
+        state.manualOrder = getRoundOneOrder();
+        renderManualOrderList();
+        renderOrder();
+    }
+
+    function openOrderModal() {
+        renderManualOrderList();
+        orderModal.show();
+    }
+
+    async function randomizeOrder() {
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
+            state.manualOrder = data.order;
+            renderManualOrderList();
+            renderOrder();
+            showMessage('Ordem sorteada com sucesso.');
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
     }
 
     async function submitManualOrder() {
-      if (manualOrderIds.length === 0) {
-        alert('Defina a ordem completa dos times.');
-        return;
-      }
-      if (manualOrderIds.length !== (gState.teams || []).length) {
-        alert('A ordem precisa incluir todos os times.');
-        return;
-      }
-      try {
-        await api('/api/initdraft.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'set_manual_order', token: TOKEN, team_ids: manualOrderIds })
-        });
-        bootstrap.Modal.getInstance(document.getElementById('orderModal'))?.hide();
-        await loadState();
-      } catch (e) {
-        alert(e.message);
-      }
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set_manual_order', token: TOKEN, team_ids: state.manualOrder }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao aplicar ordem');
+            showMessage('Ordem atualizada com sucesso.');
+            orderModal.hide();
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
     }
 
-    function resetLotteryView() {
-      clearLotteryAnimation();
-      const stage = document.getElementById('lotteryStage');
-      const container = document.getElementById('lotteryResults');
-      if (stage) stage.innerHTML = '<div class="lottery-placeholder">Clique em "Sortear Ordem" para iniciar o sorteio animado.</div>';
-      if (container) container.innerHTML = '';
-    }
-
-    function clearLotteryAnimation() {
-      lotteryTimers.forEach(timer => clearTimeout(timer));
-      lotteryTimers = [];
-    }
-
-    async function handleRandomizeOrder() {
-      try {
-        const stage = document.getElementById('lotteryStage');
-        if (stage) stage.innerHTML = '<div class="text-center"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 mb-0">Sorteando ordem...</p></div>';
-        const data = await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'randomize_order', token: TOKEN }) });
-        const details = data.order_details || [];
-        playLotteryAnimation(details);
-        // Recarrega estado após a animação para evitar travamentos na renderização
-        const delay = Math.max(2000, details.length * 700);
-        setTimeout(() => { loadState(); }, delay);
-      } catch (e) {
-        alert(e.message);
-        resetLotteryView();
-      }
-    }
-
-    function playLotteryAnimation(orderDetails) {
-      resetLotteryView();
-      const container = document.getElementById('lotteryResults');
-      const stage = document.getElementById('lotteryStage');
-      if (!orderDetails || orderDetails.length === 0) {
-        if (stage) stage.innerHTML = '<div class="alert alert-warning">Não foi possível obter a ordem sorteada.</div>';
-        return;
-      }
-      orderDetails.forEach((team, idx) => {
-        const timer = setTimeout(() => {
-          const teamLabel = `${team.city ?? 'Time'} ${team.name ?? ''}`.trim();
-          if (stage) stage.innerHTML = `<div class="text-center"><small class="text-uppercase text-light">Pick #${idx + 1}</small><h5 class="mt-1 text-orange">${escapeHtml(teamLabel)}</h5></div>`;
-          if (container) {
-            const row = document.createElement('div');
-            row.className = 'lottery-row';
-            row.innerHTML = `
-              <span class="badge bg-orange fs-6">#${idx + 1}</span>
-              <img src="${team.photo_url || '/img/default-team.png'}" alt="${escapeHtml(teamLabel)}">
-              <div>
-                <div class="fw-bold">${escapeHtml(teamLabel)}</div>
-              </div>
-            `;
-            container.appendChild(row);
-          }
-          if (idx === orderDetails.length - 1 && stage) {
-            stage.innerHTML = '<div class="alert alert-success mb-0">Sorteio concluído! A ordem foi aplicada ao draft.</div>';
-          }
-        }, idx * 700);
-        lotteryTimers.push(timer);
-      });
-    }
     async function startDraft() {
-      try {
-        await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', token: TOKEN }) });
-        await loadState();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function openPickModal() {
-      try {
-        const data = await api(`/api/initdraft.php?action=available_players&token=${TOKEN}`);
-        const list = data.players || [];
-        const body = document.getElementById('pickList');
-        body.innerHTML = list.map(p => `
-          <tr>
-            <td><strong>${p.name}</strong></td>
-            <td><span class="badge bg-orange">${p.position}</span></td>
-            <td>${p.ovr}</td>
-            <td><button class="btn btn-sm btn-success" onclick="makePick(${p.id})"><i class="bi bi-check2"></i> Escolher</button></td>
-          </tr>
-        `).join('');
-        new bootstrap.Modal(document.getElementById('pickModal')).show();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function makePick(playerId) {
-      try {
-        await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'make_pick', token: TOKEN, player_id: playerId }) });
-        bootstrap.Modal.getInstance(document.getElementById('pickModal')).hide();
-        await loadState();
-      } catch (e) { alert(e.message); }
+        if (!confirm('Deseja iniciar o draft?')) return;
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'start', token: TOKEN }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao iniciar');
+            showMessage('Draft iniciado.');
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
     }
 
     async function finalizeDraft() {
-      if (!confirm('Finalizar o draft? Certifique-se de que todas as picks foram realizadas.')) return;
-      try {
-        await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'finalize', token: TOKEN }) });
-        await loadState();
-      } catch (e) { alert(e.message); }
+        if (!confirm('Deseja finalizar o draft? Certifique-se de que todas as picks foram feitas.')) return;
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'finalize', token: TOKEN }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao finalizar');
+            showMessage('Draft finalizado com sucesso.');
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('#orderTabs button[data-bs-toggle="tab"]').forEach(btn => {
-        btn.addEventListener('shown.bs.tab', (event) => {
-          const target = event.target.getAttribute('data-bs-target');
-          setActiveOrderTab(target === '#manualTab' ? 'manual' : 'random');
-        });
-      });
-      const orderModalEl = document.getElementById('orderModal');
-      if (orderModalEl) {
-        orderModalEl.addEventListener('hidden.bs.modal', resetLotteryView);
-      }
-      loadState();
-    });
-  </script>
-</head>
-<body>
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h3 text-orange mb-0"><i class="bi bi-trophy-fill me-2"></i>Draft Inicial</h1>
-      <div id="actions"></div>
-    </div>
+    async function makePick(playerId) {
+        if (!confirm('Confirmar pick deste jogador?')) return;
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'make_pick', token: TOKEN, player_id: playerId }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Falha ao registrar pick');
+            showMessage('Pick registrada.');
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
+    }
 
-    <div class="card mb-3">
-      <div class="card-body" id="sessionInfo"></div>
-    </div>
+    async function handleAddPlayer(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const payload = Object.fromEntries(formData.entries());
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add_player', token: TOKEN, ...payload }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao adicionar jogador');
+            showMessage('Jogador adicionado ao pool.');
+            event.target.reset();
+            bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
+    }
 
-    <div id="rounds"></div>
-  </div>
+    async function handleImportCSV(event) {
+        event.preventDefault();
+        const form = event.target;
+        const fileInput = form.querySelector('input[type="file"]');
+        if (!fileInput.files.length) {
+            showMessage('Selecione um arquivo CSV.', 'warning');
+            return;
+        }
+        const formData = new FormData(form);
+        formData.append('action', 'import_csv');
+        formData.append('token', TOKEN);
 
-  <!-- Import CSV Modal -->
-  <div class="modal fade" id="importCSVModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-orange">Importar Jogadores via CSV</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <form onsubmit="submitImportCSV(event)">
-          <div class="modal-body">
-            <p class="text-white mb-2">Formato esperado de colunas: <code>name,position,age,ovr</code></p>
-            <div class="mb-3">
-              <label class="form-label text-white">Selecione o arquivo CSV</label>
-              <input type="file" class="form-control" id="csvFileInput" accept=".csv" required />
-            </div>
-            <div class="d-flex justify-content-end">
-              <button type="button" class="btn btn-outline-warning" onclick="downloadCSVTemplate()">
-                <i class="bi bi-download me-2"></i>Baixar Template CSV
-              </button>
-            </div>
-          </div>
-          <div class="modal-footer border-orange">
-            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
-            <button class="btn btn-primary" type="submit">Importar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+        try {
+            const res = await fetch(API_URL, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao importar CSV');
+            showMessage(`Importação concluída: ${data.imported} jogadores.`);
+            form.reset();
+            bootstrap.Modal.getInstance(document.getElementById('importCSVModal')).hide();
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
+    }
 
-  <!-- Pick Modal -->
-  <div class="modal fade" id="pickModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content bg-dark border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-orange">Escolher Jogador</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="table-responsive">
-            <table class="table table-dark table-sm align-middle">
-              <thead><tr><th>Jogador</th><th>Pos</th><th>OVR</th><th></th></tr></thead>
-              <tbody id="pickList"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-        </div>
-      </div>
-    </div>
-  </div>
+    function downloadCSVTemplate() {
+        const csv = 'name,position,age,ovr\nJohn Doe,SF,22,75';
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'initdraft-template.csv';
+        link.click();
+        URL.revokeObjectURL(url);
+    }
 
-  <!-- Add Player Modal -->
-  <div class="modal fade" id="addPlayerModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-orange">Adicionar Jogador</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <form id="addPlayerForm" onsubmit="doAddPlayer(event)">
-          <div class="modal-body">
-            <div class="row g-2">
-              <div class="col-8"><input name="name" class="form-control text-white" placeholder="Nome" required></div>
-              <div class="col-4">
-                <select name="position" class="form-select text-white" required>
-                  <option value="PG">PG</option>
-                  <option value="SG">SG</option>
-                  <option value="SF" selected>SF</option>
-                  <option value="PF">PF</option>
-                  <option value="C">C</option>
-                </select>
-              </div>
-              <div class="col-4"><input type="number" name="age" min="16" max="45" class="form-control text-white" placeholder="Idade" required></div>
-              <div class="col-4"><input type="number" name="ovr" min="1" max="99" class="form-control text-white" placeholder="OVR" required></div>
-              <!-- Campos reduzidos conforme solicitado -->
-            </div>
-          </div>
-          <div class="modal-footer border-orange">
-            <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancelar</button>
-            <button class="btn btn-primary" type="submit">Adicionar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+    function formatTeamLabel(pick) {
+        if (!pick) return '—';
+        return `${pick.team_city ?? ''} ${pick.team_name ?? ''}`.trim() || '—';
+    }
 
-  <!-- Order Modal -->
-  <div class="modal fade" id="orderModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content bg-dark border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-orange">Configurar Ordem do Draft</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <ul class="nav nav-pills mb-3" id="orderTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#manualTab" type="button" role="tab">Ordem Manual</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#randomTab" type="button" role="tab">Sorteio Animado</button>
-            </li>
-          </ul>
-          <div class="tab-content">
-            <div class="tab-pane fade show active" id="manualTab" role="tabpanel">
-              <div class="alert alert-secondary">Utilize os botões de seta para definir a ordem da primeira rodada. As demais rodadas seguirão o formato snake automaticamente.</div>
-              <ul class="list-group" id="manualOrderList"></ul>
-            </div>
-            <div class="tab-pane fade" id="randomTab" role="tabpanel">
-              <div id="lotteryStage" class="mb-3"></div>
-              <div id="lotteryResults"></div>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Fechar</button>
-          <button class="btn btn-outline-warning d-none" id="lotteryActionBtn" type="button" onclick="handleRandomizeOrder()">
-            <i class="bi bi-shuffle me-2"></i>Sortear Ordem
-          </button>
-          <button class="btn btn-success" id="manualOrderSave" type="button" onclick="submitManualOrder()">
-            <i class="bi bi-check2-circle me-2"></i>Aplicar Ordem Manual
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    loadState();
+</script>
 </body>
 </html>

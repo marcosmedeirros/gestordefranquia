@@ -25,7 +25,7 @@ try {
     }
 
     if (!$phone) {
-        jsonResponse(422, ['error' => 'Informe um telefone válido com DDD (WhatsApp).']);
+        jsonResponse(422, ['error' => 'Informe um telefone válido (DDD brasileiro ou código do país).']);
     }
 
     if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'])) {

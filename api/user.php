@@ -33,7 +33,7 @@ if ($method === 'POST') {
     }
 
     if (!$phone) {
-        jsonResponse(422, ['error' => 'Telefone inválido. Use DDD + número com 11 dígitos.']);
+        jsonResponse(422, ['error' => 'Telefone inválido. Informe DDD brasileiro ou código do país (apenas números).']);
     }
 
     // Salvar foto se vier como data URL

@@ -319,23 +319,32 @@ function normalizeBrazilianPhone(?string $input): ?string
     if ($input === null) {
         return null;
     }
+
     $digits = preg_replace('/\D+/', '', $input);
     if ($digits === '') {
         return null;
+    }
+
+    // Remove prefix "00" usado em discagem internacional
+    if (str_starts_with($digits, '00')) {
+        $digits = substr($digits, 2);
+    }
+
+    $maxLength = 15; // E.164
+    if (strlen($digits) > $maxLength) {
+        $digits = substr($digits, 0, $maxLength);
     }
 
     if (strlen($digits) < 10) {
         return null;
     }
 
-    if (strlen($digits) > 13) {
-        $digits = substr($digits, 0, 13);
-    }
+    $hasCountryCode = str_starts_with($digits, '55') || strlen($digits) > 11;
 
-    if (!str_starts_with($digits, '55')) {
+    if (!$hasCountryCode) {
         $digits = '55' . $digits;
-        if (strlen($digits) > 13) {
-            $digits = substr($digits, 0, 13);
+        if (strlen($digits) > $maxLength) {
+            $digits = substr($digits, 0, $maxLength);
         }
     }
 
@@ -347,9 +356,20 @@ function formatBrazilianPhone(?string $phone): ?string
     if (!$phone) {
         return null;
     }
+
     $digits = preg_replace('/\D+/', '', $phone);
+    if ($digits === '') {
+        return null;
+    }
+
     if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
-        $digits = substr($digits, -11);
+        $localDigits = substr($digits, -11);
+        if (strlen($localDigits) === 11) {
+            return sprintf('(%s) %s-%s', substr($localDigits, 0, 2), substr($localDigits, 2, 5), substr($localDigits, 7));
+        }
+        if (strlen($localDigits) === 10) {
+            return sprintf('(%s) %s-%s', substr($localDigits, 0, 2), substr($localDigits, 2, 4), substr($localDigits, 6));
+        }
     }
 
     if (strlen($digits) === 11) {
@@ -360,5 +380,5 @@ function formatBrazilianPhone(?string $phone): ?string
         return sprintf('(%s) %s-%s', substr($digits, 0, 2), substr($digits, 2, 4), substr($digits, 6));
     }
 
-    return $phone;
+    return '+' . $digits;
 }

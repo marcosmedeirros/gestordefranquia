@@ -846,16 +846,11 @@ try {
                         <div class="text-light-gray small mt-2"><i class="bi bi-list-ol me-1"></i><?= (int)$remainingDraftPicks ?> picks restantes</div>
                     </div>
                     <div class="text-end d-flex flex-column gap-2">
-                        <a href="/drafts.php" class="btn btn-outline-light">
-                            <?php if ($activeInitDraftSession && !empty($activeInitDraftSession['access_token'])): ?>
-                            <a href="/initdraft.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
-                                <i class="bi bi-trophy me-2"></i>Abrir sala do draft inicial
-                            </a>
-                            <?php else: ?>
-                            <a href="/drafts.php" class="btn btn-outline-light">
-                                <i class="bi bi-trophy me-2"></i>Abrir sala do draft
-                            </a>
-                            <?php endif; ?>
+                        <?php if ($activeInitDraftSession && !empty($activeInitDraftSession['access_token'])): ?>
+                        <a href="/initdraft.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
+                            <i class="bi bi-trophy me-2"></i>Abrir sala do draft inicial
+                        </a>
+                        <?php endif; ?>
                         <?php if (($user['user_type'] ?? '') === 'admin' && $activeInitDraftSession): ?>
                         <button class="btn btn-orange text-dark fw-bold" type="button" onclick="openAdminInitDraftModal()">
                             <i class="bi bi-hand-index-thumb me-2"></i>Escolher como admin
