@@ -67,8 +67,20 @@ if (!$token) {
         rounds[p.round].push(p);
       }
 
+      // Tabs: Rodadas | Jogadores
       const container = document.getElementById('rounds');
-      container.innerHTML = '';
+      container.innerHTML = `
+        <ul class="nav nav-tabs mb-3" id="initTabs" role="tablist">
+          <li class="nav-item" role="presentation"><button class="nav-link active" id="tab-rounds" data-bs-toggle="tab" data-bs-target="#tabRounds" type="button" role="tab">Rodadas</button></li>
+          <li class="nav-item" role="presentation"><button class="nav-link" id="tab-players" data-bs-toggle="tab" data-bs-target="#tabPlayers" type="button" role="tab">Jogadores</button></li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="tabRounds" role="tabpanel"><div id="roundsInner"></div></div>
+          <div class="tab-pane fade" id="tabPlayers" role="tabpanel"><div id="playersList"></div></div>
+        </div>
+      `;
+      const roundsContainer = document.getElementById('roundsInner');
+      roundsContainer.innerHTML = '';
       Object.keys(rounds).sort((a,b)=>a-b).forEach(r => {
         const picks = rounds[r];
         const rows = picks.map(p => `
@@ -97,12 +109,12 @@ if (!$token) {
             </div>
           </div>
         `;
-        container.appendChild(card);
+        roundsContainer.appendChild(card);
       });
 
       // Botões
-      const actions = document.getElementById('actions');
-      actions.innerHTML = '';
+  const actions = document.getElementById('actions');
+  actions.innerHTML = '';
       if (s.status === 'setup') {
         actions.innerHTML = `
           <button class="btn btn-outline-light me-2" onclick="openImport()"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
@@ -118,6 +130,9 @@ if (!$token) {
       } else if (s.status === 'completed') {
         actions.innerHTML = `<span class="badge bg-success">Draft Finalizado</span>`;
       }
+
+      // Ensure pool is loaded for players tab
+      loadPool();
     }
 
     function openImport() {
@@ -141,7 +156,45 @@ if (!$token) {
         await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add_player', token: TOKEN, ...payload }) });
         bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
         await loadState();
+        // refresh pool view as well
+        await loadPool();
       } catch (e) { alert(e.message); }
+    }
+
+    async function loadPool() {
+      try {
+        const data = await api(`/api/initdraft.php?action=pool&token=${TOKEN}`);
+        renderPlayers(data.players || []);
+      } catch (e) {
+        console.error('Erro ao carregar pool', e);
+      }
+    }
+
+    function renderPlayers(players) {
+      const el = document.getElementById('playersList');
+      if (!el) return;
+      if (players.length === 0) {
+        el.innerHTML = '<div class="alert alert-secondary">Nenhum jogador no pool.</div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle">
+            <thead><tr><th>Nome</th><th>Pos</th><th>Idade</th><th>OVR</th><th>Status</th></tr></thead>
+            <tbody>
+              ${players.map(p => `
+                <tr class="${p.draft_status === 'drafted' ? 'table-secondary' : ''}">
+                  <td>${p.name}</td>
+                  <td><span class="badge bg-orange">${p.position}</span></td>
+                  <td>${p.age}</td>
+                  <td>${p.ovr}</td>
+                  <td>${p.draft_status === 'drafted' ? '<span class="badge bg-success">Draftado</span>' : '<span class="badge bg-secondary">Disponível</span>'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     async function submitImportCSV(ev) {
@@ -309,9 +362,9 @@ if (!$token) {
         <form id="addPlayerForm" onsubmit="doAddPlayer(event)">
           <div class="modal-body">
             <div class="row g-2">
-              <div class="col-8"><input name="name" class="form-control" placeholder="Nome" required></div>
+              <div class="col-8"><input name="name" class="form-control text-white" placeholder="Nome" required></div>
               <div class="col-4">
-                <select name="position" class="form-select" required>
+                <select name="position" class="form-select text-white" required>
                   <option value="PG">PG</option>
                   <option value="SG">SG</option>
                   <option value="SF" selected>SF</option>
@@ -319,8 +372,8 @@ if (!$token) {
                   <option value="C">C</option>
                 </select>
               </div>
-              <div class="col-4"><input type="number" name="age" min="16" max="45" class="form-control" placeholder="Idade" required></div>
-              <div class="col-4"><input type="number" name="ovr" min="1" max="99" class="form-control" placeholder="OVR" required></div>
+              <div class="col-4"><input type="number" name="age" min="16" max="45" class="form-control text-white" placeholder="Idade" required></div>
+              <div class="col-4"><input type="number" name="ovr" min="1" max="99" class="form-control text-white" placeholder="OVR" required></div>
               <!-- Campos reduzidos conforme solicitado -->
             </div>
           </div>

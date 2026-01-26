@@ -87,8 +87,18 @@ if ($method === 'GET') {
                 $token = $_GET['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!$session) throw new Exception('Sessão não encontrada');
-
                 $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? AND draft_status = "available" ORDER BY ovr DESC, name ASC');
+                $stmt->execute([$session['season_id']]);
+                $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'players' => $players]);
+                break;
+            }
+            case 'pool': {
+                $token = $_GET['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new Exception('Sessão não encontrada');
+
+                $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? ORDER BY draft_status ASC, ovr DESC, name ASC');
                 $stmt->execute([$session['season_id']]);
                 $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 echo json_encode(['success' => true, 'players' => $players]);
@@ -107,8 +117,10 @@ if ($method === 'GET') {
 
 // ========== POST ==========
 if ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true) ?? [];
-    $action = $data['action'] ?? '';
+    // Support JSON body or multipart/form-data (CSV import)
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true) ?? [];
+    $action = $data['action'] ?? ($_POST['action'] ?? '');
 
     try {
         switch ($action) {
