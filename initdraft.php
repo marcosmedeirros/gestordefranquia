@@ -530,7 +530,7 @@ if (!$token) {
                     <button class="btn btn-outline-light" type="button" onclick="resetManualOrder()">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar
                     </button>
-                    <button class="btn btn-outline-warning" type="button" onclick="randomizeOrder()">
+                    <button class="btn btn-outline-warning" type="button" id="lotteryButton" onclick="randomizeOrder()">
                         <i class="bi bi-shuffle me-1"></i>Sortear Ordem
                     </button>
                 </div>
@@ -618,6 +618,8 @@ if (!$token) {
 <script>
     const TOKEN = '<?php echo htmlspecialchars($token, ENT_QUOTES); ?>';
     const API_URL = 'api/initdraft.php';
+    const LOTTERY_STORAGE_KEY = `initdraft_lottery_${TOKEN}`;
+    const LOTTERY_BALL_COUNT = 30;
 
     const state = {
         session: null,
@@ -626,6 +628,7 @@ if (!$token) {
         pool: [],
         manualOrder: [],
         search: '',
+        lotteryDrawn: false,
     };
 
     const elements = {
@@ -645,9 +648,11 @@ if (!$token) {
             lotteryStage: document.getElementById('lotteryStage'),
             lotteryTrack: document.getElementById('lotteryTrack'),
             lotteryResults: document.getElementById('lotteryResults'),
+        lotteryButton: document.getElementById('lotteryButton'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
+    state.lotteryDrawn = localStorage.getItem(LOTTERY_STORAGE_KEY) === '1';
 
     document.getElementById('poolSearch').addEventListener('input', (event) => {
         state.search = event.target.value.toLowerCase();
@@ -700,6 +705,7 @@ if (!$token) {
         renderOrder();
         renderPool();
         renderRounds();
+        updateLotteryButton();
     }
 
     function renderStats() {
@@ -824,12 +830,32 @@ if (!$token) {
             if (!elements.lotteryTrack || !elements.lotteryResults) return;
             const teams = state.teams || [];
             elements.lotteryResults.innerHTML = '';
-            elements.lotteryTrack.innerHTML = teams
+            const ballTeams = buildBallTeams(teams);
+            elements.lotteryTrack.innerHTML = ballTeams
                 .map((team) => `
                     <div class="lottery-ball">
                         <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
                     </div>`)
                 .join('');
+        }
+
+        function buildBallTeams(teams = []) {
+            if (!teams.length) {
+                return Array.from({ length: LOTTERY_BALL_COUNT }, () => ({ photo_url: '/img/default-team.png' }));
+            }
+            const filled = [];
+            for (let i = 0; i < LOTTERY_BALL_COUNT; i += 1) {
+                filled.push(teams[i % teams.length]);
+            }
+            return filled;
+        }
+
+        function updateLotteryButton() {
+            if (!elements.lotteryButton) return;
+            elements.lotteryButton.disabled = state.lotteryDrawn;
+            elements.lotteryButton.innerHTML = state.lotteryDrawn
+                ? '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído'
+                : '<i class="bi bi-shuffle me-1"></i>Sortear Ordem';
         }
 
         function runLotteryAnimation(orderDetails = []) {
@@ -839,7 +865,8 @@ if (!$token) {
 
             const picks = orderDetails.length ? orderDetails : state.teams;
             elements.lotteryResults.innerHTML = '';
-            elements.lotteryTrack.innerHTML = picks
+            const ballTeams = buildBallTeams(state.teams);
+            elements.lotteryTrack.innerHTML = ballTeams
                 .map((team) => `
                     <div class="lottery-ball">
                         <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
@@ -847,13 +874,19 @@ if (!$token) {
                 .join('');
 
             const balls = Array.from(elements.lotteryTrack.querySelectorAll('.lottery-ball'));
+            const usedIndexes = new Set();
 
             return new Promise((resolve) => {
                 let index = 0;
                 const revealNext = () => {
                     balls.forEach((ball) => ball.classList.remove('active'));
-                    if (balls[index]) {
-                        balls[index].classList.add('active');
+                    let ballIndex = Math.floor(Math.random() * balls.length);
+                    while (usedIndexes.has(ballIndex) && usedIndexes.size < balls.length) {
+                        ballIndex = Math.floor(Math.random() * balls.length);
+                    }
+                    usedIndexes.add(ballIndex);
+                    if (balls[ballIndex]) {
+                        balls[ballIndex].classList.add('active');
                     }
                     const team = picks[index] || {};
                     elements.lotteryResults.insertAdjacentHTML(
@@ -1016,7 +1049,36 @@ if (!$token) {
     }
 
     async function randomizeOrder() {
+        if (state.lotteryDrawn) {
+            showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
+            return;
+        }
         try {
+            const currentRounds = state.session?.total_rounds ?? '';
+            const inputRounds = prompt('Quantas rodadas o draft terá?', currentRounds);
+            if (inputRounds === null) {
+                return;
+            }
+            const roundsValue = parseInt(inputRounds, 10);
+            if (Number.isNaN(roundsValue) || roundsValue < 1 || roundsValue > 10) {
+                showMessage('Informe um número de rodadas entre 1 e 10.', 'warning');
+                return;
+            }
+
+            if (!state.session || roundsValue !== state.session.total_rounds) {
+                const roundsRes = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set_total_rounds', token: TOKEN, total_rounds: roundsValue }),
+                });
+                const roundsData = await roundsRes.json();
+                if (!roundsData.success) throw new Error(roundsData.error || 'Erro ao atualizar rodadas');
+                if (state.session) {
+                    state.session.total_rounds = roundsData.total_rounds;
+                }
+                renderStats();
+            }
+
             const res = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1028,6 +1090,9 @@ if (!$token) {
             renderManualOrderList();
             renderOrder();
             await runLotteryAnimation(data.order_details || []);
+            state.lotteryDrawn = true;
+            localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
+            updateLotteryButton();
             showMessage('Ordem sorteada com sucesso.');
         } catch (error) {
             showMessage(error.message, 'danger');

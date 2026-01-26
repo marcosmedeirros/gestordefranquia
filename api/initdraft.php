@@ -453,6 +453,30 @@ if ($method === 'POST') {
                 break;
             }
 
+            case 'set_total_rounds': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível ajustar rodadas durante setup');
+
+                $totalRounds = (int)($data['total_rounds'] ?? 0);
+                if ($totalRounds < 1 || $totalRounds > 10) {
+                    throw new Exception('Informe um número de rodadas entre 1 e 10');
+                }
+
+                $stmtOrderCount = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ?');
+                $stmtOrderCount->execute([$session['id']]);
+                if ((int)$stmtOrderCount->fetchColumn() > 0) {
+                    throw new Exception('A ordem já foi definida. Ajuste as rodadas antes do sorteio.');
+                }
+
+                $pdo->prepare('UPDATE initdraft_sessions SET total_rounds = ? WHERE id = ?')
+                    ->execute([$totalRounds, $session['id']]);
+
+                echo json_encode(['success' => true, 'total_rounds' => $totalRounds]);
+                break;
+            }
+
             // ADMIN/TOKEN: iniciar draft
             case 'start': {
                 $token = $data['token'] ?? null;
