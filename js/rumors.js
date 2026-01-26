@@ -71,6 +71,11 @@
       const card = document.createElement('div');
       card.className = 'player-card';
       const canDelete = isAdmin || (teamId && parseInt(r.team_id) === parseInt(teamId));
+      let whatsappBtn = '';
+      if (r.gm_phone_whatsapp) {
+        const msg = encodeURIComponent('Olá! Vi seu rumor na FBA e gostaria de conversar sobre trocas.');
+        whatsappBtn = `<a href="https://wa.me/${r.gm_phone_whatsapp}?text=${msg}" target="_blank" rel="noopener" class="btn btn-sm btn-success ms-2"><i class="bi bi-whatsapp"></i> Falar</a>`;
+      }
       card.innerHTML = `
         <div class="d-flex align-items-center justify-content-between">
           <div class="team-chip mb-2">
@@ -80,7 +85,10 @@
           <div class="text-light-gray small">${formatDate(r.created_at)}</div>
         </div>
         <div class="player-name">${escapeHtml(r.content)}</div>
-        ${canDelete ? `<div class="mt-2 text-end"><button class="btn btn-sm btn-outline-danger" data-id="${r.id}"><i class="bi bi-trash"></i> Remover</button></div>` : ''}
+        <div class="mt-2 d-flex justify-content-end align-items-center gap-2">
+          ${whatsappBtn}
+          ${canDelete ? `<button class="btn btn-sm btn-outline-danger" data-id="${r.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
+        </div>
       `;
       if (canDelete) {
         card.querySelector('button')?.addEventListener('click', async () => {

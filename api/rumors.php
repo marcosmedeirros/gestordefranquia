@@ -38,9 +38,21 @@ if ($method === 'GET') {
     if (!$league) jsonErr('league obrigatório');
 
     try {
-        $stmtR = $pdo->prepare('SELECT r.*, t.city, t.name, t.photo_url FROM rumors r INNER JOIN teams t ON r.team_id = t.id WHERE r.league = ? ORDER BY r.created_at DESC');
+        $stmtR = $pdo->prepare('SELECT r.*, t.city, t.name, t.photo_url, u.phone as gm_phone, u.name as gm_name FROM rumors r INNER JOIN teams t ON r.team_id = t.id INNER JOIN users u ON r.user_id = u.id WHERE r.league = ? ORDER BY r.created_at DESC');
         $stmtR->execute([$league]);
         $rumors = $stmtR->fetchAll(PDO::FETCH_ASSOC);
+
+        // Normalize phone for WhatsApp (e.g., 5511999999999)
+        foreach ($rumors as &$r) {
+            $rawPhone = $r['gm_phone'] ?? '';
+            $digits = preg_replace('/\D+/', '', $rawPhone);
+            if ($digits !== '') {
+                $r['gm_phone_whatsapp'] = (str_starts_with($digits, '55') ? $digits : '55' . $digits);
+            } else {
+                $r['gm_phone_whatsapp'] = null;
+            }
+        }
+        unset($r);
 
         $stmtA = $pdo->prepare('SELECT c.*, u.name as admin_name FROM rumor_admin_comments c INNER JOIN users u ON c.user_id = u.id WHERE c.league = ? ORDER BY c.created_at DESC LIMIT 3');
         $stmtA->execute([$league]);

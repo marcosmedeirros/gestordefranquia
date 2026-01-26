@@ -412,27 +412,38 @@ if (!$team) {
                     `).join('')}
                   </tbody>
                 </table>
-            <div class="col-md-4">
-              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
-                <div class="card-body">
-                  <h5 class="text-white mb-3"><i class="bi bi-trophy text-orange me-2"></i>Draft Inicial</h5>
-                  <div id="initDraftPanel">
-                    <div class="text-light-gray">Carregando…</div>
+                <div class="col-md-4 mt-4">
+                  <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+                    <div class="card-body">
+                      <h5 class="text-white mb-3"><i class="bi bi-trophy text-orange me-2"></i>Draft Inicial</h5>
+                      <div id="initDraftPanel">
+                        <div class="text-light-gray">Carregando…</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-              </div>
               <div class="d-grid mt-4">
-
-        // Depois de desenhar, carregar painel do draft inicial
-        loadInitDraftPanel(season);
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="bi bi-save me-2"></i>Salvar Moedas
                 </button>
               </div>
             </form>
           `;
+
+          // Carregar painel do draft inicial após desenhar o HTML
+          // Buscar dados da temporada atual para passar para o painel
+          let seasonData = null;
+          try {
+            const resp = await api(`seasons.php?action=current_season&league=${league}`);
+            seasonData = resp.season;
+          } catch {}
+          if (seasonData) {
+            loadInitDraftPanel(seasonData);
+          } else {
+            // fallback: tenta com o id
+            loadInitDraftPanel({ id: seasonId });
+          }
 
           document.getElementById('coinsForm').onsubmit = async function(e) {
             e.preventDefault();
