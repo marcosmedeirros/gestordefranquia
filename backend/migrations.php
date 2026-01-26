@@ -11,6 +11,31 @@ function runMigrations() {
     
     // Array de migrações com nome único para rastrear execução
     $migrations = [
+        'create_rumors' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS rumors (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                team_id INT NOT NULL,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_rumors_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_rumors_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                INDEX idx_rumors_league_created (league, created_at),
+                INDEX idx_rumors_team (team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_rumor_admin_comments' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS rumor_admin_comments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_rumor_admin_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                INDEX idx_rumor_admin_league_created (league, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
         'create_initdraft_sessions' => [
             'sql' => "CREATE TABLE IF NOT EXISTS initdraft_sessions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
