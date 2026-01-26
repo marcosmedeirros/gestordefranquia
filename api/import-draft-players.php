@@ -101,6 +101,20 @@ try {
             throw new Exception('Nenhum jogador válido encontrado no arquivo');
         }
         
+        // Verificar duplicatas antes de inserir
+        $duplicates = [];
+        foreach ($players as $player) {
+            $checkStmt = $db->prepare("SELECT id FROM draft_pool WHERE season_id = ? AND LOWER(name) = LOWER(?)");
+            $checkStmt->execute([$seasonId, $player['name']]);
+            if ($checkStmt->fetch()) {
+                $duplicates[] = $player['name'];
+            }
+        }
+        
+        if (!empty($duplicates)) {
+            throw new Exception('Jogadores já existem nesta temporada: ' . implode(', ', $duplicates));
+        }
+        
         // Insere os jogadores no draft_pool da temporada
         $db->beginTransaction();
         

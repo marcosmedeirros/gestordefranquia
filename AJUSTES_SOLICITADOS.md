@@ -62,18 +62,25 @@ HAVING total > 1;
 ### ✅ 9. Garantir unicidade de jogadores por liga
 **Ação**: Execute no phpMyAdmin:
 ```sql
--- Adicionar constraint de unicidade para jogadores
-ALTER TABLE players ADD UNIQUE KEY unique_player_per_team (team_id, name);
+-- Para draft_pool: unicidade por temporada (season_id já contém a liga)
+-- NOTA: draft_pool NÃO tem coluna 'league', usa season_id que vincula à seasons que tem a liga
+ALTER TABLE draft_pool ADD UNIQUE KEY unique_draft_player_per_season (season_id, name);
 
--- Para jogadores em draft_pool:
-ALTER TABLE draft_pool ADD UNIQUE KEY unique_player_per_league (league, name, season_id);
+-- Verificar duplicatas no draft_pool antes:
+SELECT season_id, name, COUNT(*) as total
+FROM draft_pool
+GROUP BY season_id, name
+HAVING total > 1;
 
--- Para free agents:
-ALTER TABLE free_agents ADD UNIQUE KEY unique_fa_per_league (league, name);
-
--- Verificar duplicatas antes:
-SELECT name, COUNT(*) FROM players WHERE team_id IN (SELECT id FROM teams WHERE league = 'ROOKIE') GROUP BY name HAVING COUNT(*) > 1;
+-- Se houver duplicatas, remover os registros extras:
+-- DELETE dp1 FROM draft_pool dp1
+-- INNER JOIN draft_pool dp2
+-- WHERE dp1.id > dp2.id
+-- AND dp1.season_id = dp2.season_id
+-- AND dp1.name = dp2.name;
 ```
+
+**Validação em código**: Já implementada em `api/players.php` e `api/import-draft-players.php`
 
 ### ✅ 10. Corrigir layout mobile da Free Agency
 **Requires**: CSS/HTML adjustment
