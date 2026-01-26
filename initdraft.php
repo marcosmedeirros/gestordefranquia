@@ -234,6 +234,29 @@ if (!$token) {
             color: #fff;
         }
 
+        .form-label,
+        .modal-title,
+        .card h5,
+        .card h6,
+        .card h4,
+        .card h3,
+        .card h2,
+        .card h1 {
+            color: #fff;
+        }
+
+        .nav-tabs .nav-link {
+            color: #ddd;
+            border: none;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-tabs .nav-link.active {
+            color: #fff;
+            border-color: var(--initdraft-orange);
+            background: transparent;
+        }
+
         @media (max-width: 768px) {
             .hero-card {
                 padding: 1.5rem;
@@ -311,49 +334,60 @@ if (!$token) {
         </div>
         <div class="col-lg-7">
             <div class="card-dark p-4 h-100">
-                <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center mb-3">
-                    <div>
-                        <h5 class="mb-1">Jogadores do Pool</h5>
-                        <p class="text-muted mb-0 small">Importe via CSV, adicione manualmente e escolha jogadores em tempo real.</p>
+                <ul class="nav nav-tabs mb-3" id="contentTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="players-tab" data-bs-toggle="tab" data-bs-target="#players" type="button" role="tab">Jogadores</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="rounds-tab" data-bs-toggle="tab" data-bs-target="#rounds-pane" type="button" role="tab">Rodadas</button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="players" role="tabpanel" aria-labelledby="players-tab">
+                        <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center mb-3">
+                            <div>
+                                <h5 class="mb-1">Jogadores do Pool</h5>
+                                <p class="text-muted mb-0 small">Importe via CSV, adicione manualmente e escolha jogadores em tempo real.</p>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#importCSVModal">
+                                    <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar CSV
+                                </button>
+                                <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
+                                    <i class="bi bi-person-plus me-1"></i>Novo Jogador
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" id="poolSearch" class="form-control search-input" placeholder="Filtrar por nome ou posição" />
+                        </div>
+                        <div class="table-responsive" id="poolWrapper">
+                            <table class="table table-dark table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Jogador</th>
+                                        <th>Posição</th>
+                                        <th>OVR</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="poolTable"></tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#importCSVModal">
-                            <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar CSV
-                        </button>
-                        <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
-                            <i class="bi bi-person-plus me-1"></i>Novo Jogador
-                        </button>
+                    <div class="tab-pane fade" id="rounds-pane" role="tabpanel" aria-labelledby="rounds-tab">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <h5 class="mb-0">Rodadas e Picks</h5>
+                            <span class="text-muted small" id="roundsMeta"></span>
+                        </div>
+                        <div id="rounds"></div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <input type="text" id="poolSearch" class="form-control search-input" placeholder="Filtrar por nome ou posição" />
-                </div>
-                <div class="table-responsive" id="poolWrapper">
-                    <table class="table table-dark table-hover align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Jogador</th>
-                                <th>Posição</th>
-                                <th>OVR</th>
-                                <th>Status</th>
-                                <th class="text-end">Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody id="poolTable"></tbody>
-                    </table>
                 </div>
             </div>
         </div>
     </div>
-
-    <section class="card-dark p-4 mt-4" id="roundsSection">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <h5 class="mb-0">Rodadas e Picks</h5>
-            <span class="text-muted small" id="roundsMeta"></span>
-        </div>
-        <div id="rounds"></div>
-    </section>
 </div>
 
 <!-- Order Modal -->
