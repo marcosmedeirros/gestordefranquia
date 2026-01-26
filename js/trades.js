@@ -14,6 +14,7 @@ let myLeague = window.__USER_LEAGUE__;
 let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
+let allLeagueTrades = []; // Armazenar trades da liga para busca
 
 const formatTradePlayerDisplay = (player) => {
   if (!player) return '';
@@ -53,6 +54,14 @@ async function init() {
   // Event listeners
   document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
   document.getElementById('targetTeam').addEventListener('change', onTargetTeamChange);
+
+  // Event listener para busca de jogador nas trades gerais
+  const leagueTradesSearch = document.getElementById('leagueTradesSearch');
+  if (leagueTradesSearch) {
+    leagueTradesSearch.addEventListener('input', (e) => {
+      filterLeagueTrades(e.target.value);
+    });
+  }
 
   const tradeModalEl = document.getElementById('proposeTradeModal');
   if (tradeModalEl) {
@@ -299,6 +308,54 @@ async function submitTrade() {
   }
 }
 
+function filterLeagueTrades(searchTerm) {
+  const container = document.getElementById('leagueTradesList');
+  const badge = document.getElementById('leagueTradesCount');
+  
+  if (!searchTerm || searchTerm.trim() === '') {
+    // Mostrar todas as trades
+    container.innerHTML = '';
+    allLeagueTrades.forEach(trade => {
+      const card = createTradeCard(trade, 'league');
+      container.appendChild(card);
+    });
+    badge.textContent = `${allLeagueTrades.length} ${allLeagueTrades.length === 1 ? 'trade' : 'trocas'}`;
+    return;
+  }
+  
+  const term = searchTerm.toLowerCase().trim();
+  
+  // Filtrar trades que contenham o jogador
+  const filtered = allLeagueTrades.filter(trade => {
+    // Buscar em offer_players
+    const hasInOffer = trade.offer_players.some(p => 
+      p.name && p.name.toLowerCase().includes(term)
+    );
+    
+    // Buscar em request_players
+    const hasInRequest = trade.request_players.some(p => 
+      p.name && p.name.toLowerCase().includes(term)
+    );
+    
+    return hasInOffer || hasInRequest;
+  });
+  
+  // Renderizar resultados
+  container.innerHTML = '';
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada com "${searchTerm}"</div>`;
+    badge.textContent = '0 trocas';
+    return;
+  }
+  
+  filtered.forEach(trade => {
+    const card = createTradeCard(trade, 'league');
+    container.appendChild(card);
+  });
+  
+  badge.textContent = `${filtered.length} ${filtered.length === 1 ? 'trade' : 'trocas'}`;
+}
+
 async function loadTrades(type) {
   const container = document.getElementById(`${type}TradesList`);
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
@@ -306,6 +363,11 @@ async function loadTrades(type) {
   try {
     const data = await api(`trades.php?type=${type}`);
     const trades = data.trades || [];
+    
+    // Armazenar trades da liga para busca
+    if (type === 'league') {
+      allLeagueTrades = trades;
+    }
     
     if (trades.length === 0) {
       container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';

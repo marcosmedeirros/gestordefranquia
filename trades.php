@@ -336,6 +336,10 @@ if ($teamId) {
             </div>
             <span class="badge bg-secondary" id="leagueTradesCount">0 trocas</span>
           </div>
+          <!-- Busca de jogador nas trocas -->
+          <div class="mb-3">
+            <input type="text" class="form-control" id="leagueTradesSearch" placeholder="🔍 Buscar jogador nas trocas...">
+          </div>
           <div id="leagueTradesList"></div>
         </div>
       </div>
