@@ -260,49 +260,28 @@ if ($teamId) {
     */ ?>
 
     <div class="card bg-dark-panel border-orange">
-      <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+      <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0 text-white"><i class="bi bi-list-ul me-2 text-orange"></i>Jogadores</h5>
-        <button class="btn btn-outline-orange btn-sm" id="btn-refresh-players"><i class="bi bi-arrow-clockwise me-1"></i> Atualizar</button>
+        <div class="d-flex gap-2 align-items-center">
+          <select id="sort-select" class="form-select form-select-sm bg-dark text-white border-orange" style="width: auto;">
+            <option value="role">Ordenar: Função</option>
+            <option value="name">Ordenar: Nome</option>
+            <option value="ovr">Ordenar: OVR</option>
+            <option value="position">Ordenar: Posição</option>
+            <option value="age">Ordenar: Idade</option>
+          </select>
+          <button class="btn btn-outline-orange btn-sm" id="btn-refresh-players">
+            <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <div id="players-status" class="text-center mb-3">
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
-        <!-- Desktop: Tabela (esconder em mobile) -->
-        <div id="players-list" class="table-responsive d-none d-md-block" style="display: none;">
-          <table class="table table-dark align-middle">
-            <thead>
-              <tr>
-                <th class="sortable" data-sort="name" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Nome
-                </th>
-                <th class="sortable" data-sort="ovr" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>OVR
-                </th>
-                <th class="sortable" data-sort="position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Posição
-                </th>
-                <th class="sortable" data-sort="secondary_position" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Pos. Sec.
-                </th>
-                <th class="sortable" data-sort="role" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Função
-                </th>
-                <th class="sortable" data-sort="age" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Idade
-                </th>
-                <th class="sortable" data-sort="trade" style="cursor: pointer; user-select: none;" title="Clique para ordenar">
-                  <i class="bi bi-arrow-down-up" style="opacity: 0.5; margin-right: 5px;"></i>Trade?
-                </th>
-                <th style="cursor: default;">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="players-tbody"></tbody>
-          </table>
-        </div>
-        <!-- Mobile: Cards (esconder em desktop) -->
-        <div id="players-cards-mobile" class="d-md-none" style="display: none;"></div>
+        <!-- Grid de Cards Responsivo -->
+        <div id="players-grid" class="row g-3" style="display: none;"></div>
       </div>
     </div>
     <?php endif; ?>
@@ -383,7 +362,7 @@ if ($teamId) {
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/my-roster.js"></script>
+  <script src="/js/my-roster-v2.js"></script>
   <script src="/js/pwa.js"></script>
 </body>
 </html>
