@@ -28,6 +28,18 @@ if (!$token) {
     .table-dark thead th { color: #fff; }
     .form-label, .form-select, .form-control { color: #fff; }
     .form-select, .form-control { background-color: #0f0f0f; border-color: #444; }
+    .form-select:focus, .form-control:focus {
+      background-color: #0f0f0f !important;
+      color: #fff !important;
+      border-color: #ff7a00 !important;
+      box-shadow: none !important;
+    }
+    input[type="file"].form-control:focus {
+      background-color: #0f0f0f !important;
+      color: #fff !important;
+      border-color: #ff7a00 !important;
+      box-shadow: none !important;
+    }
     .order-list-item { background: transparent; border-color: #333; color: #fff; }
     .order-list-item .badge { width: 48px; }
     .order-actions button { min-width: 36px; }
