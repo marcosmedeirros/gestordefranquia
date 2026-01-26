@@ -31,7 +31,17 @@ const renderRosterCard = (team) => {
         `;
     }).join('') || '<p class="text-muted">Sem jogadores cadastrados.</p>';
 
-    const pickList = picks.map(pk => `${pk.season_year} R${pk.round}`).join(' • ') || 'Sem picks';
+    const pickList = picks.map(pk => {
+        const base = `${pk.season_year} R${pk.round}`;
+        // Se a pick foi trocada (original_team_id != team_id), mostrar "via"
+        const isTraded = pk.original_team_id && pk.team_id && pk.original_team_id != pk.team_id;
+        if (isTraded && pk.last_owner_city && pk.last_owner_name) {
+            return `${base} <small class="text-info">(via ${pk.last_owner_city})</small>`;
+        } else if (isTraded && pk.original_city && pk.original_name) {
+            return `${base} <small class="text-info">(via ${pk.original_city})</small>`;
+        }
+        return base;
+    }).join(' • ') || 'Sem picks';
 
     const capClass = team.cap_top8 < 618 ? 'text-danger' : team.cap_top8 > 648 ? 'text-danger' : 'text-success';
 

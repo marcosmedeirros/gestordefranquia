@@ -200,10 +200,15 @@ async function loadMyAssets() {
       myPicks.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        const originLabel = p.last_owner_city && p.last_owner_name
-          ? `${p.last_owner_city} ${p.last_owner_name}`
+        // Mostrar "via" se a pick foi trocada (team_id != original_team_id)
+        const isTraded = p.original_team_id && p.team_id && p.original_team_id != p.team_id;
+        const viaLabel = isTraded && p.last_owner_city && p.last_owner_name
+          ? ` (via ${p.last_owner_city} ${p.last_owner_name})`
+          : '';
+        const originLabel = p.original_team_city && p.original_team_name
+          ? `${p.original_team_city} ${p.original_team_name}`
           : (p.original_team_name || 'Time');
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (${originLabel})${viaLabel}`;
         selectPicks.appendChild(option);
       });
     }
@@ -257,10 +262,15 @@ async function onTargetTeamChange(e) {
       picks.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        const originLabel = p.last_owner_city && p.last_owner_name
-          ? `${p.last_owner_city} ${p.last_owner_name}`
+        // Mostrar "via" se a pick foi trocada (team_id != original_team_id)
+        const isTraded = p.original_team_id && p.team_id && p.original_team_id != p.team_id;
+        const viaLabel = isTraded && p.last_owner_city && p.last_owner_name
+          ? ` (via ${p.last_owner_city} ${p.last_owner_name})`
+          : '';
+        const originLabel = p.original_team_city && p.original_team_name
+          ? `${p.original_team_city} ${p.original_team_name}`
           : (p.original_team_name || 'Time');
-        option.textContent = `${p.season_year} - ${p.round}ª rodada (de ${originLabel})`;
+        option.textContent = `${p.season_year} - ${p.round}ª rodada (${originLabel})${viaLabel}`;
         selectPicks.appendChild(option);
       });
     }

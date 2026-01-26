@@ -198,6 +198,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <i class="bi bi-people-fill text-orange me-2"></i>Times da Liga
         </h1>
 
+        <!-- Busca de Time -->
+        <div class="card bg-dark-panel border-orange mb-4">
+            <div class="card-header bg-dark border-bottom border-orange">
+                <h5 class="mb-0 text-white"><i class="bi bi-search text-orange me-2"></i>Buscar Time</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <input type="text" id="teamSearchInput" class="form-control" placeholder="🔍 Digite o nome do time ou cidade...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card bg-dark-panel border-orange mb-4">
             <div class="card-header bg-dark border-bottom border-orange">
                 <h5 class="mb-0 text-white"><i class="bi bi-search text-orange me-2"></i>Buscar Jogador</h5>
@@ -386,6 +400,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             }
         }
 
+        // === Busca de Times ===
+        const teamSearchInput = document.getElementById('teamSearchInput');
+        const teamsTable = document.querySelector('.table-responsive tbody');
+        const teamRows = teamsTable ? Array.from(teamsTable.querySelectorAll('tr')) : [];
+
+        teamSearchInput?.addEventListener('input', function() {
+            const term = this.value.toLowerCase().trim();
+            
+            teamRows.forEach(row => {
+                const teamName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
+                const ownerName = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+                
+                if (term === '' || teamName.includes(term) || ownerName.includes(term)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // === Busca de Jogadores ===
         const searchInput = document.getElementById('playerSearchInput');
         const searchBtn = document.getElementById('playerSearchBtn');
         const searchResults = document.getElementById('playerSearchResults');

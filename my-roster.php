@@ -156,24 +156,24 @@ if ($teamId) {
   <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
-      <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>Meu Elenco</h1>
-        <div class="d-flex gap-3 flex-wrap justify-content-end">
-          <div class="text-center">
-            <small class="text-light-gray">Total</small>
-            <div class="text-white fw-bold" id="total-players" style="font-size: 1.5rem;">0</div>
+        <div class="d-flex gap-2 gap-md-3 flex-wrap justify-content-start justify-content-md-end w-100 w-md-auto">
+          <div class="text-center flex-fill flex-md-grow-0" style="min-width: 60px;">
+            <small class="text-light-gray d-block" style="font-size: 0.7rem;">Total</small>
+            <div class="text-white fw-bold" id="total-players" style="font-size: 1.2rem;">0</div>
           </div>
-          <div class="text-center">
-            <small class="text-light-gray">CAP Top8</small>
-            <div class="text-orange fw-bold" id="cap-top8" style="font-size: 1.5rem;">0</div>
+          <div class="text-center flex-fill flex-md-grow-0" style="min-width: 70px;">
+            <small class="text-light-gray d-block" style="font-size: 0.7rem;">CAP Top8</small>
+            <div class="text-orange fw-bold" id="cap-top8" style="font-size: 1.2rem;">0</div>
           </div>
-          <div class="text-center">
-            <small class="text-light-gray">Dispensas (FA)</small>
-            <div class="text-white fw-bold" id="waivers-count" style="font-size: 1.1rem;">0 / 0</div>
+          <div class="text-center flex-fill flex-md-grow-0" style="min-width: 80px;">
+            <small class="text-light-gray d-block" style="font-size: 0.7rem;">Dispensas</small>
+            <div class="text-white fw-bold" id="waivers-count" style="font-size: 1rem;">0 / 0</div>
           </div>
-          <div class="text-center">
-            <small class="text-light-gray">Contratações FA</small>
-            <div class="text-white fw-bold" id="signings-count" style="font-size: 1.1rem;">0 / 0</div>
+          <div class="text-center flex-fill flex-md-grow-0" style="min-width: 80px;">
+            <small class="text-light-gray d-block" style="font-size: 0.7rem;">Contrat.</small>
+            <div class="text-white fw-bold" id="signings-count" style="font-size: 1rem;">0 / 0</div>
           </div>
         </div>
       </div>

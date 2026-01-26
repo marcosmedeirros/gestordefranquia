@@ -84,51 +84,51 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
         <div class="dashboard-content">
             <div class="mb-4">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <h1 class="text-white fw-bold mb-0">
+                <div class="d-flex flex-column flex-md-row flex-wrap justify-content-between align-items-start align-items-md-center gap-2 gap-md-3">
+                    <h1 class="text-white fw-bold mb-0" style="font-size: 1.5rem;">
                         <i class="bi bi-coin text-orange me-2"></i>Free Agency
                     </h1>
                     <div class="d-flex flex-wrap gap-2">
                         <?php if ($team_league): ?>
-                            <span class="badge bg-dark border border-warning text-warning">
+                            <span class="badge bg-dark border border-warning text-warning" style="font-size: 0.75rem;">
                                 <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($team_league) ?>
                             </span>
                         <?php endif; ?>
                         <?php if ($team_id): ?>
-                            <span class="badge bg-warning text-dark">
+                            <span class="badge bg-warning text-dark" style="font-size: 0.75rem;">
                                 <i class="bi bi-coin me-1"></i><?= $team_moedas ?> moedas
                             </span>
                         <?php endif; ?>
                         <?php if ($is_admin): ?>
-                            <span class="badge bg-danger">Admin</span>
+                            <span class="badge bg-danger" style="font-size: 0.75rem;">Admin</span>
                         <?php endif; ?>
                     </div>
                 </div>
-                <p class="text-light-gray mb-0">
-                    Envie lances com moedas para contratar jogadores dispensados. As moedas so sao descontadas apos aprovacao do admin.
+                <p class="text-light-gray mb-0 mt-2" style="font-size: 0.85rem;">
+                    Envie lances com moedas para contratar jogadores dispensados.
                 </p>
             </div>
 
-            <ul class="nav nav-tabs mb-4" id="freeAgencyTabs" role="tablist">
+            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" id="freeAgencyTabs" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
-                        <i class="bi bi-people-fill me-1"></i>Free Agency
+                    <button class="nav-link active text-nowrap" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
+                        <i class="bi bi-people-fill me-1"></i><span class="d-none d-sm-inline">Free Agency</span><span class="d-sm-none">FA</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="fa-active-auctions-tab" data-bs-toggle="tab" data-bs-target="#fa-active-auctions" type="button" role="tab">
-                        <i class="bi bi-hammer me-1"></i>Leiloes ativos
+                    <button class="nav-link text-nowrap" id="fa-active-auctions-tab" data-bs-toggle="tab" data-bs-target="#fa-active-auctions" type="button" role="tab">
+                        <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leiloes ativos</span><span class="d-sm-none">Leilões</span>
                     </button>
                 </li>
                 <?php if ($is_admin): ?>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="fa-auction-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
-                        <i class="bi bi-hammer me-1"></i>Leilao admin
+                    <button class="nav-link text-nowrap" id="fa-auction-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
+                        <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leilao admin</span><span class="d-sm-none">Admin</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="fa-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-admin" type="button" role="tab">
-                        <i class="bi bi-shield-lock-fill me-1"></i>FA Admin
+                    <button class="nav-link text-nowrap" id="fa-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-admin" type="button" role="tab">
+                        <i class="bi bi-shield-lock-fill me-1"></i><span class="d-none d-sm-inline">FA Admin</span><span class="d-sm-none">Config</span>
                     </button>
                 </li>
                 <?php endif; ?>

@@ -28,7 +28,16 @@ $teamsStmt->execute([$league]);
 $teams = $teamsStmt->fetchAll();
 
 $playerStmt = $pdo->prepare('SELECT id, team_id, name, age, position, role, ovr, available_for_trade FROM players WHERE team_id = ? ORDER BY ovr DESC, id DESC');
-$pickStmt = $pdo->prepare('SELECT id, season_year, round, notes, original_team_id FROM picks WHERE team_id = ? ORDER BY season_year DESC, round ASC');
+$pickStmt = $pdo->prepare('
+    SELECT p.id, p.season_year, p.round, p.notes, p.original_team_id, p.team_id, p.last_owner_team_id,
+           orig.city AS original_city, orig.name AS original_name,
+           last_owner.city AS last_owner_city, last_owner.name AS last_owner_name
+    FROM picks p
+    LEFT JOIN teams orig ON p.original_team_id = orig.id
+    LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
+    WHERE p.team_id = ? 
+    ORDER BY p.season_year DESC, p.round ASC
+');
 
 foreach ($teams as &$team) {
     $teamId = (int) $team['id'];
