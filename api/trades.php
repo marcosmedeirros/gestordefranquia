@@ -214,7 +214,8 @@ if ($method === 'GET') {
 
         try {
             $stmtOfferPicks = $pdo->prepare('
-                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                SELECT pk.*, t.city as original_team_city, t.name as original_team_name 
+                FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
@@ -239,7 +240,8 @@ if ($method === 'GET') {
 
         try {
             $stmtRequestPicks = $pdo->prepare('
-                SELECT pk.*, t.city, t.name as team_name FROM picks pk
+                SELECT pk.*, t.city as original_team_city, t.name as original_team_name 
+                FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL

@@ -25,6 +25,20 @@ const formatTradePlayerDisplay = (player) => {
   return `${name} (${position}, ${ovr}/${age})`;
 };
 
+const formatTradePickDisplay = (pick) => {
+  if (!pick) return '';
+  const year = pick.season_year || '?';
+  const round = pick.round || '?';
+  let display = `Pick ${year} - ${round}ª rodada`;
+  
+  // Se a pick tem original_team_city e foi trocada, mostrar (via Team)
+  if (pick.original_team_city && pick.original_team_name) {
+    display += ` <span class="text-info">(via ${pick.original_team_city} ${pick.original_team_name})</span>`;
+  }
+  
+  return display;
+};
+
 function clearCounterProposalState() {
   const modalEl = document.getElementById('proposeTradeModal');
   if (modalEl && modalEl.dataset.counterTo) {
@@ -432,7 +446,7 @@ function createTradeCard(trade, type) {
         <h6 class="text-orange mb-2">${fromTeam} oferece:</h6>
         <ul class="list-unstyled text-white">
           ${trade.offer_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${trade.offer_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> ${formatTradePickDisplay(p)}</li>`).join('')}
           ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
       </div>
@@ -440,7 +454,7 @@ function createTradeCard(trade, type) {
         <h6 class="text-orange mb-2">${toTeam} envia:</h6>
         <ul class="list-unstyled text-white">
           ${trade.request_players.map(p => `<li><i class="bi bi-person-fill text-orange"></i> ${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> Pick ${p.season_year} - ${p.round}ª rodada</li>`).join('')}
+          ${trade.request_picks.map(p => `<li><i class="bi bi-trophy-fill text-orange"></i> ${formatTradePickDisplay(p)}</li>`).join('')}
           ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li class="text-muted">Nenhum item</li>' : ''}
         </ul>
       </div>

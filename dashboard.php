@@ -159,7 +159,9 @@ $stmtAllPlayers->execute([$team['id']]);
 $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
 
 $stmtPicks = $pdo->prepare("
-    SELECT p.season_year, p.round, orig.city, orig.name AS team_name
+    SELECT p.season_year, p.round, 
+           orig.city, orig.name AS team_name,
+           p.original_team_id, p.team_id
     FROM picks p
     JOIN teams orig ON p.original_team_id = orig.id
     WHERE p.team_id = ?
@@ -1242,12 +1244,12 @@ try {
 
             // Picks por round
             const round1Years = picksData.filter(pk => pk.round == 1).map(pk => {
-                const isOwn = (pk.city === teamMeta.city && pk.team_name === teamMeta.teamName);
-                return `-${pk.season_year}${isOwn ? '' : ` (via ${pk.city} ${pk.team_name})`} `;
+                const isTraded = (pk.original_team_id != pk.team_id);
+                return `-${pk.season_year}${isTraded ? ` (via ${pk.city} ${pk.team_name})` : ''} `;
             });
             const round2Years = picksData.filter(pk => pk.round == 2).map(pk => {
-                const isOwn = (pk.city === teamMeta.city && pk.team_name === teamMeta.teamName);
-                return `-${pk.season_year}${isOwn ? '' : ` (via ${pk.city} ${pk.team_name})`} `;
+                const isTraded = (pk.original_team_id != pk.team_id);
+                return `-${pk.season_year}${isTraded ? ` (via ${pk.city} ${pk.team_name})` : ''} `;
             });
 
             const lines = [];
