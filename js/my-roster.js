@@ -165,7 +165,7 @@ function renderPlayers(players) {
   tbody.innerHTML = '';
   
   // Renderizar cards (mobile) com ordenação fixa
-  const cardsContainer = document.getElementById('players-cards-mobile');
+  let cardsContainer = document.getElementById('players-cards-mobile');
   cardsContainer.innerHTML = '';
 
   sorted.forEach(p => {
@@ -278,14 +278,12 @@ function renderPlayers(players) {
   
   // Mostrar lista e ocultar loading
   document.getElementById('players-status').style.display = 'none';
-  // A tabela (players-list) usa d-md-block para mostrar só em desktop
-  // Os cards (players-cards-mobile) usam d-md-none para mostrar só em mobile
-  // Só precisamos remover o d-none inicial se existir na tabela
+  
+  // Mostrar tabela e cards (CSS responsivo controla qual aparece)
   const playersList = document.getElementById('players-list');
-  if (playersList) {
-    playersList.classList.remove('d-none');
-    playersList.classList.add('d-md-block');
-  }
+  const playersCards = document.getElementById('players-cards-mobile');
+  if (playersList) playersList.style.display = '';
+  if (playersCards) playersCards.style.display = '';
 
   // Atualizar stats
   updateRosterStats();
@@ -308,6 +306,7 @@ async function loadPlayers() {
   
   const statusEl = document.getElementById('players-status');
   const listEl = document.getElementById('players-list');
+  const cardsEl = document.getElementById('players-cards-mobile');
   
   if (!teamId) {
     console.error('Sem teamId!');
@@ -318,9 +317,10 @@ async function loadPlayers() {
           Você ainda não possui um time. Crie um time para gerenciar seu elenco.
         </div>
       `;
-      statusEl.classList.remove('d-none');
+      statusEl.style.display = 'block';
     }
-    if (listEl) listEl.classList.add('d-none');
+    if (listEl) listEl.style.display = 'none';
+    if (cardsEl) cardsEl.style.display = 'none';
     return;
   }
   
@@ -329,9 +329,10 @@ async function loadPlayers() {
       <div class="spinner-border text-orange" role="status"></div>
       <p class="text-light-gray mt-2">Carregando jogadores...</p>
     `;
-    statusEl.classList.remove('d-none');
+    statusEl.style.display = 'block';
   }
-  if (listEl) listEl.classList.add('d-none');
+  if (listEl) listEl.style.display = 'none';
+  if (cardsEl) cardsEl.style.display = 'none';
   
   try {
     console.log('Fetching:', `/api/players.php?team_id=${teamId}`);
@@ -343,8 +344,8 @@ async function loadPlayers() {
     currentSort = { field: 'role', ascending: true };
     updateSortIcons();
     renderPlayers(allPlayers);
-    if (statusEl) statusEl.classList.add('d-none');
-    if (listEl) listEl.classList.remove('d-none');
+    if (statusEl) statusEl.style.display = 'none';
+    // Não mexer no display de listEl e cardsEl - deixar o CSS responsivo controlar
   } catch (err) {
     console.error('Erro ao carregar:', err);
     if (statusEl) {
