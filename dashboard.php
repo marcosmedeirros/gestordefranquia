@@ -264,39 +264,66 @@ try {
     // Tabela league_settings pode não existir ainda ou coluna trades_enabled não migrada
 }
 
-// Buscar draft ativo e próxima pick
-$activeDraft = null;
+// Buscar draft inicial ativo e próximas picks
+$activeInitDraftSession = null;
 $currentDraftPick = null;
+$nextDraftPick = null;
+$remainingDraftPicks = 0;
+$initDraftTeamsPerRound = 0;
 try {
-    // Buscar próxima pick diretamente (query simplificada e correta)
-    $stmtCurrentPick = $pdo->prepare("
-        SELECT 
-            do.round,
-            do.pick_position,
-            t.id as team_id,
-            t.city,
-            t.name as team_name,
-            t.photo_url,
-            u.name as owner_name
-        FROM draft_order do
-        JOIN draft_sessions ds ON do.draft_session_id = ds.id
-        JOIN teams t ON do.team_id = t.id
-        LEFT JOIN users u ON t.user_id = u.id
-        WHERE ds.league = ? 
-          AND ds.status = 'in_progress'
-          AND do.picked_player_id IS NULL
-        ORDER BY do.round ASC, do.pick_position ASC
-        LIMIT 1
-    ");
-    $stmtCurrentPick->execute([$team['league']]);
-    $currentDraftPick = $stmtCurrentPick->fetch();
-    
-    // Se encontrou pick pendente, considera que há draft ativo
-    if ($currentDraftPick) {
-        $activeDraft = true;
+    $stmtInitSession = $pdo->prepare("SELECT * FROM initdraft_sessions WHERE league = ? AND status = 'in_progress' ORDER BY id DESC LIMIT 1");
+    $stmtInitSession->execute([$team['league']]);
+    $activeInitDraftSession = $stmtInitSession->fetch(PDO::FETCH_ASSOC);
+
+    if ($activeInitDraftSession) {
+        $sessionId = (int)$activeInitDraftSession['id'];
+
+        $stmtCurrentPick = $pdo->prepare("
+            SELECT io.*, t.city, t.name AS team_name, t.photo_url, u.name AS owner_name
+            FROM initdraft_order io
+            JOIN teams t ON io.team_id = t.id
+            LEFT JOIN users u ON t.user_id = u.id
+            WHERE io.initdraft_session_id = ?
+              AND io.picked_player_id IS NULL
+            ORDER BY io.round ASC, io.pick_position ASC
+            LIMIT 1
+        ");
+        $stmtCurrentPick->execute([$sessionId]);
+        $currentDraftPick = $stmtCurrentPick->fetch(PDO::FETCH_ASSOC);
+
+        if ($currentDraftPick) {
+            $stmtNextPick = $pdo->prepare("
+                SELECT io.*, t.city, t.name AS team_name, t.photo_url
+                FROM initdraft_order io
+                JOIN teams t ON io.team_id = t.id
+                WHERE io.initdraft_session_id = ?
+                  AND io.picked_player_id IS NULL
+                ORDER BY io.round ASC, io.pick_position ASC
+                LIMIT 1 OFFSET 1
+            ");
+            $stmtNextPick->execute([$sessionId]);
+            $nextDraftPick = $stmtNextPick->fetch(PDO::FETCH_ASSOC);
+
+            $stmtRemaining = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL');
+            $stmtRemaining->execute([$sessionId]);
+            $remainingDraftPicks = (int)$stmtRemaining->fetchColumn();
+
+            $stmtTeamsPerRound = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = 1');
+            $stmtTeamsPerRound->execute([$sessionId]);
+            $initDraftTeamsPerRound = (int)$stmtTeamsPerRound->fetchColumn();
+        }
     }
 } catch (Exception $e) {
-    // Silencioso - não há draft ativo
+    // Silencioso
+}
+$activeDraft = $activeInitDraftSession && $currentDraftPick;
+$currentDraftOverallNumber = null;
+$nextDraftOverallNumber = null;
+if ($currentDraftPick && $initDraftTeamsPerRound > 0) {
+    $currentDraftOverallNumber = (($currentDraftPick['round'] - 1) * $initDraftTeamsPerRound) + $currentDraftPick['pick_position'];
+}
+if ($nextDraftPick && $initDraftTeamsPerRound > 0) {
+    $nextDraftOverallNumber = (($nextDraftPick['round'] - 1) * $initDraftTeamsPerRound) + $nextDraftPick['pick_position'];
 }
 
 // Buscar Top 5 do Ranking
@@ -473,6 +500,26 @@ try {
 
         .winner-item:hover {
             transform: scale(1.02);
+        }
+
+        .draft-live-card {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(0, 0, 0, 0.6));
+            border: 1px solid rgba(255, 107, 0, 0.4);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .draft-live-card .on-clock-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--fba-orange);
+        }
+
+        .draft-live-card .draft-meta {
+            font-size: 0.9rem;
+            color: var(--light-gray);
         }
 
         @media (max-width: 768px) {
@@ -767,6 +814,51 @@ try {
                 </div>
             </div>
         </div>
+
+        <?php if ($activeDraft && $currentDraftPick): ?>
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="draft-live-card d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>" class="on-clock-avatar">
+                        <div>
+                            <p class="text-uppercase text-light-gray mb-1 small">Na vez agora</p>
+                            <h4 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h4>
+                            <div class="draft-meta">
+                                <?php if ($currentDraftOverallNumber): ?>Pick geral #<?= (int)$currentDraftOverallNumber ?> · <?php endif; ?>
+                                Rodada <?= (int)$currentDraftPick['round'] ?> · Pick <?= (int)$currentDraftPick['pick_position'] ?>
+                                <?php if (!empty($currentDraftPick['owner_name'])): ?>
+                                    · Manager: <?= htmlspecialchars($currentDraftPick['owner_name']) ?>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <?php if ($nextDraftPick): ?>
+                        <p class="text-uppercase text-light-gray mb-1 small">Próxima pick</p>
+                        <div class="text-white fw-bold">
+                            <?php if ($nextDraftOverallNumber): ?>Pick geral #<?= (int)$nextDraftOverallNumber ?> · <?php endif; ?>
+                            R<?= (int)$nextDraftPick['round'] ?> · Pick <?= (int)$nextDraftPick['pick_position'] ?> — <?= htmlspecialchars($nextDraftPick['city'] . ' ' . $nextDraftPick['team_name']) ?>
+                        </div>
+                        <?php else: ?>
+                        <p class="text-light-gray mb-0">Você está acompanhando a última pick desta rodada.</p>
+                        <?php endif; ?>
+                        <div class="text-light-gray small mt-2"><i class="bi bi-list-ol me-1"></i><?= (int)$remainingDraftPicks ?> picks restantes</div>
+                    </div>
+                    <div class="text-end d-flex flex-column gap-2">
+                        <a href="/drafts.php" class="btn btn-outline-light">
+                            <i class="bi bi-trophy me-2"></i>Abrir sala do draft
+                        </a>
+                        <?php if (($user['user_type'] ?? '') === 'admin' && $activeInitDraftSession): ?>
+                        <button class="btn btn-orange text-dark fw-bold" type="button" onclick="openAdminInitDraftModal()">
+                            <i class="bi bi-hand-index-thumb me-2"></i>Escolher como admin
+                        </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Draft e Trades (lado a lado) -->
         <div class="row g-4 mb-4">
@@ -1184,6 +1276,44 @@ try {
 
     </div>
 
+    <?php if (($user['user_type'] ?? '') === 'admin'): ?>
+    <div class="modal fade" id="adminInitDraftModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-hand-index-thumb me-2 text-orange"></i>Escolher jogador (Admin)
+                    </h5>
+                    <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-light-gray small">Use esta opção apenas quando o time responsável não estiver disponível. As picks são registradas imediatamente.</p>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Jogador</th>
+                                    <th>Pos</th>
+                                    <th>OVR</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminInitDraftPlayers">
+                                <tr>
+                                    <td colspan="4" class="text-center text-light-gray">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer border-orange">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script src="/js/pwa.js"></script>
@@ -1321,6 +1451,78 @@ try {
                 alert('Time copiado para a área de transferência!');
             }
         });
+
+        const INIT_DRAFT_SESSION_ID = <?= $activeInitDraftSession ? (int)$activeInitDraftSession['id'] : 'null'; ?>;
+        const IS_ADMIN_USER = <?= (($user['user_type'] ?? '') === 'admin') ? 'true' : 'false'; ?>;
+        const escapeHtml = (value = '') => String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        async function openAdminInitDraftModal() {
+            if (!IS_ADMIN_USER) return;
+            if (!INIT_DRAFT_SESSION_ID) {
+                alert('Nenhum draft inicial ativo.');
+                return;
+            }
+            await loadAdminInitDraftPlayers();
+            const modalEl = document.getElementById('adminInitDraftModal');
+            if (!modalEl) return;
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+
+        async function loadAdminInitDraftPlayers() {
+            const tbody = document.getElementById('adminInitDraftPlayers');
+            if (!tbody || !INIT_DRAFT_SESSION_ID) return;
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-light-gray">Carregando jogadores...</td></tr>';
+            try {
+                const res = await fetch(`/api/initdraft.php?action=available_players&session_id=${INIT_DRAFT_SESSION_ID}`);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao buscar jogadores');
+                const players = data.players || [];
+                if (players.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-light-gray">Nenhum jogador disponível.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = players.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.name)}</td>
+                        <td><span class="badge bg-orange">${escapeHtml(p.position)}</span></td>
+                        <td>${escapeHtml(p.ovr)}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-success" onclick="adminMakeInitDraftPick(${p.id}, this)">
+                                <i class="bi bi-check2"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">${err.message}</td></tr>`;
+            }
+        }
+
+        async function adminMakeInitDraftPick(playerId, buttonEl) {
+            if (!IS_ADMIN_USER || !INIT_DRAFT_SESSION_ID) return;
+            if (!confirm('Confirmar escolha deste jogador?')) return;
+            buttonEl?.classList.add('disabled');
+            try {
+                const res = await fetch('/api/initdraft.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_make_pick', session_id: INIT_DRAFT_SESSION_ID, player_id: playerId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao registrar pick');
+                alert('Pick registrada com sucesso.');
+                location.reload();
+            } catch (err) {
+                alert(err.message);
+                buttonEl?.classList.remove('disabled');
+            }
+        }
     </script>
 </body>
 </html>

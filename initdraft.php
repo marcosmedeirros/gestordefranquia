@@ -28,6 +28,12 @@ if (!$token) {
     .table-dark thead th { color: #fff; }
     .form-label, .form-select, .form-control { color: #fff; }
     .form-select, .form-control { background-color: #0f0f0f; border-color: #444; }
+    .order-list-item { background: transparent; border-color: #333; color: #fff; }
+    .order-list-item .badge { width: 48px; }
+    .order-actions button { min-width: 36px; }
+    .lottery-row { border: 1px solid rgba(255,122,0,0.3); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
+    .lottery-row img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,122,0,0.6); }
+    .lottery-placeholder { border: 1px dashed rgba(255,122,0,0.5); border-radius: 8px; padding: 1.25rem; text-align: center; color: #bbb; }
   </style>
   <script>
     const TOKEN = new URLSearchParams(location.search).get('token');
@@ -38,11 +44,24 @@ if (!$token) {
       return data;
     }
 
-    let gState = { session: null, order: [] };
+    let gState = { session: null, order: [], teams: [] };
+    let manualOrderIds = [];
+    let lotteryTimers = [];
+    let activeOrderTab = 'manual';
+
+    function escapeHtml(str = '') {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     async function loadState() {
       const data = await api(`/api/initdraft.php?action=state&token=${TOKEN}`);
       gState = data;
+      gState.teams = data.teams || [];
       render();
     }
 
@@ -119,7 +138,7 @@ if (!$token) {
         actions.innerHTML = `
           <button class="btn btn-outline-light me-2" onclick="openImport()"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
           <button class="btn btn-outline-info me-2" onclick="openAddPlayer()"><i class="bi bi-person-plus"></i> Adicionar Jogador</button>
-          <button class="btn btn-outline-warning me-2" onclick="randomizeOrder()"><i class="bi bi-shuffle"></i> Sortear Ordem</button>
+          <button class="btn btn-outline-warning me-2" onclick="openOrderModal()"><i class="bi bi-shuffle"></i> Definir / Sortear Ordem</button>
           <button class="btn btn-success" onclick="startDraft()"><i class="bi bi-play"></i> Iniciar Draft</button>
         `;
       } else if (s.status === 'in_progress') {
@@ -235,11 +254,159 @@ if (!$token) {
       URL.revokeObjectURL(url);
     }
 
-    async function randomizeOrder() {
+    function getRoundOneOrderIds() {
+      const roundOne = (gState.order || []).filter(p => p.round === 1).sort((a,b) => a.pick_position - b.pick_position);
+      if (roundOne.length > 0) {
+        return roundOne.map(p => parseInt(p.team_id, 10));
+      }
+      return (gState.teams || []).map(t => parseInt(t.id, 10));
+    }
+
+    function openOrderModal() {
+      if (!gState.teams || gState.teams.length === 0) {
+        alert('Nenhum time encontrado para esta liga.');
+        return;
+      }
+      manualOrderIds = getRoundOneOrderIds();
+      renderManualOrderList();
+      resetLotteryView();
+      const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+      const manualTabTrigger = document.querySelector('#orderTabs button[data-bs-target="#manualTab"]');
+      if (manualTabTrigger) {
+        new bootstrap.Tab(manualTabTrigger).show();
+      }
+      modal.show();
+      setActiveOrderTab('manual');
+    }
+
+    function setActiveOrderTab(tab) {
+      activeOrderTab = tab;
+      const saveBtn = document.getElementById('manualOrderSave');
+      const randomBtn = document.getElementById('lotteryActionBtn');
+      if (tab === 'manual') {
+        saveBtn?.classList.remove('d-none');
+        randomBtn?.classList.add('d-none');
+      } else {
+        saveBtn?.classList.add('d-none');
+        randomBtn?.classList.remove('d-none');
+      }
+    }
+
+    function renderManualOrderList() {
+      const list = document.getElementById('manualOrderList');
+      if (!list) return;
+      const teamsById = Object.fromEntries((gState.teams || []).map(t => [parseInt(t.id, 10), t]));
+      list.innerHTML = manualOrderIds.map((teamId, idx) => {
+        const t = teamsById[teamId];
+        const label = t ? `${t.city} ${t.name}` : `Time #${teamId}`;
+        const safeLabel = escapeHtml(label);
+        const ownerInfo = t && t.owner_name ? `<div class="text-muted small">Manager: ${escapeHtml(t.owner_name)}</div>` : '';
+        return `
+          <li class="list-group-item order-list-item d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <span class="badge bg-orange">#${idx + 1}</span>
+              <div>
+                <strong>${safeLabel}</strong>
+                ${ownerInfo}
+              </div>
+            </div>
+            <div class="order-actions btn-group">
+              <button class="btn btn-sm btn-outline-light" ${idx === 0 ? 'disabled' : ''} onclick="moveManualTeam(${idx}, -1)"><i class="bi bi-arrow-up"></i></button>
+              <button class="btn btn-sm btn-outline-light" ${idx === manualOrderIds.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${idx}, 1)"><i class="bi bi-arrow-down"></i></button>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+
+    function moveManualTeam(index, direction) {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= manualOrderIds.length) return;
+      [manualOrderIds[index], manualOrderIds[targetIndex]] = [manualOrderIds[targetIndex], manualOrderIds[index]];
+      renderManualOrderList();
+    }
+
+    async function submitManualOrder() {
+      if (manualOrderIds.length === 0) {
+        alert('Defina a ordem completa dos times.');
+        return;
+      }
+      if (manualOrderIds.length !== (gState.teams || []).length) {
+        alert('A ordem precisa incluir todos os times.');
+        return;
+      }
       try {
-        await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'randomize_order', token: TOKEN }) });
+        await api('/api/initdraft.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_manual_order', token: TOKEN, team_ids: manualOrderIds })
+        });
+        bootstrap.Modal.getInstance(document.getElementById('orderModal'))?.hide();
         await loadState();
-      } catch (e) { alert(e.message); }
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function resetLotteryView() {
+      clearLotteryAnimation();
+      const stage = document.getElementById('lotteryStage');
+      const container = document.getElementById('lotteryResults');
+      if (stage) stage.innerHTML = '<div class="lottery-placeholder">Clique em "Sortear Ordem" para iniciar o sorteio animado.</div>';
+      if (container) container.innerHTML = '';
+    }
+
+    function clearLotteryAnimation() {
+      lotteryTimers.forEach(timer => clearTimeout(timer));
+      lotteryTimers = [];
+    }
+
+    async function handleRandomizeOrder() {
+      try {
+        const stage = document.getElementById('lotteryStage');
+        if (stage) stage.innerHTML = '<div class="text-center"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 mb-0">Sorteando ordem...</p></div>';
+        const data = await api('/api/initdraft.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'randomize_order', token: TOKEN }) });
+        const details = data.order_details || [];
+        playLotteryAnimation(details);
+        // Recarrega estado após a animação para evitar travamentos na renderização
+        const delay = Math.max(2000, details.length * 700);
+        setTimeout(() => { loadState(); }, delay);
+      } catch (e) {
+        alert(e.message);
+        resetLotteryView();
+      }
+    }
+
+    function playLotteryAnimation(orderDetails) {
+      resetLotteryView();
+      const container = document.getElementById('lotteryResults');
+      const stage = document.getElementById('lotteryStage');
+      if (!orderDetails || orderDetails.length === 0) {
+        if (stage) stage.innerHTML = '<div class="alert alert-warning">Não foi possível obter a ordem sorteada.</div>';
+        return;
+      }
+      orderDetails.forEach((team, idx) => {
+        const timer = setTimeout(() => {
+          const teamLabel = `${team.city ?? 'Time'} ${team.name ?? ''}`.trim();
+          if (stage) stage.innerHTML = `<div class="text-center"><small class="text-uppercase text-light">Pick #${idx + 1}</small><h5 class="mt-1 text-orange">${escapeHtml(teamLabel)}</h5></div>`;
+          if (container) {
+            const row = document.createElement('div');
+            row.className = 'lottery-row';
+            row.innerHTML = `
+              <span class="badge bg-orange fs-6">#${idx + 1}</span>
+              <img src="${team.photo_url || '/img/default-team.png'}" alt="${escapeHtml(teamLabel)}">
+              <div>
+                <div class="fw-bold">${escapeHtml(teamLabel)}</div>
+              </div>
+            `;
+            container.appendChild(row);
+          }
+          if (idx === orderDetails.length - 1 && stage) {
+            stage.innerHTML = '<div class="alert alert-success mb-0">Sorteio concluído! A ordem foi aplicada ao draft.</div>';
+          }
+        }, idx * 700);
+        lotteryTimers.push(timer);
+      });
     }
     async function startDraft() {
       try {
@@ -281,7 +448,19 @@ if (!$token) {
       } catch (e) { alert(e.message); }
     }
 
-    window.addEventListener('DOMContentLoaded', loadState);
+    window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('#orderTabs button[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', (event) => {
+          const target = event.target.getAttribute('data-bs-target');
+          setActiveOrderTab(target === '#manualTab' ? 'manual' : 'random');
+        });
+      });
+      const orderModalEl = document.getElementById('orderModal');
+      if (orderModalEl) {
+        orderModalEl.addEventListener('hidden.bs.modal', resetLotteryView);
+      }
+      loadState();
+    });
   </script>
 </head>
 <body>
@@ -382,6 +561,47 @@ if (!$token) {
             <button class="btn btn-primary" type="submit">Adicionar</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Modal -->
+  <div class="modal fade" id="orderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-orange">Configurar Ordem do Draft</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-pills mb-3" id="orderTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#manualTab" type="button" role="tab">Ordem Manual</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#randomTab" type="button" role="tab">Sorteio Animado</button>
+            </li>
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="manualTab" role="tabpanel">
+              <div class="alert alert-secondary">Utilize os botões de seta para definir a ordem da primeira rodada. As demais rodadas seguirão o formato snake automaticamente.</div>
+              <ul class="list-group" id="manualOrderList"></ul>
+            </div>
+            <div class="tab-pane fade" id="randomTab" role="tabpanel">
+              <div id="lotteryStage" class="mb-3"></div>
+              <div id="lotteryResults"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Fechar</button>
+          <button class="btn btn-outline-warning d-none" id="lotteryActionBtn" type="button" onclick="handleRandomizeOrder()">
+            <i class="bi bi-shuffle me-2"></i>Sortear Ordem
+          </button>
+          <button class="btn btn-success" id="manualOrderSave" type="button" onclick="submitManualOrder()">
+            <i class="bi bi-check2-circle me-2"></i>Aplicar Ordem Manual
+          </button>
+        </div>
       </div>
     </div>
   </div>
