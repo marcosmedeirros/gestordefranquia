@@ -17,17 +17,17 @@ if (!$token) {
     <title>Draft Inicial</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
-            --initdraft-bg: #05060b;
-            --initdraft-panel: rgba(15, 16, 25, 0.92);
-            --initdraft-panel-alt: rgba(22, 24, 39, 0.95);
-            --initdraft-border: rgba(255, 255, 255, 0.08);
-            --initdraft-muted: #a6acc3;
-            --initdraft-orange: #ff7a00;
+            --initdraft-bg: #000000;
+            --initdraft-panel: #141414;
+            --initdraft-panel-alt: #1a1a1a;
+            --initdraft-border: #2a2a2a;
+            --initdraft-muted: #cfcfcf;
+            --initdraft-orange: #fc0025;
             --initdraft-green: #38d07d;
         }
 
@@ -36,8 +36,11 @@ if (!$token) {
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: radial-gradient(circle at top, rgba(255, 122, 0, 0.15), transparent 55%), var(--initdraft-bg);
+            font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+            background:
+                radial-gradient(circle at 20% 25%, rgba(252, 0, 37, 0.14), transparent 55%),
+                radial-gradient(circle at 85% 70%, rgba(252, 0, 37, 0.1), transparent 55%),
+                linear-gradient(135deg, #000000 0%, #0a0a0c 55%, #000000 100%);
             color: #fff;
             min-height: 100vh;
         }
@@ -53,7 +56,7 @@ if (!$token) {
         }
 
         .hero-card {
-            background: linear-gradient(120deg, rgba(255, 122, 0, 0.25), rgba(7, 7, 13, 0.85));
+            background: linear-gradient(120deg, rgba(252, 0, 37, 0.25), rgba(7, 7, 13, 0.85));
             border-radius: 28px;
             padding: 2rem;
             margin-bottom: 1.5rem;
@@ -138,7 +141,7 @@ if (!$token) {
         }
 
         .progress-bar {
-            background: linear-gradient(90deg, var(--initdraft-orange), #ffba42);
+            background: linear-gradient(90deg, var(--initdraft-orange), #ff2a44);
         }
 
         .table-dark {
@@ -231,6 +234,39 @@ if (!$token) {
             border-color: var(--initdraft-orange);
             box-shadow: none;
             background: rgba(0, 0, 0, 0.35);
+            color: #fff;
+        }
+
+        .text-muted {
+            color: #c5cada !important;
+        }
+
+        .alert-warning,
+        .alert-secondary,
+        .alert-info,
+        .alert-danger,
+        .alert-success {
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .form-control,
+        .form-select {
+            background: rgba(0, 0, 0, 0.35);
+            border-color: rgba(255, 255, 255, 0.18);
+            color: #fff;
+        }
+
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .badge.bg-secondary,
+        .badge.bg-success,
+        .badge.bg-danger,
+        .badge.bg-info,
+        .badge.bg-warning {
             color: #fff;
         }
 
@@ -653,7 +689,7 @@ if (!$token) {
                         <div class="d-flex align-items-center gap-3 flex-grow-1">
                             <div class="order-rank">${index + 1}</div>
                             <div class="team-chip">
-                                <img src="${team.photo_url || 'https://placehold.co/60x60?text=T'}" alt="${team.name || 'Time'}" onerror="this.src='https://placehold.co/60x60?text=T'">
+                                <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
                                 <div>
                                     <strong>${team.city || ''} ${team.name || ''}</strong>
                                     <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
@@ -758,7 +794,7 @@ if (!$token) {
                                 <td class="fw-semibold">${pick.pick_position}</td>
                                 <td>
                                     <div class="team-chip">
-                                        <img src="${pick.team_photo || 'https://placehold.co/60x60?text=T'}" alt="${pick.team_name}" onerror="this.src='https://placehold.co/60x60?text=T'">
+                                        <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name}" onerror="this.src='/img/default-team.png'">
                                         <div>
                                             <strong>${pick.team_city || ''} ${pick.team_name || ''}</strong>
                                             <div class="small text-muted">${pick.team_owner || ''}</div>
