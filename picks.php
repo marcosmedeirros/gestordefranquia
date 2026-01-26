@@ -212,14 +212,10 @@ $picks = $stmtPicks->fetchAll();
                                     <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
                                 </td>
                                 <td class="text-light-gray">
-                                    <?php if ((int)($pick['last_owner_team_id'] ?? 0) === (int)$team['id']): ?>
+                                    <?php if ((int)$pick['original_team_id'] === (int)$team['id']): ?>
                                         <span class="badge bg-success">Própria</span>
-                                    <?php elseif (!empty($pick['last_owner_city'])): ?>
-                                        via <?= htmlspecialchars($pick['last_owner_city'] . ' ' . $pick['last_owner_name']) ?>
-                                    <?php elseif (!empty($pick['original_city'])): ?>
-                                        via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?>
                                     <?php else: ?>
-                                        <span class="badge bg-secondary">-</span>
+                                        <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end">

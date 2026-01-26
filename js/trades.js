@@ -29,11 +29,20 @@ const formatTradePickDisplay = (pick) => {
   if (!pick) return '';
   const year = pick.season_year || '?';
   const round = pick.round || '?';
-  let display = `Pick ${year} - ${round}ª rodada`;
   
-  // Se a pick tem original_team_city e foi trocada, mostrar (via Team)
-  if (pick.original_team_city && pick.original_team_name) {
-    display += ` <span class="text-info">(via ${pick.original_team_city} ${pick.original_team_name})</span>`;
+  // Mostrar de quem é a pick (time original)
+  const originalTeam = pick.original_team_city && pick.original_team_name 
+    ? `${pick.original_team_city} ${pick.original_team_name}` 
+    : 'Time';
+  
+  let display = `Pick ${year} R${round} (${originalTeam})`;
+  
+  // Se a pick foi trocada (team_id != original_team_id), mostrar "via"
+  if (pick.team_id && pick.original_team_id && pick.team_id != pick.original_team_id) {
+    // Mostrar quem enviou a pick (last_owner)
+    if (pick.last_owner_city && pick.last_owner_name) {
+      display += ` <span class="text-info">via ${pick.last_owner_city} ${pick.last_owner_name}</span>`;
+    }
   }
   
   return display;

@@ -214,10 +214,13 @@ if ($method === 'GET') {
 
         try {
             $stmtOfferPicks = $pdo->prepare('
-                SELECT pk.*, t.city as original_team_city, t.name as original_team_name 
+                SELECT pk.*, 
+                       t.city as original_team_city, t.name as original_team_name,
+                       lo.city as last_owner_city, lo.name as last_owner_name
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
+                LEFT JOIN teams lo ON pk.last_owner_team_id = lo.id
                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
             ');
             $stmtOfferPicks->execute([$trade['id']]);
@@ -240,10 +243,13 @@ if ($method === 'GET') {
 
         try {
             $stmtRequestPicks = $pdo->prepare('
-                SELECT pk.*, t.city as original_team_city, t.name as original_team_name 
+                SELECT pk.*, 
+                       t.city as original_team_city, t.name as original_team_name,
+                       lo.city as last_owner_city, lo.name as last_owner_name
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
+                LEFT JOIN teams lo ON pk.last_owner_team_id = lo.id
                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
             ');
             $stmtRequestPicks->execute([$trade['id']]);

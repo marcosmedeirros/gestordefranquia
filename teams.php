@@ -253,7 +253,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         <div class="card bg-dark-panel border-orange">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-dark table-hover mb-0">
+                    <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                             <tr>
                                 <th class="text-white fw-bold" style="width: 60px;">Logo</th>
@@ -264,7 +264,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="teamsTableBody">
                             <?php foreach ($teams as $t): ?>
                             <?php
                                 $hasContact = !empty($t['owner_phone_whatsapp']);
@@ -402,23 +402,25 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         // === Busca de Times ===
         const teamSearchInput = document.getElementById('teamSearchInput');
-        const teamsTable = document.querySelector('.table-responsive tbody');
-        const teamRows = teamsTable ? Array.from(teamsTable.querySelectorAll('tr')) : [];
+        const teamsTableBody = document.getElementById('teamsTableBody');
+        const teamRows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')) : [];
 
-        teamSearchInput?.addEventListener('input', function() {
-            const term = this.value.toLowerCase().trim();
-            
-            teamRows.forEach(row => {
-                const teamName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
-                const ownerName = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+        if (teamSearchInput && teamRows.length > 0) {
+            teamSearchInput.addEventListener('input', function() {
+                const term = this.value.toLowerCase().trim();
                 
-                if (term === '' || teamName.includes(term) || ownerName.includes(term)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+                teamRows.forEach(row => {
+                    const teamName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
+                    const ownerName = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+                    
+                    if (term === '' || teamName.includes(term) || ownerName.includes(term)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
             });
-        });
+        }
 
         // === Busca de Jogadores ===
         const searchInput = document.getElementById('playerSearchInput');
