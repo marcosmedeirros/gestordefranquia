@@ -403,22 +403,41 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         // === Busca de Times ===
         const teamSearchInput = document.getElementById('teamSearchInput');
         const teamsTableBody = document.getElementById('teamsTableBody');
-        const teamRows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')) : [];
 
-        if (teamSearchInput && teamRows.length > 0) {
+        if (teamSearchInput && teamsTableBody) {
             teamSearchInput.addEventListener('input', function() {
                 const term = this.value.toLowerCase().trim();
+                const rows = teamsTableBody.querySelectorAll('tr');
+                let visibleCount = 0;
                 
-                teamRows.forEach(row => {
-                    const teamName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
-                    const ownerName = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+                rows.forEach(row => {
+                    // Busca em todo o conteúdo da linha (time, cidade, proprietário)
+                    const rowText = row.textContent.toLowerCase();
                     
-                    if (term === '' || teamName.includes(term) || ownerName.includes(term)) {
+                    if (term === '' || rowText.includes(term)) {
                         row.style.display = '';
+                        visibleCount++;
                     } else {
                         row.style.display = 'none';
                     }
                 });
+                
+                // Feedback visual se não encontrar nada
+                if (visibleCount === 0 && term !== '') {
+                    // Verifica se já existe mensagem de "não encontrado"
+                    let noResultsRow = teamsTableBody.querySelector('.no-results-row');
+                    if (!noResultsRow) {
+                        noResultsRow = document.createElement('tr');
+                        noResultsRow.className = 'no-results-row';
+                        noResultsRow.innerHTML = '<td colspan="6" class="text-center text-light-gray py-3"><i class="bi bi-search me-2"></i>Nenhum time encontrado</td>';
+                        teamsTableBody.appendChild(noResultsRow);
+                    }
+                    noResultsRow.style.display = '';
+                } else {
+                    // Remove mensagem se existir
+                    const noResultsRow = teamsTableBody.querySelector('.no-results-row');
+                    if (noResultsRow) noResultsRow.style.display = 'none';
+                }
             });
         }
 
