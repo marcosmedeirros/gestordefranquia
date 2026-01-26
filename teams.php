@@ -212,44 +212,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             </div>
         </div>
 
-        <div class="card bg-dark-panel border-orange mb-4">
-            <div class="card-header bg-dark border-bottom border-orange">
-                <h5 class="mb-0 text-white"><i class="bi bi-search text-orange me-2"></i>Buscar Jogador</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-6">
-                        <label for="playerSearchInput" class="form-label">Nome do jogador</label>
-                        <input type="text" id="playerSearchInput" class="form-control" placeholder="Digite pelo menos 2 letras">
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-orange w-100" id="playerSearchBtn">
-                            <i class="bi bi-search me-1"></i>Buscar
-                        </button>
-                    </div>
-                </div>
-                <div class="mt-3" id="playerSearchResults" style="display:none;">
-                    <div class="table-responsive">
-                        <table class="table table-dark table-hover mb-0">
-                            <thead style="background: var(--fba-orange); color: #000;">
-                                <tr>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                    <th>Time</th>
-                                    <th>Ação</th>
-                                </tr>
-                            </thead>
-                            <tbody id="playerSearchList"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="text-light-gray mt-2" id="playerSearchEmpty" style="display:none;">
-                    Nenhum jogador encontrado.
-                </div>
-            </div>
-        </div>
-
         <div class="card bg-dark-panel border-orange">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -440,67 +402,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             });
         }
-
-        // === Busca de Jogadores ===
-        const searchInput = document.getElementById('playerSearchInput');
-        const searchBtn = document.getElementById('playerSearchBtn');
-        const searchResults = document.getElementById('playerSearchResults');
-        const searchList = document.getElementById('playerSearchList');
-        const searchEmpty = document.getElementById('playerSearchEmpty');
-        const defaultMessage = '<?= $whatsappDefaultMessage ?>';
-
-        async function buscarJogador() {
-            const term = searchInput.value.trim();
-            searchResults.style.display = 'none';
-            searchEmpty.style.display = 'none';
-            searchList.innerHTML = '';
-
-            if (term.length < 2) {
-                return;
-            }
-
-            try {
-                const res = await fetch(`/api/team.php?action=search_player&query=${encodeURIComponent(term)}`);
-                const data = await res.json();
-                const players = data.players || [];
-
-                if (!players.length) {
-                    searchEmpty.style.display = 'block';
-                    return;
-                }
-
-                players.forEach(p => {
-                    const teamName = `${p.city} ${p.team_name}`;
-                    const whatsappLink = p.owner_phone_whatsapp
-                        ? `https://api.whatsapp.com/send/?phone=${encodeURIComponent(p.owner_phone_whatsapp)}&text=${defaultMessage}&type=phone_number&app_absent=0`
-                        : '';
-                    searchList.innerHTML += `
-                        <tr>
-                            <td><strong>${p.name}</strong></td>
-                            <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
-                            <td>${p.age}</td>
-                            <td>${teamName}</td>
-                            <td>
-                                ${whatsappLink ? `
-                                <a class="btn btn-sm btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener">
-                                    <i class="bi bi-whatsapp"></i> Falar
-                                </a>` : '<span class="text-muted">Sem contato</span>'}
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                searchResults.style.display = 'block';
-            } catch (err) {
-                searchEmpty.textContent = 'Erro ao buscar jogadores.';
-                searchEmpty.style.display = 'block';
-            }
-        }
-
-        searchBtn.addEventListener('click', buscarJogador);
-        searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') buscarJogador();
-        });
     </script>
     <script src="/js/pwa.js"></script>
 </body>
