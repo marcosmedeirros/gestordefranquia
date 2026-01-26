@@ -150,20 +150,16 @@ if ($method === 'POST') {
                 $players = $data['players'] ?? [];
                 if (!is_array($players) || count($players) === 0) throw new Exception('Nada para importar');
 
-                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, secondary_position, age, ovr, photo_url, bio, strengths, weaknesses) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                // Campos mínimos: name, position, age, ovr
+                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
                 $count = 0;
                 foreach ($players as $p) {
                     $stmt->execute([
                         $session['season_id'],
                         $p['name'] ?? '',
                         $p['position'] ?? 'SF',
-                        $p['secondary_position'] ?? null,
                         (int)($p['age'] ?? 20),
                         (int)($p['ovr'] ?? 70),
-                        $p['photo_url'] ?? null,
-                        $p['bio'] ?? null,
-                        $p['strengths'] ?? null,
-                        $p['weaknesses'] ?? null,
                     ]);
                     $count++;
                 }
@@ -178,20 +174,69 @@ if ($method === 'POST') {
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
 
-                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, secondary_position, age, ovr, photo_url, bio, strengths, weaknesses) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                // Campos mínimos
+                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
                 $stmt->execute([
                     $session['season_id'],
                     $data['name'],
                     $data['position'],
-                    $data['secondary_position'] ?? null,
                     (int)$data['age'],
                     (int)$data['ovr'],
-                    $data['photo_url'] ?? null,
-                    $data['bio'] ?? null,
-                    $data['strengths'] ?? null,
-                    $data['weaknesses'] ?? null,
                 ]);
                 echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+                break;
+            }
+
+            // ADMIN/TOKEN: importar via CSV (multipart/form-data)
+            case 'import_csv': {
+                $token = $_POST['token'] ?? ($data['token'] ?? null);
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+
+                if (!isset($_FILES['csv_file'])) throw new Exception('Arquivo CSV obrigatório');
+                $file = $_FILES['csv_file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) throw new Exception('Falha no upload');
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                if ($ext !== 'csv') throw new Exception('Arquivo deve ser CSV');
+
+                $handle = fopen($file['tmp_name'], 'r');
+                if (!$handle) throw new Exception('Não foi possível ler o arquivo');
+
+                // Tenta detectar cabeçalho; aceita colunas: name,position,age,ovr
+                $header = fgetcsv($handle, 1000, ',');
+                $hasHeader = false;
+                $map = ['name' => 0, 'position' => 1, 'age' => 2, 'ovr' => 3];
+                if ($header) {
+                    $lower = array_map(fn($x) => strtolower(trim($x)), $header);
+                    if (in_array('name', $lower) && in_array('age', $lower)) {
+                        $hasHeader = true;
+                        $map = [
+                            'name' => array_search('name', $lower),
+                            'position' => array_search('position', $lower),
+                            'age' => array_search('age', $lower),
+                            'ovr' => array_search('ovr', $lower),
+                        ];
+                    } else {
+                        // volta para primeira linha como dados
+                        rewind($handle);
+                    }
+                }
+
+                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
+                $inserted = 0;
+                while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    $name = trim($row[$map['name']] ?? '');
+                    if ($name === '') continue;
+                    $position = strtoupper(trim($row[$map['position']] ?? 'SF'));
+                    if (!in_array($position, ['PG','SG','SF','PF','C'])) $position = 'SF';
+                    $age = (int)($row[$map['age']] ?? 20);
+                    $ovr = (int)($row[$map['ovr']] ?? 70);
+                    $stmt->execute([$session['season_id'], $name, $position, $age, $ovr]);
+                    $inserted++;
+                }
+                fclose($handle);
+
+                echo json_encode(['success' => true, 'imported' => $inserted]);
                 break;
             }
 

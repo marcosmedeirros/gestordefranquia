@@ -40,27 +40,21 @@ CREATE TABLE IF NOT EXISTS initdraft_order (
     INDEX idx_initdraft_order (initdraft_session_id, round, pick_position)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Pool de jogadores do draft inicial (separado do draft_pool de temporada)
+-- Pool de jogadores do draft inicial (campos mínimos)
 CREATE TABLE IF NOT EXISTS initdraft_pool (
     id INT AUTO_INCREMENT PRIMARY KEY,
     season_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
     position ENUM('PG', 'SG', 'SF', 'PF', 'C') NOT NULL,
-    secondary_position ENUM('PG', 'SG', 'SF', 'PF', 'C') NULL,
     age INT NOT NULL,
     ovr INT NOT NULL CHECK (ovr >= 1 AND ovr <= 99),
-    photo_url VARCHAR(255),
-    bio TEXT,
-    strengths TEXT,
-    weaknesses TEXT,
     draft_status ENUM('available', 'drafted') DEFAULT 'available',
     drafted_by_team_id INT NULL,
     draft_order INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
-    FOREIGN KEY (drafted_by_team_id) REFERENCES teams(id) ON DELETE SET NULL,
-    INDEX idx_initdraft_season_status (season_id, draft_status),
-    INDEX idx_initdraft_draft_order (draft_order)
+    INDEX idx_initdraft_pool_season (season_id),
+    INDEX idx_initdraft_pool_status (draft_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Índices auxiliares

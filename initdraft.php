@@ -19,12 +19,15 @@ if (!$token) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body { background: #111; color: #eee; }
+    body { background: #111; color: #fff; }
     .border-orange { border-color: #ff7a00 !important; }
     .text-orange { color: #ff7a00 !important; }
     .bg-orange { background: #ff7a00 !important; color: #111 !important; }
-    .card { background: #1a1a1a; border-color: #333; }
+    .card { background: #1a1a1a; border-color: #333; color: #fff; }
     .table-dark { --bs-table-bg: #101010; }
+    .table-dark thead th { color: #fff; }
+    .form-label, .form-select, .form-control { color: #fff; }
+    .form-select, .form-control { background-color: #0f0f0f; border-color: #444; }
   </style>
   <script>
     const TOKEN = new URLSearchParams(location.search).get('token');
@@ -102,7 +105,7 @@ if (!$token) {
       actions.innerHTML = '';
       if (s.status === 'setup') {
         actions.innerHTML = `
-          <button class="btn btn-outline-light me-2" onclick="openImport()"><i class="bi bi-file-earmark-arrow-up"></i> Importar Jogadores</button>
+          <button class="btn btn-outline-light me-2" onclick="openImport()"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
           <button class="btn btn-outline-info me-2" onclick="openAddPlayer()"><i class="bi bi-person-plus"></i> Adicionar Jogador</button>
           <button class="btn btn-outline-warning me-2" onclick="randomizeOrder()"><i class="bi bi-shuffle"></i> Sortear Ordem</button>
           <button class="btn btn-success" onclick="startDraft()"><i class="bi bi-play"></i> Iniciar Draft</button>
@@ -118,10 +121,8 @@ if (!$token) {
     }
 
     function openImport() {
-      const el = document.getElementById('importModal');
-      const modal = new bootstrap.Modal(el);
-      el.querySelector('textarea').value = '';
-      modal.show();
+      const el = document.getElementById('importCSVModal');
+      new bootstrap.Modal(el).show();
     }
 
     function openAddPlayer() {
@@ -143,21 +144,42 @@ if (!$token) {
       } catch (e) { alert(e.message); }
     }
 
-    async function doImport() {
-      const txt = document.getElementById('importText').value.trim();
-      if (!txt) return;
+    async function submitImportCSV(ev) {
+      ev?.preventDefault();
+      const fileInput = document.getElementById('csvFileInput');
+      const file = fileInput.files[0];
+      if (!file) { alert('Selecione um arquivo CSV'); return; }
+      const fd = new FormData();
+      fd.append('action', 'import_csv');
+      fd.append('token', TOKEN);
+      fd.append('csv_file', file);
       try {
-        const players = JSON.parse(txt); // Espera JSON: [{name,position,age,ovr,...}]
-        await api('/api/initdraft.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'import_players', token: TOKEN, players })
-        });
-        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+        const res = await fetch('/api/initdraft.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Falha ao importar');
+        bootstrap.Modal.getInstance(document.getElementById('importCSVModal')).hide();
         await loadState();
       } catch (e) {
         alert('Erro ao importar: ' + e.message);
       }
+    }
+
+    function downloadCSVTemplate() {
+      const rows = [
+        ['name','position','age','ovr'],
+        ['John Doe','SG',22,78],
+        ['Jane Smith','PF',24,82]
+      ];
+      const csv = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'initdraft_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     async function randomizeOrder() {
@@ -223,22 +245,32 @@ if (!$token) {
     <div id="rounds"></div>
   </div>
 
-  <!-- Import Modal -->
-  <div class="modal fade" id="importModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+  <!-- Import CSV Modal -->
+  <div class="modal fade" id="importCSVModal" tabindex="-1">
+    <div class="modal-dialog">
       <div class="modal-content bg-dark border-orange">
         <div class="modal-header border-orange">
-          <h5 class="modal-title text-orange">Importar Jogadores (JSON)</h5>
+          <h5 class="modal-title text-orange">Importar Jogadores via CSV</h5>
           <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
-          <p>Exemplo: [{"name":"John Doe","position":"SG","age":22,"ovr":78}]</p>
-          <textarea id="importText" class="form-control" rows="10" placeholder='Cole o JSON aqui'></textarea>
-        </div>
-        <div class="modal-footer border-orange">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-primary" onclick="doImport()">Importar</button>
-        </div>
+        <form onsubmit="submitImportCSV(event)">
+          <div class="modal-body">
+            <p class="text-white mb-2">Formato esperado de colunas: <code>name,position,age,ovr</code></p>
+            <div class="mb-3">
+              <label class="form-label text-white">Selecione o arquivo CSV</label>
+              <input type="file" class="form-control" id="csvFileInput" accept=".csv" required />
+            </div>
+            <div class="d-flex justify-content-end">
+              <button type="button" class="btn btn-outline-warning" onclick="downloadCSVTemplate()">
+                <i class="bi bi-download me-2"></i>Baixar Template CSV
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer border-orange">
+            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Importar</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -289,11 +321,7 @@ if (!$token) {
               </div>
               <div class="col-4"><input type="number" name="age" min="16" max="45" class="form-control" placeholder="Idade" required></div>
               <div class="col-4"><input type="number" name="ovr" min="1" max="99" class="form-control" placeholder="OVR" required></div>
-              <div class="col-4"><input name="photo_url" class="form-control" placeholder="Foto (URL)"></div>
-              <div class="col-12"><input name="secondary_position" class="form-control" placeholder="Posição Secundária (opcional)"></div>
-              <div class="col-12"><textarea name="bio" class="form-control" rows="2" placeholder="Bio"></textarea></div>
-              <div class="col-6"><textarea name="strengths" class="form-control" rows="2" placeholder="Forças"></textarea></div>
-              <div class="col-6"><textarea name="weaknesses" class="form-control" rows="2" placeholder="Fraquezas"></textarea></div>
+              <!-- Campos reduzidos conforme solicitado -->
             </div>
           </div>
           <div class="modal-footer border-orange">
