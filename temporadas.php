@@ -186,7 +186,7 @@ if (!$team) {
           `;
         } else {
           // Temporada ativa - mostrar contador e opções
-          renderActiveSeasonView(league, currentSeasonData);
+          await renderActiveSeasonView(league, currentSeasonData);
         }
       } catch (e) {
         console.error(e);
@@ -195,7 +195,7 @@ if (!$team) {
     }
 
     // ========== RENDERIZAR TELA DE TEMPORADA ATIVA ==========
-    function renderActiveSeasonView(league, season) {
+  async function renderActiveSeasonView(league, season) {
       const container = document.getElementById('mainContainer');
       const sprintStartYear = resolveSprintStartYearFromSeason(season);
       // Corrigir exibição do ano: usar fórmula start_year + season_number - 1 quando possível
@@ -207,6 +207,50 @@ if (!$team) {
       const maxSeasons = getMaxSeasonsForLeague(league);
       const sprintCompleted = season.season_number >= maxSeasons;
       
+      // Decidir ação principal da temporada (primeiro ano: configurar draft inicial)
+      let primaryActionHTML = '';
+      if (!sprintCompleted) {
+        if (Number(season.season_number) === 1) {
+          try {
+            const initResp = await api(`initdraft.php?action=session_for_season&season_id=${season.id}`);
+            const session = initResp.session;
+            if (!session) {
+              primaryActionHTML = `
+                <button class="btn btn-orange w-100" onclick="createInitDraft(${season.id})">
+                  <i class="bi bi-gear me-2"></i>Configurar Draft Inicial
+                </button>
+              `;
+            } else if (session.status !== 'completed') {
+              const url = `/initdraft.php?token=${session.access_token}`;
+              primaryActionHTML = `
+                <a class="btn btn-primary w-100" target="_blank" href="${url}">
+                  <i class="bi bi-link-45deg me-2"></i>Abrir Draft Inicial
+                </a>
+              `;
+            } else {
+              primaryActionHTML = `
+                <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
+                  <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+                </button>
+              `;
+            }
+          } catch (e) {
+            // Em caso de erro, mostrar ação padrão
+            primaryActionHTML = `
+              <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
+                <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+              </button>
+            `;
+          }
+        } else {
+          primaryActionHTML = `
+            <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
+              <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+            </button>
+          `;
+        }
+      }
+
       container.innerHTML = `
         <button class="btn btn-back mb-4" onclick="showLeaguesOverview()">
           <i class="bi bi-arrow-left me-2"></i>Voltar
@@ -251,9 +295,7 @@ if (!$team) {
                     <p class="text-light-gray mb-2">Temporada iniciada em:</p>
                     <p class="text-white fw-bold">${new Date(season.created_at).toLocaleString('pt-BR')}</p>
                   </div>
-                  <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
-                    <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
-                  </button>
+                  ${primaryActionHTML}
                 `}
               </div>
             </div>
