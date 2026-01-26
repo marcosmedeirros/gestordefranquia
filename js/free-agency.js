@@ -414,26 +414,29 @@ function renderFreeAgents() {
         return;
     }
 
-    let html = '<div class="row g-3">';
+    // Usar layout de cards responsivo
+    let html = '<div class="row g-2 g-md-3">';
     filtered.forEach(player => {
-        html += '<div class="col-md-6 col-xl-4">';
-        html += '<div class="card bg-dark border border-secondary h-100 text-white">';
-        html += `<div class="card-header bg-dark border-bottom border-secondary">
-            <strong class="text-orange">${player.name}</strong>
-        </div>`;
-        html += '<div class="card-body">';
-        html += `<div class="mb-2 text-light-gray">
-            <i class="bi bi-person me-1"></i>${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos
-        </div>`;
-        html += `<div class="mb-2"><i class="bi bi-star-fill text-warning me-1"></i>OVR ${player.ovr}</div>`;
+        html += '<div class="col-12 col-sm-6 col-xl-4">';
+        html += '<div class="card bg-dark border border-secondary h-100">';
+        html += `<div class="card-body p-2 p-md-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h6 class="mb-1 text-orange fw-bold" style="font-size: 0.95rem;">${player.name}</h6>
+                    <small class="text-light-gray">
+                        ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos
+                    </small>
+                </div>
+                <span class="badge bg-warning text-dark fs-6">${player.ovr}</span>
+            </div>`;
         if (player.original_team_name) {
-            html += `<div class="small text-light-gray mb-2">Dispensado por: ${player.original_team_name}</div>`;
+            html += `<small class="text-muted d-block mb-2"><i class="bi bi-arrow-left me-1"></i>Ex: ${player.original_team_name}</small>`;
         }
         if (player.my_offer_amount) {
-            html += `<div class="badge bg-info mb-2">Seu lance: ${player.my_offer_amount} moedas</div>`;
+            html += `<div class="badge bg-info mb-2 w-100">Seu lance: ${player.my_offer_amount} moedas</div>`;
         }
         html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
-            <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Enviar'} proposta
+            <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Proposta'}
         </button>`;
         html += '</div></div></div>';
     });

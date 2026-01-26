@@ -269,8 +269,8 @@ if ($teamId) {
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
-        <!-- Desktop: Tabela -->
-        <div id="players-list" class="table-responsive d-none">
+        <!-- Desktop: Tabela (esconder em mobile) -->
+        <div id="players-list" class="table-responsive d-none d-md-block">
           <table class="table table-dark align-middle">
             <thead>
               <tr>
@@ -301,8 +301,8 @@ if ($teamId) {
             <tbody id="players-tbody"></tbody>
           </table>
         </div>
-        <!-- Mobile: Cards -->
-        <div id="players-cards-mobile" class="player-card-mobile"></div>
+        <!-- Mobile: Cards (esconder em desktop) -->
+        <div id="players-cards-mobile" class="d-md-none"></div>
       </div>
     </div>
     <?php endif; ?>

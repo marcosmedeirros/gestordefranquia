@@ -94,6 +94,23 @@ if ($method === 'POST') {
         jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
     }
 
+    // Validar nome único por liga
+    $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtLeague->execute([$teamId]);
+    $teamLeague = $stmtLeague->fetchColumn();
+    
+    if ($teamLeague) {
+        $stmtDuplicate = $pdo->prepare('
+            SELECT p.id FROM players p 
+            INNER JOIN teams t ON t.id = p.team_id 
+            WHERE LOWER(p.name) = LOWER(?) AND t.league = ?
+        ');
+        $stmtDuplicate->execute([$name, $teamLeague]);
+        if ($stmtDuplicate->fetch()) {
+            jsonResponse(409, ['error' => "Já existe um jogador chamado '{$name}' na liga {$teamLeague}."]);
+        }
+    }
+
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
     $warnings = [];
     if ($prospectiveCap > $config['app']['cap_max']) {

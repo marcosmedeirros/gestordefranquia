@@ -278,7 +278,14 @@ function renderPlayers(players) {
   
   // Mostrar lista e ocultar loading
   document.getElementById('players-status').style.display = 'none';
-  document.getElementById('players-list').classList.remove('d-none');
+  // A tabela (players-list) usa d-md-block para mostrar só em desktop
+  // Os cards (players-cards-mobile) usam d-md-none para mostrar só em mobile
+  // Só precisamos remover o d-none inicial se existir na tabela
+  const playersList = document.getElementById('players-list');
+  if (playersList) {
+    playersList.classList.remove('d-none');
+    playersList.classList.add('d-md-block');
+  }
 
   // Atualizar stats
   updateRosterStats();

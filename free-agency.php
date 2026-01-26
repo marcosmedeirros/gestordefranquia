@@ -149,14 +149,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                         <div class="card-body">
                             <div class="row g-2 align-items-end mb-3">
-                                <div class="col-md-6">
-                                    <label for="faSearchInput" class="form-label">Buscar jogador</label>
-                                    <input type="text" id="faSearchInput" class="form-control" placeholder="Digite o nome">
+                                <div class="col-8 col-md-6">
+                                    <label for="faSearchInput" class="form-label d-none d-md-block">Buscar jogador</label>
+                                    <input type="text" id="faSearchInput" class="form-control" placeholder="🔍 Buscar jogador...">
                                 </div>
-                                <div class="col-md-3">
-                                    <label for="faPositionFilter" class="form-label">Posicao</label>
+                                <div class="col-4 col-md-3">
+                                    <label for="faPositionFilter" class="form-label d-none d-md-block">Posicao</label>
                                     <select id="faPositionFilter" class="form-select">
-                                        <option value="">Todas</option>
+                                        <option value="">Pos.</option>
                                         <option value="PG">PG</option>
                                         <option value="SG">SG</option>
                                         <option value="SF">SF</option>
