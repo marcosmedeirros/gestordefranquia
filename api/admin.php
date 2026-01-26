@@ -717,29 +717,96 @@ if ($method === 'PUT') {
                 $stmtItems->execute([$tradeId]);
                 $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
+                $playersReverted = [];
+                $picksReverted = [];
+                $errors = [];
+
                 // Reverter transferências
                 foreach ($items as $item) {
                     if ($item['player_id']) {
                         // Reverter jogador para o time original
                         $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                        $stmtRevert = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
-                        $stmtRevert->execute([$originalTeamId, $item['player_id']]);
+                        
+                        // Verificar time atual do jogador
+                        $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
+                        $stmtCheckPlayer->execute([$item['player_id']]);
+                        $player = $stmtCheckPlayer->fetch(PDO::FETCH_ASSOC);
+                        
+                        if (!$player) {
+                            $errors[] = "Jogador ID {$item['player_id']} não encontrado (pode ter sido dispensado)";
+                            continue;
+                        }
+                        
+                        // Só reverter se o jogador não estiver já no time original (evita duplicação)
+                        if ((int)$player['team_id'] !== (int)$originalTeamId) {
+                            $stmtRevert = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                            $stmtRevert->execute([$originalTeamId, $item['player_id']]);
+                            $playersReverted[] = $player['name'];
+                        } else {
+                            // Jogador já está no time original (pode ter sido revertido antes)
+                            $playersReverted[] = $player['name'] . ' (já estava no time)';
+                        }
                     }
 
                     if ($item['pick_id']) {
                         // Reverter pick para o time original
                         $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                        $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
-                        $stmtRevert->execute([$originalTeamId, $originalTeamId, $item['pick_id']]);
+                        
+                        // Verificar estado atual da pick
+                        $stmtCheckPick = $pdo->prepare('SELECT team_id, original_team_id, last_owner_team_id, season_year, round FROM picks WHERE id = ?');
+                        $stmtCheckPick->execute([$item['pick_id']]);
+                        $pick = $stmtCheckPick->fetch(PDO::FETCH_ASSOC);
+                        
+                        if (!$pick) {
+                            $errors[] = "Pick ID {$item['pick_id']} não encontrada";
+                            continue;
+                        }
+                        
+                        // Só reverter se a pick não estiver já no time original
+                        if ((int)$pick['team_id'] !== (int)$originalTeamId) {
+                            // O last_owner deve ser quem tinha antes da trade atual
+                            // Se from_team=true, o dono original era from_team, então last_owner deve ser NULL ou from_team
+                            // Se from_team=false, o dono original era to_team
+                            $lastOwnerBeforeTrade = $item['from_team'] ? null : $trade['to_team_id'];
+                            
+                            $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
+                            $stmtRevert->execute([$originalTeamId, $lastOwnerBeforeTrade, $item['pick_id']]);
+                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
+                        } else {
+                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
+                        }
                     }
                 }
 
                 // Atualizar status da trade
-                $stmtUpdate = $pdo->prepare("UPDATE trades SET status = 'cancelled', notes = CONCAT(notes, '\n[Admin] Trade revertida em ', NOW()) WHERE id = ?");
-                $stmtUpdate->execute([$tradeId]);
+                $revertLog = "[Admin] Trade revertida em " . date('Y-m-d H:i:s');
+                if (!empty($playersReverted)) {
+                    $revertLog .= "\nJogadores revertidos: " . implode(', ', $playersReverted);
+                }
+                if (!empty($picksReverted)) {
+                    $revertLog .= "\nPicks revertidas: " . implode(', ', $picksReverted);
+                }
+                if (!empty($errors)) {
+                    $revertLog .= "\nAvisos: " . implode('; ', $errors);
+                }
+                
+                $stmtUpdate = $pdo->prepare("UPDATE trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
+                $stmtUpdate->execute([$revertLog, $tradeId]);
 
                 $pdo->commit();
-                echo json_encode(['success' => true, 'message' => 'Trade revertida com sucesso']);
+                
+                $response = [
+                    'success' => true,
+                    'message' => 'Trade revertida com sucesso',
+                    'players_reverted' => count($playersReverted),
+                    'picks_reverted' => count($picksReverted)
+                ];
+                
+                if (!empty($errors)) {
+                    $response['warnings'] = $errors;
+                }
+                
+                echo json_encode($response);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
