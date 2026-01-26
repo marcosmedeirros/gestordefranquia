@@ -412,8 +412,21 @@ if (!$team) {
                     `).join('')}
                   </tbody>
                 </table>
+            <div class="col-md-4">
+              <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+                <div class="card-body">
+                  <h5 class="text-white mb-3"><i class="bi bi-trophy text-orange me-2"></i>Draft Inicial</h5>
+                  <div id="initDraftPanel">
+                    <div class="text-light-gray">Carregando…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
               </div>
               <div class="d-grid mt-4">
+
+        // Depois de desenhar, carregar painel do draft inicial
+        loadInitDraftPanel(season);
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="bi bi-save me-2"></i>Salvar Moedas
                 </button>
@@ -488,12 +501,28 @@ if (!$team) {
       if (!confirm(`Iniciar uma nova temporada para a liga ${league} com sprint começando em ${startYear}?`)) return;
 
       try {
-        await api('seasons.php?action=create_season', {
+        const resp = await api('seasons.php?action=create_season', {
           method: 'POST',
           body: JSON.stringify({ league, season_year: seasonYear, start_year: startYear })
         });
 
         alert('Nova temporada iniciada com sucesso!');
+        // Buscar temporada atual para verificar se é a 1ª do sprint
+        const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
+        const season = seasonData.season;
+        // Se for a primeira temporada do sprint, iniciar fluxo do Draft Inicial automaticamente
+        if (season && Number(season.season_number) === 1) {
+          try {
+            const initResp = await api('initdraft.php', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'create_session', season_id: season.id, total_rounds: 5 })
+            });
+            const url = `/initdraft.php?token=${initResp.token}`;
+            window.open(url, '_blank');
+          } catch (e) {
+            console.warn('Falha ao criar sessão do Draft Inicial automaticamente:', e);
+          }
+        }
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao iniciar temporada: ' + (e.error || 'Desconhecido'));
@@ -517,12 +546,27 @@ if (!$team) {
       if (!confirm(`Avançar para a próxima temporada da liga ${league} (Temporada ${String(nextSeasonNumber).padStart(2, '0')} - ano ${seasonYear})?`)) return;
 
       try {
-        await api('seasons.php?action=create_season', {
+        const resp = await api('seasons.php?action=create_season', {
           method: 'POST',
           body: JSON.stringify({ league, season_year: seasonYear, start_year: sprintStart })
         });
 
         alert('Avançado para próxima temporada!');
+        // Buscar temporada atual para decidir se é a 1ª do sprint (caso novo sprint tenha sido criado)
+        const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
+        const season = seasonData.season;
+        if (season && Number(season.season_number) === 1) {
+          try {
+            const initResp = await api('initdraft.php', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'create_session', season_id: season.id, total_rounds: 5 })
+            });
+            const url = `/initdraft.php?token=${initResp.token}`;
+            window.open(url, '_blank');
+          } catch (e) {
+            console.warn('Falha ao criar sessão do Draft Inicial automaticamente (novo sprint):', e);
+          }
+        }
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao avançar: ' + (e.error || 'Desconhecido'));
@@ -2635,5 +2679,63 @@ Stephen Curry,PG,35,95</code>
     });
   </script>
   <script src="/js/pwa.js"></script>
+  <script>
+    async function loadInitDraftPanel(season) {
+      const panel = document.getElementById('initDraftPanel');
+      try {
+        const resp = await api(`initdraft.php?action=session_for_season&season_id=${season.id}`);
+        const session = resp.session;
+        if (!session) {
+          panel.innerHTML = `
+            <p class="text-light-gray">Crie o Draft Inicial desta temporada e gere o link de acesso.</p>
+            <button class="btn btn-sm btn-success w-100" onclick="createInitDraft(${season.id})">
+              <i class="bi bi-plus-lg me-2"></i>Criar Draft Inicial
+            </button>
+          `;
+        } else {
+          const url = `/initdraft.php?token=${session.access_token}`;
+          panel.innerHTML = `
+            <div class="d-flex flex-column gap-2">
+              <div>
+                <span class="badge ${session.status==='completed'?'bg-success':'bg-secondary'}">${session.status}</span>
+                <span class="badge bg-orange ms-2">Rodadas: ${session.total_rounds}</span>
+              </div>
+              <a target="_blank" href="${url}" class="btn btn-sm btn-primary w-100">
+                <i class="bi bi-link-45deg me-2"></i>Abrir Draft Inicial
+              </a>
+              ${session.status === 'completed' ? '' : `
+                <button class="btn btn-sm btn-outline-warning w-100" onclick="openInitDraft(${season.id})">
+                  <i class="bi bi-play-circle me-2"></i>Continuar no Link
+                </button>
+              `}
+            </div>
+          `;
+        }
+      } catch (e) {
+        panel.innerHTML = `<div class="alert alert-danger">Erro ao carregar: ${e?.error || e?.message || 'desconhecido'}</div>`;
+      }
+    }
+
+    async function createInitDraft(seasonId) {
+      const total_rounds = 5;
+      try {
+        const resp = await api('initdraft.php', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'create_session', season_id: seasonId, total_rounds })
+        });
+        const url = `/initdraft.php?token=${resp.token}`;
+        // Atualiza painel e abre link em nova aba
+        await loadInitDraftPanel({ id: seasonId });
+        window.open(url, '_blank');
+      } catch (e) {
+        alert(e?.error || e?.message || 'Erro ao criar draft inicial');
+      }
+    }
+
+    function openInitDraft(seasonId) {
+      // Recarrega para obter token e abrir link
+      loadInitDraftPanel({ id: seasonId });
+    }
+  </script>
 </body>
 </html>

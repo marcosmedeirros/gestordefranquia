@@ -51,3 +51,20 @@ Campos novos no schema (sql/schema.sql):
 - Implementar autenticação por sessão/JWT e proteção dos endpoints.
 - Adicionar CRUD completo para picks, trades e histórico de campeões.
 - Substituir mail() por SMTP autenticado (PHPMailer) se necessário no Hostinger.
+
+## Draft Inicial (initdraft)
+- Esquema SQL dedicado: `sql/initdraft_system.sql` (cria as tabelas `initdraft_sessions`, `initdraft_order` e `initdraft_pool`).
+- Migrações automáticas: ao carregar qualquer API que usa `backend/db.php`, o arquivo `backend/migrations.php` executa `runMigrations()` e garante que as tabelas existam.
+- API: `api/initdraft.php` (separada do draft de temporada). Ações principais:
+	- `POST create_session { season_id, total_rounds? }` → cria sessão e retorna `token`.
+	- `POST import_players { token, players: [...] }` → importa lista para `initdraft_pool`.
+	- `POST randomize_order { token }` → sorteia ordem snake (1→N, N→1, ...).
+	- `POST start { token }` → inicia o draft.
+	- `POST make_pick { token, player_id }` → registra pick e move jogador para `players` do time.
+	- `POST finalize { token }` → marca sessão como concluída.
+- Página dedicada: `initdraft.php` — acessível apenas via link com `?token=...`.
+- Integração admin: `temporadas.php` exibe um painel "Draft Inicial" para criar/abrir a sessão da temporada atual.
+
+Observações:
+- Em ambiente local, configure `backend/config.php` (copie de `backend/config.sample.php`) antes de rodar migrações ou acessar APIs.
+- Se preferir executar migrações manualmente, rode `php backend/migrations.php` no terminal (requer credenciais válidas no `config.php`).

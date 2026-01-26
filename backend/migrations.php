@@ -11,6 +11,67 @@ function runMigrations() {
     
     // Array de migrações com nome único para rastrear execução
     $migrations = [
+        'create_initdraft_sessions' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS initdraft_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                status ENUM('setup', 'in_progress', 'completed') DEFAULT 'setup',
+                current_round INT DEFAULT 1,
+                current_pick INT DEFAULT 1,
+                total_rounds INT DEFAULT 5,
+                access_token VARCHAR(64) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                started_at DATETIME NULL,
+                completed_at DATETIME NULL,
+                FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                UNIQUE KEY uniq_season_initdraft (season_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_initdraft_pool' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS initdraft_pool (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                position ENUM('PG','SG','SF','PF','C') NOT NULL,
+                secondary_position ENUM('PG','SG','SF','PF','C') NULL,
+                age INT NOT NULL,
+                ovr INT NOT NULL,
+                photo_url VARCHAR(255) NULL,
+                bio TEXT NULL,
+                strengths TEXT NULL,
+                weaknesses TEXT NULL,
+                draft_status ENUM('available','drafted') DEFAULT 'available',
+                drafted_by_team_id INT NULL,
+                draft_order INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_initdraft_pool_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+                CONSTRAINT fk_initdraft_pool_team FOREIGN KEY (drafted_by_team_id) REFERENCES teams(id) ON DELETE SET NULL,
+                INDEX idx_initdraft_pool_season_status (season_id, draft_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_initdraft_order' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS initdraft_order (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                initdraft_session_id INT NOT NULL,
+                team_id INT NOT NULL,
+                original_team_id INT NOT NULL,
+                pick_position INT NOT NULL,
+                round INT NOT NULL DEFAULT 1,
+                picked_player_id INT NULL,
+                picked_at DATETIME NULL,
+                traded_from_team_id INT NULL,
+                notes VARCHAR(255) NULL,
+                CONSTRAINT fk_initdraft_order_session FOREIGN KEY (initdraft_session_id) REFERENCES initdraft_sessions(id) ON DELETE CASCADE,
+                CONSTRAINT fk_initdraft_order_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                CONSTRAINT fk_initdraft_order_orig FOREIGN KEY (original_team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                CONSTRAINT fk_initdraft_order_player FOREIGN KEY (picked_player_id) REFERENCES initdraft_pool(id) ON DELETE SET NULL,
+                CONSTRAINT fk_initdraft_order_traded FOREIGN KEY (traded_from_team_id) REFERENCES teams(id) ON DELETE SET NULL,
+                UNIQUE KEY uniq_initdraft_position (initdraft_session_id, round, pick_position),
+                INDEX idx_initdraft_team (initdraft_session_id, team_id),
+                INDEX idx_initdraft_order (initdraft_session_id, round, pick_position)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
         'create_leagues' => [
             'condition' => "SELECT 1 FROM information_schema.TABLES WHERE TABLE_NAME = 'leagues'",
             'sql' => "CREATE TABLE IF NOT EXISTS leagues (
