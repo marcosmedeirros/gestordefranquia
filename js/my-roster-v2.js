@@ -149,21 +149,7 @@ function renderPlayers(players) {
             <small class="text-light-gray">${p.age} anos</small>
           </div>
         </div>
-        
-        <div class="mb-3">
-          <button class="btn btn-sm w-100 btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" style="
-            background: ${p.available_for_trade ? '#00ff00' : '#ff4444'};
-            color: #000;
-            font-weight: bold;
-            border: none;
-            transition: all 0.2s;
-          ">
-            <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
-            ${p.available_for_trade ? 'Disponível' : 'Indisponível'}
-          </button>
-        </div>
-        
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 mt-3">
           <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${p.id}" title="Editar">
             <i class="bi bi-pencil"></i>
           </button>
@@ -172,6 +158,10 @@ function renderPlayers(players) {
           </button>
           <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
             <i class="bi bi-box-arrow-right"></i>
+          </button>
+          <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
+            <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
+            ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
           </button>
         </div>
       </div>
