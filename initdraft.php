@@ -530,8 +530,11 @@ if (!$token) {
                     <button class="btn btn-outline-light" type="button" onclick="resetManualOrder()">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar
                     </button>
-                    <button class="btn btn-outline-warning" type="button" id="lotteryButton" onclick="randomizeOrder()">
-                        <i class="bi bi-shuffle me-1"></i>Sortear Ordem
+                    <button class="btn btn-outline-warning" type="button" id="lotteryDrawAllButton" onclick="handleLotteryDrawAll()">
+                        <i class="bi bi-shuffle me-1"></i>Sorteio Total
+                    </button>
+                    <button class="btn btn-outline-warning" type="button" id="lotteryDrawNextButton" onclick="handleLotteryDrawNext()">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Sortear Próximo
                     </button>
                 </div>
                 <button class="btn btn-success" type="button" onclick="submitManualOrder()">
@@ -629,6 +632,9 @@ if (!$token) {
         manualOrder: [],
         search: '',
         lotteryDrawn: false,
+        lotteryOrderDetails: [],
+        lotteryRevealIndex: 0,
+        lotteryInProgress: false,
     };
 
     const elements = {
@@ -648,7 +654,8 @@ if (!$token) {
             lotteryStage: document.getElementById('lotteryStage'),
             lotteryTrack: document.getElementById('lotteryTrack'),
             lotteryResults: document.getElementById('lotteryResults'),
-        lotteryButton: document.getElementById('lotteryButton'),
+            lotteryDrawAllButton: document.getElementById('lotteryDrawAllButton'),
+            lotteryDrawNextButton: document.getElementById('lotteryDrawNextButton'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -705,7 +712,7 @@ if (!$token) {
         renderOrder();
         renderPool();
         renderRounds();
-        updateLotteryButton();
+        updateLotteryButtons();
     }
 
     function renderStats() {
@@ -830,6 +837,7 @@ if (!$token) {
             if (!elements.lotteryTrack || !elements.lotteryResults) return;
             const teams = state.teams || [];
             elements.lotteryResults.innerHTML = '';
+            state.lotteryRevealIndex = 0;
             const ballTeams = buildBallTeams(teams);
             elements.lotteryTrack.innerHTML = ballTeams
                 .map((team) => `
@@ -850,12 +858,28 @@ if (!$token) {
             return filled;
         }
 
-        function updateLotteryButton() {
-            if (!elements.lotteryButton) return;
-            elements.lotteryButton.disabled = state.lotteryDrawn;
-            elements.lotteryButton.innerHTML = state.lotteryDrawn
-                ? '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído'
-                : '<i class="bi bi-shuffle me-1"></i>Sortear Ordem';
+        function updateLotteryButtons() {
+            if (elements.lotteryDrawAllButton) {
+                elements.lotteryDrawAllButton.disabled = state.lotteryDrawn || state.lotteryInProgress;
+            }
+            if (elements.lotteryDrawNextButton) {
+                const isCompleted = state.lotteryDrawn || state.lotteryRevealIndex >= state.lotteryOrderDetails.length;
+                elements.lotteryDrawNextButton.disabled = isCompleted || state.lotteryInProgress;
+            }
+        }
+
+        function appendLotteryResult(team, index) {
+            elements.lotteryResults.insertAdjacentHTML(
+                'beforeend',
+                `<div class="lottery-result">
+                    <span class="lottery-rank">${index + 1}</span>
+                    <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                    <div>
+                        <strong>${team.city || ''} ${team.name || ''}</strong>
+                        <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
+                    </div>
+                </div>`
+            );
         }
 
         function runLotteryAnimation(orderDetails = []) {
@@ -889,17 +913,7 @@ if (!$token) {
                         balls[ballIndex].classList.add('active');
                     }
                     const team = picks[index] || {};
-                    elements.lotteryResults.insertAdjacentHTML(
-                        'beforeend',
-                        `<div class="lottery-result">
-                            <span class="lottery-rank">${index + 1}</span>
-                            <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                            <div>
-                                <strong>${team.city || ''} ${team.name || ''}</strong>
-                                <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
-                            </div>
-                        </div>`
-                    );
+                    appendLotteryResult(team, index);
                     index += 1;
                     if (index < picks.length) {
                         setTimeout(revealNext, 380);
@@ -913,6 +927,122 @@ if (!$token) {
 
                 setTimeout(revealNext, 300);
             });
+        }
+
+        async function ensureTotalRounds() {
+            const currentRounds = state.session?.total_rounds ?? '';
+            const inputRounds = prompt('Quantas rodadas o draft terá?', currentRounds);
+            if (inputRounds === null) {
+                return false;
+            }
+            const roundsValue = parseInt(inputRounds, 10);
+            if (Number.isNaN(roundsValue) || roundsValue < 1 || roundsValue > 10) {
+                showMessage('Informe um número de rodadas entre 1 e 10.', 'warning');
+                return false;
+            }
+
+            if (!state.session || roundsValue !== state.session.total_rounds) {
+                const roundsRes = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set_total_rounds', token: TOKEN, total_rounds: roundsValue }),
+                });
+                const roundsData = await roundsRes.json();
+                if (!roundsData.success) throw new Error(roundsData.error || 'Erro ao atualizar rodadas');
+                if (state.session) {
+                    state.session.total_rounds = roundsData.total_rounds;
+                }
+                renderStats();
+            }
+            return true;
+        }
+
+        async function fetchLotteryOrderDetails() {
+            if (state.lotteryOrderDetails.length) {
+                return state.lotteryOrderDetails;
+            }
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
+            state.manualOrder = data.order;
+            state.lotteryOrderDetails = data.order_details || [];
+            renderManualOrderList();
+            renderOrder();
+            return state.lotteryOrderDetails;
+        }
+
+        async function handleLotteryDrawAll() {
+            if (state.lotteryDrawn) {
+                showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
+                return;
+            }
+            state.lotteryInProgress = true;
+            updateLotteryButtons();
+            try {
+                const canProceed = await ensureTotalRounds();
+                if (!canProceed) return;
+                const orderDetails = await fetchLotteryOrderDetails();
+                resetLotteryView();
+                await runLotteryAnimation(orderDetails);
+                state.lotteryDrawn = true;
+                localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
+                showMessage('Ordem sorteada com sucesso.');
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            } finally {
+                state.lotteryInProgress = false;
+                updateLotteryButtons();
+            }
+        }
+
+        async function handleLotteryDrawNext() {
+            if (state.lotteryDrawn) {
+                showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
+                return;
+            }
+            if (state.lotteryInProgress) {
+                return;
+            }
+            state.lotteryInProgress = true;
+            updateLotteryButtons();
+            try {
+                const canProceed = await ensureTotalRounds();
+                if (!canProceed) return;
+                const orderDetails = await fetchLotteryOrderDetails();
+                if (!orderDetails.length) {
+                    showMessage('Não foi possível obter a ordem do sorteio.', 'danger');
+                    return;
+                }
+                if (state.lotteryRevealIndex === 0) {
+                    resetLotteryView();
+                }
+
+                const balls = Array.from(elements.lotteryTrack.querySelectorAll('.lottery-ball'));
+                balls.forEach((ball) => ball.classList.remove('active'));
+                const ballIndex = Math.floor(Math.random() * balls.length);
+                if (balls[ballIndex]) {
+                    balls[ballIndex].classList.add('active');
+                }
+
+                const team = orderDetails[state.lotteryRevealIndex] || {};
+                appendLotteryResult(team, state.lotteryRevealIndex);
+                state.lotteryRevealIndex += 1;
+
+                if (state.lotteryRevealIndex >= orderDetails.length) {
+                    state.lotteryDrawn = true;
+                    localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
+                    showMessage('Sorteio concluído.');
+                }
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            } finally {
+                state.lotteryInProgress = false;
+                updateLotteryButtons();
+            }
         }
 
     function renderPool() {
@@ -1048,56 +1178,6 @@ if (!$token) {
         orderModal.show();
     }
 
-    async function randomizeOrder() {
-        if (state.lotteryDrawn) {
-            showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
-            return;
-        }
-        try {
-            const currentRounds = state.session?.total_rounds ?? '';
-            const inputRounds = prompt('Quantas rodadas o draft terá?', currentRounds);
-            if (inputRounds === null) {
-                return;
-            }
-            const roundsValue = parseInt(inputRounds, 10);
-            if (Number.isNaN(roundsValue) || roundsValue < 1 || roundsValue > 10) {
-                showMessage('Informe um número de rodadas entre 1 e 10.', 'warning');
-                return;
-            }
-
-            if (!state.session || roundsValue !== state.session.total_rounds) {
-                const roundsRes = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'set_total_rounds', token: TOKEN, total_rounds: roundsValue }),
-                });
-                const roundsData = await roundsRes.json();
-                if (!roundsData.success) throw new Error(roundsData.error || 'Erro ao atualizar rodadas');
-                if (state.session) {
-                    state.session.total_rounds = roundsData.total_rounds;
-                }
-                renderStats();
-            }
-
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
-            state.manualOrder = data.order;
-            renderManualOrderList();
-            renderOrder();
-            await runLotteryAnimation(data.order_details || []);
-            state.lotteryDrawn = true;
-            localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
-            updateLotteryButton();
-            showMessage('Ordem sorteada com sucesso.');
-        } catch (error) {
-            showMessage(error.message, 'danger');
-        }
-    }
 
     async function submitManualOrder() {
         try {
