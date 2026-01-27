@@ -724,6 +724,8 @@ if (!$token) {
     document.getElementById('orderModal').addEventListener('show.bs.modal', () => {
         renderManualOrderList();
         setOrderMode('select');
+        resetLotteryView();
+        updateLotteryButton();
     });
 
     function showMessage(message, type = 'success') {
@@ -1220,9 +1222,11 @@ if (!$token) {
                 renderManualOrderList();
                 renderOrder();
                 startLottery(orderDetails);
+                updateLotteryButton();
             }
 
             await drawNextLottery();
+            updateLotteryButton();
             state.order = state.lotteryQueue.slice(0, state.lotteryIndex).map((team, index) => ({
                 ...team,
                 position: index + 1,

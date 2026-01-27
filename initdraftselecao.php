@@ -226,7 +226,7 @@ if ($user && isset($user['id'])) {
                     <h5 class="mb-3">Pick Atual</h5>
                     <div id="currentPickCard"></div>
                     <hr class="border-secondary my-4">
-                    <h6 class="text-uppercase text-muted">Próximo Pick</h6>
+                    <h6 class="text-uppercase text-white">Próximo Pick</h6>
                     <div id="nextPickCard" class="mt-3"></div>
                 </div>
                 <div class="card-dark p-4">
@@ -241,6 +241,21 @@ if ($user && isset($user['id'])) {
                         <h5 class="mb-0">Jogadores do Pool</h5>
                         <span class="text-muted" id="poolMeta"></span>
                     </div>
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-md-7">
+                            <input type="text" id="poolSearch" class="form-control" placeholder="Buscar jogador" />
+                        </div>
+                        <div class="col-md-5">
+                            <select id="poolPositionFilter" class="form-select">
+                                <option value="">Todas as posições</option>
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF">SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-dark table-hover align-middle mb-0">
                             <thead>
@@ -249,13 +264,13 @@ if ($user && isset($user['id'])) {
                                     <th>Jogador</th>
                                     <th>Posição</th>
                                     <th>OVR</th>
-                                    <th>Status</th>
                                     <th class="text-end">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="poolTable"></tbody>
                         </table>
                     </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2" id="poolPagination"></div>
                 </div>
 
                 <div class="card-dark p-4">
@@ -295,11 +310,18 @@ if ($user && isset($user['id'])) {
             rosterMeta: document.getElementById('rosterMeta'),
             toggleSoundButton: document.getElementById('toggleSoundButton'),
             toggleTvButton: document.getElementById('toggleTvButton'),
+            poolSearch: document.getElementById('poolSearch'),
+            poolPositionFilter: document.getElementById('poolPositionFilter'),
+            poolPagination: document.getElementById('poolPagination'),
         };
 
         const uiState = {
             soundEnabled: false,
             lastPickId: null,
+            poolSearch: '',
+            poolPosition: '',
+            poolPage: 1,
+            poolPageSize: 15,
         };
 
         function teamLabel(pick) {
@@ -391,14 +413,31 @@ if ($user && isset($user['id'])) {
 
         function renderPool(currentPick) {
             const pool = state.pool || [];
-            elements.poolMeta.textContent = `${pool.length} jogadores`;
-            if (!pool.length) {
-                elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
+            const search = uiState.poolSearch.trim();
+            const positionFilter = uiState.poolPosition;
+            const filtered = pool.filter((player) => {
+                const matchesSearch = !search || (player.name || '').toLowerCase().includes(search);
+                const matchesPosition = !positionFilter || player.position === positionFilter;
+                return matchesSearch && matchesPosition;
+            });
+
+            const total = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / uiState.poolPageSize));
+            if (uiState.poolPage > totalPages) {
+                uiState.poolPage = totalPages;
+            }
+            const startIndex = (uiState.poolPage - 1) * uiState.poolPageSize;
+            const pageItems = filtered.slice(startIndex, startIndex + uiState.poolPageSize);
+
+            elements.poolMeta.textContent = `${total} jogadores`;
+            if (!pageItems.length) {
+                elements.poolTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
+                elements.poolPagination.innerHTML = '';
                 return;
             }
 
             const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
-            elements.poolTable.innerHTML = pool
+            elements.poolTable.innerHTML = pageItems
                 .map((player, index) => {
                     const drafted = player.draft_status === 'drafted';
                     const action = (!drafted && canPick)
@@ -406,16 +445,29 @@ if ($user && isset($user['id'])) {
                         : '<span class="text-muted">-</span>';
                     return `
                         <tr>
-                            <td>${index + 1}</td>
+                            <td>${startIndex + index + 1}</td>
                             <td>${player.name}</td>
                             <td>${player.position}</td>
                             <td>${player.ovr}</td>
-                            <td><span class="badge ${drafted ? 'badge-drafted' : 'badge-available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
                             <td class="text-end">${action}</td>
                         </tr>
                     `;
                 })
                 .join('');
+
+            elements.poolPagination.innerHTML = `
+                <div class="text-muted">Página ${uiState.poolPage} de ${totalPages}</div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === 1 ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage - 1})">Anterior</button>
+                    <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima</button>
+                </div>
+            `;
+        }
+
+        function changePoolPage(page) {
+            uiState.poolPage = page;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+            renderPool(currentPick);
         }
 
         function renderRosters() {
@@ -436,7 +488,7 @@ if ($user && isset($user['id'])) {
             elements.rosterMeta.textContent = `${teams.length} times com picks`;
 
             if (!teams.length) {
-                elements.rosterGrid.innerHTML = '<div class="text-muted">Nenhum elenco montado ainda.</div>';
+                elements.rosterGrid.innerHTML = '<div class="text-light">Nenhum elenco montado ainda.</div>';
                 return;
             }
 
@@ -455,7 +507,7 @@ if ($user && isset($user['id'])) {
                                         <div class="small text-muted">${group.team.team_owner || 'Sem GM'}</div>
                                     </div>
                                 </div>
-                                <ul class="small ps-3 mb-0">${roster}</ul>
+                                <ul class="small ps-3 mb-0 text-light">${roster}</ul>
                             </div>
                         </div>
                     `;
@@ -571,6 +623,20 @@ if ($user && isset($user['id'])) {
                 document.exitFullscreen().catch(() => {});
             }
         }
+
+        elements.poolSearch?.addEventListener('input', (event) => {
+            uiState.poolSearch = event.target.value.toLowerCase();
+            uiState.poolPage = 1;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+            renderPool(currentPick);
+        });
+
+        elements.poolPositionFilter?.addEventListener('change', (event) => {
+            uiState.poolPosition = event.target.value;
+            uiState.poolPage = 1;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+            renderPool(currentPick);
+        });
 
         elements.toggleSoundButton?.addEventListener('click', toggleSound);
         elements.toggleTvButton?.addEventListener('click', toggleTvMode);
