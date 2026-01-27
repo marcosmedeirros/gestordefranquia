@@ -315,9 +315,6 @@ async function carregarPropostasAdmin() {
                     <button class="btn btn-sm btn-outline-danger" onclick="recusarTodasPropostas(${player.id})">
                         <i class="bi bi-x-circle me-1"></i>Recusar todas
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="encerrarSemVencedor(${player.id})">
-                        <i class="bi bi-slash-circle me-1"></i>Encerrar sem vencedor
-                    </button>
                 </div>
             </div>`;
             html += '</div>';

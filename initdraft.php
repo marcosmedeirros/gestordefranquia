@@ -813,7 +813,7 @@ if (!$token) {
             </div>
         `;
 
-        elements.sessionSummary.innerHTML = `Liga: <strong>${session.league}</strong> · Temporada #${session.season_id}`;
+    elements.sessionSummary.innerHTML = `Liga: <strong>${session.league}</strong>`;
         elements.progressLabel.textContent = `${drafted} de ${total} picks realizados`;
         elements.progressPercent.textContent = `${progress}%`;
         elements.progressBar.style.width = `${progress}%`;
@@ -825,7 +825,9 @@ if (!$token) {
 
         const buttons = [];
 
-        buttons.push(`<button class="btn btn-outline-light btn-sm" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
+        if (!state.lotteryDrawn) {
+            buttons.push(`<button class="btn btn-outline-light btn-sm" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
+        }
 
         if (session.status === 'setup') {
             buttons.push(`<button class="btn btn-success btn-sm" onclick="startDraft()"><i class="bi bi-play-circle me-1"></i>Iniciar Draft</button>`);
@@ -850,9 +852,16 @@ if (!$token) {
         }
 
         const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
+        const allowEdit = !state.lotteryDrawn;
         elements.orderList.innerHTML = state.manualOrder
             .map((teamId, index) => {
                 const team = teamsById[teamId] || {};
+                const actionButtons = allowEdit
+                    ? `<div class="order-actions">
+                            <button class="btn btn-outline-light btn-sm" ${index === 0 ? 'disabled' : ''} onclick="moveManualTeam(${index}, -1)"><i class="bi bi-arrow-up"></i></button>
+                            <button class="btn btn-outline-light btn-sm" ${index === state.manualOrder.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${index}, 1)"><i class="bi bi-arrow-down"></i></button>
+                        </div>`
+                    : '';
                 return `
                     <div class="order-list-item">
                         <div class="d-flex align-items-center gap-3 flex-grow-1">
@@ -865,10 +874,7 @@ if (!$token) {
                                 </div>
                             </div>
                         </div>
-                        <div class="order-actions">
-                            <button class="btn btn-outline-light btn-sm" ${index === 0 ? 'disabled' : ''} onclick="moveManualTeam(${index}, -1)"><i class="bi bi-arrow-up"></i></button>
-                            <button class="btn btn-outline-light btn-sm" ${index === state.manualOrder.length - 1 ? 'disabled' : ''} onclick="moveManualTeam(${index}, 1)"><i class="bi bi-arrow-down"></i></button>
-                        </div>
+                        ${actionButtons}
                     </div>`;
             })
             .join('');
@@ -1004,8 +1010,12 @@ if (!$token) {
                 elements.applyOrderButton.classList.remove('d-none');
             }
             try {
-                await submitLotteryOrder();
-                showMessage('Sorteio concluído e ordem salva automaticamente.');
+                if (state.session?.total_rounds) {
+                    await submitLotteryOrder();
+                    showMessage('Sorteio concluído e ordem salva automaticamente.');
+                } else {
+                    showMessage('Sorteio concluído. Clique em Aplicar para definir o número de rodadas e salvar.', 'info');
+                }
             } catch (error) {
                 showMessage(error.message || 'Erro ao salvar ordem do sorteio', 'danger');
             }
@@ -1014,9 +1024,8 @@ if (!$token) {
     }
 
     async function submitLotteryOrder() {
-        const roundsOk = await ensureTotalRounds();
-        if (!roundsOk) {
-            throw new Error('Defina o total de rodadas para salvar o sorteio.');
+        if (!state.session?.total_rounds) {
+            throw new Error('Defina o total de rodadas clicando em Aplicar.');
         }
         if (!state.lotteryQueue.length) {
             throw new Error('Nenhuma ordem sorteada.');
@@ -1185,21 +1194,12 @@ if (!$token) {
         }
         try {
             if (!state.lotteryQueue.length) {
-                const roundsOk = await ensureTotalRounds();
-                if (!roundsOk) return;
                 setOrderMode('lottery');
-
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
-                state.manualOrder = data.order;
+                const orderDetails = shuffle([...state.teams]);
+                state.manualOrder = orderDetails.map((team) => team.id);
                 renderManualOrderList();
                 renderOrder();
-                startLottery(data.order_details || []);
+                startLottery(orderDetails);
             }
 
             await drawNextLottery();
