@@ -148,6 +148,177 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     }
 }
 
+function tzNow(): DateTimeImmutable {
+    return new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+}
+
+function computeDailyRoundForDate(?string $startDate, DateTimeImmutable $now): ?int {
+    if (!$startDate) return null;
+    $start = DateTimeImmutable::createFromFormat('Y-m-d', $startDate, $now->getTimezone());
+    if (!$start) return null;
+    // antes do dia de start, não existe round do dia ainda
+    if ($now->format('Y-m-d') < $start->format('Y-m-d')) {
+        return null;
+    }
+    $days = (int)$start->diff($now)->format('%a');
+    return $days + 1;
+}
+
+function getCurrentOpenPick(PDO $pdo, int $sessionId, int $round): ?array {
+    $stmt = $pdo->prepare('SELECT * FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL ORDER BY pick_position ASC LIMIT 1');
+    $stmt->execute([$sessionId, $round]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function isRoundCompleted(PDO $pdo, int $sessionId, int $round): bool {
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL');
+    $stmt->execute([$sessionId, $round]);
+    return (int)$stmt->fetchColumn() === 0;
+}
+
+function clearDeadlinesForRound(PDO $pdo, int $sessionId, int $round): void {
+    $pdo->prepare('UPDATE initdraft_order SET deadline_at = NULL WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL')
+        ->execute([$sessionId, $round]);
+}
+
+function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes): void {
+    if (!empty($pick['deadline_at'])) return;
+    $deadline = $now->add(new DateInterval('PT' . max(1, $pickMinutes) . 'M'));
+    $pdo->prepare('UPDATE initdraft_order SET deadline_at = ? WHERE id = ?')
+        ->execute([$deadline->format('Y-m-d H:i:s'), $pick['id']]);
+}
+
+function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
+    // Regra: maior OVR; empate -> menor idade; empate -> aleatório.
+    // OBS: age pode ser NULL. Neste caso, tratamos como idade "muito alta" para priorizar quem tem idade definida.
+
+    // 1) Melhor OVR disponível
+    $stmtMax = $pdo->prepare('SELECT MAX(ovr) FROM initdraft_pool WHERE season_id = ? AND draft_status = "available"');
+    $stmtMax->execute([$seasonId]);
+    $maxOvr = $stmtMax->fetchColumn();
+    if ($maxOvr === false || $maxOvr === null) return null;
+    $maxOvr = (int)$maxOvr;
+
+    // 2) Menor idade dentro do melhor OVR
+    $stmtMinAge = $pdo->prepare('
+        SELECT MIN(COALESCE(NULLIF(age, 0), 999))
+        FROM initdraft_pool
+        WHERE season_id = ? AND draft_status = "available" AND ovr = ?
+    ');
+    $stmtMinAge->execute([$seasonId, $maxOvr]);
+    $minAge = $stmtMinAge->fetchColumn();
+    if ($minAge === false || $minAge === null) {
+        $minAge = 999;
+    }
+    $minAge = (int)$minAge;
+
+    // 3) Seleciona aleatoriamente entre os empatados
+    $stmt = $pdo->prepare('
+        SELECT id
+        FROM initdraft_pool
+        WHERE season_id = ?
+          AND draft_status = "available"
+          AND ovr = ?
+          AND COALESCE(NULLIF(age, 0), 999) = ?
+    ');
+    $stmt->execute([$seasonId, $maxOvr, $minAge]);
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!$ids) return null;
+
+    $picked = $ids[random_int(0, count($ids) - 1)];
+    return (int)$picked;
+}
+
+function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): void {
+    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$enabled) return;
+    if (($session['status'] ?? 'setup') !== 'in_progress') return;
+
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if (!$dailyRound) return;
+    if ($dailyRound > (int)$session['total_rounds']) return;
+
+    // relógio só depois do horário configurado
+    $clockStart = ($session['daily_clock_start_time'] ?? '19:30:00');
+    $clockStartDT = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $clockStart, $now->getTimezone());
+    if ($now < $clockStartDT) return;
+
+    $pick = getCurrentOpenPick($pdo, (int)$session['id'], $dailyRound);
+    if (!$pick) return;
+
+    if (empty($pick['deadline_at'])) {
+        ensureDeadlineForPick($pdo, $pick, $now, (int)($session['daily_pick_minutes'] ?? 10));
+        return;
+    }
+
+    $deadline = new DateTimeImmutable($pick['deadline_at'], $now->getTimezone());
+    if ($now <= $deadline) return;
+
+    $playerId = pickHighestOvrAvailable($pdo, (int)$session['season_id']);
+    if (!$playerId) {
+        // sem jogadores: encerra round e draft
+        $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
+            ->execute([$session['id']]);
+        return;
+    }
+
+    // Faz pick e limpa deadlines do round pra recalcular no próximo
+    performInitDraftPick($pdo, $session, $playerId);
+    clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+}
+
+function applyDailySchedule(PDO $pdo, array $session): array {
+    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$enabled) return $session;
+
+    $now = tzNow();
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if (!$dailyRound) {
+        return $session;
+    }
+    if ($dailyRound > (int)$session['total_rounds']) {
+        return $session;
+    }
+
+    // abre o draft (00:00:01) e marca qual dia já foi processado
+    $today = $now->format('Y-m-d');
+    $openAfter = new DateTimeImmutable($today . ' 00:00:01', $now->getTimezone());
+    if ($now >= $openAfter && ($session['daily_last_opened_date'] ?? null) !== $today) {
+        // garante que draft esteja em andamento
+        if (($session['status'] ?? 'setup') === 'setup') {
+            $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = COALESCE(started_at, NOW()) WHERE id = ?')
+                ->execute([$session['id']]);
+        }
+        $pdo->prepare('UPDATE initdraft_sessions SET daily_last_opened_date = ? WHERE id = ?')
+            ->execute([$today, $session['id']]);
+        $session['daily_last_opened_date'] = $today;
+        $session['status'] = 'in_progress';
+    }
+
+    // Se round já terminou, encerra o draft inteiro (regra pedida)
+    if (($session['status'] ?? 'setup') === 'in_progress' && isRoundCompleted($pdo, (int)$session['id'], $dailyRound)) {
+        $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
+            ->execute([$session['id']]);
+        $session['status'] = 'completed';
+        return $session;
+    }
+
+    // Antes das 19:30: sem relógio (remove deadlines)
+    $clockStart = ($session['daily_clock_start_time'] ?? '19:30:00');
+    $clockStartDT = new DateTimeImmutable($today . ' ' . $clockStart, $now->getTimezone());
+    if ($now < $clockStartDT) {
+        clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+        return $session;
+    }
+
+    // Depois das 19:30: garante deadline do pick atual e faz auto-pick se expirou
+    autoPickIfTimedOut($pdo, $session, $now);
+    // Recarrega sessão em caso de mudanças
+    $fresh = getSessionById($pdo, (int)$session['id']);
+    return $fresh ?: $session;
+}
+
 // ========== GET ==========
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'state';
@@ -169,6 +340,9 @@ if ($method === 'GET') {
                 }
 
                 if (!$session) throw new Exception('Sessão não encontrada');
+
+                // Aplicar regras do agendamento diário (fallback do cron)
+                $session = applyDailySchedule($pdo, $session);
 
           // Buscar ordem
                 $stmtOrder = $pdo->prepare('
@@ -519,6 +693,43 @@ if ($method === 'POST') {
                 $session['total_rounds'] = $totalRounds;
 
                 echo json_encode(['success' => true, 'total_rounds' => $totalRounds]);
+                break;
+            }
+
+            case 'set_daily_schedule': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível configurar o agendamento durante setup');
+
+                $enabled = (int)($data['enabled'] ?? 0) === 1 ? 1 : 0;
+                $startDate = trim((string)($data['start_date'] ?? ''));
+                if ($enabled && !$startDate) {
+                    throw new Exception('Informe a data de início');
+                }
+                if ($startDate) {
+                    $dt = DateTimeImmutable::createFromFormat('Y-m-d', $startDate, new DateTimeZone('America/Sao_Paulo'));
+                    if (!$dt || $dt->format('Y-m-d') !== $startDate) {
+                        throw new Exception('Data inválida (use YYYY-MM-DD)');
+                    }
+                }
+
+                $pdo->prepare('UPDATE initdraft_sessions SET daily_schedule_enabled = ?, daily_schedule_start_date = ?, daily_last_opened_date = NULL WHERE id = ?')
+                    ->execute([$enabled, $startDate ?: null, $session['id']]);
+
+                $endDate = null;
+                if ($enabled && $startDate) {
+                    $start = new DateTimeImmutable($startDate, new DateTimeZone('America/Sao_Paulo'));
+                    $end = $start->add(new DateInterval('P' . max(0, ((int)$session['total_rounds']) - 1) . 'D'));
+                    $endDate = $end->format('Y-m-d');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'enabled' => (bool)$enabled,
+                    'start_date' => $startDate ?: null,
+                    'end_date' => $endDate,
+                ]);
                 break;
             }
 

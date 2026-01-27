@@ -233,6 +233,7 @@ if ($user && isset($user['id'])) {
             <div class="col-lg-4">
                 <div class="card-dark p-4 mb-4">
                     <h5 class="mb-3">Pick Atual</h5>
+                    <div class="mb-2" id="clockBanner"></div>
                     <div id="currentPickCard"></div>
                     <hr class="border-secondary my-4">
                     <h6 class="text-uppercase text-white">Próximo Pick</h6>
@@ -311,6 +312,7 @@ if ($user && isset($user['id'])) {
         const elements = {
             leagueName: document.getElementById('leagueName'),
             statGrid: document.getElementById('statGrid'),
+            clockBanner: document.getElementById('clockBanner'),
             currentPickCard: document.getElementById('currentPickCard'),
             nextPickCard: document.getElementById('nextPickCard'),
             orderList: document.getElementById('orderList'),
@@ -332,7 +334,103 @@ if ($user && isset($user['id'])) {
             poolPosition: '',
             poolPage: 1,
             poolPageSize: 15,
+            clockTickInterval: null,
+            clockPickId: null,
+            clockDeadlineMs: null,
         };
+
+        function parseSqlDatetimeToMs(value) {
+            if (!value) return null;
+            // Expecting YYYY-MM-DD HH:mm:ss
+            // Treat as local time (browser). Since server uses America/Sao_Paulo and most users are too, this is OK.
+            const normalized = String(value).trim().replace(' ', 'T');
+            const date = new Date(normalized);
+            const ms = date.getTime();
+            return Number.isFinite(ms) ? ms : null;
+        }
+
+        function formatRemaining(ms) {
+            const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function stopClockTicker() {
+            if (uiState.clockTickInterval) {
+                clearInterval(uiState.clockTickInterval);
+                uiState.clockTickInterval = null;
+            }
+        }
+
+        function renderClockBanner() {
+            const el = elements.clockBanner;
+            if (!el) return;
+            const session = state.session;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+
+            if (!session || session.status !== 'in_progress' || !currentPick) {
+                stopClockTicker();
+                el.innerHTML = '';
+                return;
+            }
+
+            const deadlineMs = parseSqlDatetimeToMs(currentPick.deadline_at);
+            if (!deadlineMs) {
+                stopClockTicker();
+                el.innerHTML = `
+                    <div class="alert alert-secondary py-2 mb-0">
+                        <div class="small text-muted">Relógio</div>
+                        <div class="fw-semibold text-white">Sem relógio até 19:30</div>
+                    </div>
+                `;
+                return;
+            }
+
+            const remaining = deadlineMs - Date.now();
+            const textClass = remaining <= 30000 ? 'text-danger' : (remaining <= 60000 ? 'text-warning' : 'text-white');
+            el.innerHTML = `
+                <div class="alert alert-dark border border-secondary py-2 mb-0">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="small text-muted">Relógio</div>
+                            <div class="fw-semibold ${textClass}" id="clockRemaining">${formatRemaining(remaining)}</div>
+                        </div>
+                        <div class="small text-muted text-end">deadline<br>${currentPick.deadline_at}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function startOrUpdateClockTicker(currentPick) {
+            const deadlineMs = parseSqlDatetimeToMs(currentPick?.deadline_at);
+            if (!deadlineMs || !currentPick?.id) {
+                uiState.clockPickId = null;
+                uiState.clockDeadlineMs = null;
+                stopClockTicker();
+                return;
+            }
+
+            const needsRestart = uiState.clockPickId !== currentPick.id || uiState.clockDeadlineMs !== deadlineMs;
+            uiState.clockPickId = currentPick.id;
+            uiState.clockDeadlineMs = deadlineMs;
+
+            if (!needsRestart && uiState.clockTickInterval) return;
+
+            stopClockTicker();
+            uiState.clockTickInterval = setInterval(() => {
+                const remaining = uiState.clockDeadlineMs - Date.now();
+                const remainingEl = document.getElementById('clockRemaining');
+                if (!remainingEl) {
+                    renderClockBanner();
+                    return;
+                }
+                remainingEl.textContent = formatRemaining(remaining);
+                remainingEl.classList.toggle('text-danger', remaining <= 30000);
+                remainingEl.classList.toggle('text-warning', remaining > 30000 && remaining <= 60000);
+                remainingEl.classList.toggle('text-white', remaining > 60000);
+            }, 1000);
+        }
 
         function teamLabel(pick) {
             if (!pick) return '—';
@@ -541,6 +639,8 @@ if ($user && isset($user['id'])) {
                 const currentPick = state.order.find((pick) => !pick.picked_player_id);
                 const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
                 handlePickChange(currentPick);
+                renderClockBanner();
+                startOrUpdateClockTicker(currentPick);
                 renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight');
                 renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight');
                 renderOrderList(currentPick, nextPick);
