@@ -409,12 +409,39 @@ if (!$token) {
         .pagination {
             --bs-pagination-bg: #fff;
             --bs-pagination-color: #000;
-            --bs-pagination-hover-bg: #e9ecef;
-            --bs-pagination-hover-color: #000;
-            --bs-pagination-active-bg: var(--initdraft-orange);
+            --bs-pagination-hover-bg: #fc0025;
+            --bs-pagination-hover-color: #fff;
+            --bs-pagination-active-bg: #fc0025;
             --bs-pagination-active-color: #fff;
-            --bs-pagination-disabled-bg: #e9ecef;
-            --bs-pagination-disabled-color: #6c757d;
+            --bs-pagination-border-radius: 8px;
+            --bs-pagination-border-color: #222;
+            --bs-pagination-padding-x: 0.85rem;
+            --bs-pagination-padding-y: 0.45rem;
+            --bs-pagination-gap: 0.25rem;
+        }
+        .pagination .page-link {
+            border-radius: 8px !important;
+            margin: 0 2px;
+            font-weight: 500;
+            transition: background 0.15s, color 0.15s;
+        }
+        .pagination .page-item.active .page-link {
+            background: #fc0025;
+            color: #fff;
+            border-color: #fc0025;
+        }
+        .pagination .page-link:hover {
+            background: #fc0025;
+            color: #fff;
+        }
+        .pagination .page-item.disabled .page-link {
+            background: #222;
+            color: #888;
+            border-color: #222;
+        }
+        .pagination {
+            justify-content: center;
+            gap: 0.25rem;
         }
 
         @media (max-width: 768px) {
@@ -551,6 +578,7 @@ if (!$token) {
                             <span class="text-muted small" id="roundsMeta"></span>
                         </div>
                         <div id="rounds"></div>
+                        <div id="roundsPagination" class="d-flex justify-content-center mt-3"></div>
                     </div>
                 </div>
             </div>
@@ -744,6 +772,7 @@ if (!$token) {
         lotteryQueue: [],
         lotteryIndex: 0,
         orderMode: 'manual',
+        roundPage: 1, // página atual das rodadas
     };
 
     const elements = {
@@ -774,6 +803,7 @@ if (!$token) {
         orderEditButton: document.getElementById('orderEditButton'),
         orderEditHint: document.getElementById('orderEditHint'),
         resetOrderButton: document.getElementById('resetOrderButton'),
+        roundsPagination: document.getElementById('roundsPagination'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -1287,88 +1317,113 @@ if (!$token) {
         if (!state.order.length) {
             elements.roundsContainer.innerHTML = '<div class="text-muted">Nenhuma ordem configurada ainda.</div>';
             elements.roundsMeta.textContent = '';
+            elements.roundsPagination.innerHTML = '';
             return;
         }
-
         const grouped = state.order.reduce((acc, pick) => {
             acc[pick.round] = acc[pick.round] || [];
             acc[pick.round].push(pick);
             return acc;
         }, {});
-
-        elements.roundsMeta.textContent = `${Object.keys(grouped).length} rodadas · ${state.order.length} picks`;
-
-        const roundsHtml = Object.keys(grouped)
-            .sort((a, b) => a - b)
-            .map((round) => {
-                const picks = grouped[round].sort((a, b) => a.pick_position - b.pick_position);
-                const rows = picks
-                    .map((pick) => {
-                        const player = pick.player_name ? `${pick.player_name} (${pick.player_position ?? ''} - ${pick.player_ovr ?? '-'})` : '<span class="text-muted">—</span>';
-                        return `
-                            <tr class="${pick.picked_player_id ? 'table-success' : ''}">
-                                <td class="fw-semibold">${pick.pick_position}</td>
-                                <td>
-                                    <div class="team-chip">
-                                        <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name}" onerror="this.src='/img/default-team.png'">
-                                        <div>
-                                            <strong>${pick.team_city || ''} ${pick.team_name || ''}</strong>
-                                            <div class="small text-muted">${pick.team_owner || ''}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>${player}</td>
-                                <td class="text-end">${pick.picked_player_id ? '<i class="bi bi-check2-circle text-success"></i>' : ''}</td>
-                            </tr>`;
-                    })
-                    .join('');
+        const roundNumbers = Object.keys(grouped).sort((a, b) => a - b);
+        const totalPages = roundNumbers.length;
+        if (state.roundPage > totalPages) state.roundPage = totalPages;
+        elements.roundsMeta.textContent = `${totalPages} rodadas · ${state.order.length} picks`;
+        // Só mostra a rodada da página atual
+        const round = roundNumbers[state.roundPage - 1];
+        const picks = grouped[round].sort((a, b) => a.pick_position - b.pick_position);
+        const rows = picks
+            .map((pick) => {
+                const player = pick.player_name ? `${pick.player_name} (${pick.player_position ?? ''} - ${pick.player_ovr ?? '-'})` : '<span class="text-muted">—</span>';
                 return `
-                    <div class="card-section mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0 text-uppercase text-muted">Rodada ${round}</h6>
-                            <span class="badge bg-secondary">${picks.length} picks</span>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-dark table-sm align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Pick</th>
-                                        <th>Time</th>
-                                        <th>Jogador</th>
-                                        <th class="text-end">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    </div>`;
+                    <tr class="${pick.picked_player_id ? 'table-success' : ''}">
+                        <td class="fw-semibold">${pick.pick_position}</td>
+                        <td>
+                            <div class="team-chip">
+                                <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name}" onerror="this.src='/img/default-team.png'">
+                                <div>
+                                    <strong>${pick.team_city || ''} ${pick.team_name || ''}</strong>
+                                    <div class="small text-muted">${pick.team_owner || ''}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${player}</td>
+                        <td class="text-end">${pick.picked_player_id ? '<i class="bi bi-check2-circle text-success"></i>' : ''}</td>
+                    </tr>`;
             })
             .join('');
-
+        const roundsHtml = `
+            <div class="card-section mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-uppercase text-muted">Rodada ${round}</h6>
+                    <span class="badge bg-secondary">${picks.length} picks</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-dark table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Pick</th>
+                                <th>Time</th>
+                                <th>Jogador</th>
+                                <th class="text-end">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
         elements.roundsContainer.innerHTML = roundsHtml;
+        renderRoundsPagination(totalPages);
     }
 
-    function getRoundOneOrder() {
-        if (!state.order.length) {
-            return state.teams.map((team) => team.id);
+    function renderRoundsPagination(totalPages) {
+        if (totalPages <= 1) {
+            elements.roundsPagination.innerHTML = '';
+            return;
         }
-        return state.order
-            .filter((pick) => pick.round === 1)
-            .sort((a, b) => a.pick_position - b.pick_position)
-            .map((pick) => pick.team_id);
+        const maxButtons = 5;
+        let startPage = Math.max(1, state.roundPage - Math.floor(maxButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        if (endPage - startPage < maxButtons - 1) {
+            startPage = Math.max(1, endPage - maxButtons + 1);
+        }
+        let html = '<nav><ul class="pagination pagination-sm mb-0">';
+        html += `<li class="page-item ${state.roundPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changeRoundPage(${state.roundPage - 1}); return false;">&laquo;</a>
+        </li>`;
+        if (startPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changeRoundPage(1); return false;">1</a></li>`;
+            if (startPage > 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<li class="page-item ${i === state.roundPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changeRoundPage(${i}); return false;">${i}</a>
+            </li>`;
+        }
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changeRoundPage(${totalPages}); return false;">${totalPages}</a></li>`;
+        }
+        html += `<li class="page-item ${state.roundPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changeRoundPage(${state.roundPage + 1}); return false;">&raquo;</a>
+        </li>`;
+        html += '</ul></nav>';
+        elements.roundsPagination.innerHTML = html;
     }
 
-    function moveManualTeam(index, delta) {
-        const newIndex = index + delta;
-        if (newIndex < 0 || newIndex >= state.manualOrder.length) return;
-        const updated = [...state.manualOrder];
-        const [removed] = updated.splice(index, 1);
-        updated.splice(newIndex, 0, removed);
-        state.manualOrder = updated;
-        renderManualOrderList();
-        renderOrder();
+    function changeRoundPage(page) {
+        const totalPages = state.order.length ? Object.keys(state.order.reduce((acc, pick) => {
+            acc[pick.round] = true; return acc;
+        }, {})).length : 1;
+        if (page < 1 || page > totalPages) return;
+        state.roundPage = page;
+        renderRounds();
     }
-
+    
     function resetManualOrder() {
         state.manualOrder = getRoundOneOrder();
         renderManualOrderList();
