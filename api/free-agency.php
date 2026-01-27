@@ -201,6 +201,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listAdminContracts($pdo, $league);
             break;
+        case 'contracts':
+            $league = getLeagueFromRequest($valid_leagues, $team_league);
+            if (!$league) {
+                jsonSuccess(['league' => $league, 'contracts' => []]);
+            }
+            listContracts($pdo, $league);
+            break;
         case 'limits':
             freeAgencyLimits($team);
             break;
@@ -259,6 +266,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonError('Acesso negado', 403);
             }
             approveOffer($pdo, $body, $user_id);
+            break;
+        case 'reject_all_offers':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            rejectAllOffers($pdo, $body);
             break;
         default:
             jsonError('Acao nao reconhecida');
@@ -514,6 +527,11 @@ function listAdminContracts(PDO $pdo, string $league): void
     jsonSuccess(['league' => $league, 'contracts' => $contracts]);
 }
 
+function listContracts(PDO $pdo, string $league): void
+{
+    listAdminContracts($pdo, $league);
+}
+
 function freeAgencyLimits(?array $team): void
 {
     $waiversUsed = isset($team['waivers_used']) ? (int)$team['waivers_used'] : 0;
@@ -638,6 +656,15 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $stmt->execute([$player_id, $teamId]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    if (!$existing) {
+        $stmtLimit = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
+        $stmtLimit->execute([$teamId]);
+        $pendingCount = (int)$stmtLimit->fetchColumn();
+        if ($pendingCount >= 3) {
+            jsonError('Limite de 3 propostas pendentes por time');
+        }
+    }
+
     if ($existing) {
         $stmt = $pdo->prepare('UPDATE free_agent_offers SET amount = ?, status = "pending" WHERE id = ?');
         $stmt->execute([$amount, $existing['id']]);
@@ -752,4 +779,17 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         $pdo->rollBack();
         jsonError('Erro ao aprovar proposta: ' . $e->getMessage(), 500);
     }
+}
+
+function rejectAllOffers(PDO $pdo, array $body): void
+{
+    $playerId = (int)($body['free_agent_id'] ?? 0);
+    if (!$playerId) {
+        jsonError('Jogador nao informado');
+    }
+
+    $stmt = $pdo->prepare('UPDATE free_agent_offers SET status = "rejected" WHERE free_agent_id = ? AND status = "pending"');
+    $stmt->execute([$playerId]);
+
+    jsonSuccess(['updated' => $stmt->rowCount()]);
 }

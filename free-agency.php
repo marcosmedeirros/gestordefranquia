@@ -120,6 +120,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leiloes ativos</span><span class="d-sm-none">Leilões</span>
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link text-nowrap" id="fa-history-tab" data-bs-toggle="tab" data-bs-target="#fa-history" type="button" role="tab">
+                        <i class="bi bi-clock-history me-1"></i><span class="d-none d-sm-inline">Historico FA</span><span class="d-sm-none">Histórico</span>
+                    </button>
+                </li>
                 <?php if ($is_admin): ?>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link text-nowrap" id="fa-auction-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
@@ -203,6 +208,19 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                         <div class="card-body">
                             <div id="leiloesHistoricoContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="fa-history" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico da Free Agency</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="faHistoryContainer">
                                 <p class="text-muted">Carregando...</p>
                             </div>
                         </div>

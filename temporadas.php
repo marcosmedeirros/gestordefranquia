@@ -2269,11 +2269,14 @@ Stephen Curry,PG,35,95</code>
               
               <div class="mb-3">
                 <label class="text-white mb-2">Adicionar time à ordem:</label>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="allowDraftRepeat">
+                  <label class="form-check-label text-light-gray" for="allowDraftRepeat">Permitir repetir time na ordem</label>
+                </div>
                 <div class="input-group">
                   <select class="form-select bg-dark text-white border-orange" id="addTeamSelect">
                     <option value="">Selecione um time...</option>
-                    ${teams.filter(t => !round1Picks.some(p => p.original_team_id == t.id))
-                      .map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                   <button class="btn btn-orange" onclick="addTeamToDraftOrder(${session.id}, '${league}')">
                     <i class="bi bi-plus"></i> Adicionar
@@ -2460,10 +2463,19 @@ Stephen Curry,PG,35,95</code>
     async function addTeamToDraftOrder(sessionId, league) {
       const select = document.getElementById('addTeamSelect');
       const teamId = select.value;
+      const allowRepeat = document.getElementById('allowDraftRepeat')?.checked;
       
       if (!teamId) {
         alert('Selecione um time');
         return;
+      }
+
+      if (!allowRepeat) {
+        const existing = document.querySelector(`#draftOrderList [data-team-id="${teamId}"]`);
+        if (existing) {
+          alert('Este time já está na ordem. Ative "Permitir repetir" para adicionar novamente.');
+          return;
+        }
       }
       
       try {

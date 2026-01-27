@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     carregarFreeAgents();
+    carregarHistoricoFA();
 
     document.getElementById('faSearchInput')?.addEventListener('input', () => {
         renderFreeAgents();
@@ -47,6 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    const historyTab = document.getElementById('fa-history-tab');
+    if (historyTab) {
+        historyTab.addEventListener('shown.bs.tab', () => {
+            carregarHistoricoFA();
+        });
+    }
 });
 
 function getActiveLeague() {
@@ -73,6 +81,43 @@ window.onAdminLeagueChange = function() {
 function getAdminLeague() {
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
+}
+
+async function carregarHistoricoFA() {
+    const container = document.getElementById('faHistoryContainer');
+    if (!container) return;
+
+    const league = getActiveLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Nenhuma liga definida.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=contracts&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+
+        if (!data.success || !data.contracts?.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma contratação registrada.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Data</th></tr></thead><tbody>';
+        data.contracts.forEach(item => {
+            const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            html += `<tr>
+                <td><strong class="text-orange">${item.name}</strong></td>
+                <td>${item.ovr}</td>
+                <td>${teamName}</td>
+                <td>${item.waived_at || '-'}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
+    }
 }
 
 // ========== ADMIN ==========
@@ -264,7 +309,12 @@ async function carregarPropostasAdmin() {
                     <strong class="text-orange">${player.name}</strong>
                     <span class="text-light-gray ms-2">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • OVR ${player.ovr}</span>
                 </div>
-                <span class="badge bg-info">${offers.length} propostas</span>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge bg-info">${offers.length} propostas</span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="recusarTodasPropostas(${player.id})">
+                        <i class="bi bi-x-circle me-1"></i>Recusar todas
+                    </button>
+                </div>
             </div>`;
             html += '</div>';
             html += '<div class="card-body">';
@@ -364,6 +414,30 @@ async function aprovarProposta(playerId) {
     } catch (error) {
         console.error('Erro:', error);
         alert('Erro ao aprovar proposta');
+    }
+}
+
+async function recusarTodasPropostas(playerId) {
+    if (!confirm('Recusar todas as propostas deste jogador?')) return;
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reject_all_offers', free_agent_id: playerId })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao recusar propostas');
+            return;
+        }
+
+        carregarPropostasAdmin();
+        carregarFreeAgentsAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao recusar propostas');
     }
 }
 

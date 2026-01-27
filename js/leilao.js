@@ -565,7 +565,7 @@ async function carregarMinhasPropostas() {
         
         if (data.success && data.propostas && data.propostas.length > 0) {
             let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-            html += '<thead><tr><th>Jogador Desejado</th><th>Jogadores Oferecidos</th><th>Status</th><th>Data</th></tr></thead><tbody>';
+            html += '<thead><tr><th>Jogador Desejado</th><th>Jogadores Oferecidos</th><th>Status</th><th>Data</th><th>Acoes</th></tr></thead><tbody>';
             
             data.propostas.forEach(proposta => {
                 const statusBadge = proposta.status === 'pendente'
@@ -574,11 +574,18 @@ async function carregarMinhasPropostas() {
                     ? '<span class="badge bg-success">Aceita</span>'
                     : '<span class="badge bg-danger">Recusada</span>';
                 
+                const resendAction = proposta.status === 'recusada'
+                    ? `<button class="btn btn-sm btn-outline-warning" onclick="abrirModalProposta(${proposta.leilao_id}, '${(proposta.player_name || '').replace(/'/g, "\\'")}')">
+                            <i class="bi bi-arrow-repeat me-1"></i>Novo lance
+                       </button>`
+                    : '';
+
                 html += `<tr>
                     <td><strong class="text-orange">${proposta.player_name}</strong><br><small class="text-light-gray">${proposta.team_name}</small></td>
                     <td>${proposta.jogadores_oferecidos || proposta.notas || 'N/A'}</td>
                     <td>${statusBadge}</td>
                     <td>${proposta.created_at}</td>
+                    <td>${resendAction || '-'}</td>
                 </tr>`;
             });
             

@@ -740,6 +740,36 @@ try {
             </div>
         </div>
 
+        <?php if ($activeDirectiveDeadline): ?>
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <a href="/diretrizes.php" class="text-decoration-none">
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-transparent border-orange">
+                            <h4 class="mb-0 text-white">
+                                <i class="bi bi-clipboard-check text-orange me-2"></i>Envio de Rotações
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+                                <div>
+                                    <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Diretrizes de jogo') ?></p>
+                                    <p class="text-danger mb-0 fw-bold">
+                                        <i class="bi bi-clock-fill me-1"></i>
+                                        Prazo: <?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? '') ?>
+                                    </p>
+                                </div>
+                                <span class="btn btn-outline-orange">
+                                    <i class="bi bi-arrow-right-circle me-2"></i>Enviar Rotação
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Ações Rápidas -->
         <div class="row g-4 mb-4">
             <div class="col-12">
@@ -751,30 +781,7 @@ try {
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <?php if ($activeDirectiveDeadline): ?>
-                            <div class="col-md-6">
-                                <a href="/diretrizes.php" class="text-decoration-none">
-                                    <div class="quick-action-card urgent">
-                                        <div class="d-flex align-items-center justify-content-between">
-                                            <div>
-                                                <h5 class="text-white mb-2">
-                                                    <i class="bi bi-clipboard-check text-danger me-2"></i>
-                                                    Enviar Rotação
-                                                </h5>
-                                                <p class="text-light-gray mb-1"><?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Diretrizes de jogo') ?></p>
-                                                <p class="text-danger mb-0 fw-bold">
-                                                    <i class="bi bi-clock-fill me-1"></i>
-                                                    Prazo: <?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? '') ?>
-                                                </p>
-                                            </div>
-                                            <i class="bi bi-arrow-right-circle-fill text-danger" style="font-size: 3rem;"></i>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                            <?php endif; ?>
-                            
-                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                            <div class="col-md-4">
                                 <a href="/trades.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
@@ -786,7 +793,7 @@ try {
                                 </a>
                             </div>
                             
-                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                            <div class="col-md-4">
                                 <a href="/teams.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
@@ -798,7 +805,7 @@ try {
                                 </a>
                             </div>
                             
-                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                            <div class="col-md-4">
                                 <a href="/players.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">

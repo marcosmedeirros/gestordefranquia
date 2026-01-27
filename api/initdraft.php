@@ -329,6 +329,25 @@ if ($method === 'POST') {
                 break;
             }
 
+            case 'delete_player': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível remover jogadores durante setup');
+
+                $playerId = (int)($data['player_id'] ?? 0);
+                if (!$playerId) throw new Exception('player_id obrigatório');
+
+                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND draft_status = "available"');
+                $stmt->execute([$playerId]);
+                if (!$stmt->fetch()) throw new Exception('Jogador não pode ser removido');
+
+                $pdo->prepare('DELETE FROM initdraft_pool WHERE id = ?')->execute([$playerId]);
+
+                echo json_encode(['success' => true]);
+                break;
+            }
+
             // ADMIN/TOKEN: importar via CSV (multipart/form-data)
             case 'import_csv': {
                 $token = $_POST['token'] ?? ($data['token'] ?? null);
