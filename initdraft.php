@@ -405,6 +405,18 @@ if (!$token) {
             background: transparent;
         }
 
+        /* Paginação */
+        .pagination {
+            --bs-pagination-bg: #fff;
+            --bs-pagination-color: #000;
+            --bs-pagination-hover-bg: #e9ecef;
+            --bs-pagination-hover-color: #000;
+            --bs-pagination-active-bg: var(--initdraft-orange);
+            --bs-pagination-active-color: #fff;
+            --bs-pagination-disabled-bg: #e9ecef;
+            --bs-pagination-disabled-color: #6c757d;
+        }
+
         @media (max-width: 768px) {
             .hero-card {
                 padding: 1.5rem;
@@ -424,6 +436,12 @@ if (!$token) {
 </head>
 <body>
 <div class="initdraft-app container py-4">
+    <div class="mb-3">
+        <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Voltar ao Dashboard
+        </a>
+    </div>
+
     <div id="feedback"></div>
 
     <section class="hero-card" id="heroSection">
@@ -518,12 +536,13 @@ if (!$token) {
                                         <th>Posição</th>
                                         <th>OVR</th>
                                         <th>Status</th>
-                                        <th class="text-end">Ação</th>
+                                        <th class="text-end">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody id="poolTable"></tbody>
                             </table>
                         </div>
+                        <div id="poolPagination" class="d-flex justify-content-center mt-3"></div>
                     </div>
                     <div class="tab-pane fade" id="rounds-pane" role="tabpanel" aria-labelledby="rounds-tab">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -631,6 +650,51 @@ if (!$token) {
     </div>
 </div>
 
+<!-- Edit Player Modal -->
+<div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <form id="editPlayerForm">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Editar Jogador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="player_id" id="editPlayerId" />
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">Nome</label>
+                            <input type="text" name="name" id="editPlayerName" class="form-control" required />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Posição</label>
+                            <select name="position" id="editPlayerPosition" class="form-select">
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF">SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label">Idade</label>
+                            <input type="number" name="age" id="editPlayerAge" min="16" max="45" class="form-control" required />
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label">OVR</label>
+                            <input type="number" name="ovr" id="editPlayerOvr" min="40" max="99" class="form-control" required />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Import CSV Modal -->
 <div class="modal fade" id="importCSVModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -673,6 +737,8 @@ if (!$token) {
         pool: [],
         manualOrder: [],
         search: '',
+        poolPage: 1,
+        poolPerPage: 15,
         lotteryDrawn: false,
         lotteryQueue: [],
         lotteryIndex: 0,
@@ -690,6 +756,7 @@ if (!$token) {
         orderList: document.getElementById('orderList'),
         manualOrderList: document.getElementById('manualOrderList'),
         poolTable: document.getElementById('poolTable'),
+        poolPagination: document.getElementById('poolPagination'),
         roundsContainer: document.getElementById('rounds'),
         roundsMeta: document.getElementById('roundsMeta'),
         feedback: document.getElementById('feedback'),
@@ -713,10 +780,12 @@ if (!$token) {
 
     document.getElementById('poolSearch').addEventListener('input', (event) => {
         state.search = event.target.value.toLowerCase();
+        state.poolPage = 1; // Reset para primeira página ao buscar
         renderPool();
     });
 
     document.getElementById('addPlayerForm').addEventListener('submit', handleAddPlayer);
+    document.getElementById('editPlayerForm').addEventListener('submit', handleEditPlayer);
     document.getElementById('importCSVForm').addEventListener('submit', handleImportCSV);
 
     const orderModal = new bootstrap.Modal(document.getElementById('orderModal'));
@@ -1081,7 +1150,8 @@ if (!$token) {
     }
 
     function renderPool() {
-        const list = (state.pool || []).filter((player) => {
+        // Filtrar jogadores
+        const filtered = (state.pool || []).filter((player) => {
             if (!state.search) return true;
             const needle = state.search;
             return (
@@ -1090,31 +1160,125 @@ if (!$token) {
             );
         });
 
-        if (!list.length) {
+        if (!filtered.length) {
             elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhum jogador no pool.</td></tr>';
+            elements.poolPagination.innerHTML = '';
             return;
         }
 
-        elements.poolTable.innerHTML = list
+        // Paginação
+        const totalPages = Math.ceil(filtered.length / state.poolPerPage);
+        if (state.poolPage > totalPages) state.poolPage = totalPages;
+        const start = (state.poolPage - 1) * state.poolPerPage;
+        const end = start + state.poolPerPage;
+        const paginated = filtered.slice(start, end);
+
+        // Renderizar tabela
+        elements.poolTable.innerHTML = paginated
             .map((player, index) => {
+                const globalIndex = start + index + 1;
                 const drafted = player.draft_status === 'drafted';
                 const canDelete = state.session?.status === 'setup' && !drafted;
-                const deleteAction = canDelete
-                    ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteInitDraftPlayer(${player.id}, '${player.name.replace(/'/g, "\\'")}')">
+                const canEdit = state.session?.status === 'setup' && !drafted;
+                
+                const deleteBtn = canDelete
+                    ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteInitDraftPlayer(${player.id}, '${(player.name || '').replace(/'/g, "\\'")}')">
                         <i class="bi bi-trash"></i>
                     </button>`
-                    : '<span class="text-muted">-</span>';
+                    : '';
+                
+                const editBtn = canEdit
+                    ? `<button class="btn btn-sm btn-outline-warning" onclick="openEditPlayer(${player.id})">
+                        <i class="bi bi-pencil"></i>
+                    </button>`
+                    : '';
+
+                const actions = (editBtn || deleteBtn) ? `${editBtn} ${deleteBtn}` : '<span class="text-muted">-</span>';
+
                 return `
                     <tr>
-                        <td>${index + 1}</td>
+                        <td>${globalIndex}</td>
                         <td>${player.name}</td>
                         <td>${player.position}</td>
                         <td>${player.ovr}</td>
                         <td><span class="badge badge-${drafted ? 'drafted' : 'available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
-                        <td class="text-end">${deleteAction}</td>
+                        <td class="text-end">${actions}</td>
                     </tr>`;
             })
             .join('');
+
+        // Renderizar paginação
+        renderPoolPagination(totalPages, filtered.length);
+    }
+
+    function renderPoolPagination(totalPages, totalItems) {
+        if (totalPages <= 1) {
+            elements.poolPagination.innerHTML = '';
+            return;
+        }
+
+        const maxButtons = 5;
+        let startPage = Math.max(1, state.poolPage - Math.floor(maxButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        
+        if (endPage - startPage < maxButtons - 1) {
+            startPage = Math.max(1, endPage - maxButtons + 1);
+        }
+
+        let html = '<nav><ul class="pagination pagination-sm mb-0">';
+        
+        // Botão anterior
+        html += `<li class="page-item ${state.poolPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePoolPage(${state.poolPage - 1}); return false;">&laquo;</a>
+        </li>`;
+
+        // Primeira página
+        if (startPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePoolPage(1); return false;">1</a></li>`;
+            if (startPage > 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        // Páginas numeradas
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<li class="page-item ${i === state.poolPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePoolPage(${i}); return false;">${i}</a>
+            </li>`;
+        }
+
+        // Última página
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePoolPage(${totalPages}); return false;">${totalPages}</a></li>`;
+        }
+
+        // Botão próximo
+        html += `<li class="page-item ${state.poolPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePoolPage(${state.poolPage + 1}); return false;">&raquo;</a>
+        </li>`;
+
+        html += '</ul></nav>';
+        html += `<div class="text-muted small mt-2 text-center">${totalItems} jogadores encontrados</div>`;
+        
+        elements.poolPagination.innerHTML = html;
+    }
+
+    function changePoolPage(page) {
+        const totalPages = Math.ceil((state.pool || []).filter((player) => {
+            if (!state.search) return true;
+            const needle = state.search;
+            return (
+                (player.name || '').toLowerCase().includes(needle) ||
+                (player.position || '').toLowerCase().includes(needle)
+            );
+        }).length / state.poolPerPage);
+        
+        if (page < 1 || page > totalPages) return;
+        state.poolPage = page;
+        renderPool();
     }
 
     function renderRounds() {
@@ -1407,6 +1571,42 @@ if (!$token) {
             showMessage('Jogador adicionado ao pool.');
             event.target.reset();
             bootstrap.Modal.getInstance(document.getElementById('addPlayerModal')).hide();
+            loadState();
+        } catch (error) {
+            showMessage(error.message, 'danger');
+        }
+    }
+
+    function openEditPlayer(playerId) {
+        const player = state.pool.find(p => p.id === playerId);
+        if (!player) {
+            showMessage('Jogador não encontrado.', 'warning');
+            return;
+        }
+        
+        document.getElementById('editPlayerId').value = player.id;
+        document.getElementById('editPlayerName').value = player.name || '';
+        document.getElementById('editPlayerPosition').value = player.position || 'SF';
+        document.getElementById('editPlayerAge').value = player.age || 19;
+        document.getElementById('editPlayerOvr').value = player.ovr || 70;
+        
+        new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
+    }
+
+    async function handleEditPlayer(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const payload = Object.fromEntries(formData.entries());
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'edit_player', token: TOKEN, ...payload }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao editar jogador');
+            showMessage('Jogador atualizado com sucesso.');
+            bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
             loadState();
         } catch (error) {
             showMessage(error.message, 'danger');

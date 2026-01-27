@@ -329,6 +329,34 @@ if ($method === 'POST') {
                 break;
             }
 
+            case 'edit_player': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível editar jogadores durante setup');
+
+                $playerId = (int)($data['player_id'] ?? 0);
+                if (!$playerId) throw new Exception('player_id obrigatório');
+
+                // Verificar se o jogador existe e não foi draftado
+                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND season_id = ? AND draft_status = "available"');
+                $stmt->execute([$playerId, $session['season_id']]);
+                if (!$stmt->fetch()) throw new Exception('Jogador não encontrado ou já foi draftado');
+
+                // Atualizar dados
+                $stmt = $pdo->prepare('UPDATE initdraft_pool SET name = ?, position = ?, age = ?, ovr = ? WHERE id = ?');
+                $stmt->execute([
+                    $data['name'],
+                    $data['position'],
+                    (int)$data['age'],
+                    (int)$data['ovr'],
+                    $playerId,
+                ]);
+
+                echo json_encode(['success' => true]);
+                break;
+            }
+
             case 'delete_player': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
