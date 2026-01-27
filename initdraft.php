@@ -1255,6 +1255,7 @@ if (!$token) {
 
     async function submitManualOrder() {
         try {
+            // 1. Extrair ordem da loteria ou manual
             if (state.orderMode === 'lottery' && state.lotteryQueue.length) {
                 state.manualOrder = state.lotteryQueue.map((team) => team.id).filter(Boolean);
             }
@@ -1265,8 +1266,12 @@ if (!$token) {
                 showMessage('Defina a ordem antes de aplicar.', 'warning');
                 return;
             }
+
+            // 2. PRIMEIRO perguntar o número de rodadas e salvar
             const roundsOk = await ensureTotalRounds();
             if (!roundsOk) return;
+
+            // 3. DEPOIS salvar a ordem (que vai gerar as picks usando total_rounds já salvo)
             const res = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1274,11 +1279,17 @@ if (!$token) {
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Erro ao aplicar ordem');
-            showMessage('Ordem atualizada com sucesso.');
+
+            // 4. Marcar loteria como concluída e atualizar UI
             state.lotteryDrawn = true;
             updateOrderEditVisibility();
+            
+            // 5. Recarregar estado (agora com as picks geradas)
             await loadState();
+            
+            // 6. Fechar modal e mostrar sucesso
             orderModal.hide();
+            showMessage('Ordem e rodadas definidas com sucesso!', 'success');
         } catch (error) {
             showMessage(error.message, 'danger');
         }

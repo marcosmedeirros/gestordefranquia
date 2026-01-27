@@ -483,14 +483,12 @@ if ($method === 'POST') {
                     throw new Exception('Informe um número de rodadas entre 1 e 10');
                 }
 
-                $stmtOrderCount = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ?');
-                $stmtOrderCount->execute([$session['id']]);
-                if ((int)$stmtOrderCount->fetchColumn() > 0) {
-                    throw new Exception('A ordem já foi definida. Ajuste as rodadas antes do sorteio.');
-                }
-
+                // Atualizar total_rounds na sessão
                 $pdo->prepare('UPDATE initdraft_sessions SET total_rounds = ? WHERE id = ?')
                     ->execute([$totalRounds, $session['id']]);
+
+                // Atualizar session array para retornar valor atualizado
+                $session['total_rounds'] = $totalRounds;
 
                 echo json_encode(['success' => true, 'total_rounds' => $totalRounds]);
                 break;
