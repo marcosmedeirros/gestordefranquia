@@ -1259,6 +1259,9 @@ if (!$token) {
                 state.manualOrder = state.lotteryQueue.map((team) => team.id).filter(Boolean);
             }
             if (!state.manualOrder.length) {
+                state.manualOrder = getRoundOneOrder();
+            }
+            if (!state.manualOrder.length) {
                 showMessage('Defina a ordem antes de aplicar.', 'warning');
                 return;
             }
@@ -1272,10 +1275,10 @@ if (!$token) {
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Erro ao aplicar ordem');
             showMessage('Ordem atualizada com sucesso.');
-            orderModal.hide();
             state.lotteryDrawn = true;
             updateOrderEditVisibility();
-            loadState();
+            await loadState();
+            orderModal.hide();
         } catch (error) {
             showMessage(error.message, 'danger');
         }
