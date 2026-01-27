@@ -1255,6 +1255,13 @@ if (!$token) {
 
     async function submitManualOrder() {
         try {
+            if (state.orderMode === 'lottery' && state.lotteryQueue.length) {
+                state.manualOrder = state.lotteryQueue.map((team) => team.id).filter(Boolean);
+            }
+            if (!state.manualOrder.length) {
+                showMessage('Defina a ordem antes de aplicar.', 'warning');
+                return;
+            }
             const roundsOk = await ensureTotalRounds();
             if (!roundsOk) return;
             const res = await fetch(API_URL, {
@@ -1266,6 +1273,8 @@ if (!$token) {
             if (!data.success) throw new Error(data.error || 'Erro ao aplicar ordem');
             showMessage('Ordem atualizada com sucesso.');
             orderModal.hide();
+            state.lotteryDrawn = true;
+            updateOrderEditVisibility();
             loadState();
         } catch (error) {
             showMessage(error.message, 'danger');
