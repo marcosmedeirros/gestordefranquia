@@ -190,8 +190,8 @@ function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, in
 }
 
 function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
-    // Regra: maior OVR; empate -> menor idade; empate -> aleatório.
-    // OBS: age pode ser NULL. Neste caso, tratamos como idade "muito alta" para priorizar quem tem idade definida.
+    // Regra: maior OVR; empate -> maior idade; empate -> aleatório.
+    // OBS: age pode ser NULL. Neste caso, tratamos como idade "muito baixa" para priorizar quem tem idade definida.
 
     // 1) Melhor OVR disponível
     $stmtMax = $pdo->prepare('SELECT MAX(ovr) FROM initdraft_pool WHERE season_id = ? AND draft_status = "available"');
@@ -200,18 +200,18 @@ function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
     if ($maxOvr === false || $maxOvr === null) return null;
     $maxOvr = (int)$maxOvr;
 
-    // 2) Menor idade dentro do melhor OVR
-    $stmtMinAge = $pdo->prepare('
-        SELECT MIN(COALESCE(NULLIF(age, 0), 999))
+    // 2) Maior idade dentro do melhor OVR
+    $stmtMaxAge = $pdo->prepare('
+        SELECT MAX(COALESCE(NULLIF(age, 0), 0))
         FROM initdraft_pool
         WHERE season_id = ? AND draft_status = "available" AND ovr = ?
     ');
-    $stmtMinAge->execute([$seasonId, $maxOvr]);
-    $minAge = $stmtMinAge->fetchColumn();
-    if ($minAge === false || $minAge === null) {
-        $minAge = 999;
+    $stmtMaxAge->execute([$seasonId, $maxOvr]);
+    $maxAge = $stmtMaxAge->fetchColumn();
+    if ($maxAge === false || $maxAge === null) {
+        $maxAge = 0;
     }
-    $minAge = (int)$minAge;
+    $maxAge = (int)$maxAge;
 
     // 3) Seleciona aleatoriamente entre os empatados
     $stmt = $pdo->prepare('
@@ -220,9 +220,9 @@ function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
         WHERE season_id = ?
           AND draft_status = "available"
           AND ovr = ?
-          AND COALESCE(NULLIF(age, 0), 999) = ?
+        AND COALESCE(NULLIF(age, 0), 0) = ?
     ');
-    $stmt->execute([$seasonId, $maxOvr, $minAge]);
+    $stmt->execute([$seasonId, $maxOvr, $maxAge]);
     $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
     if (!$ids) return null;
 

@@ -940,12 +940,11 @@ if (!$token) {
 
     async function saveDailySchedule() {
         try {
-            const enabled = document.getElementById('modalDailyScheduleEnabled')?.checked ? 1 : 0;
             const startDate = document.getElementById('modalDailyScheduleStart')?.value || '';
             const res = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'set_daily_schedule', token: TOKEN, enabled, start_date: startDate }),
+                body: JSON.stringify({ action: 'set_daily_schedule', token: TOKEN, enabled: 1, start_date: startDate }),
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Erro ao salvar agendamento');
@@ -969,7 +968,18 @@ if (!$token) {
         }
 
         if (session.status === 'setup') {
-            buttons.push(`<button class="btn btn-success btn-sm" onclick="openScheduleStartPicker()"><i class="bi bi-calendar-event me-1"></i>Definir dia de início</button>`);
+            const startDate = session.daily_schedule_start_date || '';
+            const endDate = computeScheduleEndDate(startDate, session.total_rounds);
+            if (startDate) {
+                buttons.push(`
+                    <div class="small text-muted">
+                        Início: <strong>${startDate}</strong><br>
+                        Fim: <strong>${endDate || '-'}</strong>
+                    </div>
+                `);
+            } else {
+                buttons.push(`<button class="btn btn-success btn-sm" onclick="openScheduleStartPicker()"><i class="bi bi-calendar-event me-1"></i>Definir dia de início</button>`);
+            }
         }
 
         if (session.status === 'in_progress') {
@@ -989,14 +999,18 @@ if (!$token) {
         // Atualiza campos do modal com o estado atual
         const session = state.session;
         if (!session) return;
-        document.getElementById('modalDailyScheduleEnabled').checked = Number(session.daily_schedule_enabled ?? 0) === 1;
         document.getElementById('modalDailyScheduleStart').value = session.daily_schedule_start_date || '';
         document.getElementById('modalDailyScheduleStart').disabled = session.status !== 'setup';
-        document.getElementById('modalDailyScheduleEnabled').disabled = session.status !== 'setup';
-        document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(session.daily_schedule_start_date || '', session.total_rounds);
+        document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(session.daily_schedule_start_date || '', session.total_rounds) || '-';
         document.getElementById('modalSaveScheduleBtn').disabled = session.status !== 'setup';
         const modal = new bootstrap.Modal(document.getElementById('dailyScheduleModal'));
         modal.show();
+        const startInput = document.getElementById('modalDailyScheduleStart');
+        if (startInput) {
+            startInput.oninput = () => {
+                document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(startInput.value || '', session.total_rounds) || '-';
+            };
+        }
     }
 
     function renderOrder() {
@@ -1717,18 +1731,12 @@ if (!$token) {
             </div>
             <div class="modal-body">
                 <div class="mb-2 small text-muted">00:00:01 inicia o round do dia (Brasília). Até 19:30 sem relógio. Após 19:30: 10 min/pick e auto-pick por OVR.</div>
-                <div class="row g-2 align-items-end">
-                    <div class="col-sm-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modalDailyScheduleEnabled">
-                            <label class="form-check-label" for="modalDailyScheduleEnabled">Ativar</label>
-                        </div>
-                    </div>
-                    <div class="col-sm-4">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-sm-6">
                         <label class="form-label mb-1">Dia 01 (YYYY-MM-DD)</label>
                         <input type="date" id="modalDailyScheduleStart" class="form-control">
                     </div>
-                    <div class="col-sm-4">
+                            <div class="col-sm-6">
                         <label class="form-label mb-1">Previsão de término</label>
                         <input type="text" class="form-control" id="modalDailyScheduleEnd" readonly>
                     </div>
