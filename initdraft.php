@@ -576,10 +576,10 @@ if (!$token) {
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar
                     </button>
                     <button class="btn btn-outline-warning" type="button" id="lotteryButton" onclick="randomizeOrder()">
-                        <i class="bi bi-shuffle me-1"></i>Sortear Ordem
+                        <i class="bi bi-shuffle me-1"></i>Iniciar sorteio
                     </button>
                 </div>
-                <button class="btn btn-success" type="button" onclick="submitManualOrder()">
+                <button class="btn btn-success" type="button" id="applyOrderButton" onclick="submitManualOrder()">
                     <i class="bi bi-check2-circle me-1"></i>Aplicar
                 </button>
             </div>
@@ -674,6 +674,9 @@ if (!$token) {
         manualOrder: [],
         search: '',
         lotteryDrawn: false,
+        lotteryQueue: [],
+        lotteryIndex: 0,
+        orderMode: 'manual',
     };
 
     const elements = {
@@ -699,6 +702,7 @@ if (!$token) {
         orderModeManual: document.getElementById('orderModeManual'),
         orderModeLottery: document.getElementById('orderModeLottery'),
         lotteryPlaceholder: document.getElementById('lotteryPlaceholder'),
+        applyOrderButton: document.getElementById('applyOrderButton'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -716,6 +720,7 @@ if (!$token) {
 
     document.getElementById('orderModal').addEventListener('show.bs.modal', () => {
         renderManualOrderList();
+        updateLotteryButton();
     });
 
     function showMessage(message, type = 'success') {
@@ -760,15 +765,22 @@ if (!$token) {
 
     function setOrderMode(mode) {
         const isManual = mode === 'manual';
+        state.orderMode = mode;
         elements.manualSection?.classList.toggle('d-none', !isManual);
         elements.lotterySection?.classList.toggle('d-none', isManual);
         elements.orderModeManual?.classList.toggle('order-mode-active', isManual);
         elements.orderModeLottery?.classList.toggle('order-mode-active', !isManual);
+        elements.lotteryButton?.classList.toggle('d-none', isManual);
+        if (elements.applyOrderButton) {
+            const hideApply = !isManual && !state.lotteryDrawn;
+            elements.applyOrderButton.classList.toggle('d-none', hideApply);
+        }
         if (isManual) {
             renderManualOrderList();
         } else {
             resetLotteryView();
         }
+        updateLotteryButton();
     }
 
     function renderStats() {
@@ -909,6 +921,8 @@ if (!$token) {
         elements.lotteryResults.innerHTML = '';
         elements.lotteryTrack.innerHTML = '';
         elements.lotteryPlaceholder?.classList.remove('d-none');
+        state.lotteryQueue = [];
+        state.lotteryIndex = 0;
     }
 
         function buildBallTeams(teams = []) {
@@ -925,69 +939,100 @@ if (!$token) {
         function updateLotteryButton() {
             if (!elements.lotteryButton) return;
             elements.lotteryButton.disabled = state.lotteryDrawn;
-            elements.lotteryButton.innerHTML = state.lotteryDrawn
-                ? '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído'
-                : '<i class="bi bi-shuffle me-1"></i>Sortear Ordem';
-        }
-
-        function runLotteryAnimation(orderDetails = []) {
-            if (!elements.lotteryTrack || !elements.lotteryResults) {
-                return Promise.resolve();
+            if (state.lotteryDrawn) {
+                elements.lotteryButton.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído';
+                return;
             }
-
-            const picks = orderDetails.length ? orderDetails : state.teams;
-            elements.lotteryResults.innerHTML = '';
-            const ballTeams = buildBallTeams(state.teams);
-            elements.lotteryTrack.innerHTML = ballTeams
-                .map((team) => `
-                    <div class="lottery-ball">
-                        <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                    </div>`)
-                .join('');
-
-            elements.lotteryPlaceholder?.classList.add('d-none');
-
-            const balls = Array.from(elements.lotteryTrack.querySelectorAll('.lottery-ball'));
-            const usedIndexes = new Set();
-
-            return new Promise((resolve) => {
-                let index = 0;
-                const revealNext = () => {
-                    balls.forEach((ball) => ball.classList.remove('active'));
-                    let ballIndex = Math.floor(Math.random() * balls.length);
-                    while (usedIndexes.has(ballIndex) && usedIndexes.size < balls.length) {
-                        ballIndex = Math.floor(Math.random() * balls.length);
-                    }
-                    usedIndexes.add(ballIndex);
-                    if (balls[ballIndex]) {
-                        balls[ballIndex].classList.add('active');
-                    }
-                    const team = picks[index] || {};
-                    elements.lotteryResults.insertAdjacentHTML(
-                        'beforeend',
-                        `<div class="lottery-result">
-                            <span class="lottery-rank">${index + 1}</span>
-                            <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                            <div>
-                                <strong>${team.city || ''} ${team.name || ''}</strong>
-                                <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
-                            </div>
-                        </div>`
-                    );
-                    index += 1;
-                    if (index < picks.length) {
-                        setTimeout(revealNext, 380);
-                    } else {
-                        setTimeout(() => {
-                            balls.forEach((ball) => ball.classList.remove('active'));
-                            resolve();
-                        }, 420);
-                    }
-                };
-
-                setTimeout(revealNext, 300);
-            });
+            elements.lotteryButton.innerHTML = state.lotteryQueue.length
+                ? '<i class="bi bi-shuffle me-1"></i>Sortear próximo'
+                : '<i class="bi bi-shuffle me-1"></i>Iniciar sorteio';
         }
+
+    function startLottery(orderDetails = []) {
+        if (!elements.lotteryTrack || !elements.lotteryResults) return;
+        state.lotteryQueue = orderDetails.length ? orderDetails : state.teams;
+        state.lotteryIndex = 0;
+        elements.lotteryResults.innerHTML = '';
+        const ballTeams = buildBallTeams(state.teams);
+        elements.lotteryTrack.innerHTML = ballTeams
+            .map((team) => `
+                <div class="lottery-ball">
+                    <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                </div>`)
+            .join('');
+
+        elements.lotteryPlaceholder?.classList.add('d-none');
+        updateLotteryButton();
+    }
+
+    async function drawNextLottery() {
+        if (!elements.lotteryTrack || !elements.lotteryResults) return;
+        if (!state.lotteryQueue.length) return;
+        if (state.lotteryIndex >= state.lotteryQueue.length) {
+            state.lotteryDrawn = true;
+            localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
+            updateLotteryButton();
+            showMessage('Sorteio concluído.');
+            return;
+        }
+
+        const balls = Array.from(elements.lotteryTrack.querySelectorAll('.lottery-ball'));
+        balls.forEach((ball) => ball.classList.remove('active'));
+        if (balls.length) {
+            const ballIndex = Math.floor(Math.random() * balls.length);
+            balls[ballIndex]?.classList.add('active');
+        }
+
+        const team = state.lotteryQueue[state.lotteryIndex] || {};
+        elements.lotteryResults.insertAdjacentHTML(
+            'beforeend',
+            `<div class="lottery-result">
+                <span class="lottery-rank">${state.lotteryIndex + 1}</span>
+                <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                <div>
+                    <strong>${team.city || ''} ${team.name || ''}</strong>
+                    <div class="small text-muted">${team.owner_name || 'Sem GM'}</div>
+                </div>
+            </div>`
+        );
+
+        state.lotteryIndex += 1;
+        if (state.lotteryIndex >= state.lotteryQueue.length) {
+            state.lotteryDrawn = true;
+            localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
+            if (elements.applyOrderButton) {
+                elements.applyOrderButton.classList.remove('d-none');
+            }
+            try {
+                await submitLotteryOrder();
+                showMessage('Sorteio concluído e ordem salva automaticamente.');
+            } catch (error) {
+                showMessage(error.message || 'Erro ao salvar ordem do sorteio', 'danger');
+            }
+        }
+        updateLotteryButton();
+    }
+
+    async function submitLotteryOrder() {
+        const roundsOk = await ensureTotalRounds();
+        if (!roundsOk) {
+            throw new Error('Defina o total de rodadas para salvar o sorteio.');
+        }
+        if (!state.lotteryQueue.length) {
+            throw new Error('Nenhuma ordem sorteada.');
+        }
+        const teamIds = state.lotteryQueue.map((team) => team.id).filter(Boolean);
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'set_manual_order', token: TOKEN, team_ids: teamIds }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao salvar ordem do sorteio');
+        state.manualOrder = teamIds;
+        renderManualOrderList();
+        renderOrder();
+    }
 
     function renderPool() {
         const list = (state.pool || []).filter((player) => {
@@ -1134,26 +1179,37 @@ if (!$token) {
             showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
             return;
         }
+        if (!state.teams.length) {
+            showMessage('Sem times para sortear.', 'warning');
+            return;
+        }
         try {
-            const roundsOk = await ensureTotalRounds();
-            if (!roundsOk) return;
-            setOrderMode('lottery');
+            if (!state.lotteryQueue.length) {
+                const roundsOk = await ensureTotalRounds();
+                if (!roundsOk) return;
+                setOrderMode('lottery');
 
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
-            state.manualOrder = data.order;
-            renderManualOrderList();
-            renderOrder();
-            await runLotteryAnimation(data.order_details || []);
-            state.lotteryDrawn = true;
-            localStorage.setItem(LOTTERY_STORAGE_KEY, '1');
-            updateLotteryButton();
-            showMessage('Ordem sorteada com sucesso.');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'randomize_order', token: TOKEN }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao sortear ordem');
+                state.manualOrder = data.order;
+                renderManualOrderList();
+                renderOrder();
+                startLottery(data.order_details || []);
+            }
+
+            await drawNextLottery();
+            state.order = state.lotteryQueue.slice(0, state.lotteryIndex).map((team, index) => ({
+                ...team,
+                position: index + 1,
+            }));
+            if (state.lotteryDrawn) {
+                showMessage('Ordem sorteada com sucesso.');
+            }
         } catch (error) {
             showMessage(error.message, 'danger');
         }

@@ -103,14 +103,15 @@ async function carregarHistoricoFA() {
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Data</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Ano</th></tr></thead><tbody>';
         data.contracts.forEach(item => {
             const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            const year = item.season_year || (item.waived_at ? item.waived_at.toString().slice(0, 4) : '-');
             html += `<tr>
                 <td><strong class="text-orange">${item.name}</strong></td>
                 <td>${item.ovr}</td>
                 <td>${teamName}</td>
-                <td>${item.waived_at || '-'}</td>
+                <td>${year}</td>
             </tr>`;
         });
         html += '</tbody></table></div>';
@@ -314,6 +315,9 @@ async function carregarPropostasAdmin() {
                     <button class="btn btn-sm btn-outline-danger" onclick="recusarTodasPropostas(${player.id})">
                         <i class="bi bi-x-circle me-1"></i>Recusar todas
                     </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="encerrarSemVencedor(${player.id})">
+                        <i class="bi bi-slash-circle me-1"></i>Encerrar sem vencedor
+                    </button>
                 </div>
             </div>`;
             html += '</div>';
@@ -367,14 +371,15 @@ async function carregarHistoricoContratacoes() {
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Data</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Ano</th></tr></thead><tbody>';
         data.contracts.forEach(item => {
             const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            const year = item.season_year || (item.waived_at ? item.waived_at.toString().slice(0, 4) : '-');
             html += `<tr>
                 <td><strong class="text-orange">${item.name}</strong></td>
                 <td>${item.ovr}</td>
                 <td>${teamName}</td>
-                <td>${item.waived_at || '-'}</td>
+                <td>${year}</td>
             </tr>`;
         });
         html += '</tbody></table></div>';
@@ -438,6 +443,31 @@ async function recusarTodasPropostas(playerId) {
     } catch (error) {
         console.error('Erro:', error);
         alert('Erro ao recusar propostas');
+    }
+}
+
+async function encerrarSemVencedor(playerId) {
+    if (!confirm('Encerrar este leilao sem vencedor? As propostas pendentes serao recusadas.')) return;
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'close_without_winner', free_agent_id: playerId })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao encerrar leilao');
+            return;
+        }
+
+        carregarPropostasAdmin();
+        carregarFreeAgentsAdmin();
+        carregarFreeAgents();
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao encerrar leilao');
     }
 }
 
