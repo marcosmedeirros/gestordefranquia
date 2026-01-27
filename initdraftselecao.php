@@ -155,6 +155,10 @@ if ($user && isset($user['id'])) {
             padding: 0.35rem 0.5rem;
         }
 
+        .accent-red {
+            color: #FC062A !important;
+        }
+
         .pick-flash {
             animation: pickFlash 1.2s ease-in-out;
         }
@@ -402,7 +406,7 @@ if ($user && isset($user['id'])) {
                                 <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                                 <div>
                                     <strong>${teamLabel(pick)}</strong>
-                                    <div class="small text-muted">${pick.team_owner || 'Sem GM'}</div>
+                                    <div class="small accent-red">${pick.team_owner || 'Sem GM'}</div>
                                 </div>
                             </div>
                         </div>
@@ -456,7 +460,7 @@ if ($user && isset($user['id'])) {
                 .join('');
 
             elements.poolPagination.innerHTML = `
-                <div class="text-muted">Página ${uiState.poolPage} de ${totalPages}</div>
+                <div class="text-white">Página ${uiState.poolPage} de ${totalPages}</div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === 1 ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage - 1})">Anterior</button>
                     <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima</button>
@@ -495,7 +499,7 @@ if ($user && isset($user['id'])) {
             elements.rosterGrid.innerHTML = teams
                 .map((group) => {
                     const roster = group.players
-                        .map((pick) => `<li>${pick.player_name} <span class="text-muted">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'})</span></li>`)
+                        .map((pick) => `<li>${pick.player_name} <span class="accent-red">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'})</span></li>`)
                         .join('');
                     return `
                         <div class="col-md-6 col-xl-4">
@@ -504,7 +508,7 @@ if ($user && isset($user['id'])) {
                                     <img src="${group.team.team_photo || '/img/default-team.png'}" alt="${group.team.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                                     <div>
                                         <strong>${teamLabel(group.team)}</strong>
-                                        <div class="small text-muted">${group.team.team_owner || 'Sem GM'}</div>
+                                        <div class="small accent-red">${group.team.team_owner || 'Sem GM'}</div>
                                     </div>
                                 </div>
                                 <ul class="small ps-3 mb-0 text-light">${roster}</ul>
@@ -536,7 +540,7 @@ if ($user && isset($user['id'])) {
                 renderPool(currentPick);
                 renderRosters();
             } catch (error) {
-                elements.poolTable.innerHTML = `<tr><td colspan="6" class="text-danger">${error.message}</td></tr>`;
+                elements.poolTable.innerHTML = `<tr><td colspan="5" class="text-danger">${error.message}</td></tr>`;
             }
         }
 
