@@ -198,6 +198,11 @@ if ($user && isset($user['id'])) {
 </head>
 <body>
     <div class="container-fluid py-4 draft-app">
+        <div class="mb-3">
+            <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Voltar ao Dashboard
+            </a>
+        </div>
         <header class="hero">
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
                 <div>
@@ -268,6 +273,7 @@ if ($user && isset($user['id'])) {
                                     <th>Jogador</th>
                                     <th>Posição</th>
                                     <th>OVR</th>
+                                    <th>Idade</th>
                                     <th class="text-end">Ação</th>
                                 </tr>
                             </thead>
@@ -435,7 +441,7 @@ if ($user && isset($user['id'])) {
 
             elements.poolMeta.textContent = `${total} jogadores`;
             if (!pageItems.length) {
-                elements.poolTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
+                elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
                 elements.poolPagination.innerHTML = '';
                 return;
             }
@@ -453,6 +459,7 @@ if ($user && isset($user['id'])) {
                             <td>${player.name}</td>
                             <td>${player.position}</td>
                             <td>${player.ovr}</td>
+                            <td>${player.age || '-'}</td>
                             <td class="text-end">${action}</td>
                         </tr>
                     `;
@@ -540,7 +547,7 @@ if ($user && isset($user['id'])) {
                 renderPool(currentPick);
                 renderRosters();
             } catch (error) {
-                elements.poolTable.innerHTML = `<tr><td colspan="5" class="text-danger">${error.message}</td></tr>`;
+                elements.poolTable.innerHTML = `<tr><td colspan="6" class="text-danger">${error.message}</td></tr>`;
             }
         }
 

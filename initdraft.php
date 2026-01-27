@@ -535,6 +535,7 @@ if (!$token) {
                                         <th>Jogador</th>
                                         <th>Posição</th>
                                         <th>OVR</th>
+                                        <th>Idade</th>
                                         <th>Status</th>
                                         <th class="text-end">Ações</th>
                                     </tr>
@@ -1201,6 +1202,7 @@ if (!$token) {
                         <td>${player.name}</td>
                         <td>${player.position}</td>
                         <td>${player.ovr}</td>
+                        <td>${player.age ?? '-'}</td>
                         <td><span class="badge badge-${drafted ? 'drafted' : 'available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
                         <td class="text-end">${actions}</td>
                     </tr>`;
