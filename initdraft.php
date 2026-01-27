@@ -572,7 +572,7 @@ if (!$token) {
             </div>
             <div class="modal-footer border-secondary justify-content-between">
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-light" type="button" onclick="resetManualOrder()">
+                    <button class="btn btn-outline-light" type="button" id="resetOrderButton" onclick="resetManualOrder()">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Resetar
                     </button>
                     <button class="btn btn-outline-warning" type="button" id="lotteryButton" onclick="randomizeOrder()">
@@ -705,6 +705,7 @@ if (!$token) {
         applyOrderButton: document.getElementById('applyOrderButton'),
         orderEditButton: document.getElementById('orderEditButton'),
         orderEditHint: document.getElementById('orderEditHint'),
+        resetOrderButton: document.getElementById('resetOrderButton'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -722,7 +723,7 @@ if (!$token) {
 
     document.getElementById('orderModal').addEventListener('show.bs.modal', () => {
         renderManualOrderList();
-        updateLotteryButton();
+        setOrderMode('select');
     });
 
     function showMessage(message, type = 'success') {
@@ -785,19 +786,21 @@ if (!$token) {
 
     function setOrderMode(mode) {
         const isManual = mode === 'manual';
+        const isLottery = mode === 'lottery';
         state.orderMode = mode;
         elements.manualSection?.classList.toggle('d-none', !isManual);
-        elements.lotterySection?.classList.toggle('d-none', isManual);
+        elements.lotterySection?.classList.toggle('d-none', !isLottery);
         elements.orderModeManual?.classList.toggle('order-mode-active', isManual);
-        elements.orderModeLottery?.classList.toggle('order-mode-active', !isManual);
-        elements.lotteryButton?.classList.toggle('d-none', isManual);
+        elements.orderModeLottery?.classList.toggle('order-mode-active', isLottery);
+        elements.lotteryButton?.classList.toggle('d-none', !isLottery);
+        elements.resetOrderButton?.classList.toggle('d-none', !isManual);
         if (elements.applyOrderButton) {
-            const hideApply = !isManual && !state.lotteryDrawn;
+            const hideApply = !isManual && (!isLottery || !state.lotteryDrawn);
             elements.applyOrderButton.classList.toggle('d-none', hideApply);
         }
         if (isManual) {
             renderManualOrderList();
-        } else {
+        } else if (isLottery) {
             resetLotteryView();
         }
         updateLotteryButton();
@@ -1083,6 +1086,11 @@ if (!$token) {
             .map((player, index) => {
                 const drafted = player.draft_status === 'drafted';
                 const canDelete = state.session?.status === 'setup' && !drafted;
+                const deleteAction = canDelete
+                    ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteInitDraftPlayer(${player.id}, '${player.name.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-trash"></i>
+                    </button>`
+                    : '<span class="text-muted">-</span>';
                 return `
                     <tr>
                         <td>${index + 1}</td>
@@ -1090,16 +1098,7 @@ if (!$token) {
                         <td>${player.position}</td>
                         <td>${player.ovr}</td>
                         <td><span class="badge badge-${drafted ? 'drafted' : 'available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
-                        <td class="text-end">
-                            <div class="d-inline-flex gap-2">
-                                <button class="btn btn-sm btn-success" ${drafted ? 'disabled' : ''} onclick="makePick(${player.id})">
-                                    <i class="bi bi-check2 me-1"></i>Escolher
-                                </button>
-                                ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteInitDraftPlayer(${player.id}, '${player.name.replace(/'/g, "\\'")}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>` : ''}
-                            </div>
-                        </td>
+                        <td class="text-end">${deleteAction}</td>
                     </tr>`;
             })
             .join('');
@@ -1200,7 +1199,7 @@ if (!$token) {
     function openOrderModal() {
         renderManualOrderList();
         resetLotteryView();
-        setOrderMode('manual');
+        setOrderMode('select');
         orderModal.show();
     }
 

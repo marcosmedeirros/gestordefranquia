@@ -8,6 +8,16 @@ if (!$token) {
     echo 'Token inválido.';
     exit;
 }
+
+$pdo = db();
+$user = getUserSession();
+$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$userTeamId = null;
+if ($user && isset($user['id'])) {
+    $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtTeam->execute([$user['id']]);
+    $userTeamId = $stmtTeam->fetchColumn() ?: null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -95,6 +105,16 @@ if (!$token) {
             padding: 1rem;
         }
 
+        .current-pick-highlight {
+            border-color: rgba(252, 0, 37, 0.7);
+            box-shadow: 0 0 18px rgba(252, 0, 37, 0.35);
+        }
+
+        .next-pick-highlight {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
         .pick-rank {
             width: 40px;
             height: 40px;
@@ -121,6 +141,55 @@ if (!$token) {
             background: rgba(255, 255, 255, 0.08);
             color: #adb5bd;
         }
+
+        .order-highlight {
+            border: 1px solid rgba(252, 0, 37, 0.6);
+            background: rgba(252, 0, 37, 0.12);
+            border-radius: 12px;
+            padding: 0.35rem 0.5rem;
+        }
+
+        .order-next {
+            border: 1px dashed rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            padding: 0.35rem 0.5rem;
+        }
+
+        .pick-flash {
+            animation: pickFlash 1.2s ease-in-out;
+        }
+
+        @keyframes pickFlash {
+            0% { box-shadow: 0 0 0 rgba(252, 0, 37, 0); }
+            30% { box-shadow: 0 0 28px rgba(252, 0, 37, 0.6); }
+            100% { box-shadow: 0 0 0 rgba(252, 0, 37, 0); }
+        }
+
+        .tv-mode body,
+        body.tv-mode {
+            background: #000000;
+        }
+
+        body.tv-mode .draft-app {
+            max-width: 1600px;
+        }
+
+        body.tv-mode .hero {
+            padding: 2.5rem;
+        }
+
+        body.tv-mode h1 {
+            font-size: clamp(2.4rem, 4vw, 3.2rem);
+        }
+
+        body.tv-mode .stat-card {
+            padding: 1.4rem;
+        }
+
+        body.tv-mode .pick-card {
+            padding: 1.4rem;
+            font-size: 1.05rem;
+        }
     </style>
 </head>
 <body>
@@ -135,9 +204,17 @@ if (!$token) {
                 <div class="text-lg-end">
                     <p class="text-uppercase small text-muted mb-1">Liga</p>
                     <h4 id="leagueName" class="mb-2">-</h4>
-                    <button class="btn btn-outline-light btn-sm" type="button" onclick="loadState()">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
-                    </button>
+                    <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                        <button class="btn btn-outline-light btn-sm" type="button" onclick="loadState()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" type="button" id="toggleSoundButton">
+                            <i class="bi bi-volume-up me-1"></i>Som
+                        </button>
+                        <button class="btn btn-outline-light btn-sm" type="button" id="toggleTvButton">
+                            <i class="bi bi-fullscreen me-1"></i>Modo TV
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="row g-3 mt-4" id="statGrid"></div>
@@ -173,6 +250,7 @@ if (!$token) {
                                     <th>Posição</th>
                                     <th>OVR</th>
                                     <th>Status</th>
+                                    <th class="text-end">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="poolTable"></tbody>
@@ -194,7 +272,9 @@ if (!$token) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const TOKEN = '<?php echo htmlspecialchars($token, ENT_QUOTES); ?>';
-        const API_URL = 'api/initdraft.php';
+    const API_URL = 'api/initdraft.php';
+    const USER_TEAM_ID = <?php echo $userTeamId ? (int)$userTeamId : 'null'; ?>;
+    const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;
 
         const state = {
             session: null,
@@ -213,6 +293,13 @@ if (!$token) {
             poolMeta: document.getElementById('poolMeta'),
             rosterGrid: document.getElementById('rosterGrid'),
             rosterMeta: document.getElementById('rosterMeta'),
+            toggleSoundButton: document.getElementById('toggleSoundButton'),
+            toggleTvButton: document.getElementById('toggleTvButton'),
+        };
+
+        const uiState = {
+            soundEnabled: false,
+            lastPickId: null,
         };
 
         function teamLabel(pick) {
@@ -259,13 +346,13 @@ if (!$token) {
             `;
         }
 
-        function renderPickCard(target, pick, label) {
+        function renderPickCard(target, pick, label, highlightClass = '') {
             if (!pick) {
                 target.innerHTML = `<div class="text-muted">Nenhuma pick disponível.</div>`;
                 return;
             }
             target.innerHTML = `
-                <div class="pick-card">
+                <div class="pick-card ${highlightClass}">
                     <div class="d-flex align-items-center gap-3">
                         <div class="pick-rank">${pick.pick_position}</div>
                         <div>
@@ -278,7 +365,7 @@ if (!$token) {
             `;
         }
 
-        function renderOrderList() {
+        function renderOrderList(currentPick, nextPick) {
             if (!state.order.length) {
                 elements.orderList.innerHTML = '<div class="text-muted">Ordem ainda não definida.</div>';
                 return;
@@ -286,7 +373,7 @@ if (!$token) {
             const roundOne = state.order.filter((pick) => pick.round === 1).sort((a, b) => a.pick_position - b.pick_position);
             elements.orderList.innerHTML = roundOne
                 .map((pick, index) => `
-                    <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                    <div class="d-flex align-items-center justify-content-between gap-3 mb-2 ${currentPick && pick.team_id === currentPick.team_id ? 'order-highlight' : ''} ${nextPick && pick.team_id === nextPick.team_id ? 'order-next' : ''}">
                         <div class="d-flex align-items-center gap-2">
                             <span class="pick-rank" style="width:32px;height:32px;">${index + 1}</span>
                             <div class="team-chip">
@@ -302,17 +389,21 @@ if (!$token) {
                 .join('');
         }
 
-        function renderPool() {
+        function renderPool(currentPick) {
             const pool = state.pool || [];
             elements.poolMeta.textContent = `${pool.length} jogadores`;
             if (!pool.length) {
-                elements.poolTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
+                elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
                 return;
             }
 
+            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
             elements.poolTable.innerHTML = pool
                 .map((player, index) => {
                     const drafted = player.draft_status === 'drafted';
+                    const action = (!drafted && canPick)
+                        ? `<button class="btn btn-sm btn-success" onclick="makePick(${player.id})"><i class="bi bi-check2 me-1"></i>Escolher</button>`
+                        : '<span class="text-muted">-</span>';
                     return `
                         <tr>
                             <td>${index + 1}</td>
@@ -320,6 +411,7 @@ if (!$token) {
                             <td>${player.position}</td>
                             <td>${player.ovr}</td>
                             <td><span class="badge ${drafted ? 'badge-drafted' : 'badge-available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
+                            <td class="text-end">${action}</td>
                         </tr>
                     `;
                 })
@@ -385,17 +477,106 @@ if (!$token) {
                 renderStats();
                 const currentPick = state.order.find((pick) => !pick.picked_player_id);
                 const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
-                renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual');
-                renderPickCard(elements.nextPickCard, nextPick, 'Próximo');
-                renderOrderList();
-                renderPool();
+                handlePickChange(currentPick);
+                renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight');
+                renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight');
+                renderOrderList(currentPick, nextPick);
+                renderPool(currentPick);
                 renderRosters();
             } catch (error) {
-                elements.poolTable.innerHTML = `<tr><td colspan="5" class="text-danger">${error.message}</td></tr>`;
+                elements.poolTable.innerHTML = `<tr><td colspan="6" class="text-danger">${error.message}</td></tr>`;
             }
         }
 
-        loadState();
+        function setupAutoRefresh() {
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (!isMobile) {
+                setInterval(() => {
+                    if (document.visibilityState === 'visible') {
+                        loadState();
+                    }
+                }, 10000);
+            }
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    loadState();
+                }
+            });
+        }
+
+        async function makePick(playerId) {
+            if (!confirm('Confirmar a escolha deste jogador?')) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'make_pick', token: TOKEN, player_id: playerId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao registrar pick');
+                await loadState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function handlePickChange(currentPick) {
+            const pickId = currentPick?.id || null;
+            if (pickId && uiState.lastPickId && pickId !== uiState.lastPickId) {
+                elements.currentPickCard.classList.remove('pick-flash');
+                void elements.currentPickCard.offsetWidth;
+                elements.currentPickCard.classList.add('pick-flash');
+                if (uiState.soundEnabled) {
+                    playBeep();
+                }
+            }
+            if (pickId) {
+                uiState.lastPickId = pickId;
+            }
+        }
+
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 740;
+                gain.gain.value = 0.06;
+                oscillator.connect(gain);
+                gain.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.25);
+                oscillator.onended = () => audioCtx.close();
+            } catch (error) {
+                console.warn('Audio não disponível');
+            }
+        }
+
+        function toggleSound() {
+            uiState.soundEnabled = !uiState.soundEnabled;
+            elements.toggleSoundButton?.classList.toggle('btn-warning', uiState.soundEnabled);
+            elements.toggleSoundButton?.classList.toggle('btn-outline-warning', !uiState.soundEnabled);
+            elements.toggleSoundButton?.querySelector('i')?.classList.toggle('bi-volume-mute', !uiState.soundEnabled);
+            elements.toggleSoundButton?.querySelector('i')?.classList.toggle('bi-volume-up', uiState.soundEnabled);
+        }
+
+        function toggleTvMode() {
+            document.body.classList.toggle('tv-mode');
+            const isTv = document.body.classList.contains('tv-mode');
+            if (isTv && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else if (!isTv && document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        elements.toggleSoundButton?.addEventListener('click', toggleSound);
+        elements.toggleTvButton?.addEventListener('click', toggleTvMode);
+
+    setupAutoRefresh();
+    loadState();
     </script>
 </body>
 </html>
