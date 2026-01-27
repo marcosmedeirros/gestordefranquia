@@ -471,9 +471,9 @@ if (!$token) {
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <h5 class="mb-1">Ordem da 1ª Rodada</h5>
-                        <p class="text-muted mb-0 small">Edite manualmente ou utilize o sorteio animado.</p>
+                        <p class="text-muted mb-0 small" id="orderEditHint">Edite manualmente ou utilize o sorteio animado.</p>
                     </div>
-                    <button class="btn btn-outline-light btn-sm" onclick="openOrderModal()">
+                    <button class="btn btn-outline-light btn-sm" id="orderEditButton" onclick="openOrderModal()">
                         <i class="bi bi-sliders me-2"></i>Editar
                     </button>
                 </div>
@@ -703,6 +703,8 @@ if (!$token) {
         orderModeLottery: document.getElementById('orderModeLottery'),
         lotteryPlaceholder: document.getElementById('lotteryPlaceholder'),
         applyOrderButton: document.getElementById('applyOrderButton'),
+        orderEditButton: document.getElementById('orderEditButton'),
+        orderEditHint: document.getElementById('orderEditHint'),
     };
 
     elements.tokenDisplay.textContent = TOKEN;
@@ -735,6 +737,10 @@ if (!$token) {
         navigator.clipboard.writeText(TOKEN).then(() => showMessage('Token copiado para a área de transferência.'));
     }
 
+    function openDraftViewer() {
+        window.open(`initdraftselecao.php?token=${encodeURIComponent(TOKEN)}`, '_blank');
+    }
+
     async function loadState() {
         try {
             const [stateRes, poolRes] = await Promise.all([
@@ -748,6 +754,9 @@ if (!$token) {
             state.teams = stateRes.teams || [];
             state.pool = poolRes.success ? poolRes.players : [];
             state.manualOrder = getRoundOneOrder();
+            if (state.order.length) {
+                state.lotteryDrawn = true;
+            }
             render();
         } catch (error) {
             showMessage(error.message, 'danger');
@@ -757,10 +766,21 @@ if (!$token) {
     function render() {
         renderStats();
         renderActions();
+        updateOrderEditVisibility();
         renderOrder();
         renderPool();
         renderRounds();
         updateLotteryButton();
+    }
+
+    function updateOrderEditVisibility() {
+        const canEdit = !state.lotteryDrawn;
+        elements.orderEditButton?.classList.toggle('d-none', !canEdit);
+        if (elements.orderEditHint) {
+            elements.orderEditHint.textContent = canEdit
+                ? 'Edite manualmente ou utilize o sorteio animado.'
+                : 'Ordem definida (não editável).';
+        }
     }
 
     function setOrderMode(mode) {
@@ -835,6 +855,7 @@ if (!$token) {
 
         if (session.status === 'in_progress') {
             buttons.push(`<button class="btn btn-outline-info btn-sm" onclick="loadState()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>`);
+            buttons.push(`<button class="btn btn-outline-light btn-sm" onclick="openDraftViewer()"><i class="bi bi-eye me-1"></i>Ver página do draft</button>`);
             buttons.push(`<button class="btn btn-danger btn-sm" onclick="finalizeDraft()"><i class="bi bi-flag me-1"></i>Finalizar</button>`);
         }
 
