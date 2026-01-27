@@ -919,44 +919,7 @@ if (!$token) {
             </div>
         `;
 
-        const scheduleEnabled = Number(session.daily_schedule_enabled ?? 0) === 1;
-        const startDate = session.daily_schedule_start_date || '';
-        const endDate = computeScheduleEndDate(startDate, session.total_rounds);
-
-        const scheduleHtml = `
-            <div class="card-dark p-3 mt-3">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <div class="fw-semibold">Agendamento (1 round por dia)</div>
-                        <div class="small text-muted">00:00:01 inicia o round do dia (Brasília). Até 19:30 sem relógio. Após 19:30: 10 min/pick e auto-pick por OVR.</div>
-                    </div>
-                </div>
-
-                <div class="row g-2 mt-2 align-items-end">
-                    <div class="col-sm-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="dailyScheduleEnabled" ${scheduleEnabled ? 'checked' : ''} ${session.status !== 'setup' ? 'disabled' : ''}>
-                            <label class="form-check-label" for="dailyScheduleEnabled">Ativar</label>
-                        </div>
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label mb-1">Dia 01 (YYYY-MM-DD)</label>
-                        <input type="date" id="dailyScheduleStart" class="form-control" value="${startDate}" ${session.status !== 'setup' ? 'disabled' : ''}>
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label mb-1">Previsão de término</label>
-                        <input type="text" class="form-control" value="${endDate || '-'}" readonly>
-                    </div>
-                    <div class="col-12 d-flex justify-content-end mt-2">
-                        <button class="btn btn-outline-warning btn-sm" onclick="saveDailySchedule()" ${session.status !== 'setup' ? 'disabled' : ''}>
-                            <i class="bi bi-calendar-check me-1"></i>Salvar agendamento
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        elements.sessionSummary.innerHTML = `Liga: <strong>${session.league}</strong>` + scheduleHtml;
+        elements.sessionSummary.innerHTML = `Liga: <strong>${session.league}</strong>`;
         elements.progressLabel.textContent = `${drafted} de ${total} picks realizados`;
         elements.progressPercent.textContent = `${progress}%`;
         elements.progressBar.style.width = `${progress}%`;
@@ -977,8 +940,8 @@ if (!$token) {
 
     async function saveDailySchedule() {
         try {
-            const enabled = document.getElementById('dailyScheduleEnabled')?.checked ? 1 : 0;
-            const startDate = document.getElementById('dailyScheduleStart')?.value || '';
+            const enabled = document.getElementById('modalDailyScheduleEnabled')?.checked ? 1 : 0;
+            const startDate = document.getElementById('modalDailyScheduleStart')?.value || '';
             const res = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -987,6 +950,8 @@ if (!$token) {
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Erro ao salvar agendamento');
             showMessage('Agendamento salvo. O draft iniciará automaticamente às 00:00:01 (Brasília) no Dia 01 informado.', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('dailyScheduleModal'));
+            modal?.hide();
             await loadState();
         } catch (error) {
             showMessage(error.message, 'danger');
@@ -1021,17 +986,17 @@ if (!$token) {
     }
 
     function openScheduleStartPicker() {
-        const enabledEl = document.getElementById('dailyScheduleEnabled');
-        const startEl = document.getElementById('dailyScheduleStart');
-        if (enabledEl) {
-            enabledEl.checked = true;
-        }
-        // pequeno delay pra garantir que o DOM esteja pronto na atualização do state
-        setTimeout(() => {
-            startEl?.focus();
-            startEl?.showPicker?.();
-        }, 50);
-        showMessage('Selecione o Dia 01 e clique em “Salvar agendamento”. O draft começará automaticamente às 00:00:01 (Brasília) nesse dia.', 'info');
+        // Atualiza campos do modal com o estado atual
+        const session = state.session;
+        if (!session) return;
+        document.getElementById('modalDailyScheduleEnabled').checked = Number(session.daily_schedule_enabled ?? 0) === 1;
+        document.getElementById('modalDailyScheduleStart').value = session.daily_schedule_start_date || '';
+        document.getElementById('modalDailyScheduleStart').disabled = session.status !== 'setup';
+        document.getElementById('modalDailyScheduleEnabled').disabled = session.status !== 'setup';
+        document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(session.daily_schedule_start_date || '', session.total_rounds);
+        document.getElementById('modalSaveScheduleBtn').disabled = session.status !== 'setup';
+        const modal = new bootstrap.Modal(document.getElementById('dailyScheduleModal'));
+        modal.show();
     }
 
     function renderOrder() {
@@ -1742,3 +1707,38 @@ if (!$token) {
 </script>
 </body>
 </html>
+
+<div class="modal fade" id="dailyScheduleModal" tabindex="-1" aria-labelledby="dailyScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="dailyScheduleModalLabel">Agendamento (1 round por dia)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2 small text-muted">00:00:01 inicia o round do dia (Brasília). Até 19:30 sem relógio. Após 19:30: 10 min/pick e auto-pick por OVR.</div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modalDailyScheduleEnabled">
+                            <label class="form-check-label" for="modalDailyScheduleEnabled">Ativar</label>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label mb-1">Dia 01 (YYYY-MM-DD)</label>
+                        <input type="date" id="modalDailyScheduleStart" class="form-control">
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label mb-1">Previsão de término</label>
+                        <input type="text" class="form-control" id="modalDailyScheduleEnd" readonly>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end mt-2">
+                        <button class="btn btn-outline-warning btn-sm" id="modalSaveScheduleBtn" onclick="saveDailySchedule()">
+                            <i class="bi bi-calendar-check me-1"></i>Salvar agendamento
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
