@@ -938,9 +938,26 @@ if (!$token) {
         return `${y}-${m}-${d}`;
     }
 
+    function formatDateBr(isoDate) {
+        if (!isoDate) return '';
+        const [y, m, d] = isoDate.split('-');
+        if (!y || !m || !d) return '';
+        return `${d}/${m}/${y}`;
+    }
+
+    function parseDateBrToIso(brDate) {
+        if (!brDate) return '';
+        const parts = brDate.split('/');
+        if (parts.length !== 3) return '';
+        const [d, m, y] = parts.map((p) => p.trim());
+        if (!d || !m || !y) return '';
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
     async function saveDailySchedule() {
         try {
-            const startDate = document.getElementById('modalDailyScheduleStart')?.value || '';
+            const startDateBr = document.getElementById('modalDailyScheduleStart')?.value || '';
+            const startDate = parseDateBrToIso(startDateBr);
             const res = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -973,8 +990,8 @@ if (!$token) {
             if (startDate) {
                 buttons.push(`
                     <div class="small text-muted">
-                        Início: <strong>${startDate}</strong><br>
-                        Fim: <strong>${endDate || '-'}</strong>
+                        Início: <strong>${formatDateBr(startDate)}</strong><br>
+                        Fim: <strong>${formatDateBr(endDate) || '-'}</strong>
                     </div>
                 `);
             } else {
@@ -999,16 +1016,19 @@ if (!$token) {
         // Atualiza campos do modal com o estado atual
         const session = state.session;
         if (!session) return;
-        document.getElementById('modalDailyScheduleStart').value = session.daily_schedule_start_date || '';
+        document.getElementById('modalDailyScheduleStart').value = formatDateBr(session.daily_schedule_start_date || '');
         document.getElementById('modalDailyScheduleStart').disabled = session.status !== 'setup';
-        document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(session.daily_schedule_start_date || '', session.total_rounds) || '-';
+        const endDate = computeScheduleEndDate(session.daily_schedule_start_date || '', session.total_rounds);
+        document.getElementById('modalDailyScheduleEnd').value = formatDateBr(endDate) || '-';
         document.getElementById('modalSaveScheduleBtn').disabled = session.status !== 'setup';
         const modal = new bootstrap.Modal(document.getElementById('dailyScheduleModal'));
         modal.show();
         const startInput = document.getElementById('modalDailyScheduleStart');
         if (startInput) {
             startInput.oninput = () => {
-                document.getElementById('modalDailyScheduleEnd').value = computeScheduleEndDate(startInput.value || '', session.total_rounds) || '-';
+                const iso = parseDateBrToIso(startInput.value || '');
+                const computed = computeScheduleEndDate(iso, session.total_rounds);
+                document.getElementById('modalDailyScheduleEnd').value = formatDateBr(computed) || '-';
             };
         }
     }
@@ -1733,8 +1753,8 @@ if (!$token) {
                 <div class="mb-2 small text-muted">00:00:01 inicia o round do dia (Brasília). Até 19:30 sem relógio. Após 19:30: 10 min/pick e auto-pick por OVR.</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-sm-6">
-                        <label class="form-label mb-1">Dia 01 (YYYY-MM-DD)</label>
-                        <input type="date" id="modalDailyScheduleStart" class="form-control">
+                        <label class="form-label mb-1">Dia 01 (DD/MM/AAAA)</label>
+                        <input type="text" id="modalDailyScheduleStart" class="form-control" placeholder="dd/mm/aaaa">
                     </div>
                             <div class="col-sm-6">
                         <label class="form-label mb-1">Previsão de término</label>

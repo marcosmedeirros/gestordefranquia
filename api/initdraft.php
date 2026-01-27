@@ -32,6 +32,24 @@ function ensureAdminOrToken($session, $token) {
     return $session && hash_equals($session['access_token'], (string)$token);
 }
 
+function ensureDailyScheduleColumns(PDO $pdo): void {
+    $table = 'initdraft_sessions';
+    $columns = [
+        'daily_schedule_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'daily_schedule_start_date' => 'DATE NULL',
+        'daily_clock_start_time' => "TIME NOT NULL DEFAULT '19:30:00'",
+        'daily_pick_minutes' => 'INT NOT NULL DEFAULT 10',
+        'daily_last_opened_date' => 'DATE NULL',
+    ];
+    foreach ($columns as $name => $definition) {
+        $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
+        $stmt->execute([$name]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$name} {$definition}");
+        }
+    }
+}
+
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
     $roundOneOrder = array_values(array_map('intval', $roundOneOrder));
     $sessionId = (int)$session['id'];
@@ -701,6 +719,8 @@ if ($method === 'POST') {
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
                 if ($session['status'] !== 'setup') throw new Exception('Só é possível configurar o agendamento durante setup');
+
+                ensureDailyScheduleColumns($pdo);
 
                 $enabled = (int)($data['enabled'] ?? 0) === 1 ? 1 : 0;
                 $startDate = trim((string)($data['start_date'] ?? ''));
