@@ -43,6 +43,7 @@ function getPlayerHeadshotId(player) {
 }
 
 function getPlayerHeadshotUrl(player) {
+  if (player?.headshot_url) return player.headshot_url;
   const id = getPlayerHeadshotId(player);
   if (!id) return NBA_HEADSHOT_FALLBACK_URL;
   return `${NBA_HEADSHOT_BASE_URL}${id}.png`;
@@ -64,7 +65,7 @@ function applyPlayerHeadshot(imgEl, player) {
 
 async function ensurePlayerHeadshot(imgEl, player) {
   if (!imgEl || !player) return;
-  if (player.nba_player_id) {
+  if (player.headshot_url || player.nba_player_id) {
     applyPlayerHeadshot(imgEl, player);
     return;
   }
@@ -72,7 +73,11 @@ async function ensurePlayerHeadshot(imgEl, player) {
   const cacheKey = player.id || player.name;
   if (NBA_HEADSHOT_LOOKUP_CACHE.has(cacheKey)) {
     const cached = NBA_HEADSHOT_LOOKUP_CACHE.get(cacheKey);
-    if (cached) {
+    if (cached && typeof cached === 'object') {
+      if (cached.nba_player_id) player.nba_player_id = cached.nba_player_id;
+      if (cached.headshot_url) player.headshot_url = cached.headshot_url;
+      applyPlayerHeadshot(imgEl, player);
+    } else if (cached) {
       player.nba_player_id = cached;
       applyPlayerHeadshot(imgEl, player);
     } else {
@@ -91,8 +96,10 @@ async function ensurePlayerHeadshot(imgEl, player) {
       body: JSON.stringify({ player_id: player.id, player_name: player.name })
     });
     if (res && res.nba_player_id) {
-      NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, res.nba_player_id);
+      const cacheValue = { nba_player_id: res.nba_player_id, headshot_url: res.headshot_url };
+      NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, cacheValue);
       player.nba_player_id = res.nba_player_id;
+      if (res.headshot_url) player.headshot_url = res.headshot_url;
       applyPlayerHeadshot(imgEl, player);
     } else {
       NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);

@@ -66,7 +66,8 @@ try {
     echo json_encode([
         'success' => true,
         'nba_player_id' => $lookupResult['id'],
-        'matched_name' => $lookupResult['name']
+        'matched_name' => $lookupResult['name'],
+        'headshot_url' => buildHeadshotUrl($lookupResult['id'])
     ]);
 } catch (Exception $e) {
     http_response_code(500);
@@ -75,12 +76,66 @@ try {
 
 function fetchNbaPlayerIdByName(string $fullName): ?array
 {
-    $apiUrl = 'https://www.balldontlie.io/api/v1/players?search=' . rawurlencode($fullName);
+    $players = loadNbaPlayersIndex();
+    if (empty($players)) {
+        return null;
+    }
 
-    $ch = curl_init($apiUrl);
+    $normalizedSearch = normalizeName($fullName);
+    $best = null;
+    $bestScore = PHP_INT_MAX;
+
+    foreach ($players as $player) {
+        $candidateName = trim(($player['firstName'] ?? '') . ' ' . ($player['lastName'] ?? ''));
+        if ($candidateName === '') {
+            continue;
+        }
+        $score = levenshteinScore($normalizedSearch, normalizeName($candidateName));
+        if ($score < $bestScore) {
+            $bestScore = $score;
+            $best = [
+                'id' => $player['personId'] ?? null,
+                'name' => $candidateName
+            ];
+        }
+        if ($score === 0) {
+            break;
+        }
+    }
+
+    if (!$best || !$best['id']) {
+        return null;
+    }
+
+    if ($bestScore > 8 && stripos($best['name'], $fullName) === false) {
+        return null;
+    }
+
+    return $best;
+}
+
+function loadNbaPlayersIndex(): array
+{
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+
+    $cacheFile = sys_get_temp_dir() . '/nba_players_cache.json';
+    $cacheTtl = 60 * 60 * 12; // 12 horas
+
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTtl) {
+        $data = json_decode(file_get_contents($cacheFile), true);
+        if (is_array($data)) {
+            return $cache = $data;
+        }
+    }
+
+    $remoteUrl = 'https://cdn.nba.com/static/json/staticData/player/leaguePlayerList.json';
+    $ch = curl_init($remoteUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 8,
+        CURLOPT_TIMEOUT => 10,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_USERAGENT => 'FBA-Manager/1.0'
     ]);
@@ -89,39 +144,26 @@ function fetchNbaPlayerIdByName(string $fullName): ?array
     curl_close($ch);
 
     if ($response === false) {
-        error_log('NBA lookup failed: ' . $curlError);
-        return null;
+        error_log('NBA players index download failed: ' . $curlError);
+        return $cache ?? [];
     }
 
     $payload = json_decode($response, true);
-    if (!isset($payload['data']) || !is_array($payload['data'])) {
-        return null;
+    if (!isset($payload['league']['standard']) || !is_array($payload['league']['standard'])) {
+        return $cache ?? [];
     }
 
-    $candidates = $payload['data'];
-    if (empty($candidates)) {
-        return null;
+    $players = $payload['league']['standard'];
+    file_put_contents($cacheFile, json_encode($players));
+    return $cache = $players;
+}
+
+function buildHeadshotUrl($nbaPlayerId): string
+{
+    if (!$nbaPlayerId) {
+        return 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';
     }
-
-    $normalizedSearch = normalizeName($fullName);
-
-    usort($candidates, function ($a, $b) use ($normalizedSearch) {
-        return levenshteinScore($normalizedSearch, normalizeName($a['first_name'] . ' ' . $a['last_name'])) <=>
-               levenshteinScore($normalizedSearch, normalizeName($b['first_name'] . ' ' . $b['last_name']));
-    });
-
-    $best = $candidates[0];
-    $bestName = trim(($best['first_name'] ?? '') . ' ' . ($best['last_name'] ?? ''));
-    $bestScore = levenshteinScore($normalizedSearch, normalizeName($bestName));
-
-    if ($bestScore > 5 && stripos($bestName, $fullName) === false) {
-        return null;
-    }
-
-    return [
-        'id' => $best['id'] ?? null,
-        'name' => $bestName
-    ];
+    return sprintf('https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/%s.png', $nbaPlayerId);
 }
 
 function normalizeName(string $name): string
