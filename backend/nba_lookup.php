@@ -60,14 +60,17 @@ function loadNbaPlayersIndex(): array
         if (is_array($data)) {
             return $cache = $data;
         }
+        @unlink($cacheFile);
     }
 
     $ch = curl_init(NBA_PLAYERS_INDEX_URL);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 10,
+        CURLOPT_TIMEOUT => 15,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'FBA-Manager/1.0'
+        CURLOPT_USERAGENT => 'FBA-Manager/1.0',
+        CURLOPT_ENCODING => '', // permite gzip/deflate
+        CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2,
     ]);
     $response = curl_exec($ch);
     $curlError = curl_error($ch);
@@ -80,6 +83,7 @@ function loadNbaPlayersIndex(): array
 
     $payload = json_decode($response, true);
     if (!isset($payload['league']['standard']) || !is_array($payload['league']['standard'])) {
+        error_log('NBA players index payload inválido.');
         return $cache ?? [];
     }
 

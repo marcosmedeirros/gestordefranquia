@@ -107,7 +107,7 @@ function finish(bool $isCli, array $buffer, int $exitCode): void
         exit($exitCode);
     }
 
-    echo implode('', $buffer);
     http_response_code($exitCode === 0 ? 200 : 207);
+    echo implode('', $buffer);
     exit;
 }
