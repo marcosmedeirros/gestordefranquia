@@ -854,7 +854,7 @@ try {
                     </div>
                     <div class="text-end d-flex flex-column gap-2">
                         <?php if ($activeInitDraftSession && !empty($activeInitDraftSession['access_token'])): ?>
-                        <a href="/initdraft.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
+                        <a href="/initdraftselecao.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
                             <i class="bi bi-trophy me-2"></i>Abrir sala do draft inicial
                         </a>
                         <?php endif; ?>
