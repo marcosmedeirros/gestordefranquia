@@ -50,6 +50,15 @@ function ensureDailyScheduleColumns(PDO $pdo): void {
     }
 }
 
+function ensureDeadlineColumn(PDO $pdo): void {
+    $table = 'initdraft_order';
+    $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
+    $stmt->execute(['deadline_at']);
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE {$table} ADD COLUMN deadline_at DATETIME NULL");
+    }
+}
+
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
     $roundOneOrder = array_values(array_map('intval', $roundOneOrder));
     $sessionId = (int)$session['id'];
@@ -196,12 +205,14 @@ function isRoundCompleted(PDO $pdo, int $sessionId, int $round): bool {
 }
 
 function clearDeadlinesForRound(PDO $pdo, int $sessionId, int $round): void {
+    ensureDeadlineColumn($pdo);
     $pdo->prepare('UPDATE initdraft_order SET deadline_at = NULL WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL')
         ->execute([$sessionId, $round]);
 }
 
 function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes): void {
     if (!empty($pick['deadline_at'])) return;
+    ensureDeadlineColumn($pdo);
     $deadline = $now->add(new DateInterval('PT' . max(1, $pickMinutes) . 'M'));
     $pdo->prepare('UPDATE initdraft_order SET deadline_at = ? WHERE id = ?')
         ->execute([$deadline->format('Y-m-d H:i:s'), $pick['id']]);
