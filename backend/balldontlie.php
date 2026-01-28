@@ -2,7 +2,8 @@
 
 /**
  * Helper para consultar balldontlie e obter player id pelo nome.
- * API: https://api.balldontlie.io/v1/players?search={name}
+ * API nova: https://api.balldontlie.io/v1/players?search={name}
+ * API legacy (sem chave): https://www.balldontlie.io/api/v1/players?search={name}
  */
 
 function balldontlieFetchPlayerIdByName(string $name): ?array
@@ -12,7 +13,33 @@ function balldontlieFetchPlayerIdByName(string $name): ?array
         return null;
     }
 
-    $url = 'https://api.balldontlie.io/v1/players?search=' . rawurlencode($name);
+    $result = balldontlieRequest('https://api.balldontlie.io/v1/players?search=' . rawurlencode($name));
+    if (!$result || empty($result['data'])) {
+        // Fallback legacy (sem chave)
+        $result = balldontlieRequest('https://www.balldontlie.io/api/v1/players?search=' . rawurlencode($name));
+    }
+
+    $first = $result['data'][0] ?? null;
+    if (!$first || empty($first['id'])) {
+        return null;
+    }
+
+    $full = trim(($first['first_name'] ?? '') . ' ' . ($first['last_name'] ?? ''));
+    return [
+        'id' => (string)$first['id'],
+        'name' => $full !== '' ? $full : $name,
+    ];
+}
+
+function balldontlieRequest(string $url): ?array
+{
+    $apiKey = getenv('BALLDONTLIE_API_KEY');
+    $headers = [
+        'Accept: application/json',
+    ];
+    if (!empty($apiKey)) {
+        $headers[] = 'Authorization: ' . $apiKey;
+    }
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -21,6 +48,7 @@ function balldontlieFetchPlayerIdByName(string $name): ?array
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_USERAGENT => 'FBA-Manager/1.0',
         CURLOPT_ENCODING => '',
+        CURLOPT_HTTPHEADER => $headers,
     ]);
 
     $response = curl_exec($ch);
@@ -34,24 +62,15 @@ function balldontlieFetchPlayerIdByName(string $name): ?array
     }
 
     if ($httpCode < 200 || $httpCode >= 300) {
-        // Pode retornar 429 rate limit
-        error_log('balldontlie http ' . $httpCode . ' body=' . substr($response, 0, 200));
+        error_log('balldontlie http ' . $httpCode . ' url=' . $url . ' body=' . substr($response, 0, 200));
         return null;
     }
 
     $json = json_decode($response, true);
-    $first = $json['data'][0] ?? null;
-    if (!$first || empty($first['id'])) {
+    if (!is_array($json)) {
         return null;
     }
-
-    // balldontlie retorna first_name/last_name
-    $full = trim(($first['first_name'] ?? '') . ' ' . ($first['last_name'] ?? ''));
-
-    return [
-        'id' => (string)$first['id'],
-        'name' => $full !== '' ? $full : $name,
-    ];
+    return $json;
 }
 
 function balldontlieSleepMs(int $ms): void
