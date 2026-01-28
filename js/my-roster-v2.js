@@ -217,25 +217,22 @@ function renderPlayers(players) {
     
     card.innerHTML = `
       <div class="card-body p-3">
-        <div class="d-flex align-items-start gap-3 mb-3">
-          <div class="player-photo-wrapper flex-shrink-0">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="player-photo-inline">
             <img class="player-headshot" alt="Foto de ${p.name}">
           </div>
-          <div class="flex-grow-1">
-            <div class="d-flex justify-content-between align-items-start mb-1">
-              <div class="flex-grow-1 me-2">
-                <h6 class="text-white mb-1 fw-bold" style="font-size: 1.1rem;">${p.name}</h6>
-                <div class="d-flex gap-2 flex-wrap">
-                  <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                  <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
-                </div>
-              </div>
-              <div class="text-end">
-                <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-                <small class="text-light-gray">${p.age} anos</small>
+          <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 me-2">
+              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${p.name}</h6>
+              <div class="d-flex gap-2 flex-wrap">
+                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
+                <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
               </div>
             </div>
-            <div class="text-light-gray small">Temporadas na liga: ${p.seasons_in_league ?? 0}</div>
+            <div class="text-end">
+              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
+              <small class="text-light-gray">${p.age} anos</small>
+            </div>
           </div>
         </div>
         <div class="d-flex gap-2 mt-2">

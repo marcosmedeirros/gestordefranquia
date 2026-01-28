@@ -40,22 +40,23 @@ if ($teamId) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
-    .player-photo-wrapper {
-        width: 72px;
-        height: 72px;
-        border-radius: 50%;
-        overflow: hidden;
-        border: 2px solid var(--fba-orange);
-        background: radial-gradient(circle, rgba(255,255,255,0.15), rgba(0,0,0,0.4));
-        box-shadow: 0 0 12px rgba(252, 0, 37, 0.2);
-    }
-    .player-photo-wrapper img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-        background: #0b0b0d;
-    }
+  .player-photo-inline {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--fba-orange);
+    background: radial-gradient(circle, rgba(255,255,255,0.15), rgba(0,0,0,0.4));
+    box-shadow: 0 0 10px rgba(252, 0, 37, 0.25);
+    flex-shrink: 0;
+  }
+  .player-photo-inline img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #0b0b0d;
+  }
   </style>
 </head>
 <body>
