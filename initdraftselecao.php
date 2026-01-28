@@ -159,6 +159,37 @@ if ($user && isset($user['id'])) {
             color: #FC062A !important;
         }
 
+        .accent-label {
+            color: #D50826 !important;
+        }
+
+        .clock-banner {
+            background: rgba(15, 15, 15, 0.85);
+            border: 1px solid rgba(213, 8, 38, 0.45);
+            border-radius: 14px;
+            padding: 0.55rem 0.85rem;
+        }
+
+        .clock-banner .clock-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #D50826;
+        }
+
+        .clock-banner .clock-value {
+            color: #ffffff;
+            font-size: 1.2rem;
+        }
+
+        .pick-logo {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
         .pick-flash {
             animation: pickFlash 1.2s ease-in-out;
         }
@@ -232,11 +263,11 @@ if ($user && isset($user['id'])) {
         <div class="row g-4">
             <div class="col-lg-4">
                 <div class="card-dark p-4 mb-4">
-                    <h5 class="mb-3">Pick Atual</h5>
+                    <h5 class="mb-3 accent-label">Pick Atual</h5>
                     <div class="mb-2" id="clockBanner"></div>
                     <div id="currentPickCard"></div>
                     <hr class="border-secondary my-4">
-                    <h6 class="text-uppercase text-white">Próximo Pick</h6>
+                    <h6 class="text-uppercase accent-label">Próximo Pick</h6>
                     <div id="nextPickCard" class="mt-3"></div>
                 </div>
                 <div class="card-dark p-4">
@@ -379,9 +410,9 @@ if ($user && isset($user['id'])) {
             if (!deadlineMs) {
                 stopClockTicker();
                 el.innerHTML = `
-                    <div class="alert alert-secondary py-2 mb-0">
-                        <div class="small text-muted">Relógio</div>
-                        <div class="fw-semibold text-white">Sem relógio até 19:30</div>
+                    <div class="clock-banner">
+                        <div class="clock-title">Relógio</div>
+                        <div class="fw-semibold clock-value">Sem relógio até 19:30</div>
                     </div>
                 `;
                 return;
@@ -390,11 +421,11 @@ if ($user && isset($user['id'])) {
             const remaining = deadlineMs - Date.now();
             const textClass = remaining <= 30000 ? 'text-danger' : (remaining <= 60000 ? 'text-warning' : 'text-white');
             el.innerHTML = `
-                <div class="alert alert-dark border border-secondary py-2 mb-0">
+                <div class="clock-banner">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <div class="small text-muted">Relógio</div>
-                            <div class="fw-semibold ${textClass}" id="clockRemaining">${formatRemaining(remaining)}</div>
+                            <div class="clock-title">Relógio</div>
+                            <div class="fw-semibold clock-value ${textClass}" id="clockRemaining">${formatRemaining(remaining)}</div>
                         </div>
                         <div class="small text-muted text-end">deadline<br>${currentPick.deadline_at}</div>
                     </div>
@@ -457,13 +488,13 @@ if ($user && isset($user['id'])) {
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
-                        <div class="stat-label">Rodada Atual</div>
+                        <div class="stat-label accent-label">Rodada Atual</div>
                         <div>${session.current_round ?? '-'}</div>
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
-                        <div class="stat-label">Pick Atual</div>
+                        <div class="stat-label accent-label">Pick Atual</div>
                         <div>${currentPick ? `${currentPick.round}.${currentPick.pick_position}` : '-'}</div>
                     </div>
                 </div>
@@ -484,11 +515,12 @@ if ($user && isset($user['id'])) {
             target.innerHTML = `
                 <div class="pick-card ${highlightClass}">
                     <div class="d-flex align-items-center gap-3">
+                        <img class="pick-logo" src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                         <div class="pick-rank">${pick.pick_position}</div>
                         <div>
-                            <div class="small text-muted">${label}</div>
+                            <div class="small accent-label">${label}</div>
                             <div class="fw-semibold">${teamLabel(pick)}</div>
-                            <div class="small text-muted">Rodada ${pick.round}</div>
+                            <div class="small accent-label">Rodada ${pick.round}</div>
                         </div>
                     </div>
                 </div>
