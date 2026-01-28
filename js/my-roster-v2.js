@@ -35,18 +35,26 @@ const NBA_HEADSHOT_BASE_URL = 'https://ak-static.cms.nba.com/wp-content/uploads/
 const NBA_HEADSHOT_FALLBACK_URL = 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';
 const NBA_HEADSHOT_LOOKUP_CACHE = new Map();
 
-function getPlayerHeadshotId(player) {
-  if (!player) return null;
-  if (player.nba_player_id) return player.nba_player_id;
-  if (player.external_id) return player.external_id;
-  return player.id ?? null;
+
+function normalizeNameForNbaUrl(name) {
+  if (!name) return '';
+  return name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase();
 }
 
 function getPlayerHeadshotUrl(player) {
-  if (player?.headshot_url) return player.headshot_url;
-  const id = getPlayerHeadshotId(player);
-  if (!id) return NBA_HEADSHOT_FALLBACK_URL;
-  return `${NBA_HEADSHOT_BASE_URL}${id}.png`;
+  if (player?.nba_player_id) {
+    return `${NBA_HEADSHOT_BASE_URL}${player.nba_player_id}.png`;
+  }
+  // Fallback visual: tenta pelo nome (nem sempre existe), senão fallback
+  if (player?.name) {
+    const norm = normalizeNameForNbaUrl(player.name);
+    return `${NBA_HEADSHOT_BASE_URL}${norm}.png`;
+  }
+  return NBA_HEADSHOT_FALLBACK_URL;
 }
 
 function applyPlayerHeadshot(imgEl, player) {
@@ -65,48 +73,57 @@ function applyPlayerHeadshot(imgEl, player) {
 
 async function ensurePlayerHeadshot(imgEl, player) {
   if (!imgEl || !player) return;
-  if (player.headshot_url || player.nba_player_id) {
+
+  // 1) Se já tem ID, aplica direto
+  if (player.nba_player_id) {
     applyPlayerHeadshot(imgEl, player);
     return;
   }
 
+  // 2) Mostra um fallback rápido enquanto resolve
+  imgEl.src = NBA_HEADSHOT_FALLBACK_URL;
+
+  // 3) Tenta resolver via API (salva no banco automaticamente)
   const cacheKey = player.id || player.name;
-  if (NBA_HEADSHOT_LOOKUP_CACHE.has(cacheKey)) {
+  if (cacheKey && NBA_HEADSHOT_LOOKUP_CACHE.has(cacheKey)) {
     const cached = NBA_HEADSHOT_LOOKUP_CACHE.get(cacheKey);
     if (cached && typeof cached === 'object') {
-      if (cached.nba_player_id) player.nba_player_id = cached.nba_player_id;
-      if (cached.headshot_url) player.headshot_url = cached.headshot_url;
+      player.nba_player_id = cached.nba_player_id;
+      player.headshot_url = cached.headshot_url;
       applyPlayerHeadshot(imgEl, player);
-    } else if (cached) {
-      player.nba_player_id = cached;
-      applyPlayerHeadshot(imgEl, player);
-    } else {
-      imgEl.src = NBA_HEADSHOT_FALLBACK_URL;
+      return;
     }
-    return;
+    if (cached === false) {
+      // já falhou antes: tenta só o fallback via nome
+      applyPlayerHeadshot(imgEl, player);
+      return;
+    }
   }
 
-  // Fallback until lookup resolves
-  imgEl.src = NBA_HEADSHOT_FALLBACK_URL;
-  NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, null);
+  if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, null);
 
   try {
     const res = await api('nba-player-lookup.php', {
       method: 'POST',
       body: JSON.stringify({ player_id: player.id, player_name: player.name })
     });
-    if (res && res.nba_player_id) {
-      const cacheValue = { nba_player_id: res.nba_player_id, headshot_url: res.headshot_url };
-      NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, cacheValue);
+
+    if (res?.success && res?.nba_player_id) {
       player.nba_player_id = res.nba_player_id;
       if (res.headshot_url) player.headshot_url = res.headshot_url;
+      if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, { nba_player_id: res.nba_player_id, headshot_url: res.headshot_url });
       applyPlayerHeadshot(imgEl, player);
-    } else {
-      NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
+      return;
     }
+
+    if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
+    // sem ID => tenta fallback via nome / fallback
+    applyPlayerHeadshot(imgEl, player);
   } catch (err) {
-    console.warn('Falha ao buscar foto para', player.name, err);
-    NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
+    console.warn('Falha ao buscar NBA ID para', player.name, err);
+    if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
+    // Nunca quebra a tela: tenta fallback via nome / fallback
+    applyPlayerHeadshot(imgEl, player);
   }
 }
 

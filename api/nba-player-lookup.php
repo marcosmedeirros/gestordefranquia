@@ -1,6 +1,6 @@
 <?php
 session_start();
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
@@ -71,6 +71,14 @@ try {
         'headshot_url' => buildHeadshotUrl($lookupResult['id'])
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Falha ao buscar jogador', 'details' => $e->getMessage()]);
+    error_log('nba-player-lookup error: ' . $e->getMessage());
+    http_response_code(200);
+    // Nunca derruba o front: retorna success=true com nulls.
+    echo json_encode([
+        'success' => true,
+        'nba_player_id' => null,
+        'matched_name' => null,
+        'headshot_url' => null,
+        'source' => 'error'
+    ]);
 }

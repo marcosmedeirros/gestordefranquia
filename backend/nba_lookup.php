@@ -12,6 +12,15 @@ function fetchNbaPlayerIdByName(string $fullName): ?array
 {
     $players = loadNbaPlayersIndex();
     if (empty($players)) {
+        // Último fallback: um mapa mínimo embutido para garantir fotos dos nomes mais comuns
+        $fallback = embeddedNbaIdMap();
+        $key = normalizeName($fullName);
+        if (isset($fallback[$key])) {
+            return [
+                'id' => $fallback[$key]['id'],
+                'name' => $fallback[$key]['name'],
+            ];
+        }
         return null;
     }
 
@@ -46,6 +55,36 @@ function fetchNbaPlayerIdByName(string $fullName): ?array
     }
 
     return $best;
+}
+
+/**
+ * Mapa mínimo embutido (fallback final) para evitar "0 encontrados" quando a NBA bloqueia as fontes.
+ * Você pode expandir esta lista com os nomes que aparecem no seu jogo.
+ */
+function embeddedNbaIdMap(): array
+{
+    // Chave: normalizeName("Nome Sobrenome")
+    return [
+        normalizeName('Stephen Curry') => ['id' => '201939', 'name' => 'Stephen Curry'],
+        normalizeName('LeBron James') => ['id' => '2544', 'name' => 'LeBron James'],
+        normalizeName('Kevin Durant') => ['id' => '201142', 'name' => 'Kevin Durant'],
+        normalizeName('Giannis Antetokounmpo') => ['id' => '203507', 'name' => 'Giannis Antetokounmpo'],
+        normalizeName('Nikola Jokic') => ['id' => '203999', 'name' => 'Nikola Jokic'],
+        normalizeName('Luka Doncic') => ['id' => '1629029', 'name' => 'Luka Doncic'],
+        normalizeName('Jayson Tatum') => ['id' => '1628369', 'name' => 'Jayson Tatum'],
+        normalizeName('Joel Embiid') => ['id' => '203954', 'name' => 'Joel Embiid'],
+        normalizeName('Anthony Davis') => ['id' => '203076', 'name' => 'Anthony Davis'],
+        normalizeName('Damian Lillard') => ['id' => '203081', 'name' => 'Damian Lillard'],
+        normalizeName('James Harden') => ['id' => '201935', 'name' => 'James Harden'],
+        normalizeName('Chris Paul') => ['id' => '101108', 'name' => 'Chris Paul'],
+        normalizeName('Paul George') => ['id' => '202331', 'name' => 'Paul George'],
+        normalizeName('Kyrie Irving') => ['id' => '202681', 'name' => 'Kyrie Irving'],
+        normalizeName('Kawhi Leonard') => ['id' => '202695', 'name' => 'Kawhi Leonard'],
+        normalizeName('Jimmy Butler') => ['id' => '202710', 'name' => 'Jimmy Butler'],
+        normalizeName('Devin Booker') => ['id' => '1626164', 'name' => 'Devin Booker'],
+        normalizeName('Trae Young') => ['id' => '1629027', 'name' => 'Trae Young'],
+        normalizeName('Shai Gilgeous-Alexander') => ['id' => '1628983', 'name' => 'Shai Gilgeous-Alexander'],
+    ];
 }
 
 function loadNbaPlayersIndex(bool $forceRefresh = false): array
