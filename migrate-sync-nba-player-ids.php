@@ -1,32 +1,59 @@
 <?php
-// Atualiza todos os jogadores sem nba_player_id buscando pelo nome
+/**
+ * Atualiza todos os jogadores sem nba_player_id buscando pelo nome.
+ * CLI: php migrate-sync-nba-player-ids.php [--dry-run]
+ * Web: https://fbabrasil.com.br/migrate-sync-nba-player-ids.php?dry_run=1 (logado como admin)
+ */
+
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/nba_lookup.php';
 
-if (php_sapi_name() !== 'cli') {
-    echo "Execute este script via CLI: php migrate-sync-nba-player-ids.php\n";
-    exit(1);
+$isCli = php_sapi_name() === 'cli';
+$dryRun = false;
+$outputBuffer = [];
+
+if ($isCli) {
+    $dryRun = in_array('--dry-run', $argv ?? [], true);
+} else {
+    require_once __DIR__ . '/backend/auth.php';
+    requireAuth();
+    $session = getUserSession();
+    if (($session['user_type'] ?? 'jogador') !== 'admin') {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Acesso restrito. Somente administradores podem executar esta migração.";
+        exit;
+    }
+    header('Content-Type: text/plain; charset=utf-8');
+    $dryRun = isset($_GET['dry_run']);
 }
 
-$dryRun = in_array('--dry-run', $argv, true);
+$write = function (string $message) use ($isCli, &$outputBuffer): void {
+    if ($isCli) {
+        echo $message;
+    } else {
+        $outputBuffer[] = $message;
+    }
+};
+
 $pdo = db();
 
 try {
     $stmt = $pdo->query("SELECT id, name FROM players WHERE nba_player_id IS NULL OR nba_player_id = '' ORDER BY id ASC");
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    fwrite(STDERR, "Erro ao carregar jogadores: {$e->getMessage()}\n");
-    exit(1);
+    $write("Erro ao carregar jogadores: {$e->getMessage()}\n");
+    finish($isCli, $outputBuffer, 1);
 }
 
 $total = count($players);
 if ($total === 0) {
-    echo "Todos os jogadores já possuem nba_player_id.\n";
-    exit(0);
+    $write("Todos os jogadores já possuem nba_player_id.\n");
+    finish($isCli, $outputBuffer, 0);
 }
 
-echo "Encontrados {$total} jogadores sem NBA ID. Iniciando sincronização" . ($dryRun ? ' (dry-run)' : '') . "...\n";
+$write("Encontrados {$total} jogadores sem NBA ID. Iniciando sincronização" . ($dryRun ? ' (dry-run)' : '') . "...\n");
 
 $updated = 0;
 $skipped = 0;
@@ -34,18 +61,18 @@ $failures = [];
 
 foreach ($players as $player) {
     $name = $player['name'];
-    echo "[{$player['id']}] Buscando ID para {$name}... ";
+    $write("[{$player['id']}] Buscando ID para {$name}... ");
     $result = fetchNbaPlayerIdByName($name);
     if (!$result) {
-        echo "não encontrado.\n";
+        $write("não encontrado.\n");
         $skipped++;
         $failures[] = [$player['id'], $name];
         continue;
     }
 
-    echo "encontrado #{$result['id']} ({$result['name']})";
+    $write("encontrado #{$result['id']} ({$result['name']})");
     if ($dryRun) {
-        echo " (dry-run)\n";
+        $write(" (dry-run)\n");
         $updated++;
         continue;
     }
@@ -53,23 +80,34 @@ foreach ($players as $player) {
     try {
         $upd = $pdo->prepare('UPDATE players SET nba_player_id = ? WHERE id = ?');
         $upd->execute([$result['id'], $player['id']]);
-        echo " ✔\n";
+        $write(" ✔\n");
         $updated++;
     } catch (Exception $e) {
-        echo " erro ao salvar: {$e->getMessage()}\n";
+        $write(" erro ao salvar: {$e->getMessage()}\n");
         $failures[] = [$player['id'], $name];
     }
 }
 
-echo "\nResumo:\n";
-printf(" - Atualizados: %d\n", $updated);
-printf(" - Não encontrados: %d\n", $skipped);
+$write("\nResumo:\n");
+$write(sprintf(" - Atualizados: %d\n", $updated));
+$write(sprintf(" - Não encontrados: %d\n", $skipped));
 
 if (!empty($failures)) {
-    echo "Lista de pendências:\n";
+    $write("Lista de pendências:\n");
     foreach ($failures as [$id, $name]) {
-        printf("   • [%d] %s\n", $id, $name);
+        $write(sprintf("   • [%d] %s\n", $id, $name));
     }
 }
 
-exit(empty($failures) ? 0 : 2);
+finish($isCli, $outputBuffer, empty($failures) ? 0 : 2);
+
+function finish(bool $isCli, array $buffer, int $exitCode): void
+{
+    if ($isCli) {
+        exit($exitCode);
+    }
+
+    echo implode('', $buffer);
+    http_response_code($exitCode === 0 ? 200 : 207);
+    exit;
+}
