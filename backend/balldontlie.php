@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/helpers.php';
+
 /**
  * Helper para consultar balldontlie e obter player id pelo nome.
  * API nova: https://api.balldontlie.io/v1/players?search={name}
@@ -33,7 +35,14 @@ function balldontlieFetchPlayerIdByName(string $name): ?array
 
 function balldontlieRequest(string $url): ?array
 {
-    $apiKey = getenv('BALLDONTLIE_API_KEY');
+    $apiKey = getenv('BALLDONTLIE_API_KEY') ?: getenv('FBA_BALLDONTLIE_API_KEY');
+    if (empty($apiKey)) {
+        $configFile = __DIR__ . '/config.php';
+        if (file_exists($configFile)) {
+            $config = loadConfig();
+            $apiKey = $config['api']['balldontlie_key'] ?? '';
+        }
+    }
     $headers = [
         'Accept: application/json',
     ];

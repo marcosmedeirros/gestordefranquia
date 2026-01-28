@@ -18,4 +18,8 @@ return [
         'cap_min' => 618,
         'cap_max' => 648,
     ],
+    'api' => [
+        // balldontlie API key (opcional, mas recomendado)
+        'balldontlie_key' => getenv('FBA_BALLDONTLIE_API_KEY') ?: '',
+    ],
 ];
