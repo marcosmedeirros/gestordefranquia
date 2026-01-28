@@ -808,6 +808,11 @@ function runMigrations() {
             if (!$hasSecondaryPosition) {
                 $pdo->exec("ALTER TABLE players ADD COLUMN secondary_position VARCHAR(20) NULL AFTER position");
             }
+
+            $hasNbaId = $pdo->query("SHOW COLUMNS FROM players LIKE 'nba_player_id'")->fetch();
+            if (!$hasNbaId) {
+                $pdo->exec("ALTER TABLE players ADD COLUMN nba_player_id BIGINT NULL AFTER name, ADD INDEX idx_players_nba_id (nba_player_id)");
+            }
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_players: " . $e->getMessage();
