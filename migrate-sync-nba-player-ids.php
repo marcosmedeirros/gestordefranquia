@@ -12,9 +12,15 @@ require_once __DIR__ . '/backend/nba_lookup.php';
 $isCli = php_sapi_name() === 'cli';
 $dryRun = false;
 $outputBuffer = [];
+set_time_limit(180);
 
 if ($isCli) {
     $dryRun = in_array('--dry-run', $argv ?? [], true);
+    $limitArg = array_values(array_filter($argv ?? [], function ($a) { return substr($a, 0, 8) === '--limit='; }))[0] ?? null;
+    $offsetArg = array_values(array_filter($argv ?? [], function ($a) { return substr($a, 0, 9) === '--offset='; }))[0] ?? null;
+    $forceRefresh = in_array('--refresh', $argv ?? [], true);
+    $limit = $limitArg ? (int)substr($limitArg, 8) : null;
+    $offset = $offsetArg ? (int)substr($offsetArg, 9) : 0;
 } else {
     require_once __DIR__ . '/backend/auth.php';
     requireAuth();
@@ -27,6 +33,9 @@ if ($isCli) {
     }
     header('Content-Type: text/plain; charset=utf-8');
     $dryRun = isset($_GET['dry_run']);
+    $forceRefresh = isset($_GET['refresh']);
+    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
+    $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 }
 
 $write = function (string $message) use ($isCli, &$outputBuffer): void {
@@ -39,8 +48,17 @@ $write = function (string $message) use ($isCli, &$outputBuffer): void {
 
 $pdo = db();
 
+if (!empty($forceRefresh)) {
+    $write("Forçando refresh do índice de jogadores da NBA...\n");
+    refreshNbaPlayersIndex();
+}
+
 try {
-    $stmt = $pdo->query("SELECT id, name FROM players WHERE nba_player_id IS NULL OR nba_player_id = '' ORDER BY id ASC");
+    $sql = "SELECT id, name FROM players WHERE nba_player_id IS NULL OR nba_player_id = '' ORDER BY id ASC";
+    if ($limit !== null) {
+        $sql .= " LIMIT " . max(1, (int)$limit) . " OFFSET " . max(0, (int)$offset);
+    }
+    $stmt = $pdo->query($sql);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $write("Erro ao carregar jogadores: {$e->getMessage()}\n");

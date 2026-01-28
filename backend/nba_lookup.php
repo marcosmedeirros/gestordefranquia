@@ -46,16 +46,16 @@ function fetchNbaPlayerIdByName(string $fullName): ?array
     return $best;
 }
 
-function loadNbaPlayersIndex(): array
+function loadNbaPlayersIndex(bool $forceRefresh = false): array
 {
     static $cache = null;
-    if (is_array($cache)) {
+    if (!$forceRefresh && is_array($cache)) {
         return $cache;
     }
 
     $cacheFile = sys_get_temp_dir() . '/nba_players_cache.json';
 
-    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < NBA_PLAYERS_CACHE_TTL) {
+    if (!$forceRefresh && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < NBA_PLAYERS_CACHE_TTL) {
         $data = json_decode(file_get_contents($cacheFile), true);
         if (is_array($data)) {
             return $cache = $data;
@@ -90,6 +90,15 @@ function loadNbaPlayersIndex(): array
     $players = $payload['league']['standard'];
     file_put_contents($cacheFile, json_encode($players));
     return $cache = $players;
+}
+
+function refreshNbaPlayersIndex(): array
+{
+    $cacheFile = sys_get_temp_dir() . '/nba_players_cache.json';
+    if (file_exists($cacheFile)) {
+        @unlink($cacheFile);
+    }
+    return loadNbaPlayersIndex(true);
 }
 
 function buildHeadshotUrl($nbaPlayerId): string
