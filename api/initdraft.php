@@ -4,6 +4,9 @@
  * Separado do draft de temporada. Controlado por token de acesso.
  */
 
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 

@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/helpers.php';
 
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 function db(): PDO
 {
     static $pdo = null;
@@ -14,6 +17,9 @@ function db(): PDO
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
+
+    // Definir timezone no MySQL também
+    $pdo->exec("SET time_zone = '-03:00'");
 
     ensureSchema($pdo, $config['db']['name']);
 

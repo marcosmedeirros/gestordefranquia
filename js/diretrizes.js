@@ -461,57 +461,103 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   const gleague2 = fd.get('gleague_2_id');
   
   if (gleague1 && allPlayers.includes(gleague1)) {
-    alert('Jogador da G-League não pode estar no quinteto titular ou banco');
+    showValidationError(['Jogador da G-League não pode estar no quinteto titular ou banco']);
     return;
   }
   if (gleague2 && allPlayers.includes(gleague2)) {
-    alert('Jogador da G-League não pode estar no quinteto titular ou banco');
+    showValidationError(['Jogador da G-League não pode estar no quinteto titular ou banco']);
     return;
   }
   if (gleague1 && gleague2 && gleague1 === gleague2) {
-    alert('Não pode selecionar o mesmo jogador duas vezes para G-League');
+    showValidationError(['Não pode selecionar o mesmo jogador duas vezes para G-League']);
     return;
   }
   
-  // Validar minutagem por jogador
+  // VALIDAÇÃO COMPLETA DE MINUTAGEM
+  const validationErrors = [];
   const playerMinutes = {};
   let totalMinutes = 0;
   const rotationStyle = fd.get('rotation_style');
+  const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
+  const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
   
-  // Só validar minutagem se rotação for manual
-  if (rotationStyle === 'manual') {
-    try {
-      const deadlinePhase = window.__DEADLINE_PHASE__ || 'regular';
-      const maxMinutes = deadlinePhase === 'playoffs' ? 45 : 40;
-      const minutesInputs = document.querySelectorAll('.player-minutes-input');
-      
-      if (minutesInputs.length === 0) {
-        throw new Error('Nenhum jogador selecionado para configurar minutagem');
-      }
-      
-      minutesInputs.forEach(input => {
-        const minutes = parseInt(input.value) || 0;
-        const playerId = input.getAttribute('data-player-id');
-        const playerName = input.getAttribute('data-player-name');
-        
-        if (minutes < 5) {
-          throw new Error(`${playerName}: deve jogar no mínimo 5 minutos`);
-        }
-        if (minutes > maxMinutes) {
-          throw new Error(`${playerName}: não pode jogar mais de ${maxMinutes} minutos`);
-        }
-        playerMinutes[playerId] = minutes;
-        totalMinutes += minutes;
-      });
-      
-      // Validar total de 240 minutos
-      if (totalMinutes !== 240) {
-        throw new Error(`A soma dos minutos deve ser exatamente 240. Atual: ${totalMinutes} minutos.`);
-      }
-    } catch (validationError) {
-      alert(validationError.message);
-      return;
+  // Coletar todos os jogadores selecionados com seus IDs
+  const starters = [];
+  for (let i = 1; i <= 5; i++) {
+    const starterId = parseInt(fd.get(`starter_${i}_id`));
+    if (!isNaN(starterId) && starterId > 0) {
+      starters.push(starterId);
     }
+  }
+  
+  // Buscar OVRs dos jogadores selecionados
+  const selectedPlayers = [...starters, ...benchPlayers];
+  const playersWithOvr = selectedPlayers.map(id => playersById[id]).filter(Boolean);
+  
+  // Ordenar por OVR decrescente
+  playersWithOvr.sort((a, b) => b.ovr - a.ovr);
+  
+  // Contar jogadores 85+
+  const count85Plus = playersWithOvr.filter(p => p.ovr >= 85).length;
+  
+  // Identificar top 5 OVRs se não tiver 3 jogadores 85+
+  const top5Ids = [];
+  if (count85Plus < 3) {
+    const top5 = playersWithOvr.slice(0, 5);
+    top5Ids.push(...top5.map(p => p.id));
+  }
+  
+  // Validar minutagem
+  const minutesInputs = document.querySelectorAll('.player-minutes-input');
+  
+  if (minutesInputs.length === 0 && selectedPlayers.length > 0) {
+    validationErrors.push('Erro: Nenhuma minutagem configurada. Atualize a página e tente novamente.');
+  }
+  
+  minutesInputs.forEach(input => {
+    const minutes = parseInt(input.value) || 0;
+    const playerId = parseInt(input.getAttribute('data-player-id'));
+    const playerName = input.getAttribute('data-player-name');
+    const player = playersById[playerId];
+    
+    if (!player) return;
+    
+    const isStarter = starters.includes(playerId);
+    const isTop5 = top5Ids.includes(playerId);
+    
+    // Regra 1: Titulares precisam de 25+ minutos
+    if (isStarter && minutes < 25) {
+      validationErrors.push(`⚠️ ${playerName} é TITULAR e deve jogar no mínimo 25 minutos (atual: ${minutes}min)`);
+    }
+    
+    // Regra 2: Reservas precisam de 5+ minutos
+    if (!isStarter && minutes < 5) {
+      validationErrors.push(`⚠️ ${playerName} é RESERVA e deve jogar no mínimo 5 minutos (atual: ${minutes}min)`);
+    }
+    
+    // Regra 3: Se não tem 3 jogadores 85+, top 5 OVRs precisam de 25+ minutos
+    if (isTop5 && minutes < 25) {
+      validationErrors.push(`⚠️ ${playerName} está entre os 5 MAIORES OVRs (${player.ovr}) e deve jogar no mínimo 25 minutos (atual: ${minutes}min). Seu time não tem 3 jogadores 85+.`);
+    }
+    
+    // Regra 4: Máximo de minutos
+    if (minutes > maxMinutes) {
+      validationErrors.push(`⚠️ ${playerName} não pode jogar mais de ${maxMinutes} minutos (atual: ${minutes}min)`);
+    }
+    
+    playerMinutes[playerId] = minutes;
+    totalMinutes += minutes;
+  });
+  
+  // Regra 5: Rotação manual deve ter exatamente 240 minutos
+  if (rotationStyle === 'manual' && totalMinutes !== 240) {
+    validationErrors.push(`⚠️ Rotação MANUAL: A soma dos minutos deve ser exatamente 240. Atual: ${totalMinutes} minutos.`);
+  }
+  
+  // Se houver erros, mostrar modal
+  if (validationErrors.length > 0) {
+    showValidationError(validationErrors);
+    return;
   }
   
   const payload = {
@@ -547,9 +593,55 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     alert('Diretrizes enviadas com sucesso!');
     window.location.href = '/dashboard.php';
   } catch (err) {
-    alert(err.error || 'Erro ao enviar diretrizes');
+    // Se erro do backend, mostrar em modal também
+    const errorMsg = err.error || 'Erro ao enviar diretrizes';
+    showValidationError([errorMsg]);
   }
 });
+
+// Função para mostrar modal de erro de validação
+function showValidationError(errors) {
+  // Criar modal se não existir
+  let modal = document.getElementById('validation-error-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'validation-error-modal';
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-danger">
+          <div class="modal-header border-danger">
+            <h5 class="modal-title text-danger">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>Você está fora das regras - Revise!
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-danger mb-3">
+              <strong>Não é possível enviar as diretrizes.</strong><br>
+              Por favor, corrija os problemas abaixo:
+            </div>
+            <ul class="text-white mb-0" id="validation-error-list"></ul>
+          </div>
+          <div class="modal-footer border-danger">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+              Fechar e Revisar
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  // Preencher lista de erros
+  const errorList = document.getElementById('validation-error-list');
+  errorList.innerHTML = errors.map(err => `<li class="mb-2">${err}</li>`).join('');
+  
+  // Mostrar modal
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+}
 
 // Carregar diretriz ao iniciar
 document.addEventListener('DOMContentLoaded', async () => {

@@ -1,4 +1,7 @@
 <?php
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 session_start();
 header('Content-Type: application/json');
 
@@ -390,15 +393,62 @@ if ($method === 'POST') {
                     }
                 }
                 
+                // Buscar OVRs dos jogadores selecionados
+                $placeholders = implode(',', array_fill(0, count($allSelectedPlayers), '?'));
+                $stmtOvrs = $pdo->prepare("SELECT id, name, ovr FROM players WHERE id IN ($placeholders) ORDER BY ovr DESC");
+                $stmtOvrs->execute($allSelectedPlayers);
+                $playersWithOvr = $stmtOvrs->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Mapear OVR por player_id
+                $ovrMap = [];
+                foreach ($playersWithOvr as $p) {
+                    $ovrMap[(int)$p['id']] = [
+                        'ovr' => (int)$p['ovr'],
+                        'name' => $p['name']
+                    ];
+                }
+                
+                // Contar quantos jogadores 85+
+                $count85Plus = 0;
+                foreach ($playersWithOvr as $p) {
+                    if ((int)$p['ovr'] >= 85) {
+                        $count85Plus++;
+                    }
+                }
+                
+                // Se não tem 3 jogadores 85+, identificar os 5 maiores OVRs
+                $top5Ids = [];
+                if ($count85Plus < 3) {
+                    $top5 = array_slice($playersWithOvr, 0, 5);
+                    $top5Ids = array_map(function($p) { return (int)$p['id']; }, $top5);
+                }
+                
                 foreach ($allSelectedPlayers as $playerId) {
                     $m = isset($playerMinutes[$playerId]) ? (int)$playerMinutes[$playerId] : 20;
-                    if ($m < 5) {
-                        throw new Exception("Jogador {$playerId} deve jogar no mínimo 5 minutos.");
+                    $playerIdInt = (int)$playerId;
+                    $playerName = $ovrMap[$playerIdInt]['name'] ?? "Jogador {$playerIdInt}";
+                    $isStarter = in_array($playerIdInt, $starters);
+                    $isTop5 = in_array($playerIdInt, $top5Ids);
+                    
+                    // Validação: Titulares devem ter no mínimo 25 minutos
+                    if ($isStarter && $m < 25) {
+                        throw new Exception("Titular {$playerName} deve jogar no mínimo 25 minutos.");
                     }
+                    
+                    // Validação: Reservas devem ter no mínimo 5 minutos
+                    if (!$isStarter && $m < 5) {
+                        throw new Exception("Reserva {$playerName} deve jogar no mínimo 5 minutos.");
+                    }
+                    
+                    // Validação: Se time não tem 3 jogadores 85+, os 5 maiores OVRs devem ter 25+ minutos
+                    if ($isTop5 && $m < 25) {
+                        throw new Exception("Seu time não tem 3 jogadores 85+. Os 5 maiores OVRs devem jogar no mínimo 25 minutos. {$playerName} está entre os 5 maiores OVRs.");
+                    }
+                    
                     if ($m > $maxMinutes) {
-                        throw new Exception("Jogador {$playerId} não pode jogar mais de {$maxMinutes} minutos.");
+                        throw new Exception("Jogador {$playerName} não pode jogar mais de {$maxMinutes} minutos.");
                     }
-                    $stmtMinutes->execute([$directiveId, (int)$playerId, $m]);
+                    $stmtMinutes->execute([$directiveId, $playerIdInt, $m]);
                 }
 
                 $pdo->commit();
