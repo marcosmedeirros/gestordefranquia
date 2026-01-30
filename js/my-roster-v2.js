@@ -374,11 +374,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const playerName = target.dataset.name;
       if (confirm(`Dispensar ${playerName}?`)) {
         try {
-          await api('free-agency.php', {
-            method: 'POST',
-            body: JSON.stringify({ action: 'waive', player_id: playerId })
+          const res = await api('players.php', {
+            method: 'DELETE',
+            body: JSON.stringify({ id: playerId })
           });
-          alert('Jogador dispensado!');
+          alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
           loadPlayers();
           loadFreeAgencyLimits();
         } catch (err) {
