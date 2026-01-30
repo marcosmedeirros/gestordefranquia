@@ -170,9 +170,39 @@ $stmtPicks = $pdo->prepare("
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
-$stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
-$stmtTrades->execute([$team['id'], $team['id']]);
-$tradesCount = (int)$stmtTrades->fetchColumn();
+// Contador de trades por time (novo modelo)
+function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return 0;
+        }
+
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+        if ($currentCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        if ($currentCycle > 0 && $tradesCycle <= 0) {
+            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+$tradesCount = syncTeamTradeCounterDashboard($pdo, (int)$team['id']);
 
 // Buscar última trade da liga (mais recente)
 $lastTrade = null;
