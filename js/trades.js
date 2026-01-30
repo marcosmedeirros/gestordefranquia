@@ -15,7 +15,6 @@ let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
-const rosterToggleLoading = new Set();
 
 // --- Roster local (somente jogadores do time logado) ---
 function getRosterElements() {
@@ -46,11 +45,10 @@ function renderMyRoster() {
   if (tradeCount) tradeCount.textContent = `${tradeAvailable} disponíveis para troca`;
 
   const cards = myPlayers.map(p => {
-    const isLoading = rosterToggleLoading.has(parseInt(p.id, 10));
     const secPos = p.secondary_position ? ` / ${p.secondary_position}` : '';
     const tradeBadge = p.available_for_trade
-      ? `<span class="badge badge-trade roster-toggle ${isLoading ? 'disabled' : ''}" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">${isLoading ? 'Atualizando…' : 'Disponível para troca'}</span>`
-      : `<span class="badge badge-notrade roster-toggle ${isLoading ? 'disabled' : ''}" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">${isLoading ? 'Atualizando…' : 'Fora do trade block'}</span>`;
+      ? '<span class="badge badge-trade">Disponível para troca</span>'
+      : '<span class="badge badge-notrade">Fora do trade block</span>';
     const retireDisabled = p.age < 35 ? 'disabled title="Apenas para 35+"' : '';
     const toggleLabel = p.available_for_trade ? 'Retirar do trade' : 'Liberar para trade';
 
@@ -70,9 +68,7 @@ function renderMyRoster() {
         </div>
         <div class="roster-actions">
           <button class="btn btn-sm btn-outline-light" data-action="edit" data-id="${p.id}"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-warning" data-action="toggle-trade" data-id="${p.id}" ${isLoading ? 'disabled' : ''}>
-            ${isLoading ? '<span class="spinner-border spinner-border-sm"></span>' : toggleLabel}
-          </button>
+          <button class="btn btn-sm btn-outline-warning" data-action="toggle-trade" data-id="${p.id}">${toggleLabel}</button>
           <button class="btn btn-sm btn-outline-danger" data-action="waive" data-id="${p.id}">Dispensar</button>
           <button class="btn btn-sm btn-outline-danger" data-action="retire" data-id="${p.id}" ${retireDisabled}>Aposentar</button>
         </div>
@@ -118,9 +114,7 @@ function populateMyPlayerSelects() {
 function handleRosterClick(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const playerIdRaw = btn.dataset.id || btn.closest('.roster-card')?.dataset?.playerId;
-  const playerId = parseInt(playerIdRaw, 10);
-  if (!playerId) return;
+  const playerId = parseInt(btn.dataset.id, 10);
   const player = myPlayers.find(p => parseInt(p.id, 10) === playerId);
   if (!player) return;
 
@@ -147,13 +141,6 @@ function bindRosterHandlers() {
   const { list } = getRosterElements();
   if (!list || list.dataset.bound) return;
   list.addEventListener('click', handleRosterClick);
-  list.addEventListener('keydown', (e) => {
-    const isToggle = e.target && e.target.matches && e.target.matches('.roster-toggle');
-    if (!isToggle) return;
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    e.preventDefault();
-    e.target.click();
-  });
   list.dataset.bound = 'true';
 }
 
@@ -199,24 +186,14 @@ async function saveEditedPlayer() {
 }
 
 async function toggleTradeAvailability(player) {
-  const playerId = parseInt(player.id, 10);
-  if (!playerId || rosterToggleLoading.has(playerId)) return;
-
-  rosterToggleLoading.add(playerId);
-  renderMyRoster();
-
-  const newValue = player.available_for_trade ? 0 : 1;
-
+  const payload = { id: player.id, available_for_trade: player.available_for_trade ? 0 : 1 };
   try {
     await api('players.php', {
       method: 'PUT',
-      body: JSON.stringify({ id: playerId, available_for_trade: newValue })
+      body: JSON.stringify(payload)
     });
-    rosterToggleLoading.delete(playerId);
     await refreshMyPlayers();
   } catch (err) {
-    rosterToggleLoading.delete(playerId);
-    renderMyRoster();
     alert(err.error || 'Erro ao atualizar disponibilidade para troca');
   }
 }
