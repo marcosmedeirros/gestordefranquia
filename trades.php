@@ -35,15 +35,18 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
         $tradesCycle = (int)($row['trades_cycle'] ?? 0);
         $tradesUsed = (int)($row['trades_used'] ?? 0);
 
-        if ($currentCycle > 0 && $tradesCycle !== $currentCycle) {
+    // Se trades_cycle ainda não estiver inicializado, alinhar com current_cycle e não zerar o contador.
+    if ($currentCycle > 0 && $tradesCycle <= 0) {
+      $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+        ->execute([$currentCycle, $teamId]);
+      return $tradesUsed;
+    }
+
+    // Só zera quando já existe um ciclo anterior registrado e ele mudou
+    if ($currentCycle > 0 && $tradesCycle > 0 && $tradesCycle !== $currentCycle) {
             $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
                 ->execute([$currentCycle, $teamId]);
             return 0;
-        }
-
-        if ($currentCycle > 0 && $tradesCycle <= 0) {
-            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
-                ->execute([$currentCycle, $teamId]);
         }
 
         return $tradesUsed;
