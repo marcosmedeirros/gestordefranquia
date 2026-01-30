@@ -70,12 +70,19 @@ if ($teamId) {
   .roster-list-item {
     padding: 0.65rem 0.9rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   }
   .roster-list-item:last-child {
     border-bottom: none;
   }
+  .roster-list-item:hover {
+    background: rgba(252, 0, 37, 0.08);
+  }
   .roster-list-role {
     min-width: 92px;
+  }
+  .roster-section .card:hover {
+    box-shadow: 0 10px 26px rgba(252, 0, 37, 0.25);
   }
   </style>
 </head>
