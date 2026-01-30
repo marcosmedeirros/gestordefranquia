@@ -300,7 +300,50 @@ if ($teamId) {
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
         <div>
-          <span class="badge bg-secondary me-2"><?= $tradeCount ?> / <?= $maxTrades ?> Trades esta temporada</span>
+          <?php
+          // Garantir que exibimos exatamente o valor salvo em teams.trades_used para o time logado
+          if (!isset($tradeCount) && $teamId) {
+            $tradeCount = 0;
+          }
+      $tradeCountDb = null;
+      $debugTradeRow = null;
+          if ($teamId) {
+            try {
+          $stmtTradesUsed = $pdo->prepare('SELECT trades_used FROM teams WHERE id = ? LIMIT 1');
+              $stmtTradesUsed->execute([(int)$teamId]);
+              $dbVal = $stmtTradesUsed->fetchColumn();
+              if ($dbVal !== false && $dbVal !== null) {
+                $tradeCount = (int)$dbVal;
+            $tradeCountDb = (int)$dbVal;
+              }
+
+          // Debug: pegar também ciclos
+          $stmtDbg = $pdo->prepare('SELECT id, user_id, league, current_cycle, trades_cycle, trades_used FROM teams WHERE id = ? LIMIT 1');
+          $stmtDbg->execute([(int)$teamId]);
+          $debugTradeRow = $stmtDbg->fetch(PDO::FETCH_ASSOC) ?: null;
+            } catch (Exception $e) {
+              // fallback para valor já calculado
+            }
+          }
+          ?>
+          <span class="badge bg-secondary me-2"><?= htmlspecialchars((string)$tradeCount) ?> / <?= htmlspecialchars((string)$maxTrades) ?> Trades esta temporada</span>
+
+      <?php
+      $isAdmin = (($user['user_type'] ?? 'jogador') === 'admin');
+      $debugFlag = isset($_GET['debug']) && $_GET['debug'] === '1';
+      if ($isAdmin || $debugFlag):
+        $payload = [
+          'team_id' => $teamId,
+          'tradeCount_display' => $tradeCount,
+          'tradeCount_db' => $tradeCountDb,
+          'maxTrades' => $maxTrades,
+          'team_row' => $debugTradeRow,
+        ];
+      ?>
+        <script>
+          console.log('[trades_debug] contador de trades', <?= json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
+        </script>
+      <?php endif; ?>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
               <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
