@@ -208,6 +208,21 @@ function renderPlayers(players) {
     return 0;
   });
 
+  const cardSorted = [...players];
+  cardSorted.sort((a, b) => {
+    const aRole = roleOrder[a.role] ?? 999;
+    const bRole = roleOrder[b.role] ?? 999;
+    if (aRole !== bRole) return aRole - bRole;
+
+    if (a.role === 'Titular' && b.role === 'Titular') {
+      const aPos = starterPositionOrder[a.position] ?? 999;
+      const bPos = starterPositionOrder[b.position] ?? 999;
+      if (aPos !== bPos) return aPos - bPos;
+    }
+
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
   const gridEl = document.getElementById('players-grid');
   const listEl = document.getElementById('players-list');
   if (!gridEl || !listEl) return;
@@ -215,8 +230,6 @@ function renderPlayers(players) {
   listEl.innerHTML = '';
 
   const createPlayerCard = (player) => {
-    const ovrColor = getOvrColor(player.ovr);
-
     const col = document.createElement('div');
     col.className = 'col-12 col-sm-6 col-lg-4 col-xl-3';
 
@@ -240,18 +253,8 @@ function renderPlayers(players) {
           <div class="player-photo-inline">
             <img class="player-headshot" alt="Foto de ${player.name}">
           </div>
-          <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
-            <div class="flex-grow-1 me-2">
-              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${player.name}</h6>
-              <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-secondary">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''}</span>
-                <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
-              </div>
-            </div>
-            <div class="text-end">
-              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${player.ovr}</div>
-              <small class="text-light-gray">${player.age} anos</small>
-            </div>
+          <div class="flex-grow-1">
+            <h6 class="text-white mb-0 fw-bold" style="font-size: 1.1rem;">${player.name}</h6>
           </div>
         </div>
         <div class="d-flex gap-2 mt-2">
@@ -291,8 +294,8 @@ function renderPlayers(players) {
     const divider = document.createElement('div');
     divider.className = 'roster-divider';
 
-    const row = document.createElement('div');
-    row.className = 'row g-3';
+  const row = document.createElement('div');
+  row.className = 'row g-3 justify-content-center';
 
     if (!items.length) {
       const empty = document.createElement('div');
@@ -312,9 +315,9 @@ function renderPlayers(players) {
     return section;
   };
 
-  const starters = sorted.filter((p) => p.role === 'Titular');
-  const bench = sorted.filter((p) => p.role === 'Banco');
-  const others = sorted.filter((p) => p.role === 'Outro' || p.role === 'G-League');
+  const starters = cardSorted.filter((p) => p.role === 'Titular');
+  const bench = cardSorted.filter((p) => p.role === 'Banco');
+  const others = cardSorted.filter((p) => p.role === 'Outro' || p.role === 'G-League');
 
   gridEl.appendChild(createSection('Quinteto inicial', starters, { emptyText: 'Sem titulares definidos.' }));
   gridEl.appendChild(createSection('Banco', bench, { emptyText: 'Sem jogadores no banco.' }));
