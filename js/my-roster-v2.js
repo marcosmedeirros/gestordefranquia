@@ -346,16 +346,16 @@ function renderPlayers(players) {
             <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
           </div>
           <div class="d-flex gap-2 justify-content-end" style="min-width: 140px;">
-            <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar">
+            <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi bi-pencil"></i>
             </button>
-            <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar">
+            <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi bi-hand-thumbs-down"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar">
+            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi bi-box-arrow-right"></i>
             </button>
-            <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca">
+            <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
             </button>
           </div>
@@ -371,6 +371,13 @@ function renderPlayers(players) {
   gridEl.style.display = '';
   listEl.style.display = '';
   if (listToolbarEl) listToolbarEl.style.display = '';
+  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  tooltipTriggerList.forEach((el) => {
+    if (!el.dataset.tooltipBound) {
+      el.dataset.tooltipBound = 'true';
+      new bootstrap.Tooltip(el);
+    }
+  });
   updateRosterStats();
 }
 
@@ -437,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   
   // Delegação de eventos para botões
-  document.getElementById('players-list')?.addEventListener('click', async (e) => {
+  document.addEventListener('click', async (e) => {
     const target = e.target.closest('button');
     if (!target) return;
     
