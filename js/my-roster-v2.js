@@ -176,6 +176,50 @@ function sortPlayers(field) {
   renderPlayers(allPlayers);
 }
 
+function setText(elOrId, text) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (el) el.textContent = text;
+}
+
+function resolveRosterGroups(players) {
+  const starters = players.filter(p => p.role === 'Titular');
+  const bench = players.filter(p => p.role === 'Banco');
+  const gleague = players.filter(p => p.role === 'G-League');
+  const others = players.filter(p => !['Titular', 'Banco', 'G-League'].includes(p.role));
+  return { starters, bench, others, gleague };
+}
+
+function getTargetGridForRole(role) {
+  const sectionsRoot = document.getElementById('roster-sections');
+  if (!sectionsRoot) return document.getElementById('players-grid');
+
+  if (role === 'Titular') return document.getElementById('players-grid-starters');
+  if (role === 'Banco') return document.getElementById('players-grid-bench');
+  if (role === 'G-League') return document.getElementById('players-grid-gleague');
+  return document.getElementById('players-grid-others');
+}
+
+function clearRosterGrids() {
+  const ids = [
+    'players-grid-starters',
+    'players-grid-bench',
+    'players-grid-others',
+    'players-grid-gleague',
+    'players-grid'
+  ];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
+function showRosterSectionsUI(enableSections) {
+  const sections = document.getElementById('roster-sections');
+  const oldGrid = document.getElementById('players-grid');
+  if (sections) sections.style.display = enableSections ? '' : 'none';
+  if (oldGrid) oldGrid.style.display = enableSections ? 'none' : '';
+}
+
 function renderPlayers(players) {
   let sorted = [...players];
   sorted.sort((a, b) => {
@@ -208,9 +252,18 @@ function renderPlayers(players) {
     return 0;
   });
 
-  const grid = document.getElementById('players-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
+  clearRosterGrids();
+
+  const hasSections = !!document.getElementById('roster-sections');
+  showRosterSectionsUI(hasSections);
+
+  if (hasSections) {
+    const { starters, bench, others, gleague } = resolveRosterGroups(sorted);
+    setText('count-starters', starters.length ? `${starters.length}` : '');
+    setText('count-bench', bench.length ? `${bench.length}` : '');
+    setText('count-others', others.length ? `${others.length}` : '');
+    setText('count-gleague', gleague.length ? `${gleague.length}` : '');
+  }
 
   sorted.forEach(p => {
     const ovrColor = getOvrColor(p.ovr);
@@ -414,8 +467,12 @@ document.addEventListener('DOMContentLoaded', () => {
       role: document.getElementById('edit-role').value,
       available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
     };
+
     try {
-      await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
+      await api('players.php', {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
       bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
       loadPlayers();
     } catch (err) {

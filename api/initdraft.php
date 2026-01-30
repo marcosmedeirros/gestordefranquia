@@ -219,6 +219,9 @@ function resetClockForNextPick(PDO $pdo, int $sessionId): void {
         return;
     }
 
+    // Sistema antigo (sem relógio): não cria deadline nem agenda auto-pick.
+    return;
+
     $scheduleEnabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
     if (!$scheduleEnabled || ($session['status'] ?? 'setup') !== 'in_progress') {
         return;
@@ -301,42 +304,8 @@ function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
 }
 
 function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): void {
-    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
-    if (!$enabled) return;
-    if (($session['status'] ?? 'setup') !== 'in_progress') return;
-
-    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
-    if (!$dailyRound) return;
-    if ($dailyRound > (int)$session['total_rounds']) return;
-
-    // relógio só depois do horário configurado
-    $clockStart = ($session['daily_clock_start_time'] ?? '19:30:00');
-    $clockStartDT = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $clockStart, $now->getTimezone());
-    if ($now < $clockStartDT) return;
-
-    $pick = getCurrentOpenPick($pdo, (int)$session['id'], $dailyRound);
-    if (!$pick) return;
-
-    if (empty($pick['deadline_at'])) {
-        ensureDeadlineForPick($pdo, $pick, $now, (int)($session['daily_pick_minutes'] ?? 10));
-        return;
-    }
-
-    $deadline = new DateTimeImmutable($pick['deadline_at'], $now->getTimezone());
-    if ($now <= $deadline) return;
-
-    $playerId = pickHighestOvrAvailable($pdo, (int)$session['season_id']);
-    if (!$playerId) {
-        // sem jogadores: encerra round e draft
-        $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-            ->execute([$session['id']]);
-        return;
-    }
-
-    // Faz pick e limpa deadlines do round pra recalcular no próximo
-    performInitDraftPick($pdo, $session, $playerId);
-    clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
-    resetClockForNextPick($pdo, (int)$session['id']);
+    // Sistema antigo (sem relógio): sem auto-pick.
+    return;
 }
 
 function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
@@ -396,19 +365,9 @@ function applyDailySchedule(PDO $pdo, array $session): array {
         return $session;
     }
 
-    // Antes das 19:30: sem relógio (remove deadlines)
-    $clockStart = ($session['daily_clock_start_time'] ?? '19:30:00');
-    $clockStartDT = new DateTimeImmutable($today . ' ' . $clockStart, $now->getTimezone());
-    if ($now < $clockStartDT) {
-        clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
-        return $session;
-    }
-
-    // Depois das 19:30: garante deadline do pick atual e faz auto-pick se expirou
-    autoPickIfTimedOut($pdo, $session, $now);
-    // Recarrega sessão em caso de mudanças
-    $fresh = getSessionById($pdo, (int)$session['id']);
-    return $fresh ?: $session;
+    // Sistema antigo (sem relógio): garantir que não exista deadline aplicado.
+    clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+    return $session;
 }
 
 // ========== GET ==========

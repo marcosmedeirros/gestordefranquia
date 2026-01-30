@@ -57,6 +57,23 @@ if ($teamId) {
     display: block;
     background: #0b0b0d;
   }
+
+  .roster-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.25rem 0 0.75rem;
+  }
+  .roster-section-title h6 {
+    margin: 0;
+    color: #fff;
+    font-weight: 700;
+  }
+  .roster-divider {
+    border-top: 1px solid var(--fba-border);
+    margin: 1.25rem 0;
+  }
   </style>
 </head>
 <body>
@@ -299,7 +316,41 @@ if ($teamId) {
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
-        <!-- Grid de Cards Responsivo -->
+
+        <!-- Seções do elenco -->
+        <div id="roster-sections" style="display: none;">
+          <div class="roster-section-title">
+            <h6><i class="bi bi-trophy me-2 text-orange"></i>Quinteto Titular</h6>
+            <small class="text-light-gray" id="count-starters"></small>
+          </div>
+          <div id="players-grid-starters" class="row g-3"></div>
+
+          <div class="roster-divider"></div>
+
+          <div class="roster-section-title">
+            <h6><i class="bi bi-people me-2 text-orange"></i>Banco</h6>
+            <small class="text-light-gray" id="count-bench"></small>
+          </div>
+          <div id="players-grid-bench" class="row g-3"></div>
+
+          <div class="roster-divider"></div>
+
+          <div class="roster-section-title">
+            <h6><i class="bi bi-person-lines-fill me-2 text-orange"></i>Outros</h6>
+            <small class="text-light-gray" id="count-others"></small>
+          </div>
+          <div id="players-grid-others" class="row g-3"></div>
+
+          <div class="roster-divider"></div>
+
+          <div class="roster-section-title">
+            <h6><i class="bi bi-diagram-3-fill me-2 text-orange"></i>G-League</h6>
+            <small class="text-light-gray" id="count-gleague"></small>
+          </div>
+          <div id="players-grid-gleague" class="row g-3"></div>
+        </div>
+
+        <!-- Compatibilidade: grid antigo (não usado na v2 com seções) -->
         <div id="players-grid" class="row g-3" style="display: none;"></div>
       </div>
     </div>

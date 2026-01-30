@@ -1750,7 +1750,7 @@ if (!$token) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-2 small text-muted">00:00:01 inicia o round do dia (Brasília). Até 19:30 sem relógio. Após 19:30: 10 min/pick e auto-pick por OVR.</div>
+                <div class="mb-2 small text-muted">00:01 libera o round do dia (Brasília). Sem relógio: as picks avançam somente quando alguém (ou admin) escolhe.</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-sm-6">
                         <label class="form-label mb-1">Dia 01 (DD/MM/AAAA)</label>

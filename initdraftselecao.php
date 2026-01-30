@@ -163,24 +163,7 @@ if ($user && isset($user['id'])) {
             color: #D50826 !important;
         }
 
-        .clock-banner {
-            background: rgba(15, 15, 15, 0.85);
-            border: 1px solid rgba(213, 8, 38, 0.45);
-            border-radius: 14px;
-            padding: 0.55rem 0.85rem;
-        }
-
-        .clock-banner .clock-title {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #D50826;
-        }
-
-        .clock-banner .clock-value {
-            color: #ffffff;
-            font-size: 1.2rem;
-        }
+        /* Relógio removido (sistema antigo sem timer) */
 
         .pick-logo {
             width: 46px;
@@ -380,88 +363,7 @@ if ($user && isset($user['id'])) {
             return Number.isFinite(ms) ? ms : null;
         }
 
-        function formatRemaining(ms) {
-            const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-            const m = Math.floor(totalSeconds / 60);
-            const s = totalSeconds % 60;
-            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        }
-
-        function stopClockTicker() {
-            if (uiState.clockTickInterval) {
-                clearInterval(uiState.clockTickInterval);
-                uiState.clockTickInterval = null;
-            }
-        }
-
-        function renderClockBanner() {
-            const el = elements.clockBanner;
-            if (!el) return;
-            const session = state.session;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-
-            if (!session || session.status !== 'in_progress' || !currentPick) {
-                stopClockTicker();
-                el.innerHTML = '';
-                return;
-            }
-
-            const deadlineMs = parseSqlDatetimeToMs(currentPick.deadline_at);
-            if (!deadlineMs) {
-                stopClockTicker();
-                el.innerHTML = `
-                    <div class="clock-banner">
-                        <div class="clock-title">Relógio</div>
-                        <div class="fw-semibold clock-value">Sem relógio até 19:30</div>
-                    </div>
-                `;
-                return;
-            }
-
-            const remaining = deadlineMs - Date.now();
-            const textClass = remaining <= 30000 ? 'text-danger' : (remaining <= 60000 ? 'text-warning' : 'text-white');
-            el.innerHTML = `
-                <div class="clock-banner">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <div class="clock-title">Relógio</div>
-                            <div class="fw-semibold clock-value ${textClass}" id="clockRemaining">${formatRemaining(remaining)}</div>
-                        </div>
-                        <div class="small text-muted text-end">deadline<br>${currentPick.deadline_at}</div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function startOrUpdateClockTicker(currentPick) {
-            const deadlineMs = parseSqlDatetimeToMs(currentPick?.deadline_at);
-            if (!deadlineMs || !currentPick?.id) {
-                uiState.clockPickId = null;
-                uiState.clockDeadlineMs = null;
-                stopClockTicker();
-                return;
-            }
-
-            const needsRestart = uiState.clockPickId !== currentPick.id || uiState.clockDeadlineMs !== deadlineMs;
-            uiState.clockPickId = currentPick.id;
-            uiState.clockDeadlineMs = deadlineMs;
-
-            if (!needsRestart && uiState.clockTickInterval) return;
-
-            stopClockTicker();
-            uiState.clockTickInterval = setInterval(() => {
-                const remaining = uiState.clockDeadlineMs - Date.now();
-                const remainingEl = document.getElementById('clockRemaining');
-                if (!remainingEl) {
-                    renderClockBanner();
-                    return;
-                }
-                remainingEl.textContent = formatRemaining(remaining);
-                remainingEl.classList.toggle('text-danger', remaining <= 30000);
-                remainingEl.classList.toggle('text-warning', remaining > 30000 && remaining <= 60000);
-                remainingEl.classList.toggle('text-white', remaining > 60000);
-            }, 1000);
-        }
+        // Relógio removido (sistema antigo sem timer)
 
         function teamLabel(pick) {
             if (!pick) return '—';
@@ -671,8 +573,7 @@ if ($user && isset($user['id'])) {
                 const currentPick = state.order.find((pick) => !pick.picked_player_id);
                 const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
                 handlePickChange(currentPick);
-                renderClockBanner();
-                startOrUpdateClockTicker(currentPick);
+                // sem relógio
                 renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight');
                 renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight');
                 renderOrderList(currentPick, nextPick);
