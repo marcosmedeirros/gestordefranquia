@@ -213,8 +213,46 @@ function clearDeadlinesForRound(PDO $pdo, int $sessionId, int $round): void {
         ->execute([$sessionId, $round]);
 }
 
-function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes): void {
-    if (!empty($pick['deadline_at'])) return;
+function resetClockForNextPick(PDO $pdo, int $sessionId): void {
+    $session = getSessionById($pdo, $sessionId);
+    if (!$session) {
+        return;
+    }
+
+    $scheduleEnabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$scheduleEnabled || ($session['status'] ?? 'setup') !== 'in_progress') {
+        return;
+    }
+
+    $currentRound = (int)($session['current_round'] ?? 0);
+    if ($currentRound <= 0) {
+        return;
+    }
+
+    $now = tzNow();
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if ($dailyRound !== null && $dailyRound !== $currentRound) {
+        // Fora da janela diária configurada; mantém pausado até o próximo dia.
+        return;
+    }
+
+    $currentPick = getCurrentOpenPick($pdo, $sessionId, $currentRound);
+    if (!$currentPick) {
+        clearDeadlinesForRound($pdo, $sessionId, $currentRound);
+        return;
+    }
+
+    $clockStart = $session['daily_clock_start_time'] ?? '19:30:00';
+    $clockStartDate = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $clockStart, $now->getTimezone());
+    if ($now < $clockStartDate) {
+        return;
+    }
+
+    ensureDeadlineForPick($pdo, $currentPick, $now, (int)($session['daily_pick_minutes'] ?? 10), true);
+}
+
+function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes, bool $forceReset = false): void {
+    if (!$forceReset && !empty($pick['deadline_at'])) return;
     ensureDeadlineColumn($pdo);
     $deadline = $now->add(new DateInterval('PT' . max(1, $pickMinutes) . 'M'));
     $pdo->prepare('UPDATE initdraft_order SET deadline_at = ? WHERE id = ?')
@@ -298,6 +336,7 @@ function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): v
     // Faz pick e limpa deadlines do round pra recalcular no próximo
     performInitDraftPick($pdo, $session, $playerId);
     clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+    resetClockForNextPick($pdo, (int)$session['id']);
 }
 
 function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
@@ -814,6 +853,7 @@ if ($method === 'POST') {
                 ensureDailyPickWindow($session, tzNow());
 
                 performInitDraftPick($pdo, $session, $playerId);
+                resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada']);
                 break;
             }
@@ -828,6 +868,7 @@ if ($method === 'POST') {
                 ensureDailyPickWindow($session, tzNow());
 
                 performInitDraftPick($pdo, $session, $playerId);
+                resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada pelo admin']);
                 break;
             }

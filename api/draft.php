@@ -686,6 +686,32 @@ if ($method === 'POST') {
                 $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
                     ->execute([(int)$pick['team_id'], $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
 
+                if (($session['status'] ?? '') === 'in_progress'
+                    && (int)$pick['round'] === (int)$session['current_round']
+                    && (int)$pick['pick_position'] === (int)$session['current_pick']) {
+
+                    $nextPick = (int)$session['current_pick'] + 1;
+                    $nextRound = (int)$session['current_round'];
+
+                    $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM draft_order WHERE draft_session_id = ? AND round = ?');
+                    $stmtCount->execute([(int)$draftSessionId, (int)$nextRound]);
+                    $totalPicks = (int)($stmtCount->fetch()['total'] ?? 0);
+
+                    if ($nextPick > $totalPicks) {
+                        $nextRound++;
+                        $nextPick = 1;
+                        if ($nextRound > (int)$session['total_rounds']) {
+                            $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
+                        } else {
+                            $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
+                                ->execute([(int)$nextRound, (int)$nextPick, (int)$draftSessionId]);
+                        }
+                    } else {
+                        $pdo->prepare('UPDATE draft_sessions SET current_pick = ? WHERE id = ?')
+                            ->execute([(int)$nextPick, (int)$draftSessionId]);
+                    }
+                }
+
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Pick preenchida!', 'player' => $player]);
             } catch (Exception $e) {

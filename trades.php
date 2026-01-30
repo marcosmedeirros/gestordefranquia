@@ -286,7 +286,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
     <div>
-      <span class="badge bg-secondary me-2"><?= htmlspecialchars((string)$tradeCount) ?> / <?= htmlspecialchars((string)$maxTrades) ?> Trades esta temporada</span>
+      <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
               <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
