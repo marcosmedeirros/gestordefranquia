@@ -163,7 +163,11 @@ async function handleSaveEdit() {
     const modalEl = document.getElementById('editPlayerModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.hide();
-    await loadPlayers();
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = originalLabel;
+    }
+    reloadRosterPage();
   } catch (err) {
     alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
   } finally {
