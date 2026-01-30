@@ -136,43 +136,6 @@ let currentSort = { field: 'role', ascending: true };
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
-async function handleSaveEdit() {
-  const saveBtn = document.getElementById('btn-save-edit');
-  const originalLabel = saveBtn ? saveBtn.innerHTML : '';
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Salvando...';
-  }
-
-  const data = {
-    id: document.getElementById('edit-player-id').value,
-    name: document.getElementById('edit-name').value,
-    age: document.getElementById('edit-age').value,
-    position: document.getElementById('edit-position').value,
-    secondary_position: document.getElementById('edit-secondary-position').value || null,
-    ovr: document.getElementById('edit-ovr').value,
-    role: document.getElementById('edit-role').value,
-    available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
-  };
-  try {
-    await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
-    const modalEl = document.getElementById('editPlayerModal');
-    try {
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.hide();
-    } catch {}
-    await loadPlayers();
-    await loadFreeAgencyLimits();
-  } catch (err) {
-    alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
-  } finally {
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = originalLabel;
-    }
-  }
-}
-
 async function loadFreeAgencyLimits() {
   if (!window.__TEAM_ID__) return;
   try {
@@ -214,11 +177,11 @@ function sortPlayers(field) {
 }
 
 function renderPlayers(players) {
-  const sorted = [...players];
+  let sorted = [...players];
   sorted.sort((a, b) => {
     let aVal = a[currentSort.field];
     let bVal = b[currentSort.field];
-
+    
     if (currentSort.field === 'role') {
       aVal = roleOrder[aVal] ?? 999;
       bVal = roleOrder[bVal] ?? 999;
@@ -245,37 +208,21 @@ function renderPlayers(players) {
     return 0;
   });
 
-  const cardSorted = [...players];
-  cardSorted.sort((a, b) => {
-    const aRole = roleOrder[a.role] ?? 999;
-    const bRole = roleOrder[b.role] ?? 999;
-    if (aRole !== bRole) return aRole - bRole;
+  const grid = document.getElementById('players-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
 
-    if (a.role === 'Titular' && b.role === 'Titular') {
-      const aPos = starterPositionOrder[a.position] ?? 999;
-      const bPos = starterPositionOrder[b.position] ?? 999;
-      if (aPos !== bPos) return aPos - bPos;
-    }
-
-    return String(a.name || '').localeCompare(String(b.name || ''));
-  });
-
-  const gridEl = document.getElementById('players-grid');
-  const listEl = document.getElementById('players-list');
-  const listToolbarEl = document.getElementById('players-list-toolbar');
-  if (!gridEl || !listEl) return;
-  gridEl.innerHTML = '';
-  listEl.innerHTML = '';
-
-  const createPlayerCard = (player) => {
+  sorted.forEach(p => {
+    const ovrColor = getOvrColor(p.ovr);
+    
     const col = document.createElement('div');
     col.className = 'col-12 col-sm-6 col-lg-4 col-xl-3';
-
+    
     const card = document.createElement('div');
     card.className = 'card bg-dark border-orange h-100';
     card.style.transition = 'transform 0.2s, box-shadow 0.2s';
     card.style.cursor = 'pointer';
-
+    
     card.addEventListener('mouseenter', () => {
       card.style.transform = 'translateY(-4px)';
       card.style.boxShadow = '0 8px 24px rgba(252, 0, 37, 0.3)';
@@ -284,138 +231,52 @@ function renderPlayers(players) {
       card.style.transform = 'translateY(0)';
       card.style.boxShadow = '';
     });
-
-    const canRetire = Number(player.age) >= 35;
+    
     card.innerHTML = `
-      <div class="card-body p-3 d-flex flex-column gap-3">
-        <div class="d-flex align-items-center gap-3">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-3 mb-3">
           <div class="player-photo-inline">
-            <img class="player-headshot" alt="Foto de ${player.name}">
+            <img class="player-headshot" alt="Foto de ${p.name}">
           </div>
-          <div class="flex-grow-1">
-            <h6 class="text-white mb-1 fw-bold" style="font-size: 1.1rem;">${player.name}</h6>
-            <div class="text-light-gray" style="font-size: 0.85rem;">
-              ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos
+          <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 me-2">
+              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${p.name}</h6>
+              <div class="d-flex gap-2 flex-wrap">
+                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
+                <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
+              <small class="text-light-gray">${p.age} anos</small>
             </div>
           </div>
-          <div class="text-end">
-            <div class="fw-bold" style="font-size: 1.7rem; line-height: 1; color: ${getOvrColor(player.ovr)};">${player.ovr}</div>
-            <small class="text-light-gray">OVR</small>
-          </div>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar" data-bs-toggle="tooltip" data-bs-placement="top">
+        <div class="d-flex gap-2 mt-2">
+          <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${p.id}" title="Editar">
             <i class="bi bi-pencil"></i>
           </button>
-          <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar" data-bs-toggle="tooltip" data-bs-placement="top">
+          <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar">
             <i class="bi bi-hand-thumbs-down"></i>
           </button>
-          ${canRetire ? `
-            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
-              <i class="bi bi-box-arrow-right"></i>
-            </button>
-          ` : ''}
-          <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca" data-bs-toggle="tooltip" data-bs-placement="top">
-            <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
+          <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
+            <i class="bi bi-box-arrow-right"></i>
+          </button>
+          <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
+            <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
+            ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
           </button>
         </div>
       </div>
     `;
-    ensurePlayerHeadshot(card.querySelector('.player-headshot'), player);
-
+  ensurePlayerHeadshot(card.querySelector('.player-headshot'), p);
+    
     col.appendChild(card);
-    return col;
-  };
-
-  const createSection = (title, items, options = {}) => {
-    const section = document.createElement('div');
-    section.className = 'roster-section';
-
-    const header = document.createElement('div');
-    header.className = 'd-flex align-items-center justify-content-between mb-2';
-    header.innerHTML = `
-      <h6 class="text-white mb-0">${title}</h6>
-      <small class="text-light-gray">${items.length} jogador${items.length === 1 ? '' : 'es'}</small>
-    `;
-
-    const divider = document.createElement('div');
-    divider.className = 'roster-divider';
-
-  const row = document.createElement('div');
-  row.className = 'row g-3 justify-content-center';
-
-    if (!items.length) {
-      const empty = document.createElement('div');
-      empty.className = 'text-light-gray';
-      empty.textContent = options.emptyText || 'Sem jogadores nesta seção.';
-      section.appendChild(header);
-      section.appendChild(divider);
-      section.appendChild(empty);
-      return section;
-    }
-
-    items.forEach((player) => row.appendChild(createPlayerCard(player)));
-
-    section.appendChild(header);
-    section.appendChild(divider);
-    section.appendChild(row);
-    return section;
-  };
-
-  const starters = cardSorted.filter((p) => p.role === 'Titular');
-  const bench = cardSorted.filter((p) => p.role === 'Banco');
-  const others = cardSorted.filter((p) => p.role === 'Outro' || p.role === 'G-League');
-
-  gridEl.appendChild(createSection('Quinteto inicial', starters, { emptyText: 'Sem titulares definidos.' }));
-  gridEl.appendChild(createSection('Banco', bench, { emptyText: 'Sem jogadores no banco.' }));
-  gridEl.appendChild(createSection('Outros / G-League', others, { emptyText: 'Sem jogadores nesta faixa.' }));
-
-  const listHeader = document.createElement('div');
-  listHeader.className = 'roster-list-item text-uppercase text-light-gray fw-semibold';
-  listHeader.style.fontSize = '0.7rem';
-  listHeader.innerHTML = `
-    <div class="d-flex justify-content-between align-items-center">
-      <span>Jogador</span>
-      <div class="d-flex align-items-center gap-3">
-        <span class="roster-list-role text-end">Função</span>
-        <span class="text-end" style="min-width: 140px;">Ações</span>
-      </div>
-    </div>
-  `;
-  listEl.appendChild(listHeader);
-
-  const listRow = (player) => {
-    const item = document.createElement('div');
-    item.className = 'roster-list-item';
-    item.innerHTML = `
-      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-        <div>
-          <div class="text-white fw-semibold">${player.name}</div>
-          <div class="text-light-gray" style="font-size: 0.8rem;">
-            ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos · OVR ${player.ovr}
-          </div>
-        </div>
-        <div class="text-end roster-list-role">
-          <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
-        </div>
-      </div>
-    `;
-    return item;
-  };
-
-  sorted.forEach((player) => listEl.appendChild(listRow(player)));
-
-  document.getElementById('players-status').style.display = 'none';
-  gridEl.style.display = '';
-  listEl.style.display = '';
-  if (listToolbarEl) listToolbarEl.style.display = '';
-  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-  tooltipTriggerList.forEach((el) => {
-    if (!el.dataset.tooltipBound) {
-      el.dataset.tooltipBound = 'true';
-      new bootstrap.Tooltip(el);
-    }
+    grid.appendChild(col);
   });
+  
+  document.getElementById('players-status').style.display = 'none';
+  grid.style.display = '';
   updateRosterStats();
 }
 
@@ -441,10 +302,6 @@ async function loadPlayers() {
       statusEl.style.display = 'block';
     }
     if (gridEl) gridEl.style.display = 'none';
-    const listEl = document.getElementById('players-list');
-    if (listEl) listEl.style.display = 'none';
-    const listToolbarEl = document.getElementById('players-list-toolbar');
-    if (listToolbarEl) listToolbarEl.style.display = 'none';
     return;
   }
   
@@ -453,10 +310,6 @@ async function loadPlayers() {
     statusEl.style.display = 'block';
   }
   if (gridEl) gridEl.style.display = 'none';
-  const listEl = document.getElementById('players-list');
-  if (listEl) listEl.style.display = 'none';
-  const listToolbarEl = document.getElementById('players-list-toolbar');
-  if (listToolbarEl) listToolbarEl.style.display = 'none';
   
   try {
     const data = await api(`players.php?team_id=${teamId}`);
@@ -485,12 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('players-grid')?.addEventListener('click', async (e) => {
     const target = e.target.closest('button');
     if (!target) return;
-
-    if (target.id === 'btn-save-edit') {
-      e.preventDefault();
-      await handleSaveEdit();
-      return;
-    }
     
     if (target.classList.contains('btn-toggle-trade')) {
       const playerId = target.dataset.id;
@@ -500,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PUT',
           body: JSON.stringify({ id: playerId, available_for_trade: newStatus })
         });
-        await loadPlayers();
+        loadPlayers();
       } catch (err) {
         alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
       }
@@ -518,9 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = player.available_for_trade;
-        const modalEl = document.getElementById('editPlayerModal');
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
+        new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
       }
     }
     
@@ -534,8 +379,8 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ id: playerId })
           });
           alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
-          await loadPlayers();
-          await loadFreeAgencyLimits();
+          loadPlayers();
+          loadFreeAgencyLimits();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
         }
@@ -549,11 +394,32 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
           alert('Jogador aposentado!');
-          await loadPlayers();
+          loadPlayers();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
         }
       }
+    }
+  });
+  
+  // Salvar edição
+  document.getElementById('btn-save-edit')?.addEventListener('click', async () => {
+    const data = {
+      id: document.getElementById('edit-player-id').value,
+      name: document.getElementById('edit-name').value,
+      age: document.getElementById('edit-age').value,
+      position: document.getElementById('edit-position').value,
+      secondary_position: document.getElementById('edit-secondary-position').value || null,
+      ovr: document.getElementById('edit-ovr').value,
+      role: document.getElementById('edit-role').value,
+      available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
+    };
+    try {
+      await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
+      bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
+      loadPlayers();
+    } catch (err) {
+      alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
     }
   });
 });
