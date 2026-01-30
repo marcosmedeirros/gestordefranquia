@@ -57,6 +57,26 @@ if ($teamId) {
     display: block;
     background: #0b0b0d;
   }
+  .roster-divider {
+    height: 1px;
+    background: linear-gradient(90deg, rgba(252, 0, 37, 0.25), rgba(255,255,255,0.08), rgba(252, 0, 37, 0.25));
+    margin-bottom: 1rem;
+  }
+  .roster-list {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .roster-list-item {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .roster-list-item:last-child {
+    border-bottom: none;
+  }
+  .roster-list-role {
+    min-width: 92px;
+  }
   </style>
 </head>
 <body>
@@ -300,7 +320,9 @@ if ($teamId) {
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
         <!-- Grid de Cards Responsivo -->
-        <div id="players-grid" class="row g-3" style="display: none;"></div>
+        <div id="players-grid" class="d-flex flex-column gap-4" style="display: none;"></div>
+
+        <div id="players-list" class="roster-list mt-4" style="display: none;"></div>
       </div>
     </div>
     <?php endif; ?>

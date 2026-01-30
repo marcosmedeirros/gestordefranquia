@@ -177,11 +177,11 @@ function sortPlayers(field) {
 }
 
 function renderPlayers(players) {
-  let sorted = [...players];
+  const sorted = [...players];
   sorted.sort((a, b) => {
     let aVal = a[currentSort.field];
     let bVal = b[currentSort.field];
-    
+
     if (currentSort.field === 'role') {
       aVal = roleOrder[aVal] ?? 999;
       bVal = roleOrder[bVal] ?? 999;
@@ -208,21 +208,23 @@ function renderPlayers(players) {
     return 0;
   });
 
-  const grid = document.getElementById('players-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
+  const gridEl = document.getElementById('players-grid');
+  const listEl = document.getElementById('players-list');
+  if (!gridEl || !listEl) return;
+  gridEl.innerHTML = '';
+  listEl.innerHTML = '';
 
-  sorted.forEach(p => {
-    const ovrColor = getOvrColor(p.ovr);
-    
+  const createPlayerCard = (player) => {
+    const ovrColor = getOvrColor(player.ovr);
+
     const col = document.createElement('div');
     col.className = 'col-12 col-sm-6 col-lg-4 col-xl-3';
-    
+
     const card = document.createElement('div');
     card.className = 'card bg-dark border-orange h-100';
     card.style.transition = 'transform 0.2s, box-shadow 0.2s';
     card.style.cursor = 'pointer';
-    
+
     card.addEventListener('mouseenter', () => {
       card.style.transform = 'translateY(-4px)';
       card.style.boxShadow = '0 8px 24px rgba(252, 0, 37, 0.3)';
@@ -231,52 +233,128 @@ function renderPlayers(players) {
       card.style.transform = 'translateY(0)';
       card.style.boxShadow = '';
     });
-    
+
     card.innerHTML = `
       <div class="card-body p-3">
         <div class="d-flex align-items-center gap-3 mb-3">
           <div class="player-photo-inline">
-            <img class="player-headshot" alt="Foto de ${p.name}">
+            <img class="player-headshot" alt="Foto de ${player.name}">
           </div>
           <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
             <div class="flex-grow-1 me-2">
-              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${p.name}</h6>
+              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${player.name}</h6>
               <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
+                <span class="badge bg-secondary">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''}</span>
+                <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
               </div>
             </div>
             <div class="text-end">
-              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-              <small class="text-light-gray">${p.age} anos</small>
+              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${player.ovr}</div>
+              <small class="text-light-gray">${player.age} anos</small>
             </div>
           </div>
         </div>
         <div class="d-flex gap-2 mt-2">
-          <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${p.id}" title="Editar">
+          <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${player.id}" title="Editar">
             <i class="bi bi-pencil"></i>
           </button>
-          <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar">
+          <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar">
             <i class="bi bi-hand-thumbs-down"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
+          <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar">
             <i class="bi bi-box-arrow-right"></i>
           </button>
-          <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
-            <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
-            ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
+          <button class="btn btn-sm flex-fill btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca">
+            <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
+            ${player.available_for_trade ? 'Disponível' : 'Indisp.'}
           </button>
         </div>
       </div>
     `;
-  ensurePlayerHeadshot(card.querySelector('.player-headshot'), p);
-    
+    ensurePlayerHeadshot(card.querySelector('.player-headshot'), player);
+
     col.appendChild(card);
-    grid.appendChild(col);
-  });
-  
+    return col;
+  };
+
+  const createSection = (title, items, options = {}) => {
+    const section = document.createElement('div');
+    section.className = 'roster-section';
+
+    const header = document.createElement('div');
+    header.className = 'd-flex align-items-center justify-content-between mb-2';
+    header.innerHTML = `
+      <h6 class="text-white mb-0">${title}</h6>
+      <small class="text-light-gray">${items.length} jogador${items.length === 1 ? '' : 'es'}</small>
+    `;
+
+    const divider = document.createElement('div');
+    divider.className = 'roster-divider';
+
+    const row = document.createElement('div');
+    row.className = 'row g-3';
+
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'text-light-gray';
+      empty.textContent = options.emptyText || 'Sem jogadores nesta seção.';
+      section.appendChild(header);
+      section.appendChild(divider);
+      section.appendChild(empty);
+      return section;
+    }
+
+    items.forEach((player) => row.appendChild(createPlayerCard(player)));
+
+    section.appendChild(header);
+    section.appendChild(divider);
+    section.appendChild(row);
+    return section;
+  };
+
+  const starters = sorted.filter((p) => p.role === 'Titular');
+  const bench = sorted.filter((p) => p.role === 'Banco');
+  const others = sorted.filter((p) => p.role === 'Outro' || p.role === 'G-League');
+
+  gridEl.appendChild(createSection('Quinteto inicial', starters, { emptyText: 'Sem titulares definidos.' }));
+  gridEl.appendChild(createSection('Banco', bench, { emptyText: 'Sem jogadores no banco.' }));
+  gridEl.appendChild(createSection('Outros / G-League', others, { emptyText: 'Sem jogadores nesta faixa.' }));
+
+  const listHeader = document.createElement('div');
+  listHeader.className = 'roster-list-item text-uppercase text-light-gray fw-semibold';
+  listHeader.style.fontSize = '0.7rem';
+  listHeader.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center">
+      <span>Jogador</span>
+      <span class="roster-list-role text-end">Função</span>
+    </div>
+  `;
+  listEl.appendChild(listHeader);
+
+  const listRow = (player) => {
+    const item = document.createElement('div');
+    item.className = 'roster-list-item';
+    item.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <div class="text-white fw-semibold">${player.name}</div>
+          <div class="text-light-gray" style="font-size: 0.8rem;">
+            ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos · OVR ${player.ovr}
+          </div>
+        </div>
+        <div class="text-end roster-list-role">
+          <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
+        </div>
+      </div>
+    `;
+    return item;
+  };
+
+  sorted.forEach((player) => listEl.appendChild(listRow(player)));
+
   document.getElementById('players-status').style.display = 'none';
-  grid.style.display = '';
+  gridEl.style.display = '';
+  listEl.style.display = '';
   updateRosterStats();
 }
 
