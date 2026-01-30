@@ -22,16 +22,40 @@ if ($team) {
     $tradesEnabled = $settings['trades_enabled'] ?? 1;
 }
 
-// Contar trades criadas pelo usuário nesta temporada
+function syncTeamTradeCounter(PDO $pdo, int $teamId): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return 0;
+        }
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+        if ($currentCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        if ($currentCycle > 0 && $tradesCycle <= 0) {
+            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+// Contar trades aceitas pelo time no ciclo atual
 $tradeCount = 0;
 if ($teamId) {
-  try {
-    $stmtCount = $pdo->prepare("SELECT COUNT(*) as total FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
-    $stmtCount->execute([$teamId, $teamId]);
-    $tradeCount = $stmtCount->fetch()['total'] ?? 0;
-  } catch (Exception $e) {
-    $tradeCount = 0;
-  }
+  $tradeCount = syncTeamTradeCounter($pdo, (int)$teamId);
 }
 ?>
 <!DOCTYPE html>

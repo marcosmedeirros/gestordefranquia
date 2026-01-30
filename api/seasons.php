@@ -567,8 +567,12 @@ try {
                 $tradeCycle = (int)ceil($seasonNumber / 2);
                 $stmtCycle = $pdo->prepare("UPDATE teams SET current_cycle = ? WHERE league = ?");
                 $stmtCycle->execute([$tradeCycle, $league]);
+
+                // Resetar contador de trades da liga ao mudar de ciclo
+                $pdo->prepare("UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE league = ?")
+                    ->execute([$tradeCycle, $league]);
             } catch (Exception $e) {
-                // Se a coluna current_cycle não existir, ignorar
+                // Se a coluna current_cycle/trades_* não existir, ignorar
             }
 
             $pdo->commit();
