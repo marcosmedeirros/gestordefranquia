@@ -15,6 +15,7 @@ let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
+const rosterToggleLoading = new Set();
 
 // --- Roster local (somente jogadores do time logado) ---
 function getRosterElements() {
@@ -45,10 +46,11 @@ function renderMyRoster() {
   if (tradeCount) tradeCount.textContent = `${tradeAvailable} disponíveis para troca`;
 
   const cards = myPlayers.map(p => {
+    const isLoading = rosterToggleLoading.has(parseInt(p.id, 10));
     const secPos = p.secondary_position ? ` / ${p.secondary_position}` : '';
     const tradeBadge = p.available_for_trade
-      ? `<span class="badge badge-trade roster-toggle" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">Disponível para troca</span>`
-      : `<span class="badge badge-notrade roster-toggle" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">Fora do trade block</span>`;
+      ? `<span class="badge badge-trade roster-toggle ${isLoading ? 'disabled' : ''}" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">${isLoading ? 'Atualizando…' : 'Disponível para troca'}</span>`
+      : `<span class="badge badge-notrade roster-toggle ${isLoading ? 'disabled' : ''}" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">${isLoading ? 'Atualizando…' : 'Fora do trade block'}</span>`;
     const retireDisabled = p.age < 35 ? 'disabled title="Apenas para 35+"' : '';
     const toggleLabel = p.available_for_trade ? 'Retirar do trade' : 'Liberar para trade';
 
@@ -68,7 +70,9 @@ function renderMyRoster() {
         </div>
         <div class="roster-actions">
           <button class="btn btn-sm btn-outline-light" data-action="edit" data-id="${p.id}"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-warning" data-action="toggle-trade" data-id="${p.id}">${toggleLabel}</button>
+          <button class="btn btn-sm btn-outline-warning" data-action="toggle-trade" data-id="${p.id}" ${isLoading ? 'disabled' : ''}>
+            ${isLoading ? '<span class="spinner-border spinner-border-sm"></span>' : toggleLabel}
+          </button>
           <button class="btn btn-sm btn-outline-danger" data-action="waive" data-id="${p.id}">Dispensar</button>
           <button class="btn btn-sm btn-outline-danger" data-action="retire" data-id="${p.id}" ${retireDisabled}>Aposentar</button>
         </div>
@@ -195,26 +199,24 @@ async function saveEditedPlayer() {
 }
 
 async function toggleTradeAvailability(player) {
-  const oldValue = !!player.available_for_trade;
-  const newValue = oldValue ? 0 : 1;
+  const playerId = parseInt(player.id, 10);
+  if (!playerId || rosterToggleLoading.has(playerId)) return;
 
-  // Atualização otimista (deixa a UI responsiva)
-  player.available_for_trade = newValue;
+  rosterToggleLoading.add(playerId);
   renderMyRoster();
-  populateMyPlayerSelects();
+
+  const newValue = player.available_for_trade ? 0 : 1;
 
   try {
     await api('players.php', {
       method: 'PUT',
-      body: JSON.stringify({ id: player.id, available_for_trade: newValue })
+      body: JSON.stringify({ id: playerId, available_for_trade: newValue })
     });
-    // Sincronizar com backend (garante consistência)
+    rosterToggleLoading.delete(playerId);
     await refreshMyPlayers();
   } catch (err) {
-    // Reverter no erro
-    player.available_for_trade = oldValue ? 1 : 0;
+    rosterToggleLoading.delete(playerId);
     renderMyRoster();
-    populateMyPlayerSelects();
     alert(err.error || 'Erro ao atualizar disponibilidade para troca');
   }
 }
