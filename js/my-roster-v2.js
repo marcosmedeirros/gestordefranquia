@@ -456,9 +456,10 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PUT',
           body: JSON.stringify({ id: playerId, available_for_trade: newStatus })
         });
-        loadPlayers();
       } catch (err) {
         alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
+      } finally {
+        loadPlayers();
       }
     }
     
@@ -474,7 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = player.available_for_trade;
-        new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
+        const modalEl = document.getElementById('editPlayerModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
       }
     }
     
@@ -488,10 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ id: playerId })
           });
           alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
-          loadPlayers();
-          loadFreeAgencyLimits();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
+        } finally {
+          loadPlayers();
+          loadFreeAgencyLimits();
         }
       }
     }
@@ -503,9 +507,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
           alert('Jogador aposentado!');
-          loadPlayers();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
+        } finally {
+          loadPlayers();
         }
       }
     }
@@ -525,10 +530,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     try {
       await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
-      bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
-      loadPlayers();
+      const modalEl = document.getElementById('editPlayerModal');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.hide();
     } catch (err) {
       alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
+    } finally {
+      loadPlayers();
     }
   });
 });
