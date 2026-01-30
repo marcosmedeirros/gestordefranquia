@@ -225,6 +225,7 @@ function renderPlayers(players) {
 
   const gridEl = document.getElementById('players-grid');
   const listEl = document.getElementById('players-list');
+  const listToolbarEl = document.getElementById('players-list-toolbar');
   if (!gridEl || !listEl) return;
   gridEl.innerHTML = '';
   listEl.innerHTML = '';
@@ -249,28 +250,20 @@ function renderPlayers(players) {
 
     card.innerHTML = `
       <div class="card-body p-3">
-        <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="d-flex align-items-center gap-3">
           <div class="player-photo-inline">
             <img class="player-headshot" alt="Foto de ${player.name}">
           </div>
           <div class="flex-grow-1">
-            <h6 class="text-white mb-0 fw-bold" style="font-size: 1.1rem;">${player.name}</h6>
+            <h6 class="text-white mb-1 fw-bold" style="font-size: 1.1rem;">${player.name}</h6>
+            <div class="text-light-gray" style="font-size: 0.85rem;">
+              ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos
+            </div>
           </div>
-        </div>
-        <div class="d-flex gap-2 mt-2">
-          <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${player.id}" title="Editar">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar">
-            <i class="bi bi-hand-thumbs-down"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar">
-            <i class="bi bi-box-arrow-right"></i>
-          </button>
-          <button class="btn btn-sm flex-fill btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca">
-            <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
-            ${player.available_for_trade ? 'Disponível' : 'Indisp.'}
-          </button>
+          <div class="text-end">
+            <div class="fw-bold" style="font-size: 1.7rem; line-height: 1; color: ${getOvrColor(player.ovr)};">${player.ovr}</div>
+            <small class="text-light-gray">OVR</small>
+          </div>
         </div>
       </div>
     `;
@@ -329,7 +322,10 @@ function renderPlayers(players) {
   listHeader.innerHTML = `
     <div class="d-flex justify-content-between align-items-center">
       <span>Jogador</span>
-      <span class="roster-list-role text-end">Função</span>
+      <div class="d-flex align-items-center gap-3">
+        <span class="roster-list-role text-end">Função</span>
+        <span class="text-end" style="min-width: 140px;">Ações</span>
+      </div>
     </div>
   `;
   listEl.appendChild(listHeader);
@@ -338,15 +334,31 @@ function renderPlayers(players) {
     const item = document.createElement('div');
     item.className = 'roster-list-item';
     item.innerHTML = `
-      <div class="d-flex justify-content-between align-items-start gap-2">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
           <div class="text-white fw-semibold">${player.name}</div>
           <div class="text-light-gray" style="font-size: 0.8rem;">
             ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos · OVR ${player.ovr}
           </div>
         </div>
-        <div class="text-end roster-list-role">
-          <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
+        <div class="d-flex align-items-center gap-3">
+          <div class="text-end roster-list-role">
+            <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
+          </div>
+          <div class="d-flex gap-2 justify-content-end" style="min-width: 140px;">
+            <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar">
+              <i class="bi bi-hand-thumbs-down"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar">
+              <i class="bi bi-box-arrow-right"></i>
+            </button>
+            <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca">
+              <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -358,6 +370,7 @@ function renderPlayers(players) {
   document.getElementById('players-status').style.display = 'none';
   gridEl.style.display = '';
   listEl.style.display = '';
+  if (listToolbarEl) listToolbarEl.style.display = '';
   updateRosterStats();
 }
 
@@ -383,6 +396,10 @@ async function loadPlayers() {
       statusEl.style.display = 'block';
     }
     if (gridEl) gridEl.style.display = 'none';
+    const listEl = document.getElementById('players-list');
+    if (listEl) listEl.style.display = 'none';
+    const listToolbarEl = document.getElementById('players-list-toolbar');
+    if (listToolbarEl) listToolbarEl.style.display = 'none';
     return;
   }
   
@@ -391,6 +408,10 @@ async function loadPlayers() {
     statusEl.style.display = 'block';
   }
   if (gridEl) gridEl.style.display = 'none';
+  const listEl = document.getElementById('players-list');
+  if (listEl) listEl.style.display = 'none';
+  const listToolbarEl = document.getElementById('players-list-toolbar');
+  if (listToolbarEl) listToolbarEl.style.display = 'none';
   
   try {
     const data = await api(`players.php?team_id=${teamId}`);
@@ -416,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   
   // Delegação de eventos para botões
-  document.getElementById('players-grid')?.addEventListener('click', async (e) => {
+  document.getElementById('players-list')?.addEventListener('click', async (e) => {
     const target = e.target.closest('button');
     if (!target) return;
     

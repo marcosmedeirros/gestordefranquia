@@ -301,18 +301,9 @@ if ($teamId) {
     <div class="card bg-dark-panel border-orange">
       <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0 text-white"><i class="bi bi-list-ul me-2 text-orange"></i>Jogadores</h5>
-        <div class="d-flex gap-2 align-items-center">
-          <select id="sort-select" class="form-select form-select-sm bg-dark text-white border-orange" style="width: auto;">
-            <option value="role">Ordenar: Função</option>
-            <option value="name">Ordenar: Nome</option>
-            <option value="ovr">Ordenar: OVR</option>
-            <option value="position">Ordenar: Posição</option>
-            <option value="age">Ordenar: Idade</option>
-          </select>
-          <button class="btn btn-outline-orange btn-sm" id="btn-refresh-players">
-            <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
-          </button>
-        </div>
+        <button class="btn btn-outline-orange btn-sm" id="btn-refresh-players">
+          <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+        </button>
       </div>
       <div class="card-body">
         <div id="players-status" class="text-center mb-3">
@@ -322,7 +313,17 @@ if ($teamId) {
         <!-- Grid de Cards Responsivo -->
         <div id="players-grid" class="d-flex flex-column gap-4" style="display: none;"></div>
 
-        <div id="players-list" class="roster-list mt-4" style="display: none;"></div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4" id="players-list-toolbar" style="display: none;">
+          <h6 class="text-white mb-0">Lista do elenco</h6>
+          <select id="sort-select" class="form-select form-select-sm bg-dark text-white border-orange" style="width: auto;">
+            <option value="role">Ordenar: Função</option>
+            <option value="name">Ordenar: Nome</option>
+            <option value="ovr">Ordenar: OVR</option>
+            <option value="position">Ordenar: Posição</option>
+            <option value="age">Ordenar: Idade</option>
+          </select>
+        </div>
+        <div id="players-list" class="roster-list mt-2" style="display: none;"></div>
       </div>
     </div>
     <?php endif; ?>
