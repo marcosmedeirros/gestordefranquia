@@ -186,14 +186,26 @@ async function saveEditedPlayer() {
 }
 
 async function toggleTradeAvailability(player) {
-  const payload = { id: player.id, available_for_trade: player.available_for_trade ? 0 : 1 };
+  const oldValue = !!player.available_for_trade;
+  const newValue = oldValue ? 0 : 1;
+
+  // Atualização otimista (deixa a UI responsiva)
+  player.available_for_trade = newValue;
+  renderMyRoster();
+  populateMyPlayerSelects();
+
   try {
     await api('players.php', {
       method: 'PUT',
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ id: player.id, available_for_trade: newValue })
     });
+    // Sincronizar com backend (garante consistência)
     await refreshMyPlayers();
   } catch (err) {
+    // Reverter no erro
+    player.available_for_trade = oldValue ? 1 : 0;
+    renderMyRoster();
+    populateMyPlayerSelects();
     alert(err.error || 'Erro ao atualizar disponibilidade para troca');
   }
 }
