@@ -160,6 +160,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     .roster-actions .btn { padding: 6px 10px; font-size: 0.85rem; }
     .badge-trade { background: rgba(52, 168, 83, 0.2); color: #34a853; border: 1px solid rgba(52,168,83,0.35); }
     .badge-notrade { background: rgba(255, 255, 255, 0.07); color: var(--fba-text-muted); border: 1px solid var(--fba-border); }
+    .roster-toggle { cursor: pointer; user-select: none; }
     @media (max-width: 768px) {
       .roster-card { grid-template-columns: 1fr; }
       .roster-actions { justify-content: flex-start; }

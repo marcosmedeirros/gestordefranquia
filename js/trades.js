@@ -47,8 +47,8 @@ function renderMyRoster() {
   const cards = myPlayers.map(p => {
     const secPos = p.secondary_position ? ` / ${p.secondary_position}` : '';
     const tradeBadge = p.available_for_trade
-      ? '<span class="badge badge-trade">Disponível para troca</span>'
-      : '<span class="badge badge-notrade">Fora do trade block</span>';
+      ? `<span class="badge badge-trade roster-toggle" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">Disponível para troca</span>`
+      : `<span class="badge badge-notrade roster-toggle" role="button" tabindex="0" data-action="toggle-trade" data-id="${p.id}">Fora do trade block</span>`;
     const retireDisabled = p.age < 35 ? 'disabled title="Apenas para 35+"' : '';
     const toggleLabel = p.available_for_trade ? 'Retirar do trade' : 'Liberar para trade';
 
@@ -141,6 +141,13 @@ function bindRosterHandlers() {
   const { list } = getRosterElements();
   if (!list || list.dataset.bound) return;
   list.addEventListener('click', handleRosterClick);
+  list.addEventListener('keydown', (e) => {
+    const isToggle = e.target && e.target.matches && e.target.matches('.roster-toggle');
+    if (!isToggle) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    e.target.click();
+  });
   list.dataset.bound = 'true';
 }
 
