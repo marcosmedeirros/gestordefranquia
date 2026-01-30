@@ -285,8 +285,9 @@ function renderPlayers(players) {
       card.style.boxShadow = '';
     });
 
+    const canRetire = Number(player.age) >= 35;
     card.innerHTML = `
-      <div class="card-body p-3">
+      <div class="card-body p-3 d-flex flex-column gap-3">
         <div class="d-flex align-items-center gap-3">
           <div class="player-photo-inline">
             <img class="player-headshot" alt="Foto de ${player.name}">
@@ -301,6 +302,22 @@ function renderPlayers(players) {
             <div class="fw-bold" style="font-size: 1.7rem; line-height: 1; color: ${getOvrColor(player.ovr)};">${player.ovr}</div>
             <small class="text-light-gray">OVR</small>
           </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar" data-bs-toggle="tooltip" data-bs-placement="top">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar" data-bs-toggle="tooltip" data-bs-placement="top">
+            <i class="bi bi-hand-thumbs-down"></i>
+          </button>
+          ${canRetire ? `
+            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
+              <i class="bi bi-box-arrow-right"></i>
+            </button>
+          ` : ''}
+          <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca" data-bs-toggle="tooltip" data-bs-placement="top">
+            <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
+          </button>
         </div>
       </div>
     `;
@@ -370,7 +387,6 @@ function renderPlayers(players) {
   const listRow = (player) => {
     const item = document.createElement('div');
     item.className = 'roster-list-item';
-    const canRetire = Number(player.age) >= 35;
     item.innerHTML = `
       <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
@@ -379,26 +395,8 @@ function renderPlayers(players) {
             ${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} · ${player.age} anos · OVR ${player.ovr}
           </div>
         </div>
-        <div class="d-flex align-items-center gap-3">
-          <div class="text-end roster-list-role">
-            <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
-          </div>
-          <div class="d-flex gap-2 justify-content-end" style="min-width: 140px;">
-            <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${player.id}" title="Editar" data-bs-toggle="tooltip" data-bs-placement="top">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar" data-bs-toggle="tooltip" data-bs-placement="top">
-              <i class="bi bi-hand-thumbs-down"></i>
-            </button>
-            ${canRetire ? `
-              <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
-                <i class="bi bi-box-arrow-right"></i>
-              </button>
-            ` : ''}
-            <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca" data-bs-toggle="tooltip" data-bs-placement="top">
-              <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
-            </button>
-          </div>
+        <div class="text-end roster-list-role">
+          <span class="badge" style="background: ${getRoleBadgeColor(player.role)};">${player.role}</span>
         </div>
       </div>
     `;
@@ -484,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   
   // Delegação de eventos para botões
-  document.addEventListener('click', async (e) => {
+  document.getElementById('players-grid')?.addEventListener('click', async (e) => {
     const target = e.target.closest('button');
     if (!target) return;
 
