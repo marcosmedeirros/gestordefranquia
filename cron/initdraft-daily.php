@@ -1,7 +1,7 @@
 <?php
 // Cron: roda a cada minuto para aplicar regras do InitDraft (1 round por dia).
 // - 00:01 BRT: abre o round do dia automaticamente
-// - 00:01-19:30: sem relógio
+// - Antes de 19:30: sem relógio
 // - 19:30+: relógio (10 min por pick)
 // - Timeout: escolhe maior OVR disponível
 
@@ -153,10 +153,9 @@ foreach ($sessions as $session) {
             ->execute([$today, $session['id']]);
     }
 
-    // Se round terminou, fecha o draft inteiro
+    // Se round terminou, para até o próximo dia (1 round por dia)
     if (($session['status'] ?? 'setup') === 'in_progress' && isRoundCompleted($pdo, (int)$session['id'], $dailyRound)) {
-        $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-            ->execute([$session['id']]);
+        clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
         continue;
     }
 

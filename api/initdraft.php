@@ -300,6 +300,29 @@ function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): v
     clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
 }
 
+function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
+    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$enabled) return;
+
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if (!$dailyRound) {
+        throw new Exception('Draft ainda não iniciou (aguarde 19:30)');
+    }
+
+    if ($dailyRound > (int)$session['total_rounds']) {
+        throw new Exception('Draft diário já encerrou');
+    }
+
+    if ((int)($session['current_round'] ?? 1) !== $dailyRound) {
+        throw new Exception('Draft pausado até 19:30 do próximo dia');
+    }
+
+    $openAfter = new DateTimeImmutable($now->format('Y-m-d') . ' 00:01:00', $now->getTimezone());
+    if ($now < $openAfter) {
+        throw new Exception('Draft diário inicia às 00:01');
+    }
+}
+
 function applyDailySchedule(PDO $pdo, array $session): array {
     $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
     if (!$enabled) return $session;
@@ -313,9 +336,9 @@ function applyDailySchedule(PDO $pdo, array $session): array {
         return $session;
     }
 
-    // abre o draft (00:00:01) e marca qual dia já foi processado
+    // abre o draft às 00:01 e marca qual dia já foi processado
     $today = $now->format('Y-m-d');
-    $openAfter = new DateTimeImmutable($today . ' 00:00:01', $now->getTimezone());
+    $openAfter = new DateTimeImmutable($today . ' 00:01:00', $now->getTimezone());
     if ($now >= $openAfter && ($session['daily_last_opened_date'] ?? null) !== $today) {
         // garante que draft esteja em andamento
         if (($session['status'] ?? 'setup') === 'setup') {
@@ -328,11 +351,9 @@ function applyDailySchedule(PDO $pdo, array $session): array {
         $session['status'] = 'in_progress';
     }
 
-    // Se round já terminou, encerra o draft inteiro (regra pedida)
+    // Se round já terminou, pausa até o próximo dia (1 round por dia)
     if (($session['status'] ?? 'setup') === 'in_progress' && isRoundCompleted($pdo, (int)$session['id'], $dailyRound)) {
-        $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
-            ->execute([$session['id']]);
-        $session['status'] = 'completed';
+        clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
         return $session;
     }
 
@@ -790,6 +811,8 @@ if ($method === 'POST') {
                 $session = getSessionByToken($pdo, $token);
                 if (!$session) throw new Exception('Sessão inválida');
 
+                ensureDailyPickWindow($session, tzNow());
+
                 performInitDraftPick($pdo, $session, $playerId);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada']);
                 break;
@@ -801,6 +824,8 @@ if ($method === 'POST') {
                 $playerId = (int)($data['player_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new Exception('Sessão inválida');
+
+                ensureDailyPickWindow($session, tzNow());
 
                 performInitDraftPick($pdo, $session, $playerId);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada pelo admin']);
