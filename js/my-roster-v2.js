@@ -141,6 +141,13 @@ function reloadRosterPage() {
 }
 
 async function handleSaveEdit() {
+  const saveBtn = document.getElementById('btn-save-edit');
+  const originalLabel = saveBtn ? saveBtn.innerHTML : '';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Salvando...';
+  }
+
   const data = {
     id: document.getElementById('edit-player-id').value,
     name: document.getElementById('edit-name').value,
@@ -156,9 +163,14 @@ async function handleSaveEdit() {
     const modalEl = document.getElementById('editPlayerModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.hide();
-    await loadPlayers();
+    reloadRosterPage();
   } catch (err) {
     alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = originalLabel;
+    }
   }
 }
 
