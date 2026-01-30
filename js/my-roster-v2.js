@@ -163,7 +163,7 @@ async function handleSaveEdit() {
     const modalEl = document.getElementById('editPlayerModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.hide();
-    reloadRosterPage();
+    await loadPlayers();
   } catch (err) {
     alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
   } finally {
@@ -371,6 +371,7 @@ function renderPlayers(players) {
   const listRow = (player) => {
     const item = document.createElement('div');
     item.className = 'roster-list-item';
+    const canRetire = Number(player.age) >= 35;
     item.innerHTML = `
       <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
@@ -390,9 +391,11 @@ function renderPlayers(players) {
             <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${player.id}" data-name="${player.name}" title="Dispensar" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi bi-hand-thumbs-down"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
-              <i class="bi bi-box-arrow-right"></i>
-            </button>
+            ${canRetire ? `
+              <button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${player.id}" data-name="${player.name}" title="Aposentar" data-bs-toggle="tooltip" data-bs-placement="top">
+                <i class="bi bi-box-arrow-right"></i>
+              </button>
+            ` : ''}
             <button class="btn btn-sm btn-toggle-trade ${player.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${player.id}" data-trade="${player.available_for_trade}" title="Disponibilidade para Troca" data-bs-toggle="tooltip" data-bs-placement="top">
               <i class="bi ${player.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
             </button>
