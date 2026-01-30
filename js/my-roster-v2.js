@@ -136,6 +136,32 @@ let currentSort = { field: 'role', ascending: true };
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
+function reloadRosterPage() {
+  window.location.reload();
+}
+
+async function handleSaveEdit() {
+  const data = {
+    id: document.getElementById('edit-player-id').value,
+    name: document.getElementById('edit-name').value,
+    age: document.getElementById('edit-age').value,
+    position: document.getElementById('edit-position').value,
+    secondary_position: document.getElementById('edit-secondary-position').value || null,
+    ovr: document.getElementById('edit-ovr').value,
+    role: document.getElementById('edit-role').value,
+    available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
+  };
+  try {
+    await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
+    const modalEl = document.getElementById('editPlayerModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.hide();
+    reloadRosterPage();
+  } catch (err) {
+    alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
+  }
+}
+
 async function loadFreeAgencyLimits() {
   if (!window.__TEAM_ID__) return;
   try {
@@ -447,6 +473,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', async (e) => {
     const target = e.target.closest('button');
     if (!target) return;
+
+    if (target.id === 'btn-save-edit') {
+      e.preventDefault();
+      await handleSaveEdit();
+      return;
+    }
     
     if (target.classList.contains('btn-toggle-trade')) {
       const playerId = target.dataset.id;
@@ -456,10 +488,9 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PUT',
           body: JSON.stringify({ id: playerId, available_for_trade: newStatus })
         });
+        reloadRosterPage();
       } catch (err) {
         alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
-      } finally {
-        loadPlayers();
       }
     }
     
@@ -491,11 +522,9 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ id: playerId })
           });
           alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
+          reloadRosterPage();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
-        } finally {
-          loadPlayers();
-          loadFreeAgencyLimits();
         }
       }
     }
@@ -507,36 +536,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
           alert('Jogador aposentado!');
+          reloadRosterPage();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
-        } finally {
-          loadPlayers();
         }
       }
-    }
-  });
-  
-  // Salvar edição
-  document.getElementById('btn-save-edit')?.addEventListener('click', async () => {
-    const data = {
-      id: document.getElementById('edit-player-id').value,
-      name: document.getElementById('edit-name').value,
-      age: document.getElementById('edit-age').value,
-      position: document.getElementById('edit-position').value,
-      secondary_position: document.getElementById('edit-secondary-position').value || null,
-      ovr: document.getElementById('edit-ovr').value,
-      role: document.getElementById('edit-role').value,
-      available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
-    };
-    try {
-      await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
-      const modalEl = document.getElementById('editPlayerModal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.hide();
-    } catch (err) {
-      alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
-    } finally {
-      loadPlayers();
     }
   });
 });
