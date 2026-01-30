@@ -114,7 +114,9 @@ function populateMyPlayerSelects() {
 function handleRosterClick(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const playerId = parseInt(btn.dataset.id, 10);
+  const playerIdRaw = btn.dataset.id || btn.closest('.roster-card')?.dataset?.playerId;
+  const playerId = parseInt(playerIdRaw, 10);
+  if (!playerId) return;
   const player = myPlayers.find(p => parseInt(p.id, 10) === playerId);
   if (!player) return;
 
