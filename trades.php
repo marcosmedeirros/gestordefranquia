@@ -139,6 +139,32 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       box-shadow: 0 10px 20px rgba(241, 117, 7, 0.25);
     }
 
+    /* Meu elenco */
+    .roster-card {
+      background: var(--fba-dark-bg);
+      border: 1px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .roster-card:hover { border-color: var(--fba-orange); }
+    .roster-main { display: flex; flex-direction: column; gap: 4px; }
+    .roster-name { font-weight: 700; color: #fff; font-size: 1rem; }
+    .roster-meta { color: var(--fba-text-muted); font-size: 0.9rem; }
+    .roster-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .roster-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .roster-actions .btn { padding: 6px 10px; font-size: 0.85rem; }
+    .badge-trade { background: rgba(52, 168, 83, 0.2); color: #34a853; border: 1px solid rgba(52,168,83,0.35); }
+    .badge-notrade { background: rgba(255, 255, 255, 0.07); color: var(--fba-text-muted); border: 1px solid var(--fba-border); }
+    @media (max-width: 768px) {
+      .roster-card { grid-template-columns: 1fr; }
+      .roster-actions { justify-content: flex-start; }
+    }
+
     .player-name {
       font-weight: 600;
       color: var(--fba-text);
@@ -303,6 +329,21 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     <?php if (!$teamId): ?>
       <div class="alert alert-warning">Você ainda não possui um time.</div>
     <?php else: ?>
+
+    <!-- Meu elenco com ações rápidas -->
+    <div class="trade-list-panel mb-4">
+      <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+        <div>
+          <h4 class="text-white mb-1"><i class="bi bi-person-badge-fill me-2 text-orange"></i>Meu elenco</h4>
+          <p class="text-light-gray mb-0 small">Edite, marque disponibilidade para troca, dispense ou aposente (35+) mais rápido.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-secondary" id="myRosterCount">0 jogadores</span>
+          <span class="badge bg-outline-light text-light" id="myRosterTradeCount">0 disponíveis para troca</span>
+        </div>
+      </div>
+      <div id="myRosterList" class="mt-3"></div>
+    </div>
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-4" id="tradesTabs" role="tablist">
@@ -521,5 +562,62 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <script src="/js/trade-list.js"></script>
   <script src="/js/rumors.js"></script>
   <script src="/js/pwa.js"></script>
+
+  <!-- Modal: Editar Jogador (roster) -->
+  <div class="modal fade" id="editPlayerModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2 text-orange"></i>Editar jogador</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editPlayerForm">
+            <input type="hidden" id="editPlayerId">
+            <div class="row g-3">
+              <div class="col-md-8">
+                <label class="form-label text-white">Nome</label>
+                <input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerName" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-white">Idade</label>
+                <input type="number" min="16" max="50" class="form-control bg-dark text-white border-orange" id="editPlayerAge" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-white">Posição</label>
+                <input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerPos" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-white">Posição Sec.</label>
+                <input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerSecPos" placeholder="Opcional">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-white">Função</label>
+                <select class="form-select bg-dark text-white border-orange" id="editPlayerRole" required>
+                  <option value="Titular">Titular</option>
+                  <option value="Banco">Banco</option>
+                  <option value="G-League">G-League</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label text-white">OVR</label>
+                <input type="number" min="40" max="99" class="form-control bg-dark text-white border-orange" id="editPlayerOvr" required>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="editPlayerTrade">
+                  <label class="form-check-label text-white" for="editPlayerTrade">Disponível para troca</label>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="savePlayerBtn"><i class="bi bi-check-lg me-1"></i>Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
