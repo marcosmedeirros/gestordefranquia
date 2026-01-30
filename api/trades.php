@@ -78,12 +78,18 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 
 function getTeamTradesUsed(PDO $pdo, int $teamId): int
 {
-    $used = syncTeamTradeCounter($pdo, $teamId);
-    if ($used > 0) {
-        return $used;
+    // Primeiro tenta o novo modelo (campo em teams). 0 é um valor válido.
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_used'")->fetch();
+        $col2 = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_cycle'")->fetch();
+        if ($col && $col2) {
+            return syncTeamTradeCounter($pdo, $teamId);
+        }
+    } catch (Exception $e) {
+        // segue pro fallback
     }
 
-    // Fallback para contagem por ano se não houver colunas ou algo falhar
+    // Fallback antigo: contagem por ano (somente se o schema novo não existir)
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
         $stmt->execute([$teamId, $teamId]);
