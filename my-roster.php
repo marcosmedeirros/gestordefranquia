@@ -308,7 +308,7 @@ if ($teamId) {
     <div class="card bg-dark-panel border-orange">
       <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0 text-white"><i class="bi bi-list-ul me-2 text-orange"></i>Jogadores</h5>
-        <button class="btn btn-outline-orange btn-sm" id="btn-refresh-players">
+        <button type="button" class="btn btn-outline-orange btn-sm" id="btn-refresh-players">
           <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
         </button>
       </div>
@@ -398,8 +398,8 @@ if ($teamId) {
           </div>
         </div>
         <div class="modal-footer border-top border-orange">
-          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar Mudanças</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="btn-save-edit"><i class="bi bi-save2 me-1"></i> Salvar Mudanças</button>
         </div>
       </div>
     </div>

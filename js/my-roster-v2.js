@@ -136,10 +136,6 @@ let currentSort = { field: 'role', ascending: true };
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
-function reloadRosterPage() {
-  window.location.reload();
-}
-
 async function handleSaveEdit() {
   const saveBtn = document.getElementById('btn-save-edit');
   const originalLabel = saveBtn ? saveBtn.innerHTML : '';
@@ -161,13 +157,12 @@ async function handleSaveEdit() {
   try {
     await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
     const modalEl = document.getElementById('editPlayerModal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.hide();
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = originalLabel;
-    }
-    reloadRosterPage();
+    try {
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.hide();
+    } catch {}
+    await loadPlayers();
+    await loadFreeAgencyLimits();
   } catch (err) {
     alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
   } finally {
@@ -507,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PUT',
           body: JSON.stringify({ id: playerId, available_for_trade: newStatus })
         });
-        reloadRosterPage();
+        await loadPlayers();
       } catch (err) {
         alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
       }
@@ -541,7 +536,8 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ id: playerId })
           });
           alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
-          reloadRosterPage();
+          await loadPlayers();
+          await loadFreeAgencyLimits();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
         }
@@ -555,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
           alert('Jogador aposentado!');
-          reloadRosterPage();
+          await loadPlayers();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));
         }
