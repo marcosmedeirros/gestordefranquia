@@ -56,16 +56,20 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 }
 
 // Contador de trades (novo modelo: campo em teams)
+// IMPORTANTE: sempre ler o valor direto da tabela teams para refletir exatamente o banco.
 $tradeCount = 0;
 if ($teamId) {
-  // Se já veio do SELECT do time, usamos direto (mais rápido e evita mostrar 0 quando já tem valor)
-  if (isset($team['trades_used'])) {
-    $tradeCount = (int)$team['trades_used'];
-    // Garantir que a sincronização por ciclo esteja correta
-    $tradeCount = syncTeamTradeCounter($pdo, (int)$teamId);
-  } else {
-    $tradeCount = syncTeamTradeCounter($pdo, (int)$teamId);
-  }
+    try {
+        $stmtTradesUsed = $pdo->prepare('SELECT trades_used FROM teams WHERE id = ?');
+        $stmtTradesUsed->execute([(int)$teamId]);
+        $tradeCount = (int)($stmtTradesUsed->fetchColumn() ?? 0);
+    } catch (Exception $e) {
+        $tradeCount = 0;
+    }
+
+    // Mantém a lógica de sincronização por ciclo (não deve alterar o valor quando o ciclo está OK)
+    // mas não dependemos dela para exibição.
+    syncTeamTradeCounter($pdo, (int)$teamId);
 }
 ?>
 <!DOCTYPE html>
