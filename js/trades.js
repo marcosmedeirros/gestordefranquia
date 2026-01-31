@@ -16,219 +16,95 @@ let myPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
 
-// --- Roster local (somente jogadores do time logado) ---
-function getRosterElements() {
-  return {
-    list: document.getElementById('myRosterList'),
-    count: document.getElementById('myRosterCount'),
-    tradeCount: document.getElementById('myRosterTradeCount'),
-  };
-}
+const formatTradePlayerDisplay = (player) => {
+  if (!player) return '';
+  const name = player.name || 'Jogador';
+  const position = player.position || '-';
+  const ovr = player.ovr ?? '?';
+  const age = player.age ?? '?';
+  return `${name} (${position}, ${ovr}/${age})`;
+};
 
-function renderMyRoster() {
-  const { list, count, tradeCount } = getRosterElements();
-  if (!list) return;
-
-  if (!myPlayers || myPlayers.length === 0) {
-    list.innerHTML = `
-      <div class="alert alert-info d-flex align-items-center" role="alert">
-        <i class="bi bi-info-circle me-2"></i>
-        <div>Seu elenco está vazio.</div>
-      </div>`;
-    if (count) count.textContent = '0 jogadores';
-    if (tradeCount) tradeCount.textContent = '0 disponíveis para troca';
-    return;
+const formatTradePickDisplay = (pick) => {
+  if (!pick) return '';
+  const year = pick.season_year || '?';
+  const round = pick.round || '?';
+  
+  // Mostrar de quem é a pick (time original)
+  const originalTeam = pick.original_team_city && pick.original_team_name 
+    ? `${pick.original_team_city} ${pick.original_team_name}` 
+    : 'Time';
+  
+  let display = `Pick ${year} R${round} (${originalTeam})`;
+  
+  // Se a pick foi trocada (team_id != original_team_id), mostrar "via"
+  if (pick.team_id && pick.original_team_id && pick.team_id != pick.original_team_id) {
+    // Mostrar quem enviou a pick (last_owner)
+    if (pick.last_owner_city && pick.last_owner_name) {
+      display += ` <span class="text-info">via ${pick.last_owner_city} ${pick.last_owner_name}</span>`;
+    }
   }
+  
+  return display;
+};
 
-  const tradeAvailable = myPlayers.filter(p => p.available_for_trade).length;
-  if (count) count.textContent = `${myPlayers.length} ${myPlayers.length === 1 ? 'jogador' : 'jogadores'}`;
-  if (tradeCount) tradeCount.textContent = `${tradeAvailable} disponíveis para troca`;
-
-  const cards = myPlayers.map(p => {
-    const secPos = p.secondary_position ? ` / ${p.secondary_position}` : '';
-    const tradeBadge = p.available_for_trade
-      ? '<span class="badge badge-trade">Disponível para troca</span>'
-      : '<span class="badge badge-notrade">Fora do trade block</span>';
-    const retireDisabled = p.age < 35 ? 'disabled title="Apenas para 35+"' : '';
-    const toggleLabel = p.available_for_trade ? 'Retirar do trade' : 'Liberar para trade';
-
-    return `
-      <div class="roster-card" data-player-id="${p.id}">
-        <div class="roster-main">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="roster-name">${p.name}</span>
-            ${tradeBadge}
-          </div>
-          <div class="roster-meta">Pos: ${p.position}${secPos} • Idade: ${p.age} • OVR: ${p.ovr} • ${p.role || '-'}</div>
-          <div class="roster-tags">
-            <span class="badge bg-secondary">${p.position}</span>
-            ${secPos ? `<span class="badge bg-dark">${p.secondary_position}</span>` : ''}
-            <span class="badge bg-dark">Função: ${p.role || '-'}</span>
-          </div>
-        </div>
-        <div class="roster-actions">
-          <button class="btn btn-sm btn-outline-light" data-action="edit" data-id="${p.id}"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-warning" data-action="toggle-trade" data-id="${p.id}">${toggleLabel}</button>
-          <button class="btn btn-sm btn-outline-danger" data-action="waive" data-id="${p.id}">Dispensar</button>
-          <button class="btn btn-sm btn-outline-danger" data-action="retire" data-id="${p.id}" ${retireDisabled}>Aposentar</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  list.innerHTML = cards;
+function clearCounterProposalState() {
+  const modalEl = document.getElementById('proposeTradeModal');
+  if (modalEl && modalEl.dataset.counterTo) {
+    delete modalEl.dataset.counterTo;
+  }
+  const targetSelect = document.getElementById('targetTeam');
+  if (targetSelect) {
+    targetSelect.disabled = false;
+  }
 }
 
-async function refreshMyPlayers({ skipSelectUpdate = false } = {}) {
+async function init() {
   if (!myTeamId) return;
-  try {
-    const playersData = await api(`players.php?team_id=${myTeamId}`);
-    myPlayers = playersData.players || [];
-    renderMyRoster();
-    if (!skipSelectUpdate) populateMyPlayerSelects();
-  } catch (err) {
-    console.error('Erro ao atualizar elenco:', err);
-  }
-}
+  
+  // Carregar times da liga
+  await loadTeams();
+  
+  // Carregar meus jogadores e picks
+  await loadMyAssets();
+  
+  // Carregar trades
+  loadTrades('received');
+  loadTrades('sent');
+  loadTrades('history');
+  loadTrades('league');
+  
+  // Event listeners
+  document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
+  document.getElementById('targetTeam').addEventListener('change', onTargetTeamChange);
 
-function populateMyPlayerSelects() {
-  const selectPlayers = document.getElementById('offerPlayers');
-  if (!selectPlayers) return;
-  selectPlayers.innerHTML = '';
-  if (myPlayers.length === 0) {
-    const option = document.createElement('option');
-    option.disabled = true;
-    option.textContent = 'Nenhum jogador encontrado no seu elenco';
-    selectPlayers.appendChild(option);
-  } else {
-    myPlayers.forEach(p => {
-      const option = document.createElement('option');
-      option.value = p.id;
-      const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-      option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
-      selectPlayers.appendChild(option);
+  // Event listener para busca de jogador nas trades gerais
+  const leagueTradesSearch = document.getElementById('leagueTradesSearch');
+  if (leagueTradesSearch) {
+    leagueTradesSearch.addEventListener('input', (e) => {
+      filterLeagueTrades(e.target.value);
     });
   }
-}
 
-function handleRosterClick(e) {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const playerId = parseInt(btn.dataset.id, 10);
-  const player = myPlayers.find(p => parseInt(p.id, 10) === playerId);
-  if (!player) return;
-
-  const action = btn.dataset.action;
-  switch (action) {
-    case 'edit':
-      openEditPlayerModal(player);
-      break;
-    case 'toggle-trade':
-      toggleTradeAvailability(player);
-      break;
-    case 'waive':
-      waivePlayer(player);
-      break;
-    case 'retire':
-      retirePlayer(player);
-      break;
-    default:
-      break;
-  }
-}
-
-function bindRosterHandlers() {
-  const { list } = getRosterElements();
-  if (!list || list.dataset.bound) return;
-  list.addEventListener('click', handleRosterClick);
-  list.dataset.bound = 'true';
-}
-
-function openEditPlayerModal(player) {
-  document.getElementById('editPlayerId').value = player.id;
-  document.getElementById('editPlayerName').value = player.name;
-  document.getElementById('editPlayerAge').value = player.age;
-  document.getElementById('editPlayerPos').value = player.position;
-  document.getElementById('editPlayerSecPos').value = player.secondary_position || '';
-  document.getElementById('editPlayerRole').value = player.role || 'Titular';
-  document.getElementById('editPlayerOvr').value = player.ovr;
-  document.getElementById('editPlayerTrade').checked = !!player.available_for_trade;
-
-  const modal = new bootstrap.Modal(document.getElementById('editPlayerModal'));
-  modal.show();
-}
-
-async function saveEditedPlayer() {
-  const id = parseInt(document.getElementById('editPlayerId').value, 10);
-  if (!id) return;
-  const payload = {
-    id,
-    name: document.getElementById('editPlayerName').value.trim(),
-    age: parseInt(document.getElementById('editPlayerAge').value, 10),
-    position: document.getElementById('editPlayerPos').value.trim(),
-    secondary_position: document.getElementById('editPlayerSecPos').value.trim(),
-    role: document.getElementById('editPlayerRole').value,
-    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10),
-    available_for_trade: document.getElementById('editPlayerTrade').checked ? 1 : 0,
-  };
-
-  try {
-    await api('players.php', {
-      method: 'PUT',
-      body: JSON.stringify(payload)
+  const tradeModalEl = document.getElementById('proposeTradeModal');
+  if (tradeModalEl) {
+    tradeModalEl.addEventListener('hidden.bs.modal', () => {
+      clearCounterProposalState();
     });
-    bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
-    await refreshMyPlayers();
-    populateMyPlayerSelects();
-  } catch (err) {
-    alert(err.error || 'Erro ao salvar jogador');
+  }
+
+  // Verificar se há jogador pré-selecionado na URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const preselectedPlayerId = urlParams.get('player');
+  const preselectedTeamId = urlParams.get('team');
+  
+  if (preselectedPlayerId && preselectedTeamId) {
+    // Abrir modal automaticamente com o jogador e time pré-selecionado
+    setTimeout(async () => {
+      await openTradeWithPreselectedPlayer(preselectedPlayerId, preselectedTeamId);
+    }, 500);
   }
 }
-
-async function toggleTradeAvailability(player) {
-  const payload = { id: player.id, available_for_trade: player.available_for_trade ? 0 : 1 };
-  try {
-    await api('players.php', {
-      method: 'PUT',
-      body: JSON.stringify(payload)
-    });
-    await refreshMyPlayers();
-  } catch (err) {
-    alert(err.error || 'Erro ao atualizar disponibilidade para troca');
-  }
-}
-
-async function waivePlayer(player) {
-  if (!confirm(`Dispensar ${player.name}? Isso conta como waiver.`)) return;
-  try {
-    await api('players.php', {
-      method: 'DELETE',
-      body: JSON.stringify({ id: player.id })
-    });
-    await refreshMyPlayers();
-  } catch (err) {
-    alert(err.error || 'Erro ao dispensar jogador');
-  }
-}
-
-async function retirePlayer(player) {
-  if (player.age < 35) {
-    alert('Aposentadoria disponível apenas para jogadores com 35 anos ou mais.');
-    return;
-  }
-  if (!confirm(`Confirmar aposentadoria de ${player.name}?`)) return;
-  try {
-    await api('players.php', {
-      method: 'DELETE',
-      body: JSON.stringify({ id: player.id, retirement: true })
-    });
-    await refreshMyPlayers();
-  } catch (err) {
-    alert(err.error || 'Erro ao aposentar jogador');
-  }
-}
-
-// (removidos duplicados de formatTrade*/init/clearCounterProposalState)
 
 async function openTradeWithPreselectedPlayer(playerId, teamId) {
   try {
@@ -293,7 +169,28 @@ async function loadTeams() {
 
 async function loadMyAssets() {
   try {
-    await refreshMyPlayers({ skipSelectUpdate: false });
+    // Meus jogadores disponíveis para troca
+    const playersData = await api(`players.php?team_id=${myTeamId}`);
+  myPlayers = playersData.players || [];
+    
+  console.log('Meus jogadores carregados:', myPlayers.length);
+    
+    const selectPlayers = document.getElementById('offerPlayers');
+    selectPlayers.innerHTML = '';
+    if (myPlayers.length === 0) {
+      const option = document.createElement('option');
+      option.disabled = true;
+      option.textContent = 'Nenhum jogador encontrado no seu elenco';
+      selectPlayers.appendChild(option);
+    } else {
+      myPlayers.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
+        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
+        selectPlayers.appendChild(option);
+      });
+    }
     
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
