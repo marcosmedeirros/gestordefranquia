@@ -401,11 +401,6 @@ a:hover{ color: var(--fba-brand); }
 	cursor: not-allowed;
 }
 
-.form-select option{
-	color: #0b0b0d;
-	background-color: #ffffff;
-}
-
 /* ---------- Text helpers ---------- */
 .text-orange{ color: var(--fba-brand) !important; }
 .text-light-gray{ color: var(--fba-text-muted) !important; }
