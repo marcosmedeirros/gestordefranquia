@@ -145,10 +145,8 @@ if ($teamId) {
       </a>
     </div>
 
-    <div class="text-center mt-3">
-      <small class="text-light-gray">
-        <i class="bi bi-person-circle me-1"></i>
-        <?= htmlspecialchars($user['name']) ?>
+    <div class="text-center mb-4">
+      <h5 class="text-white mb-1"><?php echo isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time'; ?></h5>
       </small>
     </div>
   </div>
