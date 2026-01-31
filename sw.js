@@ -1,5 +1,5 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v4';
+const CACHE_NAME = 'fba-manager-v5';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)

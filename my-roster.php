@@ -39,6 +39,44 @@ if ($teamId) {
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .roster-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .roster-section {
+      text-align: center;
+    }
+    .roster-section h5 {
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+      color: var(--fba-text-muted);
+      margin-bottom: 1rem;
+    }
+    .roster-divider {
+      width: min(320px, 80%);
+      margin: 0 auto;
+      border-color: var(--fba-border);
+      opacity: 0.5;
+    }
+    .roster-card {
+      background: var(--fba-panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .roster-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px rgba(252, 0, 37, 0.25);
+    }
+    @media (max-width: 576px) {
+      .roster-section h5 {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
 </head>
 <body>
   <!-- Botão Hamburguer para Mobile -->
@@ -279,7 +317,7 @@ if ($teamId) {
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
         <!-- Grid de Cards Responsivo -->
-        <div id="players-grid" class="row g-3" style="display: none;"></div>
+        <div id="players-grid" class="roster-sections" style="display: none;"></div>
       </div>
     </div>
     <?php endif; ?>
@@ -360,7 +398,7 @@ if ($teamId) {
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/my-roster-v2.js"></script>
-  <script src="/js/pwa.js"></script>
+  <script src="/js/my-roster-v2.js?v=20260130"></script>
+  <script src="/js/pwa.js?v=20260130"></script>
 </body>
 </html>

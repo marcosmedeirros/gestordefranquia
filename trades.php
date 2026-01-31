@@ -160,12 +160,19 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       padding: 6px 14px;
     }
 
-    .team-chip img {
-      width: 30px;
-      height: 30px;
+    .team-chip-badge {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      object-fit: cover;
+      background: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255,255,255,0.2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      color: var(--fba-text);
     }
 
     #playersList .alert {
@@ -517,9 +524,9 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/trades.js"></script>
-  <script src="/js/trade-list.js"></script>
-  <script src="/js/rumors.js"></script>
-  <script src="/js/pwa.js"></script>
+  <script src="/js/trades.js?v=20260130"></script>
+  <script src="/js/trade-list.js?v=20260130"></script>
+  <script src="/js/rumors.js?v=20260130"></script>
+  <script src="/js/pwa.js?v=20260130"></script>
 </body>
 </html>

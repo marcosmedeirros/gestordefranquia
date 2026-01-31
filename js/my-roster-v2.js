@@ -30,6 +30,21 @@ function getRoleBadgeColor(role) {
   }
 }
 
+const ROLE_SECTIONS = [
+  { key: 'Titular', label: 'Titulares' },
+  { key: 'Banco', label: 'Banco' },
+  { key: 'Outro', label: 'Outros' },
+  { key: 'G-League', label: 'G-League' },
+];
+
+function normalizeRoleKey(role) {
+  const normalized = (role || '').toString().trim().toLowerCase();
+  if (normalized === 'titular') return 'Titular';
+  if (normalized === 'banco') return 'Banco';
+  if (normalized === 'g-league' || normalized === 'gleague' || normalized === 'g league') return 'G-League';
+  return 'Outro';
+}
+
 
 // Ordem padrão
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
@@ -116,64 +131,82 @@ function renderPlayers(players) {
   if (!grid) return;
   grid.innerHTML = '';
 
+  const grouped = {};
+  ROLE_SECTIONS.forEach(section => { grouped[section.key] = []; });
   sorted.forEach(p => {
-    const ovrColor = getOvrColor(p.ovr);
-    
-    const col = document.createElement('div');
-    col.className = 'col-12 col-sm-6 col-lg-4 col-xl-3';
-    
-    const card = document.createElement('div');
-    card.className = 'card bg-dark border-orange h-100';
-    card.style.transition = 'transform 0.2s, box-shadow 0.2s';
-    card.style.cursor = 'pointer';
-    
-    card.addEventListener('mouseenter', () => {
-      card.style.transform = 'translateY(-4px)';
-      card.style.boxShadow = '0 8px 24px rgba(252, 0, 37, 0.3)';
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = 'translateY(0)';
-      card.style.boxShadow = '';
-    });
-    
-    card.innerHTML = `
-      <div class="card-body p-3">
-        <div class="d-flex align-items-start gap-3 mb-3">
-          <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
-            <div class="flex-grow-1 me-2">
-              <h6 class="text-white mb-1 fw-bold" style="font-size: 1.1rem;">${p.name}</h6>
-              <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
-              </div>
-            </div>
-            <div class="text-end">
-              <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-              <small class="text-light-gray">${p.age} anos</small>
+    const key = normalizeRoleKey(p.role);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  let renderedSections = 0;
+  ROLE_SECTIONS.forEach(section => {
+    const sectionPlayers = grouped[section.key] || [];
+    if (sectionPlayers.length === 0) return;
+
+    if (renderedSections > 0) {
+      const divider = document.createElement('hr');
+      divider.className = 'roster-divider';
+      grid.appendChild(divider);
+    }
+
+    const sectionEl = document.createElement('div');
+    sectionEl.className = 'roster-section';
+    sectionEl.innerHTML = `<h5>${section.label}</h5>`;
+
+    const list = document.createElement('div');
+    list.className = 'row g-3 justify-content-center';
+
+    sectionPlayers.forEach(p => {
+      const ovrColor = getOvrColor(p.ovr);
+      const col = document.createElement('div');
+      col.className = 'col-12 col-sm-10 col-md-6 col-lg-4 col-xl-3';
+
+      const card = document.createElement('div');
+      card.className = 'card border-orange h-100 roster-card text-center';
+      card.innerHTML = `
+        <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
+          <div>
+            <h6 class="text-white mb-2 fw-bold" style="font-size: 1.1rem;">${p.name}</h6>
+            <div class="d-flex justify-content-center gap-2 flex-wrap">
+              <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
+              <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
             </div>
           </div>
+          <div>
+            <div class="fw-bold" style="font-size: 2rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
+            <small class="text-light-gray">${p.age} anos</small>
+          </div>
+          <div class="d-flex flex-wrap justify-content-center gap-2 w-100">
+            <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${p.id}" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar">
+              <i class="bi bi-hand-thumbs-down"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
+              <i class="bi bi-box-arrow-right"></i>
+            </button>
+            <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
+              <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
+              ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
+            </button>
+          </div>
         </div>
-        <div class="d-flex gap-2 mt-2">
-          <button class="btn btn-sm btn-outline-light flex-fill btn-edit-player" data-id="${p.id}" title="Editar">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar">
-            <i class="bi bi-hand-thumbs-down"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
-            <i class="bi bi-box-arrow-right"></i>
-          </button>
-          <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
-            <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
-            ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
-          </button>
-        </div>
-      </div>
-    `;
-    
-    col.appendChild(card);
-    grid.appendChild(col);
+      `;
+
+      col.appendChild(card);
+      list.appendChild(col);
+    });
+
+    sectionEl.appendChild(list);
+    grid.appendChild(sectionEl);
+    renderedSections++;
   });
+
+  if (renderedSections === 0) {
+    grid.innerHTML = '<div class="text-center text-light-gray">Nenhum jogador encontrado.</div>';
+  }
   
   document.getElementById('players-status').style.display = 'none';
   grid.style.display = '';
