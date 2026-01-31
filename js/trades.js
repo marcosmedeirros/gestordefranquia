@@ -147,21 +147,36 @@ async function loadTeams() {
     // Preencher select de times (exceto o meu, apenas da mesma liga)
     const select = document.getElementById('targetTeam');
     select.innerHTML = '<option value="">Selecione...</option>';
-    
+    const myId = Number(myTeamId);
+    const myLeagueNormalized = (myLeague ?? '').toString().trim().toUpperCase();
+
     const filteredTeams = allTeams.filter(t => {
-      const teamId = parseInt(t.id);
-      const myId = parseInt(myTeamId);
-      return teamId !== myId && t.league === myLeague;
+      const teamId = Number(t.id);
+      if (!Number.isFinite(teamId) || teamId === myId) return false;
+      const teamLeagueNormalized = (t.league ?? '').toString().trim().toUpperCase();
+      // Se não conseguir determinar liga, deixa passar, mas prioriza comparação normalizada
+      if (!myLeagueNormalized) return true;
+      return teamLeagueNormalized === myLeagueNormalized;
     });
     
     console.log('Times filtrados para trade:', filteredTeams.length);
     
-    filteredTeams.forEach(t => {
+    if (filteredTeams.length === 0) {
       const option = document.createElement('option');
-      option.value = t.id;
-      option.textContent = `${t.city} ${t.name}`;
+      option.disabled = true;
+      option.textContent = 'Nenhum time disponível na sua liga';
       select.appendChild(option);
-    });
+      return;
+    }
+
+    filteredTeams
+      .sort((a, b) => `${a.city} ${a.name}`.localeCompare(`${b.city} ${b.name}`))
+      .forEach(t => {
+        const option = document.createElement('option');
+        option.value = t.id;
+        option.textContent = `${t.city} ${t.name}`;
+        select.appendChild(option);
+      });
   } catch (err) {
     console.error('Erro ao carregar times:', err);
   }

@@ -241,7 +241,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (target.classList.contains('btn-toggle-trade')) {
       const playerId = target.dataset.id;
-      const newStatus = target.dataset.trade === 'true' ? 0 : 1;
+      const currentStatus = (() => {
+        const raw = String(target.dataset.trade || '').toLowerCase();
+        return raw === 'true' || raw === '1' || raw === 'yes';
+      })();
+      const newStatus = currentStatus ? 0 : 1;
       try {
         await api('players.php', {
           method: 'PUT',
