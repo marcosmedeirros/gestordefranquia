@@ -30,102 +30,6 @@ function getRoleBadgeColor(role) {
   }
 }
 
-// Fotos oficiais dos jogadores (NBA CDN)
-const NBA_HEADSHOT_BASE_URL = 'https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/';
-const NBA_HEADSHOT_FALLBACK_URL = 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';
-const NBA_HEADSHOT_LOOKUP_CACHE = new Map();
-
-
-function normalizeNameForNbaUrl(name) {
-  if (!name) return '';
-  return name
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
-    .replace(/[^a-zA-Z0-9 ]/g, '')
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-}
-
-function getPlayerHeadshotUrl(player) {
-  if (player?.nba_player_id) {
-    return `${NBA_HEADSHOT_BASE_URL}${player.nba_player_id}.png`;
-  }
-  // Fallback visual: tenta pelo nome (nem sempre existe), senão fallback
-  if (player?.name) {
-    const norm = normalizeNameForNbaUrl(player.name);
-    return `${NBA_HEADSHOT_BASE_URL}${norm}.png`;
-  }
-  return NBA_HEADSHOT_FALLBACK_URL;
-}
-
-function applyPlayerHeadshot(imgEl, player) {
-  if (!imgEl) return;
-  if (!imgEl.dataset.headshotBound) {
-    imgEl.dataset.headshotBound = 'true';
-    imgEl.addEventListener('error', () => {
-      if (imgEl.dataset.fallbackApplied === 'true') return;
-      imgEl.dataset.fallbackApplied = 'true';
-      imgEl.src = NBA_HEADSHOT_FALLBACK_URL;
-    });
-  }
-  imgEl.dataset.fallbackApplied = 'false';
-  imgEl.src = getPlayerHeadshotUrl(player);
-}
-
-async function ensurePlayerHeadshot(imgEl, player) {
-  if (!imgEl || !player) return;
-
-  // 1) Se já tem ID, aplica direto
-  if (player.nba_player_id) {
-    applyPlayerHeadshot(imgEl, player);
-    return;
-  }
-
-  // 2) Mostra um fallback rápido enquanto resolve
-  imgEl.src = NBA_HEADSHOT_FALLBACK_URL;
-
-  // 3) Tenta resolver via API (salva no banco automaticamente)
-  const cacheKey = player.id || player.name;
-  if (cacheKey && NBA_HEADSHOT_LOOKUP_CACHE.has(cacheKey)) {
-    const cached = NBA_HEADSHOT_LOOKUP_CACHE.get(cacheKey);
-    if (cached && typeof cached === 'object') {
-      player.nba_player_id = cached.nba_player_id;
-      player.headshot_url = cached.headshot_url;
-      applyPlayerHeadshot(imgEl, player);
-      return;
-    }
-    if (cached === false) {
-      // já falhou antes: tenta só o fallback via nome
-      applyPlayerHeadshot(imgEl, player);
-      return;
-    }
-  }
-
-  if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, null);
-
-  try {
-    const res = await api('nba-player-lookup.php', {
-      method: 'POST',
-      body: JSON.stringify({ player_id: player.id, player_name: player.name })
-    });
-
-    if (res?.success && res?.nba_player_id) {
-      player.nba_player_id = res.nba_player_id;
-      if (res.headshot_url) player.headshot_url = res.headshot_url;
-      if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, { nba_player_id: res.nba_player_id, headshot_url: res.headshot_url });
-      applyPlayerHeadshot(imgEl, player);
-      return;
-    }
-
-    if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
-    // sem ID => tenta fallback via nome / fallback
-    applyPlayerHeadshot(imgEl, player);
-  } catch (err) {
-    console.warn('Falha ao buscar NBA ID para', player.name, err);
-    if (cacheKey) NBA_HEADSHOT_LOOKUP_CACHE.set(cacheKey, false);
-    // Nunca quebra a tela: tenta fallback via nome / fallback
-    applyPlayerHeadshot(imgEl, player);
-  }
-}
 
 // Ordem padrão
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
@@ -234,13 +138,10 @@ function renderPlayers(players) {
     
     card.innerHTML = `
       <div class="card-body p-3">
-        <div class="d-flex align-items-center gap-3 mb-3">
-          <div class="player-photo-inline">
-            <img class="player-headshot" alt="Foto de ${p.name}">
-          </div>
+        <div class="d-flex align-items-start gap-3 mb-3">
           <div class="flex-grow-1 d-flex justify-content-between align-items-start gap-2">
             <div class="flex-grow-1 me-2">
-              <h6 class="text-white mb-1 fw-bold d-flex align-items-center gap-2" style="font-size: 1.1rem;">${p.name}</h6>
+              <h6 class="text-white mb-1 fw-bold" style="font-size: 1.1rem;">${p.name}</h6>
               <div class="d-flex gap-2 flex-wrap">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
                 <span class="badge" style="background: ${getRoleBadgeColor(p.role)};">${p.role}</span>
@@ -269,7 +170,6 @@ function renderPlayers(players) {
         </div>
       </div>
     `;
-  ensurePlayerHeadshot(card.querySelector('.player-headshot'), p);
     
     col.appendChild(card);
     grid.appendChild(col);
