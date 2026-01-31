@@ -159,7 +159,7 @@ function renderPlayers(players) {
 
     sectionPlayers.forEach(p => {
       const ovrColor = getOvrColor(p.ovr);
-      const canRetire = Number(p.age) >= 35;
+  const canRetire = Number(p.age) > 35;
       const col = document.createElement('div');
       col.className = 'col-12 col-sm-10 col-md-6 col-lg-4 col-xl-3';
 

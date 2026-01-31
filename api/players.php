@@ -265,10 +265,10 @@ if ($method === 'DELETE') {
         jsonResponse(403, ['error' => 'Sem permissão para remover este jogador.']);
     }
 
-    // Se for aposentadoria, verificar idade mínima (35 anos)
+    // Se for aposentadoria, verificar idade mínima (maior que 35)
     if ($isRetirement) {
-        if ((int)$row['age'] < 35) {
-            jsonResponse(400, ['error' => 'Apenas jogadores com 35 anos ou mais podem se aposentar.']);
+        if ((int)$row['age'] <= 35) {
+            jsonResponse(400, ['error' => 'Apenas jogadores com mais de 35 anos podem se aposentar.']);
         }
         
         try {
