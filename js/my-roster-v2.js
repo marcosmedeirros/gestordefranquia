@@ -159,6 +159,7 @@ function renderPlayers(players) {
 
     sectionPlayers.forEach(p => {
       const ovrColor = getOvrColor(p.ovr);
+      const canRetire = Number(p.age) >= 35;
       const col = document.createElement('div');
       col.className = 'col-12 col-sm-10 col-md-6 col-lg-4 col-xl-3';
 
@@ -184,9 +185,10 @@ function renderPlayers(players) {
             <button class="btn btn-sm btn-outline-warning flex-fill btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar">
               <i class="bi bi-hand-thumbs-down"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
-              <i class="bi bi-box-arrow-right"></i>
-            </button>
+            ${canRetire ? `
+              <button class="btn btn-sm btn-outline-danger flex-fill btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
+                <i class="bi bi-box-arrow-right"></i>
+              </button>` : ''}
             <button class="btn btn-sm flex-fill btn-toggle-trade ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'}" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
               <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
               ${p.available_for_trade ? 'Disponível' : 'Indisp.'}
@@ -329,8 +331,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const playerName = target.dataset.name;
       if (confirm(`Aposentar ${playerName}?`)) {
         try {
-          await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
-          alert('Jogador aposentado!');
+          const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId, retirement: true }) });
+          alert(res.message || 'Jogador aposentado!');
           loadPlayers();
         } catch (err) {
           alert('Erro: ' + (err.error || 'Desconhecido'));

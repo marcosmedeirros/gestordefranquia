@@ -298,7 +298,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
     <!-- Modal -->
     <div class="modal fade" id="playersModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
             <div class="modal-content bg-dark-panel border-orange">
                 <div class="modal-header border-orange">
                     <h5 class="modal-title text-white" id="modalTitle"></h5>
@@ -309,18 +309,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="spinner-border text-orange" role="status"></div>
                     </div>
                     <div id="content" style="display: none;">
-                        <table class="table table-dark table-hover mb-0">
-                            <thead style="background: var(--fba-orange); color: #000;">
-                                <tr>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                    <th>Posição</th>
-                                    <th>Função</th>
-                                </tr>
-                            </thead>
-                            <tbody id="playersList"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead style="background: var(--fba-orange); color: #000;">
+                                    <tr>
+                                        <th>Jogador</th>
+                                        <th>OVR</th>
+                                        <th>Idade</th>
+                                        <th>Posição</th>
+                                        <th>Função</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="playersList"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

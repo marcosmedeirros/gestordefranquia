@@ -395,6 +395,132 @@ a:hover{ color: var(--fba-brand); }
 	}
 }
 
+/* ---------- Trade Rumor Chat Layout ---------- */
+.rumor-chat-item{
+	display: flex;
+	gap: 12px;
+	background: var(--fba-dark);
+	border: 1px solid var(--fba-border);
+	border-radius: 18px;
+	padding: 14px 16px;
+	margin-bottom: 14px;
+	box-shadow: var(--shadow-0);
+}
+
+.rumor-chat-avatar{
+	flex: 0 0 auto;
+	width: 46px;
+	height: 46px;
+	border-radius: 999px;
+	border: 1px solid rgba(255,255,255,.18);
+	background: rgba(255,255,255,.04);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.rumor-chat-avatar img{
+	width: 32px;
+	height: 32px;
+	border-radius: 999px;
+	object-fit: cover;
+}
+
+.rumor-chat-body{
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-width: calc(100% - 58px);
+}
+
+.rumor-chat-header{
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+
+.rumor-team-name{
+	font-weight: 600;
+	font-size: .95rem;
+}
+
+.rumor-chat-date{
+	font-size: .8rem;
+	color: var(--fba-text-muted);
+	white-space: nowrap;
+}
+
+.rumor-chat-bubble{
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.08);
+	border-radius: 18px 18px 18px 6px;
+	padding: 12px 14px;
+	font-size: .95rem;
+	line-height: 1.4;
+}
+
+.rumor-chat-actions{
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.rumor-chat-own{
+	flex-direction: row-reverse;
+	text-align: right;
+}
+
+.rumor-chat-own .rumor-chat-header{
+	flex-direction: row-reverse;
+}
+
+.rumor-chat-own .rumor-chat-date{
+	order: -1;
+}
+
+.rumor-chat-own .rumor-chat-actions{
+	justify-content: flex-start;
+}
+
+.rumor-chat-own .rumor-chat-bubble{
+	border-radius: 18px 18px 6px 18px;
+	background: rgba(252,0,37,.12);
+	border-color: rgba(252,0,37,.25);
+}
+
+@media (max-width: 576px){
+	.rumor-chat-item{
+		padding: 10px 12px;
+		gap: 8px;
+	}
+	.rumor-chat-avatar{
+		width: 34px;
+		height: 34px;
+	}
+	.rumor-chat-avatar img{
+		width: 24px;
+		height: 24px;
+	}
+	.rumor-chat-header{
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 2px;
+	}
+	.rumor-chat-own .rumor-chat-header{
+		align-items: flex-end;
+	}
+	.rumor-chat-date{
+		font-size: .7rem;
+	}
+	.rumor-chat-bubble{
+		padding: 10px 12px;
+		font-size: .88rem;
+	}
+}
+
 /* ---------- Badges ---------- */
 .bg-gradient-orange{
 	background: linear-gradient(135deg, var(--fba-brand), var(--fba-brand-2)) !important;
