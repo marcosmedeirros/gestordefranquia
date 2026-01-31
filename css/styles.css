@@ -340,6 +340,61 @@ a:hover{ color: var(--fba-brand); }
 	filter: brightness(.99);
 }
 
+/* ---------- Team Chips / Rumores ---------- */
+.team-chip{
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 14px;
+	border-radius: 999px;
+	background: rgba(255,255,255,.04);
+	border: 1px solid rgba(255,255,255,.10);
+}
+
+.team-chip img{
+	width: 38px;
+	height: 38px;
+	border-radius: 999px;
+	object-fit: cover;
+	border: 1px solid rgba(255,255,255,.20);
+	box-shadow: 0 6px 14px rgba(0,0,0,.35);
+}
+
+.team-chip-badge{
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: rgba(255,255,255,.08);
+	border: 1px solid rgba(255,255,255,.25);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 700;
+	letter-spacing: .05em;
+	color: var(--fba-text);
+}
+
+.team-chip.no-image{
+	gap: 8px;
+	padding: 6px 12px;
+}
+
+@media (max-width: 576px){
+	.team-chip{
+		gap: 8px;
+		padding: 4px 12px;
+	}
+	.team-chip img{
+		width: 28px;
+		height: 28px;
+	}
+	.team-chip-badge{
+		width: 30px;
+		height: 30px;
+		font-size: .8rem;
+	}
+}
+
 /* ---------- Badges ---------- */
 .bg-gradient-orange{
 	background: linear-gradient(135deg, var(--fba-brand), var(--fba-brand-2)) !important;

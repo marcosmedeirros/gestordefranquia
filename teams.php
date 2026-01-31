@@ -253,6 +253,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <?php else: ?>
                                             <small class="text-muted">Sem contato</small>
                                         <?php endif; ?>
+                                        <small class="text-light-gray d-block mt-1">
+                                            <i class="bi bi-graph-up me-1 text-orange"></i>CAP: <?= number_format($t['cap_top8'], 0, ',', '.') ?>
+                                        </small>
                                     </div>
                                 </td>
                                 <td class="hide-mobile">
@@ -265,6 +268,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-gradient-orange"><?= $t['total_players'] ?></span>
+                                    <div class="d-md-none mt-2">
+                                        <span class="badge bg-warning text-dark">CAP <?= $t['cap_top8'] ?></span>
+                                    </div>
                                 </td>
                                 <td class="text-center hide-mobile">
                                     <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
