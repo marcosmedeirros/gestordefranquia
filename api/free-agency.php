@@ -445,6 +445,8 @@ function listAdminFreeAgents(PDO $pdo, string $league): void
     error_log("🏀 listAdminFreeAgents chamada com league: " . $league);
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
+    $hasSeasonId = columnExists($pdo, 'free_agents', 'season_id');
+    $hasSeasonsTable = tableExists($pdo, 'seasons');
     $where = '(fa.status = "available" OR fa.status IS NULL)';
     $params = [];
 
@@ -480,12 +482,18 @@ function listAdminFreeAgents(PDO $pdo, string $league): void
         $select .= ", NULL AS secondary_position";
     }
     $select .= ", fa.original_team_name";
+    if ($hasSeasonId && $hasSeasonsTable) {
+        $select .= ", s.year AS season_year, s.season_number";
+    } else {
+        $select .= ", NULL AS season_year, NULL AS season_number";
+    }
     $stmt = $pdo->prepare("
         SELECT {$select}, (
             SELECT COUNT(*) FROM free_agent_offers
             WHERE free_agent_id = fa.id AND status = 'pending'
         ) AS pending_offers
         FROM free_agents fa
+        " . (($hasSeasonId && $hasSeasonsTable) ? "LEFT JOIN seasons s ON s.id = fa.season_id" : "") . "
         WHERE {$where}
         ORDER BY fa.{$ovrColumn} DESC, fa.name ASC
     ");
@@ -631,11 +639,11 @@ function listContracts(PDO $pdo, string $league): void
 function listWaivers(PDO $pdo, string $league): void
 {
     $params = [];
-    $seasonSelect = 'NULL AS season_year';
+    $seasonSelect = 'NULL AS season_year, NULL AS season_number';
     $seasonJoin = '';
 
     if (columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons')) {
-        $seasonSelect = 's.year AS season_year';
+        $seasonSelect = 's.year AS season_year, s.season_number';
         $seasonJoin = 'LEFT JOIN seasons s ON fa.season_id = s.id';
     }
 

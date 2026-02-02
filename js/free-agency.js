@@ -92,13 +92,17 @@ async function carregarDispensados() {
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>Time que dispensou</th><th>Data</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Jogador</th><th>Time que dispensou</th><th>Temporada</th><th>Data</th></tr></thead><tbody>';
         waivers.forEach(item => {
             const teamName = item.original_team_name || '-';
             const waived = item.waived_at ? new Date(item.waived_at).toLocaleString('pt-BR') : '-';
+            const seasonLabel = item.season_year
+                ? `Temp ${item.season_year}`
+                : (item.season_number ? `Temp #${item.season_number}` : '-');
             html += `<tr>
                 <td><strong class="text-orange">${item.name}</strong></td>
                 <td>${teamName}</td>
+                <td>${seasonLabel}</td>
                 <td>${waived}</td>
             </tr>`;
         });
@@ -288,8 +292,11 @@ async function carregarFreeAgentsAdmin() {
         html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Propostas</th><th>Acoes</th></tr></thead><tbody>';
 
         data.players.forEach(player => {
+            const seasonLabel = player.season_year
+                ? `Temp: ${player.season_year}`
+                : (player.season_number ? `Temp #${player.season_number}` : 'Temp: -');
             html += '<tr>';
-            html += `<td><strong class="text-orange">${player.name}</strong><div class="small text-light-gray">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos</div></td>`;
+            html += `<td><strong class="text-orange">${player.name}</strong><div class="small text-light-gray">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • ${player.age} anos • ${seasonLabel}</div></td>`;
             html += `<td>${player.ovr}</td>`;
             html += `<td><span class="badge bg-info">${player.pending_offers || 0}</span></td>`;
             html += '<td>';
