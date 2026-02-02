@@ -489,9 +489,8 @@ if ($user && isset($user['id'])) {
                     const chips = emojiList.map(e => {
                         const cnt = countsMap[e] || 0;
                         const activeClass = mineEmoji === e ? 'reaction-chip active' : 'reaction-chip';
-                        return `<span class="${activeClass}" onclick="reactPick(${pick.id}, '${e}')">${e} <span class="reaction-count">${cnt}</span></span>`;
+                        return `<span class="${activeClass}" onclick="toggleReaction(${pick.id}, '${e}')">${e} <span class="reaction-count">${cnt}</span></span>`;
                     }).join(' ');
-                    const removeBtn = mineEmoji ? `<button class="btn btn-sm btn-outline-danger" onclick="removeReaction(${pick.id})" title="Remover minha reação"><i class="bi bi-x"></i></button>` : '';
 
                     const pickSummary = picked ? `
                         <div class="pick-card compact mt-1">
@@ -500,7 +499,7 @@ if ($user && isset($user['id'])) {
                                     ${pick.player_name}
                                     <span class="accent-red">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'}${pick.player_age ? '/' + pick.player_age + 'y' : ''})</span>
                                 </div>
-                                <div class="reaction-bar">${chips} ${removeBtn}</div>
+                                <div class="reaction-bar">${chips}</div>
                             </div>
                         </div>
                     ` : '';
@@ -717,6 +716,21 @@ if ($user && isset($user['id'])) {
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao remover reação');
                 await loadState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function toggleReaction(pickId, emoji) {
+            try {
+                // Descobre reação atual do usuário nessa pick
+                const pick = state.order.find(p => p.id === pickId);
+                const mineEmoji = (pick && Array.isArray(pick.reactions)) ? (pick.reactions.find(r => r.mine)?.emoji || null) : null;
+                if (mineEmoji === emoji) {
+                    await removeReaction(pickId);
+                } else {
+                    await reactPick(pickId, emoji);
+                }
             } catch (error) {
                 alert(error.message);
             }
