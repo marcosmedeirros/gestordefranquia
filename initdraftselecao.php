@@ -496,8 +496,11 @@ if ($user && isset($user['id'])) {
                 elements.orderList.innerHTML = '<div class="text-muted">Ordem ainda não definida.</div>';
                 return;
             }
-            const roundOne = state.order.filter((pick) => pick.round === 1).sort((a, b) => a.pick_position - b.pick_position);
-            elements.orderList.innerHTML = roundOne
+            const displayRound = Number(state.session?.current_round || 1);
+            const roundPicks = state.order
+                .filter((pick) => pick.round === displayRound)
+                .sort((a, b) => a.pick_position - b.pick_position);
+            elements.orderList.innerHTML = roundPicks
                 .map((pick, index) => {
                     const picked = !!pick.picked_player_id;
                     const reactions = Array.isArray(pick.reactions) ? pick.reactions : [];
