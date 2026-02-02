@@ -147,9 +147,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1];
 
                 $stmtTeams = $pdo->prepare('SELECT COUNT(*) as total FROM teams WHERE league = ?');
                 $stmtTeams->execute([$league]);
@@ -163,6 +163,7 @@ if ($method === 'GET') {
                     'edital' => $cfg['edital'],
                     'edital_file' => $cfg['edital'],
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
+                    'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -516,6 +517,7 @@ if ($method === 'PUT') {
             $max_trades = isset($data['max_trades']) ? (int)$data['max_trades'] : null;
             $edital = $data['edital'] ?? null;
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
+            $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -545,6 +547,10 @@ if ($method === 'PUT') {
             if ($trades_enabled !== null) {
                 $updates[] = 'trades_enabled = ?';
                 $params[] = $trades_enabled;
+            }
+            if ($fa_enabled !== null) {
+                $updates[] = 'fa_enabled = ?';
+                $params[] = $fa_enabled;
             }
 
             if (empty($updates)) {
