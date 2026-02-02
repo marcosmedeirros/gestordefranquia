@@ -8,7 +8,7 @@ $root = realpath(__DIR__ . '/..');
 $srcPath = $root . '/img/fba-logo.png';
 $outDir  = $root . '/img/icons';
 
-$sizes = [48, 72, 96, 128, 144, 152, 167, 180, 192, 256, 384, 512, 1024];
+$sizes = [16, 32, 48, 72, 96, 128, 144, 152, 167, 180, 192, 256, 384, 512, 1024];
 
 function ensureDir(string $dir): void {
     if (!is_dir($dir)) {
@@ -35,21 +35,33 @@ function resizePng($src, int $size) {
     $w = imagesx($src);
     $h = imagesy($src);
     $dst = imagecreatetruecolor($size, $size);
-    imagealphablending($dst, false);
-    imagesavealpha($dst, true);
-    $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
-    imagefilledrectangle($dst, 0, 0, $size, $size, $transparent);
-    imagecopyresampled($dst, $src, 0, 0, 0, 0, $size, $size, $w, $h);
+    // Fundo preto opaco
+    $black = imagecolorallocate($dst, 0, 0, 0);
+    imagefilledrectangle($dst, 0, 0, $size, $size, $black);
+    imagealphablending($dst, true);
+    imagesavealpha($dst, false);
+
+    // Centraliza mantendo proporção
+    $scale = min($size / $w, $size / $h);
+    $nw = (int) round($w * $scale);
+    $nh = (int) round($h * $scale);
+    $dx = (int) floor(($size - $nw) / 2);
+    $dy = (int) floor(($size - $nh) / 2);
+
+    imagecopyresampled($dst, $src, $dx, $dy, 0, 0, $nw, $nh, $w, $h);
     return $dst;
 }
 
 try {
     ensureDir($outDir);
         if (!function_exists('imagecreatefrompng')) {
-            // Fallback: copiar a imagem original para todos os tamanhos (sem redimensionar)
+            // Fallback: copie uma versão com fundo preto se existir
+            $bgSrc = $root . '/img/fba-logo-bg.png';
+            $useSrc = file_exists($bgSrc) ? $bgSrc : $srcPath;
+            // Copiar a imagem base para todos os tamanhos
             foreach ($sizes as $sz) {
                 $out = sprintf('%s/icon-%d.png', $outDir, $sz);
-                if (!copy($srcPath, $out)) {
+                if (!copy($useSrc, $out)) {
                     throw new RuntimeException('Falha ao copiar para: ' . $out);
                 }
                 echo "Copiado (fallback): $out\n";
