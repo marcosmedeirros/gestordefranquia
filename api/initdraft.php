@@ -81,6 +81,19 @@ function ensureInitDraftReactionsTable(PDO $pdo): void {
     }
 }
 
+function ensureEmojiBinaryCollation(PDO $pdo): void {
+    // Garantir que a coluna emoji use collation binária para diferenciar cada emoji
+    try {
+        $stmt = $pdo->query("SHOW FULL COLUMNS FROM initdraft_reactions LIKE 'emoji'");
+        $col = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($col && isset($col['Collation']) && strtolower((string)$col['Collation']) !== 'utf8mb4_bin') {
+            $pdo->exec("ALTER TABLE initdraft_reactions MODIFY emoji VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
+        }
+    } catch (Exception $e) {
+        // Se tabela ainda não existe, ignore; será criado na chamada anterior
+    }
+}
+
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
     $roundOneOrder = array_values(array_map('intval', $roundOneOrder));
     $sessionId = (int)$session['id'];
@@ -432,6 +445,7 @@ if ($method === 'GET') {
 
                 // Anexar reações por pick
                 ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
                 $pickIds = array_map(fn($o) => (int)$o['id'], $order);
                 $reactionsByPick = [];
                 $mineByPick = [];
@@ -878,6 +892,7 @@ if ($method === 'POST') {
                 if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
 
                 ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
 
                 $pickId = (int)($data['pick_id'] ?? 0);
                 $emoji = trim((string)($data['emoji'] ?? ''));
@@ -909,6 +924,7 @@ if ($method === 'POST') {
                 if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
 
                 ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
 
                 $pickId = (int)($data['pick_id'] ?? 0);
                 if ($pickId <= 0) throw new Exception('pick_id obrigatório');
