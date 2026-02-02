@@ -553,5 +553,39 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <script src="/js/trade-list.js?v=20260130"></script>
   <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>
+  <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+  <script>
+    (function(){
+      const toggle = document.getElementById('tradesStatusToggle');
+      const badge = document.getElementById('tradesStatusBadge');
+      const league = window.__USER_LEAGUE__;
+      if (!toggle || !league) return;
+      toggle.addEventListener('change', async (e) => {
+        const enabled = e.target.checked ? 1 : 0;
+        try {
+          const res = await fetch('/api/admin.php?action=league_settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ league: league, trades_enabled: enabled })
+          });
+          const data = await res.json();
+          if (!res.ok || data.success === false) throw new Error(data.error || 'Erro ao salvar');
+          // Atualiza badge
+          if (enabled === 1) {
+            badge.className = 'badge bg-success';
+            badge.textContent = 'Trocas abertas';
+          } else {
+            badge.className = 'badge bg-danger';
+            badge.textContent = 'Trocas bloqueadas';
+          }
+        } catch (err) {
+          alert('Erro ao atualizar status das trocas');
+          // Reverte o switch
+          e.target.checked = !e.target.checked;
+        }
+      });
+    })();
+  </script>
+  <?php endif; ?>
 </body>
 </html>
