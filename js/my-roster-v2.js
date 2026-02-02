@@ -60,6 +60,8 @@ async function loadFreeAgencyLimits() {
   try {
     const data = await api('free-agency.php?action=limits');
     currentFALimits = {
+  let currentSearch = '';
+  let currentRoleFilter = '';
       waiversUsed: Number.isFinite(data.waivers_used) ? data.waivers_used : 0,
       waiversMax: Number.isFinite(data.waivers_max) && data.waivers_max > 0 ? data.waivers_max : DEFAULT_FA_LIMITS.waiversMax,
       signingsUsed: Number.isFinite(data.signings_used) ? data.signings_used : 0,
@@ -101,8 +103,20 @@ function renderPlayers(players) {
     let aVal = a[currentSort.field];
     let bVal = b[currentSort.field];
     
+  function applyFilters(players) {
+    const term = currentSearch.trim().toLowerCase();
+    const roleFilter = currentRoleFilter;
+    return players.filter(p => {
+      const roleOk = !roleFilter || normalizeRoleKey(p.role) === normalizeRoleKey(roleFilter);
+      if (!term) return roleOk;
+      const hay = `${p.name} ${p.position} ${p.secondary_position || ''}`.toLowerCase();
+      return roleOk && hay.includes(term);
+    });
+  }
+
     if (currentSort.field === 'role') {
       aVal = roleOrder[aVal] ?? 999;
+    sorted = applyFilters(sorted);
       bVal = roleOrder[bVal] ?? 999;
     }
     if (currentSort.field === 'trade') {
@@ -257,6 +271,20 @@ async function loadPlayers() {
     if (statusEl) {
       statusEl.innerHTML = `<div class="alert alert-danger text-center"><i class="bi bi-x-circle me-2"></i>Erro ao carregar jogadores: ${err.error || 'Desconhecido'}</div>`;
       statusEl.style.display = 'block';
+    document.getElementById('players-search')?.addEventListener('input', (e) => {
+      currentSearch = (e.target.value || '').toLowerCase();
+      renderPlayers(allPlayers);
+    });
+    document.getElementById('players-role-filter')?.addEventListener('change', (e) => {
+      currentRoleFilter = e.target.value || '';
+      renderPlayers(allPlayers);
+    });
+    document.getElementById('players-table')?.addEventListener('click', (e) => {
+      const th = e.target.closest('th.sortable');
+      if (th && th.dataset.sort) {
+        sortPlayers(th.dataset.sort);
+      }
+    });
     }
   }
 }

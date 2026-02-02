@@ -316,6 +316,38 @@ if ($teamId) {
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
+        <!-- Tabela de Jogadores (com filtros e ações) -->
+        <div id="players-table-wrapper" class="mb-4" style="display:none;">
+          <div class="d-flex flex-column flex-md-row gap-2 justify-content-between align-items-start align-items-md-center mb-2">
+            <div class="d-flex gap-2 align-items-center">
+              <input type="text" id="players-search" class="form-control form-control-sm bg-dark text-white border-orange" placeholder="Buscar por nome/posição..." style="min-width: 220px;" />
+              <select id="players-role-filter" class="form-select form-select-sm bg-dark text-white border-orange">
+                <option value="">Todas as funções</option>
+                <option value="Titular">Titular</option>
+                <option value="Banco">Banco</option>
+                <option value="G-League">G-League</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <small class="text-light-gray">Clique nos cabeçalhos para ordenar</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0" id="players-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-sort="name" class="sortable">Jogador</th>
+                  <th scope="col" data-sort="position" class="sortable">Posição</th>
+                  <th scope="col" data-sort="ovr" class="sortable">OVR</th>
+                  <th scope="col" data-sort="age" class="sortable">Idade</th>
+                  <th scope="col" data-sort="role" class="sortable">Função</th>
+                  <th scope="col">Transferência</th>
+                  <th scope="col" class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="players-table-body"></tbody>
+            </table>
+          </div>
+        </div>
         <!-- Grid de Cards Responsivo -->
         <div id="players-grid" class="roster-sections" style="display: none;"></div>
       </div>
