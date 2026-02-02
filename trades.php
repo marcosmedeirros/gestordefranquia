@@ -290,8 +290,21 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
-      <div class="d-flex justify-content-between align-items-center">
-        <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+          <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
+          <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <div class="d-flex align-items-center gap-2">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="tradesStatusToggle" <?= ($tradesEnabled ?? 1) == 1 ? 'checked' : '' ?>>
+                <label class="form-check-label text-light-gray" for="tradesStatusToggle">Ativar trocas</label>
+              </div>
+              <span id="tradesStatusBadge" class="badge <?= ($tradesEnabled ?? 1) == 1 ? 'bg-success' : 'bg-danger' ?>" style="font-size:0.8rem;">
+                <?= ($tradesEnabled ?? 1) == 1 ? 'Trocas abertas' : 'Trocas bloqueadas' ?>
+              </span>
+            </div>
+          <?php endif; ?>
+        </div>
     <div>
       <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
@@ -510,9 +523,15 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
         </div>
         <div class="modal-footer border-top border-orange">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" id="submitTradeBtn">
-            <i class="bi bi-send me-1"></i>Enviar Proposta
-          </button>
+          <?php if ($tradesEnabled == 0): ?>
+            <button type="button" class="btn btn-secondary" id="submitTradeBtn" disabled title="Trades desativadas pelo administrador">
+              <i class="bi bi-lock-fill me-1"></i>Enviar Proposta
+            </button>
+          <?php else: ?>
+            <button type="button" class="btn btn-orange" id="submitTradeBtn">
+              <i class="bi bi-send me-1"></i>Enviar Proposta
+            </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -528,5 +547,39 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <script src="/js/trade-list.js?v=20260130"></script>
   <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>
+  <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+  <script>
+    (function(){
+      const toggle = document.getElementById('tradesStatusToggle');
+      const badge = document.getElementById('tradesStatusBadge');
+      const league = window.__USER_LEAGUE__;
+      if (!toggle || !league) return;
+      toggle.addEventListener('change', async (e) => {
+        const enabled = e.target.checked ? 1 : 0;
+        try {
+          const res = await fetch('/api/admin.php?action=league_settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ league: league, trades_enabled: enabled })
+          });
+          const data = await res.json();
+          if (!res.ok || data.success === false) throw new Error(data.error || 'Erro ao salvar');
+          // Atualiza badge
+          if (enabled === 1) {
+            badge.className = 'badge bg-success';
+            badge.textContent = 'Trocas abertas';
+          } else {
+            badge.className = 'badge bg-danger';
+            badge.textContent = 'Trocas bloqueadas';
+          }
+        } catch (err) {
+          alert('Erro ao atualizar status das trocas');
+          // Reverte o switch
+          e.target.checked = !e.target.checked;
+        }
+      });
+    })();
+  </script>
+  <?php endif; ?>
 </body>
 </html>
