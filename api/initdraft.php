@@ -62,6 +62,25 @@ function ensureDeadlineColumn(PDO $pdo): void {
     }
 }
 
+function ensureInitDraftReactionsTable(PDO $pdo): void {
+    // Cria a tabela de reações se não existir
+    $stmt = $pdo->query("SHOW TABLES LIKE 'initdraft_reactions'");
+    if (!$stmt->fetch()) {
+        $pdo->exec(
+            "CREATE TABLE initdraft_reactions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                initdraft_order_id INT NOT NULL,
+                user_id INT NOT NULL,
+                emoji VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL,
+                UNIQUE KEY uniq_pick_user (initdraft_order_id, user_id),
+                INDEX idx_pick (initdraft_order_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+}
+
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
     $roundOneOrder = array_values(array_map('intval', $roundOneOrder));
     $sessionId = (int)$session['id'];
@@ -410,6 +429,53 @@ if ($method === 'GET') {
                 ');
                 $stmtOrder->execute([$session['id']]);
                 $order = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
+
+                // Anexar reações por pick
+                ensureInitDraftReactionsTable($pdo);
+                $pickIds = array_map(fn($o) => (int)$o['id'], $order);
+                $reactionsByPick = [];
+                $mineByPick = [];
+                if (!empty($pickIds)) {
+                    // Aggregates por emoji
+                    $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
+                    $stmtAgg = $pdo->prepare("SELECT initdraft_order_id, emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id IN ($placeholders) GROUP BY initdraft_order_id, emoji");
+                    $stmtAgg->execute($pickIds);
+                    while ($row = $stmtAgg->fetch(PDO::FETCH_ASSOC)) {
+                        $pid = (int)$row['initdraft_order_id'];
+                        if (!isset($reactionsByPick[$pid])) $reactionsByPick[$pid] = [];
+                        $reactionsByPick[$pid][] = [
+                            'emoji' => $row['emoji'],
+                            'count' => (int)$row['total'],
+                            'mine' => false,
+                        ];
+                    }
+
+                    // Reação do usuário atual (se logado)
+                    if ($user && isset($user['id'])) {
+                        $stmtMine = $pdo->prepare("SELECT initdraft_order_id, emoji FROM initdraft_reactions WHERE user_id = ? AND initdraft_order_id IN ($placeholders)");
+                        $params = array_merge([$user['id']], $pickIds);
+                        $stmtMine->execute($params);
+                        while ($row = $stmtMine->fetch(PDO::FETCH_ASSOC)) {
+                            $mineByPick[(int)$row['initdraft_order_id']] = (string)$row['emoji'];
+                        }
+                    }
+                }
+
+                // Atribuir reações em cada item da ordem
+                foreach ($order as &$o) {
+                    $pid = (int)$o['id'];
+                    $list = $reactionsByPick[$pid] ?? [];
+                    $mineEmoji = $mineByPick[$pid] ?? null;
+                    if ($mineEmoji) {
+                        foreach ($list as &$it) {
+                            if ($it['emoji'] === $mineEmoji) {
+                                $it['mine'] = true;
+                            }
+                        }
+                    }
+                    $o['reactions'] = $list;
+                }
+                unset($o);
 
                 // Buscar todos os times elegíveis da liga
                 $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.name ASC');
@@ -801,6 +867,61 @@ if ($method === 'POST') {
 
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = NOW() WHERE id = ?')->execute([$session['id']]);
                 echo json_encode(['success' => true]);
+                break;
+            }
+
+            // Reagir a uma pick com emoji
+            case 'react_pick': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new Exception('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+
+                ensureInitDraftReactionsTable($pdo);
+
+                $pickId = (int)($data['pick_id'] ?? 0);
+                $emoji = trim((string)($data['emoji'] ?? ''));
+                if ($pickId <= 0 || $emoji === '') throw new Exception('pick_id e emoji obrigatórios');
+                // Confirma que a pick pertence à sessão
+                $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
+                $stmtChk->execute([$pickId, $session['id']]);
+                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+
+                // Limita tamanho do emoji
+                if (strlen($emoji) > 16) $emoji = substr($emoji, 0, 16);
+
+                // Upsert (um por usuário/pick)
+                $stmtIns = $pdo->prepare('INSERT INTO initdraft_reactions (initdraft_order_id, user_id, emoji, created_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), updated_at = NOW()');
+                $stmtIns->execute([$pickId, $user['id'], $emoji]);
+
+                // Retorna agregados da pick
+                $stmtAgg = $pdo->prepare('SELECT emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id = ? GROUP BY emoji');
+                $stmtAgg->execute([$pickId]);
+                $agg = $stmtAgg->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'pick_id' => $pickId, 'reactions' => $agg]);
+                break;
+            }
+
+            case 'remove_reaction': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new Exception('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+
+                ensureInitDraftReactionsTable($pdo);
+
+                $pickId = (int)($data['pick_id'] ?? 0);
+                if ($pickId <= 0) throw new Exception('pick_id obrigatório');
+                $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
+                $stmtChk->execute([$pickId, $session['id']]);
+                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+
+                $pdo->prepare('DELETE FROM initdraft_reactions WHERE initdraft_order_id = ? AND user_id = ?')->execute([$pickId, $user['id']]);
+
+                $stmtAgg = $pdo->prepare('SELECT emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id = ? GROUP BY emoji');
+                $stmtAgg->execute([$pickId]);
+                $agg = $stmtAgg->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'pick_id' => $pickId, 'reactions' => $agg]);
                 break;
             }
 

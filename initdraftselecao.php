@@ -444,20 +444,33 @@ if ($user && isset($user['id'])) {
             }
             const roundOne = state.order.filter((pick) => pick.round === 1).sort((a, b) => a.pick_position - b.pick_position);
             elements.orderList.innerHTML = roundOne
-                .map((pick, index) => `
-                    <div class="d-flex align-items-center justify-content-between gap-3 mb-2 ${currentPick && pick.team_id === currentPick.team_id ? 'order-highlight' : ''} ${nextPick && pick.team_id === nextPick.team_id ? 'order-next' : ''}">
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="pick-rank" style="width:32px;height:32px;">${index + 1}</span>
-                            <div class="team-chip">
-                                <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                                <div>
-                                    <strong>${teamLabel(pick)}</strong>
-                                    <div class="small accent-red">${pick.team_owner || 'Sem GM'}</div>
+                .map((pick, index) => {
+                    const reactions = Array.isArray(pick.reactions) ? pick.reactions : [];
+                    const mine = reactions.find(r => r.mine);
+                    const emojiList = ['👍','❤️','😂','😮','😢','😡'];
+                    const countsMap = Object.fromEntries(reactions.map(r => [r.emoji, r.count]));
+                    const chips = emojiList.map(e => {
+                        const cnt = countsMap[e] || 0;
+                        const active = mine && mine.emoji === e;
+                        return `<button class="btn btn-sm ${active ? 'btn-light' : 'btn-outline-light'}" onclick="reactPick(${pick.id}, '${e}')">${e} <span class="badge bg-transparent text-light">${cnt}</span></button>`;
+                    }).join(' ');
+                    const removeBtn = mine ? `<button class="btn btn-sm btn-outline-danger" onclick="removeReaction(${pick.id})"><i class="bi bi-x"></i></button>` : '';
+                    return `
+                        <div class="d-flex flex-column gap-1 mb-2 ${currentPick && pick.team_id === currentPick.team_id ? 'order-highlight' : ''} ${nextPick && pick.team_id === nextPick.team_id ? 'order-next' : ''}">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="pick-rank" style="width:32px;height:32px;">${index + 1}</span>
+                                <div class="team-chip">
+                                    <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
+                                    <div>
+                                        <strong>${teamLabel(pick)}</strong>
+                                        <div class="small accent-red">${pick.team_owner || 'Sem GM'}</div>
+                                    </div>
                                 </div>
                             </div>
+                            <div class="d-flex align-items-center gap-2 small">${chips} ${removeBtn}</div>
                         </div>
-                    </div>
-                `)
+                    `;
+                })
                 .join('');
         }
 
@@ -623,6 +636,36 @@ if ($user && isset($user['id'])) {
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao registrar pick');
+                await loadState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function reactPick(pickId, emoji) {
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'react_pick', token: TOKEN, pick_id: pickId, emoji })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao reagir');
+                await loadState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function removeReaction(pickId) {
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'remove_reaction', token: TOKEN, pick_id: pickId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao remover reação');
                 await loadState();
             } catch (error) {
                 alert(error.message);
