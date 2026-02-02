@@ -381,23 +381,31 @@ if ($user && isset($user['id'])) {
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
             const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
 
+            const statusLabel = (session.status === 'in_progress')
+                ? 'Em andamento'
+                : (session.status === 'completed')
+                    ? 'Concluído'
+                    : (session.status === 'setup')
+                        ? 'Preparação'
+                        : (session.status || '-');
+
             elements.statGrid.innerHTML = `
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
                         <div class="stat-label">Status</div>
-                        <div>${session.status || '-'}</div>
+                        <div>${statusLabel}</div>
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
                         <div class="stat-label accent-label">Rodada Atual</div>
-                        <div>${session.current_round ?? '-'}</div>
+                        <div>${session.current_round ?? '-'} de ${session.total_rounds ?? '-'}</div>
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
-                        <div class="stat-label accent-label">Pick Atual</div>
-                        <div>${currentPick ? `${currentPick.round}.${currentPick.pick_position}` : '-'}</div>
+                        <div class="stat-label accent-label">Próximo Time</div>
+                        <div>${nextPick ? teamLabel(nextPick) : '-'}</div>
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
