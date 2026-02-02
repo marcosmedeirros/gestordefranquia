@@ -277,6 +277,11 @@ if ($user && isset($user['id'])) {
                         <button class="btn btn-outline-light btn-sm" type="button" id="toggleTvButton">
                             <i class="bi bi-fullscreen me-1"></i>Modo TV
                         </button>
+                        <?php if ($isAdmin): ?>
+                        <button class="btn btn-danger btn-sm" type="button" id="openRoundNowButton" onclick="adminOpenNextRoundNow()">
+                            <i class="bi bi-lightning-charge me-1"></i>Iniciar rodada agora
+                        </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -720,6 +725,25 @@ if ($user && isset($user['id'])) {
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao registrar pick');
+                await loadState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function adminOpenNextRoundNow() {
+            if (!IS_ADMIN) return;
+            if (!confirm('Abrir rodada imediatamente?')) return;
+            try {
+                const sessionId = state.session?.id;
+                if (!sessionId) throw new Error('Sessão não carregada');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_open_next_round_now', session_id: sessionId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao abrir rodada');
                 await loadState();
             } catch (error) {
                 alert(error.message);

@@ -43,6 +43,7 @@ function ensureDailyScheduleColumns(PDO $pdo): void {
         'daily_clock_start_time' => "TIME NOT NULL DEFAULT '19:30:00'",
         'daily_pick_minutes' => 'INT NOT NULL DEFAULT 10',
         'daily_last_opened_date' => 'DATE NULL',
+        'daily_override_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
     ];
     foreach ($columns as $name => $definition) {
         $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
@@ -341,6 +342,10 @@ function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): v
 }
 
 function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
+    // Se override estiver ativo, permite picking imediatamente
+    $override = (int)($session['daily_override_enabled'] ?? 0) === 1;
+    if ($override) return;
+
     $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
     if (!$enabled) return;
 
@@ -968,6 +973,73 @@ if ($method === 'POST') {
                 performInitDraftPick($pdo, $session, $playerId);
                 resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada pelo admin']);
+                break;
+            }
+
+            // ADMIN: abrir rodada imediatamente (sem aguardar virada do dia)
+            case 'admin_open_next_round_now': {
+                if (!$isAdmin) throw new Exception('Apenas administradores');
+                $sessionId = (int)($data['session_id'] ?? 0);
+                $session = getSessionById($pdo, $sessionId);
+                if (!$session) throw new Exception('Sessão inválida');
+
+                ensureDailyScheduleColumns($pdo);
+
+                $now = tzNow();
+                $today = $now->format('Y-m-d');
+                $scheduleEnabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+                $currentRound = (int)($session['current_round'] ?? 1);
+                $totalRounds = (int)($session['total_rounds'] ?? 1);
+                $newRound = null;
+
+                if ($scheduleEnabled) {
+                    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+                    if ($dailyRound !== null && $dailyRound >= 1 && $dailyRound <= $totalRounds && $dailyRound !== $currentRound) {
+                        $newRound = $dailyRound;
+                    } else {
+                        // Se a rodada atual terminou, avançar para a próxima imediatamente
+                        if (isRoundCompleted($pdo, $sessionId, $currentRound) && $currentRound < $totalRounds) {
+                            $newRound = $currentRound + 1;
+                        }
+                    }
+                } else {
+                    // Sem agendamento diário: apenas garantir in_progress ou avançar se rodada terminou
+                    if (isRoundCompleted($pdo, $sessionId, $currentRound) && $currentRound < $totalRounds) {
+                        $newRound = $currentRound + 1;
+                    }
+                }
+
+                try {
+                    $pdo->beginTransaction();
+
+                    // Garante status em andamento
+                    $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = COALESCE(started_at, NOW()) WHERE id = ?')
+                        ->execute([$sessionId]);
+
+                    if ($newRound !== null) {
+                        $openPick = getCurrentOpenPick($pdo, $sessionId, $newRound);
+                        $newPick = $openPick ? (int)$openPick['pick_position'] : 1;
+                        $pdo->prepare('UPDATE initdraft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
+                            ->execute([$newRound, $newPick, $sessionId]);
+                        clearDeadlinesForRound($pdo, $sessionId, $newRound);
+                    } else {
+                        // Apenas limpa deadlines da rodada atual
+                        clearDeadlinesForRound($pdo, $sessionId, $currentRound);
+                    }
+
+                    // Ativa override e marca como aberto hoje
+                    $pdo->prepare('UPDATE initdraft_sessions SET daily_override_enabled = 1, daily_last_opened_date = ? WHERE id = ?')
+                        ->execute([$today, $sessionId]);
+
+                    $pdo->commit();
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    throw $e;
+                }
+
+                // Retorna estado atualizado
+                $updated = getSessionById($pdo, $sessionId);
+                echo json_encode(['success' => true, 'session' => $updated, 'message' => 'Rodada aberta imediatamente']);
                 break;
             }
 
