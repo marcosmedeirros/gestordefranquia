@@ -399,9 +399,11 @@ if ($method === 'GET') {
                 $stmtOrder = $pdo->prepare('
                     SELECT io.*, 
                            t.city as team_city, t.name as team_name, t.photo_url as team_photo,
+                           u.name as team_owner,
                            dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
                     FROM initdraft_order io
                     INNER JOIN teams t ON io.team_id = t.id
+                    LEFT JOIN users u ON t.user_id = u.id
                     LEFT JOIN initdraft_pool dp ON io.picked_player_id = dp.id
                     WHERE io.initdraft_session_id = ?
                     ORDER BY io.round ASC, io.pick_position ASC
