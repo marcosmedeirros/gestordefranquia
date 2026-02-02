@@ -122,7 +122,7 @@ function renderPlayers(players) {
     return 0;
   });
 
-  // Renderizar Quinteto Titular (grid)
+  // Renderizar Quinteto Titular (grid) + Banco (lista lateral)
   const grid = document.getElementById('players-grid');
   if (grid) {
     grid.innerHTML = '';
@@ -134,41 +134,63 @@ function renderPlayers(players) {
       return Number(b.ovr) - Number(a.ovr);
     });
     const starters = titulares.slice(0, 5);
+    const bench = sorted
+      .filter(p => normalizeRoleKey(p.role) === 'Banco')
+      .sort((a, b) => Number(b.ovr) - Number(a.ovr));
 
+    const row = document.createElement('div');
+    row.className = 'row g-3';
+
+    const colLeft = document.createElement('div');
+    colLeft.className = 'col-12 col-lg-8';
+    const startersSection = document.createElement('div');
+    startersSection.className = 'roster-section';
+    startersSection.innerHTML = '<h5>Quinteto Titular</h5>';
     if (starters.length === 0) {
-      grid.innerHTML = '<div class="text-center text-light-gray">Sem jogadores marcados como Titular.</div>';
+      startersSection.innerHTML += '<div class="text-center text-light-gray">Sem jogadores marcados como Titular.</div>';
     } else {
-      const sectionEl = document.createElement('div');
-      sectionEl.className = 'roster-section';
-      sectionEl.innerHTML = '<h5>Quinteto Titular</h5>';
-
       const list = document.createElement('div');
-      list.className = 'row g-3 justify-content-center';
+      list.className = 'row g-3';
       starters.forEach(p => {
         const ovrColor = getOvrColor(p.ovr);
         const col = document.createElement('div');
-        col.className = 'col-12 col-sm-10 col-md-6 col-lg-4 col-xl-3';
+        col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
         card.className = 'card border-orange h-100 roster-card text-center';
         card.innerHTML = `
-          <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
-            <div class="text-center">
-              <h6 class="text-white mb-1 fw-bold" style="font-size: 1.05rem;">${p.name}</h6>
-              <div class="d-flex justify-content-center gap-2 flex-wrap small">
-                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-              </div>
-            </div>
-            <div class="text-center">
-              <div class="fw-bold" style="font-size: 1.8rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-              <small class="text-light-gray">${p.age} anos</small>
-            </div>
-          </div>`;
+          <div class=\"card-body p-3 d-flex flex-column gap-3 align-items-center\">\n            <div class=\"text-center\">\n              <h6 class=\"text-white mb-1 fw-bold\" style=\"font-size: 1.05rem;\">${p.name}</h6>\n              <div class=\"d-flex justify-content-center gap-2 flex-wrap small\">\n                <span class=\"badge bg-secondary\">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>\n              </div>\n            </div>\n            <div class=\"text-center\">\n              <div class=\"fw-bold\" style=\"font-size: 1.8rem; line-height: 1; color: ${ovrColor};\">${p.ovr}</div>\n              <small class=\"text-light-gray\">${p.age} anos</small>\n            </div>\n          </div>`;
         col.appendChild(card);
         list.appendChild(col);
       });
-      sectionEl.appendChild(list);
-      grid.appendChild(sectionEl);
+      startersSection.appendChild(list);
     }
+    colLeft.appendChild(startersSection);
+
+    const colRight = document.createElement('div');
+    colRight.className = 'col-12 col-lg-4';
+    const benchSection = document.createElement('div');
+    benchSection.className = 'roster-section';
+    benchSection.innerHTML = '<h5>Banco</h5>';
+    if (bench.length === 0) {
+      benchSection.innerHTML += '<div class="text-center text-light-gray">Sem jogadores no banco.</div>';
+    } else {
+      const ul = document.createElement('ul');
+      ul.className = 'list-group list-group-flush';
+      bench.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
+        li.innerHTML = `
+          <span>${p.name} <small class=\"text-light-gray\">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
+        ul.appendChild(li);
+      });
+      benchSection.appendChild(ul);
+    }
+    colRight.appendChild(benchSection);
+
+    row.appendChild(colLeft);
+    row.appendChild(colRight);
+    grid.appendChild(row);
 
     document.getElementById('players-status').style.display = 'none';
     grid.style.display = '';

@@ -1,5 +1,5 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v6';
+const CACHE_NAME = 'fba-manager-v7';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)
@@ -9,8 +9,9 @@ const STATIC_ASSETS = [
   '/login.php',
   '/css/styles.css',
   '/img/default-team.png',
-  '/img/fba-logo.png?v=3',
-  '/manifest.json?v=3',
+  '/img/icons/icon-192.png?v=4',
+  '/img/icons/icon-512.png?v=4',
+  '/manifest.json?v=4',
   '/offline.html',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
@@ -128,8 +129,8 @@ self.addEventListener('push', event => {
     const data = event.data.json();
     const options = {
       body: data.body || 'Nova notificação do FBA Manager',
-      icon: '/img/fba-logo.png?v=3',
-      badge: '/img/fba-logo.png?v=3',
+      icon: '/img/icons/icon-192.png?v=4',
+      badge: '/img/icons/icon-96.png?v=4',
       vibrate: [100, 50, 100],
       data: {
         dateOfArrival: Date.now(),
