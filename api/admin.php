@@ -18,6 +18,18 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
+// Helpers para colunas e OVR
+function columnExists(PDO $pdo, string $table, string $column): bool {
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+        $stmt->execute([$column]);
+        return (bool)$stmt->fetch();
+    } catch (Exception $e) { return false; }
+}
+function playerOvrColumn(PDO $pdo): string {
+    return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
+}
+
 function handleFreeAgentCreation(PDO $pdo, array $validLeagues, array $data): void
 {
     $name = trim($data['name'] ?? '');
@@ -301,11 +313,16 @@ if ($method === 'GET') {
             
             // Para cada trade, buscar itens
             foreach ($trades as &$trade) {
-                $stmtOfferPlayers = $pdo->prepare('
-                    SELECT p.* FROM players p
-                    JOIN trade_items ti ON p.id = ti.player_id
-                    WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
-                ');
+                $ovrCol = playerOvrColumn($pdo);
+                $stmtOfferPlayers = $pdo->prepare("SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL");
                 $stmtOfferPlayers->execute([$trade['id']]);
                 $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
                 
@@ -318,11 +335,15 @@ if ($method === 'GET') {
                 $stmtOfferPicks->execute([$trade['id']]);
                 $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
                 
-                $stmtRequestPlayers = $pdo->prepare('
-                    SELECT p.* FROM players p
-                    JOIN trade_items ti ON p.id = ti.player_id
-                    WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
-                ');
+                $stmtRequestPlayers = $pdo->prepare("SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL");
                 $stmtRequestPlayers->execute([$trade['id']]);
                 $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
                 

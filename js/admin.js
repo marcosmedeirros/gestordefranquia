@@ -205,10 +205,11 @@ async function showTrades(status = 'all') {
     
     const formatAdminTradePlayer = (player) => {
       if (!player) return '';
+      const name = player.name || 'Jogador (dispensado)';
       const position = player.position || '-';
       const ovr = player.ovr ?? '?';
       const age = player.age ?? '?';
-      return `${player.name} (${position}, ${ovr}/${age})`;
+      return `${name} (${position}, ${ovr}/${age})`;
     };
 
     const renderTradeAssets = (players = [], picks = []) => {
