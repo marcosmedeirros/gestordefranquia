@@ -128,6 +128,54 @@ try {
     // Tabela pode não existir ainda
 }
 
+// Buscar última diretriz enviada pelo time
+$lastDirective = null;
+$lastDirectiveStarters = [];
+$lastDirectiveBench = [];
+try {
+    if (!empty($team['id'])) {
+        $stmtLastDir = $pdo->prepare("SELECT td.*, dd.description, dd.deadline_date
+            FROM team_directives td
+            INNER JOIN directive_deadlines dd ON dd.id = td.deadline_id
+            WHERE td.team_id = ?
+            ORDER BY td.submitted_at DESC
+            LIMIT 1");
+        $stmtLastDir->execute([(int)$team['id']]);
+        $lastDirective = $stmtLastDir->fetch(PDO::FETCH_ASSOC);
+
+        if ($lastDirective) {
+            $ids = [];
+            foreach (['starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id','bench_1_id','bench_2_id','bench_3_id'] as $key) {
+                if (!empty($lastDirective[$key])) $ids[] = (int)$lastDirective[$key];
+            }
+            if ($ids) {
+                $in = implode(',', array_fill(0, count($ids), '?'));
+                $stmtPlayers = $pdo->prepare("SELECT id, name, position, ovr FROM players WHERE id IN ($in)");
+                $stmtPlayers->execute($ids);
+                $pmap = [];
+                while ($r = $stmtPlayers->fetch(PDO::FETCH_ASSOC)) { $pmap[(int)$r['id']] = $r; }
+
+                for ($i=1; $i<=5; $i++) {
+                    $pid = (int)($lastDirective['starter_'.$i.'_id'] ?? 0);
+                    if ($pid && isset($pmap[$pid])) {
+                        $p = $pmap[$pid];
+                        $lastDirectiveStarters[] = $p['name'] . ' (' . $p['position'] . ' · ' . $p['ovr'] . ')';
+                    }
+                }
+                for ($i=1; $i<=3; $i++) {
+                    $pid = (int)($lastDirective['bench_'.$i.'_id'] ?? 0);
+                    if ($pid && isset($pmap[$pid])) {
+                        $p = $pmap[$pid];
+                        $lastDirectiveBench[] = $p['name'] . ' (' . $p['position'] . ' · ' . $p['ovr'] . ')';
+                    }
+                }
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Tabelas podem não existir ainda
+}
+
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
@@ -899,10 +947,10 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- Draft e Trades (lado a lado) -->
+        <!-- Draft, Trades e Minhas Diretrizes (3 na mesma linha) -->
         <div class="row g-4 mb-4">
             <!-- Draft Ativo -->
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
@@ -938,7 +986,7 @@ try {
             </div>
 
             <!-- Última Trade -->
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
@@ -1079,6 +1127,53 @@ try {
                     </div>
                 </div>
             </div>
+
+            <?php if (!$activeDirectiveDeadline && $lastDirective): ?>
+            <!-- Minhas Diretrizes -->
+            <div class="col-md-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-clipboard-check me-2 text-orange"></i>Minhas Diretrizes
+                        </h4>
+                        <a href="/diretrizes.php" class="btn btn-sm btn-outline-orange">Ver/Editar</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2 text-light-gray small">
+                            <?php if (!empty($lastDirective['submitted_at'])): ?>
+                                <i class="bi bi-clock me-1"></i>
+                                Último envio: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($lastDirective['submitted_at']))) ?>
+                            <?php endif; ?>
+                            <?php if (!empty($lastDirective['description'])): ?>
+                                <div><?= htmlspecialchars($lastDirective['description']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <small class="text-orange fw-bold d-block mb-1">Quinteto titular</small>
+                                <?php if (count($lastDirectiveStarters) > 0): ?>
+                                    <?php foreach ($lastDirectiveStarters as $s): ?>
+                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($s) ?></div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <small class="text-light-gray">-</small>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <small class="text-orange fw-bold d-block mb-1">Banco</small>
+                                <?php if (count($lastDirectiveBench) > 0): ?>
+                                    <?php foreach ($lastDirectiveBench as $b): ?>
+                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($b) ?></div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <small class="text-light-gray">-</small>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Informações da Liga, Top 5 Ranking e Últimos Vencedores (3 cards) -->
