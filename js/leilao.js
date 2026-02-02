@@ -480,7 +480,11 @@ async function carregarLeiloesAtivos() {
         const data = await response.json();
         
         if (data.success && data.leiloes && data.leiloes.length > 0) {
-            let html = '<div class="row g-3">';
+            let banner = '';
+            if (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) {
+                banner = '<div class="alert alert-warning py-2 mb-2"><strong>Período fechado:</strong> propostas temporariamente desativadas nesta liga.</div>';
+            }
+            let html = banner + '<div class="row g-3">';
             
             data.leiloes.forEach(leilao => {
                 const isMyTeam = leilao.team_id == userTeamId;
@@ -502,11 +506,12 @@ async function carregarLeiloesAtivos() {
                             ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}">20:00</span></p>` : ''}
                             <hr>
                             <p class="mb-2"><i class="bi bi-chat-dots"></i> Propostas: <span class="badge bg-info">${leilao.total_propostas || 0}</span></p>
-                            ${!isMyTeam && userTeamId ? `
-                            <button class="btn btn-primary btn-sm w-100 auction-propose-btn" onclick="abrirModalProposta(${leilao.id}, '${leilao.player_name}')">
-                                <i class="bi bi-send"></i> Enviar Proposta
-                            </button>
-                            ` : ''}
+                            ${!isMyTeam && userTeamId ? (() => {
+                                const disabled = (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) ? 'disabled' : '';
+                                const label = (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) ? 'Período fechado' : 'Enviar Proposta';
+                                const onclick = (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) ? '' : `onclick=\"abrirModalProposta(${leilao.id}, '${leilao.player_name.replace(/'/g, "\\'")}')\"`;
+                                return `<button class=\"btn btn-primary btn-sm w-100 auction-propose-btn\" ${disabled} ${onclick}><i class=\"bi bi-send\"></i> ${label}</button>`;
+                            })() : ''}
                         </div>
                     </div>
                 </div>`;
@@ -639,6 +644,10 @@ async function carregarPropostasRecebidas() {
 // ========== MODAL PROPOSTA ==========
 
 async function abrirModalProposta(leilaoId, playerName) {
+    if (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) {
+        alert('O período de propostas está fechado nesta liga.');
+        return;
+    }
     document.getElementById('leilaoIdProposta').value = leilaoId;
     document.getElementById('jogadorLeilaoNome').textContent = playerName;
     document.getElementById('notasProposta').value = '';
@@ -713,6 +722,10 @@ async function abrirModalProposta(leilaoId, playerName) {
 }
 
 document.getElementById('btnEnviarProposta')?.addEventListener('click', async function() {
+    if (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) {
+        alert('O período de propostas está fechado nesta liga.');
+        return;
+    }
     const leilaoId = document.getElementById('leilaoIdProposta').value;
     const notas = document.getElementById('notasProposta').value;
     const checkboxes = document.querySelectorAll('.player-checkbox:checked');

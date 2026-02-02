@@ -690,7 +690,12 @@ document.getElementById('faStatusToggle')?.addEventListener('change', async (e) 
         updateFaStatusUI(true);
         // refletir na lista
         // Atualiza status da lista também (liga ativa)
-        refreshFaStatus(getActiveLeague(), false).then(() => carregarFreeAgents());
+        refreshFaStatus(getActiveLeague(), false).then(() => {
+            carregarFreeAgents();
+            if (typeof carregarLeiloesAtivos === 'function') {
+                carregarLeiloesAtivos();
+            }
+        });
     } catch (err) {
         alert('Erro ao atualizar status');
         e.target.checked = !enabled;
