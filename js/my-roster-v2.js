@@ -227,6 +227,11 @@ function renderPlayers(players) {
   document.getElementById('players-status').style.display = 'none';
   grid.style.display = '';
   updateRosterStats();
+  try {
+    renderPlayersTable(sorted);
+  } catch (e) {
+    console.warn('Falha ao renderizar tabela:', e);
+  }
 }
 
 function updateRosterStats() {
