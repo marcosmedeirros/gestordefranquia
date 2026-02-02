@@ -502,10 +502,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                     <div class="mb-3">
                         <label for="offerAmount" class="form-label">Moedas do lance</label>
-                        <input type="number" id="offerAmount" class="form-control" min="1" value="1">
+                        <input type="number" id="offerAmount" class="form-control" min="0" value="0">
                     </div>
                     <div class="alert alert-warning">
-                        Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong>
+                        Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong><br>
+                        <small class="text-dark">Dica: informe <strong>0 moedas</strong> para <strong>cancelar</strong> sua proposta.</small>
                     </div>
                 </div>
                 <div class="modal-footer">

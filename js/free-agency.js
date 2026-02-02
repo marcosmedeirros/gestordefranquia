@@ -536,7 +536,7 @@ function renderFreeAgents() {
         if (player.my_offer_amount) {
             html += `<div class="badge bg-info mb-2 w-100">Seu lance: ${player.my_offer_amount} moedas</div>`;
         }
-        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
+        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount ?? 0})">
             <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Proposta'}
         </button>`;
         html += '</div></div></div>';
@@ -551,8 +551,8 @@ function renderFreeAgents() {
 function abrirModalOferta(playerId, playerName, currentAmount = 1) {
     document.getElementById('freeAgentIdOffer').value = playerId;
     document.getElementById('freeAgentNomeOffer').textContent = playerName;
-    document.getElementById('offerAmount').value = currentAmount;
-    document.getElementById('offerAmount').min = 1;
+    document.getElementById('offerAmount').value = currentAmount ?? 0;
+    document.getElementById('offerAmount').min = 0;
 
     const modal = new bootstrap.Modal(document.getElementById('modalOffer'));
     modal.show();
@@ -569,15 +569,19 @@ function handleFreeAgencyOffer(playerId, playerName, currentAmount = 1) {
 document.getElementById('btnConfirmOffer')?.addEventListener('click', async () => {
     const playerId = document.getElementById('freeAgentIdOffer').value;
     const amount = parseInt(document.getElementById('offerAmount').value, 10);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(amount) || amount < 0) {
         alert('Informe uma quantidade valida de moedas.');
         return;
     }
 
-    if (amount > userMoedas) {
-        alert('Voce nao tem moedas suficientes.');
-        return;
+    // Cancelamento com 0 moedas
+    if (amount === 0) {
+        if (!confirm('Cancelar sua proposta para este jogador?')) return;
+    } else {
+        if (amount > userMoedas) {
+            alert('Voce nao tem moedas suficientes.');
+            return;
+        }
     }
 
     try {

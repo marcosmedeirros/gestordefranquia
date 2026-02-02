@@ -648,8 +648,20 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $player_id = (int)($body['free_agent_id'] ?? 0);
     $amount = (int)($body['amount'] ?? 0);
 
-    if (!$player_id || $amount <= 0) {
+    if (!$player_id) {
         jsonError('Dados invalidos');
+    }
+
+    // Cancelar proposta quando amount = 0
+    if ($amount === 0) {
+        $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ? AND status = "pending"');
+        $stmt->execute([$player_id, $teamId]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($existing) {
+            $del = $pdo->prepare('DELETE FROM free_agent_offers WHERE id = ?');
+            $del->execute([$existing['id']]);
+        }
+        jsonSuccess(['canceled' => true]);
     }
 
     $stmt = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
