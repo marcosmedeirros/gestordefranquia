@@ -16,18 +16,13 @@
   <meta name="msapplication-tap-highlight" content="no">
   
   <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json?v=2">
+  <link rel="manifest" href="/manifest.json?v=3">
   
   <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="/img/favicon.ico?v=2">
-  <link rel="icon" type="image/png" sizes="32x32" href="/img/icon-32x32.png?v=2">
-  <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16x16.png?v=2">
+  <link rel="icon" type="image/png" href="/img/fba-logo.png?v=3">
   
   <!-- Apple Touch Icons -->
-  <link rel="apple-touch-icon" href="/img/icon-192x192.png?v=2">
-  <link rel="apple-touch-icon" sizes="152x152" href="/img/icon-152x152.png?v=2">
-  <link rel="apple-touch-icon" sizes="180x180" href="/img/icon-180x180.png?v=2">
-  <link rel="apple-touch-icon" sizes="167x167" href="/img/icon-167x167.png?v=2">
+  <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
   
   <!-- Apple Splash Screens -->
   <link rel="apple-touch-startup-image" href="/img/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px)">

@@ -31,10 +31,10 @@ $userLeague = $team['league'];
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FBA Manager">
-  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
   
-  <!-- Favicon: usar PNG existente para evitar 404 -->
-  <link rel="icon" type="image/png" href="/img/default-team.png">
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/img/fba-logo.png?v=3">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />

@@ -80,7 +80,7 @@ function showInstallButton() {
   banner.innerHTML = `
     <div class="pwa-banner">
       <div class="pwa-banner-content">
-        <img src="/img/icon-72x72.png" alt="FBA" class="pwa-banner-icon" onerror="this.style.display='none'">
+        <img src="/img/fba-logo.png?v=3" alt="FBA" class="pwa-banner-icon" onerror="this.style.display='none'">
         <div class="pwa-banner-text">
           <strong>Instalar FBA Manager</strong>
           <span>Adicione à tela inicial para acesso rápido</span>

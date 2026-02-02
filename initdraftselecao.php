@@ -489,7 +489,8 @@ if ($user && isset($user['id'])) {
                     const chips = emojiList.map(e => {
                         const cnt = countsMap[e] || 0;
                         const activeClass = mineEmoji === e ? 'reaction-chip active' : 'reaction-chip';
-                        return `<span class="${activeClass}" onclick="toggleReaction(${pick.id}, '${e}')">${e} <span class="reaction-count">${cnt}</span></span>`;
+                        const enc = encodeURIComponent(e);
+                        return `<span class="${activeClass}" onclick="toggleReaction(${pick.id}, '${enc}')">${e} <span class="reaction-count">${cnt}</span></span>`;
                     }).join(' ');
 
                     const pickSummary = picked ? `
@@ -723,13 +724,14 @@ if ($user && isset($user['id'])) {
 
         async function toggleReaction(pickId, emoji) {
             try {
+                const emo = decodeURIComponent(emoji);
                 // Descobre reação atual do usuário nessa pick
                 const pick = state.order.find(p => p.id === pickId);
                 const mineEmoji = (pick && Array.isArray(pick.reactions)) ? (pick.reactions.find(r => r.mine)?.emoji || null) : null;
-                if (mineEmoji === emoji) {
+                if (mineEmoji === emo) {
                     await removeReaction(pickId);
                 } else {
-                    await reactPick(pickId, emoji);
+                    await reactPick(pickId, emo);
                 }
             } catch (error) {
                 alert(error.message);
