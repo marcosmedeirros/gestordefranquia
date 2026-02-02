@@ -279,7 +279,7 @@ if ($user && isset($user['id'])) {
                         </button>
                         <?php if ($isAdmin): ?>
                         <button class="btn btn-danger btn-sm" type="button" id="openRoundNowButton" onclick="adminOpenNextRoundNow()">
-                            <i class="bi bi-lightning-charge me-1"></i>Iniciar rodada agora
+                            <i class="bi bi-lightning-charge me-1"></i>Iniciar próxima rodada agora
                         </button>
                         <?php endif; ?>
                     </div>

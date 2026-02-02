@@ -278,6 +278,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
                         </div>
                     </div>
+
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-person-x text-orange me-2"></i>Dispensados Recentes</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="faWaiversContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <?php if ($is_admin): ?>

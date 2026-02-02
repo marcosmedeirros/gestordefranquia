@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Buscar status da liga ativa (lista) e carregar listas
     refreshFaStatus(getActiveLeague(), false).then(() => carregarFreeAgents());
     carregarHistoricoFA();
+    carregarDispensados();
 
     document.getElementById('faSearchInput')?.addEventListener('input', () => {
         renderFreeAgents();
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyTab) {
         historyTab.addEventListener('shown.bs.tab', () => {
             carregarHistoricoFA();
+            carregarDispensados();
         });
     }
 });
@@ -64,6 +66,47 @@ function getActiveLeague() {
     if (userLeague) return userLeague;
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
+}
+
+async function carregarDispensados() {
+    const container = document.getElementById('faWaiversContainer');
+    if (!container) return;
+
+    const league = getActiveLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Nenhuma liga definida.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=waivers&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+        if (!data.success) {
+            container.innerHTML = '<p class="text-danger">Erro ao carregar dispensas.</p>';
+            return;
+        }
+        const waivers = data.waivers || [];
+        if (!waivers.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhum jogador dispensado recentemente.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>Time que dispensou</th><th>Data</th></tr></thead><tbody>';
+        waivers.forEach(item => {
+            const teamName = item.original_team_name || '-';
+            const waived = item.waived_at ? new Date(item.waived_at).toLocaleString('pt-BR') : '-';
+            html += `<tr>
+                <td><strong class="text-orange">${item.name}</strong></td>
+                <td>${teamName}</td>
+                <td>${waived}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar dispensas.</p>';
+    }
 }
 
 let freeAgentsCache = [];
