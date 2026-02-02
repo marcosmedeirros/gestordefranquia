@@ -52,6 +52,12 @@ if ($teamId) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
     .nav-tabs {
@@ -497,5 +503,6 @@ if ($teamId) {
   <script src="/js/trade-list.js"></script>
   <script src="/js/rumors.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/theme.js"></script>
 </body>
 </html>

@@ -30,6 +30,13 @@ $team = $stmtTeam->fetch() ?: null;
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script>
+    // Aplica o tema ANTES da página carregar (evita flash)
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -266,11 +273,19 @@ $team = $stmtTeam->fetch() ?: null;
                 </div>
             </div>
         </div>
+        <div class="theme-switch-container">
+            <span class="theme-switch-label">Tema</span>
+            <label class="theme-switch">
+                <input type="checkbox" id="themeSwitch">
+                <span class="switch-slider"></span>
+            </label>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script src="/js/settings.js"></script>
     <script src="/js/pwa.js"></script>
+    <script src="/js/theme.js"></script>
 </body>
 </html>

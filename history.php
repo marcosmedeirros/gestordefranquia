@@ -37,6 +37,12 @@ $userLeague = $team['league'];
   <link rel="icon" type="image/png" href="/img/default-team.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -95,5 +101,6 @@ $userLeague = $team['league'];
 <script src="/js/sidebar.js"></script>
 <script src="/js/history.js" defer></script>
 <script src="/js/pwa.js"></script>
+<script src="/js/theme.js"></script>
 </body>
 </html>

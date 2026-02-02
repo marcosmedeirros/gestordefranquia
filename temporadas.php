@@ -40,6 +40,12 @@ if (!$team) {
   <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -435,7 +441,7 @@ if (!$team) {
             </div>
             <form id="coinsForm">
               <div class="table-responsive">
-                <table class="table table-dark table-hover mb-0">
+                <table class="table table-hover mb-0" data-theme-table>
                   <thead>
                     <tr>
                       <th>Time</th>
@@ -715,7 +721,7 @@ if (!$team) {
                 </div>
               ` : `
                 <div class="table-responsive">
-                  <table class="table table-dark table-hover mb-0">
+                  <table class="table table-hover mb-0" data-theme-table>
                     <thead>
                       <tr>
                         <th class="d-none d-md-table-cell" style="width: 50px;">#</th>
@@ -776,7 +782,7 @@ if (!$team) {
               </div>
               <div class="card-body p-0">
                 <div class="table-responsive">
-                  <table class="table table-dark table-hover mb-0">
+                  <table class="table table-hover mb-0" data-theme-table>
                     <thead>
                       <tr>
                         <th>Pick</th>
@@ -1991,7 +1997,7 @@ Stephen Curry,PG,35,95</code>
 
               <form id="pointsForm" onsubmit="saveSeasonPoints(event, ${seasonId}, '${league}')">
                 <div class="table-responsive">
-                  <table class="table table-dark table-hover">
+                  <table class="table table-hover data-theme-table">
                     <thead>
                       <tr>
                         <th>Time</th>
@@ -2399,7 +2405,7 @@ Stephen Curry,PG,35,95</code>
             </div>
 
             <div class="table-responsive">
-              <table class="table table-dark table-hover" id="adminPickTable">
+              <table class="table table-hover mb-0" data-theme-table id="adminPickTable">
                 <thead>
                   <tr>
                     <th>Jogador</th>
@@ -2674,7 +2680,7 @@ Stephen Curry,PG,35,95</code>
           html += `
             <h6 class="text-orange mt-3 mb-2"><i class="bi bi-trophy-fill me-2"></i>Rodada ${round}</h6>
             <div class="table-responsive">
-              <table class="table table-dark table-sm table-hover mb-0">
+              <table class="table table-sm table-hover mb-0" data-theme-table>
                 <thead>
                   <tr>
                     <th style="width: 60px;">Pick</th>
@@ -2790,5 +2796,6 @@ Stephen Curry,PG,35,95</code>
       loadInitDraftPanel({ id: seasonId });
     }
   </script>
+  <script src="/js/theme.js"></script>
 </body>
 </html>

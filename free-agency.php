@@ -67,6 +67,12 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
+    <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
     <link rel="stylesheet" href="css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
 </head>
@@ -86,7 +92,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <div class="mb-4">
                 <div class="d-flex flex-column flex-md-row flex-wrap justify-content-between align-items-start align-items-md-center gap-2 gap-md-3">
                     <h1 class="text-white fw-bold mb-0" style="font-size: 1.5rem;">
-                        <i class="bi bi-coin text-orange me-2"></i>Free Agency
+                        <i class="bi bi-coin text-orange me-2"></i>Free Agency / Leilao
                     </h1>
                     <div class="d-flex flex-wrap gap-2">
                         <?php if ($team_league): ?>
@@ -514,5 +520,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     <script src="js/sidebar.js"></script>
     <script src="js/free-agency.js"></script>
     <script src="js/leilao.js"></script>
+    <script src="/js/theme.js"></script>
 </body>
 </html>

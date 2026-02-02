@@ -435,6 +435,12 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || '';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
     <link rel="stylesheet" href="/css/styles.css" />
     <style>
         .hover-lift {
@@ -661,7 +667,7 @@ try {
                     <i class="bi bi-star-fill me-1"></i>
                     <?= (int)($team['ranking_points'] ?? 0) ?> pts
                 </span>
-                <span class="badge bg-warning text-dark" style="font-size: 1rem; padding: 0.6rem 1rem;">
+                <span class="badge bg-warning text-" style="font-size: 1rem; padding: 0.6rem 1rem;">
                     <i class="bi bi-coin me-1"></i>
                     <?= (int)($team['moedas'] ?? 0) ?> moedas
                 </span>
@@ -700,7 +706,7 @@ try {
                 <div class="stat-card">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <div class="stat-label">CAP Top8</div>
+                            <div class="stat-label">CAP Atual</div>
                             <div class="stat-value" style="color: <?= $capColor ?>;"><?= $teamCap ?></div>
                             <small class="text-light-gray">Limite: <?= $capMin ?>-<?= $capMax ?></small>
                         </div>
@@ -743,7 +749,7 @@ try {
         <!-- Ações Rápidas -->
         <div class="row g-4 mb-4">
             <div class="col-12">
-                <div class="card bg-dark-panel border-orange">
+                <div class="card border-orange">
                     <div class="card-header bg-transparent border-orange">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-lightning-fill me-2 text-orange"></i>Ações Rápidas
@@ -852,7 +858,7 @@ try {
                         </a>
                         <?php endif; ?>
                         <?php if (($user['user_type'] ?? '') === 'admin' && $activeInitDraftSession): ?>
-                        <button class="btn btn-orange text-dark fw-bold" type="button" onclick="openAdminInitDraftModal()">
+                        <button class="btn btn-orange text- fw-bold" type="button" onclick="openAdminInitDraftModal()">
                             <i class="bi bi-hand-index-thumb me-2"></i>Escolher como admin
                         </button>
                         <?php endif; ?>
@@ -866,7 +872,7 @@ try {
         <div class="row g-4 mb-4">
             <!-- Draft Ativo -->
             <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
+                <div class="card border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-trophy me-2 text-orange"></i>Draft
@@ -902,7 +908,7 @@ try {
 
             <!-- Última Trade -->
             <div class="col-md-6">
-                <div class="card bg-dark-panel border-orange h-100">
+                <div class="card border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades
@@ -954,7 +960,7 @@ try {
                                     <div class="row g-2">
                                         <!-- Do Time 1 -->
                                         <div class="col-6">
-                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
+                                            <div class="p-2 bg- rounded" style="min-height: 120px;">
                                                 <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
                                                 <?php if (count($lastTradeFromPlayers) > 0): ?>
                                                     <?php foreach ($lastTradeFromPlayers as $player): ?>
@@ -981,7 +987,7 @@ try {
                                         
                                         <!-- Do Time 2 -->
                                         <div class="col-6">
-                                            <div class="p-2 bg-dark rounded" style="min-height: 120px;">
+                                            <div class="p-2 bg- rounded" style="min-height: 120px;">
                                                 <small class="text-orange fw-bold d-block mb-2">Enviou:</small>
                                                 <?php if (count($lastTradeToPlayers) > 0): ?>
                                                     <?php foreach ($lastTradeToPlayers as $player): ?>
@@ -1048,7 +1054,7 @@ try {
         <div class="row g-4 mb-4">
             <!-- Card 1: Informações da Liga -->
             <div class="col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100">
+                <div class="card border-orange h-100">
                     <div class="card-body text-center py-4">
                         <div class="mb-3">
                             <img src="/img/logo-<?= strtolower($user['league']) ?>.png" 
@@ -1060,27 +1066,27 @@ try {
                         
                         <div class="row g-2">
                             <div class="col-6">
-                                <div class="p-2 bg-dark rounded">
+                                <div class="p-2 bg- rounded">
                                     <small class="text-light-gray d-block mb-1">Ranking</small>
                                     <strong class="text-white"><?= (int)($team['ranking_points'] ?? 0) ?></strong>
                                 </div>
                             </div>
                             <?php if ($currentSeason): ?>
                             <div class="col-6">
-                                <div class="p-2 bg-dark rounded">
+                                <div class="p-2 bg- rounded">
                                     <small class="text-light-gray d-block mb-1">Temporada</small>
                                     <strong class="text-white"><?= (int)$seasonDisplayYear ?></strong>
                                 </div>
                             </div>
                             <div class="col-6">
-                                <div class="p-2 bg-dark rounded">
+                                <div class="p-2 bg- rounded">
                                     <small class="text-light-gray d-block mb-1">Sprint</small>
                                     <strong class="text-white"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></strong>
                                 </div>
                             </div>
                             <?php endif; ?>
                             <div class="col-<?= $currentSeason ? '6' : '12' ?>">
-                                <div class="p-2 bg-dark rounded">
+                                <div class="p-2 bg- rounded">
                                     <small class="text-light-gray d-block mb-1">CAP</small>
                                     <strong class="text-white small"><?= $capMin ?>-<?= $capMax ?></strong>
                                 </div>
@@ -1101,7 +1107,7 @@ try {
 
             <!-- Card 2: Top 5 Ranking -->
             <div class="col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100">
+                <div class="card border-orange h-100">
                     <div class="card-header bg-transparent border-orange">
                         <h5 class="mb-0 text-white">
                             <i class="bi bi-trophy-fill me-2 text-orange"></i>Top 5 Ranking
@@ -1111,7 +1117,7 @@ try {
                         <?php if (count($topRanking) > 0): ?>
                             <div class="ranking-list">
                                 <?php foreach ($topRanking as $index => $rankTeam): ?>
-                                    <div class="ranking-item d-flex align-items-center mb-3 p-2 rounded <?= $rankTeam['id'] == $team['id'] ? 'bg-dark border border-orange' : 'bg-dark' ?>">
+                                    <div class="ranking-item d-flex align-items-center mb-3 p-2 rounded <?= $rankTeam['id'] == $team['id'] ? 'border border-orange' : '' ?>">
                                         <div class="rank-number me-3">
                                             <span class="badge <?= $index == 0 ? 'bg-warning' : ($index == 1 ? 'bg-secondary' : ($index == 2 ? 'bg-danger' : 'bg-dark-gray')) ?> fw-bold">
                                                 <?= $index + 1 ?>º
@@ -1144,7 +1150,7 @@ try {
 
             <!-- Card 3: Últimos Vencedores -->
             <div class="col-lg-4">
-                <div class="card bg-dark-panel border-orange h-100">
+                <div class="card border-orange h-100">
                     <div class="card-header bg-transparent border-orange">
                         <h5 class="mb-0 text-white">
                             <i class="bi bi-award-fill me-2 text-orange"></i>Último Sprint
@@ -1165,7 +1171,7 @@ try {
                             
                             <!-- Campeão -->
                             <?php if ($lastChampion): ?>
-                            <div class="winner-item mb-3 p-2 bg-dark rounded border border-warning">
+                            <div class="winner-item mb-3 p-2 bg- rounded border border-warning">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-trophy-fill text-warning fs-4 me-2"></i>
                                     <img src="<?= htmlspecialchars($lastChampion['photo_url'] ?? '/img/default-team.png') ?>" 
@@ -1183,7 +1189,7 @@ try {
                             
                             <!-- Vice -->
                             <?php if ($lastRunnerUp): ?>
-                            <div class="winner-item mb-3 p-2 bg-dark rounded">
+                            <div class="winner-item mb-3 p-2 bg- rounded">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-award text-secondary fs-4 me-2"></i>
                                     <img src="<?= htmlspecialchars($lastRunnerUp['photo_url'] ?? '/img/default-team.png') ?>" 
@@ -1201,7 +1207,7 @@ try {
                             
                             <!-- MVP -->
                             <?php if ($lastMVP): ?>
-                            <div class="winner-item p-2 bg-dark rounded border border-orange">
+                            <div class="winner-item p-2 bg- rounded border border-orange">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-star-fill text-orange fs-4 me-2"></i>
                                     <div>
@@ -1237,7 +1243,7 @@ try {
         <!-- Quinteto Titular -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card bg-dark-panel border-orange">
+                <div class="card border-orange">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-trophy me-2 text-orange"></i>Quinteto Titular
@@ -1251,7 +1257,7 @@ try {
                             <div class="row g-3 justify-content-center">
                                 <?php foreach ($titulares as $player): ?>
                                     <div class="col-md-2">
-                                        <div class="card bg-dark text-white h-100">
+                                        <div class="card bg- text-white h-100">
                                             <div class="card-body text-center p-3">
                                                 <span class="badge bg-orange mb-2"><?= htmlspecialchars($player['position']) ?></span>
                                                 <h6 class="mb-1"><?= htmlspecialchars($player['name']) ?></h6>
@@ -1281,7 +1287,7 @@ try {
     <?php if (($user['user_type'] ?? '') === 'admin'): ?>
     <div class="modal fade" id="adminInitDraftModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content bg-dark-panel border-orange">
+            <div class="modal-content border-orange">
                 <div class="modal-header border-orange">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-hand-index-thumb me-2 text-orange"></i>Escolher jogador (Admin)
@@ -1291,7 +1297,7 @@ try {
                 <div class="modal-body">
                     <p class="text-light-gray small">Use esta opção apenas quando o time responsável não estiver disponível. As picks são registradas imediatamente.</p>
                     <div class="table-responsive">
-                        <table class="table table-dark table-sm align-middle mb-0">
+                        <table class="table table-hover table-sm align-middle mb-0" data-theme-table>
                             <thead>
                                 <tr>
                                     <th>Jogador</th>
@@ -1526,5 +1532,6 @@ try {
             }
         }
     </script>
+    <script src="/js/theme.js"></script>
 </body>
 </html>

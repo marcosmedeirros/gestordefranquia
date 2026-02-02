@@ -49,6 +49,12 @@ $picks = $stmtPicks->fetchAll();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -181,7 +187,7 @@ $picks = $stmtPicks->fetchAll();
 
         <!-- Lista de picks -->
         <div class="table-responsive">
-            <table class="table table-dark table-hover mb-0">
+            <table class="table table-hover mb-0" data-theme-table>
                 <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                     <tr>
                         <th class="text-white fw-bold">Ano</th>
@@ -239,6 +245,7 @@ $picks = $stmtPicks->fetchAll();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script src="/js/pwa.js"></script>
+    <script src="/js/theme.js"></script>
 
     <!-- Sem JS de adição/edição/exclusão de picks -->
 </body>

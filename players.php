@@ -23,6 +23,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
     <link rel="stylesheet" href="/css/styles.css">
     <style>
         .btn-trade-action {
@@ -143,7 +149,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="spinner-border text-orange" role="status"></div>
                     </div>
                     <div class="table-responsive" id="playersTableWrap" style="display:none;">
-                        <table class="table table-dark table-hover mb-0">
+                        <table class="table table-hover mb-0" data-theme-table>
                             <thead style="background: var(--fba-brand); color: #000;">
                                 <tr>
                                     <th>Jogador</th>
@@ -309,5 +315,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         });
     </script>
     <script src="/js/sidebar.js"></script>
+    <script src="/js/theme.js"></script>
 </body>
 </html>

@@ -31,6 +31,12 @@ $team = $stmtTeam->fetch();
   <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <script>
+    (function() {
+        const tema = localStorage.getItem('tema') || 'dark';
+        document.documentElement.setAttribute('data-theme', tema);
+    })();
+    </script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -111,7 +117,7 @@ $team = $stmtTeam->fetch();
               <div class="spinner-border text-orange" role="status"></div>
             </div>
             <div class="table-responsive" id="editRankingTableWrap" style="display:none;">
-              <table class="table table-dark table-hover mb-0">
+              <table class="table table-hover mb-0" data-theme-table>
                 <thead>
                   <tr>
                     <th>Time</th>
@@ -181,10 +187,10 @@ $team = $stmtTeam->fetch();
         }
 
         container.innerHTML = `
-          <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+          <div class="card border-orange" style="border-radius: 15px;">
             <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-dark table-hover mb-0">
+                <table class="table table-hover mb-0" data-theme-table>
                   <thead>
                     <tr>
                       <th style="border-radius: 15px 0 0 0; width: 50px;">#</th>
@@ -317,5 +323,6 @@ $team = $stmtTeam->fetch();
     <?php endif; ?>
   </script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/theme.js"></script>
 </body>
 </html>
