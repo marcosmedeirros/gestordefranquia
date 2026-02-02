@@ -190,6 +190,11 @@ if ($user && isset($user['id'])) {
             padding: 0.35rem 0.5rem;
         }
 
+        /* Ordenação do pool */
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable .sort-indicator { margin-left: 6px; color: var(--draft-muted); font-size: 0.85em; }
+        th.sortable.active .sort-indicator { color: #ffffff; }
+
         .accent-red {
             color: #FC062A !important;
         }
@@ -301,10 +306,10 @@ if ($user && isset($user['id'])) {
                         <span class="text-muted" id="poolMeta"></span>
                     </div>
                     <div class="row g-2 align-items-center mb-3">
-                        <div class="col-md-7">
+                        <div class="col-md-5">
                             <input type="text" id="poolSearch" class="form-control" placeholder="Buscar jogador" />
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-md-4">
                             <select id="poolPositionFilter" class="form-select">
                                 <option value="">Todas as posições</option>
                                 <option value="PG">PG</option>
@@ -314,16 +319,22 @@ if ($user && isset($user['id'])) {
                                 <option value="C">C</option>
                             </select>
                         </div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="poolOnlyAvailable">
+                                <label class="form-check-label" for="poolOnlyAvailable">Apenas disponíveis</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-dark table-hover align-middle mb-0" id="poolTableEl">
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th class="sortable" data-sort="name">Jogador</th>
+                                    <th class="sortable" data-sort="name">Jogador <span class="sort-indicator"></span></th>
                                     <th>Posição</th>
-                                    <th class="sortable" data-sort="ovr">OVR</th>
-                                    <th class="sortable" data-sort="age">Idade</th>
+                                    <th class="sortable" data-sort="ovr">OVR <span class="sort-indicator"></span></th>
+                                    <th class="sortable" data-sort="age">Idade <span class="sort-indicator"></span></th>
                                     <th class="text-end">Ação</th>
                                 </tr>
                             </thead>
@@ -381,6 +392,7 @@ if ($user && isset($user['id'])) {
             lastPickId: null,
             poolSearch: '',
             poolPosition: '',
+            poolOnlyAvailable: false,
             poolSortField: 'ovr',
             poolSortAsc: false,
             poolPage: 1,
@@ -533,7 +545,8 @@ if ($user && isset($user['id'])) {
             const filtered = pool.filter((player) => {
                 const matchesSearch = !search || (player.name || '').toLowerCase().includes(search);
                 const matchesPosition = !positionFilter || player.position === positionFilter;
-                return matchesSearch && matchesPosition;
+                const matchesAvailability = !uiState.poolOnlyAvailable || (player.draft_status !== 'drafted');
+                return matchesSearch && matchesPosition && matchesAvailability;
             });
 
             // Ordenação (clique no cabeçalho): default OVR desc
@@ -565,6 +578,7 @@ if ($user && isset($user['id'])) {
             if (!pageItems.length) {
                 elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
                 elements.poolPagination.innerHTML = '';
+                updatePoolSortIndicators();
                 return;
             }
 
@@ -595,6 +609,7 @@ if ($user && isset($user['id'])) {
                     <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima</button>
                 </div>
             `;
+            updatePoolSortIndicators();
         }
 
         function changePoolPage(page) {
@@ -837,6 +852,29 @@ if ($user && isset($user['id'])) {
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
             renderPool(currentPick);
         });
+
+        document.getElementById('poolOnlyAvailable')?.addEventListener('change', (e) => {
+            uiState.poolOnlyAvailable = !!e.target.checked;
+            uiState.poolPage = 1;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+            renderPool(currentPick);
+        });
+
+        function updatePoolSortIndicators() {
+            const thead = document.querySelector('#poolTableEl thead');
+            if (!thead) return;
+            thead.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('active');
+                const span = th.querySelector('.sort-indicator');
+                if (span) span.textContent = '';
+                const field = th.dataset.sort;
+                if (field === uiState.poolSortField) {
+                    th.classList.add('active');
+                    const indicator = th.querySelector('.sort-indicator');
+                    if (indicator) indicator.textContent = uiState.poolSortAsc ? '▲' : '▼';
+                }
+            });
+        }
 
         elements.toggleSoundButton?.addEventListener('click', toggleSound);
         elements.toggleTvButton?.addEventListener('click', toggleTvMode);
