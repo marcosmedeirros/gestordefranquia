@@ -397,10 +397,10 @@ if ($method === 'GET') {
 
           // Buscar ordem
                 $stmtOrder = $pdo->prepare('
-                    SELECT io.*, 
-                           t.city as team_city, t.name as team_name, t.photo_url as team_photo,
-                           u.name as team_owner,
-                           dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                          SELECT io.*, 
+                              t.city as team_city, t.name as team_name, t.photo_url as team_photo,
+                              u.name as team_owner,
+                              dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr, dp.age as player_age
                     FROM initdraft_order io
                     INNER JOIN teams t ON io.team_id = t.id
                     LEFT JOIN users u ON t.user_id = u.id

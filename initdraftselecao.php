@@ -404,8 +404,8 @@ if ($user && isset($user['id'])) {
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <div class="stat-card">
-                        <div class="stat-label accent-label">Próximo Time</div>
-                        <div>${nextPick ? teamLabel(nextPick) : '-'}</div>
+                        <div class="stat-label accent-label">Time Atual</div>
+                        <div>${currentPick ? teamLabel(currentPick) : '-'}</div>
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
@@ -546,7 +546,11 @@ if ($user && isset($user['id'])) {
             elements.rosterGrid.innerHTML = teams
                 .map((group) => {
                     const roster = group.players
-                        .map((pick) => `<li>${pick.player_name} <span class="accent-red">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'})</span></li>`)
+                        .map((pick) => {
+                            const ovr = (pick.player_ovr ?? '-')
+                            const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}y` : '-';
+                            return `<li>${pick.player_name} <span class="accent-red">(${pick.player_position ?? ''} • ${ovr}/${age})</span></li>`;
+                        })
                         .join('');
                     return `
                         <div class="col-md-6 col-xl-4">
