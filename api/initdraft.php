@@ -4,6 +4,9 @@
  * Separado do draft de temporada. Controlado por token de acesso.
  */
 
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 
@@ -30,6 +33,65 @@ function ensureAdminOrToken($session, $token) {
     global $isAdmin;
     if ($isAdmin) return true;
     return $session && hash_equals($session['access_token'], (string)$token);
+}
+
+function ensureDailyScheduleColumns(PDO $pdo): void {
+    $table = 'initdraft_sessions';
+    $columns = [
+        'daily_schedule_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'daily_schedule_start_date' => 'DATE NULL',
+        'daily_clock_start_time' => "TIME NOT NULL DEFAULT '19:30:00'",
+        'daily_pick_minutes' => 'INT NOT NULL DEFAULT 10',
+        'daily_last_opened_date' => 'DATE NULL',
+    ];
+    foreach ($columns as $name => $definition) {
+        $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
+        $stmt->execute([$name]);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$name} {$definition}");
+        }
+    }
+}
+
+function ensureDeadlineColumn(PDO $pdo): void {
+    $table = 'initdraft_order';
+    $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
+    $stmt->execute(['deadline_at']);
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE {$table} ADD COLUMN deadline_at DATETIME NULL");
+    }
+}
+
+function ensureInitDraftReactionsTable(PDO $pdo): void {
+    // Cria a tabela de reações se não existir
+    $stmt = $pdo->query("SHOW TABLES LIKE 'initdraft_reactions'");
+    if (!$stmt->fetch()) {
+        $pdo->exec(
+            "CREATE TABLE initdraft_reactions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                initdraft_order_id INT NOT NULL,
+                user_id INT NOT NULL,
+                emoji VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL,
+                UNIQUE KEY uniq_pick_user (initdraft_order_id, user_id),
+                INDEX idx_pick (initdraft_order_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+}
+
+function ensureEmojiBinaryCollation(PDO $pdo): void {
+    // Garantir que a coluna emoji use collation binária para diferenciar cada emoji
+    try {
+        $stmt = $pdo->query("SHOW FULL COLUMNS FROM initdraft_reactions LIKE 'emoji'");
+        $col = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($col && isset($col['Collation']) && strtolower((string)$col['Collation']) !== 'utf8mb4_bin') {
+            $pdo->exec("ALTER TABLE initdraft_reactions MODIFY emoji VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
+        }
+    } catch (Exception $e) {
+        // Se tabela ainda não existe, ignore; será criado na chamada anterior
+    }
 }
 
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
@@ -148,6 +210,198 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     }
 }
 
+function tzNow(): DateTimeImmutable {
+    return new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+}
+
+function computeDailyRoundForDate(?string $startDate, DateTimeImmutable $now): ?int {
+    if (!$startDate) return null;
+    $start = DateTimeImmutable::createFromFormat('Y-m-d', $startDate, $now->getTimezone());
+    if (!$start) return null;
+    // antes do dia de start, não existe round do dia ainda
+    if ($now->format('Y-m-d') < $start->format('Y-m-d')) {
+        return null;
+    }
+    $days = (int)$start->diff($now)->format('%a');
+    return $days + 1;
+}
+
+function getCurrentOpenPick(PDO $pdo, int $sessionId, int $round): ?array {
+    $stmt = $pdo->prepare('SELECT * FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL ORDER BY pick_position ASC LIMIT 1');
+    $stmt->execute([$sessionId, $round]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function isRoundCompleted(PDO $pdo, int $sessionId, int $round): bool {
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL');
+    $stmt->execute([$sessionId, $round]);
+    return (int)$stmt->fetchColumn() === 0;
+}
+
+function clearDeadlinesForRound(PDO $pdo, int $sessionId, int $round): void {
+    ensureDeadlineColumn($pdo);
+    $pdo->prepare('UPDATE initdraft_order SET deadline_at = NULL WHERE initdraft_session_id = ? AND round = ? AND picked_player_id IS NULL')
+        ->execute([$sessionId, $round]);
+}
+
+function resetClockForNextPick(PDO $pdo, int $sessionId): void {
+    $session = getSessionById($pdo, $sessionId);
+    if (!$session) {
+        return;
+    }
+
+    // Sistema antigo (sem relógio): não cria deadline nem agenda auto-pick.
+    return;
+
+    $scheduleEnabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$scheduleEnabled || ($session['status'] ?? 'setup') !== 'in_progress') {
+        return;
+    }
+
+    $currentRound = (int)($session['current_round'] ?? 0);
+    if ($currentRound <= 0) {
+        return;
+    }
+
+    $now = tzNow();
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if ($dailyRound !== null && $dailyRound !== $currentRound) {
+        // Fora da janela diária configurada; mantém pausado até o próximo dia.
+        return;
+    }
+
+    $currentPick = getCurrentOpenPick($pdo, $sessionId, $currentRound);
+    if (!$currentPick) {
+        clearDeadlinesForRound($pdo, $sessionId, $currentRound);
+        return;
+    }
+
+    $clockStart = $session['daily_clock_start_time'] ?? '19:30:00';
+    $clockStartDate = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $clockStart, $now->getTimezone());
+    if ($now < $clockStartDate) {
+        return;
+    }
+
+    ensureDeadlineForPick($pdo, $currentPick, $now, (int)($session['daily_pick_minutes'] ?? 10), true);
+}
+
+function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes, bool $forceReset = false): void {
+    if (!$forceReset && !empty($pick['deadline_at'])) return;
+    ensureDeadlineColumn($pdo);
+    $deadline = $now->add(new DateInterval('PT' . max(1, $pickMinutes) . 'M'));
+    $pdo->prepare('UPDATE initdraft_order SET deadline_at = ? WHERE id = ?')
+        ->execute([$deadline->format('Y-m-d H:i:s'), $pick['id']]);
+}
+
+function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
+    // Regra: maior OVR; empate -> maior idade; empate -> aleatório.
+    // OBS: age pode ser NULL. Neste caso, tratamos como idade "muito baixa" para priorizar quem tem idade definida.
+
+    // 1) Melhor OVR disponível
+    $stmtMax = $pdo->prepare('SELECT MAX(ovr) FROM initdraft_pool WHERE season_id = ? AND draft_status = "available"');
+    $stmtMax->execute([$seasonId]);
+    $maxOvr = $stmtMax->fetchColumn();
+    if ($maxOvr === false || $maxOvr === null) return null;
+    $maxOvr = (int)$maxOvr;
+
+    // 2) Maior idade dentro do melhor OVR
+    $stmtMaxAge = $pdo->prepare('
+        SELECT MAX(COALESCE(NULLIF(age, 0), 0))
+        FROM initdraft_pool
+        WHERE season_id = ? AND draft_status = "available" AND ovr = ?
+    ');
+    $stmtMaxAge->execute([$seasonId, $maxOvr]);
+    $maxAge = $stmtMaxAge->fetchColumn();
+    if ($maxAge === false || $maxAge === null) {
+        $maxAge = 0;
+    }
+    $maxAge = (int)$maxAge;
+
+    // 3) Seleciona aleatoriamente entre os empatados
+    $stmt = $pdo->prepare('
+        SELECT id
+        FROM initdraft_pool
+        WHERE season_id = ?
+          AND draft_status = "available"
+          AND ovr = ?
+        AND COALESCE(NULLIF(age, 0), 0) = ?
+    ');
+    $stmt->execute([$seasonId, $maxOvr, $maxAge]);
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!$ids) return null;
+
+    $picked = $ids[random_int(0, count($ids) - 1)];
+    return (int)$picked;
+}
+
+function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): void {
+    // Sistema antigo (sem relógio): sem auto-pick.
+    return;
+}
+
+function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
+    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$enabled) return;
+
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if (!$dailyRound) {
+        throw new Exception('Draft ainda não iniciou (aguarde 19:30)');
+    }
+
+    if ($dailyRound > (int)$session['total_rounds']) {
+        throw new Exception('Draft diário já encerrou');
+    }
+
+    if ((int)($session['current_round'] ?? 1) !== $dailyRound) {
+        throw new Exception('Draft pausado até 19:30 do próximo dia');
+    }
+
+    $openAfter = new DateTimeImmutable($now->format('Y-m-d') . ' 00:01:00', $now->getTimezone());
+    if ($now < $openAfter) {
+        throw new Exception('Draft diário inicia às 00:01');
+    }
+}
+
+function applyDailySchedule(PDO $pdo, array $session): array {
+    $enabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
+    if (!$enabled) return $session;
+
+    $now = tzNow();
+    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
+    if (!$dailyRound) {
+        return $session;
+    }
+    if ($dailyRound > (int)$session['total_rounds']) {
+        return $session;
+    }
+
+    // abre o draft às 00:01 e marca qual dia já foi processado
+    $today = $now->format('Y-m-d');
+    $openAfter = new DateTimeImmutable($today . ' 00:01:00', $now->getTimezone());
+    if ($now >= $openAfter && ($session['daily_last_opened_date'] ?? null) !== $today) {
+        // garante que draft esteja em andamento
+        if (($session['status'] ?? 'setup') === 'setup') {
+            $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = COALESCE(started_at, NOW()) WHERE id = ?')
+                ->execute([$session['id']]);
+        }
+        $pdo->prepare('UPDATE initdraft_sessions SET daily_last_opened_date = ? WHERE id = ?')
+            ->execute([$today, $session['id']]);
+        $session['daily_last_opened_date'] = $today;
+        $session['status'] = 'in_progress';
+    }
+
+    // Se round já terminou, pausa até o próximo dia (1 round por dia)
+    if (($session['status'] ?? 'setup') === 'in_progress' && isRoundCompleted($pdo, (int)$session['id'], $dailyRound)) {
+        clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+        return $session;
+    }
+
+    // Sistema antigo (sem relógio): garantir que não exista deadline aplicado.
+    clearDeadlinesForRound($pdo, (int)$session['id'], $dailyRound);
+    return $session;
+}
+
 // ========== GET ==========
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'state';
@@ -170,19 +424,72 @@ if ($method === 'GET') {
 
                 if (!$session) throw new Exception('Sessão não encontrada');
 
+                // Aplicar regras do agendamento diário (fallback do cron)
+                $session = applyDailySchedule($pdo, $session);
+
           // Buscar ordem
                 $stmtOrder = $pdo->prepare('
-                    SELECT io.*, 
-                           t.city as team_city, t.name as team_name, t.photo_url as team_photo,
-                           dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr
+                          SELECT io.*, 
+                              t.city as team_city, t.name as team_name, t.photo_url as team_photo,
+                              u.name as team_owner,
+                              dp.name as player_name, dp.position as player_position, dp.ovr as player_ovr, dp.age as player_age
                     FROM initdraft_order io
                     INNER JOIN teams t ON io.team_id = t.id
+                    LEFT JOIN users u ON t.user_id = u.id
                     LEFT JOIN initdraft_pool dp ON io.picked_player_id = dp.id
                     WHERE io.initdraft_session_id = ?
                     ORDER BY io.round ASC, io.pick_position ASC
                 ');
                 $stmtOrder->execute([$session['id']]);
                 $order = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
+
+                // Anexar reações por pick
+                ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
+                $pickIds = array_map(fn($o) => (int)$o['id'], $order);
+                $reactionsByPick = [];
+                $mineByPick = [];
+                if (!empty($pickIds)) {
+                    // Aggregates por emoji
+                    $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
+                    $stmtAgg = $pdo->prepare("SELECT initdraft_order_id, emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id IN ($placeholders) GROUP BY initdraft_order_id, emoji");
+                    $stmtAgg->execute($pickIds);
+                    while ($row = $stmtAgg->fetch(PDO::FETCH_ASSOC)) {
+                        $pid = (int)$row['initdraft_order_id'];
+                        if (!isset($reactionsByPick[$pid])) $reactionsByPick[$pid] = [];
+                        $reactionsByPick[$pid][] = [
+                            'emoji' => $row['emoji'],
+                            'count' => (int)$row['total'],
+                            'mine' => false,
+                        ];
+                    }
+
+                    // Reação do usuário atual (se logado)
+                    if ($user && isset($user['id'])) {
+                        $stmtMine = $pdo->prepare("SELECT initdraft_order_id, emoji FROM initdraft_reactions WHERE user_id = ? AND initdraft_order_id IN ($placeholders)");
+                        $params = array_merge([$user['id']], $pickIds);
+                        $stmtMine->execute($params);
+                        while ($row = $stmtMine->fetch(PDO::FETCH_ASSOC)) {
+                            $mineByPick[(int)$row['initdraft_order_id']] = (string)$row['emoji'];
+                        }
+                    }
+                }
+
+                // Atribuir reações em cada item da ordem
+                foreach ($order as &$o) {
+                    $pid = (int)$o['id'];
+                    $list = $reactionsByPick[$pid] ?? [];
+                    $mineEmoji = $mineByPick[$pid] ?? null;
+                    if ($mineEmoji) {
+                        foreach ($list as &$it) {
+                            if ($it['emoji'] === $mineEmoji) {
+                                $it['mine'] = true;
+                            }
+                        }
+                    }
+                    $o['reactions'] = $list;
+                }
+                unset($o);
 
                 // Buscar todos os times elegíveis da liga
                 $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.name ASC');
@@ -329,6 +636,53 @@ if ($method === 'POST') {
                 break;
             }
 
+            case 'edit_player': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível editar jogadores durante setup');
+
+                $playerId = (int)($data['player_id'] ?? 0);
+                if (!$playerId) throw new Exception('player_id obrigatório');
+
+                // Verificar se o jogador existe e não foi draftado
+                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND season_id = ? AND draft_status = "available"');
+                $stmt->execute([$playerId, $session['season_id']]);
+                if (!$stmt->fetch()) throw new Exception('Jogador não encontrado ou já foi draftado');
+
+                // Atualizar dados
+                $stmt = $pdo->prepare('UPDATE initdraft_pool SET name = ?, position = ?, age = ?, ovr = ? WHERE id = ?');
+                $stmt->execute([
+                    $data['name'],
+                    $data['position'],
+                    (int)$data['age'],
+                    (int)$data['ovr'],
+                    $playerId,
+                ]);
+
+                echo json_encode(['success' => true]);
+                break;
+            }
+
+            case 'delete_player': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível remover jogadores durante setup');
+
+                $playerId = (int)($data['player_id'] ?? 0);
+                if (!$playerId) throw new Exception('player_id obrigatório');
+
+                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND draft_status = "available"');
+                $stmt->execute([$playerId]);
+                if (!$stmt->fetch()) throw new Exception('Jogador não pode ser removido');
+
+                $pdo->prepare('DELETE FROM initdraft_pool WHERE id = ?')->execute([$playerId]);
+
+                echo json_encode(['success' => true]);
+                break;
+            }
+
             // ADMIN/TOKEN: importar via CSV (multipart/form-data)
             case 'import_csv': {
                 $token = $_POST['token'] ?? ($data['token'] ?? null);
@@ -464,16 +818,53 @@ if ($method === 'POST') {
                     throw new Exception('Informe um número de rodadas entre 1 e 10');
                 }
 
-                $stmtOrderCount = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ?');
-                $stmtOrderCount->execute([$session['id']]);
-                if ((int)$stmtOrderCount->fetchColumn() > 0) {
-                    throw new Exception('A ordem já foi definida. Ajuste as rodadas antes do sorteio.');
-                }
-
+                // Atualizar total_rounds na sessão
                 $pdo->prepare('UPDATE initdraft_sessions SET total_rounds = ? WHERE id = ?')
                     ->execute([$totalRounds, $session['id']]);
 
+                // Atualizar session array para retornar valor atualizado
+                $session['total_rounds'] = $totalRounds;
+
                 echo json_encode(['success' => true, 'total_rounds' => $totalRounds]);
+                break;
+            }
+
+            case 'set_daily_schedule': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if ($session['status'] !== 'setup') throw new Exception('Só é possível configurar o agendamento durante setup');
+
+                ensureDailyScheduleColumns($pdo);
+
+                $enabled = (int)($data['enabled'] ?? 0) === 1 ? 1 : 0;
+                $startDate = trim((string)($data['start_date'] ?? ''));
+                if ($enabled && !$startDate) {
+                    throw new Exception('Informe a data de início');
+                }
+                if ($startDate) {
+                    $dt = DateTimeImmutable::createFromFormat('Y-m-d', $startDate, new DateTimeZone('America/Sao_Paulo'));
+                    if (!$dt || $dt->format('Y-m-d') !== $startDate) {
+                        throw new Exception('Data inválida (use YYYY-MM-DD)');
+                    }
+                }
+
+                $pdo->prepare('UPDATE initdraft_sessions SET daily_schedule_enabled = ?, daily_schedule_start_date = ?, daily_last_opened_date = NULL WHERE id = ?')
+                    ->execute([$enabled, $startDate ?: null, $session['id']]);
+
+                $endDate = null;
+                if ($enabled && $startDate) {
+                    $start = new DateTimeImmutable($startDate, new DateTimeZone('America/Sao_Paulo'));
+                    $end = $start->add(new DateInterval('P' . max(0, ((int)$session['total_rounds']) - 1) . 'D'));
+                    $endDate = $end->format('Y-m-d');
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'enabled' => (bool)$enabled,
+                    'start_date' => $startDate ?: null,
+                    'end_date' => $endDate,
+                ]);
                 break;
             }
 
@@ -493,6 +884,63 @@ if ($method === 'POST') {
                 break;
             }
 
+            // Reagir a uma pick com emoji
+            case 'react_pick': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new Exception('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+
+                ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
+
+                $pickId = (int)($data['pick_id'] ?? 0);
+                $emoji = trim((string)($data['emoji'] ?? ''));
+                if ($pickId <= 0 || $emoji === '') throw new Exception('pick_id e emoji obrigatórios');
+                // Confirma que a pick pertence à sessão
+                $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
+                $stmtChk->execute([$pickId, $session['id']]);
+                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+
+                // Limita tamanho do emoji
+                if (strlen($emoji) > 16) $emoji = substr($emoji, 0, 16);
+
+                // Upsert (um por usuário/pick)
+                $stmtIns = $pdo->prepare('INSERT INTO initdraft_reactions (initdraft_order_id, user_id, emoji, created_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), updated_at = NOW()');
+                $stmtIns->execute([$pickId, $user['id'], $emoji]);
+
+                // Retorna agregados da pick
+                $stmtAgg = $pdo->prepare('SELECT emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id = ? GROUP BY emoji');
+                $stmtAgg->execute([$pickId]);
+                $agg = $stmtAgg->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'pick_id' => $pickId, 'reactions' => $agg]);
+                break;
+            }
+
+            case 'remove_reaction': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new Exception('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+
+                ensureInitDraftReactionsTable($pdo);
+                ensureEmojiBinaryCollation($pdo);
+
+                $pickId = (int)($data['pick_id'] ?? 0);
+                if ($pickId <= 0) throw new Exception('pick_id obrigatório');
+                $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
+                $stmtChk->execute([$pickId, $session['id']]);
+                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+
+                $pdo->prepare('DELETE FROM initdraft_reactions WHERE initdraft_order_id = ? AND user_id = ?')->execute([$pickId, $user['id']]);
+
+                $stmtAgg = $pdo->prepare('SELECT emoji, COUNT(*) AS total FROM initdraft_reactions WHERE initdraft_order_id = ? GROUP BY emoji');
+                $stmtAgg->execute([$pickId]);
+                $agg = $stmtAgg->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode(['success' => true, 'pick_id' => $pickId, 'reactions' => $agg]);
+                break;
+            }
+
             // TOKEN: fazer pick na posição corrente
             case 'make_pick': {
                 $token = $data['token'] ?? null;
@@ -500,7 +948,10 @@ if ($method === 'POST') {
                 $session = getSessionByToken($pdo, $token);
                 if (!$session) throw new Exception('Sessão inválida');
 
+                ensureDailyPickWindow($session, tzNow());
+
                 performInitDraftPick($pdo, $session, $playerId);
+                resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada']);
                 break;
             }
@@ -512,7 +963,10 @@ if ($method === 'POST') {
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new Exception('Sessão inválida');
 
+                ensureDailyPickWindow($session, tzNow());
+
                 performInitDraftPick($pdo, $session, $playerId);
+                resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada pelo admin']);
                 break;
             }

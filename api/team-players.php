@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     try {
         $stmt = $pdo->prepare('
-            SELECT id, name, age, position, role, ovr, available_for_trade
+            SELECT id, name, nba_player_id, age, position, secondary_position, role, ovr, available_for_trade, seasons_in_league
             FROM players
             WHERE team_id = ?
             ORDER BY role, ovr DESC

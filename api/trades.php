@@ -27,27 +27,78 @@ function ensureTradeCycleColumn(PDO $pdo): void
     }
 }
 
+function ensureTeamTradeCounterColumns(PDO $pdo): void
+{
+    try {
+        $hasTradesUsed = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_used'")->fetch();
+        if (!$hasTradesUsed) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN trades_used INT NOT NULL DEFAULT 0 AFTER current_cycle");
+        }
+        $hasTradesCycle = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_cycle'")->fetch();
+        if (!$hasTradesCycle) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN trades_cycle INT NOT NULL DEFAULT 1 AFTER trades_used");
+        }
+    } catch (Exception $e) {
+        // Se não conseguir (permissões), segue sem colunas
+    }
+}
+
 ensureTradeCycleColumn($pdo);
+ensureTeamTradeCounterColumns($pdo);
+
+function syncTeamTradeCounter(PDO $pdo, int $teamId): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return 0;
+        }
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+        // Se trades_cycle ainda não estiver inicializado, alinhar com current_cycle e não zerar o contador.
+        if ($currentCycle > 0 && $tradesCycle <= 0) {
+            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return $tradesUsed;
+        }
+
+        // Só zera quando já existe um ciclo anterior registrado e ele mudou
+        if ($currentCycle > 0 && $tradesCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
 
 function getTeamTradesUsed(PDO $pdo, int $teamId): int
 {
-    // Conta trades aceitas no ciclo atual do time
+    // Primeiro tenta o novo modelo (campo em teams). 0 é um valor válido.
     try {
-        $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
-        $stmtCycle->execute([$teamId]);
-        $cycle = (int)($stmtCycle->fetchColumn() ?: 0);
-        if ($cycle <= 0) {
-            // Fallback: se não houver ciclo, considera zero usado
-            return 0;
+        $col = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_used'")->fetch();
+        $col2 = $pdo->query("SHOW COLUMNS FROM teams LIKE 'trades_cycle'")->fetch();
+        if ($col && $col2) {
+            return syncTeamTradeCounter($pdo, $teamId);
         }
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND cycle = ? AND (from_team_id = ? OR to_team_id = ?)");
-        $stmt->execute([$cycle, $teamId, $teamId]);
-        return (int) ($stmt->fetchColumn() ?? 0);
     } catch (Exception $e) {
-        // Fallback para contagem por ano se não houver coluna ou erro
+        // segue pro fallback
+    }
+
+    // Fallback antigo: contagem por ano (somente se o schema novo não existir)
+    try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
         $stmt->execute([$teamId, $teamId]);
         return (int) ($stmt->fetchColumn() ?? 0);
+    } catch (Exception $e) {
+        return 0;
     }
 }
 
@@ -531,7 +582,7 @@ if ($method === 'PUT') {
         $stmtUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
         $stmtUpdate->execute([$action, $responseNotes, $tradeId]);
         
-        // Se aceito, executar a trade (transferir jogadores e picks)
+    // Se aceito, executar a trade (transferir jogadores e picks)
         if ($action === 'accepted') {
             // Buscar itens da trade
             $stmtItems = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
@@ -574,6 +625,15 @@ if ($method === 'PUT') {
                         throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                     }
                 }
+            }
+
+            // Atualizar contador de trades por time
+            syncTeamTradeCounter($pdo, (int)$trade['from_team_id']);
+            syncTeamTradeCounter($pdo, (int)$trade['to_team_id']);
+            $stmtIncTrades = $pdo->prepare('UPDATE teams SET trades_used = trades_used + 1 WHERE id = ?');
+            $stmtIncTrades->execute([(int)$trade['from_team_id']]);
+            if ((int)$trade['to_team_id'] !== (int)$trade['from_team_id']) {
+                $stmtIncTrades->execute([(int)$trade['to_team_id']]);
             }
         }
         

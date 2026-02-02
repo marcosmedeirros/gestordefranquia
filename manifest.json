@@ -4,60 +4,24 @@
   "description": "Sistema de gerenciamento de franquias de basquete fantasy",
   "start_url": "/dashboard.php",
   "display": "standalone",
-  "background_color": "#0a0a0c",
-  "theme_color": "#fc0025",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "pt-BR",
   "icons": [
-    {
-      "src": "/img/icon-72x72.png?v=2",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-96x96.png?v=2",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-128x128.png?v=2",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-144x144.png?v=2",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-152x152.png?v=2",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-192x192.png?v=2",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-384x384.png?v=2",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/img/icon-512x512.png?v=2",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/img/icons/icon-72.png?v=6",  "sizes": "72x72",  "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-96.png?v=6",  "sizes": "96x96",  "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-128.png?v=6", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-144.png?v=6", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-152.png?v=6", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-167.png?v=6", "sizes": "167x167", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-180.png?v=6", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-192.png?v=6", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-256.png?v=6", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-384.png?v=6", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-512.png?v=6", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/icons/icon-1024.png?v=6", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
   ],
   "screenshots": [
     {

@@ -460,16 +460,6 @@ if (!$team) {
                     `).join('')}
                   </tbody>
                 </table>
-                <div class="col-md-4 mt-4">
-                  <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
-                    <div class="card-body">
-                      <h5 class="text-white mb-3"><i class="bi bi-trophy text-orange me-2"></i>Draft Inicial</h5>
-                      <div id="initDraftPanel">
-                        <div class="text-light-gray">Carregando…</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
               <div class="d-grid mt-4">
                 <button type="submit" class="btn btn-success btn-lg">
@@ -478,20 +468,6 @@ if (!$team) {
               </div>
             </form>
           `;
-
-          // Carregar painel do draft inicial após desenhar o HTML
-          // Buscar dados da temporada atual para passar para o painel
-          let seasonData = null;
-          try {
-            const resp = await api(`seasons.php?action=current_season&league=${league}`);
-            seasonData = resp.season;
-          } catch {}
-          if (seasonData) {
-            loadInitDraftPanel(seasonData);
-          } else {
-            // fallback: tenta com o id
-            loadInitDraftPanel({ id: seasonId });
-          }
 
           document.getElementById('coinsForm').onsubmit = async function(e) {
             e.preventDefault();
@@ -2275,11 +2251,14 @@ Stephen Curry,PG,35,95</code>
               
               <div class="mb-3">
                 <label class="text-white mb-2">Adicionar time à ordem:</label>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="allowDraftRepeat">
+                  <label class="form-check-label text-light-gray" for="allowDraftRepeat">Permitir repetir time na ordem</label>
+                </div>
                 <div class="input-group">
                   <select class="form-select bg-dark text-white border-orange" id="addTeamSelect">
                     <option value="">Selecione um time...</option>
-                    ${teams.filter(t => !round1Picks.some(p => p.original_team_id == t.id))
-                      .map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
                   </select>
                   <button class="btn btn-orange" onclick="addTeamToDraftOrder(${session.id}, '${league}')">
                     <i class="bi bi-plus"></i> Adicionar
@@ -2466,10 +2445,19 @@ Stephen Curry,PG,35,95</code>
     async function addTeamToDraftOrder(sessionId, league) {
       const select = document.getElementById('addTeamSelect');
       const teamId = select.value;
+      const allowRepeat = document.getElementById('allowDraftRepeat')?.checked;
       
       if (!teamId) {
         alert('Selecione um time');
         return;
+      }
+
+      if (!allowRepeat) {
+        const existing = document.querySelector(`#draftOrderList [data-team-id="${teamId}"]`);
+        if (existing) {
+          alert('Este time já está na ordem. Ative "Permitir repetir" para adicionar novamente.');
+          return;
+        }
       }
       
       try {
@@ -2739,42 +2727,6 @@ Stephen Curry,PG,35,95</code>
   </script>
   <script src="/js/pwa.js"></script>
   <script>
-    async function loadInitDraftPanel(season) {
-      const panel = document.getElementById('initDraftPanel');
-      try {
-        const resp = await api(`initdraft.php?action=session_for_season&season_id=${season.id}`);
-        const session = resp.session;
-        if (!session) {
-          panel.innerHTML = `
-            <p class="text-light-gray">Crie o Draft Inicial desta temporada e gere o link de acesso.</p>
-            <button class="btn btn-sm btn-success w-100" onclick="createInitDraft(${season.id})">
-              <i class="bi bi-plus-lg me-2"></i>Criar Draft Inicial
-            </button>
-          `;
-        } else {
-          const url = `/initdraft.php?token=${session.access_token}`;
-          panel.innerHTML = `
-            <div class="d-flex flex-column gap-2">
-              <div>
-                <span class="badge ${session.status==='completed'?'bg-success':'bg-secondary'}">${session.status}</span>
-                <span class="badge bg-orange ms-2">Rodadas: ${session.total_rounds}</span>
-              </div>
-              <a target="_blank" href="${url}" class="btn btn-sm btn-primary w-100">
-                <i class="bi bi-link-45deg me-2"></i>Abrir Draft Inicial
-              </a>
-              ${session.status === 'completed' ? '' : `
-                <button class="btn btn-sm btn-outline-warning w-100" onclick="openInitDraft(${season.id})">
-                  <i class="bi bi-play-circle me-2"></i>Continuar no Link
-                </button>
-              `}
-            </div>
-          `;
-        }
-      } catch (e) {
-        panel.innerHTML = `<div class="alert alert-danger">Erro ao carregar: ${e?.error || e?.message || 'desconhecido'}</div>`;
-      }
-    }
-
     async function createInitDraft(seasonId) {
       const total_rounds = 5;
       try {
@@ -2783,17 +2735,10 @@ Stephen Curry,PG,35,95</code>
           body: JSON.stringify({ action: 'create_session', season_id: seasonId, total_rounds })
         });
         const url = `/initdraft.php?token=${resp.token}`;
-        // Atualiza painel e abre link em nova aba
-        await loadInitDraftPanel({ id: seasonId });
         window.open(url, '_blank');
       } catch (e) {
         alert(e?.error || e?.message || 'Erro ao criar draft inicial');
       }
-    }
-
-    function openInitDraft(seasonId) {
-      // Recarrega para obter token e abrir link
-      loadInitDraftPanel({ id: seasonId });
     }
   </script>
   <script src="/js/theme.js"></script>

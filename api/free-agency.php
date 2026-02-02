@@ -201,6 +201,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listAdminContracts($pdo, $league);
             break;
+        case 'contracts':
+            $league = getLeagueFromRequest($valid_leagues, $team_league);
+            if (!$league) {
+                jsonSuccess(['league' => $league, 'contracts' => []]);
+            }
+            listContracts($pdo, $league);
+            break;
         case 'limits':
             freeAgencyLimits($team);
             break;
@@ -259,6 +266,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonError('Acesso negado', 403);
             }
             approveOffer($pdo, $body, $user_id);
+            break;
+        case 'reject_all_offers':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            rejectAllOffers($pdo, $body);
+            break;
+        case 'close_without_winner':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            closeWithoutWinner($pdo, $body);
             break;
         default:
             jsonError('Acao nao reconhecida');
@@ -475,8 +494,22 @@ function listAdminContracts(PDO $pdo, string $league): void
 {
     $ovrColumn = freeAgentOvrColumn($pdo);
     $secondaryColumn = freeAgentSecondaryColumn($pdo);
-    $where = '(fa.status = "signed" OR fa.winner_team_id IS NOT NULL)';
+    $whereParts = [];
+    if (columnExists($pdo, 'free_agents', 'status')) {
+        $whereParts[] = 'fa.status = "signed"';
+    }
+    if (columnExists($pdo, 'free_agents', 'winner_team_id')) {
+        $whereParts[] = 'fa.winner_team_id IS NOT NULL';
+    }
+    $where = $whereParts ? '(' . implode(' OR ', $whereParts) . ')' : '1 = 0';
     $params = [];
+    $seasonSelect = 'NULL AS season_year';
+    $seasonJoin = '';
+
+    if (columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons')) {
+        $seasonSelect = 's.year AS season_year';
+        $seasonJoin = 'LEFT JOIN seasons s ON fa.season_id = s.id';
+    }
 
     if (freeAgentsUseLeagueEnum($pdo) && columnExists($pdo, 'free_agents', 'league_id')) {
         $leagueId = resolveLeagueId($pdo, $league);
@@ -500,10 +533,11 @@ function listAdminContracts(PDO $pdo, string $league): void
     $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
     $stmt = $pdo->prepare("
         SELECT fa.id, fa.name, fa.position, {$secondarySelect} AS secondary_position, fa.{$ovrColumn} AS ovr,
-               fa.original_team_name, fa.waived_at,
+               fa.original_team_name, fa.waived_at, {$seasonSelect},
                t.city AS team_city, t.name AS team_name
         FROM free_agents fa
         LEFT JOIN teams t ON fa.winner_team_id = t.id
+        {$seasonJoin}
         WHERE {$where}
         ORDER BY fa.waived_at DESC
         LIMIT 50
@@ -512,6 +546,11 @@ function listAdminContracts(PDO $pdo, string $league): void
     $contracts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     jsonSuccess(['league' => $league, 'contracts' => $contracts]);
+}
+
+function listContracts(PDO $pdo, string $league): void
+{
+    listAdminContracts($pdo, $league);
 }
 
 function freeAgencyLimits(?array $team): void
@@ -609,8 +648,20 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $player_id = (int)($body['free_agent_id'] ?? 0);
     $amount = (int)($body['amount'] ?? 0);
 
-    if (!$player_id || $amount <= 0) {
+    if (!$player_id) {
         jsonError('Dados invalidos');
+    }
+
+    // Cancelar proposta quando amount = 0
+    if ($amount === 0) {
+        $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ? AND status = "pending"');
+        $stmt->execute([$player_id, $teamId]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($existing) {
+            $del = $pdo->prepare('DELETE FROM free_agent_offers WHERE id = ?');
+            $del->execute([$existing['id']]);
+        }
+        jsonSuccess(['canceled' => true]);
     }
 
     $stmt = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
@@ -637,6 +688,15 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ?');
     $stmt->execute([$player_id, $teamId]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$existing) {
+        $stmtLimit = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
+        $stmtLimit->execute([$teamId]);
+        $pendingCount = (int)$stmtLimit->fetchColumn();
+        if ($pendingCount >= 3) {
+            jsonError('Limite de 3 propostas pendentes por time');
+        }
+    }
 
     if ($existing) {
         $stmt = $pdo->prepare('UPDATE free_agent_offers SET amount = ?, status = "pending" WHERE id = ?');
@@ -734,8 +794,30 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $stmtLog->execute([(int)$offer['team_id'], -(int)$offer['amount'], $reason, $adminId]);
         }
 
-        $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
-        $stmtDelete->execute([(int)$offer['free_agent_id']]);
+        $updatedFreeAgent = false;
+        if (columnExists($pdo, 'free_agents', 'winner_team_id') || columnExists($pdo, 'free_agents', 'status')) {
+            $updates = [];
+            $valuesUpdate = [];
+            if (columnExists($pdo, 'free_agents', 'winner_team_id')) {
+                $updates[] = 'winner_team_id = ?';
+                $valuesUpdate[] = (int)$offer['team_id'];
+            }
+            if (columnExists($pdo, 'free_agents', 'status')) {
+                $updates[] = 'status = "signed"';
+            }
+            if ($updates) {
+                $valuesUpdate[] = (int)$offer['free_agent_id'];
+                $sqlUpdate = 'UPDATE free_agents SET ' . implode(', ', $updates) . ' WHERE id = ?';
+                $stmtUpdate = $pdo->prepare($sqlUpdate);
+                $stmtUpdate->execute($valuesUpdate);
+                $updatedFreeAgent = true;
+            }
+        }
+
+        if (!$updatedFreeAgent) {
+            $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
+            $stmtDelete->execute([(int)$offer['free_agent_id']]);
+        }
 
         $stmtOffers = $pdo->prepare('
             UPDATE free_agent_offers
@@ -751,5 +833,51 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
     } catch (Exception $e) {
         $pdo->rollBack();
         jsonError('Erro ao aprovar proposta: ' . $e->getMessage(), 500);
+    }
+}
+
+function rejectAllOffers(PDO $pdo, array $body): void
+{
+    $playerId = (int)($body['free_agent_id'] ?? 0);
+    if (!$playerId) {
+        jsonError('Jogador nao informado');
+    }
+
+    $stmt = $pdo->prepare('UPDATE free_agent_offers SET status = "rejected" WHERE free_agent_id = ? AND status = "pending"');
+    $stmt->execute([$playerId]);
+
+    jsonSuccess(['updated' => $stmt->rowCount()]);
+}
+
+function closeWithoutWinner(PDO $pdo, array $body): void
+{
+    $playerId = (int)($body['free_agent_id'] ?? 0);
+    if (!$playerId) {
+        jsonError('Jogador nao informado');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('UPDATE free_agent_offers SET status = "rejected" WHERE free_agent_id = ? AND status = "pending"');
+        $stmt->execute([$playerId]);
+
+        if (columnExists($pdo, 'free_agents', 'status')) {
+            $updates = ['status = "closed"'];
+            if (columnExists($pdo, 'free_agents', 'winner_team_id')) {
+                $updates[] = 'winner_team_id = NULL';
+            }
+            $sql = 'UPDATE free_agents SET ' . implode(', ', $updates) . ' WHERE id = ?';
+            $stmtUpdate = $pdo->prepare($sql);
+            $stmtUpdate->execute([$playerId]);
+        } else {
+            $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
+            $stmtDelete->execute([$playerId]);
+        }
+
+        $pdo->commit();
+        jsonSuccess();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao encerrar sem vencedor: ' . $e->getMessage(), 500);
     }
 }

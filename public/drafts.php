@@ -31,7 +31,7 @@ if (!$userTeam) {
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FBA Manager">
-    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">

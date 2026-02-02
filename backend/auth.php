@@ -1,4 +1,7 @@
 <?php
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 // Inicia sessão apenas se ainda não foi iniciada, mantendo usuário logado por mais tempo
 if (session_status() === PHP_SESSION_NONE) {
     $sessionLifetime = 60 * 60 * 24 * 30; // 30 dias

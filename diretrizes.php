@@ -84,12 +84,12 @@ try {
     <title>Enviar Diretrizes - FBA Manager</title>
     
     <!-- PWA Meta Tags -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json?v=3">
     <meta name="theme-color" content="#0a0a0c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FBA Manager">
-    <link rel="apple-touch-icon" href="/img/icon-192.png">
+    <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -164,6 +164,18 @@ try {
                     </p>
                 </div>
             </div>
+        </div>
+
+        <!-- Regras de Minutagem -->
+        <div class="alert alert-warning bg-dark border-warning mb-4">
+            <h6 class="text-warning mb-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>Regras de Minutagem</h6>
+            <ul class="mb-0 text-white small">
+                <li><strong>Titulares:</strong> Todos os 5 titulares devem jogar <strong>no mínimo 25 minutos</strong></li>
+                <li><strong>Reservas:</strong> Todos os jogadores do banco devem jogar <strong>no mínimo 5 minutos</strong></li>
+                <li><strong>Se seu time NÃO tiver 3 jogadores 85+:</strong> Os <strong>5 jogadores com maiores OVRs</strong> devem jogar <strong>no mínimo 25 minutos</strong> (mesmo se forem reservas)</li>
+                <li><strong>Rotação Manual:</strong> A soma total dos minutos deve ser <strong>exatamente 240 minutos</strong></li>
+                <li><strong>Limite máximo:</strong> 40 minutos na temporada regular / 45 minutos nos playoffs</li>
+            </ul>
         </div>
 
         <form id="form-diretrizes">
@@ -361,6 +373,11 @@ try {
                     <h5 class="text-white mb-0"><i class="bi bi-clock me-2"></i>Minutagem por Jogador</h5>
                 </div>
                 <div class="card-body">
+                    <div class="alert alert-warning bg-dark border-warning mb-3">
+                        <small><i class="bi bi-info-circle me-1"></i><strong>Atenção:</strong> 
+                        Titulares precisam de <strong>mínimo 25min</strong>. Reservas precisam de <strong>mínimo 5min</strong>. 
+                        Se você não tiver 3 jogadores 85+, os <strong>5 maiores OVRs devem ter 25+ minutos</strong>.</small>
+                    </div>
                     <p class="text-light-gray mb-3">Configure os minutos por jogo para cada jogador (mínimo 5; máximo definido pelo prazo: 40 na regular / 45 nos playoffs)</p>
                     <div id="player-minutes-container" class="row g-3">
                         <!-- Preenchido dinamicamente com JavaScript -->

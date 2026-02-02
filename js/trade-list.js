@@ -52,8 +52,14 @@
       }
 
       const html = players.map(p => {
-        const teamLogo = p.team_logo || '/img/default-team.png';
         const secPos = p.secondary_position ? ` / ${p.secondary_position}` : '';
+        const teamName = p.team_name || 'Time sem nome';
+        const teamBadge = teamName
+          .split(' ')
+          .filter(Boolean)
+          .map(word => word[0]?.toUpperCase() || '')
+          .join('')
+          .slice(0, 3) || 'GM';
         return `
         <div class="player-card">
           <div class="d-flex justify-content-between align-items-center">
@@ -61,9 +67,9 @@
               <div class="player-name">${p.name}</div>
               <div class="player-meta">Pos: ${p.position}${secPos} • Idade: ${p.age} • OVR: ${p.ovr} • Função: ${p.role || '-'}</div>
             </div>
-            <div class="team-chip">
-              <img class="team-logo" src="${teamLogo}" alt="${p.team_name}">
-              <span>${p.team_name}</span>
+            <div class="team-chip no-image">
+              <span class="team-chip-badge">${teamBadge}</span>
+              <span>${teamName}</span>
             </div>
           </div>
         </div>

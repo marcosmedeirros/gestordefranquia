@@ -203,7 +203,7 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
           <i class="bi bi-person-x"></i> Dispensar
         </button>
-        ${p.age > 31 ? `
+        ${p.age >= 35 ? `
         <button class="btn btn-sm btn-outline-secondary btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar jogador">
           <i class="bi bi-person-dash"></i> Aposentar
         </button>
@@ -266,7 +266,7 @@ function renderPlayers(players) {
         <button class="btn btn-sm btn-outline-danger btn-waive-player" data-id="${p.id}">
           <i class="bi bi-person-x"></i> Dispensar
         </button>
-        ${p.age > 31 ? `
+        ${p.age >= 35 ? `
         <button class="btn btn-sm btn-outline-secondary btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar">
           <i class="bi bi-person-dash"></i>
         </button>

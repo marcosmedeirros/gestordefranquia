@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS players (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_id INT NOT NULL,
     name VARCHAR(120) NOT NULL,
+    nba_player_id BIGINT NULL,
     age INT NOT NULL,
     position VARCHAR(20) NOT NULL,
     role ENUM('Titular','Banco','Outro','G-League') NOT NULL DEFAULT 'Titular',
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS players (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_player_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     INDEX idx_player_team (team_id),
+    INDEX idx_player_nba_id (nba_player_id),
     INDEX idx_player_ovr (ovr)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

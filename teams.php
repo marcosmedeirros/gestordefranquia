@@ -259,6 +259,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <?php else: ?>
                                             <small class="text-muted">Sem contato</small>
                                         <?php endif; ?>
+                                        <small class="text-light-gray d-block mt-1">
+                                            <i class="bi bi-graph-up me-1 text-orange"></i>CAP: <?= number_format($t['cap_top8'], 0, ',', '.') ?>
+                                        </small>
                                     </div>
                                 </td>
                                 <td class="hide-mobile">
@@ -271,6 +274,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-gradient-orange"><?= $t['total_players'] ?></span>
+                                    <div class="d-md-none mt-2">
+                                        <span class="badge bg-warning text-dark">CAP <?= $t['cap_top8'] ?></span>
+                                    </div>
                                 </td>
                                 <td class="text-center hide-mobile">
                                     <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
@@ -298,7 +304,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
     <!-- Modal -->
     <div class="modal fade" id="playersModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
             <div class="modal-content bg-dark-panel border-orange">
                 <div class="modal-header border-orange">
                     <h5 class="modal-title text-white" id="modalTitle"></h5>
@@ -309,7 +315,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="spinner-border text-orange" role="status"></div>
                     </div>
                     <div id="content" style="display: none;">
-                        <table class="table table-hover mb-0" data-theme-table>
+                        <table class="table table-dark table-hover mb-0">
                             <thead style="background: var(--fba-orange); color: #000;">
                                 <tr>
                                     <th>Jogador</th>

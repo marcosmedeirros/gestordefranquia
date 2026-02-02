@@ -5,10 +5,17 @@ php_flag log_errors On
 # Charset padrão
 AddDefaultCharset UTF-8
 
-# Favicon redirect
+# Favicon & ícones antigos -> novos caminhos
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^favicon\.ico$ /img/fba-logo.png [L]
+    # Favicon padrão (PNG funciona em navegadores modernos)
+    RewriteRule ^favicon\.ico$ /img/icons/icon-96.png [L]
+    
+    # Compatibilidade com caminhos antigos
+    RewriteRule ^img/fba-logo\.png$ /img/icons/icon-180.png [L]
+    RewriteRule ^img/icon-192\.png$ /img/icons/icon-192.png [L]
+    RewriteRule ^img/icon-96\.png$ /img/icons/icon-96.png [L]
+    RewriteRule ^img/icon-48\.png$ /img/icons/icon-48.png [L]
 </IfModule>
 
 # Compressão

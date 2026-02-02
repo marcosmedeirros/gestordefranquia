@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     carregarFreeAgents();
+    carregarHistoricoFA();
 
     document.getElementById('faSearchInput')?.addEventListener('input', () => {
         renderFreeAgents();
@@ -47,6 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    const historyTab = document.getElementById('fa-history-tab');
+    if (historyTab) {
+        historyTab.addEventListener('shown.bs.tab', () => {
+            carregarHistoricoFA();
+        });
+    }
 });
 
 function getActiveLeague() {
@@ -73,6 +81,44 @@ window.onAdminLeagueChange = function() {
 function getAdminLeague() {
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
+}
+
+async function carregarHistoricoFA() {
+    const container = document.getElementById('faHistoryContainer');
+    if (!container) return;
+
+    const league = getActiveLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Nenhuma liga definida.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=contracts&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+
+        if (!data.success || !data.contracts?.length) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma contratação registrada.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Ano</th></tr></thead><tbody>';
+        data.contracts.forEach(item => {
+            const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            const year = item.season_year || (item.waived_at ? item.waived_at.toString().slice(0, 4) : '-');
+            html += `<tr>
+                <td><strong class="text-orange">${item.name}</strong></td>
+                <td>${item.ovr}</td>
+                <td>${teamName}</td>
+                <td>${year}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
+    }
 }
 
 // ========== ADMIN ==========
@@ -264,7 +310,12 @@ async function carregarPropostasAdmin() {
                     <strong class="text-orange">${player.name}</strong>
                     <span class="text-light-gray ms-2">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • OVR ${player.ovr}</span>
                 </div>
-                <span class="badge bg-info">${offers.length} propostas</span>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge bg-info">${offers.length} propostas</span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="recusarTodasPropostas(${player.id})">
+                        <i class="bi bi-x-circle me-1"></i>Recusar todas
+                    </button>
+                </div>
             </div>`;
             html += '</div>';
             html += '<div class="card-body">';
@@ -317,14 +368,15 @@ async function carregarHistoricoContratacoes() {
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Data</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Ano</th></tr></thead><tbody>';
         data.contracts.forEach(item => {
             const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            const year = item.season_year || (item.waived_at ? item.waived_at.toString().slice(0, 4) : '-');
             html += `<tr>
                 <td><strong class="text-orange">${item.name}</strong></td>
                 <td>${item.ovr}</td>
                 <td>${teamName}</td>
-                <td>${item.waived_at || '-'}</td>
+                <td>${year}</td>
             </tr>`;
         });
         html += '</tbody></table></div>';
@@ -364,6 +416,55 @@ async function aprovarProposta(playerId) {
     } catch (error) {
         console.error('Erro:', error);
         alert('Erro ao aprovar proposta');
+    }
+}
+
+async function recusarTodasPropostas(playerId) {
+    if (!confirm('Recusar todas as propostas deste jogador?')) return;
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reject_all_offers', free_agent_id: playerId })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao recusar propostas');
+            return;
+        }
+
+        carregarPropostasAdmin();
+        carregarFreeAgentsAdmin();
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao recusar propostas');
+    }
+}
+
+async function encerrarSemVencedor(playerId) {
+    if (!confirm('Encerrar este leilao sem vencedor? As propostas pendentes serao recusadas.')) return;
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'close_without_winner', free_agent_id: playerId })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao encerrar leilao');
+            return;
+        }
+
+        carregarPropostasAdmin();
+        carregarFreeAgentsAdmin();
+        carregarFreeAgents();
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao encerrar leilao');
     }
 }
 
@@ -435,7 +536,7 @@ function renderFreeAgents() {
         if (player.my_offer_amount) {
             html += `<div class="badge bg-info mb-2 w-100">Seu lance: ${player.my_offer_amount} moedas</div>`;
         }
-        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount || 1})">
+        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount ?? 0})">
             <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Proposta'}
         </button>`;
         html += '</div></div></div>';
@@ -450,8 +551,8 @@ function renderFreeAgents() {
 function abrirModalOferta(playerId, playerName, currentAmount = 1) {
     document.getElementById('freeAgentIdOffer').value = playerId;
     document.getElementById('freeAgentNomeOffer').textContent = playerName;
-    document.getElementById('offerAmount').value = currentAmount;
-    document.getElementById('offerAmount').min = 1;
+    document.getElementById('offerAmount').value = currentAmount ?? 0;
+    document.getElementById('offerAmount').min = 0;
 
     const modal = new bootstrap.Modal(document.getElementById('modalOffer'));
     modal.show();
@@ -468,15 +569,19 @@ function handleFreeAgencyOffer(playerId, playerName, currentAmount = 1) {
 document.getElementById('btnConfirmOffer')?.addEventListener('click', async () => {
     const playerId = document.getElementById('freeAgentIdOffer').value;
     const amount = parseInt(document.getElementById('offerAmount').value, 10);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(amount) || amount < 0) {
         alert('Informe uma quantidade valida de moedas.');
         return;
     }
 
-    if (amount > userMoedas) {
-        alert('Voce nao tem moedas suficientes.');
-        return;
+    // Cancelamento com 0 moedas
+    if (amount === 0) {
+        if (!confirm('Cancelar sua proposta para este jogador?')) return;
+    } else {
+        if (amount > userMoedas) {
+            alert('Voce nao tem moedas suficientes.');
+            return;
+        }
     }
 
     try {

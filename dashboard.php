@@ -128,6 +128,54 @@ try {
     // Tabela pode não existir ainda
 }
 
+// Buscar última diretriz enviada pelo time
+$lastDirective = null;
+$lastDirectiveStarters = [];
+$lastDirectiveBench = [];
+try {
+    if (!empty($team['id'])) {
+        $stmtLastDir = $pdo->prepare("SELECT td.*, dd.description, dd.deadline_date
+            FROM team_directives td
+            INNER JOIN directive_deadlines dd ON dd.id = td.deadline_id
+            WHERE td.team_id = ?
+            ORDER BY td.submitted_at DESC
+            LIMIT 1");
+        $stmtLastDir->execute([(int)$team['id']]);
+        $lastDirective = $stmtLastDir->fetch(PDO::FETCH_ASSOC);
+
+        if ($lastDirective) {
+            $ids = [];
+            foreach (['starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id','bench_1_id','bench_2_id','bench_3_id'] as $key) {
+                if (!empty($lastDirective[$key])) $ids[] = (int)$lastDirective[$key];
+            }
+            if ($ids) {
+                $in = implode(',', array_fill(0, count($ids), '?'));
+                $stmtPlayers = $pdo->prepare("SELECT id, name, position, ovr FROM players WHERE id IN ($in)");
+                $stmtPlayers->execute($ids);
+                $pmap = [];
+                while ($r = $stmtPlayers->fetch(PDO::FETCH_ASSOC)) { $pmap[(int)$r['id']] = $r; }
+
+                for ($i=1; $i<=5; $i++) {
+                    $pid = (int)($lastDirective['starter_'.$i.'_id'] ?? 0);
+                    if ($pid && isset($pmap[$pid])) {
+                        $p = $pmap[$pid];
+                        $lastDirectiveStarters[] = $p['name'] . ' (' . $p['position'] . ' · ' . $p['ovr'] . ')';
+                    }
+                }
+                for ($i=1; $i<=3; $i++) {
+                    $pid = (int)($lastDirective['bench_'.$i.'_id'] ?? 0);
+                    if ($pid && isset($pmap[$pid])) {
+                        $p = $pmap[$pid];
+                        $lastDirectiveBench[] = $p['name'] . ' (' . $p['position'] . ' · ' . $p['ovr'] . ')';
+                    }
+                }
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Tabelas podem não existir ainda
+}
+
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("
@@ -170,9 +218,39 @@ $stmtPicks = $pdo->prepare("
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
-$stmtTrades = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
-$stmtTrades->execute([$team['id'], $team['id']]);
-$tradesCount = (int)$stmtTrades->fetchColumn();
+// Contador de trades por time (novo modelo)
+function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return 0;
+        }
+
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+        if ($currentCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        if ($currentCycle > 0 && $tradesCycle <= 0) {
+            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+$tradesCount = syncTeamTradeCounterDashboard($pdo, (int)$team['id']);
 
 // Buscar última trade da liga (mais recente)
 $lastTrade = null;
@@ -429,8 +507,8 @@ try {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FBA Manager">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="/img/icon-192x192.png">
+    <link rel="manifest" href="/manifest.json?v=3">
+    <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
     <title>Dashboard - FBA Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -746,10 +824,10 @@ try {
             </div>
         </div>
 
-        <!-- Ações Rápidas -->
+        <?php if ($activeDirectiveDeadline): ?>
         <div class="row g-4 mb-4">
             <div class="col-12">
-                <div class="card border-orange">
+                <div class="card bg-dark-panel border-orange">
                     <div class="card-header bg-transparent border-orange">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-lightning-fill me-2 text-orange"></i>Ações Rápidas
@@ -792,7 +870,7 @@ try {
                                 </a>
                             </div>
                             
-                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                            <div class="col-md-4">
                                 <a href="/teams.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
@@ -804,7 +882,7 @@ try {
                                 </a>
                             </div>
                             
-                            <div class="col-md-<?= $activeDirectiveDeadline ? '6' : '4' ?>">
+                            <div class="col-md-4">
                                 <a href="/players.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
@@ -853,7 +931,7 @@ try {
                     </div>
                     <div class="text-end d-flex flex-column gap-2">
                         <?php if ($activeInitDraftSession && !empty($activeInitDraftSession['access_token'])): ?>
-                        <a href="/initdraft.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
+                        <a href="/initdraftselecao.php?token=<?= htmlspecialchars($activeInitDraftSession['access_token']) ?>" class="btn btn-outline-light">
                             <i class="bi bi-trophy me-2"></i>Abrir sala do draft inicial
                         </a>
                         <?php endif; ?>
@@ -868,11 +946,11 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- Draft e Trades (lado a lado) -->
+        <!-- Draft, Trades e Minhas Diretrizes (3 na mesma linha) -->
         <div class="row g-4 mb-4">
             <!-- Draft Ativo -->
             <div class="col-md-6">
-                <div class="card border-orange h-100">
+                <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-trophy me-2 text-orange"></i>Draft
@@ -908,7 +986,7 @@ try {
 
             <!-- Última Trade -->
             <div class="col-md-6">
-                <div class="card border-orange h-100">
+                <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
                             <i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades
@@ -1048,6 +1126,53 @@ try {
                     </div>
                 </div>
             </div>
+
+            <?php if (!$activeDirectiveDeadline && $lastDirective): ?>
+            <!-- Minhas Diretrizes -->
+            <div class="col-md-4">
+                <div class="card bg-dark-panel border-orange h-100">
+                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            <i class="bi bi-clipboard-check me-2 text-orange"></i>Minhas Diretrizes
+                        </h4>
+                        <a href="/diretrizes.php" class="btn btn-sm btn-outline-orange">Ver/Editar</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2 text-light-gray small">
+                            <?php if (!empty($lastDirective['submitted_at'])): ?>
+                                <i class="bi bi-clock me-1"></i>
+                                Último envio: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($lastDirective['submitted_at']))) ?>
+                            <?php endif; ?>
+                            <?php if (!empty($lastDirective['description'])): ?>
+                                <div><?= htmlspecialchars($lastDirective['description']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <small class="text-orange fw-bold d-block mb-1">Quinteto titular</small>
+                                <?php if (count($lastDirectiveStarters) > 0): ?>
+                                    <?php foreach ($lastDirectiveStarters as $s): ?>
+                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($s) ?></div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <small class="text-light-gray">-</small>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <small class="text-orange fw-bold d-block mb-1">Banco</small>
+                                <?php if (count($lastDirectiveBench) > 0): ?>
+                                    <?php foreach ($lastDirectiveBench as $b): ?>
+                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($b) ?></div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <small class="text-light-gray">-</small>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Informações da Liga, Top 5 Ranking e Últimos Vencedores (3 cards) -->

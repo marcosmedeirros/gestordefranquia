@@ -69,25 +69,28 @@
     }
     rumors.forEach(r => {
       const card = document.createElement('div');
-      card.className = 'player-card';
-      const canDelete = isAdmin || (teamId && parseInt(r.team_id) === parseInt(teamId));
+      const isOwner = teamId && parseInt(r.team_id) === parseInt(teamId);
+      card.className = `rumor-chat-item${isOwner ? ' rumor-chat-own' : ''}`;
+      const canDelete = isAdmin || isOwner;
       let whatsappBtn = '';
       if (r.gm_phone_whatsapp) {
         const msg = encodeURIComponent('Olá! Vi seu rumor na FBA e gostaria de conversar sobre trocas.');
         whatsappBtn = `<a href="https://wa.me/${r.gm_phone_whatsapp}?text=${msg}" target="_blank" rel="noopener" class="btn btn-sm btn-success ms-2"><i class="bi bi-whatsapp"></i> Falar</a>`;
       }
       card.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="team-chip mb-2">
-            <img src="${escapeAttr(r.photo_url || '/img/default-team.png')}" alt="${escapeAttr(r.city || '')} ${escapeAttr(r.name || '')}">
-            <span class="text-white small">${escapeHtml(r.city || '')} ${escapeHtml(r.name || '')}</span>
-          </div>
-          <div class="text-light-gray small">${formatDate(r.created_at)}</div>
+        <div class="rumor-chat-avatar">
+          <img src="${escapeAttr(r.photo_url || '/img/default-team.png')}" alt="${escapeAttr(r.city || '')} ${escapeAttr(r.name || '')}">
         </div>
-        <div class="player-name">${escapeHtml(r.content)}</div>
-        <div class="mt-2 d-flex justify-content-end align-items-center gap-2">
-          ${whatsappBtn}
-          ${canDelete ? `<button class="btn btn-sm btn-outline-danger" data-id="${r.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
+        <div class="rumor-chat-body">
+          <div class="rumor-chat-header">
+            <span class="rumor-team-name">${escapeHtml(r.city || '')} ${escapeHtml(r.name || '')}</span>
+            <span class="rumor-chat-date">${formatDate(r.created_at)}</span>
+          </div>
+          <div class="rumor-chat-bubble">${escapeHtml(r.content)}</div>
+          <div class="rumor-chat-actions">
+            ${whatsappBtn}
+            ${canDelete ? `<button class="btn btn-sm btn-outline-danger" data-id="${r.id}"><i class="bi bi-trash"></i></button>` : ''}
+          </div>
         </div>
       `;
       if (canDelete) {

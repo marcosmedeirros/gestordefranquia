@@ -22,17 +22,41 @@ if ($team) {
     $tradesEnabled = $settings['trades_enabled'] ?? 1;
 }
 
-// Contar trades criadas pelo usuário nesta temporada
-$tradeCount = 0;
-if ($teamId) {
-  try {
-    $stmtCount = $pdo->prepare("SELECT COUNT(*) as total FROM trades WHERE status = 'accepted' AND YEAR(updated_at) = YEAR(NOW()) AND (from_team_id = ? OR to_team_id = ?)");
-    $stmtCount->execute([$teamId, $teamId]);
-    $tradeCount = $stmtCount->fetch()['total'] ?? 0;
-  } catch (Exception $e) {
-    $tradeCount = 0;
-  }
+function syncTeamTradeCounter(PDO $pdo, int $teamId): int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return 0;
+        }
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+    // Se trades_cycle ainda não estiver inicializado, alinhar com current_cycle e não zerar o contador.
+    if ($currentCycle > 0 && $tradesCycle <= 0) {
+      $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+        ->execute([$currentCycle, $teamId]);
+      return $tradesUsed;
+    }
+
+    // Só zera quando já existe um ciclo anterior registrado e ele mudou
+    if ($currentCycle > 0 && $tradesCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
 }
+
+// Contador de trades (mostrar exatamente o campo trades_used do time logado)
+$tradeCount = (int)($team['trades_used'] ?? 0);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -142,12 +166,19 @@ if ($teamId) {
       padding: 6px 14px;
     }
 
-    .team-chip img {
-      width: 30px;
-      height: 30px;
+    .team-chip-badge {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      object-fit: cover;
+      background: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255,255,255,0.2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      color: var(--fba-text);
     }
 
     #playersList .alert {
@@ -267,8 +298,8 @@ if ($teamId) {
     <div class="mb-4">
       <div class="d-flex justify-content-between align-items-center">
         <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
-        <div>
-          <span class="badge bg-secondary me-2"><?= $tradeCount ?> / <?= $maxTrades ?> Trades esta temporada</span>
+    <div>
+      <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
               <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
@@ -503,6 +534,5 @@ if ($teamId) {
   <script src="/js/trade-list.js"></script>
   <script src="/js/rumors.js"></script>
   <script src="/js/pwa.js"></script>
-  <script src="/js/theme.js"></script>
 </body>
 </html>

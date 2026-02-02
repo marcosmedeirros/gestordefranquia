@@ -1,4 +1,10 @@
 <?php
+// Define timezone padrão para todo o sistema: São Paulo/Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
+// Incluir funções de timezone
+require_once __DIR__ . '/timezone.php';
+
 function loadConfig(): array
 {
     static $config = null;

@@ -85,7 +85,7 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showCoins()"><i class="bi bi-coin"></i><h4>Moedas</h4><p>Gerencie moedas dos times</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');

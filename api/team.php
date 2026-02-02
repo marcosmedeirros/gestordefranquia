@@ -26,6 +26,37 @@ function appendPhoneFields(array &$row): void {
     $row['owner_phone_whatsapp'] = $normalizedPhone;
 }
 
+/**
+ * Sincroniza contador de trades por time com base em current_cycle/trades_cycle.
+ * Retorna o valor atual de trades_used (0 quando reseta ou não encontrado).
+ */
+function syncTeamTradeCounterLocal(PDO $pdo, int $teamId): int {
+    try {
+        $stmt = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return 0;
+        $currentCycle = (int)($row['current_cycle'] ?? 0);
+        $tradesCycle = (int)($row['trades_cycle'] ?? 0);
+        $tradesUsed = (int)($row['trades_used'] ?? 0);
+
+        if ($currentCycle > 0 && $tradesCycle !== $currentCycle) {
+            $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+            return 0;
+        }
+
+        if ($currentCycle > 0 && $tradesCycle <= 0) {
+            $pdo->prepare('UPDATE teams SET trades_cycle = ? WHERE id = ?')
+                ->execute([$currentCycle, $teamId]);
+        }
+
+        return $tradesUsed;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
 if ($method === 'GET') {
     $action = $_GET['action'] ?? null;
     if ($action === 'list_players' || $action === 'search_player') {
@@ -169,6 +200,8 @@ if ($method === 'GET') {
         }
         $team['owner_phone_display'] = $rawPhone !== '' ? formatBrazilianPhone($rawPhone) : null;
         $team['owner_phone_whatsapp'] = $normalizedPhone;
+        // Sincronizar e expor contador de trades por time
+        $team['trades_used'] = syncTeamTradeCounterLocal($pdo, (int)$team['id']);
     }
 
     jsonResponse(200, ['teams' => $teams]);

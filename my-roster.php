@@ -33,7 +33,7 @@ if ($teamId) {
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FBA Manager">
-  <link rel="apple-touch-icon" href="/img/icon-192.png">
+  <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
   
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -45,6 +45,44 @@ if ($teamId) {
     })();
     </script>
   <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .roster-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .roster-section {
+      text-align: center;
+    }
+    .roster-section h5 {
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+      color: var(--fba-text-muted);
+      margin-bottom: 1rem;
+    }
+    .roster-divider {
+      width: min(320px, 80%);
+      margin: 0 auto;
+      border-color: var(--fba-border);
+      opacity: 0.5;
+    }
+    .roster-card {
+      background: var(--fba-panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .roster-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px rgba(252, 0, 37, 0.25);
+    }
+    @media (max-width: 576px) {
+      .roster-section h5 {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
 </head>
 <body>
   <!-- Botão Hamburguer para Mobile -->
@@ -151,10 +189,8 @@ if ($teamId) {
       </a>
     </div>
 
-    <div class="text-center mt-3">
-      <small class="text-light-gray">
-        <i class="bi bi-person-circle me-1"></i>
-        <?= htmlspecialchars($user['name']) ?>
+    <div class="text-center mb-4">
+      <h5 class="text-white mb-1"><?php echo isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time'; ?></h5>
       </small>
     </div>
   </div>
@@ -286,8 +322,40 @@ if ($teamId) {
           <div class="spinner-border text-orange" role="status"></div>
           <p class="text-light-gray mt-2">Carregando jogadores...</p>
         </div>
+        <!-- Tabela de Jogadores (com filtros e ações) -->
+        <div id="players-table-wrapper" class="mb-4" style="display:none;">
+          <div class="d-flex flex-column flex-md-row gap-2 justify-content-between align-items-start align-items-md-center mb-2">
+            <div class="d-flex gap-2 align-items-center">
+              <input type="text" id="players-search" class="form-control form-control-sm bg-dark text-white border-orange" placeholder="Buscar por nome/posição..." style="min-width: 220px;" />
+              <select id="players-role-filter" class="form-select form-select-sm bg-dark text-white border-orange">
+                <option value="">Todas as funções</option>
+                <option value="Titular">Titular</option>
+                <option value="Banco">Banco</option>
+                <option value="G-League">G-League</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <small class="text-light-gray">Clique nos cabeçalhos para ordenar</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0" id="players-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-sort="name" class="sortable">Jogador</th>
+                  <th scope="col" data-sort="position" class="sortable">Posição</th>
+                  <th scope="col" data-sort="ovr" class="sortable">OVR</th>
+                  <th scope="col" data-sort="age" class="sortable">Idade</th>
+                  <th scope="col" data-sort="role" class="sortable">Função</th>
+                  <th scope="col">Transferência</th>
+                  <th scope="col" class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="players-table-body"></tbody>
+            </table>
+          </div>
+        </div>
         <!-- Grid de Cards Responsivo -->
-        <div id="players-grid" class="row g-3" style="display: none;"></div>
+        <div id="players-grid" class="roster-sections" style="display: none;"></div>
       </div>
     </div>
     <?php endif; ?>
@@ -370,6 +438,5 @@ if ($teamId) {
   <script src="/js/sidebar.js"></script>
   <script src="/js/my-roster-v2.js"></script>
   <script src="/js/pwa.js"></script>
-  <script src="/js/theme.js"></script>
 </body>
 </html>

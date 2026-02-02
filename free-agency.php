@@ -75,8 +75,61 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     </script>
     <link rel="stylesheet" href="css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
+    <style>
+        .free-agency-page .free-agency-tabs .nav-link {
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            border-radius: 999px;
+        }
+        .free-agency-page .free-agency-tabs {
+            gap: 6px;
+        }
+        .free-agency-page .dashboard-content .card-header {
+            border-radius: 16px 16px 0 0;
+        }
+        .free-agency-page .dashboard-content .card-body {
+            border-radius: 0 0 16px 16px;
+        }
+        @media (max-width: 576px) {
+            .free-agency-page .dashboard-content {
+                padding: 1.5rem 1rem 2rem;
+            }
+            .free-agency-page .free-agency-header h1 {
+                font-size: 1.2rem !important;
+            }
+            .free-agency-page .free-agency-header .badge {
+                font-size: 0.68rem !important;
+                padding: 0.25rem 0.5rem;
+            }
+            .free-agency-page .free-agency-tabs {
+                padding-bottom: 0.25rem;
+            }
+            .free-agency-page .free-agency-tabs .nav-link {
+                padding: 8px 12px;
+                font-size: 0.78rem;
+                border-width: 0;
+                background: rgba(255,255,255,0.05);
+            }
+            .free-agency-page .dashboard-content .card-header,
+            .free-agency-page .dashboard-content .card-body {
+                padding: 0.85rem 1rem;
+            }
+            .free-agency-page .stack-mobile > [class^="col"],
+            .free-agency-page .stack-mobile > [class*=" col"] {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+            .free-agency-page .stack-mobile .btn {
+                width: 100%;
+            }
+            .free-agency-page .stack-mobile .form-label {
+                margin-bottom: 0.25rem;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
 </head>
-<body>
+<body class="free-agency-page">
     <!-- Botão Hamburguer para Mobile -->
     <button class="sidebar-toggle" id="sidebarToggle">
         <i class="bi bi-list fs-4"></i>
@@ -89,7 +142,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
         <div class="dashboard-content">
-            <div class="mb-4">
+            <div class="mb-4 free-agency-header">
                 <div class="d-flex flex-column flex-md-row flex-wrap justify-content-between align-items-start align-items-md-center gap-2 gap-md-3">
                     <h1 class="text-white fw-bold mb-0" style="font-size: 1.5rem;">
                         <i class="bi bi-coin text-orange me-2"></i>Free Agency / Leilao
@@ -115,7 +168,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </p>
             </div>
 
-            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" id="freeAgencyTabs" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto free-agency-tabs" id="freeAgencyTabs" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active text-nowrap" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
                         <i class="bi bi-people-fill me-1"></i><span class="d-none d-sm-inline">Free Agency</span><span class="d-sm-none">FA</span>
@@ -124,6 +177,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 <li class="nav-item" role="presentation">
                     <button class="nav-link text-nowrap" id="fa-active-auctions-tab" data-bs-toggle="tab" data-bs-target="#fa-active-auctions" type="button" role="tab">
                         <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leiloes ativos</span><span class="d-sm-none">Leilões</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link text-nowrap" id="fa-history-tab" data-bs-toggle="tab" data-bs-target="#fa-history" type="button" role="tab">
+                        <i class="bi bi-clock-history me-1"></i><span class="d-none d-sm-inline">Historico FA</span><span class="d-sm-none">Histórico</span>
                     </button>
                 </li>
                 <?php if ($is_admin): ?>
@@ -154,7 +212,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             </div>
                         </div>
                         <div class="card-body">
-                            <div class="row g-2 align-items-end mb-3">
+                            <div class="row g-2 align-items-end mb-3 stack-mobile">
                                 <div class="col-8 col-md-6">
                                     <label for="faSearchInput" class="form-label d-none d-md-block">Buscar jogador</label>
                                     <input type="text" id="faSearchInput" class="form-control" placeholder="🔍 Buscar jogador...">
@@ -215,6 +273,19 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                 </div>
 
+                <div class="tab-pane fade" id="fa-history" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico da Free Agency</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="faHistoryContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <?php if ($is_admin): ?>
                 <div class="tab-pane fade" id="fa-auction-admin" role="tabpanel">
                     <div class="card bg-dark-panel border-orange">
@@ -222,7 +293,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilao admin</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3 align-items-end">
+                            <div class="row g-3 align-items-end stack-mobile">
                                 <div class="col-md-3">
                                     <label for="selectLeague" class="form-label">Liga</label>
                                     <select id="selectLeague" class="form-select">
@@ -255,7 +326,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
                             <div class="border-top border-secondary mt-3 pt-3">
                                 <div id="auctionSearchArea">
-                                    <div class="row g-2 align-items-end">
+                                    <div class="row g-2 align-items-end stack-mobile">
                                         <div class="col-md-6">
                                             <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
                                             <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
@@ -273,7 +344,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 </div>
 
                                 <div id="auctionCreateArea" style="display:none;">
-                                    <div class="row g-2">
+                                    <div class="row g-2 stack-mobile">
                                         <div class="col-12">
                                             <div class="text-light-gray small mb-1">O jogador sera criado no leilao e nao precisa selecionar time.</div>
                                         </div>
@@ -350,7 +421,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                             <h5 class="mb-0 text-white"><i class="bi bi-gear-fill text-orange me-2"></i>Adicionar Free Agent</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3">
+                            <div class="row g-3 stack-mobile">
                                 <div class="col-md-3">
                                     <label for="faLeague" class="form-label">Liga</label>
                                     <select id="faLeague" class="form-select">
@@ -437,10 +508,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                     <div class="mb-3">
                         <label for="offerAmount" class="form-label">Moedas do lance</label>
-                        <input type="number" id="offerAmount" class="form-control" min="1" value="1">
+                        <input type="number" id="offerAmount" class="form-control" min="0" value="0">
                     </div>
                     <div class="alert alert-warning">
-                        Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong>
+                        Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong><br>
+                        <small class="text-dark">Dica: informe <strong>0 moedas</strong> para <strong>cancelar</strong> sua proposta.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
