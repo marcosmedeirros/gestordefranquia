@@ -205,10 +205,11 @@ async function showTrades(status = 'all') {
     
     const formatAdminTradePlayer = (player) => {
       if (!player) return '';
+      const name = player.name || 'Jogador (dispensado)';
       const position = player.position || '-';
       const ovr = player.ovr ?? '?';
       const age = player.age ?? '?';
-      return `${player.name} (${position}, ${ovr}/${age})`;
+      return `${name} (${position}, ${ovr}/${age})`;
     };
 
     const renderTradeAssets = (players = [], picks = []) => {
@@ -273,16 +274,34 @@ async function showConfig() {
 <label class="form-label text-light-gray mb-2">Status das Trocas</label>
 <div class="d-flex gap-2">
 <button class="btn ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1" 
-        onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">
+  onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">
 <i class="bi bi-check-circle me-1"></i>Trocas Ativas
 </button>
 <button class="btn ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" 
-        onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">
+  onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">
 <i class="bi bi-x-circle me-1"></i>Trocas Bloqueadas
 </button>
 </div>
 <small class="text-light-gray mt-1 d-block">
 ${(lg.trades_enabled ?? 1) == 1 ? '✅ Usuários podem propor e aceitar trades' : '🚫 Botão de trade desativado para esta liga'}
+</small>
+</div>
+</div>
+<div class="row mb-3">
+<div class="col-md-6">
+<label class="form-label text-light-gray mb-2">Status da Free Agency</label>
+<div class="d-flex gap-2">
+<button class="btn ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1" 
+  onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">
+<i class="bi bi-check-circle me-1"></i>FA Ativa
+</button>
+<button class="btn ${(lg.fa_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" 
+  onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">
+<i class="bi bi-x-circle me-1"></i>FA Bloqueada
+</button>
+</div>
+<small class="text-light-gray mt-1 d-block">
+${(lg.fa_enabled ?? 1) == 1 ? '✅ Usuários podem enviar propostas na FA' : '🚫 Botão de enviar proposta desativado na FA'}
 </small>
 </div>
 </div>
@@ -2275,6 +2294,33 @@ async function toggleTrades(league, enabled) {
     showAlert('success', `Trocas ${enabled == 1 ? 'ativadas' : 'desativadas'} para a liga ${league}!`);
   } catch (e) {
     showAlert('danger', 'Erro ao atualizar status de trades');
+  }
+}
+
+async function toggleFA(league, enabled) {
+  try {
+    await api('admin.php?action=league_settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        league: league,
+        fa_enabled: enabled
+      })
+    });
+
+    const onBtn = document.getElementById(`faOnBtn_${league}`);
+    const offBtn = document.getElementById(`faOffBtn_${league}`);
+
+    if (enabled == 1) {
+      onBtn.className = 'btn btn-success flex-grow-1';
+      offBtn.className = 'btn btn-outline-danger flex-grow-1';
+    } else {
+      onBtn.className = 'btn btn-outline-success flex-grow-1';
+      offBtn.className = 'btn btn-danger flex-grow-1';
+    }
+
+    showAlert('success', `Free Agency ${enabled == 1 ? 'ativada' : 'desativada'} para a liga ${league}!`);
+  } catch (e) {
+    showAlert('danger', 'Erro ao atualizar status da Free Agency');
   }
 }
 

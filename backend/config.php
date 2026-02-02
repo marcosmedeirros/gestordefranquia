@@ -4,8 +4,8 @@ return [
     'db' => [
         'host' => getenv('FBA_DB_HOST') ?: 'localhost',
     'name' => getenv('FBA_DB_NAME') ?: 'u289267434_fbabrasilbanco',
-    'user' => getenv('FBA_DB_USER') ?: 'root',
-    'pass' => getenv('FBA_DB_PASS') ?: '',
+    'user' => getenv('FBA_DB_USER') ?: 'u289267434_fbabrasilbanco',
+    'pass' => getenv('FBA_DB_PASS') ?: 'Fbabrasilbanco@2025',
         'charset' => 'utf8mb4',
     ],
     'mail' => [

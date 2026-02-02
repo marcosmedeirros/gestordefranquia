@@ -13,6 +13,49 @@ if (!$user) {
 }
 
 $pdo = db();
+// Helpers para checar colunas/tabelas e detectar o campo de OVR
+function columnExists(PDO $pdo, string $table, string $column): bool {
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+        $stmt->execute([$column]);
+        return (bool)$stmt->fetch();
+    } catch (Exception $e) { return false; }
+}
+
+function tableExists(PDO $pdo, string $table): bool {
+    try {
+        $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+        $stmt->execute([$table]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) { return false; }
+}
+
+function playerOvrColumn(PDO $pdo): string {
+    return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
+}
+
+// Snapshot dos jogadores nos itens da trade, para manter histórico mesmo se o jogador for dispensado
+function ensureTradeItemSnapshotColumns(PDO $pdo): void {
+    if (!tableExists($pdo, 'trade_items')) return;
+    try {
+        if (!columnExists($pdo, 'trade_items', 'player_name')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_name VARCHAR(255) NULL AFTER player_id");
+        }
+        if (!columnExists($pdo, 'trade_items', 'player_position')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_position VARCHAR(10) NULL AFTER player_name");
+        }
+        if (!columnExists($pdo, 'trade_items', 'player_age')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_age INT NULL AFTER player_position");
+        }
+        if (!columnExists($pdo, 'trade_items', 'player_ovr')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_ovr INT NULL AFTER player_age");
+        }
+    } catch (Exception $e) {
+        // ignora falhas de migração em runtime
+    }
+}
+
+ensureTradeItemSnapshotColumns($pdo);
 
 // Garante coluna 'cycle' para controle de limite por ciclo de temporadas
 function ensureTradeCycleColumn(PDO $pdo): void
@@ -252,11 +295,18 @@ if ($method === 'GET') {
         $trade['request_picks'] = [];
 
         try {
-            $stmtOfferPlayers = $pdo->prepare('
-                SELECT p.* FROM players p
-                JOIN trade_items ti ON p.id = ti.player_id
-                WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
-            ');
+            $ovrCol = playerOvrColumn($pdo);
+            $stmtOfferPlayers = $pdo->prepare(
+                "SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL"
+            );
             $stmtOfferPlayers->execute([$trade['id']]);
             $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -281,11 +331,18 @@ if ($method === 'GET') {
         }
 
         try {
-            $stmtRequestPlayers = $pdo->prepare('
-                SELECT p.* FROM players p
-                JOIN trade_items ti ON p.id = ti.player_id
-                WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
-            ');
+            $ovrCol = playerOvrColumn($pdo);
+            $stmtRequestPlayers = $pdo->prepare(
+                "SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL"
+            );
             $stmtRequestPlayers->execute([$trade['id']]);
             $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -466,10 +523,24 @@ if ($method === 'POST') {
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
-        $stmtItem = $pdo->prepare('INSERT INTO trade_items (trade_id, player_id, pick_id, from_team) VALUES (?, ?, ?, ?)');
+        // Preparar inserção de itens com snapshot de jogador, quando disponível
+        $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
+        $ovrCol = playerOvrColumn($pdo);
+        $sqlItem = $hasSnapshot
+            ? 'INSERT INTO trade_items (trade_id, player_id, pick_id, from_team, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            : 'INSERT INTO trade_items (trade_id, player_id, pick_id, from_team) VALUES (?, ?, ?, ?)';
+        $stmtItem = $pdo->prepare($sqlItem);
         
         foreach ($offerPlayers as $playerId) {
-            $stmtItem->execute([$tradeId, $playerId, null, true]);
+            if ($hasSnapshot) {
+                // Buscar dados do jogador para snapshot
+                $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
+                $stmtP->execute([(int)$playerId]);
+                $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
+                $stmtItem->execute([$tradeId, $playerId, null, true, $p['name'] ?? null, $p['position'] ?? null, isset($p['age']) ? (int)$p['age'] : null, isset($p['ovr']) ? (int)$p['ovr'] : null]);
+            } else {
+                $stmtItem->execute([$tradeId, $playerId, null, true]);
+            }
         }
         
         foreach ($offerPicks as $pickId) {
@@ -478,7 +549,14 @@ if ($method === 'POST') {
         
         // Adicionar itens pedidos
         foreach ($requestPlayers as $playerId) {
-            $stmtItem->execute([$tradeId, $playerId, null, false]);
+            if ($hasSnapshot) {
+                $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
+                $stmtP->execute([(int)$playerId]);
+                $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
+                $stmtItem->execute([$tradeId, $playerId, null, false, $p['name'] ?? null, $p['position'] ?? null, isset($p['age']) ? (int)$p['age'] : null, isset($p['ovr']) ? (int)$p['ovr'] : null]);
+            } else {
+                $stmtItem->execute([$tradeId, $playerId, null, false]);
+            }
         }
         
         foreach ($requestPicks as $pickId) {

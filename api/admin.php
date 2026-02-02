@@ -18,6 +18,18 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
+// Helpers para colunas e OVR
+function columnExists(PDO $pdo, string $table, string $column): bool {
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+        $stmt->execute([$column]);
+        return (bool)$stmt->fetch();
+    } catch (Exception $e) { return false; }
+}
+function playerOvrColumn(PDO $pdo): string {
+    return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
+}
+
 function handleFreeAgentCreation(PDO $pdo, array $validLeagues, array $data): void
 {
     $name = trim($data['name'] ?? '');
@@ -147,9 +159,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1];
 
                 $stmtTeams = $pdo->prepare('SELECT COUNT(*) as total FROM teams WHERE league = ?');
                 $stmtTeams->execute([$league]);
@@ -163,6 +175,7 @@ if ($method === 'GET') {
                     'edital' => $cfg['edital'],
                     'edital_file' => $cfg['edital'],
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
+                    'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -300,11 +313,16 @@ if ($method === 'GET') {
             
             // Para cada trade, buscar itens
             foreach ($trades as &$trade) {
-                $stmtOfferPlayers = $pdo->prepare('
-                    SELECT p.* FROM players p
-                    JOIN trade_items ti ON p.id = ti.player_id
-                    WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL
-                ');
+                $ovrCol = playerOvrColumn($pdo);
+                $stmtOfferPlayers = $pdo->prepare("SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL");
                 $stmtOfferPlayers->execute([$trade['id']]);
                 $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
                 
@@ -317,11 +335,15 @@ if ($method === 'GET') {
                 $stmtOfferPicks->execute([$trade['id']]);
                 $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
                 
-                $stmtRequestPlayers = $pdo->prepare('
-                    SELECT p.* FROM players p
-                    JOIN trade_items ti ON p.id = ti.player_id
-                    WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL
-                ');
+                $stmtRequestPlayers = $pdo->prepare("SELECT 
+                    COALESCE(p.id, ti.player_id) AS id,
+                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.position, ti.player_position) AS position,
+                    COALESCE(p.age, ti.player_age) AS age,
+                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                 FROM trade_items ti
+                 LEFT JOIN players p ON p.id = ti.player_id
+                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL");
                 $stmtRequestPlayers->execute([$trade['id']]);
                 $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
                 
@@ -516,6 +538,7 @@ if ($method === 'PUT') {
             $max_trades = isset($data['max_trades']) ? (int)$data['max_trades'] : null;
             $edital = $data['edital'] ?? null;
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
+            $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -545,6 +568,10 @@ if ($method === 'PUT') {
             if ($trades_enabled !== null) {
                 $updates[] = 'trades_enabled = ?';
                 $params[] = $trades_enabled;
+            }
+            if ($fa_enabled !== null) {
+                $updates[] = 'fa_enabled = ?';
+                $params[] = $fa_enabled;
             }
 
             if (empty($updates)) {

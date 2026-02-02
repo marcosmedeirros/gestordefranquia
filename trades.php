@@ -296,8 +296,21 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
-      <div class="d-flex justify-content-between align-items-center">
-        <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+          <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
+          <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <div class="d-flex align-items-center gap-2">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="tradesStatusToggle" <?= ($tradesEnabled ?? 1) == 1 ? 'checked' : '' ?>>
+                <label class="form-check-label text-light-gray" for="tradesStatusToggle">Ativar trocas</label>
+              </div>
+              <span id="tradesStatusBadge" class="badge <?= ($tradesEnabled ?? 1) == 1 ? 'bg-success' : 'bg-danger' ?>" style="font-size:0.8rem;">
+                <?= ($tradesEnabled ?? 1) == 1 ? 'Trocas abertas' : 'Trocas bloqueadas' ?>
+              </span>
+            </div>
+          <?php endif; ?>
+        </div>
     <div>
       <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
@@ -516,9 +529,15 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
         </div>
         <div class="modal-footer border-top border-orange">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" id="submitTradeBtn">
-            <i class="bi bi-send me-1"></i>Enviar Proposta
-          </button>
+          <?php if ($tradesEnabled == 0): ?>
+            <button type="button" class="btn btn-secondary" id="submitTradeBtn" disabled title="Trades desativadas pelo administrador">
+              <i class="bi bi-lock-fill me-1"></i>Enviar Proposta
+            </button>
+          <?php else: ?>
+            <button type="button" class="btn btn-orange" id="submitTradeBtn">
+              <i class="bi bi-send me-1"></i>Enviar Proposta
+            </button>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -530,9 +549,9 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/trades.js"></script>
-  <script src="/js/trade-list.js"></script>
-  <script src="/js/rumors.js"></script>
-  <script src="/js/pwa.js"></script>
+  <script src="/js/trades.js?v=20260130"></script>
+  <script src="/js/trade-list.js?v=20260130"></script>
+  <script src="/js/rumors.js?v=20260130"></script>
+  <script src="/js/pwa.js?v=20260130"></script>
 </body>
 </html>

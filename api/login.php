@@ -2,6 +2,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
+header('Content-Type: application/json');
 
 try {
     session_start();
@@ -60,6 +61,33 @@ try {
     if (strpos($e->getMessage(), "Unknown column 'league'") !== false) {
         jsonResponse(500, [
             'error' => 'Schema do banco desatualizado. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
+            'technical' => $e->getMessage()
+        ]);
+    }
+    // Tabela users não existe
+    if (strpos($e->getMessage(), 'Base table or view not found') !== false && strpos($e->getMessage(), 'users') !== false) {
+        jsonResponse(500, [
+            'error' => 'Tabela users ausente. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
+            'technical' => $e->getMessage()
+        ]);
+    }
+    // Coluna password_hash/email_verified ausente
+    if (strpos($e->getMessage(), "Unknown column 'password_hash'") !== false || strpos($e->getMessage(), "Unknown column 'email_verified'") !== false) {
+        jsonResponse(500, [
+            'error' => 'Schema do banco desatualizado. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
+            'technical' => $e->getMessage()
+        ]);
+    }
+    // Erros de conexão com banco
+    if (strpos($e->getMessage(), 'SQLSTATE[HY000] [1045]') !== false) {
+        jsonResponse(500, [
+            'error' => 'Falha na conexão com o banco (credenciais inválidas). Verifique backend/config.php.',
+            'technical' => $e->getMessage()
+        ]);
+    }
+    if (strpos($e->getMessage(), 'SQLSTATE[HY000] [2002]') !== false) {
+        jsonResponse(500, [
+            'error' => 'Banco de dados indisponível/host inválido. Verifique backend/config.php e disponibilidade do MySQL.',
             'technical' => $e->getMessage()
         ]);
     }
