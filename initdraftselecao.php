@@ -301,10 +301,10 @@ if ($user && isset($user['id'])) {
                         <span class="text-muted" id="poolMeta"></span>
                     </div>
                     <div class="row g-2 align-items-center mb-3">
-                        <div class="col-md-7">
+                        <div class="col-md-5">
                             <input type="text" id="poolSearch" class="form-control" placeholder="Buscar jogador" />
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-md-4">
                             <select id="poolPositionFilter" class="form-select">
                                 <option value="">Todas as posições</option>
                                 <option value="PG">PG</option>
@@ -312,6 +312,14 @@ if ($user && isset($user['id'])) {
                                 <option value="SF">SF</option>
                                 <option value="PF">PF</option>
                                 <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="poolSort" class="form-select">
+                                <option value="ovr" selected>Ordenar por: OVR</option>
+                                <option value="name">Ordenar por: Nome</option>
+                                <option value="position">Ordenar por: Posição</option>
+                                <option value="age">Ordenar por: Idade</option>
                             </select>
                         </div>
                     </div>
@@ -381,6 +389,7 @@ if ($user && isset($user['id'])) {
             lastPickId: null,
             poolSearch: '',
             poolPosition: '',
+            poolSort: 'ovr',
             poolPage: 1,
             poolPageSize: 15,
             clockTickInterval: null,
@@ -532,6 +541,32 @@ if ($user && isset($user['id'])) {
                 const matchesSearch = !search || (player.name || '').toLowerCase().includes(search);
                 const matchesPosition = !positionFilter || player.position === positionFilter;
                 return matchesSearch && matchesPosition;
+            });
+
+            // Ordenação
+            const sortKey = uiState.poolSort || 'ovr';
+            filtered.sort((a, b) => {
+                if (sortKey === 'ovr') {
+                    const av = Number(a.ovr) || 0;
+                    const bv = Number(b.ovr) || 0;
+                    return bv - av; // desc
+                }
+                if (sortKey === 'age') {
+                    const av = Number(a.age) || 0;
+                    const bv = Number(b.age) || 0;
+                    return bv - av; // desc
+                }
+                if (sortKey === 'position') {
+                    const av = (a.position || '').toString();
+                    const bv = (b.position || '').toString();
+                    return av.localeCompare(bv);
+                }
+                if (sortKey === 'name') {
+                    const av = (a.name || '').toString().toLowerCase();
+                    const bv = (b.name || '').toString().toLowerCase();
+                    return av.localeCompare(bv);
+                }
+                return 0;
             });
 
             const total = filtered.length;
@@ -798,6 +833,13 @@ if ($user && isset($user['id'])) {
 
         elements.poolPositionFilter?.addEventListener('change', (event) => {
             uiState.poolPosition = event.target.value;
+            uiState.poolPage = 1;
+            const currentPick = state.order.find((pick) => !pick.picked_player_id);
+            renderPool(currentPick);
+        });
+
+        document.getElementById('poolSort')?.addEventListener('change', (event) => {
+            uiState.poolSort = event.target.value || 'ovr';
             uiState.poolPage = 1;
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
             renderPool(currentPick);

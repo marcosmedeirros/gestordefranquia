@@ -215,7 +215,7 @@ function renderPlayersTable(players) {
     return;
   }
   players.forEach(p => {
-    const canRetire = Number(p.age) > 35;
+    const canRetire = Number(p.age) >= 35;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
