@@ -5,7 +5,9 @@
 declare(strict_types=1);
 
 $root = realpath(__DIR__ . '/..');
-$srcPath = $root . '/img/fba-logo.png';
+$srcPathPng = $root . '/img/fba-logo.png';
+$srcPathJpg = $root . '/img/logo-fba-preta.jpg';
+$srcPath = file_exists($srcPathJpg) ? $srcPathJpg : $srcPathPng;
 $outDir  = $root . '/img/icons';
 
 $sizes = [16, 32, 48, 72, 96, 128, 144, 152, 167, 180, 192, 256, 384, 512, 1024];
@@ -18,13 +20,18 @@ function ensureDir(string $dir): void {
     }
 }
 
-function loadPng(string $path) {
+function loadImage(string $path) {
     if (!file_exists($path)) {
         throw new RuntimeException('Arquivo de origem não encontrado: ' . $path);
     }
-    $img = imagecreatefrompng($path);
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if ($ext === 'jpg' || $ext === 'jpeg') {
+        $img = imagecreatefromjpeg($path);
+    } else {
+        $img = imagecreatefrompng($path);
+    }
     if (!$img) {
-        throw new RuntimeException('Falha ao carregar PNG: ' . $path);
+        throw new RuntimeException('Falha ao carregar imagem: ' . $path);
     }
     imagealphablending($img, true);
     imagesavealpha($img, true);
@@ -55,20 +62,10 @@ function resizePng($src, int $size) {
 try {
     ensureDir($outDir);
         if (!function_exists('imagecreatefrompng')) {
-            // Fallback: copie uma versão com fundo preto se existir
-            $bgSrc = $root . '/img/fba-logo-bg.png';
-            $useSrc = file_exists($bgSrc) ? $bgSrc : $srcPath;
-            // Copiar a imagem base para todos os tamanhos
-            foreach ($sizes as $sz) {
-                $out = sprintf('%s/icon-%d.png', $outDir, $sz);
-                if (!copy($useSrc, $out)) {
-                    throw new RuntimeException('Falha ao copiar para: ' . $out);
-                }
-                echo "Copiado (fallback): $out\n";
-            }
-            echo "Concluído (fallback sem GD).\n";
+            // Sem GD não dá para converter JPG->PNG. Oriente usar o gerador web/canvas.
+            throw new RuntimeException('GD não disponível. Use /backend/generate-icons-canvas.php ou habilite GD.');
         } else {
-            $src = loadPng($srcPath);
+            $src = loadImage($srcPath);
             foreach ($sizes as $sz) {
                 $dst = resizePng($src, $sz);
                 $out = sprintf('%s/icon-%d.png', $outDir, $sz);

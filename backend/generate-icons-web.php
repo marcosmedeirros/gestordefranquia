@@ -5,7 +5,9 @@
 declare(strict_types=1);
 
 $root = realpath(__DIR__ . '/..');
-$srcPath = $root . '/img/fba-logo.png';
+$srcPathPng = $root . '/img/fba-logo.png';
+$srcPathJpg = $root . '/img/logo-fba-preta.jpg';
+$srcPath = file_exists($srcPathJpg) ? $srcPathJpg : $srcPathPng;
 $outDir  = $root . '/img/icons';
 $sizes   = [48,72,96,128,144,152,167,180,192,256,384,512,1024];
 
@@ -23,7 +25,7 @@ function jsonOut($ok, $msg, $extra = []) {
 
 ensureDir($outDir);
 if (!file_exists($srcPath)) {
-    jsonOut(false, 'Base fba-logo.png não encontrada.');
+    jsonOut(false, 'Base de logo não encontrada.');
 }
 
 if (!function_exists('imagecreatefrompng')) {
@@ -37,7 +39,9 @@ if (!function_exists('imagecreatefrompng')) {
     jsonOut(true, 'Gerado via fallback (sem GD).', ['files' => $generated, 'gd' => false]);
 }
 
-$src = imagecreatefrompng($srcPath);
+$src = (str_ends_with(strtolower($srcPath), '.jpg') || str_ends_with(strtolower($srcPath), '.jpeg'))
+    ? imagecreatefromjpeg($srcPath)
+    : imagecreatefrompng($srcPath);
 if (!$src) {
     jsonOut(false, 'Falha ao carregar PNG base.');
 }
