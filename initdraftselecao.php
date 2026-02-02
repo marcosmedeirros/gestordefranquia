@@ -301,10 +301,10 @@ if ($user && isset($user['id'])) {
                         <span class="text-muted" id="poolMeta"></span>
                     </div>
                     <div class="row g-2 align-items-center mb-3">
-                        <div class="col-md-5">
+                        <div class="col-md-7">
                             <input type="text" id="poolSearch" class="form-control" placeholder="Buscar jogador" />
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-5">
                             <select id="poolPositionFilter" class="form-select">
                                 <option value="">Todas as posições</option>
                                 <option value="PG">PG</option>
@@ -314,24 +314,16 @@ if ($user && isset($user['id'])) {
                                 <option value="C">C</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <select id="poolSort" class="form-select">
-                                <option value="ovr" selected>Ordenar por: OVR</option>
-                                <option value="name">Ordenar por: Nome</option>
-                                <option value="position">Ordenar por: Posição</option>
-                                <option value="age">Ordenar por: Idade</option>
-                            </select>
-                        </div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-dark table-hover align-middle mb-0">
+                        <table class="table table-dark table-hover align-middle mb-0" id="poolTableEl">
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th>Jogador</th>
+                                    <th class="sortable" data-sort="name">Jogador</th>
                                     <th>Posição</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
+                                    <th class="sortable" data-sort="ovr">OVR</th>
+                                    <th class="sortable" data-sort="age">Idade</th>
                                     <th class="text-end">Ação</th>
                                 </tr>
                             </thead>
@@ -389,7 +381,8 @@ if ($user && isset($user['id'])) {
             lastPickId: null,
             poolSearch: '',
             poolPosition: '',
-            poolSort: 'ovr',
+            poolSortField: 'ovr',
+            poolSortAsc: false,
             poolPage: 1,
             poolPageSize: 15,
             clockTickInterval: null,
@@ -543,30 +536,21 @@ if ($user && isset($user['id'])) {
                 return matchesSearch && matchesPosition;
             });
 
-            // Ordenação
-            const sortKey = uiState.poolSort || 'ovr';
+            // Ordenação (clique no cabeçalho): default OVR desc
+            const sortField = uiState.poolSortField || 'ovr';
+            const asc = !!uiState.poolSortAsc;
             filtered.sort((a, b) => {
-                if (sortKey === 'ovr') {
-                    const av = Number(a.ovr) || 0;
-                    const bv = Number(b.ovr) || 0;
-                    return bv - av; // desc
-                }
-                if (sortKey === 'age') {
-                    const av = Number(a.age) || 0;
-                    const bv = Number(b.age) || 0;
-                    return bv - av; // desc
-                }
-                if (sortKey === 'position') {
-                    const av = (a.position || '').toString();
-                    const bv = (b.position || '').toString();
-                    return av.localeCompare(bv);
-                }
-                if (sortKey === 'name') {
+                let cmp = 0;
+                if (sortField === 'ovr') {
+                    cmp = (Number(a.ovr) || 0) - (Number(b.ovr) || 0);
+                } else if (sortField === 'age') {
+                    cmp = (Number(a.age) || 0) - (Number(b.age) || 0);
+                } else if (sortField === 'name') {
                     const av = (a.name || '').toString().toLowerCase();
                     const bv = (b.name || '').toString().toLowerCase();
-                    return av.localeCompare(bv);
+                    cmp = av.localeCompare(bv);
                 }
-                return 0;
+                return asc ? cmp : -cmp;
             });
 
             const total = filtered.length;
@@ -838,8 +822,17 @@ if ($user && isset($user['id'])) {
             renderPool(currentPick);
         });
 
-        document.getElementById('poolSort')?.addEventListener('change', (event) => {
-            uiState.poolSort = event.target.value || 'ovr';
+        document.querySelector('#poolTableEl thead')?.addEventListener('click', (e) => {
+            const th = e.target.closest('th.sortable');
+            if (!th) return;
+            const field = th.dataset.sort;
+            if (!field) return;
+            if (uiState.poolSortField === field) {
+                uiState.poolSortAsc = !uiState.poolSortAsc; // alterna
+            } else {
+                uiState.poolSortField = field;
+                uiState.poolSortAsc = false; // primeiro clique: desc
+            }
             uiState.poolPage = 1;
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
             renderPool(currentPick);
