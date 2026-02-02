@@ -105,6 +105,12 @@ if ($user && isset($user['id'])) {
             padding: 1rem;
         }
 
+        .pick-card.compact {
+            padding: 0.6rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+        }
+
         .current-pick-highlight {
             border-color: rgba(252, 0, 37, 0.7);
             box-shadow: 0 0 18px rgba(252, 0, 37, 0.35);
@@ -113,6 +119,35 @@ if ($user && isset($user['id'])) {
         .next-pick-highlight {
             border-color: rgba(255, 255, 255, 0.2);
             background: rgba(255, 255, 255, 0.04);
+        }
+
+        .reaction-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .reaction-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .reaction-chip.active {
+            background: rgba(252, 0, 37, 0.18);
+            border-color: rgba(252, 0, 37, 0.6);
+        }
+
+        .reaction-count {
+            color: var(--draft-muted);
+            font-size: 0.85rem;
         }
 
         .pick-rank {
@@ -445,16 +480,31 @@ if ($user && isset($user['id'])) {
             const roundOne = state.order.filter((pick) => pick.round === 1).sort((a, b) => a.pick_position - b.pick_position);
             elements.orderList.innerHTML = roundOne
                 .map((pick, index) => {
+                    const picked = !!pick.picked_player_id;
                     const reactions = Array.isArray(pick.reactions) ? pick.reactions : [];
-                    const mine = reactions.find(r => r.mine);
+                    const mineEmoji = reactions.find(r => r.mine)?.emoji || null;
                     const emojiList = ['👍','❤️','😂','😮','😢','😡'];
                     const countsMap = Object.fromEntries(reactions.map(r => [r.emoji, r.count]));
+
                     const chips = emojiList.map(e => {
                         const cnt = countsMap[e] || 0;
-                        const active = mine && mine.emoji === e;
-                        return `<button class="btn btn-sm ${active ? 'btn-light' : 'btn-outline-light'}" onclick="reactPick(${pick.id}, '${e}')">${e} <span class="badge bg-transparent text-light">${cnt}</span></button>`;
+                        const activeClass = mineEmoji === e ? 'reaction-chip active' : 'reaction-chip';
+                        return `<span class="${activeClass}" onclick="reactPick(${pick.id}, '${e}')">${e} <span class="reaction-count">${cnt}</span></span>`;
                     }).join(' ');
-                    const removeBtn = mine ? `<button class="btn btn-sm btn-outline-danger" onclick="removeReaction(${pick.id})"><i class="bi bi-x"></i></button>` : '';
+                    const removeBtn = mineEmoji ? `<button class="btn btn-sm btn-outline-danger" onclick="removeReaction(${pick.id})" title="Remover minha reação"><i class="bi bi-x"></i></button>` : '';
+
+                    const pickSummary = picked ? `
+                        <div class="pick-card compact mt-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-light">
+                                    ${pick.player_name}
+                                    <span class="accent-red">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'}${pick.player_age ? '/' + pick.player_age + 'y' : ''})</span>
+                                </div>
+                                <div class="reaction-bar">${chips} ${removeBtn}</div>
+                            </div>
+                        </div>
+                    ` : '';
+
                     return `
                         <div class="d-flex flex-column gap-1 mb-2 ${currentPick && pick.team_id === currentPick.team_id ? 'order-highlight' : ''} ${nextPick && pick.team_id === nextPick.team_id ? 'order-next' : ''}">
                             <div class="d-flex align-items-center gap-2">
@@ -467,7 +517,7 @@ if ($user && isset($user['id'])) {
                                     </div>
                                 </div>
                             </div>
-                            <div class="d-flex align-items-center gap-2 small">${chips} ${removeBtn}</div>
+                            ${pickSummary}
                         </div>
                     `;
                 })
