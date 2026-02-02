@@ -400,6 +400,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <div class="form-check form-switch ms-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="faStatusToggle">
+                                        <label class="form-check-label text-light-gray" for="faStatusToggle">Propostas</label>
+                                    </div>
+                                    <span id="faStatusBadge" class="badge bg-secondary ms-1" style="font-size: 0.7rem;">-</span>
                                 </div>
                             </div>
                         </div>

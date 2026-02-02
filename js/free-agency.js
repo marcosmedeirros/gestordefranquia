@@ -19,7 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
         faLeagueSelect.value = defaultAdminLeague;
     }
 
-    carregarFreeAgents();
+    // Buscar status da liga ativa (lista) e carregar listas
+    refreshFaStatus(getActiveLeague(), false).then(() => carregarFreeAgents());
     carregarHistoricoFA();
 
     document.getElementById('faSearchInput')?.addEventListener('input', () => {
@@ -32,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isAdmin) {
         console.log('👑 Configurando modo admin...');
         setupAdminEvents();
+        // Atualiza UI com status atual da liga selecionada no admin
+        refreshFaStatus(getAdminLeague(), true);
         carregarFreeAgentsAdmin();
         carregarPropostasAdmin();
         carregarHistoricoContratacoes();
@@ -70,6 +73,8 @@ window.onAdminLeagueChange = function() {
     console.log('🎯🎯🎯 onAdminLeagueChange CHAMADA! 🎯🎯🎯');
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     console.log('Nova liga selecionada:', adminLeagueSelect?.value);
+    // Atualiza status para a liga selecionada no admin
+    refreshFaStatus(getAdminLeague(), true);
     carregarFreeAgentsAdmin();
     carregarPropostasAdmin();
     carregarHistoricoContratacoes();
@@ -470,6 +475,41 @@ async function encerrarSemVencedor(playerId) {
 
 // ========== USER ==========
 
+let faStatusEnabled = true;
+
+async function refreshFaStatus(league, isAdminContext = false) {
+    if (!league) {
+        faStatusEnabled = true;
+        updateFaStatusUI(isAdminContext);
+        return true;
+    }
+    try {
+        const resp = await fetch(`api/free-agency.php?action=fa_status&league=${encodeURIComponent(league)}`);
+        const data = await resp.json();
+        faStatusEnabled = !!(data && data.success ? data.enabled : (data.enabled ?? true));
+    } catch (e) {
+        faStatusEnabled = true;
+    }
+    updateFaStatusUI(isAdminContext);
+    return faStatusEnabled;
+}
+
+function updateFaStatusUI(isAdminContext = false) {
+    // Admin header toggle + badge
+    const toggle = document.getElementById('faStatusToggle');
+    const badge = document.getElementById('faStatusBadge');
+    if (isAdminContext && toggle) toggle.checked = !!faStatusEnabled;
+    if (isAdminContext && badge) {
+        if (faStatusEnabled) {
+            badge.className = 'badge bg-success ms-1';
+            badge.textContent = 'Propostas: abertas';
+        } else {
+            badge.className = 'badge bg-danger ms-1';
+            badge.textContent = 'Propostas: fechadas';
+        }
+    }
+}
+
 async function carregarFreeAgents() {
     const container = document.getElementById('freeAgentsContainer');
     if (!container) return;
@@ -510,8 +550,14 @@ function renderFreeAgents() {
         return matchesName && matchesPos;
     });
 
+    // Banner de período fechado
+    let banner = '';
+    if (!faStatusEnabled) {
+        banner = '<div class="alert alert-warning py-2 mb-2"><strong>Período fechado:</strong> propostas temporariamente desativadas nesta liga.</div>';
+    }
+
     if (!filtered.length) {
-        container.innerHTML = '<p class="text-muted">Nenhum jogador disponivel.</p>';
+        container.innerHTML = banner + '<p class="text-muted">Nenhum jogador disponivel.</p>';
         return;
     }
 
@@ -536,13 +582,15 @@ function renderFreeAgents() {
         if (player.my_offer_amount) {
             html += `<div class="badge bg-info mb-2 w-100">Seu lance: ${player.my_offer_amount} moedas</div>`;
         }
-        html += `<button class="btn btn-orange btn-sm w-100" onclick="handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount ?? 0})">
-            <i class="bi bi-send me-1"></i>${player.my_offer_amount ? 'Atualizar' : 'Proposta'}
+        const disabledAttr = faStatusEnabled ? '' : 'disabled';
+        const label = faStatusEnabled ? (player.my_offer_amount ? 'Atualizar' : 'Proposta') : 'Período fechado';
+        html += `<button class="btn btn-orange btn-sm w-100" ${disabledAttr} onclick="${faStatusEnabled ? `handleFreeAgencyOffer(${player.id}, '${player.name.replace(/'/g, "\\'")}', ${player.my_offer_amount ?? 0})` : ''}">
+            <i class="bi bi-send me-1"></i>${label}
         </button>`;
         html += '</div></div></div>';
     });
     html += '</div>';
-    container.innerHTML = html;
+    container.innerHTML = banner + html;
 }
 
 
@@ -567,6 +615,10 @@ function handleFreeAgencyOffer(playerId, playerName, currentAmount = 1) {
 }
 
 document.getElementById('btnConfirmOffer')?.addEventListener('click', async () => {
+    if (!faStatusEnabled) {
+        alert('O período de propostas está fechado nesta liga.');
+        return;
+    }
     const playerId = document.getElementById('freeAgentIdOffer').value;
     const amount = parseInt(document.getElementById('offerAmount').value, 10);
     if (!Number.isFinite(amount) || amount < 0) {
@@ -615,3 +667,32 @@ if (openAdminTabBtn) {
         }
     });
 }
+
+// Toggle admin para abrir/fechar período
+document.getElementById('faStatusToggle')?.addEventListener('change', async (e) => {
+    const league = getAdminLeague();
+    if (!league) return;
+    const enabled = e.target.checked ? 1 : 0;
+    try {
+        const resp = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'set_fa_status', league, enabled })
+        });
+        const data = await resp.json();
+        if (!data.success) {
+            alert(data.error || 'Falha ao atualizar status');
+            // reverter UI
+            e.target.checked = !enabled;
+            return;
+        }
+        faStatusEnabled = !!data.enabled;
+        updateFaStatusUI(true);
+        // refletir na lista
+        // Atualiza status da lista também (liga ativa)
+        refreshFaStatus(getActiveLeague(), false).then(() => carregarFreeAgents());
+    } catch (err) {
+        alert('Erro ao atualizar status');
+        e.target.checked = !enabled;
+    }
+});
