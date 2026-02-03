@@ -13,6 +13,35 @@ $MAX_WAIVERS = 3;
 
 ensureTeamFreeAgencyColumns($pdo);
 
+if (!function_exists('playersTableExists')) {
+    function playersTableExists(PDO $pdo, string $table): bool
+    {
+        static $cache = [];
+        if (array_key_exists($table, $cache)) {
+            return $cache[$table];
+        }
+        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute([$table]);
+        $cache[$table] = $stmt->rowCount() > 0;
+        return $cache[$table];
+    }
+}
+
+if (!function_exists('playersColumnExists')) {
+    function playersColumnExists(PDO $pdo, string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . ':' . $column;
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+        $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
+        $stmt->execute([$column]);
+        $cache[$key] = $stmt->rowCount() > 0;
+        return $cache[$key];
+    }
+}
+
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
     
@@ -270,20 +299,41 @@ if ($method === 'DELETE') {
         if ((int)$row['age'] <= 35) {
             jsonResponse(400, ['error' => 'Apenas jogadores com mais de 35 anos podem se aposentar.']);
         }
-        
+
         try {
-            // Aposentadoria: apenas remove o jogador, NÃO conta como waiver
+            $pdo->beginTransaction();
+
+            // Aposentadoria: remove o jogador e limpa possíveis registros em free_agents
             $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
             $del->execute([$playerId]);
-            
+
+            if (playersTableExists($pdo, 'free_agents')) {
+                try {
+                    if (playersColumnExists($pdo, 'free_agents', 'original_team_id')) {
+                        $cleanup = $pdo->prepare('DELETE FROM free_agents WHERE original_team_id = ? AND name = ?');
+                        $cleanup->execute([$row['team_id'], $row['name']]);
+                    } else {
+                        $cleanup = $pdo->prepare('DELETE FROM free_agents WHERE name = ?');
+                        $cleanup->execute([$row['name']]);
+                    }
+                } catch (Exception $cleanupErr) {
+                    error_log('[players-retirement] cleanup free_agents failed: ' . $cleanupErr->getMessage());
+                }
+            }
+
+            $pdo->commit();
+
             $newCap = topEightCap($pdo, (int)$row['team_id']);
-            
+
             jsonResponse(200, [
                 'message' => $row['name'] . ' se aposentou após uma grande carreira!',
                 'cap_top8' => $newCap,
                 'retirement' => true
             ]);
         } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             jsonResponse(500, ['error' => 'Erro ao aposentar jogador: ' . $e->getMessage()]);
         }
     }
