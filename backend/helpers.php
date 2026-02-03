@@ -56,7 +56,7 @@ function sendVerificationEmail(string $email, string $token): bool
     return mail($email, $subject, $message, $headers);
 }
 
-function sendPasswordResetEmail(string $email, string $token, string $name): bool
+function buildPasswordResetUrl(string $token): string
 {
     $config = loadConfig();
     $resetBase = $config['mail']['reset_base_url'] ?? '';
@@ -76,13 +76,19 @@ function sendPasswordResetEmail(string $email, string $token, string $name): boo
     }
 
     if (str_contains($resetBase, '{token}')) {
-        $resetUrl = str_replace('{token}', urlencode($token), $resetBase);
-    } elseif (str_contains($resetBase, '?')) {
-        $sep = str_ends_with($resetBase, '=') || str_contains($resetBase, 'token=') ? '' : '&token=';
-        $resetUrl = $resetBase . $sep . urlencode($token);
-    } else {
-        $resetUrl = rtrim($resetBase, '/') . '?token=' . urlencode($token);
+        return str_replace('{token}', urlencode($token), $resetBase);
     }
+    if (str_contains($resetBase, '?')) {
+        $sep = str_ends_with($resetBase, '=') || str_contains($resetBase, 'token=') ? '' : '&token=';
+        return $resetBase . $sep . urlencode($token);
+    }
+    return rtrim($resetBase, '/') . '?token=' . urlencode($token);
+}
+
+function sendPasswordResetEmail(string $email, string $token, string $name): bool
+{
+    $config = loadConfig();
+    $resetUrl = buildPasswordResetUrl($token);
     $subject = 'Recuperação de Senha - FBA Manager';
     
     $message = "

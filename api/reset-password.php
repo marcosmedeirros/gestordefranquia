@@ -35,12 +35,24 @@ try {
     $updateStmt = $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?');
     $updateStmt->execute([$token, $tokenExpiry, $user['id']]);
 
+    $resetUrl = buildPasswordResetUrl($token);
+
     // Envia e-mail
     $sent = sendPasswordResetEmail($email, $token, $user['name']);
 
     if (!$sent) {
         error_log('Falha ao enviar e-mail de recuperação para: ' . $email);
         jsonResponse(500, ['error' => 'Falha ao enviar e-mail de recuperação. Tente novamente mais tarde.']);
+    }
+
+    $config = loadConfig();
+    $debugResetLink = !empty($config['app']['debug_reset_link']);
+    if ($debugResetLink) {
+        error_log('DEBUG reset link para ' . $email . ': ' . $resetUrl);
+        jsonResponse(200, [
+            'message' => 'Link de recuperação enviado! Verifique seu e-mail.',
+            'debug_reset_link' => $resetUrl
+        ]);
     }
 
     jsonResponse(200, ['message' => 'Link de recuperação enviado! Verifique seu e-mail.']);

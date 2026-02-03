@@ -16,5 +16,6 @@ return [
     'app' => [
         'cap_min' => 618,
         'cap_max' => 648,
+        'debug_reset_link' => getenv('FBA_DEBUG_RESET_LINK') ?: false,
     ],
 ];
