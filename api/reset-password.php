@@ -36,7 +36,12 @@ try {
     $updateStmt->execute([$token, $tokenExpiry, $user['id']]);
 
     // Envia e-mail
-    sendPasswordResetEmail($email, $token, $user['name']);
+    $sent = sendPasswordResetEmail($email, $token, $user['name']);
+
+    if (!$sent) {
+        error_log('Falha ao enviar e-mail de recuperação para: ' . $email);
+        jsonResponse(500, ['error' => 'Falha ao enviar e-mail de recuperação. Tente novamente mais tarde.']);
+    }
 
     jsonResponse(200, ['message' => 'Link de recuperação enviado! Verifique seu e-mail.']);
 
