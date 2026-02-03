@@ -11,6 +11,7 @@ return [
     'mail' => [
     'from' => getenv('FBA_MAIL_FROM') ?: 'no-reply@fbabrasil.com.br',
     'verify_base_url' => getenv('FBA_VERIFY_BASE_URL') ?: 'https://fbabrasil.com.br/api/verify.php?token=',
+    'reset_base_url' => getenv('FBA_RESET_BASE_URL') ?: 'https://fbabrasil.com.br/reset-password.php?token=',
     ],
     'app' => [
         'cap_min' => 618,

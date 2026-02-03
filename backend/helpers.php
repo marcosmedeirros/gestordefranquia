@@ -59,7 +59,30 @@ function sendVerificationEmail(string $email, string $token): bool
 function sendPasswordResetEmail(string $email, string $token, string $name): bool
 {
     $config = loadConfig();
-    $resetUrl = 'https://fbabrasil.com.br/reset-password.php?token=' . urlencode($token);
+    $resetBase = $config['mail']['reset_base_url'] ?? '';
+    if (!$resetBase && !empty($config['mail']['verify_base_url'])) {
+        $parts = parse_url($config['mail']['verify_base_url']);
+        if (!empty($parts['scheme']) && !empty($parts['host'])) {
+            $port = !empty($parts['port']) ? ':' . $parts['port'] : '';
+            $resetBase = $parts['scheme'] . '://' . $parts['host'] . $port . '/reset-password.php';
+        }
+    }
+    if (!$resetBase && !empty($_SERVER['HTTP_HOST'])) {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $resetBase = $scheme . '://' . $_SERVER['HTTP_HOST'] . '/reset-password.php';
+    }
+    if (!$resetBase) {
+        $resetBase = 'https://fbabrasil.com.br/reset-password.php';
+    }
+
+    if (str_contains($resetBase, '{token}')) {
+        $resetUrl = str_replace('{token}', urlencode($token), $resetBase);
+    } elseif (str_contains($resetBase, '?')) {
+        $sep = str_ends_with($resetBase, '=') || str_contains($resetBase, 'token=') ? '' : '&token=';
+        $resetUrl = $resetBase . $sep . urlencode($token);
+    } else {
+        $resetUrl = rtrim($resetBase, '/') . '?token=' . urlencode($token);
+    }
     $subject = 'Recuperação de Senha - FBA Manager';
     
     $message = "
