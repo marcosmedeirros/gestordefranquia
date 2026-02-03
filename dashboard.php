@@ -1134,9 +1134,8 @@ try {
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
-                            <i class="bi bi-clipboard-check me-2 text-orange"></i>Minhas Diretrizes
+                            <i class="bi bi-arrow-left-right me-2 text-orange"></i>Última trade
                         </h4>
-                        <a href="/diretrizes.php" class="btn btn-sm btn-outline-orange">Ver/Editar</a>
                     </div>
                     <div class="card-body">
                         <div class="mb-2 text-light-gray small">

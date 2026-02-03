@@ -364,7 +364,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
                     <div class="card bg-dark-panel border-orange">
                         <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-person-x text-orange me-2"></i>Dispensados Recentes</h5>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-person-x text-orange me-2"></i>Dispensados Recentes</h5>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <select id="faWaiversSeasonFilter" class="form-select form-select-sm" style="min-width: 140px;">
+                                        <option value="">Todas temporadas</option>
+                                    </select>
+                                    <select id="faWaiversTeamFilter" class="form-select form-select-sm" style="min-width: 180px;">
+                                        <option value="">Todos os times</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div id="faWaiversContainer">

@@ -149,6 +149,14 @@ function ensureTeamFreeAgencyColumns(PDO $pdo): void
         if ($needsSignings) {
             $pdo->exec("ALTER TABLE teams ADD COLUMN fa_signings_used INT DEFAULT 0");
         }
+            $needsFaResetYear = $pdo->query("SHOW COLUMNS FROM teams LIKE 'fa_reset_year'")->rowCount() === 0;
+            if ($needsFaResetYear) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN fa_reset_year INT NULL AFTER fa_signings_used");
+            }
+            $needsWaiversResetYear = $pdo->query("SHOW COLUMNS FROM teams LIKE 'waivers_reset_year'")->rowCount() === 0;
+            if ($needsWaiversResetYear) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN waivers_reset_year INT NULL AFTER waivers_used");
+            }
     } catch (Exception $e) {
         error_log('[ensureTeamFreeAgencyColumns] ' . $e->getMessage());
     }

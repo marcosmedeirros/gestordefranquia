@@ -90,6 +90,10 @@ if (!$team && $user_id) {
     }
 }
 
+if ($team_id && $team_league) {
+    syncFaSeasonCounters($pdo, $team_id, $team_league);
+}
+
 function jsonError(string $message, int $status = 400): void
 {
     http_response_code($status);
@@ -186,6 +190,48 @@ function resolveCurrentSeason(PDO $pdo, string $league): array
     $stmt->execute([$league]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? ['id' => (int)$row['id'], 'year' => (int)$row['year']] : ['id' => null, 'year' => null];
+}
+
+function syncFaSeasonCounters(PDO $pdo, int $teamId, string $league): void
+{
+    if ($teamId <= 0 || !$league) {
+        return;
+    }
+
+    $season = resolveCurrentSeason($pdo, $league);
+    if (empty($season['year'])) {
+        return;
+    }
+
+    try {
+        $stmt = $pdo->prepare('SELECT waivers_used, fa_signings_used, waivers_reset_year, fa_reset_year FROM teams WHERE id = ?');
+        $stmt->execute([$teamId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return;
+        }
+
+        $updates = [];
+        $params = [];
+        if ((int)($row['waivers_reset_year'] ?? 0) !== (int)$season['year']) {
+            $updates[] = 'waivers_used = 0';
+            $updates[] = 'waivers_reset_year = ?';
+            $params[] = (int)$season['year'];
+        }
+        if ((int)($row['fa_reset_year'] ?? 0) !== (int)$season['year']) {
+            $updates[] = 'fa_signings_used = 0';
+            $updates[] = 'fa_reset_year = ?';
+            $params[] = (int)$season['year'];
+        }
+
+        if ($updates) {
+            $params[] = $teamId;
+            $stmtUpdate = $pdo->prepare('UPDATE teams SET ' . implode(', ', $updates) . ' WHERE id = ?');
+            $stmtUpdate->execute($params);
+        }
+    } catch (Exception $e) {
+        error_log('[free-agency] syncFaSeasonCounters: ' . $e->getMessage());
+    }
 }
 
 function columnExists(PDO $pdo, string $table, string $column): bool
@@ -760,6 +806,8 @@ function listWaivers(PDO $pdo, string $league): void
     $params = [];
     $seasonSelect = 'NULL AS season_year, NULL AS season_number';
     $seasonJoin = '';
+    $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
+    $teamFilter = isset($_GET['team_name']) ? trim((string)$_GET['team_name']) : '';
 
     if (columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons')) {
         $seasonSelect = 's.year AS season_year, s.season_number';
@@ -792,12 +840,21 @@ function listWaivers(PDO $pdo, string $league): void
         $where .= ' AND (fa.winner_team_id IS NULL)';
     }
 
-    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, fa.waived_at, {$seasonSelect}
+    if ($seasonFilter) {
+        $where .= ' AND s.year = ?';
+        $params[] = $seasonFilter;
+    }
+    if ($teamFilter !== '') {
+        $where .= ' AND fa.original_team_name = ?';
+        $params[] = $teamFilter;
+    }
+
+    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$seasonSelect}
         FROM free_agents fa
         {$seasonJoin}
         WHERE {$where}
         ORDER BY fa.waived_at DESC
-        LIMIT 100");
+        LIMIT 200");
     $stmt->execute($params);
     $waivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

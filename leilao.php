@@ -54,8 +54,189 @@ if ($is_admin) {
 
     <div class="d-flex">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
+        <div class="dashboard-content">
+            <div class="mb-4">
+                <div class="d-flex flex-column flex-md-row flex-wrap justify-content-between align-items-start align-items-md-center gap-2 gap-md-3">
+                    <h1 class="text-white fw-bold mb-0" style="font-size: 1.5rem;">
+                        <i class="bi bi-hammer text-orange me-2"></i>Leilão
+                    </h1>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php if (!empty($team_name)): ?>
+                            <span class="badge bg-dark border border-warning text-warning" style="font-size: 0.75rem;">
+                                <?= htmlspecialchars($team_name) ?>
+                            </span>
+                        <?php endif; ?>
+                        <?php if ($is_admin): ?>
+                            <span class="badge bg-danger" style="font-size: 0.75rem;">Admin</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <p class="text-light-gray mb-0 mt-2" style="font-size: 0.85rem;">
+                    Participe de leilões ativos ou gerencie novas entradas como admin.
+                </p>
+            </div>
 
-        <!-- Conteúdo removido: Leilão -->
+            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active text-nowrap" id="auction-active-tab" data-bs-toggle="tab" data-bs-target="#auction-active" type="button" role="tab">
+                        <i class="bi bi-hammer me-1"></i>Leilões ativos
+                    </button>
+                </li>
+                <?php if ($is_admin): ?>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link text-nowrap" id="auction-admin-tab" data-bs-toggle="tab" data-bs-target="#auction-admin" type="button" role="tab">
+                        <i class="bi bi-shield-lock-fill me-1"></i>Admin Leilão
+                    </button>
+                </li>
+                <?php endif; ?>
+            </ul>
+
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="auction-active" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange mb-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilões Ativos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="leiloesAtivosContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php if ($team_id): ?>
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-inbox text-orange me-2"></i>Propostas Recebidas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="propostasRecebidasContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="card bg-dark-panel border-orange mt-4">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Histórico de Leilões</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="leiloesHistoricoContainer">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($is_admin): ?>
+                <div class="tab-pane fade" id="auction-admin" role="tabpanel">
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilão admin</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end stack-mobile">
+                                <div class="col-md-3">
+                                    <label for="selectLeague" class="form-label">Liga</label>
+                                    <select id="selectLeague" class="form-select">
+                                        <option value="">Selecione...</option>
+                                        <?php foreach ($leagues as $league): ?>
+                                            <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>">
+                                                <?= htmlspecialchars($league['name']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="d-flex flex-wrap gap-3 align-items-center text-white mt-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
+                                            <label class="form-check-label" for="auctionModeSearch">Buscar jogador</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
+                                            <label class="form-check-label" for="auctionModeCreate">Criar jogador</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 mt-4">
+                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled>
+                                        <i class="bi bi-play-fill me-1"></i>Iniciar 20min
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="border-top border-secondary mt-3 pt-3">
+                                <div id="auctionSearchArea">
+                                    <div class="row g-2 align-items-end stack-mobile">
+                                        <div class="col-md-6">
+                                            <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
+                                            <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-outline-orange w-100" id="auctionSearchBtn">
+                                                <i class="bi bi-search"></i> Buscar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
+                                    <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
+                                    <input type="hidden" id="auctionSelectedPlayerId">
+                                    <input type="hidden" id="auctionSelectedTeamId">
+                                </div>
+
+                                <div id="auctionCreateArea" style="display:none;">
+                                    <div class="row g-2 stack-mobile">
+                                        <div class="col-12">
+                                            <div class="text-light-gray small mb-1">O jogador será criado no leilão e não precisa selecionar time.</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="auctionPlayerName" class="form-label">Nome</label>
+                                            <input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label for="auctionPlayerPosition" class="form-label">Posição</label>
+                                            <select id="auctionPlayerPosition" class="form-select">
+                                                <option value="PG">PG</option>
+                                                <option value="SG">SG</option>
+                                                <option value="SF">SF</option>
+                                                <option value="PF">PF</option>
+                                                <option value="C">C</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-1">
+                                            <label for="auctionPlayerAge" class="form-label">Idade</label>
+                                            <input type="number" id="auctionPlayerAge" class="form-control" value="25">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <label for="auctionPlayerOvr" class="form-label">OVR</label>
+                                            <input type="number" id="auctionPlayerOvr" class="form-control" value="70">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-success w-100" type="button" id="btnCriarJogadorLeilao">
+                                                <i class="bi bi-plus-circle me-1"></i>Criar jogador
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <h6 class="text-white mb-2"><i class="bi bi-person-plus text-orange me-2"></i>Jogadores criados (sem time)</h6>
+                                        <div id="auctionTempList"><p class="text-light-gray">Nenhum jogador criado.</p></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <div id="adminLeiloesContainer">
+                                    <p class="text-muted">Carregando...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 
     <div class="modal fade" id="modalProposta" tabindex="-1">

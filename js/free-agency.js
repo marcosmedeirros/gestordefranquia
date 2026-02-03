@@ -96,6 +96,7 @@ function initNewFreeAgency() {
     if (historyTab) {
         historyTab.addEventListener('shown.bs.tab', () => {
             carregarHistoricoNovaFA();
+            carregarDispensados();
         });
     }
 
@@ -255,6 +256,7 @@ async function carregarMinhasPropostasNovaFA() {
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        carregarLimitesNovaFA();
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar propostas.</p>';
     }
@@ -311,7 +313,7 @@ async function carregarSolicitacoesNovaFA() {
         const response = await fetch(`api/free-agency.php?action=admin_new_fa_requests&league=${encodeURIComponent(league)}`);
         const data = await response.json();
         if (!data.success || !Array.isArray(data.requests) || data.requests.length === 0) {
-            container.innerHTML = '<p class="text-muted">Nenhuma solicitacao pendente.</p>';
+            container.innerHTML = '<p class="text-white">Nenhuma solicitacao pendente.</p>';
             return;
         }
 
@@ -383,6 +385,7 @@ window.aprovarSolicitacaoNovaFA = async function(requestId) {
         carregarSolicitacoesNovaFA();
         carregarHistoricoNovaFA();
         carregarMinhasPropostasNovaFA();
+        carregarLimitesNovaFA();
     } catch (error) {
         alert('Erro ao aprovar.');
     }
@@ -493,26 +496,73 @@ async function carregarDispensados() {
             return;
         }
 
-        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>Time que dispensou</th><th>Temporada</th><th>Data</th></tr></thead><tbody>';
-        waivers.forEach(item => {
-            const teamName = item.original_team_name || '-';
-            const waived = item.waived_at ? new Date(item.waived_at).toLocaleString('pt-BR') : '-';
-            const seasonLabel = item.season_year
-                ? `Temp ${item.season_year}`
-                : (item.season_number ? `Temp #${item.season_number}` : '-');
-            html += `<tr>
-                <td><strong class="text-orange">${item.name}</strong></td>
-                <td>${teamName}</td>
-                <td>${seasonLabel}</td>
-                <td>${waived}</td>
-            </tr>`;
-        });
-        html += '</tbody></table></div>';
-        container.innerHTML = html;
+        const seasonFilter = document.getElementById('faWaiversSeasonFilter');
+        const teamFilter = document.getElementById('faWaiversTeamFilter');
+
+        if (seasonFilter && !seasonFilter.dataset.loaded) {
+            const seasons = [...new Set(waivers.map(item => item.season_year).filter(Boolean))].sort((a, b) => b - a);
+            seasons.forEach(season => {
+                const option = document.createElement('option');
+                option.value = season;
+                option.textContent = `Temp ${season}`;
+                seasonFilter.appendChild(option);
+            });
+            seasonFilter.dataset.loaded = '1';
+            seasonFilter.addEventListener('change', () => renderWaiversList(waivers));
+        }
+
+        if (teamFilter && !teamFilter.dataset.loaded) {
+            const teams = [...new Set(waivers.map(item => item.original_team_name).filter(Boolean))].sort();
+            teams.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team;
+                option.textContent = team;
+                teamFilter.appendChild(option);
+            });
+            teamFilter.dataset.loaded = '1';
+            teamFilter.addEventListener('change', () => renderWaiversList(waivers));
+        }
+
+        renderWaiversList(waivers);
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar dispensas.</p>';
     }
+}
+
+function renderWaiversList(waivers) {
+    const container = document.getElementById('faWaiversContainer');
+    if (!container) return;
+    const seasonFilter = document.getElementById('faWaiversSeasonFilter');
+    const teamFilter = document.getElementById('faWaiversTeamFilter');
+    const seasonValue = seasonFilter?.value || '';
+    const teamValue = teamFilter?.value || '';
+
+    const filtered = waivers.filter(item => {
+        if (seasonValue && String(item.season_year) !== seasonValue) return false;
+        if (teamValue && item.original_team_name !== teamValue) return false;
+        return true;
+    });
+
+    if (!filtered.length) {
+        container.innerHTML = '<p class="text-light-gray">Nenhum jogador dispensado encontrado.</p>';
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+    html += '<thead><tr><th>Jogador</th><th>Temporada</th><th>Time</th></tr></thead><tbody>';
+    filtered.forEach(item => {
+        const teamName = item.original_team_name || '-';
+        const seasonLabel = item.season_year
+            ? `Temp ${item.season_year}`
+            : (item.season_number ? `Temp #${item.season_number}` : '-');
+        html += `<tr>
+            <td><strong class="text-orange">${item.name}</strong></td>
+            <td>${seasonLabel}</td>
+            <td>${teamName}</td>
+        </tr>`;
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
 }
 
 let freeAgentsCache = [];
@@ -530,6 +580,17 @@ window.onAdminLeagueChange = function() {
     if (!userLeague) {
         carregarFreeAgents();
     }
+    const seasonFilter = document.getElementById('faWaiversSeasonFilter');
+    const teamFilter = document.getElementById('faWaiversTeamFilter');
+    if (seasonFilter) {
+        seasonFilter.innerHTML = '<option value="">Todas temporadas</option>';
+        delete seasonFilter.dataset.loaded;
+    }
+    if (teamFilter) {
+        teamFilter.innerHTML = '<option value="">Todos os times</option>';
+        delete teamFilter.dataset.loaded;
+    }
+    carregarDispensados();
 };
 
 function getAdminLeague() {
