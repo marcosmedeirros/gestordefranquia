@@ -3,6 +3,8 @@
  * Propostas com moedas e aprovacao do admin
  */
 
+const isNewFaEnabled = typeof useNewFreeAgency !== 'undefined' ? !!useNewFreeAgency : false;
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Free Agency JS carregado');
     console.log('🔐 isAdmin:', isAdmin);
@@ -14,9 +16,18 @@ document.addEventListener('DOMContentLoaded', () => {
         adminLeagueSelect.value = defaultAdminLeague;
         console.log('✅ adminLeagueSelect configurado com:', defaultAdminLeague);
     }
+    const newAdminLeagueSelect = document.getElementById('faNewAdminLeague');
+    if (newAdminLeagueSelect && defaultAdminLeague) {
+        newAdminLeagueSelect.value = defaultAdminLeague;
+    }
     const faLeagueSelect = document.getElementById('faLeague');
     if (faLeagueSelect && defaultAdminLeague) {
         faLeagueSelect.value = defaultAdminLeague;
+    }
+
+    if (isNewFaEnabled) {
+        initNewFreeAgency();
+        return;
     }
 
     // Buscar status da liga ativa (lista) e carregar listas
@@ -66,6 +77,397 @@ function getActiveLeague() {
     if (userLeague) return userLeague;
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
+}
+
+function initNewFreeAgency() {
+    const form = document.getElementById('faNewRequestForm');
+    if (form) {
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            submitNewFaRequest();
+        });
+    }
+
+        carregarLimitesNovaFA();
+    carregarMinhasPropostasNovaFA();
+    carregarHistoricoNovaFA();
+
+    const historyTab = document.getElementById('fa-history-tab');
+    if (historyTab) {
+        historyTab.addEventListener('shown.bs.tab', () => {
+            carregarHistoricoNovaFA();
+        });
+    }
+
+    if (isAdmin) {
+        const newLeagueSelect = document.getElementById('faNewAdminLeague');
+        if (newLeagueSelect) {
+            newLeagueSelect.addEventListener('change', () => {
+                carregarSolicitacoesNovaFA();
+            });
+        }
+        carregarSolicitacoesNovaFA();
+        const faAdminTab = document.getElementById('fa-admin-tab');
+        if (faAdminTab) {
+            faAdminTab.addEventListener('shown.bs.tab', () => {
+                carregarSolicitacoesNovaFA();
+            });
+        }
+    }
+}
+
+    async function carregarLimitesNovaFA() {
+        const badge = document.getElementById('faNewMyCount');
+        const form = document.getElementById('faNewRequestForm');
+        if (!badge && !form) return;
+
+        try {
+            const response = await fetch('api/free-agency.php?action=new_fa_limits');
+            const data = await response.json();
+            if (!data.success) return;
+            const remaining = data.remaining ?? 0;
+            const limit = data.limit ?? 3;
+
+            const counter = document.createElement('span');
+            counter.className = 'badge bg-success';
+            counter.textContent = `Contratacoes restantes: ${remaining}/${limit}`;
+
+            const existing = document.getElementById('faNewRemainingBadge');
+            if (existing) {
+                existing.textContent = counter.textContent;
+                existing.className = counter.className;
+            } else if (form) {
+                counter.id = 'faNewRemainingBadge';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'col-12';
+                wrapper.appendChild(counter);
+                form.appendChild(wrapper);
+            }
+        } catch (error) {
+            // silencioso
+        }
+    }
+
+async function submitNewFaRequest() {
+    const league = getActiveLeague();
+    if (!league) {
+        alert('Nenhuma liga definida.');
+        return;
+    }
+
+    const name = document.getElementById('faNewPlayerName')?.value.trim();
+    const position = document.getElementById('faNewPosition')?.value || 'PG';
+    const secondary = document.getElementById('faNewSecondary')?.value.trim();
+    const age = parseInt(document.getElementById('faNewAge')?.value, 10);
+    const ovr = parseInt(document.getElementById('faNewOvr')?.value, 10);
+    const amount = parseInt(document.getElementById('faNewOffer')?.value, 10);
+
+    if (!name) {
+        alert('Informe o nome do jogador.');
+        return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        alert('Informe o valor da proposta (moedas).');
+        return;
+    }
+
+    const payload = {
+        action: 'request_player',
+        league,
+        name,
+        position,
+        secondary_position: secondary || null,
+        age: Number.isFinite(age) ? age : 24,
+        ovr: Number.isFinite(ovr) ? ovr : 70,
+        amount
+    };
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao enviar proposta.');
+            return;
+        }
+
+        alert('Proposta enviada!');
+        document.getElementById('faNewRequestForm')?.reset();
+        document.getElementById('faNewOffer').value = '1';
+        carregarMinhasPropostasNovaFA();
+        if (isAdmin) {
+            carregarSolicitacoesNovaFA();
+        }
+    } catch (error) {
+        console.error('Erro ao enviar proposta:', error);
+        alert('Erro ao enviar proposta.');
+    }
+}
+
+async function carregarMinhasPropostasNovaFA() {
+    const container = document.getElementById('faNewMyRequests');
+    const countBadge = document.getElementById('faNewMyCount');
+    if (!container) return;
+
+    try {
+        const response = await fetch('api/free-agency.php?action=my_fa_requests');
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.requests)) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma proposta registrada.</p>';
+            if (countBadge) countBadge.textContent = '0';
+            return;
+        }
+
+        const requests = data.requests;
+        if (countBadge) countBadge.textContent = String(requests.length);
+        if (requests.length === 0) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma proposta registrada.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Proposta</th><th>Status</th><th>Temporada</th><th>Acoes</th></tr></thead><tbody>';
+        requests.forEach(item => {
+            const statusLabel = formatNewFaStatus(item.status);
+            const season = item.season_year ? `Temp ${item.season_year}` : '-';
+            const isPending = item.status === 'pending';
+            html += `<tr>
+                <td><strong class="text-orange">${item.player_name}</strong><div class="small text-light-gray">${item.position}${item.secondary_position ? '/' + item.secondary_position : ''}</div></td>
+                <td>${item.ovr ?? '-'}</td>
+                <td>${item.amount ?? 0} moedas</td>
+                <td>${statusLabel}</td>
+                <td>${season}</td>
+                <td>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-light" ${isPending ? '' : 'disabled'} onclick="editarPropostaNovaFA(${item.offer_id}, ${item.amount})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" ${isPending ? '' : 'disabled'} onclick="excluirPropostaNovaFA(${item.offer_id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar propostas.</p>';
+    }
+}
+
+async function carregarHistoricoNovaFA() {
+    const container = document.getElementById('faHistoryContainer');
+    if (!container) return;
+
+    const league = getActiveLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Nenhuma liga definida.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=new_fa_history&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.history) || data.history.length === 0) {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma contratacao registrada.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Temporada</th></tr></thead><tbody>';
+        data.history.forEach(item => {
+            const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
+            const seasonLabel = item.season_year ? `Temp ${item.season_year}` : '-';
+            html += `<tr>
+                <td><strong class="text-orange">${item.player_name}</strong></td>
+                <td>${item.ovr ?? '-'}</td>
+                <td>${teamName}</td>
+                <td>${seasonLabel}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
+    }
+}
+
+async function carregarSolicitacoesNovaFA() {
+    const container = document.getElementById('faNewAdminRequests');
+    if (!container) return;
+
+    const league = getAdminLeague();
+    if (!league) {
+        container.innerHTML = '<p class="text-muted">Selecione uma liga.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`api/free-agency.php?action=admin_new_fa_requests&league=${encodeURIComponent(league)}`);
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.requests) || data.requests.length === 0) {
+            container.innerHTML = '<p class="text-muted">Nenhuma solicitacao pendente.</p>';
+            return;
+        }
+
+        let html = '';
+        data.requests.forEach(group => {
+            const request = group.request;
+            const offers = group.offers || [];
+            html += '<div class="card bg-dark border border-secondary mb-3 text-white">';
+            html += '<div class="card-header bg-dark border-bottom border-secondary">';
+            html += `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <strong class="text-orange">${request.player_name}</strong>
+                    <span class="text-light-gray ms-2">${request.position}${request.secondary_position ? '/' + request.secondary_position : ''} • OVR ${request.ovr}</span>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge bg-info">${offers.length} propostas</span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="recusarSolicitacaoNovaFA(${request.id})">
+                        <i class="bi bi-x-circle me-1"></i>Recusar todas
+                    </button>
+                </div>
+            </div>`;
+            html += '</div>';
+            html += '<div class="card-body">';
+            html += `<div class="row g-2 align-items-end">
+                <div class="col-md-8">
+                    <label for="faNewOfferSelect-${request.id}" class="form-label">Selecionar time vencedor</label>
+                    <select id="faNewOfferSelect-${request.id}" class="form-select form-select-sm">
+                        <option value="">Selecione...</option>
+                        ${offers.map(offer => {
+                            const remaining = offer.remaining_signings != null ? ` | restam ${offer.remaining_signings}` : '';
+                            return `<option value="${offer.id}">${offer.team_name} - ${offer.amount} moedas${remaining}</option>`;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100" onclick="aprovarSolicitacaoNovaFA(${request.id})">
+                        <i class="bi bi-check-lg me-1"></i>Aprovar
+                    </button>
+                </div>
+            </div>`;
+            html += '</div></div>';
+        });
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = '<p class="text-danger">Erro ao carregar solicitacoes.</p>';
+    }
+}
+
+window.aprovarSolicitacaoNovaFA = async function(requestId) {
+    const select = document.getElementById(`faNewOfferSelect-${requestId}`);
+    const offerId = select?.value;
+    if (!offerId) {
+        alert('Selecione uma proposta.');
+        return;
+    }
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'admin_assign_request', offer_id: Number(offerId) })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao aprovar.');
+            return;
+        }
+        alert(data.message || 'Contratacao realizada.');
+        carregarSolicitacoesNovaFA();
+        carregarHistoricoNovaFA();
+        carregarMinhasPropostasNovaFA();
+    } catch (error) {
+        alert('Erro ao aprovar.');
+    }
+};
+
+window.recusarSolicitacaoNovaFA = async function(requestId) {
+    if (!confirm('Recusar todas as propostas para este jogador?')) return;
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'admin_reject_request', request_id: Number(requestId) })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao recusar.');
+            return;
+        }
+        carregarSolicitacoesNovaFA();
+        carregarMinhasPropostasNovaFA();
+    } catch (error) {
+        alert('Erro ao recusar.');
+    }
+};
+
+window.editarPropostaNovaFA = async function(offerId, currentAmount) {
+    const novoValor = prompt('Atualize o valor da proposta (moedas):', currentAmount);
+    if (novoValor === null) return;
+    const amount = parseInt(novoValor, 10);
+    if (!Number.isFinite(amount) || amount <= 0) {
+        alert('Valor invalido.');
+        return;
+    }
+
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update_request_offer', offer_id: Number(offerId), amount })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao atualizar proposta.');
+            return;
+        }
+        carregarMinhasPropostasNovaFA();
+        if (isAdmin) {
+            carregarSolicitacoesNovaFA();
+        }
+    } catch (error) {
+        alert('Erro ao atualizar proposta.');
+    }
+};
+
+window.excluirPropostaNovaFA = async function(offerId) {
+    try {
+        const response = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'cancel_request_offer', offer_id: Number(offerId) })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            alert(data.error || 'Erro ao excluir proposta.');
+            return;
+        }
+        carregarMinhasPropostasNovaFA();
+        if (isAdmin) {
+            carregarSolicitacoesNovaFA();
+        }
+    } catch (error) {
+        alert('Erro ao excluir proposta.');
+    }
+};
+
+function formatNewFaStatus(status) {
+    switch (status) {
+        case 'accepted':
+        case 'assigned':
+            return '<span class="badge bg-success">Contratado</span>';
+        case 'rejected':
+            return '<span class="badge bg-danger">Recusado</span>';
+        default:
+            return '<span class="badge bg-warning text-dark">Pendente</span>';
+    }
 }
 
 async function carregarDispensados() {
@@ -131,6 +533,10 @@ window.onAdminLeagueChange = function() {
 };
 
 function getAdminLeague() {
+    const newAdminLeagueSelect = document.getElementById('faNewAdminLeague');
+    if (newAdminLeagueSelect?.value) {
+        return newAdminLeagueSelect.value;
+    }
     const adminLeagueSelect = document.getElementById('adminLeagueSelect');
     return adminLeagueSelect?.value || defaultAdminLeague || null;
 }

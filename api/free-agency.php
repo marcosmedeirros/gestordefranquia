@@ -17,8 +17,52 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+function ensureNewFaTables(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fa_requests (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+            normalized_name VARCHAR(140) NOT NULL,
+            player_name VARCHAR(140) NOT NULL,
+            position VARCHAR(20) NOT NULL,
+            secondary_position VARCHAR(20) NULL,
+            age INT NOT NULL,
+            ovr INT NOT NULL,
+            season_id INT NULL,
+            season_year INT NULL,
+            status ENUM('open','assigned','rejected') DEFAULT 'open',
+            created_by_team_id INT NULL,
+            winner_team_id INT NULL,
+            resolved_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_fa_requests_league (league),
+            INDEX idx_fa_requests_name (normalized_name),
+            INDEX idx_fa_requests_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fa_request_offers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            request_id INT NOT NULL,
+            team_id INT NOT NULL,
+            amount INT NOT NULL DEFAULT 0,
+            status ENUM('pending','accepted','rejected') DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_request_team (request_id, team_id),
+            INDEX idx_fa_request_offers_status (status),
+            INDEX idx_fa_request_offers_team (team_id),
+            CONSTRAINT fk_fa_request_offers_request FOREIGN KEY (request_id) REFERENCES fa_requests(id) ON DELETE CASCADE,
+            CONSTRAINT fk_fa_request_offers_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {
+        error_log('[free-agency] ensureNewFaTables: ' . $e->getMessage());
+    }
+}
+
 $pdo = db();
 ensureTeamFreeAgencyColumns($pdo);
+ensureNewFaTables($pdo);
 
 $user_id = $_SESSION['user_id'];
 $is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
@@ -111,6 +155,37 @@ function resolveLeagueName(PDO $pdo, int $leagueId): ?string
     $stmt->execute([$leagueId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? $row['name'] : null;
+}
+
+function normalizeFaPlayerName(string $name): string
+{
+    $normalized = trim(preg_replace('/\s+/', ' ', $name));
+    $normalized = mb_strtolower($normalized, 'UTF-8');
+    $translit = @iconv('UTF-8', 'ASCII//TRANSLIT', $normalized);
+    if ($translit !== false) {
+        $normalized = $translit;
+    }
+    $normalized = preg_replace('/[^a-z0-9 ]/i', '', $normalized);
+    return trim($normalized);
+}
+
+function resolveCurrentSeason(PDO $pdo, string $league): array
+{
+    if (!tableExists($pdo, 'seasons')) {
+        return ['id' => null, 'year' => null];
+    }
+
+    $stmt = $pdo->prepare("SELECT id, year FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY year DESC, id DESC LIMIT 1");
+    $stmt->execute([$league]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        return ['id' => (int)$row['id'], 'year' => (int)$row['year']];
+    }
+
+    $stmt = $pdo->prepare('SELECT id, year FROM seasons WHERE league = ? ORDER BY year DESC, id DESC LIMIT 1');
+    $stmt->execute([$league]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? ['id' => (int)$row['id'], 'year' => (int)$row['year']] : ['id' => null, 'year' => null];
 }
 
 function columnExists(PDO $pdo, string $table, string $column): bool
@@ -214,6 +289,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'my_offers':
             listMyOffers($pdo, $team_id);
             break;
+        case 'my_fa_requests':
+            listMyFaRequests($pdo, $team_id);
+            break;
         case 'admin_free_agents':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
@@ -237,6 +315,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listAdminOffers($pdo, $league);
             break;
+        case 'admin_new_fa_requests':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            $league = getLeagueFromRequest($valid_leagues, null);
+            if (!$league) {
+                jsonError('Liga invalida');
+            }
+            listAdminFaRequests($pdo, $league);
+            break;
         case 'admin_contracts':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
@@ -247,12 +335,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listAdminContracts($pdo, $league);
             break;
+        case 'new_fa_limits':
+            newFaLimits($pdo, $team_id);
+            break;
         case 'contracts':
             $league = getLeagueFromRequest($valid_leagues, $team_league);
             if (!$league) {
                 jsonSuccess(['league' => $league, 'contracts' => []]);
             }
             listContracts($pdo, $league);
+            break;
+        case 'new_fa_history':
+            $league = getLeagueFromRequest($valid_leagues, $team_league);
+            if (!$league) {
+                jsonSuccess(['league' => $league, 'history' => []]);
+            }
+            listNewFaHistory($pdo, $league);
             break;
         case 'waivers':
             $league = getLeagueFromRequest($valid_leagues, $team_league);
@@ -314,6 +412,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'place_offer':
             placeOffer($pdo, $body, $team_id, $team_league, $team_coins);
             break;
+        case 'request_player':
+            requestNewFaPlayer($pdo, $body, $team_id, $team_league, $team_coins);
+            break;
         case 'set_fa_status':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
@@ -342,11 +443,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             approveOffer($pdo, $body, $user_id);
             break;
+        case 'admin_assign_request':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            assignNewFaRequest($pdo, $body, $user_id);
+            break;
+        case 'update_request_offer':
+            updateNewFaOffer($pdo, $body, $team_id, $team_coins);
+            break;
+        case 'cancel_request_offer':
+            cancelNewFaOffer($pdo, $body, $team_id);
+            break;
         case 'reject_all_offers':
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
             rejectAllOffers($pdo, $body);
+            break;
+        case 'admin_reject_request':
+            if (!$is_admin) {
+                jsonError('Acesso negado', 403);
+            }
+            rejectNewFaRequest($pdo, $body);
             break;
         case 'close_without_winner':
             if (!$is_admin) {
@@ -695,6 +814,407 @@ function freeAgencyLimits(?array $team): void
         'signings_used' => $signingsUsed,
         'signings_max' => 3
     ]);
+}
+
+function newFaLimits(PDO $pdo, ?int $teamId): void
+{
+    if (!$teamId) {
+        jsonSuccess(['remaining' => 0, 'used' => 0, 'limit' => 3]);
+    }
+    $used = getTeamFaWins($pdo, $teamId);
+    $limit = 3;
+    $remaining = max(0, $limit - $used);
+    jsonSuccess(['remaining' => $remaining, 'used' => $used, 'limit' => $limit]);
+}
+
+function listMyFaRequests(PDO $pdo, ?int $teamId): void
+{
+    if (!$teamId) {
+        jsonSuccess(['requests' => []]);
+    }
+
+    $stmt = $pdo->prepare('
+     SELECT r.id, r.player_name, r.position, r.secondary_position, r.ovr, r.season_year, r.status AS request_status,
+         o.id AS offer_id, o.amount, o.status AS offer_status
+        FROM fa_requests r
+        JOIN fa_request_offers o ON o.request_id = r.id
+        WHERE o.team_id = ?
+        ORDER BY o.created_at DESC
+    ');
+    $stmt->execute([$teamId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $requests = [];
+    foreach ($rows as $row) {
+        $status = $row['request_status'] === 'assigned'
+            ? ($row['offer_status'] === 'accepted' ? 'assigned' : 'rejected')
+            : ($row['request_status'] === 'rejected' ? 'rejected' : 'pending');
+        $requests[] = [
+            'id' => (int)$row['id'],
+            'offer_id' => (int)$row['offer_id'],
+            'player_name' => $row['player_name'],
+            'position' => $row['position'],
+            'secondary_position' => $row['secondary_position'],
+            'ovr' => $row['ovr'],
+            'season_year' => $row['season_year'],
+            'amount' => (int)$row['amount'],
+            'status' => $status
+        ];
+    }
+
+    jsonSuccess(['requests' => $requests]);
+}
+
+function listAdminFaRequests(PDO $pdo, string $league): void
+{
+    $stmt = $pdo->prepare('
+        SELECT r.id AS request_id, r.player_name, r.position, r.secondary_position, r.ovr, r.age, r.season_year,
+               o.id AS offer_id, o.amount, o.created_at, o.team_id,
+               t.city AS team_city, t.name AS team_name
+        FROM fa_requests r
+        JOIN fa_request_offers o ON o.request_id = r.id AND o.status = "pending"
+        JOIN teams t ON o.team_id = t.id
+        WHERE r.league = ? AND r.status = "open"
+        ORDER BY o.amount DESC, o.created_at ASC
+    ');
+    $stmt->execute([$league]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $grouped = [];
+    foreach ($rows as $row) {
+        $requestId = (int)$row['request_id'];
+        if (!isset($grouped[$requestId])) {
+            $grouped[$requestId] = [
+                'request' => [
+                    'id' => $requestId,
+                    'player_name' => $row['player_name'],
+                    'position' => $row['position'],
+                    'secondary_position' => $row['secondary_position'],
+                    'ovr' => $row['ovr'],
+                    'age' => $row['age'],
+                    'season_year' => $row['season_year']
+                ],
+                'offers' => []
+            ];
+        }
+        $remaining = max(0, 3 - getTeamFaWins($pdo, (int)$row['team_id']));
+        $grouped[$requestId]['offers'][] = [
+            'id' => (int)$row['offer_id'],
+            'team_name' => trim(($row['team_city'] ?? '') . ' ' . ($row['team_name'] ?? '')),
+            'amount' => (int)$row['amount'],
+            'created_at' => $row['created_at'],
+            'remaining_signings' => $remaining
+        ];
+    }
+
+    jsonSuccess(['requests' => array_values($grouped)]);
+}
+
+function listNewFaHistory(PDO $pdo, string $league): void
+{
+    $stmt = $pdo->prepare('
+        SELECT r.player_name, r.ovr, r.season_year,
+               t.city AS team_city, t.name AS team_name
+        FROM fa_requests r
+        LEFT JOIN teams t ON r.winner_team_id = t.id
+        WHERE r.league = ? AND r.status = "assigned"
+        ORDER BY r.resolved_at DESC, r.id DESC
+        LIMIT 100
+    ');
+    $stmt->execute([$league]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    jsonSuccess(['history' => $rows]);
+}
+
+function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, int $teamCoins): void
+{
+    if (!$teamId) {
+        jsonError('Voce precisa ter um time');
+    }
+
+    $league = strtoupper(trim((string)($body['league'] ?? $teamLeague ?? '')));
+    $name = trim((string)($body['name'] ?? ''));
+    $position = trim((string)($body['position'] ?? 'PG')) ?: 'PG';
+    $secondary = trim((string)($body['secondary_position'] ?? ''));
+    $age = (int)($body['age'] ?? 24);
+    $ovr = (int)($body['ovr'] ?? 70);
+    $amount = (int)($body['amount'] ?? 0);
+
+    if (!$league || !$name) {
+        jsonError('Dados incompletos');
+    }
+    if ($teamLeague && $league !== $teamLeague) {
+        jsonError('Liga invalida para o seu time');
+    }
+    if ($amount <= 0) {
+        jsonError('Valor da proposta invalido');
+    }
+    if ($teamCoins < $amount) {
+        jsonError('Moedas insuficientes');
+    }
+
+    if ($teamLeague && !getFaEnabled($pdo, $teamLeague)) {
+        jsonError('O periodo de propostas esta fechado para esta liga');
+    }
+
+    $normalizedName = normalizeFaPlayerName($name);
+    if (!$normalizedName) {
+        jsonError('Nome do jogador invalido');
+    }
+
+    $stmt = $pdo->prepare('SELECT id FROM fa_requests WHERE league = ? AND normalized_name = ? AND status = "open" LIMIT 1');
+    $stmt->execute([$league, $normalizedName]);
+    $requestId = $stmt->fetchColumn();
+
+    if (!$requestId) {
+        $season = resolveCurrentSeason($pdo, $league);
+        $stmtInsert = $pdo->prepare('
+            INSERT INTO fa_requests (league, normalized_name, player_name, position, secondary_position, age, ovr, season_id, season_year, status, created_by_team_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "open", ?)
+        ');
+        $stmtInsert->execute([
+            $league,
+            $normalizedName,
+            $name,
+            $position,
+            $secondary ?: null,
+            $age,
+            $ovr,
+            $season['id'],
+            $season['year'],
+            $teamId
+        ]);
+        $requestId = (int)$pdo->lastInsertId();
+    }
+
+    $stmtOffer = $pdo->prepare('SELECT id FROM fa_request_offers WHERE request_id = ? AND team_id = ?');
+    $stmtOffer->execute([$requestId, $teamId]);
+    $existingOffer = $stmtOffer->fetchColumn();
+
+    if ($existingOffer) {
+        $stmtUpdate = $pdo->prepare('UPDATE fa_request_offers SET amount = ?, status = "pending" WHERE id = ?');
+        $stmtUpdate->execute([$amount, $existingOffer]);
+    } else {
+        $stmtInsertOffer = $pdo->prepare('
+            INSERT INTO fa_request_offers (request_id, team_id, amount, status, created_at)
+            VALUES (?, ?, ?, "pending", NOW())
+        ');
+        $stmtInsertOffer->execute([$requestId, $teamId, $amount]);
+    }
+
+    jsonSuccess(['request_id' => (int)$requestId]);
+}
+
+function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
+{
+    $offerId = (int)($body['offer_id'] ?? 0);
+    if (!$offerId) {
+        jsonError('Proposta invalida');
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT o.id, o.request_id, o.team_id, o.amount, o.status,
+               r.player_name, r.position, r.secondary_position, r.age, r.ovr, r.league, r.status AS request_status,
+               t.city AS team_city, t.name AS team_name, COALESCE(t.moedas, 0) AS moedas
+        FROM fa_request_offers o
+        JOIN fa_requests r ON o.request_id = r.id
+        JOIN teams t ON o.team_id = t.id
+        WHERE o.id = ?
+    ');
+    $stmt->execute([$offerId]);
+    $offer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$offer || $offer['status'] !== 'pending' || $offer['request_status'] !== 'open') {
+        jsonError('Proposta nao encontrada');
+    }
+    if ((int)$offer['moedas'] < (int)$offer['amount']) {
+        jsonError('Time nao tem moedas suficientes');
+    }
+
+    if (getTeamFaWins($pdo, (int)$offer['team_id']) >= 3) {
+        jsonError('Este time ja atingiu o limite de 3 contratacoes na Free Agency');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $columns = ['team_id', 'name', 'age', 'position', 'ovr'];
+        $values = [
+            (int)$offer['team_id'],
+            $offer['player_name'],
+            (int)$offer['age'],
+            $offer['position'],
+            (int)$offer['ovr']
+        ];
+
+        if (columnExists($pdo, 'players', 'secondary_position')) {
+            $columns[] = 'secondary_position';
+            $values[] = $offer['secondary_position'] ?: null;
+        }
+        if (columnExists($pdo, 'players', 'seasons_in_league')) {
+            $columns[] = 'seasons_in_league';
+            $values[] = 0;
+        }
+        if (columnExists($pdo, 'players', 'role')) {
+            $columns[] = 'role';
+            $values[] = 'Banco';
+        }
+        if (columnExists($pdo, 'players', 'available_for_trade')) {
+            $columns[] = 'available_for_trade';
+            $values[] = 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($columns), '?'));
+        $stmtInsert = $pdo->prepare('INSERT INTO players (' . implode(',', $columns) . ") VALUES ({$placeholders})");
+        $stmtInsert->execute($values);
+
+        $stmtCoins = $pdo->prepare('UPDATE teams SET moedas = moedas - ? WHERE id = ?');
+        $stmtCoins->execute([(int)$offer['amount'], (int)$offer['team_id']]);
+
+        if (columnExists($pdo, 'teams', 'fa_signings_used')) {
+            $stmtSign = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');
+            $stmtSign->execute([(int)$offer['team_id']]);
+        }
+
+        if (tableExists($pdo, 'team_coins_log')) {
+            $stmtLog = $pdo->prepare('
+                INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at)
+                VALUES (?, ?, ?, ?, NOW())
+            ');
+            $reason = 'Nova FA: ' . $offer['player_name'];
+            $stmtLog->execute([(int)$offer['team_id'], -(int)$offer['amount'], $reason, $adminId]);
+        }
+
+        $stmtRequest = $pdo->prepare('UPDATE fa_requests SET status = "assigned", winner_team_id = ?, resolved_at = NOW() WHERE id = ?');
+        $stmtRequest->execute([(int)$offer['team_id'], (int)$offer['request_id']]);
+
+        $stmtOffers = $pdo->prepare('
+            UPDATE fa_request_offers
+            SET status = CASE WHEN id = ? THEN "accepted" ELSE "rejected" END
+            WHERE request_id = ? AND status = "pending"
+        ');
+        $stmtOffers->execute([(int)$offer['id'], (int)$offer['request_id']]);
+
+        $pdo->commit();
+        jsonSuccess([
+            'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])
+        ]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao aprovar solicitacao: ' . $e->getMessage(), 500);
+    }
+}
+
+function rejectNewFaRequest(PDO $pdo, array $body): void
+{
+    $requestId = (int)($body['request_id'] ?? 0);
+    if (!$requestId) {
+        jsonError('Solicitacao invalida');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('DELETE FROM fa_request_offers WHERE request_id = ?');
+        $stmt->execute([$requestId]);
+        $stmt = $pdo->prepare('DELETE FROM fa_requests WHERE id = ?');
+        $stmt->execute([$requestId]);
+        $pdo->commit();
+        jsonSuccess();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao recusar solicitacao: ' . $e->getMessage(), 500);
+    }
+}
+
+function getTeamFaWins(PDO $pdo, int $teamId): int
+{
+    if ($teamId <= 0) {
+        return 0;
+    }
+
+    try {
+        if (columnExists($pdo, 'teams', 'fa_signings_used')) {
+            $stmt = $pdo->prepare('SELECT COALESCE(fa_signings_used, 0) FROM teams WHERE id = ?');
+            $stmt->execute([$teamId]);
+            return (int)($stmt->fetchColumn() ?? 0);
+        }
+    } catch (Exception $e) {
+        // fallback below
+    }
+
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM fa_requests WHERE winner_team_id = ? AND status = "assigned"');
+        $stmt->execute([$teamId]);
+        return (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): void
+{
+    if (!$teamId) {
+        jsonError('Voce precisa ter um time');
+    }
+
+    $offerId = (int)($body['offer_id'] ?? 0);
+    $amount = (int)($body['amount'] ?? 0);
+    if (!$offerId) {
+        jsonError('Proposta invalida');
+    }
+    if ($amount <= 0) {
+        jsonError('Valor invalido');
+    }
+    if ($teamCoins < $amount) {
+        jsonError('Moedas insuficientes');
+    }
+
+    $stmt = $pdo->prepare('SELECT id FROM fa_request_offers WHERE id = ? AND team_id = ? AND status = "pending"');
+    $stmt->execute([$offerId, $teamId]);
+    if (!$stmt->fetchColumn()) {
+        jsonError('Proposta nao encontrada');
+    }
+
+    $stmtUpdate = $pdo->prepare('UPDATE fa_request_offers SET amount = ? WHERE id = ?');
+    $stmtUpdate->execute([$amount, $offerId]);
+    jsonSuccess();
+}
+
+function cancelNewFaOffer(PDO $pdo, array $body, ?int $teamId): void
+{
+    if (!$teamId) {
+        jsonError('Voce precisa ter um time');
+    }
+
+    $offerId = (int)($body['offer_id'] ?? 0);
+    if (!$offerId) {
+        jsonError('Proposta invalida');
+    }
+
+    $stmt = $pdo->prepare('SELECT request_id FROM fa_request_offers WHERE id = ? AND team_id = ? AND status = "pending"');
+    $stmt->execute([$offerId, $teamId]);
+    $requestId = $stmt->fetchColumn();
+    if (!$requestId) {
+        jsonError('Proposta nao encontrada');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmtDel = $pdo->prepare('DELETE FROM fa_request_offers WHERE id = ?');
+        $stmtDel->execute([$offerId]);
+
+        $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM fa_request_offers WHERE request_id = ?');
+        $stmtCount->execute([(int)$requestId]);
+        $remaining = (int)$stmtCount->fetchColumn();
+        if ($remaining === 0) {
+            $stmtReq = $pdo->prepare('DELETE FROM fa_requests WHERE id = ?');
+            $stmtReq->execute([(int)$requestId]);
+        }
+        $pdo->commit();
+        jsonSuccess();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao excluir proposta: ' . $e->getMessage(), 500);
+    }
 }
 
 // ========== POST ==========

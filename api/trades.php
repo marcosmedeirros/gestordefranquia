@@ -57,6 +57,21 @@ function ensureTradeItemSnapshotColumns(PDO $pdo): void {
 
 ensureTradeItemSnapshotColumns($pdo);
 
+function ensureTradeItemPickProtectionColumn(PDO $pdo): void {
+    if (!tableExists($pdo, 'trade_items')) {
+        return;
+    }
+    try {
+        if (!columnExists($pdo, 'trade_items', 'pick_protection')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN pick_protection VARCHAR(20) NULL AFTER pick_id");
+        }
+    } catch (Exception $e) {
+        // ignora caso não seja possível alterar em runtime
+    }
+}
+
+ensureTradeItemPickProtectionColumn($pdo);
+
 // Garante coluna 'cycle' para controle de limite por ciclo de temporadas
 function ensureTradeCycleColumn(PDO $pdo): void
 {
@@ -227,6 +242,43 @@ function normalizePickId(PDO $pdo, int $pickId): int
     return $canonicalId;
 }
 
+function normalizePickPayloadList($raw): array
+{
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $allowedProtections = ['top3', 'top5', 'top10', 'lottery'];
+    $normalized = [];
+    foreach ($raw as $entry) {
+        if (is_array($entry)) {
+            $pickId = isset($entry['id']) ? (int)$entry['id'] : null;
+            if (!$pickId) {
+                continue;
+            }
+            $protection = $entry['protection'] ?? null;
+        } else {
+            $pickId = (int)$entry;
+            if (!$pickId) {
+                continue;
+            }
+            $protection = null;
+        }
+
+        $protection = is_string($protection) ? strtolower($protection) : null;
+        if (!in_array($protection, $allowedProtections, true)) {
+            $protection = null;
+        }
+
+        $normalized[] = [
+            'id' => $pickId,
+            'protection' => $protection
+        ];
+    }
+
+    return $normalized;
+}
+
 // Pegar time do usuário
 $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -317,7 +369,8 @@ if ($method === 'GET') {
             $stmtOfferPicks = $pdo->prepare('
                 SELECT pk.*, 
                        t.city as original_team_city, t.name as original_team_name,
-                       lo.city as last_owner_city, lo.name as last_owner_name
+                       lo.city as last_owner_city, lo.name as last_owner_name,
+                       ti.pick_protection
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
@@ -353,7 +406,8 @@ if ($method === 'GET') {
             $stmtRequestPicks = $pdo->prepare('
                 SELECT pk.*, 
                        t.city as original_team_city, t.name as original_team_name,
-                       lo.city as last_owner_city, lo.name as last_owner_name
+                       lo.city as last_owner_city, lo.name as last_owner_name,
+                       ti.pick_protection
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
@@ -377,9 +431,9 @@ if ($method === 'POST') {
     
     $toTeamId = $data['to_team_id'] ?? null;
     $offerPlayers = $data['offer_players'] ?? [];
-    $offerPicks = $data['offer_picks'] ?? [];
+    $offerPicks = normalizePickPayloadList($data['offer_picks'] ?? []);
     $requestPlayers = $data['request_players'] ?? [];
-    $requestPicks = $data['request_picks'] ?? [];
+    $requestPicks = normalizePickPayloadList($data['request_picks'] ?? []);
     $notes = $data['notes'] ?? '';
     $counterTradeId = isset($data['counter_to_trade_id']) ? (int)$data['counter_to_trade_id'] : null;
     $counterTrade = null;
@@ -467,8 +521,11 @@ if ($method === 'POST') {
     // Validar posse das picks oferecidas
     if (!empty($offerPicks)) {
         $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
-        foreach ($offerPicks as $pickId) {
-            $pickId = (int)$pickId;
+        foreach ($offerPicks as $pickEntry) {
+            $pickId = (int)($pickEntry['id'] ?? 0);
+            if ($pickId <= 0) {
+                continue;
+            }
             $stmtPickOwner->execute([$pickId, $teamId]);
             if (!$stmtPickOwner->fetchColumn()) {
                 http_response_code(400);
@@ -481,8 +538,11 @@ if ($method === 'POST') {
     // Validar posse das picks solicitadas
     if (!empty($requestPicks)) {
         $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
-        foreach ($requestPicks as $pickId) {
-            $pickId = (int)$pickId;
+        foreach ($requestPicks as $pickEntry) {
+            $pickId = (int)($pickEntry['id'] ?? 0);
+            if ($pickId <= 0) {
+                continue;
+            }
             $stmtPickOwner->execute([$pickId, $toTeamId]);
             if (!$stmtPickOwner->fetchColumn()) {
                 http_response_code(400);
@@ -523,44 +583,96 @@ if ($method === 'POST') {
         $tradeId = $pdo->lastInsertId();
         
         // Adicionar itens oferecidos
-        // Preparar inserção de itens com snapshot de jogador, quando disponível
+        // Preparar inserção de itens com snapshot de jogador e proteção de pick, quando disponível
         $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
+        $hasPickProtectionCol = columnExists($pdo, 'trade_items', 'pick_protection');
         $ovrCol = playerOvrColumn($pdo);
-        $sqlItem = $hasSnapshot
-            ? 'INSERT INTO trade_items (trade_id, player_id, pick_id, from_team, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-            : 'INSERT INTO trade_items (trade_id, player_id, pick_id, from_team) VALUES (?, ?, ?, ?)';
+
+        $columns = ['trade_id', 'player_id', 'pick_id', 'from_team'];
+        $placeholders = ['?', '?', '?', '?'];
+        if ($hasSnapshot) {
+            $columns = array_merge($columns, ['player_name', 'player_position', 'player_age', 'player_ovr']);
+            $placeholders = array_merge($placeholders, ['?', '?', '?', '?']);
+        }
+        if ($hasPickProtectionCol) {
+            $columns[] = 'pick_protection';
+            $placeholders[] = '?';
+        }
+
+        $sqlItem = 'INSERT INTO trade_items (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
         $stmtItem = $pdo->prepare($sqlItem);
         
         foreach ($offerPlayers as $playerId) {
+            $playerId = (int)$playerId;
+            $params = [$tradeId, $playerId, null, true];
             if ($hasSnapshot) {
-                // Buscar dados do jogador para snapshot
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
-                $stmtP->execute([(int)$playerId]);
+                $stmtP->execute([$playerId]);
                 $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
-                $stmtItem->execute([$tradeId, $playerId, null, true, $p['name'] ?? null, $p['position'] ?? null, isset($p['age']) ? (int)$p['age'] : null, isset($p['ovr']) ? (int)$p['ovr'] : null]);
-            } else {
-                $stmtItem->execute([$tradeId, $playerId, null, true]);
+                $params[] = $p['name'] ?? null;
+                $params[] = $p['position'] ?? null;
+                $params[] = isset($p['age']) ? (int)$p['age'] : null;
+                $params[] = isset($p['ovr']) ? (int)$p['ovr'] : null;
             }
+            if ($hasPickProtectionCol) {
+                $params[] = null;
+            }
+            $stmtItem->execute($params);
         }
         
-        foreach ($offerPicks as $pickId) {
-            $stmtItem->execute([$tradeId, null, $pickId, true]);
+        foreach ($offerPicks as $pickEntry) {
+            $pickId = (int)($pickEntry['id'] ?? 0);
+            if ($pickId <= 0) {
+                continue;
+            }
+            $params = [$tradeId, null, $pickId, true];
+            if ($hasSnapshot) {
+                $params[] = null;
+                $params[] = null;
+                $params[] = null;
+                $params[] = null;
+            }
+            if ($hasPickProtectionCol) {
+                $params[] = $pickEntry['protection'] ?? null;
+            }
+            $stmtItem->execute($params);
         }
         
         // Adicionar itens pedidos
         foreach ($requestPlayers as $playerId) {
+            $playerId = (int)$playerId;
+            $params = [$tradeId, $playerId, null, false];
             if ($hasSnapshot) {
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
-                $stmtP->execute([(int)$playerId]);
+                $stmtP->execute([$playerId]);
                 $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
-                $stmtItem->execute([$tradeId, $playerId, null, false, $p['name'] ?? null, $p['position'] ?? null, isset($p['age']) ? (int)$p['age'] : null, isset($p['ovr']) ? (int)$p['ovr'] : null]);
-            } else {
-                $stmtItem->execute([$tradeId, $playerId, null, false]);
+                $params[] = $p['name'] ?? null;
+                $params[] = $p['position'] ?? null;
+                $params[] = isset($p['age']) ? (int)$p['age'] : null;
+                $params[] = isset($p['ovr']) ? (int)$p['ovr'] : null;
             }
+            if ($hasPickProtectionCol) {
+                $params[] = null;
+            }
+            $stmtItem->execute($params);
         }
         
-        foreach ($requestPicks as $pickId) {
-            $stmtItem->execute([$tradeId, null, $pickId, false]);
+        foreach ($requestPicks as $pickEntry) {
+            $pickId = (int)($pickEntry['id'] ?? 0);
+            if ($pickId <= 0) {
+                continue;
+            }
+            $params = [$tradeId, null, $pickId, false];
+            if ($hasSnapshot) {
+                $params[] = null;
+                $params[] = null;
+                $params[] = null;
+                $params[] = null;
+            }
+            if ($hasPickProtectionCol) {
+                $params[] = $pickEntry['protection'] ?? null;
+            }
+            $stmtItem->execute($params);
         }
 
         if ($counterTrade) {

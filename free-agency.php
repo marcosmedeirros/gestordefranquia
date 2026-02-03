@@ -121,6 +121,28 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 font-size: 0.75rem;
             }
         }
+
+        .legacy-fa {
+            display: none !important;
+        }
+
+        .fa-new-card .form-control,
+        .fa-new-card .form-select {
+            background: var(--fba-dark-bg);
+            color: var(--fba-text);
+            border-color: var(--fba-border);
+        }
+
+        .fa-new-card .form-control:focus,
+        .fa-new-card .form-select:focus {
+            border-color: var(--fba-orange);
+            box-shadow: 0 0 0 0.25rem rgba(241, 117, 7, 0.25);
+        }
+
+        .fa-section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="free-agency-page">
@@ -168,7 +190,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         <i class="bi bi-people-fill me-1"></i><span class="d-none d-sm-inline">Free Agency</span><span class="d-sm-none">FA</span>
                     </button>
                 </li>
-                <li class="nav-item" role="presentation">
+                <li class="nav-item legacy-fa" role="presentation">
                     <button class="nav-link text-nowrap" id="fa-active-auctions-tab" data-bs-toggle="tab" data-bs-target="#fa-active-auctions" type="button" role="tab">
                         <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leiloes ativos</span><span class="d-sm-none">Leilões</span>
                     </button>
@@ -179,7 +201,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </button>
                 </li>
                 <?php if ($is_admin): ?>
-                <li class="nav-item" role="presentation">
+                <li class="nav-item legacy-fa" role="presentation">
                     <button class="nav-link text-nowrap" id="fa-auction-admin-tab" data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
                         <i class="bi bi-hammer me-1"></i><span class="d-none d-sm-inline">Leilao admin</span><span class="d-sm-none">Admin</span>
                     </button>
@@ -194,7 +216,68 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
             <div class="tab-content" id="freeAgencyTabsContent">
                 <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
-                    <div class="card bg-dark-panel border-orange mb-4">
+                    <div class="card bg-dark-panel border-orange mb-4 fa-new-card">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Nova Free Agency</h5>
+                                <span class="badge bg-warning text-dark">Criar jogador + enviar proposta</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <form id="faNewRequestForm" class="row g-3 stack-mobile">
+                                <div class="col-md-4">
+                                    <label for="faNewPlayerName" class="form-label">Nome do jogador</label>
+                                    <input type="text" id="faNewPlayerName" class="form-control" placeholder="Ex: John Doe" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faNewPosition" class="form-label">Posicao</label>
+                                    <select id="faNewPosition" class="form-select">
+                                        <option value="PG">PG</option>
+                                        <option value="SG">SG</option>
+                                        <option value="SF">SF</option>
+                                        <option value="PF">PF</option>
+                                        <option value="C">C</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faNewSecondary" class="form-label">Posicao Sec.</label>
+                                    <input type="text" id="faNewSecondary" class="form-control" placeholder="Opcional">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faNewAge" class="form-label">Idade</label>
+                                    <input type="number" id="faNewAge" class="form-control" value="24" min="18" max="45">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="faNewOvr" class="form-label">OVR</label>
+                                    <input type="number" id="faNewOvr" class="form-control" value="70" min="40" max="99">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="faNewOffer" class="form-label">Moedas da proposta</label>
+                                    <input type="number" id="faNewOffer" class="form-control" value="1" min="1">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-orange w-100" id="faNewSubmitBtn">
+                                        <i class="bi bi-send me-1"></i>Enviar proposta
+                                    </button>
+                                </div>
+                                <div class="col-12">
+                                    <small class="text-light-gray">Se o jogador ja existir na FA, sua proposta sera agrupada com as demais.</small>
+                                </div>
+                            </form>
+
+                            <div class="mt-4">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-white fa-section-title mb-0"><i class="bi bi-inbox-fill text-orange me-2"></i>Minhas propostas</h6>
+                                    <span class="badge bg-secondary" id="faNewMyCount">0</span>
+                                </div>
+                                <div id="faNewMyRequests">
+                                    <p class="text-muted">Carregando...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-dark-panel border-orange mb-4 legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                 <h5 class="mb-0 text-white"><i class="bi bi-people-fill text-orange me-2"></i>Jogadores Disponiveis</h5>
@@ -230,7 +313,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                 </div>
 
-                <div class="tab-pane fade" id="fa-active-auctions" role="tabpanel">
+                <div class="tab-pane fade legacy-fa" id="fa-active-auctions" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leiloes Ativos</h5>
@@ -243,7 +326,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
 
                     <?php if ($team_id): ?>
-                    <div class="card bg-dark-panel border-orange">
+                    <div class="card bg-dark-panel border-orange legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-inbox text-orange me-2"></i>Propostas Recebidas</h5>
                         </div>
@@ -292,7 +375,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </div>
 
                 <?php if ($is_admin): ?>
-                <div class="tab-pane fade" id="fa-auction-admin" role="tabpanel">
+                <div class="tab-pane fade legacy-fa" id="fa-auction-admin" role="tabpanel">
                     <div class="card bg-dark-panel border-orange">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilao admin</h5>
@@ -398,7 +481,31 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </div>
 
                 <div class="tab-pane fade" id="fa-admin" role="tabpanel">
-                    <div class="card bg-dark-panel border-orange mb-4">
+                    <div class="card bg-dark-panel border-orange mb-4 fa-new-card">
+                        <div class="card-header bg-dark border-bottom border-orange">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-shield-check text-orange me-2"></i>Solicitacoes Nova FA</h5>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="faNewAdminLeague" class="text-light-gray">Liga</label>
+                                    <select id="faNewAdminLeague" class="form-select form-select-sm" style="min-width: 140px;">
+                                        <?php foreach ($leagues_admin as $league): ?>
+                                            <option value="<?= htmlspecialchars($league['name']) ?>" <?= $league['name'] === $default_admin_league ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($league['name']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <span class="badge bg-info text-dark">Selecione o time vencedor</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="faNewAdminRequests">
+                                <p class="text-muted">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-dark-panel border-orange mb-4 legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                 <h5 class="mb-0 text-white"><i class="bi bi-inbox-fill text-orange me-2"></i>Propostas Pendentes</h5>
@@ -426,7 +533,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                     </div>
 
-                    <div class="card bg-dark-panel border-orange mb-4">
+                    <div class="card bg-dark-panel border-orange mb-4 legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-gear-fill text-orange me-2"></i>Adicionar Free Agent</h5>
                         </div>
@@ -476,7 +583,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                     </div>
 
-                    <div class="card bg-dark-panel border-orange">
+                    <div class="card bg-dark-panel border-orange legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-list-ul text-orange me-2"></i>Gerenciar Jogadores</h5>
                         </div>
@@ -487,7 +594,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         </div>
                     </div>
 
-                    <div class="card bg-dark-panel border-orange mt-4">
+                    <div class="card bg-dark-panel border-orange mt-4 legacy-fa">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico de Contratacoes FA</h5>
                         </div>
@@ -504,7 +611,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         </div>
     </div>
 
-    <div class="modal fade" id="modalOffer" tabindex="-1">
+    <div class="modal fade legacy-fa" id="modalOffer" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -533,7 +640,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         </div>
     </div>
 
-    <div class="modal fade" id="modalProposta" tabindex="-1">
+    <div class="modal fade legacy-fa" id="modalProposta" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -568,7 +675,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         </div>
     </div>
 
-    <div class="modal fade" id="modalVerPropostas" tabindex="-1">
+    <div class="modal fade legacy-fa" id="modalVerPropostas" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -598,6 +705,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         const defaultAdminLeague = '<?= addslashes($default_admin_league) ?>';
         const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
         const leagueIdByName = <?= json_encode(array_reduce($leagues_admin, function ($carry, $league) { $carry[$league['name']] = (int)$league['id']; return $carry; }, [])) ?>;
+        const useNewFreeAgency = true;
     </script>
     <script src="js/sidebar.js"></script>
     <script src="js/free-agency.js"></script>

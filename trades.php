@@ -180,6 +180,102 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       border: 1px solid var(--fba-border);
       color: var(--fba-text);
     }
+
+    .pick-selector {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .pick-options {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .pick-option-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--fba-dark-bg);
+      border: 1px solid var(--fba-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      transition: border 0.2s ease, transform 0.2s ease;
+    }
+
+    .pick-option-card:hover {
+      border-color: var(--fba-orange);
+      transform: translateY(-1px);
+    }
+
+    .pick-option-card.is-selected {
+      opacity: 0.6;
+    }
+
+    .pick-title {
+      color: var(--fba-text);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .pick-meta {
+      font-size: 0.85rem;
+      color: var(--fba-text-muted);
+    }
+
+    .selected-picks {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .selected-pick-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(241, 117, 7, 0.08);
+      border: 1px solid rgba(241, 117, 7, 0.6);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .selected-pick-info {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .selected-pick-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pick-protection-select {
+      background: var(--fba-dark-bg);
+      color: var(--fba-text);
+      border: 1px solid var(--fba-orange);
+      border-radius: 8px;
+      padding: 6px 10px;
+      min-width: 140px;
+    }
+
+    .pick-empty-state {
+      text-align: center;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed var(--fba-border);
+      border-radius: 10px;
+      color: var(--fba-text-muted);
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
@@ -491,9 +587,14 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                   <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
                 </div>
                 <div class="mb-3">
-                  <label class="form-label text-white">Picks</label>
-                  <select class="form-select bg-dark text-white border-orange" id="offerPicks" multiple size="3">
-                  </select>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-white mb-0">Picks</label>
+                    <small class="text-light-gray">Adicione e configure proteções</small>
+                  </div>
+                  <div class="pick-selector">
+                    <div class="pick-options" id="offerPicksOptions"></div>
+                    <div class="selected-picks" id="offerPicksSelected"></div>
+                  </div>
                 </div>
               </div>
 
@@ -507,9 +608,14 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                   <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
                 </div>
                 <div class="mb-3">
-                  <label class="form-label text-white">Picks</label>
-                  <select class="form-select bg-dark text-white border-orange" id="requestPicks" multiple size="3">
-                  </select>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-white mb-0">Picks</label>
+                    <small class="text-light-gray">Selecione picks do time alvo e defina proteção</small>
+                  </div>
+                  <div class="pick-selector">
+                    <div class="pick-options" id="requestPicksOptions"></div>
+                    <div class="selected-picks" id="requestPicksSelected"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -543,7 +649,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/trades.js?v=20260130"></script>
+  <script src="/js/trades.js?v=20260205"></script>
   <script src="/js/trade-list.js?v=20260130"></script>
   <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>

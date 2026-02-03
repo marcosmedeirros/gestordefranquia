@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS trade_items (
     trade_id INT NOT NULL,
     player_id INT,
     pick_id INT,
+    pick_protection VARCHAR(20) NULL,
     from_team BOOLEAN DEFAULT TRUE, -- TRUE = oferecido por from_team, FALSE = pedido de to_team
     FOREIGN KEY (trade_id) REFERENCES trades(id) ON DELETE CASCADE,
     FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
