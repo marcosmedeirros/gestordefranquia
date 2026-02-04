@@ -130,8 +130,11 @@ function initNewFreeAgency() {
             const limit = data.limit ?? 3;
 
             const counter = document.createElement('span');
-            counter.className = 'badge bg-success';
-            counter.textContent = `Contratacoes restantes: ${remaining}/${limit}`;
+            const isBlocked = remaining <= 0;
+            counter.className = isBlocked ? 'badge bg-danger' : 'badge bg-success';
+            counter.textContent = isBlocked
+                ? `Limite de contratações atingido (${remaining}/${limit})`
+                : `Contratacoes restantes: ${remaining}/${limit}`;
 
             const existing = document.getElementById('faNewRemainingBadge');
             if (existing) {
@@ -143,6 +146,16 @@ function initNewFreeAgency() {
                 wrapper.className = 'col-12';
                 wrapper.appendChild(counter);
                 form.appendChild(wrapper);
+            }
+
+            if (form) {
+                const inputs = form.querySelectorAll('input, select, button');
+                inputs.forEach((input) => {
+                    if (input.id === 'faNewRemainingBadge') return;
+                    if (input.type === 'submit' || input.id === 'faNewSubmitBtn' || input.tagName === 'INPUT' || input.tagName === 'SELECT') {
+                        input.disabled = isBlocked;
+                    }
+                });
             }
         } catch (error) {
             // silencioso
@@ -243,14 +256,16 @@ async function carregarMinhasPropostasNovaFA() {
                 <td>${statusLabel}</td>
                 <td>${season}</td>
                 <td>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-sm btn-outline-light" ${isPending ? '' : 'disabled'} onclick="editarPropostaNovaFA(${item.offer_id}, ${item.amount})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" ${isPending ? '' : 'disabled'} onclick="excluirPropostaNovaFA(${item.offer_id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
+                    ${isPending ? `
+                        <div class=\"d-flex gap-2 flex-wrap\">
+                            <button class=\"btn btn-sm btn-outline-light\" onclick=\"editarPropostaNovaFA(${item.offer_id}, ${item.amount})\">
+                                <i class=\"bi bi-pencil\"></i>
+                            </button>
+                            <button class=\"btn btn-sm btn-outline-danger\" onclick=\"excluirPropostaNovaFA(${item.offer_id})\">
+                                <i class=\"bi bi-trash\"></i>
+                            </button>
+                        </div>
+                    ` : '<span class="text-light-gray">-</span>'}
                 </td>
             </tr>`;
         });
@@ -272,12 +287,34 @@ async function carregarHistoricoNovaFA() {
         return;
     }
 
+    const seasonFilter = document.getElementById('faHistorySeasonFilter');
+    const seasonValue = seasonFilter?.value || '';
+    const query = new URLSearchParams({
+        action: 'new_fa_history',
+        league
+    });
+    if (seasonValue) {
+        query.append('season_year', seasonValue);
+    }
+
     try {
-        const response = await fetch(`api/free-agency.php?action=new_fa_history&league=${encodeURIComponent(league)}`);
+        const response = await fetch(`api/free-agency.php?${query.toString()}`);
         const data = await response.json();
         if (!data.success || !Array.isArray(data.history) || data.history.length === 0) {
             container.innerHTML = '<p class="text-light-gray">Nenhuma contratacao registrada.</p>';
             return;
+        }
+
+        if (seasonFilter && !seasonFilter.dataset.loaded) {
+            const seasons = [...new Set(data.history.map(item => item.season_year).filter(Boolean))].sort((a, b) => b - a);
+            seasons.forEach(season => {
+                const option = document.createElement('option');
+                option.value = season;
+                option.textContent = `Temp ${season}`;
+                seasonFilter.appendChild(option);
+            });
+            seasonFilter.dataset.loaded = '1';
+            seasonFilter.addEventListener('change', () => carregarHistoricoNovaFA());
         }
 
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
@@ -589,6 +626,11 @@ window.onAdminLeagueChange = function() {
     if (teamFilter) {
         teamFilter.innerHTML = '<option value="">Todos os times</option>';
         delete teamFilter.dataset.loaded;
+    }
+    const faHistoryFilter = document.getElementById('faHistorySeasonFilter');
+    if (faHistoryFilter) {
+        faHistoryFilter.innerHTML = '<option value="">Todas temporadas</option>';
+        delete faHistoryFilter.dataset.loaded;
     }
     carregarDispensados();
 };

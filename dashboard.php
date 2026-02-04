@@ -1128,51 +1128,6 @@ try {
                 </div>
             </div>
 
-            <?php if (!$activeDirectiveDeadline && $lastDirective): ?>
-            <!-- Minhas Diretrizes -->
-            <div class="col-md-4">
-                <div class="card bg-dark-panel border-orange h-100">
-                    <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 text-white">
-                            <i class="bi bi-arrow-left-right me-2 text-orange"></i>Última trade
-                        </h4>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-2 text-light-gray small">
-                            <?php if (!empty($lastDirective['submitted_at'])): ?>
-                                <i class="bi bi-clock me-1"></i>
-                                Último envio: <?= htmlspecialchars(date('d/m/Y H:i', strtotime($lastDirective['submitted_at']))) ?>
-                            <?php endif; ?>
-                            <?php if (!empty($lastDirective['description'])): ?>
-                                <div><?= htmlspecialchars($lastDirective['description']) ?></div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-12">
-                                <small class="text-orange fw-bold d-block mb-1">Quinteto titular</small>
-                                <?php if (count($lastDirectiveStarters) > 0): ?>
-                                    <?php foreach ($lastDirectiveStarters as $s): ?>
-                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($s) ?></div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <small class="text-light-gray">-</small>
-                                <?php endif; ?>
-                            </div>
-                            <div class="col-12 mt-2">
-                                <small class="text-orange fw-bold d-block mb-1">Banco</small>
-                                <?php if (count($lastDirectiveBench) > 0): ?>
-                                    <?php foreach ($lastDirectiveBench as $b): ?>
-                                        <div class="text-white small mb-1"><i class="bi bi-person-fill text-orange"></i> <?= htmlspecialchars($b) ?></div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <small class="text-light-gray">-</small>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
         </div>
 
         <!-- Informações da Liga, Top 5 Ranking e Últimos Vencedores (3 cards) -->

@@ -136,7 +136,7 @@ if ($is_admin) {
                             <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilão admin</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3 align-items-end stack-mobile">
+                            <div class="row g-4 align-items-end stack-mobile">
                                 <div class="col-md-3">
                                     <label for="selectLeague" class="form-label">Liga</label>
                                     <select id="selectLeague" class="form-select">
@@ -148,7 +148,7 @@ if ($is_admin) {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-7">
+                                <div class="col-md-6">
                                     <div class="d-flex flex-wrap gap-3 align-items-center text-white mt-4">
                                         <div class="form-check">
                                             <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
@@ -160,8 +160,8 @@ if ($is_admin) {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 mt-4">
-                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled>
+                                <div class="col-md-3 mt-4">
+                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled style="min-height: 44px;">
                                         <i class="bi bi-play-fill me-1"></i>Iniciar 20min
                                     </button>
                                 </div>

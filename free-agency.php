@@ -353,9 +353,17 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 <div class="tab-pane fade" id="fa-history" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4">
                         <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico da Free Agency</h5>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Historico da Free Agency</h5>
+                                <div class="d-flex gap-2">
+                                    <select id="faHistorySeasonFilter" class="form-select form-select-sm" style="min-width: 140px;">
+                                        <option value="">Todas temporadas</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-body">
+                            <p class="text-light-gray small mb-2">Filtre por temporada para localizar contratações específicas.</p>
                             <div id="faHistoryContainer">
                                 <p class="text-muted">Carregando...</p>
                             </div>

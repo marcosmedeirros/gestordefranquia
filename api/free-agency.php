@@ -969,17 +969,29 @@ function listAdminFaRequests(PDO $pdo, string $league): void
 
 function listNewFaHistory(PDO $pdo, string $league): void
 {
+    $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
+    $where = 'r.league = ? AND r.status = "assigned"';
+    $params = [$league];
+    if ($seasonFilter) {
+        $where .= ' AND r.season_year = ?';
+        $params[] = $seasonFilter;
+    }
+
     $stmt = $pdo->prepare('
         SELECT r.player_name, r.ovr, r.season_year,
                t.city AS team_city, t.name AS team_name
         FROM fa_requests r
         LEFT JOIN teams t ON r.winner_team_id = t.id
-        WHERE r.league = ? AND r.status = "assigned"
+        WHERE ' . $where . '
         ORDER BY r.resolved_at DESC, r.id DESC
         LIMIT 100
     ');
-    $stmt->execute([$league]);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = array_map(function ($row) {
+        $row['season_year'] = $row['season_year'] ?: null;
+        return $row;
+    }, $rows);
     jsonSuccess(['history' => $rows]);
 }
 

@@ -42,6 +42,52 @@ if (!function_exists('playersColumnExists')) {
     }
 }
 
+if (!function_exists('resolveSeasonYear')) {
+    function resolveSeasonYear(PDO $pdo, string $league): ?int
+    {
+        try {
+            $stmt = $pdo->prepare("SELECT year FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY year DESC, id DESC LIMIT 1");
+            $stmt->execute([$league]);
+            $year = $stmt->fetchColumn();
+            if ($year) {
+                return (int)$year;
+            }
+            $stmt = $pdo->prepare('SELECT year FROM seasons WHERE league = ? ORDER BY year DESC, id DESC LIMIT 1');
+            $stmt->execute([$league]);
+            $year = $stmt->fetchColumn();
+            return $year ? (int)$year : null;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+}
+
+if (!function_exists('syncWaiversSeasonCounter')) {
+    function syncWaiversSeasonCounter(PDO $pdo, int $teamId, string $league): int
+    {
+        $seasonYear = resolveSeasonYear($pdo, $league);
+        if (!$seasonYear) {
+            return 0;
+        }
+        try {
+            $stmt = $pdo->prepare('SELECT waivers_used, waivers_reset_year FROM teams WHERE id = ?');
+            $stmt->execute([$teamId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                return 0;
+            }
+            if ((int)($row['waivers_reset_year'] ?? 0) !== (int)$seasonYear) {
+                $stmtUpdate = $pdo->prepare('UPDATE teams SET waivers_used = 0, waivers_reset_year = ? WHERE id = ?');
+                $stmtUpdate->execute([$seasonYear, $teamId]);
+                return 0;
+            }
+            return (int)($row['waivers_used'] ?? 0);
+        } catch (Exception $e) {
+            return 0;
+        }
+    }
+}
+
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
     
@@ -339,6 +385,8 @@ if ($method === 'DELETE') {
     }
 
     // Dispensa normal - verifica limite de waivers
+    $leagueForReset = strtoupper($row['league'] ?? 'ELITE');
+    $row['waivers_used'] = syncWaiversSeasonCounter($pdo, (int)$row['team_id'], $leagueForReset);
     if ($row['waivers_used'] >= $MAX_WAIVERS) {
         jsonResponse(400, ['error' => 'Limite de dispensas por temporada atingido.']);
     }
