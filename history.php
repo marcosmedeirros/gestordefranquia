@@ -61,6 +61,7 @@ $userLeague = $team['league'];
       <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
       <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
       <li><a href="/free-agency.php"><i class="bi bi-coin"></i>Free Agency</a></li>
+  <li><a href="/leilao.php"><i class="bi bi-hammer"></i>Leilão</a></li>
       <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php" class="active"><i class="bi bi-clock-history"></i>Histórico</a></li>

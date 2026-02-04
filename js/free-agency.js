@@ -148,6 +148,8 @@ function initNewFreeAgency() {
                 form.appendChild(wrapper);
             }
 
+            window.__faRemainingSignings = remaining;
+
             if (form) {
                 const inputs = form.querySelectorAll('input, select, button');
                 inputs.forEach((input) => {
@@ -248,7 +250,9 @@ async function carregarMinhasPropostasNovaFA() {
         requests.forEach(item => {
             const statusLabel = formatNewFaStatus(item.status);
             const season = item.season_year ? `Temp ${item.season_year}` : '-';
-            const isPending = item.status === 'pending';
+            const remaining = typeof window.__faRemainingSignings === 'number' ? window.__faRemainingSignings : null;
+            const isBlocked = remaining !== null && remaining <= 0;
+            const isPending = item.status === 'pending' && !isBlocked;
             html += `<tr>
                 <td><strong class="text-orange">${item.player_name}</strong><div class="small text-light-gray">${item.position}${item.secondary_position ? '/' + item.secondary_position : ''}</div></td>
                 <td>${item.ovr ?? '-'}</td>

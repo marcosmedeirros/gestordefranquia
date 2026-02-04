@@ -669,6 +669,12 @@ try {
                 </a>
             </li>
             <li>
+                <a href="/leilao.php">
+                    <i class="bi bi-hammer"></i>
+                    Leilão
+                </a>
+            </li>
+            <li>
                 <a href="/drafts.php">
                     <i class="bi bi-trophy"></i>
                     Draft
