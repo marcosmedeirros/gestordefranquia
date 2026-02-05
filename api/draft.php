@@ -644,8 +644,8 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $pickingTeamId = $isAdmin && $teamIdOverride ? (int)$teamIdOverride : (int)$team['id'];
-            if (!$isAdmin && (int)$currentPick['team_id'] !== $pickingTeamId) {
+            $targetTeamId = $isAdmin && $teamIdOverride ? (int)$teamIdOverride : (int)$currentPick['team_id'];
+            if (!$isAdmin && (int)$currentPick['team_id'] !== (int)$team['id']) {
                 echo json_encode(['success' => false, 'error' => 'Não é a sua vez de escolher']);
                 exit;
             }
@@ -660,7 +660,8 @@ if ($method === 'POST') {
 
             try {
                 $pdo->beginTransaction();
-                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')->execute([(int)$playerId, (int)$currentPick['id']]);
+                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW(), team_id = ?, original_team_id = ? WHERE id = ?')
+                    ->execute([(int)$playerId, (int)$targetTeamId, (int)$targetTeamId, (int)$currentPick['id']]);
 
                 $stmtTotalRound = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?');
                 $stmtTotalRound->execute([(int)$draftSessionId, (int)$session['current_round']]);
@@ -668,10 +669,10 @@ if ($method === 'POST') {
                 $pickNumber = (($session['current_round'] - 1) * $roundSize) + $session['current_pick'];
 
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
-                    ->execute([(int)$currentPick['team_id'], (int)$pickNumber, (int)$playerId]);
+                    ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
 
                 $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([(int)$currentPick['team_id'], $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    ->execute([(int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
 
                 $nextPick = (int)$session['current_pick'] + 1;
                 $nextRound = (int)$session['current_round'];
