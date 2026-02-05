@@ -163,6 +163,22 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       </div>
     </div>
     <?php endif; ?>
+
+    <?php if ($isAdmin): ?>
+    <div class="mt-4" id="finalizeDraftContainer" style="display: none;">
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h6 class="text-white mb-1"><i class="bi bi-check2-circle me-2 text-orange"></i>Finalizar Draft</h6>
+            <small class="text-light-gray">Use quando a seleção estiver concluída.</small>
+          </div>
+          <button class="btn btn-orange" type="button" onclick="finalizeDraft()">
+            <i class="bi bi-flag-fill me-2"></i>Finalizar Draft
+          </button>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Modal para selecionar jogador -->
@@ -263,7 +279,8 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         renderDraft(session, picks);
 
         // Auto-refresh se draft em andamento
-        if (session.status === 'in_progress') {
+  const isAdminRound2 = isAdmin && session.status === 'in_progress' && Number(session.current_round) === 2;
+        if (session.status === 'in_progress' && !isAdminRound2) {
           if (refreshInterval) clearInterval(refreshInterval);
           refreshInterval = setInterval(loadDraft, 10000);
         } else {
@@ -305,6 +322,13 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
       const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
       const showRound2Admin = isAdmin && session.status === 'in_progress' && session.current_round == 2;
+      const round2History = round2Raw
+        .filter(p => p.picked_player_id)
+        .sort((a, b) => {
+          const aPos = round1OrderMap.get(String(a.team_id)) ?? a.pick_position;
+          const bPos = round1OrderMap.get(String(b.team_id)) ?? b.pick_position;
+          return aPos - bPos;
+        });
 
       document.getElementById('draftContainer').innerHTML = `
         <!-- Header do Draft -->
@@ -435,12 +459,39 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                 </div>
               </div>
             ` : ''}
-            <div class="row g-2">
-              ${round2Picks.map((p, idx) => renderPickCard(p, session, idx + 1)).join('')}
+            <div class="card bg-dark border-secondary" style="border-radius: 12px;">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="text-white mb-0">
+                    <i class="bi bi-clock-history me-2 text-orange"></i>Histórico da 2ª rodada
+                  </h6>
+                  <span class="badge bg-secondary">${round2History.length}</span>
+                </div>
+                ${round2History.length ? `
+                  <div class="list-group">
+                    ${round2History.map((pick) => `
+                      <div class="list-group-item bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong>${pick.player_name}</strong>
+                          <small class="text-light-gray d-block">${pick.team_city} ${pick.team_name}</small>
+                        </div>
+                        <span class="badge bg-orange">R2</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : `
+                  <div class="text-light-gray">Nenhuma pick registrada na 2ª rodada.</div>
+                `}
+              </div>
             </div>
           </div>
         </div>
       `;
+
+      const finalizeContainer = document.getElementById('finalizeDraftContainer');
+      if (finalizeContainer) {
+        finalizeContainer.style.display = (session.status === 'in_progress') ? 'block' : 'none';
+      }
 
       if (showRound2Admin) {
         initRound2AdminPanel(round2Raw);
@@ -655,6 +706,24 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         });
         alert(result.message || 'Pick registrada!');
         await loadDraft();
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    async function finalizeDraft() {
+      if (!currentDraftSession) return;
+      if (!confirm('Finalizar o draft agora?')) return;
+      try {
+        const result = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'finalize_draft',
+            draft_session_id: currentDraftSession.id
+          })
+        });
+        alert(result.message || 'Draft finalizado!');
+        loadDraft();
       } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
       }

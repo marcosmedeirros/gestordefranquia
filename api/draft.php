@@ -551,6 +551,34 @@ if ($method === 'POST') {
             echo json_encode(['success' => true, 'message' => 'Draft iniciado!']);
             break;
 
+        // ADMIN: Finalizar draft manualmente
+        case 'finalize_draft':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
+            }
+
+            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ?');
+            $stmtSession->execute([(int)$draftSessionId]);
+            $session = $stmtSession->fetch(PDO::FETCH_ASSOC);
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']);
+                exit;
+            }
+
+            $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
+                ->execute([(int)$draftSessionId]);
+
+            echo json_encode(['success' => true, 'message' => 'Draft finalizado!']);
+            break;
+
         // JOGADOR/ADMIN: Fazer pick
         case 'make_pick':
             $draftSessionId = $data['draft_session_id'] ?? null;

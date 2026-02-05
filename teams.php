@@ -14,6 +14,29 @@ $capMin = (int)($leagueSettings['cap_min'] ?? 0);
 $capMax = (int)($leagueSettings['cap_max'] ?? 0);
 $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 
+$currentSeasonYear = null;
+try {
+    $stmtSeason = $pdo->prepare('
+        SELECT s.season_number, s.year, sp.start_year
+        FROM seasons s
+        INNER JOIN sprints sp ON s.sprint_id = sp.id
+        WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
+        ORDER BY s.created_at DESC
+        LIMIT 1
+    ');
+    $stmtSeason->execute([$user['league']]);
+    $season = $stmtSeason->fetch(PDO::FETCH_ASSOC);
+    if ($season) {
+        if (isset($season['start_year'], $season['season_number'])) {
+            $currentSeasonYear = (int)$season['start_year'] + (int)$season['season_number'] - 1;
+        } elseif (isset($season['year'])) {
+            $currentSeasonYear = (int)$season['year'];
+        }
+    }
+} catch (Exception $e) {
+    $currentSeasonYear = null;
+}
+
 // Buscar time do usuário para a sidebar
 $stmtTeam = $pdo->prepare('
     SELECT t.*, COUNT(p.id) as player_count
@@ -351,6 +374,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const leagueCapMin = <?= (int)$capMin ?>;
         const leagueCapMax = <?= (int)$capMax ?>;
         const leagueMaxTrades = <?= (int)$maxTrades ?>;
+        const currentSeasonYear = <?= $currentSeasonYear ? (int)$currentSeasonYear : 'null' ?>;
 
         async function verJogadores(teamId, teamName) {
             document.getElementById('modalTitle').textContent = 'Elenco: ' + teamName;
@@ -410,7 +434,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (!teamInfo) throw new Error('Time não encontrado');
 
                 const roster = playersData.players || [];
-                const picks = picksData.picks || [];
+                let picks = picksData.picks || [];
+                if (currentSeasonYear) {
+                    picks = picks.filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
+                }
 
                 const positions = ['PG','SG','SF','PF','C'];
                 const startersMap = {};

@@ -217,6 +217,12 @@ $stmtPicks = $pdo->prepare("
 ");
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+$teamPicksForCopy = $teamPicks;
+if (!empty($seasonDisplayYear)) {
+    $teamPicksForCopy = array_values(array_filter($teamPicks, function ($pick) use ($seasonDisplayYear) {
+        return (int)($pick['season_year'] ?? 0) >= (int)$seasonDisplayYear;
+    }));
+}
 
 // Contador de trades por time (novo modelo)
 function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int
@@ -953,10 +959,10 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- Draft, Trades e Minhas Diretrizes (3 na mesma linha) -->
+        <!-- Draft e Trades (2 na mesma linha) -->
         <div class="row g-4 mb-4">
             <!-- Draft Ativo -->
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
@@ -992,7 +998,7 @@ try {
             </div>
 
             <!-- Última Trade -->
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
@@ -1427,7 +1433,7 @@ try {
         });
 
         const rosterData = <?= json_encode($allPlayers) ?>;
-        const picksData = <?= json_encode($teamPicks) ?>;
+    const picksData = <?= json_encode($teamPicksForCopy) ?>;
         const teamMeta = {
             name: <?= json_encode($team['city'] . ' ' . $team['name']) ?>,
             city: <?= json_encode($team['city']) ?>,
