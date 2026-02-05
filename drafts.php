@@ -228,6 +228,46 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     </div>
   </div>
 
+  <!-- Modal para adicionar novo jogador ao draft (Admin) -->
+  <div class="modal fade" id="addDraftPlayerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-plus me-2 text-orange"></i>Novo jogador do draft</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addDraftPlayerForm">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label text-white">Nome</label>
+                <input type="text" class="form-control bg-dark text-white border-secondary" name="name" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-white">Posição</label>
+                <input type="text" class="form-control bg-dark text-white border-secondary" name="position" maxlength="3" placeholder="PG" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-white">Idade</label>
+                <input type="number" class="form-control bg-dark text-white border-secondary" name="age" min="16" max="50" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label text-white">OVR</label>
+                <input type="number" class="form-control bg-dark text-white border-secondary" name="ovr" min="40" max="99" required>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="submitAddDraftPlayer()">
+            <i class="bi bi-check2-circle me-1"></i>Adicionar jogador
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
@@ -356,21 +396,28 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
             <div class="card ${isMyTurn ? 'bg-success' : 'bg-dark-panel'} border-orange" style="border-radius: 15px;">
               <div class="card-body text-center">
                 ${session.status === 'in_progress' ? `
-                  <h5 class="text-white mb-2">
-                    <i class="bi bi-clock text-orange me-2"></i>
-                    Rodada ${session.current_round} - Pick ${session.current_pick}
-                  </h5>
-                  ${currentPickInfo ? `
-                    <p class="mb-1 ${isMyTurn ? 'text-white fw-bold' : 'text-light-gray'}">
-                      ${isMyTurn ? '🎉 É A SUA VEZ!' : `Vez de: ${currentPickInfo.team_city} ${currentPickInfo.team_name}`}
-                    </p>
-                    
-                  ` : ''}
-                  ${isMyTurn ? `
-                    <button class="btn btn-light mt-2" onclick="openPickModal()">
-                      <i class="bi bi-person-plus me-2"></i>Fazer Minha Pick
-                    </button>
-                  ` : ''}
+                  ${Number(session.current_round) === 2 ? `
+                    <h5 class="text-white mb-2">
+                      <i class="bi bi-clock text-orange me-2"></i>
+                      2ª rodada
+                    </h5>
+                    <p class="text-light-gray mb-0">Envie sua escolha para o admin.</p>
+                  ` : `
+                    <h5 class="text-white mb-2">
+                      <i class="bi bi-clock text-orange me-2"></i>
+                      Rodada ${session.current_round} - Pick ${session.current_pick}
+                    </h5>
+                    ${currentPickInfo ? `
+                      <p class="mb-1 ${isMyTurn ? 'text-white fw-bold' : 'text-light-gray'}">
+                        ${isMyTurn ? '🎉 É A SUA VEZ!' : `Vez de: ${currentPickInfo.team_city} ${currentPickInfo.team_name}`}
+                      </p>
+                    ` : ''}
+                    ${isMyTurn ? `
+                      <button class="btn btn-light mt-2" onclick="openPickModal()">
+                        <i class="bi bi-person-plus me-2"></i>Fazer Minha Pick
+                      </button>
+                    ` : ''}
+                  `}
                 ` : session.status === 'setup' ? `
                   <h5 class="text-white mb-2">
                     <i class="bi bi-gear text-orange me-2"></i>
@@ -453,6 +500,11 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <small class="text-light-gray">Jogadores disponíveis</small>
                       <small class="text-light-gray" id="round2PlayersCount">0</small>
+                    </div>
+                    <div class="mb-2">
+                      <button class="btn btn-sm btn-outline-light" type="button" onclick="openAddDraftPlayerModal()">
+                        <i class="bi bi-person-plus me-1"></i>Adicionar novo jogador ao draft
+                      </button>
                     </div>
                     <div id="round2PlayersList" class="row g-2"></div>
                   </div>
@@ -608,7 +660,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
       teamSelect.innerHTML = '<option value="">Selecione o time...</option>';
       const teamMap = new Map();
-      unpickedRound2.forEach(p => {
+      round2PicksRaw.forEach(p => {
         const key = String(p.team_id);
         if (!teamMap.has(key)) {
           teamMap.set(key, `${p.team_city} ${p.team_name}`);
@@ -706,6 +758,48 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         });
         alert(result.message || 'Pick registrada!');
         await loadDraft();
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
+    function openAddDraftPlayerModal() {
+      if (!currentDraftSession) return;
+      const modalEl = document.getElementById('addDraftPlayerModal');
+      if (!modalEl) return;
+      const form = document.getElementById('addDraftPlayerForm');
+      if (form) form.reset();
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+
+    async function submitAddDraftPlayer() {
+      if (!currentDraftSession) return;
+      const form = document.getElementById('addDraftPlayerForm');
+      if (!form) return;
+      const formData = new FormData(form);
+      const payload = {
+        action: 'add_draft_player',
+        draft_session_id: currentDraftSession.id,
+        name: String(formData.get('name') || '').trim(),
+        position: String(formData.get('position') || '').trim().toUpperCase(),
+        age: Number(formData.get('age')),
+        ovr: Number(formData.get('ovr'))
+      };
+
+      if (!payload.name || !payload.position || !payload.age || !payload.ovr) {
+        alert('Preencha todos os campos.');
+        return;
+      }
+
+      try {
+        const result = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        alert(result.message || 'Jogador adicionado!');
+        bootstrap.Modal.getInstance(document.getElementById('addDraftPlayerModal')).hide();
+        refreshRound2Players();
       } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
       }

@@ -579,6 +579,45 @@ if ($method === 'POST') {
             echo json_encode(['success' => true, 'message' => 'Draft finalizado!']);
             break;
 
+        // ADMIN: Adicionar jogador ao draft pool
+        case 'add_draft_player':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            $name = trim((string)($data['name'] ?? ''));
+            $position = strtoupper(trim((string)($data['position'] ?? '')));
+            $age = (int)($data['age'] ?? 0);
+            $ovr = (int)($data['ovr'] ?? 0);
+
+            if (!$draftSessionId || $name === '' || $position === '' || $age <= 0 || $ovr <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ?');
+            $stmtSession->execute([(int)$draftSessionId]);
+            $session = $stmtSession->fetch(PDO::FETCH_ASSOC);
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status) VALUES (?, ?, ?, ?, ?, "available")');
+            $stmt->execute([
+                (int)$session['season_id'],
+                $name,
+                $position,
+                $age,
+                $ovr
+            ]);
+
+            echo json_encode(['success' => true, 'message' => 'Jogador adicionado ao draft!']);
+            break;
+
         // JOGADOR/ADMIN: Fazer pick
         case 'make_pick':
             $draftSessionId = $data['draft_session_id'] ?? null;
