@@ -1,5 +1,5 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v10';
+const CACHE_NAME = 'fba-manager-v11';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)
@@ -28,6 +28,13 @@ self.addEventListener('install', event => {
       })
       .then(() => self.skipWaiting())
   );
+});
+
+// Receber mensagens do client
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Ativar Service Worker

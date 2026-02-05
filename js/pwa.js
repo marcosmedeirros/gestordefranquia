@@ -4,6 +4,8 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
         console.log('[PWA] Service Worker registrado:', registration.scope);
+
+        registration.update();
         
         // Verificar atualizações
         registration.addEventListener('updatefound', () => {
@@ -14,6 +16,13 @@ if ('serviceWorker' in navigator) {
               showUpdateNotification();
             }
           });
+        });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
         });
       })
       .catch(err => {
