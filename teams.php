@@ -36,6 +36,7 @@ try {
 } catch (Exception $e) {
     $currentSeasonYear = null;
 }
+$currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
 
 // Buscar time do usuário para a sidebar
 $stmtTeam = $pdo->prepare('
@@ -435,9 +436,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
                 const roster = playersData.players || [];
                 let picks = picksData.picks || [];
-                if (currentSeasonYear) {
-                    picks = picks.filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
-                }
+                picks = picks.filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
 
                 const positions = ['PG','SG','SF','PF','C'];
                 const startersMap = {};

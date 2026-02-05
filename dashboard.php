@@ -218,11 +218,10 @@ $stmtPicks = $pdo->prepare("
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 $teamPicksForCopy = $teamPicks;
-if (!empty($seasonDisplayYear)) {
-    $teamPicksForCopy = array_values(array_filter($teamPicks, function ($pick) use ($seasonDisplayYear) {
-        return (int)($pick['season_year'] ?? 0) >= (int)$seasonDisplayYear;
-    }));
-}
+$copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
+$teamPicksForCopy = array_values(array_filter($teamPicks, function ($pick) use ($copySeasonYear) {
+    return (int)($pick['season_year'] ?? 0) >= $copySeasonYear;
+}));
 
 // Contador de trades por time (novo modelo)
 function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int

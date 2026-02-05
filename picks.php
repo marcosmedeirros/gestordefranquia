@@ -18,6 +18,31 @@ if (!$team) {
 
 // A partir de agora, não há edição manual de picks; somente visualização
 
+// Determinar ano da temporada atual para filtrar picks
+$currentSeasonYear = null;
+try {
+    $stmtSeason = $pdo->prepare('
+        SELECT s.season_number, s.year, sp.start_year
+        FROM seasons s
+        INNER JOIN sprints sp ON s.sprint_id = sp.id
+        WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
+        ORDER BY s.created_at DESC
+        LIMIT 1
+    ');
+    $stmtSeason->execute([$team['league']]);
+    $season = $stmtSeason->fetch(PDO::FETCH_ASSOC);
+    if ($season) {
+        if (isset($season['start_year'], $season['season_number'])) {
+            $currentSeasonYear = (int)$season['start_year'] + (int)$season['season_number'] - 1;
+        } elseif (isset($season['year'])) {
+            $currentSeasonYear = (int)$season['year'];
+        }
+    }
+} catch (Exception $e) {
+    $currentSeasonYear = null;
+}
+$currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
+
 // Buscar picks do time
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
@@ -25,10 +50,10 @@ $stmtPicks = $pdo->prepare('
     FROM picks p
     LEFT JOIN teams orig ON p.original_team_id = orig.id
     LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
-    WHERE p.team_id = ?
+    WHERE p.team_id = ? AND p.season_year > ?
     ORDER BY p.season_year, p.round
 ');
-$stmtPicks->execute([$team['id']]);
+$stmtPicks->execute([$team['id'], $currentSeasonYear]);
 $picks = $stmtPicks->fetchAll();
 ?>
 <!DOCTYPE html>
