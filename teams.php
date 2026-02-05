@@ -7,6 +7,13 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
+$stmtSettings = $pdo->prepare('SELECT cap_min, cap_max, max_trades FROM league_settings WHERE league = ?');
+$stmtSettings->execute([$user['league']]);
+$leagueSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC) ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3];
+$capMin = (int)($leagueSettings['cap_min'] ?? 0);
+$capMax = (int)($leagueSettings['cap_max'] ?? 0);
+$maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
+
 // Buscar time do usuário para a sidebar
 $stmtTeam = $pdo->prepare('
     SELECT t.*, COUNT(p.id) as player_count
@@ -286,6 +293,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                             <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
                                         </button>
+                                        <button class="btn btn-sm btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')" title="Copiar time">
+                                            <i class="bi bi-clipboard-check"></i><span class="d-none d-md-inline ms-1">Copiar</span>
+                                        </button>
                                         <?php if ($hasContact): ?>
                                             <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
                                                 <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">Falar</span>
@@ -338,6 +348,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script>
+        const leagueCapMin = <?= (int)$capMin ?>;
+        const leagueCapMax = <?= (int)$capMax ?>;
+        const leagueMaxTrades = <?= (int)$maxTrades ?>;
+
         async function verJogadores(teamId, teamName) {
             document.getElementById('modalTitle').textContent = 'Elenco: ' + teamName;
             document.getElementById('loading').style.display = 'block';
@@ -373,6 +387,132 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             } catch (err) {
                 document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Erro ao carregar</div>';
+            }
+        }
+
+        async function copiarTime(teamId, teamName) {
+            try {
+                const [teamRes, playersRes, picksRes] = await Promise.all([
+                    fetch(`/api/team.php?id=${teamId}`),
+                    fetch(`/api/team-players.php?team_id=${teamId}`),
+                    fetch(`/api/picks.php?team_id=${teamId}`)
+                ]);
+
+                const teamData = await teamRes.json();
+                const playersData = await playersRes.json();
+                const picksData = await picksRes.json();
+
+                if (!teamData || teamData.error) throw new Error(teamData.error || 'Erro ao carregar time');
+                if (!playersData || playersData.error) throw new Error(playersData.error || 'Erro ao carregar jogadores');
+                if (!picksData || picksData.error) throw new Error(picksData.error || 'Erro ao carregar picks');
+
+                const teamInfo = (teamData.teams && teamData.teams[0]) ? teamData.teams[0] : null;
+                if (!teamInfo) throw new Error('Time não encontrado');
+
+                const roster = playersData.players || [];
+                const picks = picksData.picks || [];
+
+                const positions = ['PG','SG','SF','PF','C'];
+                const startersMap = {};
+                positions.forEach(pos => startersMap[pos] = null);
+
+                const formatAge = (age) => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
+
+                const formatLine = (label, player) => {
+                    if (!player) return `${label}: -`;
+                    const ovr = player.ovr ?? '-';
+                    const age = player.age ?? '-';
+                    return `${label}: ${player.name} - ${ovr} | ${formatAge(age)}`;
+                };
+
+                const starters = roster.filter(p => p.role === 'Titular');
+                starters.forEach(p => {
+                    if (positions.includes(p.position) && !startersMap[p.position]) {
+                        startersMap[p.position] = p;
+                    }
+                });
+
+                const benchPlayers = roster.filter(p => p.role === 'Banco');
+                const othersPlayers = roster.filter(p => p.role === 'Outro');
+                const gleaguePlayers = roster.filter(p => (p.role || '').toLowerCase() === 'g-league');
+
+                const round1Years = picks.filter(pk => pk.round == 1).map(pk => {
+                    const isTraded = (pk.original_team_id != pk.team_id);
+                    const via = pk.last_owner_city && pk.last_owner_name ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
+                    return `-${pk.season_year}${isTraded ? ` (via ${via})` : ''} `;
+                });
+                const round2Years = picks.filter(pk => pk.round == 2).map(pk => {
+                    const isTraded = (pk.original_team_id != pk.team_id);
+                    const via = pk.last_owner_city && pk.last_owner_name ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
+                    return `-${pk.season_year}${isTraded ? ` (via ${via})` : ''} `;
+                });
+
+                const lines = [];
+                lines.push(`*${teamName}*`);
+                lines.push(teamInfo.owner_name || '-');
+                lines.push('');
+                lines.push('_Starters_');
+                positions.forEach(pos => lines.push(formatLine(pos, startersMap[pos])));
+                lines.push('');
+                lines.push('_Bench_');
+                if (benchPlayers.length) {
+                    benchPlayers.forEach(p => {
+                        const ovr = p.ovr ?? '-';
+                        const age = p.age ?? '-';
+                        lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
+                    });
+                } else {
+                    lines.push('-');
+                }
+                lines.push('');
+                lines.push('_Others_');
+                if (othersPlayers.length) {
+                    othersPlayers.forEach(p => {
+                        const ovr = p.ovr ?? '-';
+                        const age = p.age ?? '-';
+                        lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
+                    });
+                } else {
+                    lines.push('-');
+                }
+                lines.push('');
+                lines.push('_G-League_');
+                if (gleaguePlayers.length) {
+                    gleaguePlayers.forEach(p => {
+                        const ovr = p.ovr ?? '-';
+                        const age = p.age ?? '-';
+                        lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
+                    });
+                } else {
+                    lines.push('-');
+                }
+                lines.push('');
+                lines.push('_Picks 1º round_:');
+                lines.push(...(round1Years.length ? round1Years : ['-']));
+                lines.push('');
+                lines.push('_Picks 2º round_:');
+                lines.push(...(round2Years.length ? round2Years : ['-']));
+                lines.push('');
+                const capTop8 = teamInfo.cap_top8 ?? 0;
+                const tradesUsed = teamInfo.trades_used ?? 0;
+                lines.push(`_CAP_: ${leagueCapMin} / *${capTop8}* / ${leagueCapMax}`);
+                lines.push(`_Trades_: ${tradesUsed} / ${leagueMaxTrades}`);
+
+                const text = lines.join('\n');
+                try {
+                    await navigator.clipboard.writeText(text);
+                    alert('Time copiado para a área de transferência!');
+                } catch (err) {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('Time copiado para a área de transferência!');
+                }
+            } catch (err) {
+                alert(err.message || 'Erro ao copiar time');
             }
         }
 

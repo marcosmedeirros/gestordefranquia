@@ -175,6 +175,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         </div>
         <div class="modal-body">
           <input type="text" id="playerSearch" class="form-control mb-3 bg-dark text-white border-secondary" placeholder="Buscar jogador...">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <small class="text-light-gray">Jogadores disponíveis</small>
+            <small class="text-light-gray" id="availablePlayersCount">0</small>
+          </div>
           <div id="availablePlayers" class="row g-3">
             <div class="text-center py-3">
               <div class="spinner-border text-orange"></div>
@@ -278,7 +282,13 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     function renderDraft(session, picks) {
       const round1Picks = picks.filter(p => p.round == 1);
-      const round2Picks = picks.filter(p => p.round == 2);
+      const round2Raw = picks.filter(p => p.round == 2);
+      const round1OrderMap = new Map(round1Picks.map(p => [String(p.team_id), Number(p.pick_position)]));
+      const round2Picks = [...round2Raw].sort((a, b) => {
+        const aOrder = round1OrderMap.get(String(a.team_id)) ?? a.pick_position;
+        const bOrder = round1OrderMap.get(String(b.team_id)) ?? b.pick_position;
+        return aOrder - bOrder;
+      });
 
       const statusBadge = {
         'setup': '<span class="badge bg-warning">Configurando</span>',
@@ -289,11 +299,12 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       // Verificar se é a vez do usuário
       let currentPickInfo = null;
       if (session.status === 'in_progress') {
-        const allPicks = [...round1Picks, ...round2Picks];
+        const allPicks = [...round1Picks, ...round2Raw];
         currentPickInfo = allPicks.find(p => p.round == session.current_round && p.pick_position == session.current_pick && !p.picked_player_id);
       }
 
-      const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId;
+      const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
+      const showRound2Admin = isAdmin && session.status === 'in_progress' && session.current_round == 2;
 
       document.getElementById('draftContainer').innerHTML = `
         <!-- Header do Draft -->
@@ -385,12 +396,55 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
             </h5>
           </div>
           <div class="card-body">
+            ${showRound2Admin ? `
+              <div class="card bg-dark border-secondary mb-3" style="border-radius: 12px;">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                    <div>
+                      <h6 class="text-white mb-1"><i class="bi bi-person-check me-2 text-orange"></i>Seleção Admin - 2ª Rodada</h6>
+                      <small class="text-light-gray">Escolha o time e o jogador disponível.</small>
+                    </div>
+                    <span class="badge bg-secondary" id="round2RemainingBadge">-</span>
+                  </div>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                      <label class="form-label text-white">Time</label>
+                      <select class="form-select bg-dark text-white border-secondary" id="round2TeamSelect">
+                        <option value="">Selecione o time...</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <label class="form-label text-white">Jogador</label>
+                      <select class="form-select bg-dark text-white border-secondary" id="round2PlayerSelect">
+                        <option value="">Selecione o jogador...</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <button class="btn btn-orange w-100" onclick="submitRound2Pick()">
+                        <i class="bi bi-check2-circle me-1"></i>Adicionar
+                      </button>
+                    </div>
+                  </div>
+                  <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <small class="text-light-gray">Jogadores disponíveis</small>
+                      <small class="text-light-gray" id="round2PlayersCount">0</small>
+                    </div>
+                    <div id="round2PlayersList" class="row g-2"></div>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
             <div class="row g-2">
               ${round2Picks.map((p, idx) => renderPickCard(p, session, idx + 1)).join('')}
             </div>
           </div>
         </div>
       `;
+
+      if (showRound2Admin) {
+        initRound2AdminPanel(round2Raw);
+      }
     }
 
     function renderPickCard(pick, session, displayNum) {
@@ -467,6 +521,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     function renderAvailablePlayers(players) {
       const container = document.getElementById('availablePlayers');
+      const countEl = document.getElementById('availablePlayersCount');
+      if (countEl) {
+        countEl.textContent = `${players.length}`;
+      }
       if (players.length === 0) {
         container.innerHTML = '<div class="col-12 text-center text-light-gray py-3">Nenhum jogador encontrado</div>';
         return;
@@ -483,6 +541,123 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           </div>
         </div>
       `).join('');
+    }
+
+    function initRound2AdminPanel(round2PicksRaw) {
+      if (!currentDraftSession) return;
+      const teamSelect = document.getElementById('round2TeamSelect');
+      const playerSelect = document.getElementById('round2PlayerSelect');
+      const playersList = document.getElementById('round2PlayersList');
+      const playersCount = document.getElementById('round2PlayersCount');
+      const remainingBadge = document.getElementById('round2RemainingBadge');
+      if (!teamSelect || !playerSelect || !playersList) return;
+
+      const unpickedRound2 = round2PicksRaw.filter(p => !p.picked_player_id);
+      remainingBadge.textContent = `${unpickedRound2.length} picks pendentes`;
+
+      teamSelect.innerHTML = '<option value="">Selecione o time...</option>';
+      const teamMap = new Map();
+      unpickedRound2.forEach(p => {
+        const key = String(p.team_id);
+        if (!teamMap.has(key)) {
+          teamMap.set(key, `${p.team_city} ${p.team_name}`);
+        }
+      });
+
+      Array.from(teamMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, label]) => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = label;
+          teamSelect.appendChild(option);
+        });
+
+      refreshRound2Players();
+
+      teamSelect.onchange = () => {
+        refreshRound2Players();
+      };
+    }
+
+    async function refreshRound2Players() {
+      if (!currentDraftSession) return;
+      const teamSelect = document.getElementById('round2TeamSelect');
+      const playerSelect = document.getElementById('round2PlayerSelect');
+      const playersList = document.getElementById('round2PlayersList');
+      const playersCount = document.getElementById('round2PlayersCount');
+      if (!playerSelect || !playersList) return;
+
+      playerSelect.innerHTML = '<option value="">Selecione o jogador...</option>';
+      playersList.innerHTML = '<div class="col-12 text-center py-2"><div class="spinner-border text-orange"></div></div>';
+
+      try {
+        const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+        const players = data.players || [];
+        playersCount.textContent = `${players.length}`;
+
+        players.forEach(p => {
+          const option = document.createElement('option');
+          option.value = p.id;
+          option.textContent = `${p.name} (${p.position}) - OVR ${p.ovr}`;
+          playerSelect.appendChild(option);
+        });
+
+        if (players.length === 0) {
+          playersList.innerHTML = '<div class="col-12 text-center text-light-gray py-2">Nenhum jogador disponível.</div>';
+          return;
+        }
+
+        playersList.innerHTML = players.map(p => `
+          <div class="col-md-4 col-lg-3">
+            <div class="card bg-dark border-secondary" style="border-radius: 10px;">
+              <div class="card-body p-2 text-center">
+                <div class="text-white" style="font-size: 0.85rem;">${p.name}</div>
+                <div class="mt-1">
+                  <span class="badge bg-orange">${p.position}</span>
+                  <span class="badge bg-success">OVR ${p.ovr}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        playersList.innerHTML = `<div class="col-12 text-center text-danger py-2">Erro: ${e.error || 'Desconhecido'}</div>`;
+      }
+    }
+
+    async function submitRound2Pick() {
+      if (!currentDraftSession) return;
+      const teamSelect = document.getElementById('round2TeamSelect');
+      const playerSelect = document.getElementById('round2PlayerSelect');
+      if (!teamSelect || !playerSelect) return;
+      const teamId = teamSelect.value;
+      const playerId = playerSelect.value;
+
+      if (!teamId) {
+        alert('Selecione o time.');
+        return;
+      }
+      if (!playerId) {
+        alert('Selecione o jogador.');
+        return;
+      }
+
+      try {
+        const result = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'make_pick',
+            draft_session_id: currentDraftSession.id,
+            player_id: parseInt(playerId, 10),
+            team_id: parseInt(teamId, 10)
+          })
+        });
+        alert(result.message || 'Pick registrada!');
+        await loadDraft();
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
     }
 
     async function makePick(playerId, playerName) {
