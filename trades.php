@@ -259,12 +259,23 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     }
 
     .pick-protection-select {
-      background: var(--fba-dark-bg);
-      color: var(--fba-text);
+      background: #ffffff;
+      color: #000000;
       border: 1px solid var(--fba-orange);
       border-radius: 8px;
       padding: 6px 10px;
       min-width: 140px;
+    }
+
+    .pick-protection-select:hover,
+    .pick-protection-select:focus {
+      background: #ffffff;
+      color: #000000;
+      box-shadow: none;
+    }
+
+    .pick-protection-select option {
+      color: #000000;
     }
 
     .pick-empty-state {
@@ -587,10 +598,14 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
               <div class="col-md-6">
                 <h6 class="text-orange mb-3">Você oferece</h6>
                 <div class="mb-3">
-                  <label class="form-label text-white">Jogadores</label>
-                  <select class="form-select bg-dark text-white border-orange" id="offerPlayers" multiple size="5">
-                  </select>
-                  <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-white mb-0">Jogadores</label>
+                    <small class="text-light-gray">Adicionar e revisar seleção</small>
+                  </div>
+                  <div class="pick-selector">
+                    <div class="pick-options" id="offerPlayersOptions"></div>
+                    <div class="selected-picks" id="offerPlayersSelected"></div>
+                  </div>
                 </div>
                 <div class="mb-3">
                   <div class="d-flex justify-content-between align-items-center mb-2">
@@ -608,10 +623,14 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
               <div class="col-md-6">
                 <h6 class="text-orange mb-3">Você quer</h6>
                 <div class="mb-3">
-                  <label class="form-label text-white">Jogadores</label>
-                  <select class="form-select bg-dark text-white border-orange" id="requestPlayers" multiple size="5">
-                  </select>
-                  <small class="text-light-gray">Ctrl/Cmd + clique para múltiplos</small>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-white mb-0">Jogadores</label>
+                    <small class="text-light-gray">Selecione atletas do time alvo</small>
+                  </div>
+                  <div class="pick-selector">
+                    <div class="pick-options" id="requestPlayersOptions"></div>
+                    <div class="selected-picks" id="requestPlayersSelected"></div>
+                  </div>
                 </div>
                 <div class="mb-3">
                   <div class="d-flex justify-content-between align-items-center mb-2">

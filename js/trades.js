@@ -29,6 +29,11 @@ const pickState = {
   request: { available: [], selected: [] }
 };
 
+const playerState = {
+  offer: { available: [], selected: [] },
+  request: { available: [], selected: [] }
+};
+
 const formatTradePlayerDisplay = (player) => {
   if (!player) return '';
   const name = player.name || 'Jogador';
@@ -138,6 +143,34 @@ function setupPickSelectorHandlers() {
   renderSelectedPicks('request');
 }
 
+function setupPlayerSelectorHandlers() {
+  ['offer', 'request'].forEach((side) => {
+    const optionsEl = document.getElementById(`${side}PlayersOptions`);
+    const selectedEl = document.getElementById(`${side}PlayersSelected`);
+
+    if (optionsEl) {
+      optionsEl.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action="add-player"]');
+        if (!button) return;
+        addPlayerToSelection(side, Number(button.dataset.playerId));
+      });
+    }
+
+    if (selectedEl) {
+      selectedEl.addEventListener('click', (event) => {
+        const removeBtn = event.target.closest('[data-action="remove-player"]');
+        if (!removeBtn) return;
+        removePlayerFromSelection(side, Number(removeBtn.dataset.playerId));
+      });
+    }
+  });
+
+  renderPlayerOptions('offer');
+  renderSelectedPlayers('offer');
+  renderPlayerOptions('request');
+  renderSelectedPlayers('request');
+}
+
 function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   pickState[side].available = Array.isArray(picks) ? picks : [];
   if (resetSelected) {
@@ -147,6 +180,24 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   }
   renderPickOptions(side);
   renderSelectedPicks(side);
+}
+
+function setAvailablePlayers(side, players, { resetSelected = false } = {}) {
+  playerState[side].available = Array.isArray(players) ? players : [];
+  if (resetSelected) {
+    playerState[side].selected = [];
+  } else {
+    syncSelectedPlayerMetadata(side);
+  }
+  renderPlayerOptions(side);
+  renderSelectedPlayers(side);
+}
+
+function syncSelectedPlayerMetadata(side) {
+  playerState[side].selected = playerState[side].selected.map((selected) => {
+    const updated = playerState[side].available.find((p) => Number(p.id) === Number(selected.id));
+    return updated ? { ...updated } : selected;
+  });
 }
 
 function syncSelectedPickMetadata(side) {
@@ -230,6 +281,117 @@ function renderSelectedPicks(side) {
   }).join('');
 }
 
+function renderPlayerOptions(side) {
+  const container = document.getElementById(`${side}PlayersOptions`);
+  if (!container) return;
+
+  if (side === 'request' && !document.getElementById('targetTeam').value) {
+    container.innerHTML = '<div class="pick-empty-state">Selecione um time para visualizar os jogadores disponíveis.</div>';
+    return;
+  }
+
+  const players = playerState[side].available;
+  if (!players || players.length === 0) {
+    container.innerHTML = '<div class="pick-empty-state">Nenhum jogador disponível.</div>';
+    return;
+  }
+
+  const selectedIds = playerState[side].selected.map((p) => Number(p.id));
+  container.innerHTML = players.map((player) => {
+    const display = formatTradePlayerDisplay(player);
+    const isSelected = selectedIds.includes(Number(player.id));
+    const disabledAttr = isSelected ? 'disabled' : '';
+    const selectedClass = isSelected ? 'is-selected' : '';
+    return `
+      <div class="pick-option-card ${selectedClass}">
+        <div>
+          <div class="pick-title">${display}</div>
+          ${player.available_for_trade ? '' : '<div class="pick-meta text-warning">Fora do trade block</div>'}
+        </div>
+        <button type="button" class="btn btn-sm ${isSelected ? 'btn-outline-secondary' : 'btn-outline-orange'}" data-action="add-player" data-player-id="${player.id}" ${disabledAttr}>
+          ${isSelected ? 'Selecionado' : 'Adicionar'}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSelectedPlayers(side) {
+  const container = document.getElementById(`${side}PlayersSelected`);
+  if (!container) return;
+
+  const selected = playerState[side].selected;
+  if (!selected || selected.length === 0) {
+    container.innerHTML = '<div class="pick-empty-state">Nenhum jogador selecionado.</div>';
+    return;
+  }
+
+  container.innerHTML = selected.map((player) => {
+    const display = formatTradePlayerDisplay(player);
+    return `
+      <div class="selected-pick-card" data-player-id="${player.id}">
+        <div class="selected-pick-info">
+          <div class="pick-title mb-1">${display}</div>
+          ${player.available_for_trade ? '' : '<small class="text-warning">Fora do trade block</small>'}
+        </div>
+        <div class="selected-pick-actions">
+          <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-player" data-player-id="${player.id}">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addPlayerToSelection(side, playerId, fallbackPlayer = null, shouldRender = true) {
+  const state = playerState[side];
+  if (!state) return;
+  if (state.selected.some((p) => Number(p.id) === Number(playerId))) return;
+  const player = fallbackPlayer || state.available.find((p) => Number(p.id) === Number(playerId));
+  if (!player) return;
+  state.selected.push({ ...player });
+  if (shouldRender) {
+    renderPlayerOptions(side);
+    renderSelectedPlayers(side);
+  }
+}
+
+function removePlayerFromSelection(side, playerId) {
+  const state = playerState[side];
+  if (!state) return;
+  state.selected = state.selected.filter((p) => Number(p.id) !== Number(playerId));
+  renderPlayerOptions(side);
+  renderSelectedPlayers(side);
+}
+
+function resetPlayerSelection(side) {
+  if (!playerState[side]) return;
+  playerState[side].selected = [];
+  renderPlayerOptions(side);
+  renderSelectedPlayers(side);
+}
+
+function getPlayerSelectionIds(side) {
+  if (!playerState[side]) return [];
+  return playerState[side].selected.map((player) => Number(player.id));
+}
+
+function prefillPlayerSelections(side, playersFromTrade) {
+  if (!playerState[side]) return;
+  playerState[side].selected = [];
+  if (!Array.isArray(playersFromTrade) || playersFromTrade.length === 0) {
+    renderPlayerOptions(side);
+    renderSelectedPlayers(side);
+    return;
+  }
+  playersFromTrade.forEach((player) => {
+    addPlayerToSelection(side, Number(player.id), player, false);
+  });
+  renderPlayerOptions(side);
+  renderSelectedPlayers(side);
+}
+
 function addPickToSelection(side, pickId, protection = 'none', fallbackPick = null, shouldRender = true) {
   const state = pickState[side];
   if (!state) return;
@@ -294,35 +456,13 @@ function prefillPickSelections(side, picksFromTrade) {
   renderSelectedPicks(side);
 }
 
-function clearMultiSelect(selectId) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  Array.from(select.options).forEach((option) => {
-    option.selected = false;
-  });
-}
-
-function selectOptionsByValues(selectId, values) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  const normalized = new Set((values || []).map((value) => value != null ? String(value) : ''));
-  const hasValues = normalized.size > 0;
-  Array.from(select.options).forEach((option) => {
-    if (!hasValues) {
-      option.selected = false;
-      return;
-    }
-    option.selected = normalized.has(option.value);
-  });
-}
 
 function resetTradeFormState() {
   const form = document.getElementById('proposeTradeForm');
   if (form) {
     form.reset();
   }
-  clearMultiSelect('offerPlayers');
-  clearMultiSelect('requestPlayers');
+  ['offer', 'request'].forEach((side) => resetPlayerSelection(side));
   ['offer', 'request'].forEach((side) => resetPickSelection(side));
   const targetSelect = document.getElementById('targetTeam');
   if (targetSelect) {
@@ -349,6 +489,7 @@ async function init() {
   await loadTeams();
   
   setupPickSelectorHandlers();
+  setupPlayerSelectorHandlers();
 
   // Carregar meus jogadores e picks
   await loadMyAssets();
@@ -404,12 +545,7 @@ async function openTradeWithPreselectedPlayer(playerId, teamId) {
     // Aguardar um pouco para garantir que os selects foram populados
     setTimeout(() => {
       // Pré-selecionar o jogador solicitado
-      const requestPlayersSelect = document.getElementById('requestPlayers');
-      const playerOption = requestPlayersSelect.querySelector(`option[value="${playerId}"]`);
-      if (playerOption) {
-        playerOption.selected = true;
-        playerOption.scrollIntoView({ block: 'nearest' });
-      }
+      addPlayerToSelection('request', Number(playerId));
       
       // Abrir o modal
       const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
@@ -476,22 +612,7 @@ async function loadMyAssets() {
     
   console.log('Meus jogadores carregados:', myPlayers.length);
     
-    const selectPlayers = document.getElementById('offerPlayers');
-    selectPlayers.innerHTML = '';
-    if (myPlayers.length === 0) {
-      const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhum jogador encontrado no seu elenco';
-      selectPlayers.appendChild(option);
-    } else {
-      myPlayers.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
-        selectPlayers.appendChild(option);
-      });
-    }
+    setAvailablePlayers('offer', myPlayers, { resetSelected: true });
     
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
@@ -507,6 +628,7 @@ async function loadMyAssets() {
 async function onTargetTeamChange(e) {
   const teamId = e.target.value;
   if (!teamId) {
+    setAvailablePlayers('request', [], { resetSelected: true });
     setAvailablePicks('request', [], { resetSelected: true });
     return;
   }
@@ -518,22 +640,7 @@ async function onTargetTeamChange(e) {
     
   console.log('Jogadores do time alvo carregados:', players.length);
     
-    const select = document.getElementById('requestPlayers');
-    select.innerHTML = '';
-    if (players.length === 0) {
-      const option = document.createElement('option');
-      option.disabled = true;
-      option.textContent = 'Nenhum jogador encontrado no elenco';
-      select.appendChild(option);
-    } else {
-      players.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        const statusLabel = p.available_for_trade ? '' : ' • fora do trade block';
-        option.textContent = `${formatTradePlayerDisplay(p)}${statusLabel}`;
-        select.appendChild(option);
-      });
-    }
+    setAvailablePlayers('request', players, { resetSelected: true });
     
     // Carregar picks do time alvo
     const picksData = await api(`picks.php?team_id=${teamId}`);
@@ -548,8 +655,8 @@ async function onTargetTeamChange(e) {
 
 async function submitTrade() {
   const targetTeam = document.getElementById('targetTeam').value;
-  const offerPlayers = Array.from(document.getElementById('offerPlayers').selectedOptions).map(o => o.value);
-  const requestPlayers = Array.from(document.getElementById('requestPlayers').selectedOptions).map(o => o.value);
+  const offerPlayers = getPlayerSelectionIds('offer');
+  const requestPlayers = getPlayerSelectionIds('request');
   const offerPickPayload = getPickPayload('offer');
   const requestPickPayload = getPickPayload('request');
   const notes = document.getElementById('tradeNotes').value;
@@ -571,9 +678,9 @@ async function submitTrade() {
   try {
     const payload = {
       to_team_id: parseInt(targetTeam),
-      offer_players: offerPlayers.map(id => parseInt(id)),
+      offer_players: offerPlayers,
       offer_picks: offerPickPayload,
-      request_players: requestPlayers.map(id => parseInt(id)),
+      request_players: requestPlayers,
       request_picks: requestPickPayload,
       notes
     };
@@ -834,8 +941,8 @@ async function openCounterProposal(originalTradeId, originalTrade) {
   // Carregar jogadores e picks do time que enviou a proposta original
   await onTargetTeamChange({ target: targetSelect });
 
-  selectOptionsByValues('offerPlayers', (originalTrade.request_players || []).map((p) => p.id));
-  selectOptionsByValues('requestPlayers', (originalTrade.offer_players || []).map((p) => p.id));
+  prefillPlayerSelections('offer', originalTrade.request_players || []);
+  prefillPlayerSelections('request', originalTrade.offer_players || []);
   prefillPickSelections('offer', originalTrade.request_picks || []);
   prefillPickSelections('request', originalTrade.offer_picks || []);
   
@@ -872,8 +979,8 @@ async function openModifyTrade(tradeId, trade) {
     document.getElementById('targetTeam').value = trade.to_team_id;
     await onTargetTeamChange({ target: document.getElementById('targetTeam') });
     
-    selectOptionsByValues('offerPlayers', (trade.offer_players || []).map((p) => p.id));
-    selectOptionsByValues('requestPlayers', (trade.request_players || []).map((p) => p.id));
+  prefillPlayerSelections('offer', trade.offer_players || []);
+  prefillPlayerSelections('request', trade.request_players || []);
     prefillPickSelections('offer', trade.offer_picks || []);
     prefillPickSelections('request', trade.request_picks || []);
     
