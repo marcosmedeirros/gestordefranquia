@@ -45,15 +45,165 @@ function readJsonBody(): array
     return $data;
 }
 
+function buildMailHeaders(array $config, array $extra = []): array
+{
+    $from = $config['mail']['from'] ?? 'no-reply@localhost';
+    $headers = [
+        'From: ' . $from,
+        'Reply-To: ' . $from,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        'X-Mailer: PHP/' . PHP_VERSION,
+    ];
+    return array_merge($headers, $extra);
+}
+
+function buildMailParams(array $config): ?string
+{
+    $from = $config['mail']['from'] ?? '';
+    if ($from && filter_var($from, FILTER_VALIDATE_EMAIL)) {
+        return '-f ' . $from;
+    }
+    return null;
+}
+
+function smtpRead($socket): string
+{
+    $data = '';
+    while ($line = fgets($socket, 515)) {
+        $data .= $line;
+        if (preg_match('/^\d{3}\s/', $line)) {
+            break;
+        }
+    }
+    return $data;
+}
+
+function smtpWrite($socket, string $command): void
+{
+    fwrite($socket, $command . "\r\n");
+}
+
+function sendViaSmtp(string $to, string $subject, string $message, array $config, array $extraHeaders = []): bool
+{
+    $smtp = $config['mail']['smtp'] ?? [];
+    $host = $smtp['host'] ?? '';
+    $port = (int)($smtp['port'] ?? 587);
+    $user = $smtp['user'] ?? '';
+    $pass = $smtp['pass'] ?? '';
+    $secure = strtolower(trim((string)($smtp['secure'] ?? 'tls')));
+
+    if ($host === '' || $user === '' || $pass === '') {
+        return false;
+    }
+
+    $remote = ($secure === 'ssl') ? "ssl://{$host}:{$port}" : "{$host}:{$port}";
+    $socket = @stream_socket_client($remote, $errno, $errstr, 20, STREAM_CLIENT_CONNECT);
+    if (!$socket) {
+        error_log("SMTP connect failed: {$errstr} ({$errno})");
+        return false;
+    }
+
+    $response = smtpRead($socket);
+    if (strpos($response, '220') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    $hostname = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    smtpWrite($socket, "EHLO {$hostname}");
+    $response = smtpRead($socket);
+    if (strpos($response, '250') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    if ($secure === 'tls') {
+        smtpWrite($socket, 'STARTTLS');
+        $response = smtpRead($socket);
+        if (strpos($response, '220') !== 0) {
+            fclose($socket);
+            return false;
+        }
+        if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            fclose($socket);
+            return false;
+        }
+        smtpWrite($socket, "EHLO {$hostname}");
+        $response = smtpRead($socket);
+        if (strpos($response, '250') !== 0) {
+            fclose($socket);
+            return false;
+        }
+    }
+
+    smtpWrite($socket, 'AUTH LOGIN');
+    $response = smtpRead($socket);
+    if (strpos($response, '334') !== 0) {
+        fclose($socket);
+        return false;
+    }
+    smtpWrite($socket, base64_encode($user));
+    $response = smtpRead($socket);
+    if (strpos($response, '334') !== 0) {
+        fclose($socket);
+        return false;
+    }
+    smtpWrite($socket, base64_encode($pass));
+    $response = smtpRead($socket);
+    if (strpos($response, '235') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    $from = $config['mail']['from'] ?? $user;
+    smtpWrite($socket, "MAIL FROM:<{$from}>");
+    $response = smtpRead($socket);
+    if (strpos($response, '250') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    smtpWrite($socket, "RCPT TO:<{$to}>");
+    $response = smtpRead($socket);
+    if (strpos($response, '250') !== 0 && strpos($response, '251') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    smtpWrite($socket, 'DATA');
+    $response = smtpRead($socket);
+    if (strpos($response, '354') !== 0) {
+        fclose($socket);
+        return false;
+    }
+
+    $headers = array_merge(buildMailHeaders($config), $extraHeaders);
+    $data = 'Subject: ' . $subject . "\r\n";
+    $data .= implode("\r\n", $headers) . "\r\n\r\n";
+    $data .= preg_replace("/\r?\n/", "\r\n", $message) . "\r\n";
+    $data .= ".\r\n";
+
+    smtpWrite($socket, $data);
+    $response = smtpRead($socket);
+    smtpWrite($socket, 'QUIT');
+    fclose($socket);
+
+    return strpos($response, '250') === 0;
+}
+
 function sendVerificationEmail(string $email, string $token): bool
 {
     $config = loadConfig();
     $verifyUrl = rtrim($config['mail']['verify_base_url'], '?') . '?token=' . urlencode($token);
     $subject = 'Verifique seu e-mail (FBA)';
     $message = "Clique para verificar seu e-mail: {$verifyUrl}";
-    $headers = 'From: ' . $config['mail']['from'];
-    // On Hostinger, ensure mail() is permitted; replace with SMTP if needed.
-    return mail($email, $subject, $message, $headers);
+    if (!empty($config['mail']['smtp']['host'])) {
+        return sendViaSmtp($email, $subject, $message, $config);
+    }
+    $headers = implode("\r\n", buildMailHeaders($config));
+    $params = buildMailParams($config);
+    return $params ? mail($email, $subject, $message, $headers, $params) : mail($email, $subject, $message, $headers);
 }
 
 function buildPasswordResetUrl(string $token): string
@@ -106,9 +256,14 @@ Se você não solicitou esta alteração, ignore este e-mail.
 Atenciosamente,
 Equipe FBA Manager
     ";
-    
-    $headers = 'From: ' . $config['mail']['from'];
-    return mail($email, $subject, $message, $headers);
+
+    if (!empty($config['mail']['smtp']['host'])) {
+        return sendViaSmtp($email, $subject, $message, $config);
+    }
+
+    $headers = implode("\r\n", buildMailHeaders($config));
+    $params = buildMailParams($config);
+    return $params ? mail($email, $subject, $message, $headers, $params) : mail($email, $subject, $message, $headers);
 }
 
 function topEightCap(PDO $pdo, int $teamId): int
