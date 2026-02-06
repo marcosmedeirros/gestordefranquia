@@ -804,7 +804,7 @@ function listContracts(PDO $pdo, string $league): void
 function listWaivers(PDO $pdo, string $league): void
 {
     $params = [];
-    $seasonYearExpr = 'YEAR(fa.waived_at)';
+    $seasonYearExpr = 'NULL';
     $seasonNumberExpr = 'NULL';
     $seasonJoin = '';
     $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
@@ -812,12 +812,8 @@ function listWaivers(PDO $pdo, string $league): void
 
     if (columnExists($pdo, 'free_agents', 'season_id') && tableExists($pdo, 'seasons')) {
         $seasonJoin = 'LEFT JOIN seasons s ON fa.season_id = s.id';
-        $seasonYearExpr = 'COALESCE(s.year, ' . $seasonYearExpr . ')';
+        $seasonYearExpr = 's.year';
         $seasonNumberExpr = 's.season_number';
-    }
-
-    if (columnExists($pdo, 'free_agents', 'season_year')) {
-        $seasonYearExpr = 'COALESCE(fa.season_year, ' . $seasonYearExpr . ')';
     }
 
     $seasonSelect = $seasonYearExpr . ' AS season_year, ' . $seasonNumberExpr . ' AS season_number';

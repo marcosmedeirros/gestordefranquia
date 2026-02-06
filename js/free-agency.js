@@ -593,9 +593,15 @@ function renderWaiversList(waivers) {
     html += '<thead><tr><th>Jogador</th><th>Temporada</th><th>Time</th></tr></thead><tbody>';
     filtered.forEach(item => {
         const teamName = item.original_team_name || '-';
-        const seasonLabel = item.season_year
-            ? `Temp ${item.season_year}`
-            : (item.season_number ? `Temp #${item.season_number}` : '-');
+        let seasonLabel = '-';
+        if (item.season_number) {
+            seasonLabel = `Temp #${item.season_number}`;
+            if (item.season_year) {
+                seasonLabel += ` (${item.season_year})`;
+            }
+        } else if (item.season_year) {
+            seasonLabel = `Temp ${item.season_year}`;
+        }
         html += `<tr>
             <td><strong class="text-orange">${item.name}</strong></td>
             <td>${seasonLabel}</td>

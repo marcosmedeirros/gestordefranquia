@@ -62,6 +62,29 @@ if (!function_exists('resolveSeasonYear')) {
     }
 }
 
+if (!function_exists('resolveSeasonInfo')) {
+    function resolveSeasonInfo(PDO $pdo, string $league): array
+    {
+        if (!playersTableExists($pdo, 'seasons')) {
+            return ['id' => null, 'year' => null];
+        }
+        try {
+            $stmt = $pdo->prepare("SELECT id, year FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY year DESC, id DESC LIMIT 1");
+            $stmt->execute([$league]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return ['id' => (int)$row['id'], 'year' => (int)$row['year']];
+            }
+            $stmt = $pdo->prepare('SELECT id, year FROM seasons WHERE league = ? ORDER BY year DESC, id DESC LIMIT 1');
+            $stmt->execute([$league]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row ? ['id' => (int)$row['id'], 'year' => (int)$row['year']] : ['id' => null, 'year' => null];
+        } catch (Exception $e) {
+            return ['id' => null, 'year' => null];
+        }
+    }
+}
+
 if (!function_exists('syncWaiversSeasonCounter')) {
     function syncWaiversSeasonCounter(PDO $pdo, int $teamId, string $league): int
     {
@@ -400,11 +423,12 @@ if ($method === 'DELETE') {
             $league = 'ELITE';
         }
 
-        $stmtFA = $pdo->prepare('
-            INSERT INTO free_agents (name, age, position, secondary_position, overall, league, original_team_id, original_team_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ');
-        $stmtFA->execute([
+        $seasonInfo = resolveSeasonInfo($pdo, $league);
+        $hasSeasonIdCol = playersColumnExists($pdo, 'free_agents', 'season_id');
+        $hasSeasonYearCol = playersColumnExists($pdo, 'free_agents', 'season_year');
+
+        $columns = ['name', 'age', 'position', 'secondary_position', 'overall', 'league', 'original_team_id', 'original_team_name'];
+        $values = [
             $row['name'],
             $row['age'],
             $row['position'],
@@ -413,7 +437,20 @@ if ($method === 'DELETE') {
             $league,
             $row['team_id'],
             trim(($row['city'] ?? '') . ' ' . ($row['team_name'] ?? '')) ?: null
-        ]);
+        ];
+
+        if ($hasSeasonIdCol) {
+            $columns[] = 'season_id';
+            $values[] = $seasonInfo['id'];
+        }
+        if ($hasSeasonYearCol) {
+            $columns[] = 'season_year';
+            $values[] = $seasonInfo['year'];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $stmtFA = $pdo->prepare('INSERT INTO free_agents (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')');
+        $stmtFA->execute($values);
 
         $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
         $del->execute([$playerId]);
