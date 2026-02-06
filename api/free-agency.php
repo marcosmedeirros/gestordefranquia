@@ -1066,20 +1066,12 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
         $requestId = (int)$pdo->lastInsertId();
     }
 
-    $stmtOffer = $pdo->prepare('SELECT id FROM fa_request_offers WHERE request_id = ? AND team_id = ?');
-    $stmtOffer->execute([$requestId, $teamId]);
-    $existingOffer = $stmtOffer->fetchColumn();
-
-    if ($existingOffer) {
-        $stmtUpdate = $pdo->prepare('UPDATE fa_request_offers SET amount = ?, status = "pending" WHERE id = ?');
-        $stmtUpdate->execute([$amount, $existingOffer]);
-    } else {
-        $stmtInsertOffer = $pdo->prepare('
-            INSERT INTO fa_request_offers (request_id, team_id, amount, status, created_at)
-            VALUES (?, ?, ?, "pending", NOW())
-        ');
-        $stmtInsertOffer->execute([$requestId, $teamId, $amount]);
-    }
+    $stmtUpsert = $pdo->prepare('
+        INSERT INTO fa_request_offers (request_id, team_id, amount, status, created_at)
+        VALUES (?, ?, ?, "pending", NOW())
+        ON DUPLICATE KEY UPDATE amount = VALUES(amount), status = "pending"
+    ');
+    $stmtUpsert->execute([$requestId, $teamId, $amount]);
 
     jsonSuccess(['request_id' => (int)$requestId]);
 }
