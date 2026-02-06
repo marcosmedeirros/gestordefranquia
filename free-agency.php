@@ -261,7 +261,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     </button>
                                 </div>
                                 <div class="col-12">
-                                    <small class="text-warning d-block">ENVIAR NOME EXATAMENTE COMO ESTA ESCRITO NO VIDEO</small>
+                                    <small class="text-warning d-block">ENVIAR NOME EXATAMENTE COMO ESTA ESCRITO NO VIDEO (EX: Lebron James (Não L. James))</small>
                                     <small class="text-light-gray">Se o jogador ja existir na FA, sua proposta sera agrupada com as demais.</small>
                                 </div>
                             </form>
