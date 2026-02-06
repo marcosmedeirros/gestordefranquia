@@ -198,6 +198,11 @@ function renderPlayers(players) {
 
   renderPlayersMobileCards(sorted);
 
+  const statusEl = document.getElementById('players-status');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+  }
+
   updateRosterStats();
   try {
     renderPlayersTable(sorted);
