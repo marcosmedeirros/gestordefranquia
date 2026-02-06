@@ -102,9 +102,6 @@ if ($teamId) {
       #players-grid {
         display: none !important;
       }
-      #players-status {
-        display: block !important;
-      }
       .roster-mobile-cards {
         display: flex;
       }
