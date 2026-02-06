@@ -210,6 +210,7 @@ function renderPlayersMobileCards(players) {
   const container = document.getElementById('players-mobile-cards');
   if (!container) return;
   container.innerHTML = '';
+  container.style.display = '';
   if (!players || players.length === 0) {
     container.innerHTML = '<div class="text-center text-light-gray">Nenhum jogador encontrado.</div>';
     return;
@@ -300,12 +301,14 @@ async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
   const statusEl = document.getElementById('players-status');
   const gridEl = document.getElementById('players-grid');
+  const mobileCardsEl = document.getElementById('players-mobile-cards');
   if (!teamId) {
     if (statusEl) {
       statusEl.innerHTML = '<div class="alert alert-warning text-center"><i class="bi bi-exclamation-triangle me-2"></i>Você ainda não possui um time.</div>';
       statusEl.style.display = 'block';
     }
     if (gridEl) gridEl.style.display = 'none';
+    if (mobileCardsEl) mobileCardsEl.style.display = 'none';
     return;
   }
   if (statusEl) {
@@ -313,6 +316,7 @@ async function loadPlayers() {
     statusEl.style.display = 'block';
   }
   if (gridEl) gridEl.style.display = 'none';
+  if (mobileCardsEl) mobileCardsEl.style.display = 'none';
   try {
     const data = await api(`players.php?team_id=${teamId}`);
     allPlayers = data.players || [];
