@@ -436,7 +436,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
                 const roster = playersData.players || [];
                 let picks = picksData.picks || [];
-                picks = picks.filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
+                picks = picks.filter(pk => Number(pk.season_year) > Number(currentSeasonYear));
 
                 const positions = ['PG','SG','SF','PF','C'];
                 const startersMap = {};

@@ -76,6 +76,41 @@ if ($teamId) {
         font-size: 0.85rem;
       }
     }
+    .roster-mobile-cards {
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .roster-mobile-card {
+      background: var(--fba-panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 0.9rem;
+      padding: 1rem;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    }
+    .roster-mobile-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .roster-mobile-actions .btn {
+      flex: 1 1 auto;
+      min-width: 44px;
+    }
+    @media (max-width: 768px) {
+      #players-table-wrapper,
+      #players-grid {
+        display: none !important;
+      }
+      .roster-mobile-cards {
+        display: flex;
+      }
+    }
+    @media (min-width: 769px) {
+      .roster-mobile-cards {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -354,8 +389,10 @@ if ($teamId) {
             </table>
           </div>
         </div>
-        <!-- Grid de Cards Responsivo -->
+        <!-- Grid de Cards Responsivo (desktop) -->
         <div id="players-grid" class="roster-sections" style="display: none;"></div>
+        <!-- Cards de edição (mobile) -->
+        <div id="players-mobile-cards" class="roster-mobile-cards"></div>
       </div>
     </div>
     <?php endif; ?>

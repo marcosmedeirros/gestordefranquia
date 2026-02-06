@@ -220,7 +220,7 @@ $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 $teamPicksForCopy = $teamPicks;
 $copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
 $teamPicksForCopy = array_values(array_filter($teamPicks, function ($pick) use ($copySeasonYear) {
-    return (int)($pick['season_year'] ?? 0) >= $copySeasonYear;
+    return (int)($pick['season_year'] ?? 0) > $copySeasonYear;
 }));
 
 // Contador de trades por time (novo modelo)

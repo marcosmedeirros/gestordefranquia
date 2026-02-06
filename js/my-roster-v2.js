@@ -196,12 +196,54 @@ function renderPlayers(players) {
     grid.style.display = '';
   }
 
+  renderPlayersMobileCards(sorted);
+
   updateRosterStats();
   try {
     renderPlayersTable(sorted);
   } catch (e) {
     console.warn('Falha ao renderizar tabela:', e);
   }
+}
+
+function renderPlayersMobileCards(players) {
+  const container = document.getElementById('players-mobile-cards');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!players || players.length === 0) {
+    container.innerHTML = '<div class="text-center text-light-gray">Nenhum jogador encontrado.</div>';
+    return;
+  }
+
+  players.forEach(p => {
+    const canRetire = Number(p.age) >= 35;
+    const card = document.createElement('div');
+    card.className = 'roster-mobile-card';
+    card.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <div class="text-white fw-bold">${p.name}</div>
+          <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}</div>
+          <small class="text-light-gray">${p.age} anos</small>
+        </div>
+      </div>
+      <div class="mt-2">
+        ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
+      </div>
+      <div class="roster-mobile-actions mt-3">
+        <button class="btn btn-outline-light btn-sm btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-outline-warning btn-sm btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
+        ${canRetire ? `<button class="btn btn-outline-danger btn-sm btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
+        <button class="btn btn-sm ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'} btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
+          <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
 }
 
 function renderPlayersTable(players) {
@@ -308,6 +350,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delegação para ações da tabela
   document.getElementById('players-table-body')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('btn-toggle-trade')) {
+      const playerId = btn.dataset.id;
+      const currentStatus = (() => {
+        const raw = String(btn.dataset.trade || '').toLowerCase();
+        return raw === 'true' || raw === '1' || raw === 'yes';
+      })();
+      const newStatus = currentStatus ? 0 : 1;
+      try {
+        await api('players.php', { method: 'PUT', body: JSON.stringify({ id: playerId, available_for_trade: newStatus }) });
+        loadPlayers();
+      } catch (err) {
+        alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
+      }
+      return;
+    }
+    if (btn.classList.contains('btn-edit-player')) {
+      const playerId = btn.dataset.id;
+      const player = allPlayers.find(p => p.id == playerId);
+      if (player) {
+        document.getElementById('edit-player-id').value = player.id;
+        document.getElementById('edit-name').value = player.name;
+        document.getElementById('edit-age').value = player.age;
+        document.getElementById('edit-position').value = player.position;
+        document.getElementById('edit-secondary-position').value = player.secondary_position || '';
+        document.getElementById('edit-ovr').value = player.ovr;
+        document.getElementById('edit-role').value = player.role;
+        document.getElementById('edit-available').checked = !!player.available_for_trade;
+        new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
+      }
+      return;
+    }
+    if (btn.classList.contains('btn-waive-player')) {
+      const playerId = btn.dataset.id;
+      const playerName = btn.dataset.name;
+      if (confirm(`Dispensar ${playerName}?`)) {
+        try {
+          const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
+          alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
+          loadPlayers();
+          loadFreeAgencyLimits();
+        } catch (err) {
+          alert('Erro: ' + (err.error || 'Desconhecido'));
+        }
+      }
+      return;
+    }
+    if (btn.classList.contains('btn-retire-player')) {
+      const playerId = btn.dataset.id;
+      const playerName = btn.dataset.name;
+      if (confirm(`Aposentar ${playerName}?`)) {
+        try {
+          const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId, retirement: true }) });
+          alert(res.message || 'Jogador aposentado!');
+          loadPlayers();
+        } catch (err) {
+          alert('Erro: ' + (err.error || 'Desconhecido'));
+        }
+      }
+    }
+  });
+
+  // Delegação para ações nos cards mobile
+  document.getElementById('players-mobile-cards')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.classList.contains('btn-toggle-trade')) {
