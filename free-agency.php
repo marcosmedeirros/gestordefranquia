@@ -219,7 +219,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     <div class="card bg-dark-panel border-orange mb-4 fa-new-card">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <h5 class="mb-0 text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Nova Free Agency</h5>
+                                <h5 class="mb-0 text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Free Agency</h5>
                                 <span class="badge bg-warning text-dark">Criar jogador + enviar proposta</span>
                             </div>
                         </div>
@@ -261,6 +261,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     </button>
                                 </div>
                                 <div class="col-12">
+                                    <small class="text-warning d-block">ENVIAR NOME EXATAMENTE COMO ESTA ESCRITO NO VIDEO</small>
                                     <small class="text-light-gray">Se o jogador ja existir na FA, sua proposta sera agrupada com as demais.</small>
                                 </div>
                             </form>
@@ -502,7 +503,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     <div class="card bg-dark-panel border-orange mb-4 fa-new-card">
                         <div class="card-header bg-dark border-bottom border-orange">
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <h5 class="mb-0 text-white"><i class="bi bi-shield-check text-orange me-2"></i>Solicitacoes Nova FA</h5>
+                                <h5 class="mb-0 text-white"><i class="bi bi-shield-check text-orange me-2"></i>Solicitacoes Free Agency</h5>
                                 <div class="d-flex align-items-center gap-2">
                                     <label for="faNewAdminLeague" class="text-light-gray">Liga</label>
                                     <select id="faNewAdminLeague" class="form-select form-select-sm" style="min-width: 140px;">
