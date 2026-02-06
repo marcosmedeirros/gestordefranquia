@@ -97,6 +97,9 @@ if ($teamId) {
       flex: 1 1 auto;
       min-width: 44px;
     }
+    .roster-mobile-actions .btn i {
+      color: #fff;
+    }
     @media (max-width: 768px) {
       #players-table-wrapper,
       #players-grid {
