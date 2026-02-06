@@ -928,17 +928,23 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
 
 function listAdminFaRequests(PDO $pdo, string $league): void
 {
-    $stmt = $pdo->prepare('
+    $allLeagues = strtoupper(trim($league)) === 'ALL';
+    $sql = '
         SELECT r.id AS request_id, r.player_name, r.position, r.secondary_position, r.ovr, r.age, r.season_year,
                o.id AS offer_id, o.amount, o.created_at, o.team_id,
                t.city AS team_city, t.name AS team_name
         FROM fa_requests r
         JOIN fa_request_offers o ON o.request_id = r.id AND o.status = "pending"
         JOIN teams t ON o.team_id = t.id
-        WHERE r.league = ? AND r.status = "open"
-        ORDER BY o.amount DESC, o.created_at ASC
-    ');
-    $stmt->execute([$league]);
+        WHERE r.status = "open"';
+
+    if (!$allLeagues) {
+        $sql .= ' AND r.league = ?';
+    }
+    $sql .= ' ORDER BY o.amount DESC, o.created_at ASC';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($allLeagues ? [] : [$league]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $grouped = [];

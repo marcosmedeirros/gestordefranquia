@@ -50,6 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
         carregarFreeAgentsAdmin();
         carregarPropostasAdmin();
         carregarHistoricoContratacoes();
+        const newFaAdminLeagueSelect = document.getElementById('faNewAdminLeague');
+        if (newFaAdminLeagueSelect) {
+            newFaAdminLeagueSelect.addEventListener('change', () => {
+                carregarSolicitacoesNovaFA();
+            });
+            carregarSolicitacoesNovaFA();
+        }
         
         // Listener para quando a aba FA Admin for exibida
         const faAdminTab = document.getElementById('fa-admin-tab');
@@ -60,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 carregarFreeAgentsAdmin();
                 carregarPropostasAdmin();
                 carregarHistoricoContratacoes();
+                if (document.getElementById('faNewAdminRequests')) {
+                    carregarSolicitacoesNovaFA();
+                }
             });
         }
     }
