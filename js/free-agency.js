@@ -97,6 +97,13 @@ function initNewFreeAgency() {
             submitNewFaRequest();
         });
     }
+    const submitBtn = document.getElementById('faNewSubmitBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            submitNewFaRequest();
+        });
+    }
 
         carregarLimitesNovaFA();
     carregarMinhasPropostasNovaFA();
@@ -175,7 +182,12 @@ function initNewFreeAgency() {
     }
 
 async function submitNewFaRequest() {
-    const league = getActiveLeague();
+    let league = getActiveLeague();
+    if (!league) {
+        league = document.getElementById('faNewAdminLeague')?.value
+            || document.getElementById('faLeague')?.value
+            || null;
+    }
     if (!league) {
         alert('Nenhuma liga definida.');
         return;

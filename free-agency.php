@@ -729,7 +729,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         const useNewFreeAgency = true;
     </script>
     <script src="js/sidebar.js"></script>
-    <script src="js/free-agency.js"></script>
+    <script src="js/free-agency.js?v=20260206-1"></script>
     <script src="js/leilao.js"></script>
 </body>
 </html>
