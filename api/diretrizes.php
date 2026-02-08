@@ -160,35 +160,64 @@ if ($method === 'GET') {
             }
             $deadlineId = $_GET['deadline_id'] ?? null;
             $league = $_GET['league'] ?? null;
-            if (!$deadlineId) {
+            $all = isset($_GET['all']) && $_GET['all'] == '1';
+            if (!$deadlineId && !$all) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
                 exit;
             }
-            $stmt = $pdo->prepare("
-                SELECT td.*, t.city, t.name as team_name,
-                       s1.name as starter_1_name, s1.position as starter_1_pos,
-                       s2.name as starter_2_name, s2.position as starter_2_pos,
-                       s3.name as starter_3_name, s3.position as starter_3_pos,
-                       s4.name as starter_4_name, s4.position as starter_4_pos,
-                       s5.name as starter_5_name, s5.position as starter_5_pos,
-                       b1.name as bench_1_name, b1.position as bench_1_pos,
-                       b2.name as bench_2_name, b2.position as bench_2_pos,
-                       b3.name as bench_3_name, b3.position as bench_3_pos
-                FROM team_directives td
-                INNER JOIN teams t ON td.team_id = t.id
-                LEFT JOIN players s1 ON td.starter_1_id = s1.id
-                LEFT JOIN players s2 ON td.starter_2_id = s2.id
-                LEFT JOIN players s3 ON td.starter_3_id = s3.id
-                LEFT JOIN players s4 ON td.starter_4_id = s4.id
-                LEFT JOIN players s5 ON td.starter_5_id = s5.id
-                LEFT JOIN players b1 ON td.bench_1_id = b1.id
-                LEFT JOIN players b2 ON td.bench_2_id = b2.id
-                LEFT JOIN players b3 ON td.bench_3_id = b3.id
-                WHERE td.deadline_id = ?
-                ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
-            ");
-            $stmt->execute([$deadlineId]);
+            if ($all && $league) {
+                $stmt = $pdo->prepare("
+                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                           s1.name as starter_1_name, s1.position as starter_1_pos,
+                           s2.name as starter_2_name, s2.position as starter_2_pos,
+                           s3.name as starter_3_name, s3.position as starter_3_pos,
+                           s4.name as starter_4_name, s4.position as starter_4_pos,
+                           s5.name as starter_5_name, s5.position as starter_5_pos,
+                           b1.name as bench_1_name, b1.position as bench_1_pos,
+                           b2.name as bench_2_name, b2.position as bench_2_pos,
+                           b3.name as bench_3_name, b3.position as bench_3_pos
+                    FROM team_directives td
+                    LEFT JOIN teams t ON td.team_id = t.id
+                    LEFT JOIN players s1 ON td.starter_1_id = s1.id
+                    LEFT JOIN players s2 ON td.starter_2_id = s2.id
+                    LEFT JOIN players s3 ON td.starter_3_id = s3.id
+                    LEFT JOIN players s4 ON td.starter_4_id = s4.id
+                    LEFT JOIN players s5 ON td.starter_5_id = s5.id
+                    LEFT JOIN players b1 ON td.bench_1_id = b1.id
+                    LEFT JOIN players b2 ON td.bench_2_id = b2.id
+                    LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    WHERE t.league = ?
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    LIMIT 200
+                ");
+                $stmt->execute([$league]);
+            } else {
+                $stmt = $pdo->prepare("
+                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                           s1.name as starter_1_name, s1.position as starter_1_pos,
+                           s2.name as starter_2_name, s2.position as starter_2_pos,
+                           s3.name as starter_3_name, s3.position as starter_3_pos,
+                           s4.name as starter_4_name, s4.position as starter_4_pos,
+                           s5.name as starter_5_name, s5.position as starter_5_pos,
+                           b1.name as bench_1_name, b1.position as bench_1_pos,
+                           b2.name as bench_2_name, b2.position as bench_2_pos,
+                           b3.name as bench_3_name, b3.position as bench_3_pos
+                    FROM team_directives td
+                    LEFT JOIN teams t ON td.team_id = t.id
+                    LEFT JOIN players s1 ON td.starter_1_id = s1.id
+                    LEFT JOIN players s2 ON td.starter_2_id = s2.id
+                    LEFT JOIN players s3 ON td.starter_3_id = s3.id
+                    LEFT JOIN players s4 ON td.starter_4_id = s4.id
+                    LEFT JOIN players s5 ON td.starter_5_id = s5.id
+                    LEFT JOIN players b1 ON td.bench_1_id = b1.id
+                    LEFT JOIN players b2 ON td.bench_2_id = b2.id
+                    LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    WHERE td.deadline_id = ?
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                ");
+                $stmt->execute([$deadlineId]);
+            }
             $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $fallback = false;
@@ -204,7 +233,7 @@ if ($method === 'GET') {
             if (!$directives && $league) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
-                    SELECT td.*, t.city, t.name as team_name,
+                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
                            s1.name as starter_1_name, s1.position as starter_1_pos,
                            s2.name as starter_2_name, s2.position as starter_2_pos,
                            s3.name as starter_3_name, s3.position as starter_3_pos,
@@ -214,7 +243,7 @@ if ($method === 'GET') {
                            b2.name as bench_2_name, b2.position as bench_2_pos,
                            b3.name as bench_3_name, b3.position as bench_3_pos
                     FROM team_directives td
-                    INNER JOIN teams t ON td.team_id = t.id
+                    LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
                     LEFT JOIN players s2 ON td.starter_2_id = s2.id
                     LEFT JOIN players s3 ON td.starter_3_id = s3.id
@@ -234,7 +263,7 @@ if ($method === 'GET') {
             if (!$directives) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
-                    SELECT td.*, t.city, t.name as team_name,
+                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
                            s1.name as starter_1_name, s1.position as starter_1_pos,
                            s2.name as starter_2_name, s2.position as starter_2_pos,
                            s3.name as starter_3_name, s3.position as starter_3_pos,
@@ -244,7 +273,7 @@ if ($method === 'GET') {
                            b2.name as bench_2_name, b2.position as bench_2_pos,
                            b3.name as bench_3_name, b3.position as bench_3_pos
                     FROM team_directives td
-                    INNER JOIN teams t ON td.team_id = t.id
+                    LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
                     LEFT JOIN players s2 ON td.starter_2_id = s2.id
                     LEFT JOIN players s3 ON td.starter_3_id = s3.id
