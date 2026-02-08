@@ -162,6 +162,7 @@ if ($method === 'GET') {
             $league = $_GET['league'] ?? null;
             $all = isset($_GET['all']) && $_GET['all'] == '1';
             $debug = isset($_GET['debug']) && $_GET['debug'] == '1';
+            $fallback = false;
             if (!$deadlineId && !$all) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'deadline_id obrigatório']);
@@ -221,7 +222,6 @@ if ($method === 'GET') {
             }
             $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $fallback = false;
             if (!$directives && !$league) {
                 $stmtLeague = $pdo->prepare('SELECT league FROM directive_deadlines WHERE id = ?');
                 $stmtLeague->execute([$deadlineId]);
@@ -329,16 +329,17 @@ if ($method === 'GET') {
                 }
             }
 
-            $debugInfo = null;
-            if ($debug) {
-                $deadlineCount = 0;
+            $deadlineCount = 0;
+            $leagueCount = 0;
+            $leagueJoinCount = 0;
+            $totalDirectives = 0;
+            try {
+                $totalDirectives = (int)$pdo->query('SELECT COUNT(*) FROM team_directives')->fetchColumn();
                 if ($deadlineId) {
                     $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM team_directives WHERE deadline_id = ?');
                     $stmtCount->execute([$deadlineId]);
                     $deadlineCount = (int)$stmtCount->fetchColumn();
                 }
-                $leagueCount = 0;
-                $leagueJoinCount = 0;
                 if ($league) {
                     $stmtLeague = $pdo->prepare('SELECT COUNT(*) FROM team_directives WHERE team_id IN (SELECT id FROM teams WHERE league = ?)');
                     $stmtLeague->execute([$league]);
@@ -348,13 +349,15 @@ if ($method === 'GET') {
                     $stmtLeagueJoin->execute([$league]);
                     $leagueJoinCount = (int)$stmtLeagueJoin->fetchColumn();
                 }
-                $debugInfo = [
-                    'total_directives' => (int)$pdo->query('SELECT COUNT(*) FROM team_directives')->fetchColumn(),
-                    'deadline_count' => $deadlineCount,
-                    'league_count' => $leagueCount,
-                    'league_join_count' => $leagueJoinCount
-                ];
+            } catch (Exception $e) {
+                // manter 0
             }
+            $debugInfo = $debug ? [
+                'total_directives' => $totalDirectives,
+                'deadline_count' => $deadlineCount,
+                'league_count' => $leagueCount,
+                'league_join_count' => $leagueJoinCount
+            ] : null;
 
             echo json_encode(['success' => true, 'directives' => $directives, 'fallback' => $fallback, 'debug' => $debugInfo]);
             break;
