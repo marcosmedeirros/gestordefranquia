@@ -263,21 +263,13 @@ function renderSelectedPicks(side) {
 
   container.innerHTML = selected.map((pick) => {
     const summary = buildPickSummary(pick);
-    const protectionValue = pick.protection || 'none';
-    const protectionLabel = protectionValue === 'none'
-      ? 'Sem proteção'
-      : `Proteção ${formatPickProtectionLabel(protectionValue)}`;
     return `
       <div class="selected-pick-card" data-pick-id="${pick.id}">
         <div class="selected-pick-info">
           <div class="pick-title mb-1">${summary.title}</div>
           <div class="pick-meta">${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
-          <small class="text-light-gray">${protectionLabel}</small>
         </div>
         <div class="selected-pick-actions">
-          <select class="pick-protection-select" data-action="protection-select" data-pick-id="${pick.id}">
-            ${PICK_PROTECTION_OPTIONS.map((opt) => `<option value="${opt.value}" ${opt.value === protectionValue ? 'selected' : ''}>${opt.label}</option>`).join('')}
-          </select>
           <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-pick" data-pick-id="${pick.id}">
             <i class="bi bi-x-lg"></i>
           </button>

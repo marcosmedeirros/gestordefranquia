@@ -167,6 +167,13 @@ if ($method === 'POST') {
         jsonResponse(403, ['error' => 'Sem permissão para alterar este time.']);
     }
 
+    $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtLeague->execute([$teamId]);
+    $teamLeague = strtoupper((string)$stmtLeague->fetchColumn());
+    if ($teamLeague !== 'ELITE') {
+        jsonResponse(403, ['error' => 'Adição de jogador disponível apenas para a liga ELITE.']);
+    }
+
     // Validar limitadores de função
     $roleCountStmt = $pdo->prepare('SELECT role, COUNT(*) as count FROM players WHERE team_id = ? GROUP BY role');
     $roleCountStmt->execute([$teamId]);
@@ -193,10 +200,6 @@ if ($method === 'POST') {
     }
 
     // Validar nome único por liga
-    $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
-    $stmtLeague->execute([$teamId]);
-    $teamLeague = $stmtLeague->fetchColumn();
-    
     if ($teamLeague) {
         $stmtDuplicate = $pdo->prepare('
             SELECT p.id FROM players p 
