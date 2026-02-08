@@ -1084,16 +1084,21 @@ async function viewDirectives(deadlineId, league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
-    const debugUrl = `diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&all=1`;
+    const debugUrl = `diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&all=1&debug=1`;
     const data = await api(debugUrl);
   const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
   const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
+    const debugCounts = data.debug || {};
     const debugInfo = `
       <div class="alert alert-warning mb-3">
         <strong>Debug Diretrizes</strong><br>
         URL: ${debugUrl}<br>
         Total recebidas: ${directives.length}<br>
-        Fallback: ${data.fallback ? 'sim' : 'não'}
+        Fallback: ${data.fallback ? 'sim' : 'não'}<br>
+        Total team_directives: ${debugCounts.total_directives ?? '-'}<br>
+        Total por deadline: ${debugCounts.deadline_count ?? '-'}<br>
+        Total por liga: ${debugCounts.league_count ?? '-'}<br>
+        Total por liga (join): ${debugCounts.league_join_count ?? '-'}
       </div>
     `;
     
