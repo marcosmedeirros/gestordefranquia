@@ -274,6 +274,7 @@ if ($method === 'GET') {
             // Listar todas as trades
             $status = $_GET['status'] ?? 'all'; // all, pending, accepted, rejected, cancelled
             $league = $_GET['league'] ?? null;
+            $seasonYear = $_GET['season_year'] ?? null;
             
             $conditions = [];
             $params = [];
@@ -286,6 +287,11 @@ if ($method === 'GET') {
             if ($league) {
                 $conditions[] = "from_team.league = ?";
                 $params[] = $league;
+            }
+
+            if ($seasonYear) {
+                $conditions[] = "YEAR(t.created_at) = ?";
+                $params[] = (int)$seasonYear;
             }
             
             $whereClause = !empty($conditions) ? 'WHERE ' . implode(' AND ', $conditions) : '';

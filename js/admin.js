@@ -20,9 +20,41 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-let appState = { view: 'home', currentLeague: null, currentTeam: null, teamDetails: null, currentFAleague: 'ELITE' };
+let appState = {
+  view: 'home',
+  currentLeague: null,
+  currentTeam: null,
+  teamDetails: null,
+  currentFAleague: 'ELITE',
+  tradeFilters: { league: 'ALL', season: 'ALL', status: 'all' }
+};
 let adminFreeAgents = [];
 const freeAgencyTeamsCache = {};
+let tradeSeasonsCache = null;
+
+async function loadTradeSeasons() {
+  if (tradeSeasonsCache) return tradeSeasonsCache;
+  try {
+    const data = await api('seasons.php?action=list_seasons');
+    const years = (data.seasons || [])
+      .map(season => season.year)
+      .filter(year => year)
+      .map(year => parseInt(year, 10))
+      .filter(year => !Number.isNaN(year));
+    tradeSeasonsCache = [...new Set(years)].sort((a, b) => b - a);
+  } catch (e) {
+    tradeSeasonsCache = [];
+  }
+  return tradeSeasonsCache;
+}
+
+function updateTradeFilter(nextFilters = {}) {
+  appState.tradeFilters = {
+    ...appState.tradeFilters,
+    ...nextFilters
+  };
+  showTrades(appState.tradeFilters.status || 'all');
+}
 
 async function init() { showHome(); }
 
@@ -179,21 +211,57 @@ ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="t
   }
 }
 
-async function showTrades(status = 'all') {
+async function showTrades(status = appState.tradeFilters.status || 'all') {
   appState.view = 'trades';
+  appState.tradeFilters.status = status;
   updateBreadcrumb();
   
   const container = document.getElementById('mainContainer');
+  const seasons = await loadTradeSeasons();
+  const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
+  const seasonFilter = appState.tradeFilters.season || 'ALL';
+
+  const leagueOptions = [
+    { value: 'ALL', label: 'Todas as ligas' },
+    { value: 'ELITE', label: 'ELITE' },
+    { value: 'NEXT', label: 'NEXT' },
+    { value: 'RISE', label: 'RISE' },
+    { value: 'ROOKIE', label: 'ROOKIE' }
+  ];
+
   container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="d-flex justify-content-between mb-3 flex-wrap gap-2"><h4 class="text-white mb-0">Filtrar</h4>
-<div class="btn-group flex-wrap">
-<button class="btn btn-outline-orange btn-sm ${status === 'pending' ? 'active' : ''}" onclick="showTrades('pending')">Pendentes</button>
-<button class="btn btn-outline-orange btn-sm ${status === 'accepted' ? 'active' : ''}" onclick="showTrades('accepted')">Aceitas</button>
-<button class="btn btn-outline-orange btn-sm ${status === 'all' ? 'active' : ''}" onclick="showTrades('all')">Todas</button></div></div>
+<div class="d-flex justify-content-between mb-3 flex-wrap gap-2 align-items-start">
+  <div>
+    <h4 class="text-white mb-1">Filtrar</h4>
+    <div class="d-flex flex-wrap gap-2">
+      <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 180px;" onchange="updateTradeFilter({ league: this.value })">
+        ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
+      </select>
+      <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 160px;" onchange="updateTradeFilter({ season: this.value })">
+        <option value="ALL" ${seasonFilter === 'ALL' ? 'selected' : ''}>Todas as temporadas</option>
+        ${seasons.map(year => `<option value="${year}" ${String(year) === String(seasonFilter) ? 'selected' : ''}>${year}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="btn-group flex-wrap">
+    <button class="btn btn-outline-orange btn-sm ${status === 'pending' ? 'active' : ''}" onclick="showTrades('pending')">Pendentes</button>
+    <button class="btn btn-outline-orange btn-sm ${status === 'accepted' ? 'active' : ''}" onclick="showTrades('accepted')">Aceitas</button>
+    <button class="btn btn-outline-orange btn-sm ${status === 'all' ? 'active' : ''}" onclick="showTrades('all')">Todas</button>
+  </div>
+</div>
 <div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
   
   try {
-    const url = status === 'all' ? 'admin.php?action=trades' : `admin.php?action=trades&status=${status}`;
+    let url = 'admin.php?action=trades';
+    if (status !== 'all') {
+      url += `&status=${status}`;
+    }
+    if (leagueFilter && leagueFilter !== 'ALL') {
+      url += `&league=${encodeURIComponent(leagueFilter)}`;
+    }
+    if (seasonFilter && seasonFilter !== 'ALL') {
+      url += `&season_year=${encodeURIComponent(seasonFilter)}`;
+    }
     const data = await api(url);
     const trades = data.trades || [];
     const tc = document.getElementById('tradesListContainer');
@@ -1099,7 +1167,7 @@ async function viewDirectives(deadlineId, league) {
                   <div class="d-flex align-items-center gap-2">
                     ${!isEdited ? `<div class="form-check form-switch m-0">
                       <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminDirectiveAccept(${d.id}, this.checked)">
-                      <label class="form-check-label text-light-gray">Aceita</label>
+                      <label class="form-check-label text-light-gray">No app?</label>
                     </div>` : ''}
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
                       <i class="bi bi-trash"></i> Excluir

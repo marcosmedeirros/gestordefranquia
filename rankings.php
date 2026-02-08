@@ -205,7 +205,7 @@ $team = $stmtTeam->fetch();
                         <td>
                           ${idx < 3 ? 
                             `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>` : 
-                            `<strong class="text-muted">${idx + 1}º</strong>`
+                            `<strong class="text-white">${idx + 1}º</strong>`
                           }
                         </td>
                         <td>
