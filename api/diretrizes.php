@@ -192,6 +192,15 @@ if ($method === 'GET') {
             $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $fallback = false;
+            if (!$directives && !$league) {
+                $stmtLeague = $pdo->prepare('SELECT league FROM directive_deadlines WHERE id = ?');
+                $stmtLeague->execute([$deadlineId]);
+                $rowLeague = $stmtLeague->fetch(PDO::FETCH_ASSOC);
+                if ($rowLeague && !empty($rowLeague['league'])) {
+                    $league = $rowLeague['league'];
+                }
+            }
+
             if (!$directives && $league) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
@@ -219,6 +228,35 @@ if ($method === 'GET') {
                     LIMIT 200
                 ");
                 $stmt->execute([$league]);
+                $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            if (!$directives) {
+                $fallback = true;
+                $stmt = $pdo->prepare("
+                    SELECT td.*, t.city, t.name as team_name,
+                           s1.name as starter_1_name, s1.position as starter_1_pos,
+                           s2.name as starter_2_name, s2.position as starter_2_pos,
+                           s3.name as starter_3_name, s3.position as starter_3_pos,
+                           s4.name as starter_4_name, s4.position as starter_4_pos,
+                           s5.name as starter_5_name, s5.position as starter_5_pos,
+                           b1.name as bench_1_name, b1.position as bench_1_pos,
+                           b2.name as bench_2_name, b2.position as bench_2_pos,
+                           b3.name as bench_3_name, b3.position as bench_3_pos
+                    FROM team_directives td
+                    INNER JOIN teams t ON td.team_id = t.id
+                    LEFT JOIN players s1 ON td.starter_1_id = s1.id
+                    LEFT JOIN players s2 ON td.starter_2_id = s2.id
+                    LEFT JOIN players s3 ON td.starter_3_id = s3.id
+                    LEFT JOIN players s4 ON td.starter_4_id = s4.id
+                    LEFT JOIN players s5 ON td.starter_5_id = s5.id
+                    LEFT JOIN players b1 ON td.bench_1_id = b1.id
+                    LEFT JOIN players b2 ON td.bench_2_id = b2.id
+                    LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    LIMIT 200
+                ");
+                $stmt->execute();
                 $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
 
