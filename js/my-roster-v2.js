@@ -357,6 +357,53 @@ document.addEventListener('DOMContentLoaded', () => {
     if (th && th.dataset.sort) sortPlayers(th.dataset.sort);
   });
 
+  document.getElementById('btn-add-player')?.addEventListener('click', async () => {
+    const form = document.getElementById('form-player');
+    if (!form) return;
+    const teamId = window.__TEAM_ID__;
+    if (!teamId) {
+      alert('Você ainda não possui um time.');
+      return;
+    }
+    const formData = new FormData(form);
+    const payload = {
+      team_id: teamId,
+      name: (formData.get('name') || '').toString().trim(),
+      age: parseInt(formData.get('age') || '0', 10),
+      position: (formData.get('position') || '').toString().trim(),
+      secondary_position: (formData.get('secondary_position') || '').toString().trim() || null,
+      role: (formData.get('role') || 'Titular').toString(),
+      ovr: parseInt(formData.get('ovr') || '0', 10),
+      available_for_trade: formData.get('available_for_trade') ? 1 : 0
+    };
+
+    if (!payload.name || !payload.age || !payload.position || !payload.ovr) {
+      alert('Preencha nome, idade, posição e OVR.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-add-player');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+    }
+
+    try {
+      const res = await api('players.php', { method: 'POST', body: JSON.stringify(payload) });
+      alert(res.message || 'Jogador adicionado.');
+      form.reset();
+      document.getElementById('available_for_trade').checked = true;
+      loadPlayers();
+    } catch (err) {
+      alert('Erro ao cadastrar jogador: ' + (err.error || err.message || 'Desconhecido'));
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>Cadastrar Jogador';
+      }
+    }
+  });
+
   // Delegação para ações da tabela
   document.getElementById('players-table-body')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
