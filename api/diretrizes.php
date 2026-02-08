@@ -190,7 +190,7 @@ if ($method === 'GET') {
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
                     WHERE t.league = ?
-                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                     LIMIT 200
                 ");
                 $stmt->execute([$league]);
@@ -216,7 +216,7 @@ if ($method === 'GET') {
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
                     WHERE td.deadline_id = ?
-                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                 ");
                 $stmt->execute([$deadlineId]);
             }
@@ -254,7 +254,7 @@ if ($method === 'GET') {
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
                     WHERE t.league = ?
-                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                     LIMIT 200
                 ");
                 $stmt->execute([$league]);
