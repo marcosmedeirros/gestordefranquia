@@ -581,7 +581,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
 
   // Se houver erros, mostrar modal com opção de enviar mesmo assim
   if (validationErrors.length > 0) {
-    showValidationError(validationErrors, () => submitDirective(payload));
+    showValidationError(validationErrors, () => submitDirective({ ...payload, allow_invalid: true }));
     return;
   }
   

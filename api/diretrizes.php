@@ -410,10 +410,11 @@ if ($method === 'POST') {
 
                 // Inserir minutagem para todos os jogadores selecionados
                 $playerMinutes = $data['player_minutes'] ?? [];
+                $allowInvalid = !empty($data['allow_invalid']);
                 $stmtMinutes = $pdo->prepare('INSERT INTO directive_player_minutes (directive_id, player_id, minutes_per_game) VALUES (?, ?, ?)');
                 
                 // Se rotação for manual, validar total de 240 minutos
-                if ($rotationStyle === 'manual') {
+                if (!$allowInvalid && $rotationStyle === 'manual') {
                     $totalMinutes = 0;
                     foreach ($allSelectedPlayers as $playerId) {
                         $m = isset($playerMinutes[$playerId]) ? (int)$playerMinutes[$playerId] : 20;
@@ -463,21 +464,21 @@ if ($method === 'POST') {
                     $isTop5 = in_array($playerIdInt, $top5Ids);
                     
                     // Validação: Titulares devem ter no mínimo 25 minutos
-                    if ($isStarter && $m < 25) {
+                    if (!$allowInvalid && $isStarter && $m < 25) {
                         throw new Exception("Titular {$playerName} deve jogar no mínimo 25 minutos.");
                     }
                     
                     // Validação: Reservas devem ter no mínimo 5 minutos
-                    if (!$isStarter && $m < 5) {
+                    if (!$allowInvalid && !$isStarter && $m < 5) {
                         throw new Exception("Reserva {$playerName} deve jogar no mínimo 5 minutos.");
                     }
                     
                     // Validação: Se time não tem 3 jogadores 85+, os 5 maiores OVRs devem ter 25+ minutos
-                    if ($isTop5 && $m < 25) {
+                    if (!$allowInvalid && $isTop5 && $m < 25) {
                         throw new Exception("Seu time não tem 3 jogadores 85+. Os 5 maiores OVRs devem jogar no mínimo 25 minutos. {$playerName} está entre os 5 maiores OVRs.");
                     }
                     
-                    if ($m > $maxMinutes) {
+                    if (!$allowInvalid && $m > $maxMinutes) {
                         throw new Exception("Jogador {$playerName} não pode jogar mais de {$maxMinutes} minutos.");
                     }
                     $stmtMinutes->execute([$directiveId, $playerIdInt, $m]);
