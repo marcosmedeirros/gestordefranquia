@@ -554,12 +554,6 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     validationErrors.push(`⚠️ Rotação MANUAL: A soma dos minutos deve ser exatamente 240. Atual: ${totalMinutes} minutos.`);
   }
   
-  // Se houver erros, mostrar modal
-  if (validationErrors.length > 0) {
-    showValidationError(validationErrors);
-    return;
-  }
-  
   const payload = {
     action: 'submit_directive',
     deadline_id: deadlineId,
@@ -584,9 +578,19 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     notes: fd.get('notes'),
     player_minutes: playerMinutes
   };
+
+  // Se houver erros, mostrar modal com opção de enviar mesmo assim
+  if (validationErrors.length > 0) {
+    showValidationError(validationErrors, () => submitDirective(payload));
+    return;
+  }
   
+  await submitDirective(payload);
+});
+
+async function submitDirective(payload) {
   try {
-    const res = await api('diretrizes.php', { 
+    await api('diretrizes.php', { 
       method: 'POST', 
       body: JSON.stringify(payload) 
     });
@@ -597,10 +601,10 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     const errorMsg = err.error || 'Erro ao enviar diretrizes';
     showValidationError([errorMsg]);
   }
-});
+}
 
 // Função para mostrar modal de erro de validação
-function showValidationError(errors) {
+function showValidationError(errors, onSendAnyway) {
   // Criar modal se não existir
   let modal = document.getElementById('validation-error-modal');
   if (!modal) {
@@ -625,7 +629,10 @@ function showValidationError(errors) {
           </div>
           <div class="modal-footer border-danger">
             <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-              Fechar e Revisar
+              Revisar
+            </button>
+            <button type="button" class="btn btn-danger" id="btn-send-anyway">
+              Enviar mesmo assim
             </button>
           </div>
         </div>
@@ -637,6 +644,21 @@ function showValidationError(errors) {
   // Preencher lista de erros
   const errorList = document.getElementById('validation-error-list');
   errorList.innerHTML = errors.map(err => `<li class="mb-2">${err}</li>`).join('');
+
+  const sendBtn = document.getElementById('btn-send-anyway');
+  if (sendBtn) {
+    if (onSendAnyway) {
+      sendBtn.style.display = 'inline-block';
+      sendBtn.onclick = () => {
+        const modalInstance = bootstrap.Modal.getInstance(modal);
+        if (modalInstance) modalInstance.hide();
+        onSendAnyway();
+      };
+    } else {
+      sendBtn.style.display = 'none';
+      sendBtn.onclick = null;
+    }
+  }
   
   // Mostrar modal
   const bsModal = new bootstrap.Modal(modal);
