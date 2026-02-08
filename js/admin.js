@@ -1084,8 +1084,9 @@ async function viewDirectives(deadlineId, league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
-    const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
+  const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}`);
   const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
+  const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
     
     // Mapear labels para os novos valores
     const gameStyleLabels = {
@@ -1130,6 +1131,7 @@ async function viewDirectives(deadlineId, league) {
           <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
         </div>
         <div class="card-body">
+          ${fallbackNotice}
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
