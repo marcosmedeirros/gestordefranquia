@@ -277,7 +277,7 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
 <div class="d-flex align-items-center gap-2"><span class="badge ${badge}">${tr.status}</span>
 <div class="form-check form-switch m-0">
   <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)">
-  <label class="form-check-label text-light-gray">Aceita</label>
+  <label class="form-check-label text-light-gray">No Game?</label>
 </div>
 ${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
 ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
@@ -856,6 +856,49 @@ function formatDirectiveTimestamp(value) {
   }
 }
 
+function normalizeDirectiveMinutes(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch (e) {
+      return {};
+    }
+  }
+  if (Array.isArray(raw)) {
+    return raw.reduce((acc, row) => {
+      if (row && row.player_id) acc[row.player_id] = row.minutes_per_game;
+      return acc;
+    }, {});
+  }
+  if (typeof raw === 'object') return raw;
+  return {};
+}
+
+function normalizeDirectivePlayerInfo(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch (e) {
+      return {};
+    }
+  }
+  if (Array.isArray(raw)) {
+    return raw.reduce((acc, row) => {
+      if (row && row.player_id) {
+        acc[row.player_id] = {
+          name: row.player_name || row.name || '?',
+          position: row.player_position || row.position || '?'
+        };
+      }
+      return acc;
+    }, {});
+  }
+  if (typeof raw === 'object') return raw;
+  return {};
+}
+
 async function showDirectives() {
   appState.view = 'directives';
   updateBreadcrumb();
@@ -1042,7 +1085,7 @@ async function viewDirectives(deadlineId, league) {
   
   try {
     const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
-  const directives = Array.isArray(data.directives) ? data.directives : [];
+  const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
     
     // Mapear labels para os novos valores
     const gameStyleLabels = {
@@ -1095,13 +1138,8 @@ async function viewDirectives(deadlineId, league) {
               const isEdited = !!(updatedAt && submittedAt && new Date(updatedAt).getTime() > new Date(submittedAt).getTime());
               const directiveKey = `admin_directive_accept_${d.id}`;
               const isAccepted = !isEdited && localStorage.getItem(directiveKey) === '1';
-              let pm = d.player_minutes || {};
-              if (Array.isArray(pm)) {
-                pm = pm.reduce((acc, row) => {
-                  if (row && row.player_id) acc[row.player_id] = row.minutes_per_game;
-                  return acc;
-                }, {});
-              }
+              const pm = normalizeDirectiveMinutes(d.player_minutes);
+              const playerInfo = normalizeDirectivePlayerInfo(d.player_info);
               const isManualRotation = d.rotation_style === 'manual';
               
               // Coletar IDs dos titulares
@@ -1122,7 +1160,6 @@ async function viewDirectives(deadlineId, league) {
               
               // Banco dinâmico: pegar dos player_minutes os que não são titulares
               const benchItems = [];
-              const playerInfo = d.player_info || {};
               Object.keys(pm).forEach(playerId => {
                 const id = parseInt(playerId);
                 if (!starterIds.includes(id)) {
