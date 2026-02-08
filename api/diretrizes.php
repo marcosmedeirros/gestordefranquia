@@ -162,6 +162,7 @@ if ($method === 'GET') {
             $league = $_GET['league'] ?? null;
             $all = isset($_GET['all']) && $_GET['all'] == '1';
             $debug = isset($_GET['debug']) && $_GET['debug'] == '1';
+            $strict = isset($_GET['strict']) && $_GET['strict'] == '1';
             $fallback = false;
             if (!$deadlineId && !$all) {
                 http_response_code(400);
@@ -222,7 +223,7 @@ if ($method === 'GET') {
             }
             $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            if (!$directives && !$league) {
+            if (!$strict && !$directives && !$league) {
                 $stmtLeague = $pdo->prepare('SELECT league FROM directive_deadlines WHERE id = ?');
                 $stmtLeague->execute([$deadlineId]);
                 $rowLeague = $stmtLeague->fetch(PDO::FETCH_ASSOC);
@@ -231,7 +232,7 @@ if ($method === 'GET') {
                 }
             }
 
-            if (!$directives && $league) {
+            if (!$strict && !$directives && $league) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
@@ -261,7 +262,7 @@ if ($method === 'GET') {
                 $directives = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
 
-            if (!$directives) {
+            if (!$strict && !$directives) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
