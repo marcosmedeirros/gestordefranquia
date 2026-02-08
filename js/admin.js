@@ -26,27 +26,10 @@ let appState = {
   currentTeam: null,
   teamDetails: null,
   currentFAleague: 'ELITE',
-  tradeFilters: { league: 'ALL', season: 'ALL', status: 'all' }
+  tradeFilters: { league: 'ALL', status: 'all' }
 };
 let adminFreeAgents = [];
 const freeAgencyTeamsCache = {};
-let tradeSeasonsCache = null;
-
-async function loadTradeSeasons() {
-  if (tradeSeasonsCache) return tradeSeasonsCache;
-  try {
-    const data = await api('seasons.php?action=list_seasons');
-    const years = (data.seasons || [])
-      .map(season => season.year)
-      .filter(year => year)
-      .map(year => parseInt(year, 10))
-      .filter(year => !Number.isNaN(year));
-    tradeSeasonsCache = [...new Set(years)].sort((a, b) => b - a);
-  } catch (e) {
-    tradeSeasonsCache = [];
-  }
-  return tradeSeasonsCache;
-}
 
 function updateTradeFilter(nextFilters = {}) {
   appState.tradeFilters = {
@@ -217,9 +200,7 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
   updateBreadcrumb();
   
   const container = document.getElementById('mainContainer');
-  const seasons = await loadTradeSeasons();
   const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
-  const seasonFilter = appState.tradeFilters.season || 'ALL';
 
   const leagueOptions = [
     { value: 'ALL', label: 'Todas as ligas' },
@@ -236,10 +217,6 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
     <div class="d-flex flex-wrap gap-2">
       <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 180px;" onchange="updateTradeFilter({ league: this.value })">
         ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
-      </select>
-      <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 160px;" onchange="updateTradeFilter({ season: this.value })">
-        <option value="ALL" ${seasonFilter === 'ALL' ? 'selected' : ''}>Todas as temporadas</option>
-        ${seasons.map(year => `<option value="${year}" ${String(year) === String(seasonFilter) ? 'selected' : ''}>${year}</option>`).join('')}
       </select>
     </div>
   </div>
@@ -258,9 +235,6 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
     }
     if (leagueFilter && leagueFilter !== 'ALL') {
       url += `&league=${encodeURIComponent(leagueFilter)}`;
-    }
-    if (seasonFilter && seasonFilter !== 'ALL') {
-      url += `&season_year=${encodeURIComponent(seasonFilter)}`;
     }
     const data = await api(url);
     const trades = data.trades || [];
@@ -871,6 +845,17 @@ function formatDeadlineDateTime(value) {
   }
 }
 
+function formatDirectiveTimestamp(value) {
+  if (!value) return '-';
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('pt-BR');
+  } catch (e) {
+    return '-';
+  }
+}
+
 async function showDirectives() {
   appState.view = 'directives';
   updateBreadcrumb();
@@ -1057,7 +1042,7 @@ async function viewDirectives(deadlineId, league) {
   
   try {
     const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}`);
-    const directives = data.directives || [];
+  const directives = Array.isArray(data.directives) ? data.directives : [];
     
     // Mapear labels para os novos valores
     const gameStyleLabels = {
@@ -1110,7 +1095,13 @@ async function viewDirectives(deadlineId, league) {
               const isEdited = !!(updatedAt && submittedAt && new Date(updatedAt).getTime() > new Date(submittedAt).getTime());
               const directiveKey = `admin_directive_accept_${d.id}`;
               const isAccepted = !isEdited && localStorage.getItem(directiveKey) === '1';
-              const pm = d.player_minutes || {};
+              let pm = d.player_minutes || {};
+              if (Array.isArray(pm)) {
+                pm = pm.reduce((acc, row) => {
+                  if (row && row.player_id) acc[row.player_id] = row.minutes_per_game;
+                  return acc;
+                }, {});
+              }
               const isManualRotation = d.rotation_style === 'manual';
               
               // Coletar IDs dos titulares
@@ -1162,12 +1153,12 @@ async function viewDirectives(deadlineId, league) {
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
                     <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
-                    <small class="text-light-gray">Enviado em ${new Date(submittedAt || d.submitted_at).toLocaleString('pt-BR')}${isEdited ? ' • EDITADO' : ''}</small>
+                    <small class="text-light-gray">Enviado em ${formatDirectiveTimestamp(submittedAt || d.submitted_at)}${isEdited ? ' • EDITADO' : ''}</small>
                   </div>
                   <div class="d-flex align-items-center gap-2">
                     ${!isEdited ? `<div class="form-check form-switch m-0">
                       <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminDirectiveAccept(${d.id}, this.checked)">
-                      <label class="form-check-label text-light-gray">No app?</label>
+                      <label class="form-check-label text-light-gray">Aceita</label>
                     </div>` : ''}
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
                       <i class="bi bi-trash"></i> Excluir
@@ -1226,7 +1217,7 @@ async function viewDirectives(deadlineId, league) {
       </div>
     `;
   } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar diretrizes: ${e.error || e.message || 'Desconhecido'}</div>`;
   }
 }
 
