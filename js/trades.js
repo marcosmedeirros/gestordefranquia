@@ -15,6 +15,7 @@ let allTeams = [];
 let myPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
+const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
 
 const PICK_PROTECTION_OPTIONS = [
   { value: 'none', label: 'Sem proteção' },
@@ -172,7 +173,12 @@ function setupPlayerSelectorHandlers() {
 }
 
 function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
-  pickState[side].available = Array.isArray(picks) ? picks : [];
+  const raw = Array.isArray(picks) ? picks : [];
+  pickState[side].available = raw.filter((pick) => {
+    const year = Number(pick.season_year || 0);
+    if (!Number.isFinite(year) || year <= 0) return false;
+    return year > currentSeasonYear;
+  });
   if (resetSelected) {
     pickState[side].selected = [];
   } else {

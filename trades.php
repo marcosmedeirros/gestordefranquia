@@ -22,6 +22,32 @@ if ($team) {
     $tradesEnabled = $settings['trades_enabled'] ?? 1;
 }
 
+$currentSeasonYear = null;
+if (!empty($team['league'])) {
+  try {
+    $stmtSeason = $pdo->prepare('
+      SELECT s.season_number, s.year, sp.start_year
+      FROM seasons s
+      LEFT JOIN sprints sp ON s.sprint_id = sp.id
+      WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed"))
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    ');
+    $stmtSeason->execute([$team['league']]);
+    $currentSeason = $stmtSeason->fetch();
+    if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season_number'])) {
+      $currentSeasonYear = (int)$currentSeason['start_year'] + (int)$currentSeason['season_number'] - 1;
+    } elseif ($currentSeason && isset($currentSeason['year'])) {
+      $currentSeasonYear = (int)$currentSeason['year'];
+    }
+  } catch (Exception $e) {
+    $currentSeasonYear = null;
+  }
+}
+if (!$currentSeasonYear) {
+  $currentSeasonYear = (int)date('Y');
+}
+
 function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 {
     try {
@@ -148,6 +174,13 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     .player-meta {
       font-size: 0.9rem;
       color: var(--fba-text-muted);
+    }
+
+    /* Ocultar seção de pick swaps (temporariamente) */
+    #pick-swaps,
+    .pick-swaps,
+    .pick-swap {
+      display: none !important;
     }
 
     .team-chip {
@@ -671,6 +704,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
+    window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
