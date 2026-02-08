@@ -1084,9 +1084,18 @@ async function viewDirectives(deadlineId, league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
-  const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&all=1`);
+    const debugUrl = `diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&all=1`;
+    const data = await api(debugUrl);
   const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
   const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
+    const debugInfo = `
+      <div class="alert alert-warning mb-3">
+        <strong>Debug Diretrizes</strong><br>
+        URL: ${debugUrl}<br>
+        Total recebidas: ${directives.length}<br>
+        Fallback: ${data.fallback ? 'sim' : 'não'}
+      </div>
+    `;
     
     // Mapear labels para os novos valores
     const gameStyleLabels = {
@@ -1131,6 +1140,7 @@ async function viewDirectives(deadlineId, league) {
           <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
         </div>
         <div class="card-body">
+          ${debugInfo}
           ${fallbackNotice}
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
@@ -1256,7 +1266,14 @@ async function viewDirectives(deadlineId, league) {
       </div>
     `;
   } catch (e) {
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar diretrizes: ${e.error || e.message || 'Desconhecido'}</div>`;
+    container.innerHTML = `
+      <div class="alert alert-danger">Erro ao carregar diretrizes: ${e.error || e.message || 'Desconhecido'}</div>
+      <div class="alert alert-warning">
+        <strong>Debug Diretrizes</strong><br>
+        deadline_id: ${deadlineId}<br>
+        league: ${league}
+      </div>
+    `;
   }
 }
 
