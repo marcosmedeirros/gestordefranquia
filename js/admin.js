@@ -227,10 +227,16 @@ async function showTrades(status = 'all') {
 
     tc.innerHTML = trades.map(tr => {
       const badge = { pending: 'bg-warning text-dark', accepted: 'bg-success', rejected: 'bg-danger', cancelled: 'bg-secondary' }[tr.status];
-      return `<div class="bg-dark-panel border-orange rounded p-3 mb-3"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+      const acceptedKey = `admin_trade_accept_${tr.id}`;
+      const isAccepted = localStorage.getItem(acceptedKey) === '1';
+      return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
 <div><h5 class="text-white mb-1">${tr.from_city} ${tr.from_name} <i class="bi bi-arrow-right text-orange mx-2"></i> ${tr.to_city} ${tr.to_name}</h5>
 <small class="text-light-gray">${new Date(tr.created_at).toLocaleString('pt-BR')} | <span class="badge bg-gradient-orange">${tr.from_league}</span></small></div>
-<div><span class="badge ${badge}">${tr.status}</span>
+<div class="d-flex align-items-center gap-2"><span class="badge ${badge}">${tr.status}</span>
+<div class="form-check form-switch m-0">
+  <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)">
+  <label class="form-check-label text-light-gray">Aceita</label>
+</div>
 ${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
 ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
 <div class="row"><div class="col-md-6"><h6 class="text-orange mb-2">${tr.from_city} ${tr.from_name} oferece:</h6>
@@ -240,6 +246,19 @@ ${renderTradeAssets(tr.request_players || [], tr.request_picks || [])}</div></di
     }).join('');
   } catch (e) {
     document.getElementById('tradesListContainer').innerHTML = '<div class="alert alert-danger">Erro</div>';
+  }
+}
+
+function toggleAdminTradeAccept(tradeId, checked) {
+  const key = `admin_trade_accept_${tradeId}`;
+  if (checked) {
+    localStorage.setItem(key, '1');
+  } else {
+    localStorage.removeItem(key);
+  }
+  const card = document.querySelector(`[data-trade-id="${tradeId}"]`);
+  if (card) {
+    card.classList.toggle('is-accepted', checked);
   }
 }
 
@@ -1018,6 +1037,11 @@ async function viewDirectives(deadlineId, league) {
           ${directives.length === 0 ? 
             '<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>' :
             directives.map(d => {
+              const updatedAt = d.updated_at || null;
+              const submittedAt = d.submitted_at || d.created_at || null;
+              const isEdited = !!(updatedAt && submittedAt && new Date(updatedAt).getTime() > new Date(submittedAt).getTime());
+              const directiveKey = `admin_directive_accept_${d.id}`;
+              const isAccepted = !isEdited && localStorage.getItem(directiveKey) === '1';
               const pm = d.player_minutes || {};
               const isManualRotation = d.rotation_style === 'manual';
               
@@ -1066,15 +1090,21 @@ async function viewDirectives(deadlineId, league) {
               const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
               
               return `
-              <div class="card bg-dark mb-3">
+              <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
                     <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
-                    <small class="text-light-gray">Enviado em ${new Date(d.submitted_at).toLocaleString('pt-BR')}</small>
+                    <small class="text-light-gray">Enviado em ${new Date(submittedAt || d.submitted_at).toLocaleString('pt-BR')}${isEdited ? ' • EDITADO' : ''}</small>
                   </div>
-                  <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
-                    <i class="bi bi-trash"></i> Excluir
-                  </button>
+                  <div class="d-flex align-items-center gap-2">
+                    ${!isEdited ? `<div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminDirectiveAccept(${d.id}, this.checked)">
+                      <label class="form-check-label text-light-gray">Aceita</label>
+                    </div>` : ''}
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
+                      <i class="bi bi-trash"></i> Excluir
+                    </button>
+                  </div>
                 </div>
                 <div class="card-body">
                   <div class="row">
@@ -1129,6 +1159,19 @@ async function viewDirectives(deadlineId, league) {
     `;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar diretrizes</div>';
+  }
+}
+
+function toggleAdminDirectiveAccept(directiveId, checked) {
+  const key = `admin_directive_accept_${directiveId}`;
+  if (checked) {
+    localStorage.setItem(key, '1');
+  } else {
+    localStorage.removeItem(key);
+  }
+  const card = document.querySelector(`[data-directive-id="${directiveId}"]`);
+  if (card) {
+    card.classList.toggle('is-accepted', checked);
   }
 }
 
