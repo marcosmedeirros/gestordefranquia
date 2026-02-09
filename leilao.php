@@ -75,9 +75,10 @@ if ($is_admin) {
     <style>
         @media (min-width: 992px) {
             .dashboard-content {
-                width: 100%;
+                width: calc(100% - 280px);
                 max-width: 1280px;
-                margin: 0 auto;
+                margin-left: 280px;
+                margin-right: auto;
                 padding-left: 32px;
                 padding-right: 32px;
             }
