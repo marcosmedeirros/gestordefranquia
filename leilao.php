@@ -72,6 +72,21 @@ if ($is_admin) {
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
+    <style>
+        @media (min-width: 992px) {
+            .dashboard-content {
+                width: 100%;
+                max-width: 1280px;
+                margin: 0 auto;
+                padding-left: 32px;
+                padding-right: 32px;
+            }
+
+            .dashboard-content .nav-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Botão Hamburguer para Mobile -->
