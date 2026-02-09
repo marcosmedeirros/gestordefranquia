@@ -357,8 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (th && th.dataset.sort) sortPlayers(th.dataset.sort);
   });
 
-  document.getElementById('btn-add-player')?.addEventListener('click', async () => {
-    const form = document.getElementById('form-player');
+  const formPlayer = document.getElementById('form-player');
+  const handleAddPlayer = async () => {
+    const form = formPlayer;
     if (!form) return;
     const teamId = window.__TEAM_ID__;
     if (!teamId) {
@@ -402,6 +403,11 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>Cadastrar Jogador';
       }
     }
+  };
+
+  formPlayer?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    handleAddPlayer();
   });
 
   // Delegação para ações da tabela
