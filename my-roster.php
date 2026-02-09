@@ -329,7 +329,7 @@ if ($teamId) {
               </div>
             </div>
             <div class="text-end mt-3">
-              <button type="button" class="btn btn-orange" id="btn-add-player">
+              <button type="submit" class="btn btn-orange" id="btn-add-player">
                 <i class="bi bi-cloud-upload me-1"></i>Cadastrar Jogador
               </button>
             </div>
