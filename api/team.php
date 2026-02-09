@@ -76,6 +76,12 @@ if ($method === 'GET') {
     if ($action === 'list_players') {
         $query = trim($_GET['query'] ?? '');
         $position = strtoupper(trim($_GET['position'] ?? ''));
+        $teamFilter = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = (int)($_GET['per_page'] ?? 50);
+        if ($perPage <= 0) $perPage = 50;
+        if ($perPage > 200) $perPage = 200;
+        $offset = ($page - 1) * $perPage;
         $params = [$league];
         $where = 't.league = ?';
         if ($query !== '') {
@@ -86,6 +92,19 @@ if ($method === 'GET') {
             $where .= ' AND p.position = ?';
             $params[] = $position;
         }
+        if ($teamFilter > 0) {
+            $where .= ' AND t.id = ?';
+            $params[] = $teamFilter;
+        }
+
+        $countStmt = $pdo->prepare("SELECT COUNT(*)
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            JOIN users u ON t.user_id = u.id
+            WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
         $stmt = $pdo->prepare("
             SELECT p.id, p.name, p.age, p.ovr, p.position,
                    t.id as team_id, t.city, t.name as team_name, t.league,
@@ -95,7 +114,7 @@ if ($method === 'GET') {
             JOIN users u ON t.user_id = u.id
             WHERE {$where}
             ORDER BY p.ovr DESC, p.name ASC
-            LIMIT 200
+            LIMIT {$perPage} OFFSET {$offset}
         ");
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -105,7 +124,15 @@ if ($method === 'GET') {
         }
         unset($player);
 
-        jsonResponse(200, ['players' => $players]);
+        jsonResponse(200, [
+            'players' => $players,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => $perPage > 0 ? (int)ceil($total / $perPage) : 1
+            ]
+        ]);
     }
 
     if ($action === 'search_player') {

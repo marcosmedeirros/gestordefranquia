@@ -125,6 +125,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <option value="C">C</option>
                             </select>
                         </div>
+                        <div class="col-md-3">
+                            <label for="playersTeamFilter" class="form-label">Time</label>
+                            <select id="playersTeamFilter" class="form-select">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
                         <div class="col-md-2">
                             <button class="btn btn-orange w-100" id="playersSearchBtn">
                                 <i class="bi bi-search me-1"></i>Buscar
@@ -161,6 +167,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <!-- Render móvel (cards) -->
                     <div id="playersCardsWrap" class="player-card-mobile" style="display:none;"></div>
                     <div id="playersEmpty" class="text-center text-light-gray" style="display:none;">Nenhum jogador encontrado.</div>
+                    <div id="playersPagination" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" style="display:none;">
+                        <div class="text-light-gray" id="playersPaginationInfo"></div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-light btn-sm" id="playersPrevPage">
+                                <i class="bi bi-chevron-left"></i> Anterior
+                            </button>
+                            <button class="btn btn-outline-light btn-sm" id="playersNextPage">
+                                Próximo <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -172,13 +189,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const defaultMessage = '<?= $whatsappDefaultMessage ?>';
         const searchInput = document.getElementById('playersSearchInput');
         const positionFilter = document.getElementById('playersPositionFilter');
+    const teamFilter = document.getElementById('playersTeamFilter');
         const searchBtn = document.getElementById('playersSearchBtn');
         const loading = document.getElementById('playersLoading');
         const tableWrap = document.getElementById('playersTableWrap');
         const tableBody = document.getElementById('playersTableBody');
         const cardsWrap = document.getElementById('playersCardsWrap');
         const emptyState = document.getElementById('playersEmpty');
+    const paginationWrap = document.getElementById('playersPagination');
+    const paginationInfo = document.getElementById('playersPaginationInfo');
+    const prevPageBtn = document.getElementById('playersPrevPage');
+    const nextPageBtn = document.getElementById('playersNextPage');
         const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+    let currentPage = 1;
+    let totalPages = 1;
+    const perPage = 50;
 
         function renderPlayerCard(p, whatsappLink, teamName){
             const ovr = Number(p.ovr || 0);
@@ -213,10 +238,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         async function carregarJogadores() {
             const query = searchInput.value.trim();
             const position = positionFilter.value;
+            const teamId = teamFilter.value;
             loading.style.display = 'block';
             tableWrap.style.display = 'none';
             cardsWrap.style.display = 'none';
             emptyState.style.display = 'none';
+            paginationWrap.style.display = 'none';
             tableBody.innerHTML = '';
             cardsWrap.innerHTML = '';
 
@@ -224,11 +251,16 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             params.set('action', 'list_players');
             if (query) params.set('query', query);
             if (position) params.set('position', position);
+            if (teamId) params.set('team_id', teamId);
+            params.set('page', currentPage);
+            params.set('per_page', perPage);
 
             try {
                 const res = await fetch(`/api/team.php?${params.toString()}`);
                 const data = await res.json();
                 const players = data.players || [];
+                const pagination = data.pagination || { page: 1, per_page: perPage, total: players.length, total_pages: 1 };
+                totalPages = pagination.total_pages || 1;
 
                 if (!players.length) {
                     emptyState.style.display = 'block';
@@ -277,6 +309,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     } else {
                         tableWrap.style.display = 'block';
                     }
+
+                    if (pagination.total > perPage) {
+                        paginationInfo.textContent = `Página ${pagination.page} de ${pagination.total_pages} • ${pagination.total} jogadores`;
+                        paginationWrap.style.display = 'flex';
+                        prevPageBtn.disabled = pagination.page <= 1;
+                        nextPageBtn.disabled = pagination.page >= pagination.total_pages;
+                    }
                 }
             } catch (err) {
                 emptyState.textContent = 'Erro ao carregar jogadores.';
@@ -286,11 +325,36 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             }
         }
 
-        searchBtn.addEventListener('click', carregarJogadores);
+        async function carregarTimesFiltro() {
+            try {
+                const res = await fetch('/api/team.php');
+                const data = await res.json();
+                const teams = data.teams || [];
+                teamFilter.innerHTML = '<option value="">Todos</option>' + teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+            } catch (err) {
+                console.warn('Erro ao carregar times:', err);
+            }
+        }
+
+        searchBtn.addEventListener('click', () => { currentPage = 1; carregarJogadores(); });
         searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') carregarJogadores();
+            if (e.key === 'Enter') { currentPage = 1; carregarJogadores(); }
         });
-        positionFilter.addEventListener('change', carregarJogadores);
+        positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+        teamFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage -= 1;
+                carregarJogadores();
+            }
+        });
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage += 1;
+                carregarJogadores();
+            }
+        });
+        carregarTimesFiltro();
         carregarJogadores();
         
         // Re-render layout apenas se mudar de mobile para desktop ou vice-versa
