@@ -77,6 +77,8 @@ if ($method === 'GET') {
         $query = trim($_GET['query'] ?? '');
         $position = strtoupper(trim($_GET['position'] ?? ''));
         $teamFilter = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
+    $ovrMin = isset($_GET['ovr_min']) ? (int)$_GET['ovr_min'] : null;
+    $ovrMax = isset($_GET['ovr_max']) ? (int)$_GET['ovr_max'] : null;
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = (int)($_GET['per_page'] ?? 50);
         if ($perPage <= 0) $perPage = 50;
@@ -91,6 +93,14 @@ if ($method === 'GET') {
         if ($position !== '') {
             $where .= ' AND p.position = ?';
             $params[] = $position;
+        }
+        if ($ovrMin !== null && $ovrMin > 0) {
+            $where .= ' AND p.ovr >= ?';
+            $params[] = $ovrMin;
+        }
+        if ($ovrMax !== null && $ovrMax > 0) {
+            $where .= ' AND p.ovr <= ?';
+            $params[] = $ovrMax;
         }
         if ($teamFilter > 0) {
             $where .= ' AND t.id = ?';

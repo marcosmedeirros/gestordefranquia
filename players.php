@@ -126,6 +126,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             </select>
                         </div>
                         <div class="col-md-3">
+                            <label class="form-label">OVR (mín / máx)</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" id="playersOvrMin" class="form-control" placeholder="Min" min="40" max="99">
+                                <input type="number" id="playersOvrMax" class="form-control" placeholder="Max" min="40" max="99">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <label for="playersTeamFilter" class="form-label">Time</label>
                             <select id="playersTeamFilter" class="form-select">
                                 <option value="">Todos</option>
@@ -189,6 +196,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const defaultMessage = '<?= $whatsappDefaultMessage ?>';
         const searchInput = document.getElementById('playersSearchInput');
         const positionFilter = document.getElementById('playersPositionFilter');
+    const ovrMinInput = document.getElementById('playersOvrMin');
+    const ovrMaxInput = document.getElementById('playersOvrMax');
     const teamFilter = document.getElementById('playersTeamFilter');
         const searchBtn = document.getElementById('playersSearchBtn');
         const loading = document.getElementById('playersLoading');
@@ -238,6 +247,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         async function carregarJogadores() {
             const query = searchInput.value.trim();
             const position = positionFilter.value;
+            const ovrMin = ovrMinInput.value;
+            const ovrMax = ovrMaxInput.value;
             const teamId = teamFilter.value;
             loading.style.display = 'block';
             tableWrap.style.display = 'none';
@@ -251,6 +262,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             params.set('action', 'list_players');
             if (query) params.set('query', query);
             if (position) params.set('position', position);
+            if (ovrMin) params.set('ovr_min', ovrMin);
+            if (ovrMax) params.set('ovr_max', ovrMax);
             if (teamId) params.set('team_id', teamId);
             params.set('page', currentPage);
             params.set('per_page', perPage);
@@ -340,7 +353,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { currentPage = 1; carregarJogadores(); }
         });
-        positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+    positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+    ovrMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+    ovrMaxInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
         teamFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
         prevPageBtn.addEventListener('click', () => {
             if (currentPage > 1) {
