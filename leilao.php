@@ -16,7 +16,18 @@ $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
 if (!$team_id) {
-    $stmt = $pdo->prepare('SELECT id, league_id, league, name FROM teams WHERE user_id = ? LIMIT 1');
+    $select = ['id', 'league', 'name'];
+    try {
+        $stmtCheck = $pdo->prepare("SHOW COLUMNS FROM teams LIKE 'league_id'");
+        $stmtCheck->execute();
+        if ($stmtCheck->fetch()) {
+            $select[] = 'league_id';
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+
+    $stmt = $pdo->prepare('SELECT ' . implode(', ', $select) . ' FROM teams WHERE user_id = ? LIMIT 1');
     $stmt->execute([$user_id]);
     $teamRow = $stmt->fetch();
     if ($teamRow) {
