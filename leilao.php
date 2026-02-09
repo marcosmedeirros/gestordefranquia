@@ -15,6 +15,25 @@ $is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin'
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
+if (!$team_id) {
+    $stmt = $pdo->prepare('SELECT id, league_id, league, name FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user_id]);
+    $teamRow = $stmt->fetch();
+    if ($teamRow) {
+        $team_id = (int)$teamRow['id'];
+        if (!$league_id && !empty($teamRow['league_id'])) {
+            $league_id = (int)$teamRow['league_id'];
+        } elseif (!$league_id && !empty($teamRow['league'])) {
+            $stmtLeague = $pdo->prepare('SELECT id FROM leagues WHERE name = ? LIMIT 1');
+            $stmtLeague->execute([$teamRow['league']]);
+            $leagueRow = $stmtLeague->fetch();
+            if ($leagueRow && !empty($leagueRow['id'])) {
+                $league_id = (int)$leagueRow['id'];
+            }
+        }
+    }
+}
+
 $team_name = '';
 if ($team_id) {
     $stmt = $pdo->prepare("SELECT name FROM teams WHERE id = ?");

@@ -657,7 +657,8 @@ async function abrirModalProposta(leilaoId, playerName) {
     container.innerHTML = '<p class="text-muted">Carregando seus jogadores...</p>';
     
     try {
-        const response = await fetch(`api/team-players.php?team_id=${userTeamId}`);
+    const url = userTeamId ? `api/team-players.php?team_id=${userTeamId}` : 'api/team-players.php';
+    const response = await fetch(url);
         const data = await response.json();
         
         if (data.success && data.players && data.players.length > 0) {
