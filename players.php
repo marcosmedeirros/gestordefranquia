@@ -133,6 +133,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             </div>
                         </div>
                         <div class="col-md-3">
+                            <label class="form-label">Idade (mín / máx)</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" id="playersAgeMin" class="form-control" placeholder="Min" min="16" max="45">
+                                <input type="number" id="playersAgeMax" class="form-control" placeholder="Max" min="16" max="45">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <label for="playersTeamFilter" class="form-label">Time</label>
                             <select id="playersTeamFilter" class="form-select">
                                 <option value="">Todos</option>
@@ -198,6 +205,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const positionFilter = document.getElementById('playersPositionFilter');
     const ovrMinInput = document.getElementById('playersOvrMin');
     const ovrMaxInput = document.getElementById('playersOvrMax');
+    const ageMinInput = document.getElementById('playersAgeMin');
+    const ageMaxInput = document.getElementById('playersAgeMax');
     const teamFilter = document.getElementById('playersTeamFilter');
         const searchBtn = document.getElementById('playersSearchBtn');
         const loading = document.getElementById('playersLoading');
@@ -249,6 +258,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             const position = positionFilter.value;
             const ovrMin = ovrMinInput.value;
             const ovrMax = ovrMaxInput.value;
+            const ageMin = ageMinInput.value;
+            const ageMax = ageMaxInput.value;
             const teamId = teamFilter.value;
             loading.style.display = 'block';
             tableWrap.style.display = 'none';
@@ -264,6 +275,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             if (position) params.set('position', position);
             if (ovrMin) params.set('ovr_min', ovrMin);
             if (ovrMax) params.set('ovr_max', ovrMax);
+            if (ageMin) params.set('age_min', ageMin);
+            if (ageMax) params.set('age_max', ageMax);
             if (teamId) params.set('team_id', teamId);
             params.set('page', currentPage);
             params.set('per_page', perPage);
@@ -356,6 +369,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
     ovrMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
     ovrMaxInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+    ageMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+    ageMaxInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
         teamFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
         prevPageBtn.addEventListener('click', () => {
             if (currentPage > 1) {
