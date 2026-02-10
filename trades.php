@@ -646,7 +646,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                 <div class="mb-3">
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <label class="form-label text-white mb-0">Picks</label>
-                    <small class="text-light-gray">Adicione e configure proteções</small>
+                    <small class="text-light-gray">Adicione picks na proposta</small>
                   </div>
                   <div class="pick-selector">
                     <div class="pick-options" id="offerPicksOptions"></div>
@@ -671,7 +671,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                 <div class="mb-3">
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <label class="form-label text-white mb-0">Picks</label>
-                    <small class="text-light-gray">Selecione picks do time alvo e defina proteção</small>
+                    <small class="text-light-gray">Selecione picks do time alvo</small>
                   </div>
                   <div class="pick-selector">
                     <div class="pick-options" id="requestPicksOptions"></div>

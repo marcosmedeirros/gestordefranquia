@@ -135,14 +135,25 @@ const updateMultiItemTeamOptions = () => {
     if (!fromSelect || !toSelect) return;
     const currentFrom = fromSelect.value;
     const currentTo = toSelect.value;
-    const optionsHtml = selectedTeams.map((id) => {
+    const fromOptionsHtml = selectedTeams.map((id) => {
       const team = allTeams.find((t) => Number(t.id) === Number(id));
       return `<option value="${id}">${getTeamLabel(team)}</option>`;
     }).join('');
-    fromSelect.innerHTML = '<option value="">Origem...</option>' + optionsHtml;
-    toSelect.innerHTML = '<option value="">Destino...</option>' + optionsHtml;
+    const toOptionsHtml = selectedTeams
+      .filter((id) => Number(id) !== Number(currentFrom || 0))
+      .map((id) => {
+        const team = allTeams.find((t) => Number(t.id) === Number(id));
+        return `<option value="${id}">${getTeamLabel(team)}</option>`;
+      }).join('');
+
+    fromSelect.innerHTML = '<option value="">Origem...</option>' + fromOptionsHtml;
+    toSelect.innerHTML = '<option value="">Destino...</option>' + toOptionsHtml;
     if (selectedTeams.includes(Number(currentFrom))) fromSelect.value = currentFrom;
-    if (selectedTeams.includes(Number(currentTo))) toSelect.value = currentTo;
+    if (selectedTeams.includes(Number(currentTo)) && Number(currentTo) !== Number(currentFrom || 0)) {
+      toSelect.value = currentTo;
+    } else {
+      toSelect.value = '';
+    }
     updateMultiItemOptions(row).catch((err) => console.warn('Erro ao atualizar itens:', err));
   });
 };
@@ -238,6 +249,9 @@ const addMultiTradeItemRow = () => {
   row.addEventListener('change', (event) => {
     if (event.target.matches('[data-role="from-team"]') || event.target.matches('[data-role="item-type"]')) {
       updateMultiItemOptions(row);
+    }
+    if (event.target.matches('[data-role="from-team"]')) {
+      updateMultiItemTeamOptions();
     }
   });
 
