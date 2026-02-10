@@ -468,6 +468,19 @@ function editPlayer(playerId) {
 <h5 class="modal-title text-white">Editar ${p.name}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
 <div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Posição</label>
 <input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerPosition" value="${p.position}"></div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Pos. Secundária</label>
+<select class="form-select bg-dark text-white border-orange" id="editPlayerSecondaryPosition">
+<option value="" ${!p.secondary_position ? 'selected' : ''}>Sem</option>
+<option value="PG" ${p.secondary_position === 'PG' ? 'selected' : ''}>PG</option>
+<option value="SG" ${p.secondary_position === 'SG' ? 'selected' : ''}>SG</option>
+<option value="SF" ${p.secondary_position === 'SF' ? 'selected' : ''}>SF</option>
+<option value="PF" ${p.secondary_position === 'PF' ? 'selected' : ''}>PF</option>
+<option value="C" ${p.secondary_position === 'C' ? 'selected' : ''}>C</option>
+</select></div>
+<div class="col-md-6 mb-3"><label class="form-label text-light-gray">Idade</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="editPlayerAge" value="${p.age || ''}" min="16" max="60"></div>
+</div>
 <div class="mb-3"><label class="form-label text-light-gray">OVR</label>
 <input type="number" class="form-control bg-dark text-white border-orange" id="editPlayerOvr" value="${p.ovr}" min="0" max="99"></div>
 <div class="mb-3"><label class="form-label text-light-gray">Papel</label>
@@ -501,7 +514,12 @@ function editPlayer(playerId) {
 
 async function savePlayerEdit(playerId) {
   const data = { player_id: playerId, position: document.getElementById('editPlayerPosition').value,
-    ovr: parseInt(document.getElementById('editPlayerOvr').value), role: document.getElementById('editPlayerRole').value };
+    secondary_position: document.getElementById('editPlayerSecondaryPosition')?.value || null,
+    age: parseInt(document.getElementById('editPlayerAge')?.value || '', 10),
+    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10), role: document.getElementById('editPlayerRole').value };
+  if (Number.isNaN(data.age)) {
+    delete data.age;
+  }
   const teamId = document.getElementById('editPlayerTeam').value;
   if (teamId) data.team_id = teamId;
   

@@ -666,6 +666,8 @@ if ($method === 'PUT') {
             $ovr = $data['ovr'] ?? null;
             $role = $data['role'] ?? null;
             $position = $data['position'] ?? null;
+            $age = $data['age'] ?? null;
+            $secondaryPosition = $data['secondary_position'] ?? null;
 
             if (!$playerId) {
                 http_response_code(400);
@@ -691,6 +693,14 @@ if ($method === 'PUT') {
             if ($position !== null) {
                 $updates[] = 'position = ?';
                 $params[] = $position;
+            }
+            if ($age !== null) {
+                $updates[] = 'age = ?';
+                $params[] = $age;
+            }
+            if ($secondaryPosition !== null) {
+                $updates[] = 'secondary_position = ?';
+                $params[] = $secondaryPosition ?: null;
             }
 
             if (empty($updates)) {
