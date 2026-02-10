@@ -620,6 +620,51 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
     }
 
     try {
+        $sendCounts = array_fill_keys($teams, 0);
+        $receiveCounts = array_fill_keys($teams, 0);
+        $validatedItems = [];
+
+        foreach ($items as $item) {
+            $fromTeam = (int)($item['from_team_id'] ?? 0);
+            $toTeam = (int)($item['to_team_id'] ?? 0);
+            $playerId = isset($item['player_id']) ? (int)$item['player_id'] : null;
+            $pickId = isset($item['pick_id']) ? (int)$item['pick_id'] : null;
+
+            if (!$fromTeam || !$toTeam || (!$playerId && !$pickId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Todos os itens precisam ter origem, destino e jogador/pick.']);
+                exit;
+            }
+            if ($fromTeam === $toTeam) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time de origem e destino não podem ser o mesmo.']);
+                exit;
+            }
+            if (!in_array($fromTeam, $teams, true) || !in_array($toTeam, $teams, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Todos os itens devem usar times participantes.']);
+                exit;
+            }
+
+            $sendCounts[$fromTeam]++;
+            $receiveCounts[$toTeam]++;
+
+            $validatedItems[] = [
+                'from_team_id' => $fromTeam,
+                'to_team_id' => $toTeam,
+                'player_id' => $playerId,
+                'pick_id' => $pickId
+            ];
+        }
+
+        foreach ($teams as $tid) {
+            if (($sendCounts[$tid] ?? 0) === 0 || ($receiveCounts[$tid] ?? 0) === 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Todos os times devem enviar e receber pelo menos um item.']);
+                exit;
+            }
+        }
+
         $pdo->beginTransaction();
 
         $stmtTrade = $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes) VALUES (?, ?, ?)');
@@ -635,17 +680,11 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         $ovrCol = playerOvrColumn($pdo);
         $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
-        foreach ($items as $item) {
-            $fromTeam = (int)($item['from_team_id'] ?? 0);
-            $toTeam = (int)($item['to_team_id'] ?? 0);
-            $playerId = isset($item['player_id']) ? (int)$item['player_id'] : null;
-            $pickId = isset($item['pick_id']) ? (int)$item['pick_id'] : null;
-            if (!$fromTeam || !$toTeam || (!$playerId && !$pickId)) {
-                continue;
-            }
-            if (!in_array($fromTeam, $teams, true) || !in_array($toTeam, $teams, true)) {
-                continue;
-            }
+        foreach ($validatedItems as $item) {
+            $fromTeam = (int)$item['from_team_id'];
+            $toTeam = (int)$item['to_team_id'];
+            $playerId = $item['player_id'] ? (int)$item['player_id'] : null;
+            $pickId = $item['pick_id'] ? (int)$item['pick_id'] : null;
 
             if ($playerId) {
                 $stmtOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');

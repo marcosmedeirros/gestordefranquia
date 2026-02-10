@@ -259,6 +259,8 @@ const submitMultiTrade = async () => {
 
   const items = [];
   let hasInvalid = false;
+  const sendCounts = {};
+  const receiveCounts = {};
   document.querySelectorAll('.multi-trade-item-row').forEach((row) => {
     const fromTeam = Number(row.querySelector('[data-role="from-team"]').value);
     const toTeam = Number(row.querySelector('[data-role="to-team"]').value);
@@ -272,6 +274,8 @@ const submitMultiTrade = async () => {
       hasInvalid = true;
       return;
     }
+    sendCounts[fromTeam] = (sendCounts[fromTeam] || 0) + 1;
+    receiveCounts[toTeam] = (receiveCounts[toTeam] || 0) + 1;
     const payload = { from_team_id: fromTeam, to_team_id: toTeam };
     if (type === 'player') {
       payload.player_id = itemId;
@@ -283,6 +287,13 @@ const submitMultiTrade = async () => {
 
   if (hasInvalid || items.length === 0) {
     return alert('Preencha todos os itens da troca múltipla.');
+  }
+
+  const missingFlow = selectedTeams.some((teamId) => {
+    return !sendCounts[teamId] || !receiveCounts[teamId];
+  });
+  if (missingFlow) {
+    return alert('Todos os times devem enviar e receber pelo menos um item.');
   }
 
   const notes = (document.getElementById('multiTradeNotes')?.value || '').trim();
