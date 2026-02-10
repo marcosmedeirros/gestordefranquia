@@ -17,13 +17,6 @@ let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
 
-const PICK_PROTECTION_OPTIONS = [
-  { value: 'none', label: 'Sem proteção' },
-  { value: 'top3', label: 'Protegida Top 3' },
-  { value: 'top5', label: 'Protegida Top 5' },
-  { value: 'top10', label: 'Protegida Top 10' },
-  { value: 'lottery', label: 'Protegida Loteria' }
-];
 
 const pickState = {
   offer: { available: [], selected: [] },
@@ -69,34 +62,7 @@ const formatTradePickDisplay = (pick) => {
     }
   }
 
-  if (pick.pick_protection && pick.pick_protection !== 'none') {
-    display += ` <span class="badge bg-warning text-dark ms-1">${formatPickProtectionLabel(pick.pick_protection)}</span>`;
-  }
-  
   return display;
-};
-
-const formatPickProtectionLabel = (value) => {
-  switch (value) {
-    case 'top3':
-      return 'Top 3';
-    case 'top5':
-      return 'Top 5';
-    case 'top10':
-      return 'Top 10';
-    case 'lottery':
-      return 'Loteria';
-    default:
-      return 'Sem proteção';
-  }
-};
-
-const normalizeProtectionValue = (value) => {
-  const allowed = PICK_PROTECTION_OPTIONS.map(opt => opt.value);
-  if (!value || !allowed.includes(value)) {
-    return 'none';
-  }
-  return value;
 };
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
@@ -201,21 +167,13 @@ const updateMultiItemOptions = async (row) => {
   const fromSelect = row.querySelector('[data-role="from-team"]');
   const typeSelect = row.querySelector('[data-role="item-type"]');
   const itemSelect = row.querySelector('[data-role="item-id"]');
-  const protectionWrap = row.querySelector('[data-role="pick-protection"]');
   if (!fromSelect || !typeSelect || !itemSelect) return;
 
   const teamId = Number(fromSelect.value);
   const type = typeSelect.value;
   if (!teamId || !type) {
     itemSelect.innerHTML = '<option value="">Selecione a origem e o tipo</option>';
-    if (protectionWrap) protectionWrap.classList.add('d-none');
     return;
-  }
-
-  if (type === 'pick') {
-    if (protectionWrap) protectionWrap.classList.remove('d-none');
-  } else if (protectionWrap) {
-    protectionWrap.classList.add('d-none');
   }
 
   const list = await loadMultiAssets(teamId, type === 'player' ? 'players' : 'picks');
@@ -273,12 +231,6 @@ const addMultiTradeItemRow = () => {
         </select>
       </div>
     </div>
-    <div class="mt-2 d-none" data-role="pick-protection">
-      <label class="form-label text-light-gray small">Proteção da pick</label>
-      <select class="form-select bg-dark text-white border-secondary" data-role="pick-protection-select">
-        ${PICK_PROTECTION_OPTIONS.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
-      </select>
-    </div>
   `;
   container.appendChild(row);
   updateMultiItemTeamOptions();
@@ -312,7 +264,6 @@ const submitMultiTrade = async () => {
     const toTeam = Number(row.querySelector('[data-role="to-team"]').value);
     const type = row.querySelector('[data-role="item-type"]').value;
     const itemId = Number(row.querySelector('[data-role="item-id"]').value);
-    const protectionSelect = row.querySelector('[data-role="pick-protection-select"]');
     if (!fromTeam || !toTeam || !type || !itemId) {
       hasInvalid = true;
       return;
@@ -326,7 +277,6 @@ const submitMultiTrade = async () => {
       payload.player_id = itemId;
     } else {
       payload.pick_id = itemId;
-      payload.pick_protection = normalizeProtectionValue(protectionSelect ? protectionSelect.value : 'none');
     }
     items.push(payload);
   });
@@ -411,11 +361,6 @@ function setupPickSelectorHandlers() {
         removePickFromSelection(side, Number(removeBtn.dataset.pickId));
       });
 
-      selectedEl.addEventListener('change', (event) => {
-        const select = event.target.closest('[data-action="protection-select"]');
-        if (!select) return;
-        updatePickProtection(side, Number(select.dataset.pickId), select.value);
-      });
     }
   });
 
@@ -671,13 +616,13 @@ function prefillPlayerSelections(side, playersFromTrade) {
   renderSelectedPlayers(side);
 }
 
-function addPickToSelection(side, pickId, protection = 'none', fallbackPick = null, shouldRender = true) {
+function addPickToSelection(side, pickId, fallbackPick = null, shouldRender = true) {
   const state = pickState[side];
   if (!state) return;
   if (state.selected.some((p) => Number(p.id) === Number(pickId))) return;
   const pick = fallbackPick || state.available.find((p) => Number(p.id) === Number(pickId));
   if (!pick) return;
-  state.selected.push({ ...pick, protection: normalizeProtectionValue(protection) });
+  state.selected.push({ ...pick });
   if (shouldRender) {
     renderPickOptions(side);
     renderSelectedPicks(side);
@@ -692,19 +637,6 @@ function removePickFromSelection(side, pickId) {
   renderSelectedPicks(side);
 }
 
-function updatePickProtection(side, pickId, protection) {
-  const state = pickState[side];
-  if (!state) return;
-  const value = normalizeProtectionValue(protection);
-  state.selected = state.selected.map((p) => {
-    if (Number(p.id) === Number(pickId)) {
-      return { ...p, protection: value };
-    }
-    return p;
-  });
-  renderSelectedPicks(side);
-}
-
 function resetPickSelection(side) {
   if (!pickState[side]) return;
   pickState[side].selected = [];
@@ -715,8 +647,7 @@ function resetPickSelection(side) {
 function getPickPayload(side) {
   if (!pickState[side]) return [];
   return pickState[side].selected.map((pick) => ({
-    id: Number(pick.id),
-    protection: pick.protection && pick.protection !== 'none' ? pick.protection : null
+    id: Number(pick.id)
   }));
 }
 
@@ -729,7 +660,7 @@ function prefillPickSelections(side, picksFromTrade) {
     return;
   }
   picksFromTrade.forEach((pick) => {
-    addPickToSelection(side, Number(pick.id), pick.pick_protection || 'none', pick, false);
+    addPickToSelection(side, Number(pick.id), pick, false);
   });
   renderPickOptions(side);
   renderSelectedPicks(side);

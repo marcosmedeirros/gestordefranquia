@@ -647,6 +647,23 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 continue;
             }
 
+            if ($playerId) {
+                $stmtOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
+                $stmtOwner->execute([$playerId]);
+                $ownerId = (int)($stmtOwner->fetchColumn() ?: 0);
+                if ($ownerId !== $fromTeam) {
+                    throw new Exception('Jogador não pertence ao time informado.');
+                }
+            }
+            if ($pickId) {
+                $stmtOwner = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
+                $stmtOwner->execute([$pickId]);
+                $ownerId = (int)($stmtOwner->fetchColumn() ?: 0);
+                if ($ownerId !== $fromTeam) {
+                    throw new Exception('Pick não pertence ao time informado.');
+                }
+            }
+
             $playerName = null;
             $playerPosition = null;
             $playerAge = null;
@@ -666,7 +683,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $toTeam,
                 $playerId,
                 $pickId,
-                $hasPickProtectionCol ? ($item['pick_protection'] ?? null) : null,
+                $hasPickProtectionCol ? null : null,
                 $playerName,
                 $playerPosition,
                 $playerAge,
@@ -1036,20 +1053,32 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
                 unset($item);
 
-                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
-                $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
+                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
+                $stmtPlayerOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
+                $stmtPickOwner = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
 
                 foreach ($items as $item) {
                     if ($item['player_id']) {
-                        $stmtTransferPlayer->execute([(int)$item['to_team_id'], (int)$item['player_id'], (int)$item['from_team_id']]);
-                        if ($stmtTransferPlayer->rowCount() === 0) {
-                            throw new Exception('Jogador ID ' . $item['player_id'] . ' não está mais disponível para transferência');
+                        $stmtPlayerOwner->execute([(int)$item['player_id']]);
+                        $currentOwner = (int)($stmtPlayerOwner->fetchColumn() ?: 0);
+                        if ($currentOwner && $currentOwner !== (int)$item['from_team_id']) {
+                            if ($currentOwner !== (int)$item['to_team_id']) {
+                                throw new Exception('Jogador ID ' . $item['player_id'] . ' não pertence ao time de origem.');
+                            }
+                        } else {
+                            $stmtTransferPlayer->execute([(int)$item['to_team_id'], (int)$item['player_id']]);
                         }
                     }
                     if ($item['pick_id']) {
-                        $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id'], (int)$item['from_team_id']]);
-                        if ($stmtTransferPick->rowCount() === 0) {
-                            throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
+                        $stmtPickOwner->execute([(int)$item['pick_id']]);
+                        $currentOwner = (int)($stmtPickOwner->fetchColumn() ?: 0);
+                        if ($currentOwner && $currentOwner !== (int)$item['from_team_id']) {
+                            if ($currentOwner !== (int)$item['to_team_id']) {
+                                throw new Exception('Pick ID ' . $item['pick_id'] . ' não pertence ao time de origem.');
+                            }
+                        } else {
+                            $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
                         }
                     }
                 }
