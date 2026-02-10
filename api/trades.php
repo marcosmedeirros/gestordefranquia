@@ -154,8 +154,66 @@ function ensureTeamTradeCounterColumns(PDO $pdo): void
     }
 }
 
+function ensureTeamPunishmentColumns(PDO $pdo): void
+{
+    try {
+        if (!columnExists($pdo, 'teams', 'ban_trades_until_cycle')) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN ban_trades_until_cycle INT NULL AFTER trades_cycle");
+        }
+        if (!columnExists($pdo, 'teams', 'ban_trades_picks_until_cycle')) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN ban_trades_picks_until_cycle INT NULL AFTER ban_trades_until_cycle");
+        }
+        if (!columnExists($pdo, 'teams', 'ban_fa_until_cycle')) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN ban_fa_until_cycle INT NULL AFTER ban_trades_picks_until_cycle");
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+function getTeamCurrentCycle(PDO $pdo, int $teamId): int
+{
+    if (!columnExists($pdo, 'teams', 'current_cycle')) {
+        return 0;
+    }
+    $stmt = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+function isTeamTradeBanned(PDO $pdo, int $teamId): bool
+{
+    if (!columnExists($pdo, 'teams', 'ban_trades_until_cycle')) {
+        return false;
+    }
+    $stmt = $pdo->prepare('SELECT ban_trades_until_cycle FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    $banUntil = (int)($stmt->fetchColumn() ?: 0);
+    if ($banUntil <= 0) {
+        return false;
+    }
+    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
+    return $currentCycle > 0 && $currentCycle <= $banUntil;
+}
+
+function isTeamPickTradeBanned(PDO $pdo, int $teamId): bool
+{
+    if (!columnExists($pdo, 'teams', 'ban_trades_picks_until_cycle')) {
+        return false;
+    }
+    $stmt = $pdo->prepare('SELECT ban_trades_picks_until_cycle FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    $banUntil = (int)($stmt->fetchColumn() ?: 0);
+    if ($banUntil <= 0) {
+        return false;
+    }
+    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
+    return $currentCycle > 0 && $currentCycle <= $banUntil;
+}
+
 ensureTradeCycleColumn($pdo);
 ensureTeamTradeCounterColumns($pdo);
+ensureTeamPunishmentColumns($pdo);
 
 function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 {
@@ -619,6 +677,14 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         exit;
     }
 
+    foreach ($teams as $tid) {
+        if (isTeamTradeBanned($pdo, (int)$tid)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Um dos times está com trades bloqueadas na temporada.']);
+            exit;
+        }
+    }
+
     try {
         $sendCounts = array_fill_keys($teams, 0);
         $receiveCounts = array_fill_keys($teams, 0);
@@ -695,6 +761,9 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
             }
             if ($pickId) {
+                if (isTeamPickTradeBanned($pdo, (int)$fromTeam)) {
+                    throw new Exception('Um dos times está bloqueado de usar picks em trades.');
+                }
                 $stmtOwner = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
                 $stmtOwner->execute([$pickId]);
                 $ownerId = (int)($stmtOwner->fetchColumn() ?: 0);
@@ -757,6 +826,12 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'error' => 'Time destino não informado']);
         exit;
     }
+
+    if (isTeamTradeBanned($pdo, (int)$teamId)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Seu time está com trades bloqueadas nesta temporada.']);
+        exit;
+    }
     
     // Verificar se há algo para trocar
     if (empty($offerPlayers) && empty($offerPicks)) {
@@ -768,6 +843,12 @@ if ($method === 'POST') {
     if (empty($requestPlayers) && empty($requestPicks)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Você precisa pedir algo em troca']);
+        exit;
+    }
+
+    if (!empty($offerPicks) && isTeamPickTradeBanned($pdo, (int)$teamId)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Seu time está bloqueado de usar picks em trades.']);
         exit;
     }
     
@@ -815,6 +896,18 @@ if ($method === 'POST') {
     if (!$targetTeamData) {
         http_response_code(404);
         echo json_encode(['success' => false, 'error' => 'Time alvo não encontrado']);
+        exit;
+    }
+
+    if (isTeamTradeBanned($pdo, (int)$targetTeamData['id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'O time alvo está com trades bloqueadas nesta temporada.']);
+        exit;
+    }
+
+    if (!empty($requestPicks) && isTeamPickTradeBanned($pdo, (int)$targetTeamData['id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'O time alvo está bloqueado de usar picks em trades.']);
         exit;
     }
     if ($targetTeamData['league'] !== $teamData['league']) {

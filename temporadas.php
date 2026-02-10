@@ -69,6 +69,7 @@ if (!$team) {
       <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
       <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
       <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
+  <li><a href="/punicoes.php"><i class="bi bi-exclamation-triangle-fill"></i>Punições</a></li>
       <li><a href="/temporadas.php" class="active"><i class="bi bi-calendar3"></i>Temporadas</a></li>
       <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
     </ul>

@@ -303,6 +303,43 @@ function ensureOfferAmountColumn(PDO $pdo): void
     $checked = true;
 }
 
+function ensureTeamPunishmentColumns(PDO $pdo): void
+{
+    try {
+        if (!columnExists($pdo, 'teams', 'ban_fa_until_cycle')) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN ban_fa_until_cycle INT NULL AFTER ban_trades_picks_until_cycle");
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+function getTeamCurrentCycle(PDO $pdo, int $teamId): int
+{
+    if (!columnExists($pdo, 'teams', 'current_cycle')) {
+        return 0;
+    }
+    $stmt = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+function isTeamFaBanned(PDO $pdo, int $teamId): bool
+{
+    ensureTeamPunishmentColumns($pdo);
+    if (!columnExists($pdo, 'teams', 'ban_fa_until_cycle')) {
+        return false;
+    }
+    $stmt = $pdo->prepare('SELECT ban_fa_until_cycle FROM teams WHERE id = ?');
+    $stmt->execute([$teamId]);
+    $banUntil = (int)($stmt->fetchColumn() ?: 0);
+    if ($banUntil <= 0) {
+        return false;
+    }
+    $currentCycle = getTeamCurrentCycle($pdo, $teamId);
+    return $currentCycle > 0 && $currentCycle <= $banUntil;
+}
+
 function getLeagueFromRequest(array $validLeagues, ?string $fallback = null): ?string
 {
     $league = strtoupper(trim((string)($_GET['league'] ?? $fallback ?? '')));
@@ -1011,6 +1048,10 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
         jsonError('Voce precisa ter um time');
     }
 
+    if (isTeamFaBanned($pdo, (int)$teamId)) {
+        jsonError('Seu time está bloqueado de usar a Free Agency nesta temporada');
+    }
+
     $league = strtoupper(trim((string)($body['league'] ?? $teamLeague ?? '')));
     $name = trim((string)($body['name'] ?? ''));
     $position = trim((string)($body['position'] ?? 'PG')) ?: 'PG';
@@ -1366,6 +1407,10 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
 
     if (!$teamId) {
         jsonError('Voce precisa ter um time');
+    }
+
+    if (isTeamFaBanned($pdo, (int)$teamId)) {
+        jsonError('Seu time está bloqueado de usar a Free Agency nesta temporada');
     }
 
     $player_id = (int)($body['free_agent_id'] ?? 0);
