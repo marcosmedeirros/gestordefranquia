@@ -35,6 +35,11 @@ const playerState = {
   request: { available: [], selected: [] }
 };
 
+const multiTradeState = {
+  assets: { players: {}, picks: {} },
+  itemCounter: 0
+};
+
 const formatTradePlayerDisplay = (player) => {
   if (!player) return '';
   const name = player.name || 'Jogador';
@@ -92,6 +97,282 @@ const normalizeProtectionValue = (value) => {
     return 'none';
   }
   return value;
+};
+
+const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
+
+const getSelectedMultiTeams = () => {
+  const container = document.getElementById('multiTradeTeamsList');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+    .map((input) => Number(input.value))
+    .filter((id) => Number.isFinite(id));
+};
+
+const renderMultiTeamLimit = () => {
+  const container = document.getElementById('multiTradeTeamsList');
+  if (!container) return;
+  const selected = getSelectedMultiTeams();
+  const limitReached = selected.length >= 7;
+  container.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    if (input.disabled && Number(input.value) === Number(myTeamId)) {
+      return;
+    }
+    if (!input.checked) {
+      input.disabled = limitReached;
+    }
+  });
+};
+
+const renderMultiTradeTeams = () => {
+  const container = document.getElementById('multiTradeTeamsList');
+  if (!container) return;
+
+  const myId = Number(myTeamId);
+  const myLeagueNormalized = (myLeague ?? '').toString().trim().toUpperCase();
+  const filtered = allTeams.filter((team) => {
+    const teamLeague = (team.league ?? '').toString().trim().toUpperCase();
+    if (!myLeagueNormalized) return true;
+    return teamLeague === myLeagueNormalized;
+  });
+
+  container.innerHTML = filtered
+    .sort((a, b) => getTeamLabel(a).localeCompare(getTeamLabel(b)))
+    .map((team) => {
+      const checked = Number(team.id) === myId ? 'checked' : '';
+      const disabled = Number(team.id) === myId ? 'disabled' : '';
+      return `
+        <div class="form-check">
+          <input class="form-check-input multi-team-checkbox" type="checkbox" value="${team.id}" id="multiTeam_${team.id}" ${checked} ${disabled}>
+          <label class="form-check-label text-light-gray" for="multiTeam_${team.id}">${getTeamLabel(team)}</label>
+        </div>
+      `;
+    })
+    .join('');
+
+  container.addEventListener('change', (event) => {
+    if (!event.target.classList.contains('multi-team-checkbox')) return;
+    renderMultiTeamLimit();
+    updateMultiItemTeamOptions();
+  });
+
+  renderMultiTeamLimit();
+  updateMultiItemTeamOptions();
+};
+
+const updateMultiItemTeamOptions = () => {
+  const selectedTeams = getSelectedMultiTeams();
+  const rows = document.querySelectorAll('.multi-trade-item-row');
+  rows.forEach((row) => {
+    const fromSelect = row.querySelector('[data-role="from-team"]');
+    const toSelect = row.querySelector('[data-role="to-team"]');
+    if (!fromSelect || !toSelect) return;
+    const currentFrom = fromSelect.value;
+    const currentTo = toSelect.value;
+    const optionsHtml = selectedTeams.map((id) => {
+      const team = allTeams.find((t) => Number(t.id) === Number(id));
+      return `<option value="${id}">${getTeamLabel(team)}</option>`;
+    }).join('');
+    fromSelect.innerHTML = '<option value="">Origem...</option>' + optionsHtml;
+    toSelect.innerHTML = '<option value="">Destino...</option>' + optionsHtml;
+    if (selectedTeams.includes(Number(currentFrom))) fromSelect.value = currentFrom;
+    if (selectedTeams.includes(Number(currentTo))) toSelect.value = currentTo;
+    updateMultiItemOptions(row).catch((err) => console.warn('Erro ao atualizar itens:', err));
+  });
+};
+
+const getMultiAssetCache = (type, teamId) => {
+  return multiTradeState.assets[type][teamId] || [];
+};
+
+const loadMultiAssets = async (teamId, type) => {
+  if (!teamId) return [];
+  if (multiTradeState.assets[type][teamId]) {
+    return multiTradeState.assets[type][teamId];
+  }
+  const endpoint = type === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}`;
+  const data = await api(endpoint);
+  const list = type === 'players' ? (data.players || []) : (data.picks || []);
+  multiTradeState.assets[type][teamId] = list;
+  return list;
+};
+
+const updateMultiItemOptions = async (row) => {
+  const fromSelect = row.querySelector('[data-role="from-team"]');
+  const typeSelect = row.querySelector('[data-role="item-type"]');
+  const itemSelect = row.querySelector('[data-role="item-id"]');
+  const protectionWrap = row.querySelector('[data-role="pick-protection"]');
+  if (!fromSelect || !typeSelect || !itemSelect) return;
+
+  const teamId = Number(fromSelect.value);
+  const type = typeSelect.value;
+  if (!teamId || !type) {
+    itemSelect.innerHTML = '<option value="">Selecione a origem e o tipo</option>';
+    if (protectionWrap) protectionWrap.classList.add('d-none');
+    return;
+  }
+
+  if (type === 'pick') {
+    if (protectionWrap) protectionWrap.classList.remove('d-none');
+  } else if (protectionWrap) {
+    protectionWrap.classList.add('d-none');
+  }
+
+  const list = await loadMultiAssets(teamId, type === 'player' ? 'players' : 'picks');
+  if (!list || list.length === 0) {
+    itemSelect.innerHTML = '<option value="">Nenhum item disponível</option>';
+    return;
+  }
+
+  if (type === 'player') {
+    itemSelect.innerHTML = '<option value="">Selecione o jogador</option>' + list.map((player) => {
+      return `<option value="${player.id}">${formatTradePlayerDisplay(player)}</option>`;
+    }).join('');
+  } else {
+    itemSelect.innerHTML = '<option value="">Selecione a pick</option>' + list.map((pick) => {
+      const summary = buildPickSummary(pick);
+      const via = summary.via ? ` • ${summary.via}` : '';
+      return `<option value="${pick.id}">${summary.title} (${summary.origin}${via})</option>`;
+    }).join('');
+  }
+};
+
+const addMultiTradeItemRow = () => {
+  const container = document.getElementById('multiTradeItems');
+  if (!container) return;
+  const rowId = `multiItem_${multiTradeState.itemCounter++}`;
+  const row = document.createElement('div');
+  row.className = 'multi-trade-item-row bg-dark rounded border border-secondary p-3 mb-3';
+  row.dataset.rowId = rowId;
+  row.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong class="text-white">Item</strong>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-role="remove-item">Remover</button>
+    </div>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label text-light-gray small">Origem</label>
+        <select class="form-select bg-dark text-white border-secondary" data-role="from-team"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label text-light-gray small">Destino</label>
+        <select class="form-select bg-dark text-white border-secondary" data-role="to-team"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label text-light-gray small">Tipo</label>
+        <select class="form-select bg-dark text-white border-secondary" data-role="item-type">
+          <option value="">Selecione...</option>
+          <option value="player">Jogador</option>
+          <option value="pick">Pick</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label text-light-gray small">Item</label>
+        <select class="form-select bg-dark text-white border-secondary" data-role="item-id">
+          <option value="">Selecione a origem e o tipo</option>
+        </select>
+      </div>
+    </div>
+    <div class="mt-2 d-none" data-role="pick-protection">
+      <label class="form-label text-light-gray small">Proteção da pick</label>
+      <select class="form-select bg-dark text-white border-secondary" data-role="pick-protection-select">
+        ${PICK_PROTECTION_OPTIONS.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+      </select>
+    </div>
+  `;
+  container.appendChild(row);
+  updateMultiItemTeamOptions();
+
+  row.addEventListener('change', (event) => {
+    if (event.target.matches('[data-role="from-team"]') || event.target.matches('[data-role="item-type"]')) {
+      updateMultiItemOptions(row);
+    }
+  });
+
+  row.addEventListener('click', (event) => {
+    if (event.target.matches('[data-role="remove-item"]')) {
+      row.remove();
+    }
+  });
+};
+
+const submitMultiTrade = async () => {
+  const selectedTeams = getSelectedMultiTeams();
+  if (selectedTeams.length < 2) {
+    return alert('Selecione pelo menos 2 times.');
+  }
+  if (selectedTeams.length > 7) {
+    return alert('Máximo de 7 times.');
+  }
+
+  const items = [];
+  let hasInvalid = false;
+  document.querySelectorAll('.multi-trade-item-row').forEach((row) => {
+    const fromTeam = Number(row.querySelector('[data-role="from-team"]').value);
+    const toTeam = Number(row.querySelector('[data-role="to-team"]').value);
+    const type = row.querySelector('[data-role="item-type"]').value;
+    const itemId = Number(row.querySelector('[data-role="item-id"]').value);
+    const protectionSelect = row.querySelector('[data-role="pick-protection-select"]');
+    if (!fromTeam || !toTeam || !type || !itemId) {
+      hasInvalid = true;
+      return;
+    }
+    if (fromTeam === toTeam) {
+      hasInvalid = true;
+      return;
+    }
+    const payload = { from_team_id: fromTeam, to_team_id: toTeam };
+    if (type === 'player') {
+      payload.player_id = itemId;
+    } else {
+      payload.pick_id = itemId;
+      payload.pick_protection = normalizeProtectionValue(protectionSelect ? protectionSelect.value : 'none');
+    }
+    items.push(payload);
+  });
+
+  if (hasInvalid || items.length === 0) {
+    return alert('Preencha todos os itens da troca múltipla.');
+  }
+
+  const notes = (document.getElementById('multiTradeNotes')?.value || '').trim();
+
+  try {
+    await api('trades.php?action=multi_trades', {
+      method: 'POST',
+      body: JSON.stringify({ teams: selectedTeams, items, notes })
+    });
+    alert('Troca múltipla enviada!');
+    bootstrap.Modal.getInstance(document.getElementById('multiTradeModal')).hide();
+    resetMultiTradeForm();
+    loadTrades('sent');
+    loadTrades('received');
+    loadTrades('history');
+    loadTrades('league');
+  } catch (err) {
+    alert(err.error || 'Erro ao enviar troca múltipla');
+  }
+};
+
+const resetMultiTradeForm = () => {
+  const notes = document.getElementById('multiTradeNotes');
+  if (notes) notes.value = '';
+  const container = document.getElementById('multiTradeItems');
+  if (container) container.innerHTML = '';
+  const teamsContainer = document.getElementById('multiTradeTeamsList');
+  if (teamsContainer) {
+    teamsContainer.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      if (Number(input.value) === Number(myTeamId)) {
+        input.checked = true;
+        input.disabled = true;
+      } else {
+        input.checked = false;
+        input.disabled = false;
+      }
+    });
+  }
+  addMultiTradeItemRow();
+  renderMultiTeamLimit();
 };
 
 const buildPickSummary = (pick) => {
@@ -485,6 +766,7 @@ async function init() {
   
   // Carregar times da liga
   await loadTeams();
+  renderMultiTradeTeams();
   
   setupPickSelectorHandlers();
   setupPlayerSelectorHandlers();
@@ -501,6 +783,14 @@ async function init() {
   // Event listeners
   document.getElementById('submitTradeBtn').addEventListener('click', submitTrade);
   document.getElementById('targetTeam').addEventListener('change', onTargetTeamChange);
+  const addMultiItemBtn = document.getElementById('addMultiTradeItemBtn');
+  if (addMultiItemBtn) {
+    addMultiItemBtn.addEventListener('click', addMultiTradeItemRow);
+  }
+  const submitMultiBtn = document.getElementById('submitMultiTradeBtn');
+  if (submitMultiBtn) {
+    submitMultiBtn.addEventListener('click', submitMultiTrade);
+  }
 
   // Event listener para busca de jogador nas trades gerais
   const leagueTradesSearch = document.getElementById('leagueTradesSearch');
@@ -516,6 +806,18 @@ async function init() {
       resetTradeFormState();
       clearCounterProposalState();
     });
+  }
+
+  const multiModalEl = document.getElementById('multiTradeModal');
+  if (multiModalEl) {
+    multiModalEl.addEventListener('hidden.bs.modal', () => {
+      resetMultiTradeForm();
+    });
+  }
+
+  const multiItemsContainer = document.getElementById('multiTradeItems');
+  if (multiItemsContainer && multiItemsContainer.children.length === 0) {
+    addMultiTradeItemRow();
   }
 
   // Verificar se há jogador pré-selecionado na URL
@@ -723,6 +1025,11 @@ function filterLeagueTrades(searchTerm) {
   
   // Filtrar trades que contenham o jogador
   const filtered = allLeagueTrades.filter(trade => {
+    if (trade.is_multi) {
+      return (trade.items || []).some((item) => {
+        return item.player_name && item.player_name.toLowerCase().includes(term);
+      });
+    }
     // Buscar em offer_players
     const hasInOffer = trade.offer_players.some(p => 
       p.name && p.name.toLowerCase().includes(term)
@@ -757,15 +1064,24 @@ async function loadTrades(type) {
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
   
   try {
-    const data = await api(`trades.php?type=${type}`);
-    const trades = data.trades || [];
+    const [dataResult, multiResult] = await Promise.allSettled([
+      api(`trades.php?type=${type}`),
+      api(`trades.php?action=multi_trades&type=${type}`)
+    ]);
+    const data = dataResult.status === 'fulfilled' ? dataResult.value : { trades: [] };
+    const multiData = multiResult.status === 'fulfilled' ? multiResult.value : { trades: [] };
+    const trades = (data.trades || []).map((trade) => ({ ...trade, is_multi: false }));
+    const multiTrades = (multiData.trades || []).map((trade) => ({ ...trade, is_multi: true }));
+    const combined = [...trades, ...multiTrades].sort((a, b) => {
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
     
     // Armazenar trades da liga para busca
     if (type === 'league') {
-      allLeagueTrades = trades;
+      allLeagueTrades = combined;
     }
     
-    if (trades.length === 0) {
+    if (combined.length === 0) {
       container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
       if (type === 'league') {
         const badge = document.getElementById('leagueTradesCount');
@@ -775,7 +1091,7 @@ async function loadTrades(type) {
     }
     
     container.innerHTML = '';
-    trades.forEach(trade => {
+    combined.forEach(trade => {
       const card = createTradeCard(trade, type);
       container.appendChild(card);
     });
@@ -783,7 +1099,7 @@ async function loadTrades(type) {
     if (type === 'league') {
       const badge = document.getElementById('leagueTradesCount');
       if (badge) {
-        badge.textContent = `${trades.length} ${trades.length === 1 ? 'trade' : 'trocas'}`;
+        badge.textContent = `${combined.length} ${combined.length === 1 ? 'trade' : 'trocas'}`;
       }
     }
   } catch (err) {
@@ -791,7 +1107,104 @@ async function loadTrades(type) {
   }
 }
 
+function createMultiTradeCard(trade, type) {
+  const card = document.createElement('div');
+  card.className = 'bg-dark-panel border-orange rounded p-4 mb-3';
+
+  const statusBadge = {
+    'pending': '<span class="badge bg-warning text-dark">Pendente</span>',
+    'accepted': '<span class="badge bg-success">Aceita</span>',
+    'rejected': '<span class="badge bg-danger">Rejeitada</span>',
+    'cancelled': '<span class="badge bg-secondary">Cancelada</span>'
+  }[trade.status] || '<span class="badge bg-secondary">-</span>';
+
+  const teamMap = {};
+  (trade.teams || []).forEach((team) => {
+    teamMap[team.id] = getTeamLabel(team);
+  });
+
+  const acceptanceBadge = trade.status === 'pending'
+    ? `<span class="badge bg-info text-dark">Aceitar ${trade.teams_accepted || 0}/${trade.teams_total || 0}</span>`
+    : '';
+
+  const items = (trade.items || []).map((item) => {
+    const fromLabel = teamMap[item.from_team_id] || `Time ${item.from_team_id}`;
+    const toLabel = teamMap[item.to_team_id] || `Time ${item.to_team_id}`;
+    let detail = '';
+    if (item.player_id) {
+      detail = formatTradePlayerDisplay({
+        name: item.player_name,
+        position: item.player_position,
+        age: item.player_age,
+        ovr: item.player_ovr
+      });
+    } else if (item.pick_id) {
+      detail = formatTradePickDisplay(item);
+    }
+    return `<li><i class="bi bi-arrow-left-right text-orange"></i> <strong>${fromLabel}</strong> → <strong>${toLabel}</strong>: ${detail || 'Item'}</li>`;
+  }).join('');
+
+  const teamsList = (trade.teams || []).map((team) => {
+    return `<span class="team-chip"><span class="team-chip-badge">${team.city?.[0] || 'T'}</span>${getTeamLabel(team)}</span>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+      <div>
+        <h5 class="text-white mb-1">Trade múltipla</h5>
+        <small class="text-light-gray">${new Date(trade.created_at).toLocaleDateString('pt-BR')}</small>
+      </div>
+      <div class="d-flex gap-2 align-items-center">
+        ${acceptanceBadge}
+        ${statusBadge}
+      </div>
+    </div>
+    <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-muted">Times</span>'}</div>
+    <div>
+      <h6 class="text-orange mb-2">Itens</h6>
+      <ul class="list-unstyled text-white">
+        ${items || '<li class="text-muted">Nenhum item</li>'}
+      </ul>
+    </div>
+    ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
+  `;
+
+  if (trade.status === 'pending' && type === 'received') {
+    const actions = document.createElement('div');
+    actions.className = 'mt-3 d-flex gap-2 flex-wrap';
+    actions.innerHTML = `
+      <button class="btn btn-success btn-sm" ${trade.my_accepted ? 'disabled' : ''}>
+        <i class="bi bi-check-circle me-1"></i>${trade.my_accepted ? 'Aceito' : 'Aceitar'}
+      </button>
+      <button class="btn btn-danger btn-sm">
+        <i class="bi bi-x-circle me-1"></i>Rejeitar
+      </button>
+    `;
+    const [acceptBtn, rejectBtn] = actions.querySelectorAll('button');
+    acceptBtn.addEventListener('click', () => respondMultiTrade(trade.id, 'accepted'));
+    rejectBtn.addEventListener('click', () => respondMultiTrade(trade.id, 'rejected'));
+    card.appendChild(actions);
+  }
+
+  if (trade.status === 'pending' && type === 'sent') {
+    const actions = document.createElement('div');
+    actions.className = 'mt-3 d-flex gap-2 flex-wrap';
+    actions.innerHTML = `
+      <button class="btn btn-secondary btn-sm">
+        <i class="bi bi-x-circle me-1"></i>Cancelar
+      </button>
+    `;
+    actions.querySelector('button').addEventListener('click', () => respondMultiTrade(trade.id, 'cancelled'));
+    card.appendChild(actions);
+  }
+
+  return card;
+}
+
 function createTradeCard(trade, type) {
+  if (trade.is_multi) {
+    return createMultiTradeCard(trade, type);
+  }
   const card = document.createElement('div');
   card.className = 'bg-dark-panel border-orange rounded p-4 mb-3';
   
@@ -921,6 +1334,37 @@ async function respondTrade(tradeId, action) {
     }
   } catch (err) {
     alert(err.error || 'Erro ao atualizar trade');
+  }
+}
+
+async function respondMultiTrade(tradeId, action) {
+  const actionTexts = {
+    'accepted': 'aceitar',
+    'rejected': 'rejeitar',
+    'cancelled': 'cancelar'
+  };
+
+  if (!confirm(`Confirma ${actionTexts[action]} esta trade múltipla?`)) {
+    return;
+  }
+
+  try {
+    await api('trades.php?action=multi_trades', {
+      method: 'PUT',
+      body: JSON.stringify({ trade_id: tradeId, action })
+    });
+    alert('Trade múltipla atualizada!');
+    loadTrades('received');
+    loadTrades('sent');
+    loadTrades('history');
+    loadTrades('league');
+    try {
+      await loadMyAssets();
+    } catch (e) {
+      console.warn('Falha ao atualizar assets após trade múltipla:', e);
+    }
+  } catch (err) {
+    alert(err.error || 'Erro ao atualizar trade múltipla');
   }
 }
 

@@ -461,6 +461,9 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
             <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
               <i class="bi bi-plus-circle me-1"></i>Nova Trade
             </button>
+            <button class="btn btn-outline-orange" data-bs-toggle="modal" data-bs-target="#multiTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+              <i class="bi bi-people-fill me-1"></i>Trade Múltipla
+            </button>
           <?php endif; ?>
         </div>
       </div>
@@ -701,6 +704,53 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     </div>
   </div>
 
+  <!-- Modal: Trade Múltipla -->
+  <div class="modal fade" id="multiTradeModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-people-fill me-2 text-orange"></i>Trade Múltipla</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="multiTradeForm">
+            <div class="mb-3">
+              <label class="form-label text-white fw-bold">Times participantes (máx. 7)</label>
+              <div id="multiTradeTeamsList" class="d-flex flex-column gap-2"></div>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label text-white fw-bold mb-0">Itens da troca</label>
+                <button type="button" class="btn btn-sm btn-outline-orange" id="addMultiTradeItemBtn">
+                  <i class="bi bi-plus-lg me-1"></i>Adicionar item
+                </button>
+              </div>
+              <div id="multiTradeItems"></div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label text-white">Mensagem (opcional)</label>
+              <textarea class="form-control bg-dark text-white border-orange" id="multiTradeNotes" rows="2"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <?php if ($tradesEnabled == 0): ?>
+            <button type="button" class="btn btn-secondary" id="submitMultiTradeBtn" disabled title="Trades desativadas pelo administrador">
+              <i class="bi bi-lock-fill me-1"></i>Enviar Trade Múltipla
+            </button>
+          <?php else: ?>
+            <button type="button" class="btn btn-orange" id="submitMultiTradeBtn">
+              <i class="bi bi-send me-1"></i>Enviar Trade Múltipla
+            </button>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
@@ -708,7 +758,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
-  <script src="/js/trades.js?v=20260205"></script>
+  <script src="/js/trades.js?v=20260206"></script>
   <script src="/js/trade-list.js?v=20260130"></script>
   <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>

@@ -72,6 +72,59 @@ function ensureTradeItemPickProtectionColumn(PDO $pdo): void {
 
 ensureTradeItemPickProtectionColumn($pdo);
 
+function ensureMultiTradeTables(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS multi_trades (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+            created_by_team_id INT NOT NULL,
+            status ENUM('pending','accepted','cancelled') DEFAULT 'pending',
+            notes TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_multi_trades_league (league),
+            INDEX idx_multi_trades_status (status),
+            FOREIGN KEY (created_by_team_id) REFERENCES teams(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS multi_trade_teams (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            trade_id INT NOT NULL,
+            team_id INT NOT NULL,
+            accepted_at TIMESTAMP NULL,
+            UNIQUE KEY uniq_multi_trade_team (trade_id, team_id),
+            INDEX idx_multi_trade_team (team_id),
+            FOREIGN KEY (trade_id) REFERENCES multi_trades(id) ON DELETE CASCADE,
+            FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS multi_trade_items (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            trade_id INT NOT NULL,
+            from_team_id INT NOT NULL,
+            to_team_id INT NOT NULL,
+            player_id INT NULL,
+            pick_id INT NULL,
+            pick_protection VARCHAR(20) NULL,
+            player_name VARCHAR(255) NULL,
+            player_position VARCHAR(10) NULL,
+            player_age INT NULL,
+            player_ovr INT NULL,
+            INDEX idx_multi_trade_item_trade (trade_id),
+            INDEX idx_multi_trade_item_from (from_team_id),
+            INDEX idx_multi_trade_item_to (to_team_id),
+            FOREIGN KEY (trade_id) REFERENCES multi_trades(id) ON DELETE CASCADE,
+            FOREIGN KEY (from_team_id) REFERENCES teams(id) ON DELETE CASCADE,
+            FOREIGN KEY (to_team_id) REFERENCES teams(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    } catch (Exception $e) {
+        // ignore migration errors
+    }
+}
+
+ensureMultiTradeTables($pdo);
+
 // Garante coluna 'cycle' para controle de limite por ciclo de temporadas
 function ensureTradeCycleColumn(PDO $pdo): void
 {
@@ -294,7 +347,7 @@ if (!$teamId) {
 $method = $_SERVER['REQUEST_METHOD'];
 
 // GET - Listar trades
-if ($method === 'GET') {
+if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     $type = $_GET['type'] ?? 'received'; // received, sent, history
     
     $conditions = [];
@@ -425,7 +478,212 @@ if ($method === 'GET') {
     exit;
 }
 
+// GET - Listar trades multiplas
+if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
+    $type = $_GET['type'] ?? 'received';
+
+    $conditions = [];
+    $params = [];
+    if ($type === 'received') {
+        $conditions[] = 'mt.status = "pending"';
+        $conditions[] = 'mtt.team_id = ?';
+        $params[] = $teamId;
+    } elseif ($type === 'sent') {
+        $conditions[] = 'mt.status = "pending"';
+        $conditions[] = 'mt.created_by_team_id = ?';
+        $params[] = $teamId;
+    } elseif ($type === 'league') {
+        $conditions[] = '(mt.league = ?)';
+        $conditions[] = 'mt.status = "accepted"';
+        $params[] = $user['league'];
+    } else {
+        $conditions[] = 'mtt.team_id = ?';
+        $conditions[] = 'mt.status IN ("accepted","cancelled")';
+        $params[] = $teamId;
+    }
+
+    $whereClause = implode(' AND ', $conditions);
+    $query = "
+        SELECT mt.*, 
+               (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id) AS teams_total,
+               (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id AND accepted_at IS NOT NULL) AS teams_accepted
+        FROM multi_trades mt
+        JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id
+        WHERE {$whereClause}
+        GROUP BY mt.id
+        ORDER BY mt.created_at DESC
+    ";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $trades = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($trades as &$trade) {
+        $trade['is_multi'] = true;
+        $tradeId = (int)$trade['id'];
+        $stmtMy = $pdo->prepare('SELECT accepted_at FROM multi_trade_teams WHERE trade_id = ? AND team_id = ?');
+        $stmtMy->execute([$tradeId, $teamId]);
+        $trade['my_accepted'] = (bool)$stmtMy->fetchColumn();
+        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
+        $stmtTeams->execute([$tradeId]);
+        $trade['teams'] = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
+        $stmtItems->execute([$tradeId]);
+        $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+        $ovrCol = playerOvrColumn($pdo);
+        $stmtPickInfo = $pdo->prepare('SELECT pk.*, t.city as original_team_city, t.name as original_team_name, lo.city as last_owner_city, lo.name as last_owner_name FROM picks pk JOIN teams t ON pk.original_team_id = t.id LEFT JOIN teams lo ON pk.last_owner_team_id = lo.id WHERE pk.id = ?');
+        foreach ($items as &$item) {
+            if ($item['player_id'] && (!$item['player_name'] || !$item['player_ovr'])) {
+                $stmtP = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
+                $stmtP->execute([(int)$item['player_id']]);
+                $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
+                $item['player_name'] = $item['player_name'] ?: ($p['name'] ?? null);
+                $item['player_position'] = $item['player_position'] ?: ($p['position'] ?? null);
+                $item['player_age'] = $item['player_age'] ?: ($p['age'] ?? null);
+                $item['player_ovr'] = $item['player_ovr'] ?: ($p['ovr'] ?? null);
+            }
+            if ($item['pick_id']) {
+                $stmtPickInfo->execute([(int)$item['pick_id']]);
+                $pick = $stmtPickInfo->fetch(PDO::FETCH_ASSOC) ?: [];
+                $item['season_year'] = $pick['season_year'] ?? null;
+                $item['round'] = $pick['round'] ?? null;
+                $item['original_team_id'] = $pick['original_team_id'] ?? null;
+                $item['original_team_city'] = $pick['original_team_city'] ?? null;
+                $item['original_team_name'] = $pick['original_team_name'] ?? null;
+                $item['last_owner_team_id'] = $pick['last_owner_team_id'] ?? null;
+                $item['last_owner_city'] = $pick['last_owner_city'] ?? null;
+                $item['last_owner_name'] = $pick['last_owner_name'] ?? null;
+            }
+        }
+        unset($item);
+        $trade['items'] = $items;
+    }
+    unset($trade);
+
+    echo json_encode(['success' => true, 'trades' => $trades]);
+    exit;
+}
+
 // POST - Criar trade
+if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $teams = $data['teams'] ?? [];
+    $items = $data['items'] ?? [];
+    $notes = trim($data['notes'] ?? '');
+
+    if (!is_array($teams) || count($teams) < 2) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Informe pelo menos 2 times.']);
+        exit;
+    }
+
+    $teams = array_values(array_unique(array_map('intval', $teams)));
+    if (!in_array((int)$teamId, $teams, true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Seu time deve participar da troca.']);
+        exit;
+    }
+    if (count($teams) > 7) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Máximo de 7 times por troca.']);
+        exit;
+    }
+    if (!is_array($items) || count($items) === 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Adicione pelo menos um item na troca.']);
+        exit;
+    }
+
+    $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtLeague->execute([$teamId]);
+    $league = $stmtLeague->fetchColumn();
+    if (!$league) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Liga inválida.']);
+        exit;
+    }
+    try {
+        $placeholders = implode(',', array_fill(0, count($teams), '?'));
+        $stmtTeamsLeague = $pdo->prepare("SELECT id FROM teams WHERE id IN ({$placeholders}) AND league = ?");
+        $stmtTeamsLeague->execute([...$teams, $league]);
+        $validTeams = $stmtTeamsLeague->fetchAll(PDO::FETCH_COLUMN);
+        if (count($validTeams) !== count($teams)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Todos os times precisam estar na mesma liga.']);
+            exit;
+        }
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao validar liga dos times.']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $stmtTrade = $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes) VALUES (?, ?, ?)');
+        $stmtTrade->execute([$league, $teamId, $notes]);
+        $tradeId = (int)$pdo->lastInsertId();
+
+        $stmtTeam = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id) VALUES (?, ?)');
+        foreach ($teams as $tid) {
+            $stmtTeam->execute([$tradeId, $tid]);
+        }
+
+        $hasPickProtectionCol = columnExists($pdo, 'multi_trade_items', 'pick_protection');
+        $ovrCol = playerOvrColumn($pdo);
+        $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+        foreach ($items as $item) {
+            $fromTeam = (int)($item['from_team_id'] ?? 0);
+            $toTeam = (int)($item['to_team_id'] ?? 0);
+            $playerId = isset($item['player_id']) ? (int)$item['player_id'] : null;
+            $pickId = isset($item['pick_id']) ? (int)$item['pick_id'] : null;
+            if (!$fromTeam || !$toTeam || (!$playerId && !$pickId)) {
+                continue;
+            }
+            if (!in_array($fromTeam, $teams, true) || !in_array($toTeam, $teams, true)) {
+                continue;
+            }
+
+            $playerName = null;
+            $playerPosition = null;
+            $playerAge = null;
+            $playerOvr = null;
+            if ($playerId) {
+                $stmtP = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
+                $stmtP->execute([$playerId]);
+                $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
+                $playerName = $p['name'] ?? null;
+                $playerPosition = $p['position'] ?? null;
+                $playerAge = $p['age'] ?? null;
+                $playerOvr = $p['ovr'] ?? null;
+            }
+            $stmtItem->execute([
+                $tradeId,
+                $fromTeam,
+                $toTeam,
+                $playerId,
+                $pickId,
+                $hasPickProtectionCol ? ($item['pick_protection'] ?? null) : null,
+                $playerName,
+                $playerPosition,
+                $playerAge,
+                $playerOvr
+            ]);
+        }
+
+        $pdo->commit();
+        echo json_encode(['success' => true, 'trade_id' => $tradeId]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar troca múltipla: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     
@@ -688,6 +946,149 @@ if ($method === 'POST') {
         $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao criar trade: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// PUT - Responder trade múltipla
+if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $tradeId = (int)($data['trade_id'] ?? 0);
+    $action = $data['action'] ?? null; // accepted, rejected, cancelled
+
+    if (!$tradeId || !$action) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+        exit;
+    }
+
+    $stmtTrade = $pdo->prepare('SELECT * FROM multi_trades WHERE id = ?');
+    $stmtTrade->execute([$tradeId]);
+    $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+    if (!$trade) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Troca múltipla não encontrada']);
+        exit;
+    }
+
+    $stmtTeamCheck = $pdo->prepare('SELECT * FROM multi_trade_teams WHERE trade_id = ? AND team_id = ?');
+    $stmtTeamCheck->execute([$tradeId, $teamId]);
+    $teamEntry = $stmtTeamCheck->fetch(PDO::FETCH_ASSOC);
+    if (!$teamEntry) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Sem permissão para responder']);
+        exit;
+    }
+
+    if ($action === 'cancelled' && (int)$trade['created_by_team_id'] !== (int)$teamId) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Só quem criou pode cancelar']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        if ($action === 'rejected' || $action === 'cancelled') {
+            $stmtCancel = $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?');
+            $stmtCancel->execute(['cancelled', $tradeId]);
+            $pdo->commit();
+            echo json_encode(['success' => true, 'status' => 'cancelled']);
+            exit;
+        }
+
+        if ($action === 'accepted') {
+            $stmtAccept = $pdo->prepare('UPDATE multi_trade_teams SET accepted_at = NOW() WHERE trade_id = ? AND team_id = ? AND accepted_at IS NULL');
+            $stmtAccept->execute([$tradeId, $teamId]);
+
+            $stmtCounts = $pdo->prepare('SELECT COUNT(*) AS total, SUM(CASE WHEN accepted_at IS NOT NULL THEN 1 ELSE 0 END) AS accepted FROM multi_trade_teams WHERE trade_id = ?');
+            $stmtCounts->execute([$tradeId]);
+            $counts = $stmtCounts->fetch(PDO::FETCH_ASSOC) ?: ['total' => 0, 'accepted' => 0];
+            $totalTeams = (int)$counts['total'];
+            $acceptedTeams = (int)$counts['accepted'];
+
+            if ($totalTeams > 0 && $acceptedTeams === $totalTeams) {
+                $stmtTeams = $pdo->prepare('SELECT team_id FROM multi_trade_teams WHERE trade_id = ?');
+                $stmtTeams->execute([$tradeId]);
+                $tradeTeams = array_map('intval', $stmtTeams->fetchAll(PDO::FETCH_COLUMN));
+
+                $league = $trade['league'] ?: $user['league'];
+                $maxTrades = getLeagueMaxTrades($pdo, $league, 3);
+                foreach ($tradeTeams as $tid) {
+                    if (getTeamTradesUsed($pdo, (int)$tid) >= $maxTrades) {
+                        throw new Exception('Um dos times já atingiu o limite de trades.');
+                    }
+                }
+
+                $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
+                $stmtItems->execute([$tradeId]);
+                $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtUpdateMultiPick = $pdo->prepare('UPDATE multi_trade_items SET pick_id = ? WHERE id = ?');
+                foreach ($items as &$item) {
+                    if (!empty($item['pick_id'])) {
+                        $normalizedId = normalizePickId($pdo, (int)$item['pick_id']);
+                        if ($normalizedId !== (int)$item['pick_id']) {
+                            $stmtUpdateMultiPick->execute([$normalizedId, $item['id']]);
+                            $item['pick_id'] = $normalizedId;
+                        }
+                    }
+                }
+                unset($item);
+
+                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
+                $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
+
+                foreach ($items as $item) {
+                    if ($item['player_id']) {
+                        $stmtTransferPlayer->execute([(int)$item['to_team_id'], (int)$item['player_id'], (int)$item['from_team_id']]);
+                        if ($stmtTransferPlayer->rowCount() === 0) {
+                            throw new Exception('Jogador ID ' . $item['player_id'] . ' não está mais disponível para transferência');
+                        }
+                    }
+                    if ($item['pick_id']) {
+                        $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id'], (int)$item['from_team_id']]);
+                        if ($stmtTransferPick->rowCount() === 0) {
+                            throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
+                        }
+                    }
+                }
+
+                foreach ($tradeTeams as $tid) {
+                    syncTeamTradeCounter($pdo, (int)$tid);
+                }
+                $stmtIncTrades = $pdo->prepare('UPDATE teams SET trades_used = trades_used + 1 WHERE id = ?');
+                foreach ($tradeTeams as $tid) {
+                    $stmtIncTrades->execute([(int)$tid]);
+                }
+
+                $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $tradeId]);
+                $pdo->commit();
+                echo json_encode(['success' => true, 'status' => 'accepted']);
+                exit;
+            }
+
+            $pdo->commit();
+            echo json_encode([
+                'success' => true,
+                'status' => 'pending',
+                'teams_total' => $totalTeams,
+                'teams_accepted' => $acceptedTeams
+            ]);
+            exit;
+        }
+
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar troca múltipla']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar troca múltipla']);
     }
     exit;
 }
