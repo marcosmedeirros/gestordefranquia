@@ -25,7 +25,7 @@ try {
 
 try {
     $stmt = $pdo->query("
-        SELECT id, nome, pontos
+        SELECT id, nome, pontos, league
         FROM usuarios
         ORDER BY pontos DESC
         LIMIT 5
@@ -33,6 +33,32 @@ try {
     $top_5_ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $top_5_ranking = [];
+}
+
+$ranking_por_liga = [
+    'ELITE' => [],
+    'RISE' => [],
+    'NEXT' => [],
+    'ROOKIE' => []
+];
+
+try {
+    $stmtLiga = $pdo->prepare("
+        SELECT id, nome, pontos
+        FROM usuarios
+        WHERE league = :league
+        ORDER BY pontos DESC
+        LIMIT 5
+    ");
+
+    foreach (array_keys($ranking_por_liga) as $liga) {
+        $stmtLiga->execute([':league' => $liga]);
+        $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+} catch (PDOException $e) {
+    foreach (array_keys($ranking_por_liga) as $liga) {
+        $ranking_por_liga[$liga] = [];
+    }
 }
 
 try {
@@ -558,37 +584,6 @@ try {
         </div>
     </div>
 
-    <h6 class="section-title"><i class="bi bi-flag"></i>Apostas por Liga</h6>
-    <div class="row g-3 mb-4">
-        <?php $ligas_ordem = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
-        <?php foreach ($ligas_ordem as $sigla => $label): ?>
-            <div class="col-12 col-md-6">
-                <div class="card-evento">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <div class="evento-titulo">Liga <?= $label ?></div>
-                            <small class="evento-data"><?= count($eventos_por_liga[$sigla] ?? []) ?> eventos abertos</small>
-                        </div>
-                        <span class="badge bg-dark border border-secondary text-light"><?= $sigla ?></span>
-                    </div>
-                    <?php if (!empty($eventos_por_liga[$sigla])): ?>
-                        <div class="opcoes-grid">
-                            <?php foreach (array_slice($eventos_por_liga[$sigla], 0, 3) as $evento): ?>
-                                <div class="card-opcao">
-                                    <span class="opcao-nome"><?= htmlspecialchars($evento['nome']) ?></span>
-                                    <small class="text-secondary d-block">Encerra: <?= date('d/m H:i', strtotime($evento['data_limite'])) ?></small>
-                                    <a href="games/apostas.php" class="btn btn-sm btn-outline-success w-100 mt-2" style="font-size: 0.85rem;">Ver apostas</a>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="text-center text-secondary">Nenhum evento aberto.</div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
     <?php if(!empty($ultimos_eventos_abertos)): ?>
         <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
         <?php foreach($ultimos_eventos_abertos as $evento): ?>
@@ -731,7 +726,7 @@ try {
     </div>
 
     <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings</h6>
-    <div class="ranking-container" style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 30px;">
+    <div class="ranking-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; margin-bottom: 30px;">
         <div class="ranking-card">
             <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral</div>
             <?php if(empty($top_5_ranking)): ?>
@@ -743,7 +738,12 @@ try {
                     <div class="ranking-item medal-<?= $idx+1 ?>">
                         <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
                         <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                            <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
+                            <span class="ranking-name">
+                                <?= htmlspecialchars($jogador['nome']) ?>
+                                <?php if (!empty($jogador['league'])): ?>
+                                    <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                <?php endif; ?>
+                            </span>
                         </div>
                         <span class="ranking-value">
                             <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
@@ -752,6 +752,30 @@ try {
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
+
+        <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
+        <?php foreach ($ranking_labels as $liga => $label): ?>
+            <div class="ranking-card">
+                <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
+                <?php if(empty($ranking_por_liga[$liga])): ?>
+                    <div class="text-center py-3">
+                        <small class="text-secondary">Sem dados ainda</small>
+                    </div>
+                <?php else: ?>
+                    <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
+                        <div class="ranking-item medal-<?= $idx+1 ?>">
+                            <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
+                            </div>
+                            <span class="ranking-value">
+                                <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
     </div>
 </div>
 
