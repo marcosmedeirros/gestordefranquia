@@ -34,10 +34,6 @@ $games_disponiveis = [
         'titulo' => '🧠 Jogo da Memória',
         'arquivo' => 'memoria.php'
     ],
-    'cafe' => [
-        'titulo' => '☕ Clube do Café',
-        'arquivo' => 'cafe.php'
-    ],
     'termo' => [
         'titulo' => '📝 Termo',
         'arquivo' => 'termo.php'
@@ -49,10 +45,6 @@ $games_disponiveis = [
     'corrida' => [
         'titulo' => '🏎️ Corrida Neon',
         'arquivo' => 'corrida.php'
-    ],
-    'mario' => [
-        'titulo' => '🍄 Mario Jump',
-        'arquivo' => 'mario.php'
     ]
     
 ];

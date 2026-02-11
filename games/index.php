@@ -12,7 +12,6 @@
 
 session_start();
 require 'core/conexao.php';
-require 'core/avatar.php';
 require 'core/sequencia_dias.php';
 
 // Segurança
@@ -264,6 +263,36 @@ try {
 } catch (PDOException $e) {
     $minhas_apostas_abertas = 0;
 }
+
+// 10. Total de apostas feitas
+try {
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM palpites WHERE id_usuario = :uid");
+    $stmt->execute([':uid' => $user_id]);
+    $total_apostas_usuario = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $total_apostas_usuario = 0;
+}
+
+// 11. Última aposta do usuário
+try {
+    $stmt = $pdo->prepare("
+        SELECT p.valor, p.odd_registrada, p.data_palpite, p.opcao_id,
+               o.descricao as opcao_descricao,
+               e.nome as evento_nome,
+               e.status as evento_status,
+               e.vencedor_opcao_id
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        WHERE p.id_usuario = :uid
+        ORDER BY p.data_palpite DESC
+        LIMIT 1
+    ");
+    $stmt->execute([':uid' => $user_id]);
+    $ultima_aposta = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+} catch (PDOException $e) {
+    $ultima_aposta = null;
+}
 ?>
 
 <!DOCTYPE html>
@@ -344,26 +373,6 @@ try {
             color: white;
         }
 
-        .avatar-btn {
-            background: linear-gradient(135deg, #9d4edd, #5a189a);
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .avatar-btn:hover {
-            background: linear-gradient(135deg, #a855f7, #6d28d9);
-            box-shadow: 0 0 12px rgba(157, 78, 221, 0.5);
-            color: white;
-            text-decoration: none;
-        }
 
         /* ===== CONTAINER ===== */
         .container-main {
@@ -529,19 +538,6 @@ try {
             border-bottom: none;
         }
 
-        .ranking-avatar {
-            flex-shrink: 0;
-            width: 48px;
-            height: 67px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .ranking-avatar svg {
-            width: 100%;
-            height: 100%;
-        }
 
         .ranking-position {
             font-weight: 800;
@@ -572,15 +568,15 @@ try {
 
         /* ===== ÚLTIMA APOSTA ===== */
         .aposta-card {
-            background: linear-gradient(135deg, #1b5e20, #2e7d32);
-            border: 1px solid #558b2f;
+            background: linear-gradient(135deg, #5a0a16, #9b0d24);
+            border: 1px solid #FC082B;
             border-radius: 12px;
             padding: 25px;
             margin-bottom: 20px;
         }
 
         .aposta-label {
-            color: #aed581;
+            color: #ffb3bf;
             font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -605,7 +601,7 @@ try {
         }
 
         .aposta-detail-label {
-            color: #9ccc65;
+            color: #ffb3bf;
             font-size: 0.8rem;
             text-transform: uppercase;
         }
@@ -801,8 +797,6 @@ try {
 </head>
 <body>
 
-<body>
-
 <!-- NAVBAR -->
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
             <a href="#" class="brand-name">🎮 FBA games</a>
@@ -813,21 +807,11 @@ try {
                 <span style="color: #999; font-size: 0.9rem;">Bem-vindo(a),</span>
                 <strong><?= htmlspecialchars($usuario['nome']) ?></strong>
             </div>
-            <div style="width: 36px; height: 51px; display: flex; align-items: center; justify-content: center; border: 1px solid #444; border-radius: 4px;">
-                <?php 
-                    $avatar_user = obterCustomizacaoAvatar($pdo, $user_id);
-                    echo renderizarAvatarSVG($avatar_user, 24);
-                ?>
-            </div>
         </div>
         
         <?php if (!empty($usuario['is_admin']) && $usuario['is_admin'] == 1): ?>
             <a href="admin/dashboard.php" class="admin-btn"><i class="bi bi-gear-fill me-1"></i> Admin</a>
         <?php endif; ?>
-        
-        <a href="games/avatar.php" class="avatar-btn">
-            <i class="bi bi-palette-fill"></i> Avatar
-        </a>
         
         <span class="saldo-badge">
             <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts
@@ -854,6 +838,129 @@ try {
         <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger mb-4 d-flex align-items-center">
             <i class="bi bi-exclamation-triangle-fill me-3" style="font-size: 1.3rem;"></i>
             <div><?= $erro ?></div>
+        </div>
+    <?php endif; ?>
+
+    <!-- SEÇÃO: MINHAS STATS (CARDS NO TOPO) -->
+    <h6 class="section-title"><i class="bi bi-person-circle"></i>Minhas Estatísticas</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
+                <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-cup-hot me-2"></i>Cafés Feitos</div>
+                <div class="stat-value"><?= $usuario['cafes_feitos'] ?? 0 ?></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-activity me-2"></i>Apostas Ativas</div>
+                <div class="stat-value"><?= $minhas_apostas_abertas ?></div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-megaphone me-2"></i>Eventos Abertos</div>
+                <div class="stat-value"><?= $total_eventos ?></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-receipt me-2"></i>Total de Apostas</div>
+                <div class="stat-value"><?= $total_apostas_usuario ?></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-clock-history me-2"></i>Última Aposta</div>
+                <?php if($ultima_aposta): ?>
+                    <div class="stat-value" style="font-size: 1.3rem;">
+                        <?= number_format($ultima_aposta['valor'], 0, ',', '.') ?> pts
+                    </div>
+                    <small class="text-secondary">
+                        <?= htmlspecialchars($ultima_aposta['evento_nome']) ?> • <?= htmlspecialchars($ultima_aposta['opcao_descricao']) ?>
+                    </small>
+                <?php else: ?>
+                    <div class="stat-value" style="font-size: 1.1rem;">Sem apostas</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php if($ultima_aposta): ?>
+        <?php
+            $resultado_aposta = null;
+            if (($ultima_aposta['evento_status'] ?? '') === 'encerrada' && $ultima_aposta['vencedor_opcao_id']) {
+                $resultado_aposta = ((int)$ultima_aposta['vencedor_opcao_id'] === (int)$ultima_aposta['opcao_id']) ? 'Ganhou' : 'Perdeu';
+            }
+        ?>
+        <h6 class="section-title"><i class="bi bi-cash-stack"></i>Minha Última Aposta</h6>
+        <div class="aposta-card">
+            <div class="aposta-label mb-1">Evento</div>
+            <div class="aposta-evento"><?= htmlspecialchars($ultima_aposta['evento_nome']) ?></div>
+            <div class="text-light mb-3">Opção: <?= htmlspecialchars($ultima_aposta['opcao_descricao']) ?></div>
+            <div class="aposta-details">
+                <div class="aposta-detail-item">
+                    <span class="aposta-detail-label">Valor</span>
+                    <span class="aposta-detail-value"><?= number_format($ultima_aposta['valor'], 0, ',', '.') ?> pts</span>
+                </div>
+                <div class="aposta-detail-item">
+                    <span class="aposta-detail-label">Odd</span>
+                    <span class="aposta-detail-value"><?= number_format($ultima_aposta['odd_registrada'], 2) ?>x</span>
+                </div>
+                <div class="aposta-detail-item">
+                    <span class="aposta-detail-label">Status</span>
+                    <span class="aposta-detail-value">
+                        <?php if($resultado_aposta): ?>
+                            <?= $resultado_aposta ?>
+                        <?php else: ?>
+                            <?= ($ultima_aposta['evento_status'] ?? '') === 'aberta' ? 'Aberta' : 'Encerrada' ?>
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="aposta-detail-item">
+                    <span class="aposta-detail-label">Data</span>
+                    <span class="aposta-detail-value"><?= date('d/m/Y H:i', strtotime($ultima_aposta['data_palpite'])) ?></span>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if(!empty($ultimos_eventos_abertos)): ?>
+        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Últimas Apostas</h6>
+        <?php foreach($ultimos_eventos_abertos as $evento): ?>
+            <div class="card-evento">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="evento-titulo"><?= htmlspecialchars($evento['nome']) ?></div>
+                        <small class="evento-data">
+                            <i class="bi bi-clock-history me-1 text-warning"></i>
+                            Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
+                        </small>
+                    </div>
+                </div>
+
+                <div class="opcoes-grid">
+                    <?php foreach($evento['opcoes'] as $opcao): ?>
+                        <div class="card-opcao">
+                            <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
+                            <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
+                            <a href="games/index.php?game=apostas" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>3 Últimas Apostas Disponíveis</h6>
+        <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+            <div class="empty-text">Nenhum evento disponível no momento</div>
         </div>
     <?php endif; ?>
 
@@ -894,14 +1001,6 @@ try {
         </div>
 
         <div class="col-6 col-md-4 col-lg-3">
-            <a href="games/index.php?game=cafe" class="game-card" style="--accent: #8d6e63;">
-                <span class="game-icon">☕</span>
-                <div class="game-title">Clube do Café</div>
-                <div class="game-subtitle">Registre cafés</div>
-            </a>
-        </div>
-
-        <div class="col-6 col-md-4 col-lg-3">
             <a href="games/index.php?game=termo" class="game-card" style="--accent: #4caf50;">
                 <span class="game-icon">📝</span>
                 <div class="game-title">Termo</div>
@@ -910,26 +1009,18 @@ try {
         </div>
 
         <div class="col-6 col-md-4 col-lg-3">
-            <a href="games/roleta.php" class="game-card" style="--accent: #d32f2f;">
-                <span class="game-icon">🎡</span>
-                <div class="game-title">Roleta</div>
-                <div class="game-subtitle">Cassino Europeu</div>
-            </a>
-        </div>
-
-        <div class="col-6 col-md-4 col-lg-3">
-            <a href="user/ranking.php" class="game-card" style="--accent: #ffc107;">
-                <span class="game-icon">🏆</span>
-                <div class="game-title">Ranking Geral</div>
-                <div class="game-subtitle">Veja os melhores</div>
-            </a>
-        </div>
-
-        <div class="col-6 col-md-4 col-lg-3">
             <a href="games/index.php?game=apostas" class="game-card" style="--accent: #e91e63;">
                 <span class="game-icon">💰</span>
                 <div class="game-title">Apostas</div>
                 <div class="game-subtitle">Faça suas apostas agora</div>
+            </a>
+        </div>
+
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="games/roleta.php" class="game-card" style="--accent: #d32f2f;">
+                <span class="game-icon">🎡</span>
+                <div class="game-title">Roleta</div>
+                <div class="game-subtitle">Cassino Europeu</div>
             </a>
         </div>
 
@@ -949,60 +1040,22 @@ try {
             </a>
         </div>
 
-    <!-- SEÇÃO: MINHAS STATS (CARDS NO TOPO) -->
-    <h6 class="section-title"><i class="bi bi-person-circle"></i>Minhas Estatísticas</h6>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
-                <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
-            </div>
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="games/index.php?game=corrida" class="game-card" style="--accent: #ff5722;">
+                <span class="game-icon">🏎️</span>
+                <div class="game-title">Corrida Neon</div>
+                <div class="game-subtitle">Desvie do trânsito</div>
+            </a>
         </div>
-        <div class="col-6 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-cup-hot me-2"></i>Cafés Feitos</div>
-                <div class="stat-value"><?= $usuario['cafes_feitos'] ?? 0 ?></div>
-            </div>
-        </div>
-        <div class="col-6 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-activity me-2"></i>Apostas Ativas</div>
-                <div class="stat-value"><?= $minhas_apostas_abertas ?></div>
-            </div>
+
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="games/crypto.php" class="game-card" style="--accent: #8b1528;">
+                <span class="game-icon">🚀</span>
+                <div class="game-title">Crypto Crash</div>
+                <div class="game-subtitle">Pare antes do crash</div>
+            </a>
         </div>
     </div>
-    <?php if(!empty($ultimos_eventos_abertos)): ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Últimas Apostas</h6>
-        <?php foreach($ultimos_eventos_abertos as $evento): ?>
-            <div class="card-evento">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <div class="evento-titulo"><?= htmlspecialchars($evento['nome']) ?></div>
-                        <small class="evento-data">
-                            <i class="bi bi-clock-history me-1 text-warning"></i>
-                            Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
-                        </small>
-                    </div>
-                </div>
-
-                <div class="opcoes-grid">
-                    <?php foreach($evento['opcoes'] as $opcao): ?>
-                        <div class="card-opcao">
-                            <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
-                            <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
-                            <a href="games/index.php?game=apostas" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</a>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>3 Últimas Apostas Disponíveis</h6>
-        <div class="empty-state">
-            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-            <div class="empty-text">Nenhum evento disponível no momento</div>
-        </div>
-    <?php endif; ?>
 
     <!-- SEÇÃO: RANKINGS -->
     <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings</h6>
@@ -1020,12 +1073,6 @@ try {
                 <?php foreach($top_5_ranking as $idx => $jogador): ?>
                     <div class="ranking-item medal-<?= $idx+1 ?>">
                         <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                        <div class="ranking-avatar">
-                            <?php 
-                                $avatar_jogador = obterCustomizacaoAvatar($pdo, $jogador['id']);
-                                echo renderizarAvatarSVG($avatar_jogador, 32);
-                            ?>
-                        </div>
                         <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
                             <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
                         </div>
@@ -1048,12 +1095,6 @@ try {
                 <?php foreach($top_5_cafes as $idx => $jogador): ?>
                     <div class="ranking-item medal-<?= $idx+1 ?>">
                         <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                        <div class="ranking-avatar">
-                            <?php 
-                                $avatar_jogador = obterCustomizacaoAvatar($pdo, $jogador['id']);
-                                echo renderizarAvatarSVG($avatar_jogador, 32);
-                            ?>
-                        </div>
                         <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
                         <span class="ranking-value">
                             <i class="bi bi-cup-hot"></i> <?= $jogador['cafes_feitos'] ?>
@@ -1073,12 +1114,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">♟️</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Rei do Xadrez</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $rei_xadrez['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($rei_xadrez['nome']) ?></div>
             </div>
         <?php endif; ?>
@@ -1088,12 +1123,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">🐧</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Rei do Pinguim</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $rei_pinguim['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($rei_pinguim['nome']) ?></div>
             </div>
         <?php endif; ?>
@@ -1103,12 +1132,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">🐦</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Rei do Flappy</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $rei_flappy['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($rei_flappy['nome']) ?></div>
             </div>
         <?php endif; ?>
@@ -1118,12 +1141,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">🚢</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Almirante Naval</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $rei_pnip['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($rei_pnip['nome']) ?></div>
             </div>
         <?php endif; ?>
@@ -1133,12 +1150,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">📝</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Maior Sequência Termo</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $seq_termo_vencedor['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($seq_termo_vencedor['nome']) ?></div>
                 <div style="font-size: 0.9em; color: #ff006e; margin-top: 8px; font-weight: bold;">x<?= $seq_termo_vencedor['sequencia_atual'] ?></div>
             </div>
@@ -1149,12 +1160,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">🧠</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Maior Sequência Memória</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $seq_memoria_vencedor['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($seq_memoria_vencedor['nome']) ?></div>
                 <div style="font-size: 0.9em; color: #00d4ff; margin-top: 8px; font-weight: bold;">x<?= $seq_memoria_vencedor['sequencia_atual'] ?></div>
             </div>
@@ -1165,12 +1170,6 @@ try {
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">☕</div>
                 <div style="font-size: 0.85rem; color: #999; margin-bottom: 10px;">Maior Sequência Café</div>
-                <div style="display: flex; justify-content: center; align-items: center; margin: 10px 0; width: 100%;">
-                    <?php 
-                        $avatar = obterCustomizacaoAvatar($pdo, $seq_cafe_vencedor['id']);
-                        echo renderizarAvatarSVG($avatar, 64);
-                    ?>
-                </div>
                 <div style="font-weight: bold; margin: 10px 0;"><?= htmlspecialchars($seq_cafe_vencedor['nome']) ?></div>
                 <div style="font-size: 0.9em; color: #D2691E; margin-top: 8px; font-weight: bold;">x<?= $seq_cafe_vencedor['sequencia_atual'] ?></div>
             </div>
