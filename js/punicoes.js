@@ -39,6 +39,8 @@ const scopeSelect = document.getElementById('punicaoScope');
 const createdAtInput = document.getElementById('punicaoDate');
 const listContainer = document.getElementById('punicoesList');
 const submitBtn = document.getElementById('punicaoSubmit');
+const historyLeagueSelect = document.getElementById('punicaoHistoryLeague');
+const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
 
 const pickRow = document.getElementById('punicaoPickRow');
 const scopeRow = document.getElementById('punicaoScopeRow');
@@ -62,14 +64,23 @@ function updateFormVisibility() {
 
 async function loadLeagues() {
   const data = await api('punicoes.php?action=leagues');
-  leagueSelect.innerHTML = '<option value="">Selecione a liga...</option>' + (data.leagues || []).map(l => (
+  const leagueOptions = (data.leagues || []).map(l => (
     `<option value="${l}">${l}</option>`
   )).join('');
+  leagueSelect.innerHTML = '<option value="">Selecione a liga...</option>' + leagueOptions;
+  if (historyLeagueSelect) {
+    historyLeagueSelect.innerHTML = '<option value="">Todas as ligas</option>' + leagueOptions;
+  }
 }
 
-async function loadTeams(league) {
+async function loadTeams(league, targetSelect = teamSelect, emptyLabel = 'Selecione o time...') {
+  if (!targetSelect) return;
+  if (!league) {
+    targetSelect.innerHTML = `<option value="">${emptyLabel}</option>`;
+    return;
+  }
   const data = await api(`punicoes.php?action=teams&league=${league}`);
-  teamSelect.innerHTML = '<option value="">Selecione o time...</option>' + (data.teams || []).map(t => (
+  targetSelect.innerHTML = `<option value="">${emptyLabel}</option>` + (data.teams || []).map(t => (
     `<option value="${t.id}">${t.city} ${t.name}</option>`
   )).join('');
 }
@@ -85,12 +96,20 @@ async function loadPicks(teamId) {
   )).join('');
 }
 
-async function loadPunishments(teamId) {
-  if (!teamId) {
-    listContainer.innerHTML = '<div class="text-light-gray">Selecione um time para ver as punições.</div>';
+function getTypeLabel(type) {
+  const match = PUNISHMENT_TYPES.find(item => item.value === type);
+  return match ? match.label : type;
+}
+
+async function loadPunishments({ teamId = '', league = '' } = {}) {
+  if (!teamId && !league) {
+    listContainer.innerHTML = '<div class="text-light-gray">Selecione uma liga ou time para ver as punições.</div>';
     return;
   }
-  const data = await api(`punicoes.php?action=punishments&team_id=${teamId}`);
+  const params = new URLSearchParams({ action: 'punishments' });
+  if (teamId) params.append('team_id', teamId);
+  if (league) params.append('league', league);
+  const data = await api(`punicoes.php?${params.toString()}`);
   const rows = data.punishments || [];
   if (!rows.length) {
     listContainer.innerHTML = '<div class="text-light-gray">Nenhuma punição registrada.</div>';
@@ -98,12 +117,15 @@ async function loadPunishments(teamId) {
   }
   listContainer.innerHTML = rows.map(p => {
     const pickInfo = p.pick_id ? `Pick ${p.season_year || ''} R${p.round || ''}`.trim() : '-';
+    const teamName = `${p.city || ''} ${p.name || ''}`.trim();
+    const leagueLabel = p.league || p.team_league || '-';
     return `
       <div class="punicao-card">
         <div class="d-flex justify-content-between flex-wrap gap-2">
           <div>
-            <strong>${p.type}</strong>
+            <strong>${getTypeLabel(p.type)}</strong>
             <div class="text-light-gray small">${p.created_at}</div>
+            <div class="text-light-gray small">${teamName} • ${leagueLabel}</div>
           </div>
           <span class="badge bg-secondary">${p.season_scope || 'current'}</span>
         </div>
@@ -145,7 +167,10 @@ async function submitPunishment() {
   notesInput.value = '';
   pickSelect.value = '';
   await loadPicks(currentTeamId);
-  await loadPunishments(currentTeamId);
+  await loadPunishments({
+    teamId: historyTeamSelect?.value || currentTeamId,
+    league: historyLeagueSelect?.value || ''
+  });
   alert('Punição registrada!');
 }
 
@@ -153,14 +178,40 @@ leagueSelect.addEventListener('change', async (e) => {
   currentLeague = e.target.value;
   currentTeamId = '';
   await loadTeams(currentLeague);
-  listContainer.innerHTML = '<div class="text-light-gray">Selecione um time para ver as punições.</div>';
+  listContainer.innerHTML = '<div class="text-light-gray">Selecione uma liga ou time para ver as punições.</div>';
 });
 
 teamSelect.addEventListener('change', async (e) => {
   currentTeamId = e.target.value;
   await loadPicks(currentTeamId);
-  await loadPunishments(currentTeamId);
+  if (historyTeamSelect) {
+    historyTeamSelect.value = currentTeamId;
+  }
+  await loadPunishments({
+    teamId: currentTeamId,
+    league: historyLeagueSelect?.value || currentLeague
+  });
 });
+
+if (historyLeagueSelect) {
+  historyLeagueSelect.addEventListener('change', async (e) => {
+    const league = e.target.value;
+    await loadTeams(league, historyTeamSelect, 'Todos os times');
+    await loadPunishments({
+      teamId: historyTeamSelect?.value || '',
+      league
+    });
+  });
+}
+
+if (historyTeamSelect) {
+  historyTeamSelect.addEventListener('change', async (e) => {
+    await loadPunishments({
+      teamId: e.target.value,
+      league: historyLeagueSelect?.value || ''
+    });
+  });
+}
 
 typeSelect.addEventListener('change', updateFormVisibility);
 submitBtn.addEventListener('click', submitPunishment);
@@ -168,3 +219,6 @@ submitBtn.addEventListener('click', submitPunishment);
 renderTypeOptions();
 updateFormVisibility();
 loadLeagues();
+if (historyTeamSelect) {
+  historyTeamSelect.innerHTML = '<option value="">Todos os times</option>';
+}

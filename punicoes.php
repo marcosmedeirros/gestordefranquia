@@ -115,7 +115,17 @@ $team = $stmtTeam->fetch();
 
       <div class="col-lg-8">
         <div class="bg-dark-panel border-orange rounded p-4">
-          <h5 class="text-white mb-3">Histórico do time</h5>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h5 class="text-white mb-0">Histórico do time</h5>
+            <div class="d-flex flex-wrap gap-2">
+              <select id="punicaoHistoryLeague" class="form-select bg-dark text-white border-orange">
+                <option value="">Todas as ligas</option>
+              </select>
+              <select id="punicaoHistoryTeam" class="form-select bg-dark text-white border-orange">
+                <option value="">Todos os times</option>
+              </select>
+            </div>
+          </div>
           <div id="punicoesList" class="text-light-gray">Selecione um time para ver as punições.</div>
         </div>
       </div>

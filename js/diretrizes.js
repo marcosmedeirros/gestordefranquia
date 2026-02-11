@@ -475,6 +475,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   
   // VALIDAÇÃO COMPLETA DE MINUTAGEM
   const validationErrors = [];
+  const validationWarnings = [];
   const playerMinutes = {};
   let totalMinutes = 0;
   const rotationStyle = fd.get('rotation_style');
@@ -537,7 +538,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     
     // Regra 3: Se não tem 3 jogadores 85+, top 5 OVRs precisam de 25+ minutos
     if (isTop5 && minutes < 25) {
-      validationErrors.push(`⚠️ ${playerName} está entre os 5 MAIORES OVRs (${player.ovr}) e deve jogar no mínimo 25 minutos (atual: ${minutes}min). Seu time não tem 3 jogadores 85+.`);
+      validationWarnings.push(`⚠️ ${playerName} está entre os 5 MAIORES OVRs (${player.ovr}) e deveria jogar no mínimo 25 minutos (atual: ${minutes}min). Seu time não tem 3 jogadores 85+.`);
     }
     
     // Regra 4: Máximo de minutos
@@ -583,6 +584,10 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   if (validationErrors.length > 0) {
     showValidationError(validationErrors, () => submitDirective({ ...payload, allow_invalid: true }));
     return;
+  }
+
+  if (validationWarnings.length > 0) {
+    alert(`Atenção:\n\n${validationWarnings.join('\n')}`);
   }
   
   await submitDirective(payload);

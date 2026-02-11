@@ -123,19 +123,36 @@ if ($method === 'GET') {
 
     if ($action === 'punishments') {
         $teamId = (int)($_GET['team_id'] ?? 0);
-        if (!$teamId) {
+        $league = strtoupper(trim($_GET['league'] ?? ''));
+
+        if (!$teamId && !$league) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Time inválido']);
+            echo json_encode(['success' => false, 'error' => 'Informe time ou liga']);
             exit;
         }
+
+        $conditions = [];
+        $params = [];
+        if ($teamId) {
+            $conditions[] = 'tp.team_id = ?';
+            $params[] = $teamId;
+        }
+        if ($league) {
+            $conditions[] = 'tp.league = ?';
+            $params[] = $league;
+        }
+
+        $where = implode(' AND ', $conditions);
         $stmt = $pdo->prepare('
-            SELECT tp.*, pk.season_year, pk.round
+            SELECT tp.*, pk.season_year, pk.round,
+                   t.city, t.name, t.league AS team_league
             FROM team_punishments tp
             LEFT JOIN picks pk ON pk.id = tp.pick_id
-            WHERE tp.team_id = ?
+            JOIN teams t ON t.id = tp.team_id
+            WHERE ' . $where . '
             ORDER BY tp.created_at DESC, tp.id DESC
         ');
-        $stmt->execute([$teamId]);
+        $stmt->execute($params);
         echo json_encode(['success' => true, 'punishments' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
         exit;
     }

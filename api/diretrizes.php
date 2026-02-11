@@ -572,10 +572,8 @@ if ($method === 'POST') {
                         throw new Exception("Reserva {$playerName} deve jogar no mínimo 5 minutos.");
                     }
                     
-                    // Validação: Se time não tem 3 jogadores 85+, os 5 maiores OVRs devem ter 25+ minutos
-                    if (!$allowInvalid && $isTop5 && $m < 25) {
-                        throw new Exception("Seu time não tem 3 jogadores 85+. Os 5 maiores OVRs devem jogar no mínimo 25 minutos. {$playerName} está entre os 5 maiores OVRs.");
-                    }
+                    // Regra informativa: Se time não tem 3 jogadores 85+, top 5 OVRs idealmente 25+ minutos
+                    // (não bloqueia envio)
                     
                     if (!$allowInvalid && $m > $maxMinutes) {
                         throw new Exception("Jogador {$playerName} não pode jogar mais de {$maxMinutes} minutos.");
