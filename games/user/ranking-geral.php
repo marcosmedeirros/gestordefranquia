@@ -192,6 +192,7 @@ $tab_labels = [
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
     <a href="../index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
+        <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
         <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
         <a href="../auth/logout.php" class="btn btn-sm btn-outline-danger border-0">
             <i class="bi bi-box-arrow-right"></i>
