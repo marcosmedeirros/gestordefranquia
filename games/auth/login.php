@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Pikafumo Games</title>
+    <title>Login - FBA games</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body, html { height: 100%; margin: 0; }
@@ -121,9 +121,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <!-- LADO ESQUERDO: Texto e Boas-vindas -->
         <div class="col-md-6 left-side">
             <div>
-                <h1 class="brand-text">Pikafumo Games 🎮</h1>
+                <h1 class="brand-text">FBA games 🎮</h1>
                 <p class="hero-text">
-                    Bem vindo ao Pikafumo Games.<br><br>
+                    Bem vindo ao FBA games.<br><br>
                     Acerte mais que o seus companheiros, ganhe pontos e fique em primeiro do ranking.<br><br>
                 
                 </p>

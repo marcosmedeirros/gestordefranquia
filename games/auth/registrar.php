@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Criar Conta - Pikafumo Games</title>
+    <title>Criar Conta - FBA games</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
 
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border: 1px solid #333;
         }
 
-        .brand-text { font-size: 2.5rem; font-weight: 800; margin-bottom: 20px; color: #00e676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.3); }
+    .brand-text { font-size: 2.5rem; font-weight: 800; margin-bottom: 20px; color: #FC082B; text-shadow: 0 0 10px rgba(252, 8, 43, 0.3); }
         .hero-text { font-size: 1.2rem; line-height: 1.6; opacity: 0.8; color: #aaa; }
 
         /* Inputs Dark */
@@ -107,15 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             background-color: #2b2b2b; border: 1px solid #444; color: #fff; 
         }
         .form-control:focus { 
-            background-color: #2b2b2b; border-color: #00e676; color: #fff; box-shadow: 0 0 0 0.25rem rgba(0, 230, 118, 0.25); 
+            background-color: #2b2b2b; border-color: #FC082B; color: #fff; box-shadow: 0 0 0 0.25rem rgba(252, 8, 43, 0.25); 
         }
         .form-label { color: #ccc; }
 
         .btn-success-custom {
-            background-color: #00e676; color: #000; font-weight: 800; border: none;
+            background-color: #FC082B; color: #000; font-weight: 800; border: none;
             transition: 0.3s;
         }
-        .btn-success-custom:hover { background-color: #00c853; box-shadow: 0 0 15px rgba(0, 230, 118, 0.4); }
+    .btn-success-custom:hover { background-color: #e00627; box-shadow: 0 0 15px rgba(252, 8, 43, 0.4); }
 
         @media (max-width: 768px) {
             .row-full { height: auto; }
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <div>
                 <h1 class="brand-text">Criar conta 🚀</h1>
                 <p class="hero-text">
-                    Crie sua conta no <strong>Pikafumo Games</strong> agora.<br><br>
+                    Crie sua conta no <strong>FBA games</strong> agora.<br><br>
                     <span class="text-white fw-bold">🎁 Você já começa com <span class="text-warning">50 pontos</span> grátis para fazer sua primeira aposta.</span><br><br>
                     Participe dos jogos, suba no ranking e divirta-se!
                 </p>

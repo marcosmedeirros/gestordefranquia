@@ -1,5 +1,5 @@
 <?php
-// pnipnaval.php - BATALHA NAVAL COM LOBBY (MODELO XADREZ 🚢💥)
+// batalhanaval.php - BATALHA NAVAL COM LOBBY (MODELO XADREZ 🚢💥)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
@@ -412,7 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNIPNAVAL - Lobby</title>
+    <title>Batalha Naval - Lobby</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
@@ -458,7 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
 <div class="navbar-custom d-flex justify-content-between align-items-center mb-5 shadow-sm">
     <div class="d-flex align-items-center gap-3">
-        <span class="fs-5 fw-bold text-info"><i class="bi bi-tsunami me-2"></i>PNIPNAVAL</span>
+    <span class="fs-5 fw-bold text-info"><i class="bi bi-tsunami me-2"></i>Batalha Naval</span>
         <span class="text-secondary small border-start border-secondary ps-3">Capitão <?= htmlspecialchars($meu_perfil['nome']) ?></span>
     </div>
     <div class="d-flex align-items-center gap-3">
@@ -641,7 +641,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     function updateLobby() {
         if(salaId) return; // Se já estou em jogo, não atualiza lobby
         const fd = new FormData(); fd.append('acao', 'atualizar_lobby');
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => r.text())
             .then(html => { document.getElementById('lobby-list').innerHTML = html; });
     }
@@ -655,7 +655,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if(!confirm('Criar sala apostando '+val+' pontos?')) return;
         
         const fd = new FormData(); fd.append('acao', 'criar_sala'); fd.append('valor', val);
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -672,7 +672,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if(!confirm('Entrar na batalha por '+val+' pontos?')) return;
         
         const fd = new FormData(); fd.append('acao', 'entrar_sala'); fd.append('sala_id', id);
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -701,7 +701,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         fd.append('sala_id', salaId);
         fd.append('valor', valor);
         
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -718,7 +718,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     function gameLoop() {
         if(!salaId) return;
         const fd = new FormData(); fd.append('acao', 'buscar_estado'); fd.append('sala_id', salaId);
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -870,7 +870,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         fd.append('acao', 'confirmar_navios');
         fd.append('sala_id', salaId);
         fd.append('navios', JSON.stringify(flatCells)); 
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -927,7 +927,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         fd.append('sala_id', salaId);
         fd.append('x', x); fd.append('y', y);
 
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();
@@ -945,7 +945,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if(!salaId) return alert('Você não está em uma sala.');
         if(!confirm('Deseja desistir da partida? O oponente será declarado vencedor.')) return;
         const fd = new FormData(); fd.append('acao', 'desistir'); fd.append('sala_id', salaId);
-        fetch('pnipnaval.php', { method: 'POST', body: fd })
+    fetch('batalhanaval.php', { method: 'POST', body: fd })
             .then(r => {
                 if(!r.ok) throw new Error('Resposta do servidor: ' + r.status);
                 return r.json();

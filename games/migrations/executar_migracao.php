@@ -9,9 +9,9 @@ ini_set('display_errors', 1);
 
 // Parâmetros de conexão
 $host = 'localhost';
-$db = 'pikafumogames';
-$user = 'root';
-$pass = '';
+$db = 'u289267434_gamesfba';
+$user = 'u289267434_gamesfba';
+$pass = 'Gamesfba@123';
 
 try {
     // Conectar ao banco

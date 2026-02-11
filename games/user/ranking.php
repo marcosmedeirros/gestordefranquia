@@ -42,7 +42,7 @@ try {
     $stmtFlappy = $pdo->query("SELECT id_usuario FROM flappy_historico ORDER BY pontuacao DESC LIMIT 1");
     $id_rei_flappy = $stmtFlappy->fetchColumn();
 
-    // Rei do PNIPNAVAL: Quem tem mais vitórias em Batalha Naval
+    // Rei do Batalha Naval: Quem tem mais vitórias em Batalha Naval
     $stmtPNIP = $pdo->query("SELECT vencedor_id FROM naval_salas WHERE status = 'fim' AND vencedor_id IS NOT NULL GROUP BY vencedor_id ORDER BY COUNT(*) DESC LIMIT 1");
     $id_rei_pnip = $stmtPNIP->fetchColumn();
 
@@ -115,7 +115,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ranking - Pikafumo Games</title>
+    <title>Ranking - FBA games</title>
     
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏆</text></svg>">
@@ -139,13 +139,13 @@ try {
         }
 
         .saldo-badge { 
-            background-color: #00e676; 
+            background-color: #FC082B; 
             color: #000;
             padding: 8px 15px; 
             border-radius: 20px; 
             font-weight: 800; 
             font-size: 1.1em;
-            box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
         }
 
         .admin-btn { 
@@ -186,7 +186,7 @@ try {
         .col-ganhos { font-weight: 800; font-size: 1.1em; }
         .col-saldo { font-weight: 600; font-size: 1em; opacity: 0.9; }
         
-        .text-lucro { color: #00e676; } /* Verde para lucro */
+    .text-lucro { color: #FC082B; } /* Destaque para lucro */
         .text-preju { color: #ff5252; } /* Vermelho para prejuízo */
         .text-neutro { color: #aaa; }   /* Cinza para zero a zero */
 
@@ -211,7 +211,7 @@ try {
         .pos-2 { background: linear-gradient(90deg, rgba(189, 195, 199, 0.15), transparent) !important; border-left: 4px solid #bdc3c7; } 
         .pos-3 { background: linear-gradient(90deg, rgba(230, 126, 34, 0.15), transparent) !important; border-left: 4px solid #e67e22; } 
         
-        .me-row { background-color: rgba(0, 230, 118, 0.1) !important; border: 1px solid #00e676; font-weight: bold; }
+    .me-row { background-color: rgba(252, 8, 43, 0.1) !important; border: 1px solid #FC082B; font-weight: bold; }
 
         /* TAGS ESPECIAIS */
         .tag-badge { 
@@ -318,7 +318,7 @@ try {
                                         <?php endif; ?>
 
                                         <?php if($user['id'] == $id_rei_pnip): ?>
-                                            <span class="badge tag-badge tag-pnip ms-2" title="Almirante da Batalha Naval (Mais vitórias)">🚢 PNIP</span>
+                                            <span class="badge tag-badge tag-pnip ms-2" title="Almirante da Batalha Naval (Mais vitórias)">🚢 NAVAL</span>
                                         <?php endif; ?>
 
                                         <?php if(isset($sequencias_usuario[$user['id']]['termo']) && $sequencias_usuario[$user['id']]['termo'] > 0): ?>

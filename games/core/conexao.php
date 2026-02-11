@@ -2,9 +2,9 @@
 // core/conexao.php
 
 $host = 'localhost';
-$dbname = 'u289267434_lumacio';
-$user = 'u289267434_macoinhas';
-$pass = 'Zonete@13';
+$dbname = 'u289267434_gamesfba';
+$user = 'u289267434_gamesfba';
+$pass = 'Gamesfba@123';
 
 try {
     // Conexão com PDO

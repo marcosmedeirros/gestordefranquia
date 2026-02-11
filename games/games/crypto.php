@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Crypto Crash - Pikafumo Games</title>
+    <title>🚀 Crypto Crash - FBA games</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/avatar.css">
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         h1, h2, h3, h4, h5, h6 { color: #fff; }
         .navbar-custom { background: #000; border-bottom: 1px solid #333; padding: 15px 25px; }
         .navbar-custom .brand-name { font-size: 1.8em; font-weight: bold; color: #fff; text-decoration: none; text-shadow: none; }
-        .saldo-badge { background: rgba(46, 213, 115, 0.15); border: 1px solid #2ed573; padding: 8px 15px; border-radius: 6px; color: #2ed573; font-weight: bold; }
+    .saldo-badge { background: rgba(252, 8, 43, 0.15); border: 1px solid #FC082B; padding: 8px 15px; border-radius: 6px; color: #FC082B; font-weight: bold; }
         .container-main { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
         .section-title { color: #fff; font-size: 1.3em; font-weight: bold; margin-bottom: 20px; text-shadow: none; }
         .game-container { background: linear-gradient(135deg, rgba(139, 21, 40, 0.05) 0%, rgba(139, 21, 40, 0.02) 100%); border: 2px solid var(--accent); border-radius: 12px; padding: 25px; margin-bottom: 30px; display: flex; flex-direction: column; gap: 20px; }
@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     .btn-back:hover { background: rgba(139, 21, 40, 0.18); }
         .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; border: 1px solid; }
         .message.show { display: block; }
-        .message.success { background: rgba(46, 213, 115, 0.1); border-color: #2ed573; color: #2ed573; }
+    .message.success { background: rgba(252, 8, 43, 0.1); border-color: #FC082B; color: #FC082B; }
         .message.error { background: rgba(255, 68, 68, 0.1); border-color: #ff4444; color: #ff4444; }
         .message.crash { background: rgba(139, 21, 40, 0.2); border-color: var(--accent); color: #fff; }
         .crash-history { background: rgba(139, 21, 40, 0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin-bottom: 0; }
@@ -213,14 +213,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 </head>
 <body>
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
-    <a href="../index.php" class="brand-name">🎮 PIKAFUMO</a>
+    <a href="../index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
         <div class="d-none d-md-flex align-items-center gap-2">
             <div>
                 <span style="color: #999; font-size: 0.9rem;">Bem-vindo(a),</span>
                 <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong>
             </div>
-            <div style="width: 36px; height: 51px; display: flex; align-items: center; justify-content: center; border: 1px solid #2ed573; border-radius: 4px;">
+            <div style="width: 36px; height: 51px; display: flex; align-items: center; justify-content: center; border: 1px solid #FC082B; border-radius: 4px;">
                 <?php $avatar_user = obterCustomizacaoAvatar($pdo, $user_id); echo renderizarAvatarSVG($avatar_user, 24); ?>
             </div>
         </div>

@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memória RAM - Pikafumo Games</title>
+    <title>Memória RAM - FBA games</title>
     
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
@@ -159,9 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             padding: 15px; 
         }
         .saldo-badge { 
-            background-color: #00e676; color: #000; padding: 8px 15px; 
+            background-color: #FC082B; color: #000; padding: 8px 15px; 
             border-radius: 20px; font-weight: 800; font-size: 1.1em;
-            box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
         }
         .admin-btn { 
             background-color: #ff6d00; color: white; padding: 5px 15px; 
@@ -191,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         }
 
         .card-game.flip { transform: rotateY(180deg); }
-        .card-game.matched .card-back { background-color: #00e676 !important; border-color: #00e676; box-shadow: 0 0 10px rgba(0,230,118,0.5); }
+    .card-game.matched .card-back { background-color: #FC082B !important; border-color: #FC082B; box-shadow: 0 0 10px rgba(252, 8, 43, 0.5); }
 
         .card-face {
             width: 100%; height: 100%; position: absolute;

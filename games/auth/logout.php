@@ -13,6 +13,6 @@ if (ini_get("session.use_cookies")) {
 session_destroy();
 
 // AQUI ESTÁ A MUDANÇA: Manda para a sua URL da Hostinger
-header("Location: https://pikafumogames.tech/");
+header("Location: https://jogos.fbabrasil.com.br/");
 exit;
 ?>

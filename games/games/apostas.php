@@ -150,7 +150,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💰 Apostas - Pikafumo Games</title>
+    <title>💰 Apostas - FBA games</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -161,7 +161,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             --primary-dark: #121212;
             --secondary-dark: #1e1e1e;
             --border-dark: #333;
-            --accent-green: #00e676;
+            --accent-green: #FC082B;
         }
 
         body {
@@ -184,7 +184,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             border-radius: 25px;
             font-weight: 800;
             font-size: 1.1em;
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.3);
         }
 
         .container-main {
@@ -222,7 +222,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
         .card-evento:hover {
             border-color: var(--accent-green);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.1);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.1);
         }
 
         .evento-titulo {
@@ -273,7 +273,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             font-size: 1.5em;
             display: block;
             margin-bottom: 12px;
-            text-shadow: 0 0 5px rgba(0, 230, 118, 0.2);
+            text-shadow: 0 0 5px rgba(252, 8, 43, 0.2);
         }
 
         .form-aposta {
@@ -303,7 +303,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
         .btn-apostar:hover {
             transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.3);
             color: #000;
         }
 

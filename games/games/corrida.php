@@ -221,8 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         .hidden { display: none !important; }
         
         .card-menu { background: #1e1e1e; border: 1px solid #333; padding: 30px; border-radius: 20px; text-align: center; max-width: 500px; width: 90%; box-shadow: 0 0 30px rgba(0,255,100,0.1); }
-        .btn-neon { background: #00e676; color: #000; font-weight: 800; border: none; padding: 12px 30px; border-radius: 50px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
-        .btn-neon:hover { transform: scale(1.05); box-shadow: 0 0 15px #00e676; color: #000; }
+    .btn-neon { background: #FC082B; color: #000; font-weight: 800; border: none; padding: 12px 30px; border-radius: 50px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+    .btn-neon:hover { transform: scale(1.05); box-shadow: 0 0 15px #FC082B; color: #000; }
         
         /* HUD In-Game */
         .hud { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; display: flex; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10; font-family: monospace; font-weight: bold; text-shadow: 2px 2px 0 #000; font-size: 1.2rem; }
@@ -662,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         traffic.forEach(t => drawCar(t.x, t.y, t.color, false));
 
         // Player
-        drawCar(playerX, 600, '#00e676', true); // Player fixo no Y=600
+    drawCar(playerX, 600, '#FC082B', true); // Player fixo no Y=600
 
         // Partículas
         ctx.fillStyle = 'orange';

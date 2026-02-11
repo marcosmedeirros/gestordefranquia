@@ -1,5 +1,5 @@
 <?php
-// blackjack.php - CASSINO PIKAFUMO (21 ♠️♥️♣️♦️) - MODO REAL (LIMITE 15)
+// blackjack.php - CASSINO FBA games (21 ♠️♥️♣️♦️) - MODO REAL (LIMITE 15)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
@@ -337,7 +337,7 @@ function retornarEstado($game) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blackjack - Pikafumo</title>
+    <title>Blackjack - FBA games</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♠️</text></svg>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -345,7 +345,7 @@ function retornarEstado($game) {
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
         .navbar-custom { background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%); border-bottom: 1px solid #333; padding: 15px; }
-        .saldo-badge { background-color: #00e676; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: 800; }
+    .saldo-badge { background-color: #FC082B; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: 800; }
 
         .bj-table {
             background: radial-gradient(circle, #004d40 0%, #00251a 100%);

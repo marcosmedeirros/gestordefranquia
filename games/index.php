@@ -160,7 +160,7 @@ try {
         $rei_flappy = $stmt2->fetch(PDO::FETCH_ASSOC);
     }
 
-    // Rei do PNIPNAVAL: Quem tem mais vitórias em Batalha Naval
+    // Rei do Batalha Naval: Quem tem mais vitórias em Batalha Naval
     $stmt = $pdo->query("
         SELECT vencedor_id, COUNT(*) as vitoria_count
         FROM naval_salas 
@@ -283,7 +283,7 @@ try {
             --primary-dark: #121212;
             --secondary-dark: #1e1e1e;
             --border-dark: #333;
-            --accent-green: #00e676;
+            --accent-green: #FC082B;
         }
 
         * {
@@ -309,7 +309,7 @@ try {
         .brand-name {
             font-size: 1.5rem;
             font-weight: 900;
-            background: linear-gradient(135deg, var(--accent-green), #76ff03);
+            background: linear-gradient(135deg, var(--accent-green), #ff5a6e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -323,7 +323,7 @@ try {
             border-radius: 25px;
             font-weight: 800;
             font-size: 1.1em;
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.3);
         }
 
         .admin-btn {
@@ -399,7 +399,7 @@ try {
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, transparent, rgba(0, 230, 118, 0.1));
+            background: linear-gradient(135deg, transparent, rgba(252, 8, 43, 0.1));
             opacity: 0;
             transition: opacity 0.3s;
             pointer-events: none;
@@ -407,7 +407,7 @@ try {
 
         .game-card:hover {
             transform: translateY(-8px);
-            box-shadow: 0 12px 30px rgba(0, 230, 118, 0.15);
+            box-shadow: 0 12px 30px rgba(252, 8, 43, 0.15);
             border-color: var(--accent-green);
         }
 
@@ -447,7 +447,7 @@ try {
 
         .stat-card:hover {
             border-color: var(--accent-green);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.1);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.1);
         }
 
         .stat-label {
@@ -505,7 +505,7 @@ try {
 
         .ranking-card:hover {
             border-color: var(--accent-green);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.1);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.1);
         }
 
         .ranking-title {
@@ -629,7 +629,7 @@ try {
 
         .card-evento:hover {
             border-color: var(--accent-green);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.1);
+            box-shadow: 0 0 15px rgba(252, 8, 43, 0.1);
         }
 
         .evento-titulo {
@@ -680,7 +680,7 @@ try {
             font-size: 1.5em;
             display: block;
             margin-bottom: 12px;
-            text-shadow: 0 0 5px rgba(0, 230, 118, 0.2);
+            text-shadow: 0 0 5px rgba(252, 8, 43, 0.2);
         }
 
         .status-badge {
@@ -706,7 +706,7 @@ try {
             width: 100%;
             padding: 12px 20px;
             margin-top: 15px;
-            background: linear-gradient(135deg, var(--accent-green), #76ff03);
+            background: linear-gradient(135deg, var(--accent-green), #ff5a6e);
             color: #000;
             border: none;
             border-radius: 8px;
@@ -720,7 +720,7 @@ try {
 
         .btn-play:hover {
             transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(0, 230, 118, 0.4);
+            box-shadow: 0 0 20px rgba(252, 8, 43, 0.4);
             color: #000;
             text-decoration: none;
         }
@@ -805,7 +805,7 @@ try {
 
 <!-- NAVBAR -->
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
-    <a href="#" class="brand-name">🎮 PIKAFUMO</a>
+            <a href="#" class="brand-name">🎮 FBA games</a>
     
     <div class="d-flex align-items-center gap-3">
         <div class="d-none d-md-flex align-items-center gap-2">
@@ -942,9 +942,9 @@ try {
         </div>
 
         <div class="col-6 col-md-4 col-lg-3">
-            <a href="games/pnipnaval.php" class="game-card" style="--accent: #00bcd4;">
+            <a href="games/batalhanaval.php" class="game-card" style="--accent: #00bcd4;">
                 <span class="game-icon">⚔️</span>
-                <div class="game-title">Pnip Naval</div>
+                <div class="game-title">Batalha Naval</div>
                 <div class="game-subtitle">Desafio multiplayer</div>
             </a>
         </div>
@@ -1113,7 +1113,7 @@ try {
             </div>
         <?php endif; ?>
 
-        <!-- Campeão Pnip Naval -->
+    <!-- Campeão Batalha Naval -->
         <?php if($rei_pnip): ?>
             <div class="ranking-card" style="text-align: center; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">🚢</div>
@@ -1181,7 +1181,7 @@ try {
 
 <!-- Footer -->
 <div style="background-color: var(--secondary-dark); border-top: 1px solid var(--border-dark); padding: 20px; text-align: center; color: #666; margin-top: 60px;">
-    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> Pikafumo Games © 2025 | Jogue Responsavelmente</small>
+    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2025 | Jogue Responsavelmente</small>
 </div>
 
 </body>

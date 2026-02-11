@@ -209,9 +209,9 @@ foreach ($eventos as $key => $evt) {
         }
         
         .saldo-badge { 
-            background-color: #00e676; color: #000; padding: 8px 15px; 
+            background-color: #FC082B; color: #000; padding: 8px 15px; 
             border-radius: 20px; font-weight: 800; font-size: 1.1em;
-            box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+            box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
         }
         
         /* Cards */
@@ -247,16 +247,16 @@ foreach ($eventos as $key => $evt) {
         .form-control::placeholder { color: #888; }
         .form-control:focus, .form-select:focus { 
             background-color: #2b2b2b; 
-            border-color: #00e676; 
+            border-color: #FC082B; 
             color: #fff; 
-            box-shadow: 0 0 0 0.25rem rgba(0, 230, 118, 0.25); 
+            box-shadow: 0 0 0 0.25rem rgba(252, 8, 43, 0.25); 
         }
         
         /* Abas */
         .nav-pills { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
         .nav-pills .nav-link { color: #aaa; border-radius: 50px; padding: 8px 20px; transition: 0.3s; }
         .nav-pills .nav-link:hover { color: #fff; background-color: #333; }
-        .nav-pills .nav-link.active { background-color: #00e676; color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
+    .nav-pills .nav-link.active { background-color: #FC082B; color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(252, 8, 43, 0.4); }
         
         /* Badges de Odds */
         .badge-odd { 
@@ -268,7 +268,7 @@ foreach ($eventos as $key => $evt) {
             transition: all 0.2s;
         }
         .badge-odd:hover { background-color: #333; border-color: #555; }
-        .badge-winner { background-color: rgba(0, 230, 118, 0.15); border-color: #00e676; color: #00e676; }
+    .badge-winner { background-color: rgba(252, 8, 43, 0.15); border-color: #FC082B; color: #FC082B; }
         
     </style>
 </head>
