@@ -1,0 +1,104 @@
+<?php
+// core/funcoes.php - A INTELIGÊNCIA DO SISTEMA 🧠
+
+/**
+ * Recalcula as odds usando "Média Ponderada" (Weighted Probability)
+ * Este método é mais estável e evita que as odds oscilem loucamente.
+ * * @param PDO $pdo Conexão com o banco
+ * @param int $evento_id ID do evento
+ * @return bool
+ */
+function recalcularOdds($pdo, $evento_id) {
+    
+    // --- CALIBRAGEM DO ALGORITMO ---
+    
+    // PESO DO DINHEIRO (0.0 a 1.0)
+    // 0.2 = O dinheiro influencia 20% no cálculo final.
+    $peso_dinheiro = 0.2; 
+
+    // MARGEM DA CASA
+    // 0.90 = 10% de lucro pra casa.
+    $margem_casa = 0.90; 
+
+    try {
+        // 1. Busca dados atuais
+        $stmtOps = $pdo->prepare("SELECT id, odd, odd_inicial FROM opcoes WHERE evento_id = ?");
+        $stmtOps->execute([$evento_id]);
+        $opcoes = $stmtOps->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$opcoes) return false;
+
+        // 2. Coleta o volume TOTAL de dinheiro real no evento
+        $total_dinheiro_evento = 0;
+        $dados_opcoes = [];
+
+        foreach ($opcoes as $op) {
+            $stmtSoma = $pdo->prepare("SELECT SUM(valor) as total FROM palpites WHERE opcao_id = ?");
+            $stmtSoma->execute([$op['id']]);
+            $soma_real = $stmtSoma->fetch()['total'] ?? 0;
+            
+            // Garante a âncora na odd inicial
+            $odd_base = (!empty($op['odd_inicial']) && $op['odd_inicial'] > 0) ? $op['odd_inicial'] : $op['odd'];
+            
+            $dados_opcoes[] = [
+                'id' => $op['id'],
+                'dinheiro' => $soma_real,
+                'odd_inicial' => $odd_base,
+                // Probabilidade Inicial (ex: Odd 2.0 = 50% ou 0.5)
+                'prob_inicial' => (1 / $odd_base)
+            ];
+
+            $total_dinheiro_evento += $soma_real;
+        }
+
+        // 3. O Cálculo da Nova Odd
+        $stmtUpdate = $pdo->prepare("UPDATE opcoes SET odd = :nova_odd WHERE id = :id");
+        $stmtFixInicial = $pdo->prepare("UPDATE opcoes SET odd_inicial = :odd_atual WHERE id = :id AND (odd_inicial IS NULL OR odd_inicial = 0)");
+
+        foreach ($dados_opcoes as $dado) {
+            
+            // A. Calcula a "Opinião do Dinheiro" (Probabilidade Real)
+            if ($total_dinheiro_evento > 0) {
+                if ($dado['dinheiro'] == 0) {
+                    // --- PROTEÇÃO CONTRA ZEBRA (NOVO!) ---
+                    // Se ninguém apostou aqui, não assumimos 0% (que jogaria a odd p/ 5.00).
+                    // Assumimos metade da probabilidade original. 
+                    // Isso mantém a odd estável perto da inicial.
+                    $prob_dinheiro = $dado['prob_inicial'] / 2;
+                } else {
+                    $prob_dinheiro = $dado['dinheiro'] / $total_dinheiro_evento;
+                }
+            } else {
+                // Se não tem dinheiro nenhum no evento, mantém neutro
+                $prob_dinheiro = $dado['prob_inicial'];
+            }
+
+            // B. O "CABO DE GUERRA" (Weighted Average) ⚖️
+            // Mistura a Probabilidade Inicial com a Probabilidade do Dinheiro
+            $nova_probabilidade = ($dado['prob_inicial'] * (1 - $peso_dinheiro)) + ($prob_dinheiro * $peso_dinheiro);
+
+            // C. Converte Probabilidade em Odd e aplica Margem
+            if ($nova_probabilidade == 0) $nova_probabilidade = 0.01; 
+            $nova_odd = (1 / $nova_probabilidade) * $margem_casa;
+
+            // --- TRAVAS DE SEGURANÇA ---
+            if ($nova_odd < 1.10) $nova_odd = 1.10;
+            if ($nova_odd > 5.00) $nova_odd = 5.00;
+            // ---------------------------
+
+            // Atualiza no banco
+            $stmtUpdate->execute([':nova_odd' => $nova_odd, ':id' => $dado['id']]);
+
+            // Correção de segurança para odd_inicial
+            if (empty($dado['odd_inicial'])) {
+               $stmtFixInicial->execute([':odd_atual' => $nova_odd, ':id' => $dado['id']]);
+            }
+        }
+
+        return true;
+
+    } catch (Exception $e) {
+        return false;
+    }
+}
+?>

@@ -1,0 +1,446 @@
+[2026-01-05 19:29:11] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:13] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: rare
+  Item escolhido: colors/neon_green (Verde Neon)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:14] User: 1 | Caixa: premium
+  Saldo: 440 pts | Custo: 80 pts
+  Raridade sorteada: legendary
+  Item escolhido: colors/plasma_orange (Laranja Plasma)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:14] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: rare
+  Item escolhido: elite/pet_drone (Drone de Estimação)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:22] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: rare
+  Item escolhido: footwear/mag_boots (Botas Magnéticas)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:42] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/antenna_dish (Antena Parabólica)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:43] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:44] User: 1 | Caixa: premium
+  Saldo: 440 pts | Custo: 80 pts
+  Raridade sorteada: epic
+  Item escolhido: elite/light_sword (Espada de Luz)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:44] User: 1 | Caixa: premium
+  Saldo: 440 pts | Custo: 80 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_pink (Rosa Neon)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:44] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: epic
+  Item escolhido: elite/arm_cannon (Canhão de Braço)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:29:45] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/antenna_dish (Antena Parabólica)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:49:08] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:49:55] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:07] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:14] User: 1 | Caixa: premium
+  Saldo: 440 pts | Custo: 80 pts
+  Raridade sorteada: epic
+  Item escolhido: hardware/halo (Auréola Neon)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:14] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: rare
+  Item escolhido: footwear/mag_boots (Botas Magnéticas)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:15] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: epic
+  Item escolhido: colors/void_black (Void Preto)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:15] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:21] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/spiky_hair (Cabelo Espinhoso)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:22] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_pink (Rosa Neon)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:22] User: 1 | Caixa: premium
+  Saldo: 440 pts | Custo: 80 pts
+  Raridade sorteada: mythic
+  Item escolhido: hardware/crown_mythic (Coroa Mítica)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:50:23] User: 1 | Caixa: top
+  Saldo: 440 pts | Custo: 50 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  ❌ PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[2026-01-05 19:53:10] User: 1 | Caixa: basica
+  Saldo: 440 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: hardware/pixel_crown (Coroa de Pixel)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 410
+[2026-01-05 19:53:27] User: 1 | Caixa: premium
+  Saldo: 410 pts | Custo: 80 pts
+  Raridade sorteada: epic
+  Item escolhido: elite/arm_cannon (Canhão de Braço)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 330
+[2026-01-05 19:53:28] User: 1 | Caixa: top
+  Saldo: 330 pts | Custo: 50 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 280
+[2026-01-05 19:53:28] User: 1 | Caixa: basica
+  Saldo: 280 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_pink (Rosa Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 250
+[2026-01-05 19:54:00] User: 1 | Caixa: basica
+  Saldo: 250 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 220
+[2026-01-05 20:03:46] User: 19 | Caixa: basica
+  Saldo: 545 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 525
+[2026-01-05 20:04:02] User: 19 | Caixa: basica
+  Saldo: 575 pts | Custo: 20 pts
+  Raridade sorteada: rare
+  Item escolhido: colors/neon_green (Verde Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 555
+[2026-01-05 20:04:10] User: 20 | Caixa: premium
+  Saldo: 471 pts | Custo: 40 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 431
+[2026-01-05 20:04:19] User: 20 | Caixa: top
+  Saldo: 431 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/spiky_hair (Cabelo Espinhoso)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 401
+[2026-01-05 20:04:20] User: 19 | Caixa: basica
+  Saldo: 555 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/spiky_hair (Cabelo Espinhoso)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 535
+[2026-01-05 20:04:32] User: 20 | Caixa: basica
+  Saldo: 401 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 381
+[2026-01-05 20:04:47] User: 19 | Caixa: top
+  Saldo: 535 pts | Custo: 30 pts
+  Raridade sorteada: epic
+  Item escolhido: colors/gold_legacy (Dourado Relíquia)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 505
+[2026-01-05 20:05:03] User: 19 | Caixa: premium
+  Saldo: 505 pts | Custo: 40 pts
+  Raridade sorteada: epic
+  Item escolhido: footwear/jet_thrusters (Propulsores a Jato)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 465
+[2026-01-05 20:05:16] User: 20 | Caixa: top
+  Saldo: 381 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/spartan_armor (Armadura Spartan)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 351
+[2026-01-05 20:05:30] User: 20 | Caixa: top
+  Saldo: 351 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/spartan_armor (Armadura Spartan)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 321
+[2026-01-05 20:05:45] User: 20 | Caixa: top
+  Saldo: 321 pts | Custo: 30 pts
+  Raridade sorteada: epic
+  Item escolhido: elite/arm_cannon (Canhão de Braço)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 291
+[2026-01-05 20:12:32] User: 20 | Caixa: top
+  Saldo: 291 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: hardware/robot_ears (Orelhas Robóticas)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 261
+[2026-01-05 20:13:21] User: 20 | Caixa: top
+  Saldo: 261 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: hardware/robot_ears (Orelhas Robóticas)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 231
+[2026-01-05 20:13:39] User: 20 | Caixa: basica
+  Saldo: 231 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: clothing/tuxedo (Terno Dev)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 211
+[2026-01-05 20:13:57] User: 20 | Caixa: basica
+  Saldo: 211 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/spiky_hair (Cabelo Espinhoso)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 191
+[2026-01-05 20:14:10] User: 20 | Caixa: basica
+  Saldo: 191 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 171
+[2026-01-05 20:16:40] User: 20 | Caixa: basica
+  Saldo: 91 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 71
+[2026-01-05 20:16:49] User: 20 | Caixa: top
+  Saldo: 71 pts | Custo: 30 pts
+  Raridade sorteada: epic
+  Item escolhido: hardware/halo (Auréola Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 41
+[2026-01-05 20:19:11] User: 20 | Caixa: top
+  Saldo: 39 pts | Custo: 30 pts
+  Raridade sorteada: epic
+  Item escolhido: footwear/jet_thrusters (Propulsores a Jato)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 9
+[2026-01-05 20:19:52] User: 19 | Caixa: premium
+  Saldo: 473 pts | Custo: 40 pts
+  Raridade sorteada: rare
+  Item escolhido: colors/neon_green (Verde Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 433
+[2026-01-05 20:20:05] User: 19 | Caixa: premium
+  Saldo: 433 pts | Custo: 40 pts
+  Raridade sorteada: epic
+  Item escolhido: hardware/halo (Auréola Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 393
+[2026-01-05 20:20:23] User: 19 | Caixa: premium
+  Saldo: 393 pts | Custo: 40 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 353
+[2026-01-05 20:20:34] User: 19 | Caixa: top
+  Saldo: 353 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: hardware/pixel_crown (Coroa de Pixel)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 323
+[2026-01-05 20:21:28] User: 19 | Caixa: premium
+  Saldo: 364 pts | Custo: 40 pts
+  Raridade sorteada: epic
+  Item escolhido: hardware/visor_tech (Visor Tecnológico)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 324
+[2026-01-05 20:22:55] User: 20 | Caixa: premium
+  Saldo: 96 pts | Custo: 40 pts
+  Raridade sorteada: epic
+  Item escolhido: colors/gold_legacy (Dourado Relíquia)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 56
+[2026-01-06 14:11:58] User: 1 | Caixa: top
+  Saldo: 460 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: hardware/antenna_dish (Antena Parabólica)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 430
+[2026-01-06 18:43:14] User: 19 | Caixa: basica
+  Saldo: 523 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 503
+[2026-01-06 19:50:56] User: 19 | Caixa: premium
+  Saldo: 789 pts | Custo: 40 pts
+  Raridade sorteada: epic
+  Item escolhido: hardware/halo (Auréola Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 749
+[2026-01-06 19:51:06] User: 19 | Caixa: top
+  Saldo: 749 pts | Custo: 30 pts
+  Raridade sorteada: epic
+  Item escolhido: clothing/cyber_vest (Colete Cyber)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 719
+[2026-01-06 19:51:20] User: 19 | Caixa: top
+  Saldo: 719 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: elite/pet_drone (Drone de Estimação)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 689
+[2026-01-07 16:16:06] User: 8 | Caixa: top
+  Saldo: 252 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: footwear/mag_boots (Botas Magnéticas)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 222
+[2026-01-07 16:16:26] User: 8 | Caixa: basica
+  Saldo: 222 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 202
+[2026-01-07 16:16:40] User: 8 | Caixa: top
+  Saldo: 202 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/cloak (Manto)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 172
+[2026-01-07 16:17:58] User: 8 | Caixa: top
+  Saldo: 172 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 142
+[2026-01-08 14:58:14] User: 22 | Caixa: basica
+  Saldo: 28 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 8
+[2026-01-08 16:28:27] User: 19 | Caixa: top
+  Saldo: 774 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/spartan_armor (Armadura Spartan)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 744
+[2026-01-12 18:11:29] User: 1 | Caixa: premium
+  Saldo: 500 pts | Custo: 40 pts
+  Raridade sorteada: rare
+  Item escolhido: colors/cyberpunk_purple (Roxo Cyber)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 460
+[2026-01-12 18:11:52] User: 1 | Caixa: top
+  Saldo: 460 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/cloak (Manto)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 430
+[2026-01-12 18:12:09] User: 1 | Caixa: top
+  Saldo: 430 pts | Custo: 30 pts
+  Raridade sorteada: rare
+  Item escolhido: clothing/cloak (Manto)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 400
+[2026-01-12 18:13:18] User: 19 | Caixa: premium
+  Saldo: 788 pts | Custo: 40 pts
+  Raridade sorteada: rare
+  Item escolhido: elite/pet_drone (Drone de Estimação)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 748
+[2026-01-12 18:13:30] User: 19 | Caixa: top
+  Saldo: 748 pts | Custo: 30 pts
+  Raridade sorteada: common
+  Item escolhido: footwear/sneakers (Tênis Desportivos)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 718
+[2026-01-14 15:36:09] User: 31 | Caixa: basica
+  Saldo: 49 pts | Custo: 20 pts
+  Raridade sorteada: rare
+  Item escolhido: hardware/robot_ears (Orelhas Robóticas)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 29
+[2026-01-14 15:36:30] User: 31 | Caixa: basica
+  Saldo: 29 pts | Custo: 20 pts
+  Raridade sorteada: common
+  Item escolhido: colors/neon_blue (Azul Neon)
+  Item inserido no inventário
+  Transação commitada
+  ✅ Sucesso! Pontos restantes: 9

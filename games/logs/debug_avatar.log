@@ -1,0 +1,398 @@
+[05-Jan-2026 19:29:09 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:09 UTC] Session status: 2
+[05-Jan-2026 19:29:09 UTC] POST data: []
+[05-Jan-2026 19:29:09 UTC] GET data: []
+[05-Jan-2026 19:29:09 UTC] Includes carregados
+[05-Jan-2026 19:29:09 UTC] User ID: 1
+[05-Jan-2026 19:29:09 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:09 UTC] Inventário carregado: 0 itens
+[05-Jan-2026 19:29:09 UTC] Dados preparados para renderização
+[05-Jan-2026 19:29:09 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:29:11 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:11 UTC] Session status: 2
+[05-Jan-2026 19:29:11 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:11 UTC] GET data: []
+[05-Jan-2026 19:29:11 UTC] Includes carregados
+[05-Jan-2026 19:29:11 UTC] User ID: 1
+[05-Jan-2026 19:29:11 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:11 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:11 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:11 UTC] User ID: 1
+[05-Jan-2026 19:29:11 UTC] Tipo caixa: basica
+[05-Jan-2026 19:29:11 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:13 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:13 UTC] Session status: 2
+[05-Jan-2026 19:29:13 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:13 UTC] GET data: []
+[05-Jan-2026 19:29:13 UTC] Includes carregados
+[05-Jan-2026 19:29:13 UTC] User ID: 1
+[05-Jan-2026 19:29:13 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:13 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:13 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:13 UTC] User ID: 1
+[05-Jan-2026 19:29:13 UTC] Tipo caixa: top
+[05-Jan-2026 19:29:13 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:14 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:14 UTC] Session status: 2
+[05-Jan-2026 19:29:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:14 UTC] GET data: []
+[05-Jan-2026 19:29:14 UTC] Includes carregados
+[05-Jan-2026 19:29:14 UTC] User ID: 1
+[05-Jan-2026 19:29:14 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:14 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:14 UTC] User ID: 1
+[05-Jan-2026 19:29:14 UTC] Tipo caixa: premium
+[05-Jan-2026 19:29:14 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:14 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:14 UTC] Session status: 2
+[05-Jan-2026 19:29:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:14 UTC] GET data: []
+[05-Jan-2026 19:29:14 UTC] Includes carregados
+[05-Jan-2026 19:29:14 UTC] User ID: 1
+[05-Jan-2026 19:29:14 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:14 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:14 UTC] User ID: 1
+[05-Jan-2026 19:29:14 UTC] Tipo caixa: top
+[05-Jan-2026 19:29:14 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:21 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:21 UTC] Session status: 2
+[05-Jan-2026 19:29:21 UTC] POST data: []
+[05-Jan-2026 19:29:21 UTC] GET data: []
+[05-Jan-2026 19:29:21 UTC] Includes carregados
+[05-Jan-2026 19:29:21 UTC] User ID: 1
+[05-Jan-2026 19:29:21 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:21 UTC] Inventário carregado: 0 itens
+[05-Jan-2026 19:29:21 UTC] Dados preparados para renderização
+[05-Jan-2026 19:29:21 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:29:22 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:22 UTC] Session status: 2
+[05-Jan-2026 19:29:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:22 UTC] GET data: []
+[05-Jan-2026 19:29:22 UTC] Includes carregados
+[05-Jan-2026 19:29:22 UTC] User ID: 1
+[05-Jan-2026 19:29:22 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:22 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:22 UTC] User ID: 1
+[05-Jan-2026 19:29:22 UTC] Tipo caixa: top
+[05-Jan-2026 19:29:22 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:42 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:42 UTC] Session status: 2
+[05-Jan-2026 19:29:42 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:42 UTC] GET data: []
+[05-Jan-2026 19:29:42 UTC] Includes carregados
+[05-Jan-2026 19:29:42 UTC] User ID: 1
+[05-Jan-2026 19:29:42 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:42 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:42 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:42 UTC] User ID: 1
+[05-Jan-2026 19:29:42 UTC] Tipo caixa: basica
+[05-Jan-2026 19:29:42 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:43 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:43 UTC] Session status: 2
+[05-Jan-2026 19:29:43 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:43 UTC] GET data: []
+[05-Jan-2026 19:29:43 UTC] Includes carregados
+[05-Jan-2026 19:29:43 UTC] User ID: 1
+[05-Jan-2026 19:29:43 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:43 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:43 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:43 UTC] User ID: 1
+[05-Jan-2026 19:29:43 UTC] Tipo caixa: top
+[05-Jan-2026 19:29:43 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:44 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:44 UTC] Session status: 2
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:44 UTC] GET data: []
+[05-Jan-2026 19:29:44 UTC] Includes carregados
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:44 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Tipo caixa: premium
+[05-Jan-2026 19:29:44 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:44 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:44 UTC] Session status: 2
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:44 UTC] GET data: []
+[05-Jan-2026 19:29:44 UTC] Includes carregados
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:44 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Tipo caixa: premium
+[05-Jan-2026 19:29:44 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:44 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:44 UTC] Session status: 2
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:44 UTC] GET data: []
+[05-Jan-2026 19:29:44 UTC] Includes carregados
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:44 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:44 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:29:44 UTC] User ID: 1
+[05-Jan-2026 19:29:44 UTC] Tipo caixa: top
+[05-Jan-2026 19:29:44 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:29:45 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:29:45 UTC] Session status: 2
+[05-Jan-2026 19:29:45 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:45 UTC] GET data: []
+[05-Jan-2026 19:29:45 UTC] Includes carregados
+[05-Jan-2026 19:29:45 UTC] User ID: 1
+[05-Jan-2026 19:29:45 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:29:45 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:29:45 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:29:45 UTC] User ID: 1
+[05-Jan-2026 19:29:45 UTC] Tipo caixa: basica
+[05-Jan-2026 19:29:45 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:05 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:05 UTC] Session status: 2
+[05-Jan-2026 19:50:05 UTC] POST data: []
+[05-Jan-2026 19:50:05 UTC] GET data: []
+[05-Jan-2026 19:50:05 UTC] Includes carregados
+[05-Jan-2026 19:50:05 UTC] User ID: 1
+[05-Jan-2026 19:50:05 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:05 UTC] Inventário carregado: 0 itens
+[05-Jan-2026 19:50:05 UTC] Dados preparados para renderização
+[05-Jan-2026 19:50:05 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:50:07 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:07 UTC] Session status: 2
+[05-Jan-2026 19:50:07 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:07 UTC] GET data: []
+[05-Jan-2026 19:50:07 UTC] Includes carregados
+[05-Jan-2026 19:50:07 UTC] User ID: 1
+[05-Jan-2026 19:50:07 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:07 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:07 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:07 UTC] User ID: 1
+[05-Jan-2026 19:50:07 UTC] Tipo caixa: basica
+[05-Jan-2026 19:50:07 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:07 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:14 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:14 UTC] Session status: 2
+[05-Jan-2026 19:50:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:50:14 UTC] GET data: []
+[05-Jan-2026 19:50:14 UTC] Includes carregados
+[05-Jan-2026 19:50:14 UTC] User ID: 1
+[05-Jan-2026 19:50:14 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:14 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:50:14 UTC] User ID: 1
+[05-Jan-2026 19:50:14 UTC] Tipo caixa: premium
+[05-Jan-2026 19:50:14 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:14 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:14 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:14 UTC] Session status: 2
+[05-Jan-2026 19:50:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:14 UTC] GET data: []
+[05-Jan-2026 19:50:14 UTC] Includes carregados
+[05-Jan-2026 19:50:14 UTC] User ID: 1
+[05-Jan-2026 19:50:14 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:14 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:14 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:14 UTC] User ID: 1
+[05-Jan-2026 19:50:14 UTC] Tipo caixa: top
+[05-Jan-2026 19:50:14 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:14 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:15 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:15 UTC] Session status: 2
+[05-Jan-2026 19:50:15 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:15 UTC] GET data: []
+[05-Jan-2026 19:50:15 UTC] Includes carregados
+[05-Jan-2026 19:50:15 UTC] User ID: 1
+[05-Jan-2026 19:50:15 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:15 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:15 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:15 UTC] User ID: 1
+[05-Jan-2026 19:50:15 UTC] Tipo caixa: top
+[05-Jan-2026 19:50:15 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:15 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:15 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:15 UTC] Session status: 2
+[05-Jan-2026 19:50:15 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:15 UTC] GET data: []
+[05-Jan-2026 19:50:15 UTC] Includes carregados
+[05-Jan-2026 19:50:15 UTC] User ID: 1
+[05-Jan-2026 19:50:15 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:15 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:15 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:15 UTC] User ID: 1
+[05-Jan-2026 19:50:15 UTC] Tipo caixa: basica
+[05-Jan-2026 19:50:15 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:15 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:20 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:20 UTC] Session status: 2
+[05-Jan-2026 19:50:20 UTC] POST data: []
+[05-Jan-2026 19:50:20 UTC] GET data: []
+[05-Jan-2026 19:50:20 UTC] Includes carregados
+[05-Jan-2026 19:50:20 UTC] User ID: 1
+[05-Jan-2026 19:50:20 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:20 UTC] Inventário carregado: 0 itens
+[05-Jan-2026 19:50:20 UTC] Dados preparados para renderização
+[05-Jan-2026 19:50:20 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:50:21 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:21 UTC] Session status: 2
+[05-Jan-2026 19:50:21 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:21 UTC] GET data: []
+[05-Jan-2026 19:50:21 UTC] Includes carregados
+[05-Jan-2026 19:50:21 UTC] User ID: 1
+[05-Jan-2026 19:50:21 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:21 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:21 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:21 UTC] User ID: 1
+[05-Jan-2026 19:50:21 UTC] Tipo caixa: basica
+[05-Jan-2026 19:50:21 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:21 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:22 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:22 UTC] Session status: 2
+[05-Jan-2026 19:50:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:22 UTC] GET data: []
+[05-Jan-2026 19:50:22 UTC] Includes carregados
+[05-Jan-2026 19:50:22 UTC] User ID: 1
+[05-Jan-2026 19:50:22 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:22 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:50:22 UTC] User ID: 1
+[05-Jan-2026 19:50:22 UTC] Tipo caixa: basica
+[05-Jan-2026 19:50:22 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:22 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:22 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:22 UTC] Session status: 2
+[05-Jan-2026 19:50:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:50:22 UTC] GET data: []
+[05-Jan-2026 19:50:22 UTC] Includes carregados
+[05-Jan-2026 19:50:22 UTC] User ID: 1
+[05-Jan-2026 19:50:22 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:22 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:22 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:50:22 UTC] User ID: 1
+[05-Jan-2026 19:50:22 UTC] Tipo caixa: premium
+[05-Jan-2026 19:50:22 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:22 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:50:23 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:50:23 UTC] Session status: 2
+[05-Jan-2026 19:50:23 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:23 UTC] GET data: []
+[05-Jan-2026 19:50:23 UTC] Includes carregados
+[05-Jan-2026 19:50:23 UTC] User ID: 1
+[05-Jan-2026 19:50:23 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:50:23 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:50:23 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:50:23 UTC] User ID: 1
+[05-Jan-2026 19:50:23 UTC] Tipo caixa: top
+[05-Jan-2026 19:50:23 UTC] abrirLootBox PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u289267434_lumacio.usuario_inventario' doesn't exist
+[05-Jan-2026 19:50:23 UTC] Resultado abrirLootBox: {"sucesso":false,"mensagem":"Erro ao abrir caixa"}
+[05-Jan-2026 19:53:09 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:09 UTC] Session status: 2
+[05-Jan-2026 19:53:09 UTC] POST data: []
+[05-Jan-2026 19:53:09 UTC] GET data: []
+[05-Jan-2026 19:53:09 UTC] Includes carregados
+[05-Jan-2026 19:53:09 UTC] User ID: 1
+[05-Jan-2026 19:53:09 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:53:09 UTC] Inventário carregado: 0 itens
+[05-Jan-2026 19:53:09 UTC] Dados preparados para renderização
+[05-Jan-2026 19:53:09 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:53:10 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:10 UTC] Session status: 2
+[05-Jan-2026 19:53:10 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:53:10 UTC] GET data: []
+[05-Jan-2026 19:53:10 UTC] Includes carregados
+[05-Jan-2026 19:53:10 UTC] User ID: 1
+[05-Jan-2026 19:53:10 UTC] Usuário encontrado: {"nome":"Marcos","pontos":440}
+[05-Jan-2026 19:53:10 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:53:10 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:53:10 UTC] User ID: 1
+[05-Jan-2026 19:53:10 UTC] Tipo caixa: basica
+[05-Jan-2026 19:53:10 UTC] Resultado abrirLootBox: {"sucesso":true,"mensagem":"Item obtido!","categoria":"hardware","item_id":"pixel_crown","item_nome":"Coroa de Pixel","raridade":"rare","pontos_restantes":410}
+[05-Jan-2026 19:53:12 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:12 UTC] Session status: 2
+[05-Jan-2026 19:53:12 UTC] POST data: []
+[05-Jan-2026 19:53:12 UTC] GET data: []
+[05-Jan-2026 19:53:12 UTC] Includes carregados
+[05-Jan-2026 19:53:12 UTC] User ID: 1
+[05-Jan-2026 19:53:12 UTC] Usuário encontrado: {"nome":"Marcos","pontos":410}
+[05-Jan-2026 19:53:12 UTC] Inventário carregado: 1 itens
+[05-Jan-2026 19:53:12 UTC] Dados preparados para renderização
+[05-Jan-2026 19:53:12 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:53:25 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:25 UTC] Session status: 2
+[05-Jan-2026 19:53:25 UTC] POST data: []
+[05-Jan-2026 19:53:25 UTC] GET data: []
+[05-Jan-2026 19:53:25 UTC] Includes carregados
+[05-Jan-2026 19:53:25 UTC] User ID: 1
+[05-Jan-2026 19:53:25 UTC] Usuário encontrado: {"nome":"Marcos","pontos":410}
+[05-Jan-2026 19:53:25 UTC] Inventário carregado: 1 itens
+[05-Jan-2026 19:53:25 UTC] Dados preparados para renderização
+[05-Jan-2026 19:53:25 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:53:27 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:27 UTC] Session status: 2
+[05-Jan-2026 19:53:27 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:53:27 UTC] GET data: []
+[05-Jan-2026 19:53:27 UTC] Includes carregados
+[05-Jan-2026 19:53:27 UTC] User ID: 1
+[05-Jan-2026 19:53:27 UTC] Usuário encontrado: {"nome":"Marcos","pontos":410}
+[05-Jan-2026 19:53:27 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:53:27 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"premium"}
+[05-Jan-2026 19:53:27 UTC] User ID: 1
+[05-Jan-2026 19:53:27 UTC] Tipo caixa: premium
+[05-Jan-2026 19:53:27 UTC] Resultado abrirLootBox: {"sucesso":true,"mensagem":"Item obtido!","categoria":"elite","item_id":"arm_cannon","item_nome":"Canh\u00e3o de Bra\u00e7o","raridade":"epic","pontos_restantes":330}
+[05-Jan-2026 19:53:28 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:28 UTC] Session status: 2
+[05-Jan-2026 19:53:28 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:53:28 UTC] GET data: []
+[05-Jan-2026 19:53:28 UTC] Includes carregados
+[05-Jan-2026 19:53:28 UTC] User ID: 1
+[05-Jan-2026 19:53:28 UTC] Usuário encontrado: {"nome":"Marcos","pontos":330}
+[05-Jan-2026 19:53:28 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:53:28 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"top"}
+[05-Jan-2026 19:53:28 UTC] User ID: 1
+[05-Jan-2026 19:53:28 UTC] Tipo caixa: top
+[05-Jan-2026 19:53:28 UTC] Resultado abrirLootBox: {"sucesso":true,"mensagem":"Item obtido!","categoria":"clothing","item_id":"tuxedo","item_nome":"Terno Dev","raridade":"common","pontos_restantes":280}
+[05-Jan-2026 19:53:28 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:28 UTC] Session status: 2
+[05-Jan-2026 19:53:28 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:53:28 UTC] GET data: []
+[05-Jan-2026 19:53:28 UTC] Includes carregados
+[05-Jan-2026 19:53:28 UTC] User ID: 1
+[05-Jan-2026 19:53:28 UTC] Usuário encontrado: {"nome":"Marcos","pontos":280}
+[05-Jan-2026 19:53:28 UTC] === ABRIR CAIXA DEBUG ===
+[05-Jan-2026 19:53:28 UTC] POST data: {"api":"abrir_caixa","tipo_caixa":"basica"}
+[05-Jan-2026 19:53:28 UTC] User ID: 1
+[05-Jan-2026 19:53:28 UTC] Tipo caixa: basica
+[05-Jan-2026 19:53:28 UTC] Resultado abrirLootBox: {"sucesso":true,"mensagem":"Item obtido!","categoria":"colors","item_id":"neon_pink","item_nome":"Rosa Neon","raridade":"common","pontos_restantes":250}
+[05-Jan-2026 19:53:29 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:29 UTC] Session status: 2
+[05-Jan-2026 19:53:29 UTC] POST data: []
+[05-Jan-2026 19:53:29 UTC] GET data: []
+[05-Jan-2026 19:53:29 UTC] Includes carregados
+[05-Jan-2026 19:53:29 UTC] User ID: 1
+[05-Jan-2026 19:53:29 UTC] Usuário encontrado: {"nome":"Marcos","pontos":250}
+[05-Jan-2026 19:53:29 UTC] Inventário carregado: 4 itens
+[05-Jan-2026 19:53:29 UTC] Dados preparados para renderização
+[05-Jan-2026 19:53:29 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:53:30 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:53:30 UTC] Session status: 2
+[05-Jan-2026 19:53:30 UTC] POST data: []
+[05-Jan-2026 19:53:30 UTC] GET data: []
+[05-Jan-2026 19:53:30 UTC] Includes carregados
+[05-Jan-2026 19:53:30 UTC] User ID: 1
+[05-Jan-2026 19:53:30 UTC] Usuário encontrado: {"nome":"Marcos","pontos":250}
+[05-Jan-2026 19:53:30 UTC] Inventário carregado: 4 itens
+[05-Jan-2026 19:53:30 UTC] Dados preparados para renderização
+[05-Jan-2026 19:53:30 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
+[05-Jan-2026 19:58:46 UTC] === DEBUG AVATAR INICIADO ===
+[05-Jan-2026 19:58:46 UTC] Session status: 2
+[05-Jan-2026 19:58:46 UTC] POST data: []
+[05-Jan-2026 19:58:46 UTC] GET data: []
+[05-Jan-2026 19:58:46 UTC] Includes carregados
+[05-Jan-2026 19:58:46 UTC] Não logado, usando user_id 1 para debug
+[05-Jan-2026 19:58:46 UTC] User ID: 1
+[05-Jan-2026 19:58:46 UTC] Usuário encontrado: {"nome":"Marcos","pontos":480}
+[05-Jan-2026 19:58:46 UTC] Inventário carregado: 7 itens
+[05-Jan-2026 19:58:46 UTC] Dados preparados para renderização
+[05-Jan-2026 19:58:46 UTC] === PÁGINA RENDERIZADA COM SUCESSO ===
