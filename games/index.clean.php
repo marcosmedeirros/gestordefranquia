@@ -25,9 +25,9 @@ try {
 
 try {
     $stmt = $pdo->query("
-        SELECT id, nome, pontos, (pontos - 50) as lucro_liquido
+        SELECT id, nome, pontos
         FROM usuarios
-        ORDER BY lucro_liquido DESC
+        ORDER BY pontos DESC
         LIMIT 5
     ");
     $top_5_ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -93,13 +93,6 @@ try {
 }
 
 try {
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM eventos WHERE status = 'aberta'");
-    $total_eventos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
-} catch (PDOException $e) {
-    $total_eventos = 0;
-}
-
-try {
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as total
         FROM palpites p
@@ -118,6 +111,26 @@ try {
     $total_apostas_usuario = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 } catch (PDOException $e) {
     $total_apostas_usuario = 0;
+}
+
+try {
+    $stmt = $pdo->prepare("
+        SELECT p.valor, p.odd_registrada, p.data_palpite, p.opcao_id,
+               o.descricao as opcao_descricao,
+               e.nome as evento_nome,
+               e.status as evento_status,
+               e.vencedor_opcao_id
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        WHERE p.id_usuario = :uid
+        ORDER BY p.data_palpite DESC
+        LIMIT 3
+    ");
+    $stmt->execute([':uid' => $user_id]);
+    $ultimos_palpites = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $ultimos_palpites = [];
 }
 
 try {
@@ -525,45 +538,22 @@ try {
 
     <h6 class="section-title"><i class="bi bi-person-circle"></i>Minhas Estatísticas</h6>
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4">
+        <div class="col-12 col-md-4">
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
                 <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
             </div>
         </div>
-        <div class="col-6 col-md-4">
+        <div class="col-12 col-md-4">
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-activity me-2"></i>Apostas Ativas</div>
                 <div class="stat-value"><?= $minhas_apostas_abertas ?></div>
             </div>
         </div>
-        <div class="col-6 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-megaphone me-2"></i>Eventos Abertos</div>
-                <div class="stat-value"><?= $total_eventos ?></div>
-            </div>
-        </div>
-    </div>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4">
+        <div class="col-12 col-md-4">
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-receipt me-2"></i>Total de Apostas</div>
                 <div class="stat-value"><?= $total_apostas_usuario ?></div>
-            </div>
-        </div>
-        <div class="col-12 col-md-8">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-clock-history me-2"></i>Última Aposta</div>
-                <?php if($ultima_aposta): ?>
-                    <div class="stat-value" style="font-size: 1.3rem;">
-                        <?= number_format($ultima_aposta['valor'], 0, ',', '.') ?> pts
-                    </div>
-                    <small class="text-secondary">
-                        <?= htmlspecialchars($ultima_aposta['evento_nome']) ?> • <?= htmlspecialchars($ultima_aposta['opcao_descricao']) ?>
-                    </small>
-                <?php else: ?>
-                    <div class="stat-value" style="font-size: 1.1rem;">Sem apostas</div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -599,47 +589,8 @@ try {
         <?php endforeach; ?>
     </div>
 
-    <?php if($ultima_aposta): ?>
-        <?php
-            $resultado_aposta = null;
-            if (($ultima_aposta['evento_status'] ?? '') === 'encerrada' && $ultima_aposta['vencedor_opcao_id']) {
-                $resultado_aposta = ((int)$ultima_aposta['vencedor_opcao_id'] === (int)$ultima_aposta['opcao_id']) ? 'Ganhou' : 'Perdeu';
-            }
-        ?>
-        <h6 class="section-title"><i class="bi bi-cash-stack"></i>Minha Última Aposta</h6>
-        <div class="aposta-card">
-            <div class="aposta-label mb-1">Evento</div>
-            <div class="aposta-evento"><?= htmlspecialchars($ultima_aposta['evento_nome']) ?></div>
-            <div class="text-light mb-3">Opção: <?= htmlspecialchars($ultima_aposta['opcao_descricao']) ?></div>
-            <div class="aposta-details">
-                <div class="aposta-detail-item">
-                    <span class="aposta-detail-label">Valor</span>
-                    <span class="aposta-detail-value"><?= number_format($ultima_aposta['valor'], 0, ',', '.') ?> pts</span>
-                </div>
-                <div class="aposta-detail-item">
-                    <span class="aposta-detail-label">Odd</span>
-                    <span class="aposta-detail-value"><?= number_format($ultima_aposta['odd_registrada'], 2) ?>x</span>
-                </div>
-                <div class="aposta-detail-item">
-                    <span class="aposta-detail-label">Status</span>
-                    <span class="aposta-detail-value">
-                        <?php if($resultado_aposta): ?>
-                            <?= $resultado_aposta ?>
-                        <?php else: ?>
-                            <?= ($ultima_aposta['evento_status'] ?? '') === 'aberta' ? 'Aberta' : 'Encerrada' ?>
-                        <?php endif; ?>
-                    </span>
-                </div>
-                <div class="aposta-detail-item">
-                    <span class="aposta-detail-label">Data</span>
-                    <span class="aposta-detail-value"><?= date('d/m/Y H:i', strtotime($ultima_aposta['data_palpite'])) ?></span>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-
     <?php if(!empty($ultimos_eventos_abertos)): ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Últimas Apostas</h6>
+        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
         <?php foreach($ultimos_eventos_abertos as $evento): ?>
             <div class="card-evento">
                 <div class="d-flex justify-content-between align-items-start mb-3">
@@ -663,10 +614,59 @@ try {
             </div>
         <?php endforeach; ?>
     <?php else: ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Últimas Apostas</h6>
+        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
         <div class="empty-state">
             <div class="empty-icon"><i class="bi bi-inbox"></i></div>
             <div class="empty-text">Nenhum evento disponível no momento</div>
+        </div>
+    <?php endif; ?>
+
+    <h6 class="section-title"><i class="bi bi-cash-stack"></i>Minhas Apostas</h6>
+    <?php if(!empty($ultimos_palpites)): ?>
+        <?php foreach($ultimos_palpites as $palpite): ?>
+            <?php
+                $resultado_palpite = null;
+                if (($palpite['evento_status'] ?? '') === 'encerrada' && $palpite['vencedor_opcao_id']) {
+                    $resultado_palpite = ((int)$palpite['vencedor_opcao_id'] === (int)$palpite['opcao_id']) ? 'Ganhou' : 'Perdeu';
+                }
+            ?>
+            <div class="aposta-card">
+                <div class="aposta-label mb-1">Evento</div>
+                <div class="aposta-evento"><?= htmlspecialchars($palpite['evento_nome']) ?></div>
+                <div class="text-light mb-3">Opção: <?= htmlspecialchars($palpite['opcao_descricao']) ?></div>
+                <div class="aposta-details">
+                    <div class="aposta-detail-item">
+                        <span class="aposta-detail-label">Valor</span>
+                        <span class="aposta-detail-value"><?= number_format($palpite['valor'], 0, ',', '.') ?> pts</span>
+                    </div>
+                    <div class="aposta-detail-item">
+                        <span class="aposta-detail-label">Odd</span>
+                        <span class="aposta-detail-value"><?= number_format($palpite['odd_registrada'], 2) ?>x</span>
+                    </div>
+                    <div class="aposta-detail-item">
+                        <span class="aposta-detail-label">Status</span>
+                        <span class="aposta-detail-value">
+                            <?php if($resultado_palpite): ?>
+                                <?= $resultado_palpite ?>
+                            <?php else: ?>
+                                <?= ($palpite['evento_status'] ?? '') === 'aberta' ? 'Aberta' : 'Encerrada' ?>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="aposta-detail-item">
+                        <span class="aposta-detail-label">Data</span>
+                        <span class="aposta-detail-value"><?= date('d/m/Y H:i', strtotime($palpite['data_palpite'])) ?></span>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <div class="text-end mb-4">
+            <a href="user/apostas.php" class="btn btn-outline-light btn-sm">Ver mais</a>
+        </div>
+    <?php else: ?>
+        <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+            <div class="empty-text">Você ainda não fez apostas.</div>
         </div>
     <?php endif; ?>
 
@@ -746,7 +746,7 @@ try {
                             <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
                         </div>
                         <span class="ranking-value">
-                            <?= number_format($jogador['lucro_liquido'], 0, ',', '.') ?> pts
+                            <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
                         </span>
                     </div>
                 <?php endforeach; ?>

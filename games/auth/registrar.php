@@ -16,9 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nome = trim($_POST['nome']);
     $email = trim($_POST['email']);
     $senha = trim($_POST['senha']);
+    $liga = strtoupper(trim($_POST['liga'] ?? ''));
 
-    if (empty($nome) || empty($email) || empty($senha)) {
+    $ligas_validas = ['ELITE', 'RISE', 'NEXT', 'ROOKIE'];
+
+    if (empty($nome) || empty($email) || empty($senha) || empty($liga)) {
         $erro = "Preencha todos os campos.";
+    } elseif (!in_array($liga, $ligas_validas, true)) {
+        $erro = "Selecione uma liga válida.";
     } else {
         // 1. Verifica se o e-mail já existe
         $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = :email");
@@ -30,14 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // 2. Cria o hash da senha (Segurança)
             $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
 
-            // 3. Insere no banco com 50 pontos iniciais
+            // 3. Garante coluna de liga
             try {
-                $sql = "INSERT INTO usuarios (nome, email, senha, pontos, is_admin) VALUES (:nome, :email, :senha, 50.00, 0)";
+                $pdo->exec("ALTER TABLE usuarios ADD COLUMN league ENUM('ELITE','RISE','NEXT','ROOKIE') DEFAULT 'ROOKIE'");
+            } catch (Exception $e) {
+                // ignora se já existe
+            }
+
+            // 4. Insere no banco com 50 pontos iniciais
+            try {
+                $sql = "INSERT INTO usuarios (nome, email, senha, pontos, is_admin, league) VALUES (:nome, :email, :senha, 50.00, 0, :league)";
                 $stmtInsert = $pdo->prepare($sql);
                 $stmtInsert->execute([
                     ':nome' => $nome,
                     ':email' => $email,
-                    ':senha' => $senhaHash // Salvando seguro
+                    ':senha' => $senhaHash,
+                    ':league' => $liga
                 ]);
 
                 $sucesso = "Conta criada com sucesso! Redirecionando...";
@@ -168,9 +181,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <input type="email" name="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
                     </div>
 
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label class="form-label">Senha</label>
                         <input type="password" name="senha" class="form-control form-control-lg" placeholder="Crie uma senha forte" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Liga</label>
+                        <select name="liga" class="form-control form-control-lg" required>
+                            <option value="" disabled selected>Selecione sua liga</option>
+                            <option value="ELITE">Elite</option>
+                            <option value="RISE">Rise</option>
+                            <option value="NEXT">Next</option>
+                            <option value="ROOKIE">Rookie</option>
+                        </select>
                     </div>
 
                     <button type="submit" class="btn btn-success-custom btn-lg w-100 mb-3">Cadastrar-se</button>
