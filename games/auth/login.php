@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             box-shadow: 0 10px 25px rgba(0,0,0,0.05);
         }
 
-        .brand-text { font-size: 2.5rem; font-weight: 800; margin-bottom: 20px; color: #e67e22; }
+    .brand-text { font-size: 2.5rem; font-weight: 800; margin-bottom: 20px; color: #FC082B; }
         .hero-text { font-size: 1.2rem; line-height: 1.6; opacity: 0.9; }
 
         @media (max-width: 768px) {
