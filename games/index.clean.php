@@ -726,47 +726,26 @@ try {
     </div>
 
     <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings</h6>
-    <div class="ranking-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; margin-bottom: 30px;">
-        <div class="ranking-card">
-            <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral</div>
-            <?php if(empty($top_5_ranking)): ?>
-                <div class="text-center py-3">
-                    <small class="text-secondary">Sem dados ainda</small>
-                </div>
-            <?php else: ?>
-                <?php foreach($top_5_ranking as $idx => $jogador): ?>
-                    <div class="ranking-item medal-<?= $idx+1 ?>">
-                        <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                        <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                            <span class="ranking-name">
-                                <?= htmlspecialchars($jogador['nome']) ?>
-                                <?php if (!empty($jogador['league'])): ?>
-                                    <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                        <span class="ranking-value">
-                            <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
-                        </span>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
-
-        <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
-        <?php foreach ($ranking_labels as $liga => $label): ?>
+    <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
             <div class="ranking-card">
-                <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
-                <?php if(empty($ranking_por_liga[$liga])): ?>
+                <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral</div>
+                <?php if(empty($top_5_ranking)): ?>
                     <div class="text-center py-3">
                         <small class="text-secondary">Sem dados ainda</small>
                     </div>
                 <?php else: ?>
-                    <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
+                    <?php foreach($top_5_ranking as $idx => $jogador): ?>
                         <div class="ranking-item medal-<?= $idx+1 ?>">
                             <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
                             <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
+                                <span class="ranking-name">
+                                    <?= htmlspecialchars($jogador['nome']) ?>
+                                    <?php if (!empty($jogador['league'])): ?>
+                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                             <span class="ranking-value">
                                 <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
@@ -775,7 +754,63 @@ try {
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+        </div>
+
+        <?php foreach (array_slice($ranking_labels, 0, 2, true) as $liga => $label): ?>
+            <div class="col-12 col-md-4">
+                <div class="ranking-card">
+                    <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
+                    <?php if(empty($ranking_por_liga[$liga])): ?>
+                        <div class="text-center py-3">
+                            <small class="text-secondary">Sem dados ainda</small>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
+                            <div class="ranking-item medal-<?= $idx+1 ?>">
+                                <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                    <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
+                                </div>
+                                <span class="ranking-value">
+                                    <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                                </span>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         <?php endforeach; ?>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <?php foreach (array_slice($ranking_labels, 2, 2, true) as $liga => $label): ?>
+            <div class="col-12 col-md-6">
+                <div class="ranking-card">
+                    <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
+                    <?php if(empty($ranking_por_liga[$liga])): ?>
+                        <div class="text-center py-3">
+                            <small class="text-secondary">Sem dados ainda</small>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
+                            <div class="ranking-item medal-<?= $idx+1 ?>">
+                                <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                    <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
+                                </div>
+                                <span class="ranking-value">
+                                    <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                                </span>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="text-center mb-4">
+        <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
     </div>
 </div>
 

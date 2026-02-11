@@ -7,7 +7,6 @@ error_reporting(E_ALL);
 // termo.php - O JOGO DIÁRIO DA FIRMA (DARK MODE 🧩🌙)
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
-require '../core/sequencia_dias.php';
 
 // --- CONFIGURAÇÕES ---
 $PONTOS_VITORIA = 10;
@@ -17,11 +16,6 @@ $MAX_TENTATIVAS = 6;
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
-// 1.1 Campos de streak (idempotente)
-try {
-    $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termo_streak INT DEFAULT 0");
-    $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termo_last DATE DEFAULT NULL");
-} catch (Exception $e) {}
 
 // --- 2. DADOS DO USUÁRIO (PARA O HEADER) ---
 try {
@@ -31,9 +25,6 @@ try {
 } catch (PDOException $e) {
     die("Erro perfil: " . $e->getMessage());
 }
-
-// --- 3. OBTER SEQUÊNCIA DE DIAS ---
-$sequencia_dias = obterSequenciaDias($pdo, $user_id, 'termo');
 
 // --- FUNÇÃO AUXILIAR ---
 function removerAcentos($string) {
@@ -174,25 +165,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
             $pdo->prepare("UPDATE termo_historico SET ganhou = 1, pontos_ganhos = :pts WHERE id_usuario = :uid AND data_jogo = :dt")
                 ->execute([':pts' => $PONTOS_VITORIA, ':uid' => $user_id, ':dt' => $hoje]);
 
-            // Calcula streak de vitórias consecutivas incluindo o dia atual
-            $stmtStreak = $pdo->prepare("SELECT data_jogo FROM termo_historico WHERE id_usuario = :uid AND ganhou = 1 ORDER BY data_jogo DESC LIMIT 60");
-            $stmtStreak->execute([':uid' => $user_id]);
-            $datas = $stmtStreak->fetchAll(PDO::FETCH_COLUMN) ?: [];
-
-            $diaRef = $hoje;
-            $novoStreak = 0;
-            foreach ($datas as $dataJogo) {
-                if ($dataJogo === $diaRef) {
-                    $novoStreak++;
-                    $diaRef = date('Y-m-d', strtotime($diaRef . ' -1 day'));
-                } else {
-                    break;
-                }
-            }
-            if ($novoStreak === 0) $novoStreak = 1; // pelo menos o dia atual
-
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts, termo_streak = :stk, termo_last = :dt WHERE id = :uid")
-                ->execute([':pts' => $PONTOS_VITORIA, ':stk' => $novoStreak, ':dt' => $hoje, ':uid' => $user_id]);
+            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts WHERE id = :uid")
+                ->execute([':pts' => $PONTOS_VITORIA, ':uid' => $user_id]);
 
             $pdo->commit();
         } catch (Exception $e) { $pdo->rollBack(); }
@@ -288,11 +262,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
-        <div style="background: linear-gradient(135deg, #ff006e, #8338ec); padding: 8px 16px; border-radius: 20px; font-weight: bold; color: white; display: flex; align-items: center; gap: 8px;">
-            <i class="bi bi-fire"></i>
-            <span id="sequencia-display"><?= $sequencia_dias['sequencia_atual'] ?? 0 ?></span>
-            <span style="font-size: 0.85rem;">dias</span>
-        </div>
         <span class="saldo-badge me-2"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
     </div>
 </div>

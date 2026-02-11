@@ -12,7 +12,7 @@ if (ini_get("session.use_cookies")) {
 }
 session_destroy();
 
-// AQUI ESTÁ A MUDANÇA: Manda para a sua URL da Hostinger
-header("Location: https://jogos.fbabrasil.com.br/");
+// Redireciona para a tela de login do games
+header("Location: /games/auth/login.php");
 exit;
 ?>

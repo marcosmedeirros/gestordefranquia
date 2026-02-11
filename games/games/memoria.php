@@ -7,7 +7,6 @@ error_reporting(E_ALL);
 // memoria.php - O JOGO DA MEMÓRIA RAM (COM PERSISTÊNCIA E DARK MODE 💾🌙) 🧠
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
-require '../core/sequencia_dias.php';
 
 // --- CONFIGURAÇÕES ---
 $PONTOS_VITORIA = 10;
@@ -17,11 +16,6 @@ $LIMITE_MOVIMENTOS = 18;
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
-// 1.1 Campos de streak (idempotente)
-try {
-    $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS memoria_streak INT DEFAULT 0");
-    $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS memoria_last DATE DEFAULT NULL");
-} catch (Exception $e) {}
 
 // --- 2. DADOS DO USUÁRIO (PARA O HEADER) ---
 try {
@@ -31,9 +25,6 @@ try {
 } catch (PDOException $e) {
     die("Erro perfil: " . $e->getMessage());
 }
-
-// --- 3. OBTER SEQUÊNCIA DE DIAS ---
-$sequencia_dias = obterSequenciaDias($pdo, $user_id, 'memoria');
 
 // --- FUNÇÕES DO JOGO ---
 function gerarTabuleiroNovo() {
@@ -117,9 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if ($novo_status == 'venceu' && $dados_jogo['pontos_ganhos'] == 0) {
             try {
                 $pdo->beginTransaction();
-
-                // Atualiza sequência diária usando helper centralizado (tabela usuario_sequencias_dias)
-                $novaSequencia = atualizarSequenciaDias($pdo, $user_id, 'memoria', true);
 
                 $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts WHERE id = :uid")
                     ->execute([':pts' => $pontos, ':uid' => $user_id]);
@@ -234,11 +222,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
-        <div style="background: linear-gradient(135deg, #ff006e, #8338ec); padding: 8px 16px; border-radius: 20px; font-weight: bold; color: white; display: flex; align-items: center; gap: 8px;">
-            <i class="bi bi-fire"></i>
-            <span id="sequencia-display"><?= $sequencia_dias['sequencia_atual'] ?? 0 ?></span>
-            <span style="font-size: 0.85rem;">dias</span>
-        </div>
         <span class="saldo-badge me-2"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
     </div>
 </div>

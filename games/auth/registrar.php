@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $sucesso = "Conta criada com sucesso! Redirecionando...";
                 
                 // Login automático ou redirecionar para login? Vamos redirecionar para login.
-                header("refresh:2;url=index.php"); // Espera 2 seg e vai pro login
+                header("refresh:2;url=login.php"); // Espera 2 seg e vai pro login
                 
             } catch (PDOException $e) {
                 $erro = "Erro ao cadastrar: " . $e->getMessage();
