@@ -602,7 +602,11 @@ try {
                         <div class="card-opcao">
                             <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
                             <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
-                            <a href="games/apostas.php" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</a>
+                            <form method="POST" action="games/apostas.php">
+                                <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                                <input type="number" name="valor" class="form-control form-control-sm mb-2" placeholder="Valor" min="1" step="1" required>
+                                <button type="submit" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</button>
+                            </form>
                         </div>
                     <?php endforeach; ?>
                 </div>

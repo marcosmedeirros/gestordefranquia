@@ -13,6 +13,6 @@ if (ini_get("session.use_cookies")) {
 session_destroy();
 
 // Redireciona para a tela de login do games
-header("Location: /games/auth/login.php");
+header("Location: https://games.fbabrasil.com.br/auth/login.php");
 exit;
 ?>

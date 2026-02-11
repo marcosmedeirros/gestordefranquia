@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $update->execute([':token' => $token, ':expiry' => $expiry, ':id' => $user['id']]);
 
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'jogos.fbabrasil.com.br';
-            $resetUrl = $scheme . '://' . $host . '/games/auth/resetar.php?token=' . urlencode($token);
+            $host = $_SERVER['HTTP_HOST'] ?? 'games.fbabrasil.com.br';
+            $resetUrl = $scheme . '://' . $host . '/auth/resetar.php?token=' . urlencode($token);
 
             $sent = sendResetEmail($email, $user['nome'], $resetUrl);
             if (!$sent) {
