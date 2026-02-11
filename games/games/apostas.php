@@ -6,7 +6,7 @@
  * - GET: Listar eventos disponíveis + histórico do usuário
  */
 
-// session_start já foi chamado em games/index.php
+session_start();
 require '../core/conexao.php';
 require '../core/funcoes.php';
 
@@ -88,13 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
 
         $pdo->commit();
 
-        // Recarrega a página com mensagem
-        header("Location: index.php?game=apostas&msg=Aposta realizada com sucesso!");
+        // Volta para o painel com mensagem
+        header("Location: ../index.php?msg=" . urlencode("Aposta realizada com sucesso!"));
         exit;
 
     } catch (Exception $e) {
         $pdo->rollBack();
-        $erro_aposta = $e->getMessage();
+        header("Location: ../index.php?erro=" . urlencode($e->getMessage()));
+        exit;
     }
 }
 

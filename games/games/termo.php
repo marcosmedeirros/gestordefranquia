@@ -42,7 +42,7 @@ function removerAcentos($string) {
 
 // --- LÓGICA DO DIA ---
 $dicionario = [
-    'LUMAC', 'METAS', 'LUCRO', 'PRAZO', 'DADOS', 'IDEIA', 'PODER', 'NIVEL', 'ATIVO', 
+    'PRATO', 'METAS', 'LUCRO', 'PRAZO', 'DADOS', 'IDEIA', 'PODER', 'NIVEL', 'ATIVO', 
     'CRISE', 'RISCO', 'ETICA', 'CLUBE', 'HONRA', 'LIDER', 'MORAL', 'GRUPO', 
     'AJUDA', 'LABOR', 'TEMPO', 'CAIXA', 'VENDA', 'CUSTO', 'VALOR', 'JUROS', 
     'RENDA', 'PRECO', 'SOCIO', 'ACOES', 'BONUS', 'MARCA', 'MIDIA', 'EMAIL', 
