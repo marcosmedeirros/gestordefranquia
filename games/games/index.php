@@ -45,6 +45,10 @@ $games_disponiveis = [
     'corrida' => [
         'titulo' => '🏎️ Corrida Neon',
         'arquivo' => 'corrida.php'
+    ],
+    'tigrinho' => [
+        'titulo' => '🐯 Fortune Tiger',
+        'arquivo' => 'tigrinho.php'
     ]
     
 ];
