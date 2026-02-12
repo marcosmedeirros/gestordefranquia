@@ -146,8 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .admin-btn { background-color: #ff6d00; color: white; padding: 5px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; }
         .admin-btn:hover { background-color: #e65100; color: white; box-shadow: 0 0 8px #ff6d00; }
         .slot-card {
-            background: radial-gradient(circle at top, #2b1b0f 0%, #1b120a 50%, #121212 100%);
-            border: 1px solid #3b2a18; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px rgba(0,0,0,0.5);
+            background: #000;
+            border: 1px solid #1f1f1f; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px rgba(0,0,0,0.5);
             position: relative; overflow: hidden;
         }
         .slot-card::before,
@@ -155,10 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             content: '';
             position: absolute;
             top: 0; bottom: 0; width: 60px;
-            background-color: #f7a8c6;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ctext x='0' y='28' font-size='28'%3E%F0%9F%90%AF%3C/text%3E%3C/svg%3E");
-            background-repeat: repeat;
-            opacity: 0.65;
+            background-color: #000;
+            background-image: none;
+            background-repeat: no-repeat;
+            opacity: 1;
             pointer-events: none;
         }
         .slot-card::before { left: 0; }
