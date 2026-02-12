@@ -499,6 +499,29 @@ try {
             align-items: center;
         }
 
+        .accordion-button {
+            background-color: #1e1e1e;
+            color: #fff;
+        }
+
+        .accordion-button:hover {
+            background-color: #FC082B;
+            color: #fff;
+        }
+
+        .accordion-button:focus {
+            box-shadow: 0 0 0 0.2rem rgba(252, 8, 43, 0.35);
+        }
+
+        .accordion-button:not(.collapsed) {
+            background-color: #FC082B;
+            color: #fff;
+        }
+
+        .accordion-button::after {
+            filter: brightness(0) invert(1);
+        }
+
         .ranking-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -866,6 +889,8 @@ try {
 <div style="background-color: var(--secondary-dark); border-top: 1px solid var(--border-dark); padding: 20px; text-align: center; color: #666; margin-top: 60px;">
     <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2025 | Jogue Responsavelmente</small>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>
