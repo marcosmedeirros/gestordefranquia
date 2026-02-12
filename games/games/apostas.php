@@ -341,6 +341,24 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             font-size: 1.1rem;
         }
 
+        .bet-win {
+            background-color: rgba(25, 135, 84, 0.15) !important;
+        }
+
+        .bet-lose {
+            background-color: rgba(220, 53, 69, 0.12) !important;
+        }
+
+        .bet-win .bet-status,
+        .bet-win .bet-amount {
+            color: #22c55e !important;
+        }
+
+        .bet-lose .bet-status,
+        .bet-lose .bet-amount {
+            color: #ef4444 !important;
+        }
+
         .table-custom {
             --bs-table-bg: #252525;
             --bs-table-color: #e0e0e0;
@@ -495,7 +513,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                             $odd_final = $aposta['odd_registrada'];
                             $status_badge = "status-aberta";
                             $status_texto = "<i class='bi bi-hourglass-split me-1'></i>Aberta";
-                            $linha_style = "";
+                            $linha_class = "";
 
                             $status_normalizado = strtolower(trim($aposta['evento_status'] ?? ''));
                             
@@ -507,18 +525,18 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 } elseif ($aposta['vencedor_opcao_id'] == $aposta['opcao_id']) {
                                     $status_badge = "status-venceu";
                                     $status_texto = "<i class='bi bi-trophy-fill me-1'></i>Venceu";
-                                    $linha_style = "background-color: rgba(25, 135, 84, 0.15) !important;";
+                                    $linha_class = "bet-win";
                                 } else {
                                     $status_badge = "status-perdeu";
                                     $status_texto = "<i class='bi bi-x-circle-fill me-1'></i>Perdeu";
-                                    $linha_style = "background-color: rgba(220, 53, 69, 0.1) !important;";
+                                    $linha_class = "bet-lose";
                                 }
                             } elseif (in_array($status_normalizado, ['cancelada', 'cancelado', 'canceled', 'cancelled'])) {
                                 $status_badge = "status-cancelada";
                                 $status_texto = "Cancelado";
                             }
                         ?>
-                        <tr style="<?= $linha_style ?>">
+                        <tr class="<?= $linha_class ?>">
                             <td class="ps-4 text-secondary small">
                                 <?= date('d/m/Y H:i', strtotime($aposta['data_palpite'])) ?>
                             </td>
@@ -526,7 +544,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <strong class="text-white"><?= htmlspecialchars($aposta['evento_nome']) ?></strong><br>
                                 <small class="text-info"><?= htmlspecialchars($aposta['aposta_feita']) ?></small>
                             </td>
-                            <td class="fw-bold text-success">
+                            <td class="fw-bold text-success bet-amount">
                                 <?= number_format($aposta['valor'], 0, ',', '.') ?> pts
                             </td>
                             <td class="text-info">
@@ -536,7 +554,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <?= number_format($aposta['valor'] * $odd_final, 0, ',', '.') ?> pts
                             </td>
                             <td>
-                                <span class="badge badge-status <?= $status_badge ?>">
+                                <span class="badge badge-status <?= $status_badge ?> bet-status">
                                     <?= $status_texto ?>
                                 </span>
                             </td>
