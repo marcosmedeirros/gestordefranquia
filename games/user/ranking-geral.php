@@ -237,6 +237,16 @@ $tab_labels = [
 <div class="container-main">
     <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking Geral</h6>
 
+    <div class="d-flex justify-content-end mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary small">Ordenar por:</span>
+            <select class="form-select form-select-sm w-auto" id="rankingSort">
+                <option value="pontos">Pontos</option>
+                <option value="acertos">Acertos</option>
+            </select>
+        </div>
+    </div>
+
     <ul class="nav nav-tabs mb-4" id="rankingTabs" role="tablist">
         <?php foreach ($tab_labels as $tabKey => $tabLabel): ?>
             <li class="nav-item" role="presentation">
@@ -263,7 +273,7 @@ $tab_labels = [
                         <span class="text-end">Acertos</span>
                     </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
-                        <div class="ranking-item">
+                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                             <span class="ranking-position"><?= $idx + 1 ?></span>
                             <div class="ranking-name">
                                 <?= htmlspecialchars($jogador['nome']) ?>
@@ -295,7 +305,7 @@ $tab_labels = [
                             <span class="text-end">Acertos</span>
                         </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item">
+                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                                 <span class="ranking-position"><?= $idx + 1 ?></span>
                                 <div class="ranking-name">
                                     <?= htmlspecialchars($jogador['nome']) ?>
@@ -312,5 +322,41 @@ $tab_labels = [
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function sortRankingTab(tabPane, field) {
+            if (!tabPane) return;
+
+            const list = tabPane.querySelector('.ranking-card');
+            if (!list) return;
+
+            const items = Array.from(list.querySelectorAll('.ranking-item')).filter(item => !item.classList.contains('header-row'));
+            if (!items.length) return;
+
+            items.sort((a, b) => {
+                const av = parseInt(a.dataset[field] || '0', 10);
+                const bv = parseInt(b.dataset[field] || '0', 10);
+                return bv - av;
+            });
+
+            const header = list.querySelector('.header-row');
+            if (header) {
+                list.innerHTML = '';
+                list.appendChild(header);
+            } else {
+                list.innerHTML = '';
+            }
+            items.forEach(item => list.appendChild(item));
+        }
+
+        function applyRankingSort() {
+            const sortValue = document.getElementById('rankingSort')?.value || 'pontos';
+            const activeTab = document.querySelector('.tab-pane.active');
+            sortRankingTab(activeTab, sortValue);
+        }
+
+        document.getElementById('rankingSort')?.addEventListener('change', applyRankingSort);
+        document.getElementById('rankingTabs')?.addEventListener('shown.bs.tab', applyRankingSort);
+        applyRankingSort();
+    </script>
 </body>
 </html>
