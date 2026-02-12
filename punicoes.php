@@ -79,6 +79,10 @@ $team = $stmtTeam->fetch();
         <div class="bg-dark-panel border-orange rounded p-4 h-100">
           <h5 class="text-white mb-3">Nova punição</h5>
           <div class="mb-3">
+            <label class="form-label text-light-gray">Motivo</label>
+            <select id="punicaoMotive" class="form-select bg-dark text-white border-orange"></select>
+          </div>
+          <div class="mb-3">
             <label class="form-label text-light-gray">Liga</label>
             <select id="punicaoLeague" class="form-select bg-dark text-white border-orange"></select>
           </div>
@@ -110,6 +114,43 @@ $team = $stmtTeam->fetch();
             <input type="datetime-local" id="punicaoDate" class="form-control bg-dark text-white border-orange" />
           </div>
           <button id="punicaoSubmit" class="btn btn-orange w-100"><i class="bi bi-check2-circle me-2"></i>Registrar punição</button>
+        </div>
+        <div class="bg-dark-panel border-orange rounded p-4 mt-3">
+          <h5 class="text-white mb-3">Cadastrar motivo/punição</h5>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Novo motivo</label>
+            <div class="input-group">
+              <input type="text" id="newMotiveLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Diretrizes erradas">
+              <button class="btn btn-outline-light" id="newMotiveBtn"><i class="bi bi-plus-circle"></i></button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Nova punição</label>
+            <input type="text" id="newPunishmentLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Perda de pick específica">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Consequência</label>
+            <select id="newPunishmentEffect" class="form-select bg-dark text-white border-orange">
+              <option value="AVISO_FORMAL">Aviso formal</option>
+              <option value="PERDA_PICK_1R">Perda da Pick 1º rodada</option>
+              <option value="PERDA_PICK_ESPECIFICA">Perda de pick específica</option>
+              <option value="BAN_TRADES">Trades bloqueadas por uma temporada</option>
+              <option value="BAN_TRADES_PICKS">Trades sem picks</option>
+              <option value="BAN_FREE_AGENCY">Sem poder usar FA na temporada</option>
+              <option value="ROTACAO_AUTOMATICA">Rotação automatica</option>
+            </select>
+          </div>
+          <div class="d-flex gap-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="newPunishmentPick">
+              <label class="form-check-label text-light-gray" for="newPunishmentPick">Requer pick</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="newPunishmentScope">
+              <label class="form-check-label text-light-gray" for="newPunishmentScope">Requer temporada</label>
+            </div>
+          </div>
+          <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar punição</button>
         </div>
       </div>
 

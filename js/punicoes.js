@@ -6,25 +6,9 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-const PUNISHMENT_TYPES = [
-  { value: 'AVISO_FORMAL', label: 'Aviso formal' },
-  { value: 'PERDA_PICK_1R', label: 'Perda de pick 1ª rodada' },
-  { value: 'PERDA_PICK_ESPECIFICA', label: 'Perda de pick específica' },
-  { value: 'BAN_TRADES', label: 'Banir trades (temporada)' },
-  { value: 'BAN_TRADES_PICKS', label: 'Banir uso de picks em trades' },
-  { value: 'BAN_FREE_AGENCY', label: 'Banir Free Agency' },
-  { value: 'ROTACAO_AUTOMATICA', label: 'Rotação automática' },
-  { value: 'TETO_MINUTOS', label: 'Teto de minutos' },
-  { value: 'REDISTRIBUICAO_MINUTOS', label: 'Redistribuição de minutos' },
-  { value: 'ANULACAO_TRADE', label: 'Anulação de trade' },
-  { value: 'ANULACAO_FA', label: 'Anulação de FA' },
-  { value: 'DROP_OBRIGATORIO', label: 'Drop obrigatório' },
-  { value: 'CORRECAO_ROSTER', label: 'Correção de roster' },
-  { value: 'INATIVIDADE_REGISTRADA', label: 'Inatividade registrada' },
-  { value: 'EXCLUSAO_LIGA', label: 'Exclusão da liga' }
-];
-
-const BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY']);
+let punishmentCatalog = [];
+let motiveCatalog = [];
+const BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA']);
 
 let currentLeague = '';
 let currentTeamId = '';
@@ -33,6 +17,7 @@ let currentPicks = [];
 const leagueSelect = document.getElementById('punicaoLeague');
 const teamSelect = document.getElementById('punicaoTeam');
 const typeSelect = document.getElementById('punicaoType');
+const motiveSelect = document.getElementById('punicaoMotive');
 const notesInput = document.getElementById('punicaoNotes');
 const pickSelect = document.getElementById('punicaoPick');
 const scopeSelect = document.getElementById('punicaoScope');
@@ -42,24 +27,51 @@ const submitBtn = document.getElementById('punicaoSubmit');
 const historyLeagueSelect = document.getElementById('punicaoHistoryLeague');
 const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
 
+const newMotiveInput = document.getElementById('newMotiveLabel');
+const newMotiveBtn = document.getElementById('newMotiveBtn');
+const newPunishmentInput = document.getElementById('newPunishmentLabel');
+const newPunishmentEffect = document.getElementById('newPunishmentEffect');
+const newPunishmentPick = document.getElementById('newPunishmentPick');
+const newPunishmentScope = document.getElementById('newPunishmentScope');
+const newPunishmentBtn = document.getElementById('newPunishmentBtn');
+
 const pickRow = document.getElementById('punicaoPickRow');
 const scopeRow = document.getElementById('punicaoScopeRow');
 
 function renderTypeOptions() {
   if (!typeSelect) return;
-  typeSelect.innerHTML = '<option value="">Selecione...</option>' + PUNISHMENT_TYPES.map(type => (
-    `<option value="${type.value}">${type.label}</option>`
+  typeSelect.innerHTML = '<option value="">Selecione...</option>' + punishmentCatalog.map(type => (
+    `<option value="${type.effect_type}" data-requires-pick="${type.requires_pick}" data-requires-scope="${type.requires_scope}" data-label="${type.label}">${type.label}</option>`
+  )).join('');
+}
+
+function renderMotiveOptions() {
+  if (!motiveSelect) return;
+  motiveSelect.innerHTML = '<option value="">Selecione...</option>' + motiveCatalog.map(motive => (
+    `<option value="${motive.label}">${motive.label}</option>`
   )).join('');
 }
 
 function updateFormVisibility() {
-  const type = typeSelect?.value || '';
+  const option = typeSelect?.selectedOptions?.[0];
+  const effectType = typeSelect?.value || '';
+  const requiresPick = option?.dataset?.requiresPick === '1';
+  const requiresScope = option?.dataset?.requiresScope === '1';
   if (pickRow) {
-    pickRow.style.display = type === 'PERDA_PICK_ESPECIFICA' ? 'block' : 'none';
+    pickRow.style.display = requiresPick || effectType === 'PERDA_PICK_ESPECIFICA' ? 'block' : 'none';
   }
   if (scopeRow) {
-    scopeRow.style.display = BAN_TYPES.has(type) ? 'block' : 'none';
+    scopeRow.style.display = requiresScope || BAN_TYPES.has(effectType) ? 'block' : 'none';
   }
+}
+
+async function loadCatalog() {
+  const data = await api('punicoes.php?action=catalog');
+  motiveCatalog = data.motives || [];
+  punishmentCatalog = data.types || [];
+  renderMotiveOptions();
+  renderTypeOptions();
+  updateFormVisibility();
 }
 
 async function loadLeagues() {
@@ -97,7 +109,7 @@ async function loadPicks(teamId) {
 }
 
 function getTypeLabel(type) {
-  const match = PUNISHMENT_TYPES.find(item => item.value === type);
+  const match = punishmentCatalog.find(item => item.effect_type === type || item.label === type);
   return match ? match.label : type;
 }
 
@@ -115,25 +127,47 @@ async function loadPunishments({ teamId = '', league = '' } = {}) {
     listContainer.innerHTML = '<div class="text-light-gray">Nenhuma punição registrada.</div>';
     return;
   }
-  listContainer.innerHTML = rows.map(p => {
-    const pickInfo = p.pick_id ? `Pick ${p.season_year || ''} R${p.round || ''}`.trim() : '-';
-    const teamName = `${p.city || ''} ${p.name || ''}`.trim();
-    const leagueLabel = p.league || p.team_league || '-';
-    return `
-      <div class="punicao-card">
-        <div class="d-flex justify-content-between flex-wrap gap-2">
-          <div>
-            <strong>${getTypeLabel(p.type)}</strong>
-            <div class="text-light-gray small">${p.created_at}</div>
-            <div class="text-light-gray small">${teamName} • ${leagueLabel}</div>
-          </div>
-          <span class="badge bg-secondary">${p.season_scope || 'current'}</span>
-        </div>
-        <div class="mt-2 text-light-gray">${p.notes || 'Sem observações'}</div>
-        <div class="mt-2"><small class="text-light-gray">Pick:</small> ${pickInfo}</div>
-      </div>
-    `;
-  }).join('');
+  listContainer.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Motivo</th>
+            <th>Punição</th>
+            <th>Time</th>
+            <th>Data</th>
+            <th>Status</th>
+            <th class="text-end">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(p => {
+            const pickInfo = p.pick_id ? `Pick ${p.season_year || ''} R${p.round || ''}`.trim() : '';
+            const teamName = `${p.city || ''} ${p.name || ''}`.trim();
+            const leagueLabel = p.league || p.team_league || '-';
+            const statusLabel = p.reverted_at ? 'Revertida' : 'Ativa';
+            const motiveLabel = p.motive || '-';
+            const punishmentLabel = p.punishment_label || getTypeLabel(p.type);
+            return `
+              <tr>
+                <td>${motiveLabel}</td>
+                <td>
+                  <div>${punishmentLabel}</div>
+                  ${pickInfo ? `<small class="text-light-gray">${pickInfo}</small>` : ''}
+                </td>
+                <td>${teamName}<div class="text-light-gray small">${leagueLabel}</div></td>
+                <td class="text-light-gray small">${p.created_at}</td>
+                <td><span class="badge ${p.reverted_at ? 'bg-secondary' : 'bg-success'}">${statusLabel}</span></td>
+                <td class="text-end">
+                  ${p.reverted_at ? '' : `<button class="btn btn-sm btn-outline-warning" onclick="revertPunishment(${p.id})">Reverter</button>`}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 async function submitPunishment() {
@@ -150,6 +184,9 @@ async function submitPunishment() {
     action: 'add',
     team_id: Number(currentTeamId),
     type,
+    motive: motiveSelect?.value || '',
+    punishment_label: typeSelect?.selectedOptions?.[0]?.dataset?.label || '',
+    effect_type: type,
     notes: notesInput.value.trim(),
     season_scope: scopeSelect.value || 'current',
     created_at: createdAtInput.value || ''
@@ -216,8 +253,46 @@ if (historyTeamSelect) {
 typeSelect.addEventListener('change', updateFormVisibility);
 submitBtn.addEventListener('click', submitPunishment);
 
-renderTypeOptions();
-updateFormVisibility();
+async function createMotive() {
+  const label = newMotiveInput?.value.trim();
+  if (!label) return;
+  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
+  newMotiveInput.value = '';
+  await loadCatalog();
+}
+
+async function createPunishment() {
+  const label = newPunishmentInput?.value.trim();
+  const effectType = newPunishmentEffect?.value || '';
+  if (!label || !effectType) return;
+  await api('punicoes.php', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'add_type',
+      label,
+      effect_type: effectType,
+      requires_pick: newPunishmentPick?.checked || false,
+      requires_scope: newPunishmentScope?.checked || false
+    })
+  });
+  newPunishmentInput.value = '';
+  if (newPunishmentPick) newPunishmentPick.checked = false;
+  if (newPunishmentScope) newPunishmentScope.checked = false;
+  await loadCatalog();
+}
+
+async function revertPunishment(punishmentId) {
+  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'revert', punishment_id: punishmentId }) });
+  await loadPunishments({
+    teamId: historyTeamSelect?.value || currentTeamId,
+    league: historyLeagueSelect?.value || currentLeague
+  });
+}
+
+newMotiveBtn?.addEventListener('click', createMotive);
+newPunishmentBtn?.addEventListener('click', createPunishment);
+
+loadCatalog();
 loadLeagues();
 if (historyTeamSelect) {
   historyTeamSelect.innerHTML = '<option value="">Todos os times</option>';
