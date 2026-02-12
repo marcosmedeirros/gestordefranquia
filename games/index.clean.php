@@ -455,16 +455,16 @@ try {
 
         .opcoes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
         }
 
         .card-opcao {
             background: #252525;
             border: 1px solid #444;
             border-radius: 8px;
-            padding: 15px;
+            padding: 12px;
             text-align: center;
             transition: all 0.2s;
         }
@@ -486,10 +486,17 @@ try {
         .opcao-odd {
             color: var(--accent-green);
             font-weight: 800;
-            font-size: 1.5em;
+            font-size: 1.3em;
             display: block;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             text-shadow: 0 0 5px rgba(252, 8, 43, 0.2);
+        }
+
+        .bet-inline {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
         }
 
         .ranking-container {
@@ -645,12 +652,12 @@ try {
                             <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
                             <?php if ($evento_bloqueado): ?>
                                 <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.85rem;" disabled>Apostado</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
                             <?php else: ?>
-                                <form method="POST" action="games/apostas.php">
+                                <form method="POST" action="games/apostas.php" class="bet-inline">
                                     <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                                    <input type="number" name="valor" class="form-control form-control-sm mb-2" placeholder="Valor" min="1" step="1" required>
-                                    <button type="submit" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</button>
+                                    <input type="number" name="valor" class="form-control form-control-sm" placeholder="Valor" min="1" step="1" required>
+                                    <button type="submit" class="btn btn-sm btn-outline-success" style="font-size: 0.8rem;">Apostar</button>
                                 </form>
                             <?php endif; ?>
                         </div>

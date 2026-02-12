@@ -55,7 +55,9 @@ function recalcularOdds($pdo, $evento_id) {
         $stmtUpdate = $pdo->prepare("UPDATE opcoes SET odd = :nova_odd WHERE id = :id");
         $stmtFixInicial = $pdo->prepare("UPDATE opcoes SET odd_inicial = :odd_atual WHERE id = :id AND (odd_inicial IS NULL OR odd_inicial = 0)");
 
-        foreach ($dados_opcoes as $dado) {
+    $novas_odds = [];
+
+    foreach ($dados_opcoes as $dado) {
             
             // A. Calcula a "Opinião do Dinheiro" (Probabilidade Real)
             if ($total_dinheiro_evento > 0) {
@@ -86,12 +88,38 @@ function recalcularOdds($pdo, $evento_id) {
             if ($nova_odd > 5.00) $nova_odd = 5.00;
             // ---------------------------
 
-            // Atualiza no banco
-            $stmtUpdate->execute([':nova_odd' => $nova_odd, ':id' => $dado['id']]);
+            $novas_odds[$dado['id']] = $nova_odd;
+        }
+
+        // 4. Garante que o favorito inicial continue favorito
+        $ordenadas_inicial = $dados_opcoes;
+        usort($ordenadas_inicial, function ($a, $b) {
+            if ($a['odd_inicial'] == $b['odd_inicial']) {
+                return $a['id'] <=> $b['id'];
+            }
+            return $a['odd_inicial'] <=> $b['odd_inicial'];
+        });
+
+        $ultima_odd = null;
+        foreach ($ordenadas_inicial as $dado) {
+            $odd = $novas_odds[$dado['id']];
+            if ($ultima_odd !== null && $odd <= $ultima_odd) {
+                $odd = $ultima_odd + 0.01;
+            }
+            if ($odd < 1.10) $odd = 1.10;
+            if ($odd > 5.00) $odd = 5.00;
+
+            $novas_odds[$dado['id']] = $odd;
+            $ultima_odd = $odd;
+        }
+
+        // 5. Atualiza no banco
+        foreach ($dados_opcoes as $dado) {
+            $stmtUpdate->execute([':nova_odd' => $novas_odds[$dado['id']], ':id' => $dado['id']]);
 
             // Correção de segurança para odd_inicial
             if (empty($dado['odd_inicial'])) {
-               $stmtFixInicial->execute([':odd_atual' => $nova_odd, ':id' => $dado['id']]);
+               $stmtFixInicial->execute([':odd_atual' => $novas_odds[$dado['id']], ':id' => $dado['id']]);
             }
         }
 
