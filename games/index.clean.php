@@ -125,7 +125,7 @@ try {
         $eventos_por_liga[$liga][] = $evento;
     }
 
-    $ultimos_eventos_abertos = array_slice($eventos_abertos, 0, 3);
+    $ultimos_eventos_abertos = $eventos_abertos; // exibir todas as apostas ativas
     foreach ($ultimos_eventos_abertos as &$evento) {
         $stmtOpcoes = $pdo->prepare("SELECT id, descricao, odd FROM opcoes WHERE evento_id = :eid ORDER BY id ASC");
         $stmtOpcoes->execute([':eid' => $evento['id']]);
