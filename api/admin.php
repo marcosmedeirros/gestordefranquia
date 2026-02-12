@@ -1127,6 +1127,7 @@ if ($method === 'POST') {
             // Definir quantidade de tapas de um time
             $teamId = $data['team_id'] ?? null;
             $amount = $data['amount'] ?? null;
+            $operation = $data['operation'] ?? 'set'; // set | add | remove
 
             if (!$teamId || $amount === null) {
                 http_response_code(400);
@@ -1141,7 +1142,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmtTeam = $pdo->prepare('SELECT id, city, name FROM teams WHERE id = ?');
+            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(tapas, 0) as tapas FROM teams WHERE id = ?');
             $stmtTeam->execute([$teamId]);
             $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
@@ -1151,14 +1152,23 @@ if ($method === 'POST') {
                 exit;
             }
 
+            $currentTapas = (int)($team['tapas'] ?? 0);
+            if ($operation === 'add') {
+                $newBalance = $currentTapas + $amount;
+            } elseif ($operation === 'remove') {
+                $newBalance = max(0, $currentTapas - $amount);
+            } else {
+                $newBalance = $amount;
+            }
+
             try {
                 $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
-                $stmtUpdate->execute([$amount, $teamId]);
+                $stmtUpdate->execute([$newBalance, $teamId]);
 
                 echo json_encode([
                     'success' => true,
-                    'message' => sprintf('Tapas atualizados para %s %s: %d', $team['city'], $team['name'], $amount),
-                    'new_balance' => $amount
+                    'message' => sprintf('Tapas atualizados para %s %s: %d', $team['city'], $team['name'], $newBalance),
+                    'new_balance' => $newBalance
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);

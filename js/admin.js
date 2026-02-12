@@ -2392,6 +2392,7 @@ async function showTapas() {
           </div>
           <div class="modal-body">
             <input type="hidden" id="tapasTeamId">
+            <input type="hidden" id="tapasOperation" value="set">
             <div class="mb-3">
               <label class="form-label text-light-gray">Time</label>
               <input type="text" class="form-control bg-dark text-white" id="tapasTeamName" readonly>
@@ -2404,7 +2405,7 @@ async function showTapas() {
               </div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-light-gray">Novo valor</label>
+              <label class="form-label text-light-gray">Quantidade</label>
               <input type="number" class="form-control bg-dark text-white border-secondary" id="tapasAmount" min="0" value="0">
             </div>
           </div>
@@ -2476,9 +2477,14 @@ async function loadTapasTeams() {
                   </span>
                 </td>
                 <td class="text-center">
-                  <button class="btn btn-sm btn-outline-orange" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0})" title="Gerenciar tapas">
-                    <i class="bi bi-hand-index-thumb"></i>
-                  </button>
+                  <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-sm btn-success" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0}, 'add')" title="Adicionar tapas">
+                      <i class="bi bi-plus"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0}, 'remove')" title="Remover tapas">
+                      <i class="bi bi-dash"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             `).join('')}
@@ -2491,11 +2497,12 @@ async function loadTapasTeams() {
   }
 }
 
-function openTapasModal(teamId, teamName, currentBalance) {
+function openTapasModal(teamId, teamName, currentBalance, operation = 'set') {
   document.getElementById('tapasTeamId').value = teamId;
   document.getElementById('tapasTeamName').value = teamName;
   document.getElementById('tapasCurrentBalance').value = parseInt(currentBalance || 0).toLocaleString();
-  document.getElementById('tapasAmount').value = parseInt(currentBalance || 0);
+  document.getElementById('tapasOperation').value = operation;
+  document.getElementById('tapasAmount').value = 0;
 
   new bootstrap.Modal(document.getElementById('tapasModal')).show();
 }
@@ -2503,6 +2510,7 @@ function openTapasModal(teamId, teamName, currentBalance) {
 async function submitTapas() {
   const teamId = document.getElementById('tapasTeamId').value;
   const amount = parseInt(document.getElementById('tapasAmount').value);
+  const operation = document.getElementById('tapasOperation').value || 'set';
 
   if (!teamId || Number.isNaN(amount) || amount < 0) {
     alert('Preencha uma quantidade válida.');
@@ -2512,7 +2520,7 @@ async function submitTapas() {
   try {
     const result = await api('admin.php?action=tapas', {
       method: 'POST',
-      body: JSON.stringify({ team_id: teamId, amount })
+      body: JSON.stringify({ team_id: teamId, amount, operation })
     });
 
     bootstrap.Modal.getInstance(document.getElementById('tapasModal'))?.hide();
