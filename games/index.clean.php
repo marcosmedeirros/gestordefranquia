@@ -573,6 +573,7 @@ try {
                 <span style="color: #999; font-size: 0.9rem;">Bem-vindo(a),</span>
                 <strong><?= htmlspecialchars($usuario['nome']) ?></strong>
             </div>
+            <a href="/user/apostas.php" class="btn btn-sm btn-outline-light">Minhas apostas</a>
         </div>
         <?php if (!empty($usuario['is_admin']) && $usuario['is_admin'] == 1): ?>
             <a href="admin/dashboard.php" class="admin-btn"><i class="bi bi-gear-fill me-1"></i> Admin</a>
@@ -662,55 +663,6 @@ try {
         <div class="empty-state">
             <div class="empty-icon"><i class="bi bi-inbox"></i></div>
             <div class="empty-text">Nenhum evento disponível no momento</div>
-        </div>
-    <?php endif; ?>
-
-    <h6 class="section-title"><i class="bi bi-cash-stack"></i>Minhas Apostas</h6>
-    <?php if(!empty($ultimos_palpites)): ?>
-        <?php foreach($ultimos_palpites as $palpite): ?>
-            <?php
-                $resultado_palpite = null;
-                if (($palpite['evento_status'] ?? '') === 'encerrada' && $palpite['vencedor_opcao_id']) {
-                    $resultado_palpite = ((int)$palpite['vencedor_opcao_id'] === (int)$palpite['opcao_id']) ? 'Ganhou' : 'Perdeu';
-                }
-            ?>
-            <div class="aposta-card">
-                <div class="aposta-label mb-1">Evento</div>
-                <div class="aposta-evento"><?= htmlspecialchars($palpite['evento_nome']) ?></div>
-                <div class="text-light mb-3">Opção: <?= htmlspecialchars($palpite['opcao_descricao']) ?></div>
-                <div class="aposta-details">
-                    <div class="aposta-detail-item">
-                        <span class="aposta-detail-label">Valor</span>
-                        <span class="aposta-detail-value"><?= number_format($palpite['valor'], 0, ',', '.') ?> pts</span>
-                    </div>
-                    <div class="aposta-detail-item">
-                        <span class="aposta-detail-label">Odd</span>
-                        <span class="aposta-detail-value"><?= number_format($palpite['odd_registrada'], 2) ?>x</span>
-                    </div>
-                    <div class="aposta-detail-item">
-                        <span class="aposta-detail-label">Status</span>
-                        <span class="aposta-detail-value">
-                            <?php if($resultado_palpite): ?>
-                                <?= $resultado_palpite ?>
-                            <?php else: ?>
-                                <?= ($palpite['evento_status'] ?? '') === 'aberta' ? 'Aberta' : 'Encerrada' ?>
-                            <?php endif; ?>
-                        </span>
-                    </div>
-                    <div class="aposta-detail-item">
-                        <span class="aposta-detail-label">Data</span>
-                        <span class="aposta-detail-value"><?= date('d/m/Y H:i', strtotime($palpite['data_palpite'])) ?></span>
-                    </div>
-                </div>
-            </div>
-        <?php endforeach; ?>
-        <div class="text-end mb-4">
-            <a href="user/apostas.php" class="btn btn-outline-light btn-sm">Ver mais</a>
-        </div>
-    <?php else: ?>
-        <div class="empty-state">
-            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-            <div class="empty-text">Você ainda não fez apostas.</div>
         </div>
     <?php endif; ?>
 
