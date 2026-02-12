@@ -278,8 +278,6 @@ foreach ($eventos as $key => $evt) {
 <div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top mb-4">
     <div class="d-flex align-items-center gap-3">
         <span class="fs-5 text-white">Olá Admin, <strong><?= htmlspecialchars($user['nome']) ?></strong></span>
-        <!-- MENU ADMIN -->
-        <a href="cafe.php" class="btn btn-outline-warning btn-sm fw-bold"><i class="bi bi-bank me-1"></i>Banco do Café</a>
     </div>
     
     <div class="d-flex align-items-center gap-3">
