@@ -41,7 +41,7 @@ const scopeRow = document.getElementById('punicaoScopeRow');
 function renderTypeOptions() {
   if (!typeSelect) return;
   typeSelect.innerHTML = '<option value="">Selecione...</option>' + punishmentCatalog.map(type => (
-    `<option value="${type.effect_type}" data-requires-pick="${type.requires_pick}" data-requires-scope="${type.requires_scope}" data-label="${type.label}">${type.label}</option>`
+    `<option value="${type.label}" data-effect-type="${type.effect_type}" data-requires-pick="${type.requires_pick}" data-requires-scope="${type.requires_scope}">${type.label}</option>`
   )).join('');
 }
 
@@ -54,7 +54,7 @@ function renderMotiveOptions() {
 
 function updateFormVisibility() {
   const option = typeSelect?.selectedOptions?.[0];
-  const effectType = typeSelect?.value || '';
+  const effectType = option?.dataset?.effectType || '';
   const requiresPick = option?.dataset?.requiresPick === '1';
   const requiresScope = option?.dataset?.requiresScope === '1';
   if (pickRow) {
@@ -183,10 +183,10 @@ async function submitPunishment() {
   const payload = {
     action: 'add',
     team_id: Number(currentTeamId),
-    type,
+    type: type,
     motive: motiveSelect?.value || '',
-    punishment_label: typeSelect?.selectedOptions?.[0]?.dataset?.label || '',
-    effect_type: type,
+    punishment_label: typeSelect?.value || '',
+    effect_type: typeSelect?.selectedOptions?.[0]?.dataset?.effectType || type,
     notes: notesInput.value.trim(),
     season_scope: scopeSelect.value || 'current',
     created_at: createdAtInput.value || ''
