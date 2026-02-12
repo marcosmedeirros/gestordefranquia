@@ -170,7 +170,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     <th>OVR</th>
                                     <th>Idade</th>
                                     <th>Posicao</th>
-                                    <th>Posicao Secundaria</th>
+                                    <th>Posicao Sec.</th>
                                     <th>Time</th>
                                     <th>Contato</th>
                                     <th>Ações</th>
