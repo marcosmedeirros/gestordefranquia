@@ -272,6 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     }
 
     function stopSpinAnimation(finalReels) {
+        const totalDuration = 600 + ((tracks.length - 1) * 700) + 700;
         tracks.forEach((track, idx) => {
             setTimeout(() => {
                 track.classList.remove('spinning');
@@ -286,6 +287,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 track.style.transform = `translateY(-${itemHeight * 7}px)`;
             }, 600 + (idx * 700));
         });
+
+        return totalDuration;
     }
 
     function showMessage(text, type = 'info') {
@@ -312,21 +315,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .then(res => res.json())
         .then(data => {
             if (data.erro) {
-                stopSpinAnimation(['❌', '❌', '❌']);
-                showMessage(data.erro, 'danger');
+                const waitMs = stopSpinAnimation(['❌', '❌', '❌']);
+                setTimeout(() => showMessage(data.erro, 'danger'), waitMs);
                 return;
             }
-            stopSpinAnimation(data.reels);
+            const waitMs = stopSpinAnimation(data.reels);
             saldoDisplay.textContent = `${data.saldo.toLocaleString('pt-BR')} pts`;
-            if (data.premio > 0) {
-                showMessage(`Você ganhou ${data.premio} pts!`, 'success');
-            } else {
-                showMessage('Não foi dessa vez. Tente novamente!', 'secondary');
-            }
+            setTimeout(() => {
+                if (data.premio > 0) {
+                    showMessage(`Você ganhou ${data.premio} pts!`, 'success');
+                } else {
+                    showMessage('Não foi dessa vez. Tente novamente!', 'secondary');
+                }
+            }, waitMs);
         })
         .catch(() => {
-            stopSpinAnimation(['❌', '❌', '❌']);
-            showMessage('Erro ao girar. Tente novamente.', 'danger');
+            const waitMs = stopSpinAnimation(['❌', '❌', '❌']);
+            setTimeout(() => showMessage('Erro ao girar. Tente novamente.', 'danger'), waitMs);
         })
         .finally(() => { spinBtn.disabled = false; });
     });
