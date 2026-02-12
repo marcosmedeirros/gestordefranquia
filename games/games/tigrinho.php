@@ -35,6 +35,8 @@ $symbols = [
     ['id' => 'cherry', 'label' => '🍒', 'weight' => 10, 'mult' => 1]
 ];
 
+$house_edge = 0.65; // 65% das vezes a casa leva
+
 function spinSymbol($symbols) {
     $total = array_sum(array_column($symbols, 'weight'));
     $rand = mt_rand(1, $total);
@@ -71,10 +73,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $s3 = spinSymbol($symbols);
 
         $premio = 0;
-        if ($s1['id'] === $s2['id'] && $s2['id'] === $s3['id']) {
-            $premio = $aposta * $s1['mult'];
-        } elseif ($s1['id'] === $s2['id'] || $s1['id'] === $s3['id'] || $s2['id'] === $s3['id']) {
-            $premio = $aposta;
+        $is_win = ($s1['id'] === $s2['id'] && $s2['id'] === $s3['id'])
+            || ($s1['id'] === $s2['id'] || $s1['id'] === $s3['id'] || $s2['id'] === $s3['id']);
+
+        if ($is_win) {
+            $rand_edge = mt_rand(1, 100) / 100;
+            if ($rand_edge <= $house_edge) {
+                // Força derrota: troca o terceiro símbolo para quebrar a combinação
+                do {
+                    $s3 = spinSymbol($symbols);
+                } while ($s3['id'] === $s1['id'] || $s3['id'] === $s2['id']);
+                $is_win = false;
+            }
+        }
+
+        if ($is_win) {
+            if ($s1['id'] === $s2['id'] && $s2['id'] === $s3['id']) {
+                $premio = $aposta * $s1['mult'];
+            } else {
+                $premio = $aposta;
+            }
         }
 
         $novo_saldo = $saldo - $aposta + $premio;
@@ -124,11 +142,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .slot-card { background: #1e1e1e; border: 1px solid #333; border-radius: 16px; padding: 24px; box-shadow: 0 0 20px rgba(0,0,0,0.4); }
         .reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
         .reel { background: #111; border: 2px solid #333; border-radius: 14px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; transition: transform 0.25s ease; }
-        .reel.spinning { animation: reelSpin 0.12s linear infinite; border-color: #FC082B; box-shadow: 0 0 12px rgba(252, 8, 43, 0.4); }
-        .reel.stop { animation: none; transform: scale(1.05); }
+        .reel.spinning { animation: reelSpin 0.28s linear infinite; border-color: #FC082B; box-shadow: 0 0 12px rgba(252, 8, 43, 0.4); }
+        .reel.stop { animation: reelStop 0.4s ease; transform: translateY(0); }
         @keyframes reelSpin {
             0% { transform: translateY(0); }
             50% { transform: translateY(-6px); }
+            100% { transform: translateY(0); }
+        }
+        @keyframes reelStop {
+            0% { transform: translateY(-10px); }
+            70% { transform: translateY(4px); }
             100% { transform: translateY(0); }
         }
         .btn-spin { background: #FC082B; border: none; color: #000; font-weight: 800; }
@@ -205,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     function startSpinAnimation() {
         reels.forEach(reel => { reel.classList.add('spinning'); reel.classList.remove('stop'); });
         rollSymbols();
-        spinTimer = setInterval(rollSymbols, 90);
+        spinTimer = setInterval(rollSymbols, 200);
     }
 
     function stopSpinAnimation(finalReels) {
@@ -216,8 +239,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 reel.classList.remove('spinning');
                 reel.classList.add('stop');
                 reel.textContent = finalReels[idx];
-                setTimeout(() => reel.classList.remove('stop'), 300);
-            }, idx * 180);
+                setTimeout(() => reel.classList.remove('stop'), 500);
+            }, 700 + (idx * 550));
         });
     }
 
