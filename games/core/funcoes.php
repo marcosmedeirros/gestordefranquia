@@ -13,12 +13,19 @@ function recalcularOdds($pdo, $evento_id) {
     // --- CALIBRAGEM DO ALGORITMO ---
     
     // PESO DO DINHEIRO (0.0 a 1.0)
-    // 0.2 = O dinheiro influencia 20% no cálculo final.
-    $peso_dinheiro = 0.2; 
+    // Base mais conservadora para evitar "derreter" favoritos.
+    $peso_dinheiro_base = 0.12;
+    $peso_dinheiro_max = 0.18;
+    $escala_dinheiro = 500; // volume em R$ p/ o peso começar a crescer
 
     // MARGEM DA CASA
     // 0.90 = 10% de lucro pra casa.
     $margem_casa = 0.90; 
+
+    // LIMITES DE DESVIO DA ODD INICIAL
+    // Controla quanto a odd pode se afastar da inicial.
+    $desvio_favorito = 0.20; // favorito: no máximo -20%
+    $desvio_underdog = 0.30; // azarão: no máximo +30%
 
     try {
         // 1. Busca dados atuais
@@ -77,6 +84,14 @@ function recalcularOdds($pdo, $evento_id) {
 
             // B. O "CABO DE GUERRA" (Weighted Average) ⚖️
             // Mistura a Probabilidade Inicial com a Probabilidade do Dinheiro
+            // Peso dinâmico aumenta conforme o volume total do evento.
+            $peso_dinheiro = $peso_dinheiro_base;
+            if ($total_dinheiro_evento > 0) {
+                $ratio = log(1 + $total_dinheiro_evento) / log(1 + $escala_dinheiro);
+                if ($ratio > 1) $ratio = 1;
+                $peso_dinheiro = $peso_dinheiro_base + (($peso_dinheiro_max - $peso_dinheiro_base) * $ratio);
+            }
+
             $nova_probabilidade = ($dado['prob_inicial'] * (1 - $peso_dinheiro)) + ($prob_dinheiro * $peso_dinheiro);
 
             // C. Converte Probabilidade em Odd e aplica Margem
@@ -86,6 +101,13 @@ function recalcularOdds($pdo, $evento_id) {
             // --- TRAVAS DE SEGURANÇA ---
             if ($nova_odd < 1.10) $nova_odd = 1.10;
             if ($nova_odd > 5.00) $nova_odd = 5.00;
+
+            // Limita desvio em relação à odd inicial
+            $odd_inicial = $dado['odd_inicial'];
+            $limite_min = $odd_inicial * (1 - $desvio_favorito);
+            $limite_max = $odd_inicial * (1 + $desvio_underdog);
+            if ($nova_odd < $limite_min) $nova_odd = $limite_min;
+            if ($nova_odd > $limite_max) $nova_odd = $limite_max;
             // ---------------------------
 
             $novas_odds[$dado['id']] = $nova_odd;
