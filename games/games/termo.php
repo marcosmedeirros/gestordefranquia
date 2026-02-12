@@ -394,9 +394,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     document.querySelectorAll(".key").forEach(btn => {
         btn.addEventListener("click", () => {
             if(gameOver) return;
+            if (btn.id === "enter-btn") {
+                submitGuess();
+                return;
+            }
+            if (btn.id === "back-btn") {
+                deleteLetter();
+                return;
+            }
             const key = btn.innerText;
             if (key === "ENTER") submitGuess();
-            else if (key === "âŒ«") deleteLetter();
             else addLetter(key);
         });
     });
