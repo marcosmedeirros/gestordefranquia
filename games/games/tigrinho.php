@@ -134,7 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
+        body {
+            background-color: #f7a8c6;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Ctext x='10' y='70' font-size='60'%3E%F0%9F%90%AF%3C/text%3E%3C/svg%3E");
+            background-repeat: repeat;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+        }
         .navbar-custom { background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%); border-bottom: 1px solid #333; padding: 15px; }
         .saldo-badge { background-color: #FC082B; color: #000; padding: 8px 15px; border-radius: 20px; font-weight: 800; font-size: 1.1em; box-shadow: 0 0 10px rgba(252, 8, 43, 0.3); }
         .admin-btn { background-color: #ff6d00; color: white; padding: 5px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; }
@@ -159,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .slot-card::after { right: 0; }
         .reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
         .reel {
-            background: #0f0a05; border: 2px solid #3b2a18; border-radius: 14px; height: 120px;
+            background: #000; border: 2px solid #3b2a18; border-radius: 14px; height: 120px;
             overflow: hidden; position: relative;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
         }
