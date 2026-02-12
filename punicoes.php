@@ -91,7 +91,7 @@ $team = $stmtTeam->fetch();
             <select id="punicaoTeam" class="form-select bg-dark text-white border-orange"></select>
           </div>
           <div class="mb-3">
-            <label class="form-label text-light-gray">Punição</label>
+            <label class="form-label text-light-gray">Consequência</label>
             <select id="punicaoType" class="form-select bg-dark text-white border-orange"></select>
           </div>
           <div class="mb-3" id="punicaoPickRow" style="display:none;">
