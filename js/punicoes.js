@@ -268,7 +268,7 @@ async function createPunishment() {
   const label = newPunishmentInput?.value.trim();
   const effectType = newPunishmentEffect?.value || '';
   if (!label || !effectType) {
-    alert('Informe a punição e a consequência.');
+    alert('Informe a consequência e o tipo.');
     return;
   }
   await api('punicoes.php', {

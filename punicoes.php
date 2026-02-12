@@ -125,13 +125,13 @@ $team = $stmtTeam->fetch();
         </div>
 
         <div class="bg-dark-panel border-orange rounded p-4 mt-3">
-          <h5 class="text-white mb-3">Cadastrar punição</h5>
+          <h5 class="text-white mb-3">Cadastrar consequência</h5>
           <div class="mb-3">
-            <label class="form-label text-light-gray">Nova punição</label>
+            <label class="form-label text-light-gray">Nova consequência</label>
             <input type="text" id="newPunishmentLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Perda de pick específica">
           </div>
           <div class="mb-3">
-            <label class="form-label text-light-gray">Consequência</label>
+            <label class="form-label text-light-gray">Tipo de consequência</label>
             <select id="newPunishmentEffect" class="form-select bg-dark text-white border-orange">
               <option value="AVISO_FORMAL">Aviso formal</option>
               <option value="PERDA_PICK_1R">Perda da Pick 1º rodada</option>
@@ -152,7 +152,7 @@ $team = $stmtTeam->fetch();
               <label class="form-check-label text-light-gray" for="newPunishmentScope">Requer temporada</label>
             </div>
           </div>
-          <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar punição</button>
+          <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar consequência</button>
         </div>
       </div>
 
