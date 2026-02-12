@@ -29,10 +29,10 @@ try {
 
 $symbols = [
     ['id' => 'tiger', 'label' => '🐯', 'weight' => 5, 'mult' => 5],
-    ['id' => 'coin', 'label' => '🪙', 'weight' => 6, 'mult' => 4],
-    ['id' => 'lotus', 'label' => '🌸', 'weight' => 7, 'mult' => 3],
-    ['id' => 'bamboo', 'label' => '🎋', 'weight' => 8, 'mult' => 2],
-    ['id' => 'cherry', 'label' => '🍒', 'weight' => 10, 'mult' => 1]
+    ['id' => 'ingot', 'label' => '🪙', 'weight' => 6, 'mult' => 4],
+    ['id' => 'envelope', 'label' => '🧧', 'weight' => 7, 'mult' => 3],
+    ['id' => 'lantern', 'label' => '�', 'weight' => 8, 'mult' => 2],
+    ['id' => 'gem', 'label' => '💎', 'weight' => 10, 'mult' => 1]
 ];
 
 $house_edge = 0.65; // 65% das vezes a casa leva
@@ -139,20 +139,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .saldo-badge { background-color: #FC082B; color: #000; padding: 8px 15px; border-radius: 20px; font-weight: 800; font-size: 1.1em; box-shadow: 0 0 10px rgba(252, 8, 43, 0.3); }
         .admin-btn { background-color: #ff6d00; color: white; padding: 5px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; }
         .admin-btn:hover { background-color: #e65100; color: white; box-shadow: 0 0 8px #ff6d00; }
-        .slot-card { background: #1e1e1e; border: 1px solid #333; border-radius: 16px; padding: 24px; box-shadow: 0 0 20px rgba(0,0,0,0.4); }
+        .slot-card { background: radial-gradient(circle at top, #2b1b0f 0%, #1b120a 50%, #121212 100%); border: 1px solid #3b2a18; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px rgba(0,0,0,0.5); }
         .reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
-        .reel { background: #111; border: 2px solid #333; border-radius: 14px; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; transition: transform 0.25s ease; }
-        .reel.spinning { animation: reelSpin 0.28s linear infinite; border-color: #FC082B; box-shadow: 0 0 12px rgba(252, 8, 43, 0.4); }
-        .reel.stop { animation: reelStop 0.4s ease; transform: translateY(0); }
-        @keyframes reelSpin {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-6px); }
-            100% { transform: translateY(0); }
+        .reel {
+            background: #0f0a05; border: 2px solid #3b2a18; border-radius: 14px; height: 120px;
+            overflow: hidden; position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
         }
-        @keyframes reelStop {
-            0% { transform: translateY(-10px); }
-            70% { transform: translateY(4px); }
-            100% { transform: translateY(0); }
+        .reel-track {
+            display: flex; flex-direction: column; align-items: center;
+            transform: translateY(0); transition: transform 0.7s ease-out;
+        }
+        .reel-track.spinning { animation: reelSpin 1.4s linear infinite; }
+        .reel-item {
+            height: 100px; display: flex; align-items: center; justify-content: center;
+            width: 100%; font-size: 2.4rem;
+        }
+        @keyframes reelSpin {
+            from { transform: translateY(0); }
+            to { transform: translateY(-600px); }
         }
         .btn-spin { background: #FC082B; border: none; color: #000; font-weight: 800; }
         .btn-spin:disabled { opacity: 0.6; }
@@ -186,9 +191,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                     </div>
 
                     <div class="reels" id="reels">
-                        <div class="reel" id="reel-1">🐯</div>
-                        <div class="reel" id="reel-2">🌸</div>
-                        <div class="reel" id="reel-3">🪙</div>
+                        <div class="reel" id="reel-1"><div class="reel-track" id="track-1"></div></div>
+                        <div class="reel" id="reel-2"><div class="reel-track" id="track-2"></div></div>
+                        <div class="reel" id="reel-3"><div class="reel-track" id="track-3"></div></div>
                     </div>
 
                     <div class="row g-2 align-items-center">
@@ -211,43 +216,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     const betInput = document.getElementById('betInput');
     const resultMsg = document.getElementById('resultMsg');
     const saldoDisplay = document.getElementById('saldoDisplay');
-    const reels = [
-        document.getElementById('reel-1'),
-        document.getElementById('reel-2'),
-        document.getElementById('reel-3')
+    const tracks = [
+        document.getElementById('track-1'),
+        document.getElementById('track-2'),
+        document.getElementById('track-3')
     ];
-    const symbolsPool = ['🐯', '🪙', '🌸', '🎋', '🍒'];
-    let spinTimer = null;
+    const symbolsPool = ['🐯', '🪙', '🧧', '�', '💎'];
+    const itemHeight = 100;
 
-    function rollSymbols() {
-        reels.forEach(reel => {
-            reel.textContent = symbolsPool[Math.floor(Math.random() * symbolsPool.length)];
-        });
+    function randomSymbol() {
+        return symbolsPool[Math.floor(Math.random() * symbolsPool.length)];
+    }
+
+    function fillTrack(track, items) {
+        track.innerHTML = '';
+        for (let i = 0; i < items; i++) {
+            const div = document.createElement('div');
+            div.className = 'reel-item';
+            div.textContent = randomSymbol();
+            track.appendChild(div);
+        }
     }
 
     function startSpinAnimation() {
-        reels.forEach(reel => { reel.classList.add('spinning'); reel.classList.remove('stop'); });
-        rollSymbols();
-        spinTimer = setInterval(rollSymbols, 200);
-    }
-
-    function stopSpinAnimation(finalReels) {
-        clearInterval(spinTimer);
-        spinTimer = null;
-        reels.forEach((reel, idx) => {
-            setTimeout(() => {
-                reel.classList.remove('spinning');
-                reel.classList.add('stop');
-                reel.textContent = finalReels[idx];
-                setTimeout(() => reel.classList.remove('stop'), 500);
-            }, 700 + (idx * 550));
+        tracks.forEach(track => {
+            fillTrack(track, 10);
+            track.classList.add('spinning');
+            track.style.transform = 'translateY(0)';
         });
     }
 
-    function setReels(reels) {
-        document.getElementById('reel-1').textContent = reels[0];
-        document.getElementById('reel-2').textContent = reels[1];
-        document.getElementById('reel-3').textContent = reels[2];
+    function stopSpinAnimation(finalReels) {
+        tracks.forEach((track, idx) => {
+            setTimeout(() => {
+                track.classList.remove('spinning');
+                fillTrack(track, 7);
+                const finalItem = document.createElement('div');
+                finalItem.className = 'reel-item';
+                finalItem.textContent = finalReels[idx];
+                track.appendChild(finalItem);
+
+                track.style.transform = 'translateY(0)';
+                void track.offsetHeight;
+                track.style.transform = `translateY(-${itemHeight * 7}px)`;
+            }, 600 + (idx * 700));
+        });
     }
 
     function showMessage(text, type = 'info') {
