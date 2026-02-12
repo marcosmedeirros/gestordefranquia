@@ -30,9 +30,6 @@ const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
 const newMotiveInput = document.getElementById('newMotiveLabel');
 const newMotiveBtn = document.getElementById('newMotiveBtn');
 const newPunishmentInput = document.getElementById('newPunishmentLabel');
-const newPunishmentEffect = document.getElementById('newPunishmentEffect');
-const newPunishmentPick = document.getElementById('newPunishmentPick');
-const newPunishmentScope = document.getElementById('newPunishmentScope');
 const newPunishmentBtn = document.getElementById('newPunishmentBtn');
 
 const pickRow = document.getElementById('punicaoPickRow');
@@ -266,24 +263,36 @@ async function createMotive() {
 
 async function createPunishment() {
   const label = newPunishmentInput?.value.trim();
-  const effectType = newPunishmentEffect?.value || '';
-  if (!label || !effectType) {
-    alert('Informe a consequência e o tipo.');
+  if (!label) {
+    alert('Informe a consequência.');
     return;
   }
+  const normalized = label.toLowerCase();
+  const effectTypeMap = {
+    'aviso formal': 'AVISO_FORMAL',
+    'perda da pick 1º rodada': 'PERDA_PICK_1R',
+    'perda da pick 1a rodada': 'PERDA_PICK_1R',
+    'perda de pick específica': 'PERDA_PICK_ESPECIFICA',
+    'perda de pick especifica': 'PERDA_PICK_ESPECIFICA',
+    'trades bloqueadas por uma temporada': 'BAN_TRADES',
+    'trades sem picks': 'BAN_TRADES_PICKS',
+    'sem poder usar fa na temporada': 'BAN_FREE_AGENCY',
+    'rotacao automatica': 'ROTACAO_AUTOMATICA',
+    'rotação automatica': 'ROTACAO_AUTOMATICA',
+    'rotação automática': 'ROTACAO_AUTOMATICA'
+  };
+  const effectType = effectTypeMap[normalized] || 'AVISO_FORMAL';
   await api('punicoes.php', {
     method: 'POST',
     body: JSON.stringify({
       action: 'add_type',
       label,
       effect_type: effectType,
-      requires_pick: newPunishmentPick?.checked || false,
-      requires_scope: newPunishmentScope?.checked || false
+      requires_pick: effectType === 'PERDA_PICK_ESPECIFICA',
+      requires_scope: ['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA'].includes(effectType)
     })
   });
   if (newPunishmentInput) newPunishmentInput.value = '';
-  if (newPunishmentPick) newPunishmentPick.checked = false;
-  if (newPunishmentScope) newPunishmentScope.checked = false;
   await loadCatalog();
 }
 

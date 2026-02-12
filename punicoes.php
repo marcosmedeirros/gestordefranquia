@@ -130,28 +130,6 @@ $team = $stmtTeam->fetch();
             <label class="form-label text-light-gray">Nova consequência</label>
             <input type="text" id="newPunishmentLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Perda de pick específica">
           </div>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Tipo de consequência</label>
-            <select id="newPunishmentEffect" class="form-select bg-dark text-white border-orange">
-              <option value="AVISO_FORMAL">Aviso formal</option>
-              <option value="PERDA_PICK_1R">Perda da Pick 1º rodada</option>
-              <option value="PERDA_PICK_ESPECIFICA">Perda de pick específica</option>
-              <option value="BAN_TRADES">Trades bloqueadas por uma temporada</option>
-              <option value="BAN_TRADES_PICKS">Trades sem picks</option>
-              <option value="BAN_FREE_AGENCY">Sem poder usar FA na temporada</option>
-              <option value="ROTACAO_AUTOMATICA">Rotação automatica</option>
-            </select>
-          </div>
-          <div class="d-flex gap-2">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="newPunishmentPick">
-              <label class="form-check-label text-light-gray" for="newPunishmentPick">Requer pick</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="newPunishmentScope">
-              <label class="form-check-label text-light-gray" for="newPunishmentScope">Requer temporada</label>
-            </div>
-          </div>
           <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar consequência</button>
         </div>
       </div>
