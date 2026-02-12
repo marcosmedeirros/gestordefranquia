@@ -116,11 +116,16 @@ $team = $stmtTeam->fetch();
           <button id="punicaoSubmit" class="btn btn-orange w-100"><i class="bi bi-check2-circle me-2"></i>Registrar punição</button>
         </div>
         <div class="bg-dark-panel border-orange rounded p-4 mt-3">
-          <h5 class="text-white mb-3">Cadastrar motivo/punição</h5>
+          <h5 class="text-white mb-3">Cadastrar motivo</h5>
           <div class="mb-3">
             <label class="form-label text-light-gray">Novo motivo</label>
             <input type="text" id="newMotiveLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Diretrizes erradas">
           </div>
+          <button class="btn btn-outline-light w-100" id="newMotiveBtn"><i class="bi bi-plus-circle me-2"></i>Salvar motivo</button>
+        </div>
+
+        <div class="bg-dark-panel border-orange rounded p-4 mt-3">
+          <h5 class="text-white mb-3">Cadastrar punição</h5>
           <div class="mb-3">
             <label class="form-label text-light-gray">Nova punição</label>
             <input type="text" id="newPunishmentLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Perda de pick específica">
@@ -147,7 +152,7 @@ $team = $stmtTeam->fetch();
               <label class="form-check-label text-light-gray" for="newPunishmentScope">Requer temporada</label>
             </div>
           </div>
-          <button class="btn btn-outline-light mt-3 w-100" id="saveCatalogBtn"><i class="bi bi-plus-circle me-2"></i>Salvar cadastros</button>
+          <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar punição</button>
         </div>
       </div>
 

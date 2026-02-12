@@ -28,7 +28,7 @@ const historyLeagueSelect = document.getElementById('punicaoHistoryLeague');
 const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
 
 const newMotiveInput = document.getElementById('newMotiveLabel');
-const saveCatalogBtn = document.getElementById('saveCatalogBtn');
+const newMotiveBtn = document.getElementById('newMotiveBtn');
 const newPunishmentInput = document.getElementById('newPunishmentLabel');
 const newPunishmentEffect = document.getElementById('newPunishmentEffect');
 const newPunishmentPick = document.getElementById('newPunishmentPick');
@@ -253,38 +253,37 @@ if (historyTeamSelect) {
 typeSelect.addEventListener('change', updateFormVisibility);
 submitBtn.addEventListener('click', submitPunishment);
 
-async function saveCatalog() {
-  const motiveLabel = newMotiveInput?.value.trim();
-  const punishmentLabel = newPunishmentInput?.value.trim();
-  const effectType = newPunishmentEffect?.value || '';
-
-  if (!motiveLabel && !punishmentLabel) {
-    alert('Informe um motivo, uma punição ou ambos.');
+async function createMotive() {
+  const label = newMotiveInput?.value.trim();
+  if (!label) {
+    alert('Informe o motivo.');
     return;
   }
-
-  if (motiveLabel) {
-    await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label: motiveLabel }) });
-  }
-
-  if (punishmentLabel) {
-    await api('punicoes.php', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'add_type',
-        label: punishmentLabel,
-        effect_type: effectType,
-        requires_pick: newPunishmentPick?.checked || false,
-        requires_scope: newPunishmentScope?.checked || false
-      })
-    });
-  }
-
+  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
   if (newMotiveInput) newMotiveInput.value = '';
+  await loadCatalog();
+}
+
+async function createPunishment() {
+  const label = newPunishmentInput?.value.trim();
+  const effectType = newPunishmentEffect?.value || '';
+  if (!label || !effectType) {
+    alert('Informe a punição e a consequência.');
+    return;
+  }
+  await api('punicoes.php', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'add_type',
+      label,
+      effect_type: effectType,
+      requires_pick: newPunishmentPick?.checked || false,
+      requires_scope: newPunishmentScope?.checked || false
+    })
+  });
   if (newPunishmentInput) newPunishmentInput.value = '';
   if (newPunishmentPick) newPunishmentPick.checked = false;
   if (newPunishmentScope) newPunishmentScope.checked = false;
-
   await loadCatalog();
 }
 
@@ -296,7 +295,8 @@ async function revertPunishment(punishmentId) {
   });
 }
 
-saveCatalogBtn?.addEventListener('click', saveCatalog);
+newMotiveBtn?.addEventListener('click', createMotive);
+newPunishmentBtn?.addEventListener('click', createPunishment);
 
 loadCatalog();
 loadLeagues();
