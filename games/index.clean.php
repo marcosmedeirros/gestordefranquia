@@ -166,6 +166,20 @@ try {
 
 try {
     $stmt = $pdo->prepare("
+        SELECT DISTINCT o.evento_id
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        WHERE p.id_usuario = :uid
+    ");
+    $stmt->execute([':uid' => $user_id]);
+    $eventos_apostados = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $eventos_apostados = array_map('intval', $eventos_apostados);
+} catch (PDOException $e) {
+    $eventos_apostados = [];
+}
+
+try {
+    $stmt = $pdo->prepare("
         SELECT p.valor, p.odd_registrada, p.data_palpite, p.opcao_id,
                o.descricao as opcao_descricao,
                e.nome as evento_nome,
@@ -623,15 +637,21 @@ try {
                     </div>
                 </div>
                 <div class="opcoes-grid">
+                    <?php $evento_bloqueado = in_array((int)$evento['id'], $eventos_apostados, true); ?>
                     <?php foreach($evento['opcoes'] as $opcao): ?>
                         <div class="card-opcao">
                             <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
                             <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
-                            <form method="POST" action="games/apostas.php">
-                                <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                                <input type="number" name="valor" class="form-control form-control-sm mb-2" placeholder="Valor" min="1" step="1" required>
-                                <button type="submit" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</button>
-                            </form>
+                            <?php if ($evento_bloqueado): ?>
+                                <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.85rem;" disabled>Apostado</button>
+                            <?php else: ?>
+                                <form method="POST" action="games/apostas.php">
+                                    <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                                    <input type="number" name="valor" class="form-control form-control-sm mb-2" placeholder="Valor" min="1" step="1" required>
+                                    <button type="submit" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.85rem;">Apostar</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>

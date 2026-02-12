@@ -67,6 +67,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
             throw new Exception("Este evento já encerrou ou foi cancelado!");
         }
 
+        // 2.1 Bloqueia múltiplos palpites do mesmo usuário no mesmo evento
+        $stmtDup = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM palpites p
+            JOIN opcoes o ON p.opcao_id = o.id
+            WHERE p.id_usuario = :uid AND o.evento_id = :eid
+        ");
+        $stmtDup->execute([':uid' => $user_id, ':eid' => $dados_aposta['evento_id']]);
+        $jaApostou = (int)$stmtDup->fetchColumn();
+        if ($jaApostou > 0) {
+            throw new Exception("Você já fez um palpite neste evento.");
+        }
+
         // 3. Desconta os pontos
         $stmtDebit = $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id");
         $stmtDebit->execute([':val' => $valor_aposta, ':id' => $user_id]);
