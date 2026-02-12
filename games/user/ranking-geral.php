@@ -27,14 +27,43 @@ $ranking_por_liga = [
 ];
 
 try {
-    $stmt = $pdo->query("SELECT nome, pontos, league FROM usuarios ORDER BY pontos DESC");
+    $stmt = $pdo->query("
+        SELECT u.nome, u.pontos, u.league,
+            (
+                SELECT COUNT(*)
+                FROM palpites p
+                JOIN opcoes o ON p.opcao_id = o.id
+                JOIN eventos e ON o.evento_id = e.id
+                WHERE p.id_usuario = u.id
+                  AND e.status = 'encerrada'
+                  AND e.vencedor_opcao_id IS NOT NULL
+                  AND e.vencedor_opcao_id = p.opcao_id
+            ) as acertos
+        FROM usuarios u
+        ORDER BY u.pontos DESC
+    ");
     $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (PDOException $e) {
     $ranking_geral = [];
 }
 
 try {
-    $stmtLiga = $pdo->prepare("SELECT nome, pontos, league FROM usuarios WHERE league = :league ORDER BY pontos DESC");
+    $stmtLiga = $pdo->prepare("
+        SELECT u.nome, u.pontos, u.league,
+            (
+                SELECT COUNT(*)
+                FROM palpites p
+                JOIN opcoes o ON p.opcao_id = o.id
+                JOIN eventos e ON o.evento_id = e.id
+                WHERE p.id_usuario = u.id
+                  AND e.status = 'encerrada'
+                  AND e.vencedor_opcao_id IS NOT NULL
+                  AND e.vencedor_opcao_id = p.opcao_id
+            ) as acertos
+        FROM usuarios u
+        WHERE u.league = :league
+        ORDER BY u.pontos DESC
+    ");
     foreach (array_keys($ranking_por_liga) as $liga) {
         $stmtLiga->execute([':league' => $liga]);
         $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -127,8 +156,8 @@ $tab_labels = [
         }
 
         .ranking-item {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 40px 1fr 120px 120px;
             align-items: center;
             padding: 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -136,23 +165,28 @@ $tab_labels = [
             gap: 10px;
         }
 
+        .ranking-item.header-row {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #999;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
         .ranking-item:last-child { border-bottom: none; }
 
         .ranking-position {
             font-weight: 800;
             color: var(--accent-green);
-            min-width: 28px;
         }
 
         .ranking-name {
-            flex: 1;
-            margin: 0 10px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .ranking-value { font-weight: 700; color: #fff; text-align: right; }
+    .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
         .nav-tabs .nav-link {
             color: #ccc;
@@ -222,6 +256,12 @@ $tab_labels = [
                         <div class="empty-text">Sem dados ainda</div>
                     </div>
                 <?php else: ?>
+                    <div class="ranking-item header-row">
+                        <span>#</span>
+                        <span>Time</span>
+                        <span class="text-end">Pontos</span>
+                        <span class="text-end">Acertos</span>
+                    </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
                         <div class="ranking-item">
                             <span class="ranking-position"><?= $idx + 1 ?></span>
@@ -232,6 +272,7 @@ $tab_labels = [
                                 <?php endif; ?>
                             </div>
                             <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
+                            <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -247,6 +288,12 @@ $tab_labels = [
                             <div class="empty-text">Sem dados ainda</div>
                         </div>
                     <?php else: ?>
+                        <div class="ranking-item header-row">
+                            <span>#</span>
+                            <span>Time</span>
+                            <span class="text-end">Pontos</span>
+                            <span class="text-end">Acertos</span>
+                        </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
                             <div class="ranking-item">
                                 <span class="ranking-position"><?= $idx + 1 ?></span>
@@ -254,6 +301,7 @@ $tab_labels = [
                                     <?= htmlspecialchars($jogador['nome']) ?>
                                 </div>
                                 <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
+                                <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
