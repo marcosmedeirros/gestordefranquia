@@ -27,6 +27,10 @@ function recalcularOdds($pdo, $evento_id) {
     $desvio_favorito = 0.20; // favorito: no máximo -20%
     $desvio_underdog = 0.30; // azarão: no máximo +30%
 
+    // SUAVIZAÇÃO POR ATUALIZAÇÃO
+    $suavizacao = 0.25; // 0 = trava total, 1 = aplica alvo completo
+    $max_variacao_por_rodada = 0.12; // 12% do valor atual
+
     try {
         // 1. Busca dados atuais
         $stmtOps = $pdo->prepare("SELECT id, odd, odd_inicial FROM opcoes WHERE evento_id = ?");
@@ -51,6 +55,7 @@ function recalcularOdds($pdo, $evento_id) {
                 'id' => $op['id'],
                 'dinheiro' => $soma_real,
                 'odd_inicial' => $odd_base,
+                'odd_atual' => $op['odd'],
                 // Probabilidade Inicial (ex: Odd 2.0 = 50% ou 0.5)
                 'prob_inicial' => (1 / $odd_base)
             ];
@@ -113,7 +118,24 @@ function recalcularOdds($pdo, $evento_id) {
             $novas_odds[$dado['id']] = $nova_odd;
         }
 
-        // 4. Garante que o favorito inicial continue favorito
+        // 4. Suaviza a mudança para manter "linha" de odd
+        foreach ($dados_opcoes as $dado) {
+            $odd_atual = (float)$dado['odd_atual'];
+            $odd_alvo = $novas_odds[$dado['id']];
+
+            $odd_suave = ($odd_atual * (1 - $suavizacao)) + ($odd_alvo * $suavizacao);
+
+            $limite_delta = $odd_atual * $max_variacao_por_rodada;
+            $min_rodada = $odd_atual - $limite_delta;
+            $max_rodada = $odd_atual + $limite_delta;
+
+            if ($odd_suave < $min_rodada) $odd_suave = $min_rodada;
+            if ($odd_suave > $max_rodada) $odd_suave = $max_rodada;
+
+            $novas_odds[$dado['id']] = $odd_suave;
+        }
+
+        // 5. Garante que o favorito inicial continue favorito
         $ordenadas_inicial = $dados_opcoes;
         usort($ordenadas_inicial, function ($a, $b) {
             if ($a['odd_inicial'] == $b['odd_inicial']) {
@@ -135,7 +157,7 @@ function recalcularOdds($pdo, $evento_id) {
             $ultima_odd = $odd;
         }
 
-        // 5. Atualiza no banco
+        // 6. Atualiza no banco
         foreach ($dados_opcoes as $dado) {
             $stmtUpdate->execute([':nova_odd' => $novas_odds[$dado['id']], ':id' => $dado['id']]);
 
