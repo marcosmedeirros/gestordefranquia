@@ -35,6 +35,31 @@ try {
     $top_5_ranking = [];
 }
 
+// Top 5 por número de acertos em apostas (eventos encerrados)
+try {
+    $stmt = $pdo->query("
+        SELECT
+            u.id,
+            u.nome,
+            u.league,
+            COUNT(*) AS acertos,
+            COUNT(p.id) AS total_apostas
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        JOIN usuarios u ON p.id_usuario = u.id
+        WHERE e.status = 'encerrada'
+          AND e.vencedor_opcao_id IS NOT NULL
+          AND e.vencedor_opcao_id = p.opcao_id
+        GROUP BY u.id, u.nome, u.league
+        ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
+        LIMIT 5
+    ");
+    $top_5_acertos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $top_5_acertos = [];
+}
+
 $ranking_por_liga = [
     'ELITE' => [],
     'RISE' => [],
@@ -729,12 +754,11 @@ try {
         </div>
     </div>
 
-    <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings</h6>
-    <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
+    <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
     <div class="row g-3 mb-3">
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-lg-6">
             <div class="ranking-card">
-                <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral</div>
+                <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral (Pontos)</div>
                 <?php if(empty($top_5_ranking)): ?>
                     <div class="text-center py-3">
                         <small class="text-secondary">Sem dados ainda</small>
@@ -760,8 +784,41 @@ try {
             </div>
         </div>
 
+        <div class="col-12 col-lg-6">
+            <div class="ranking-card">
+                <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 Geral (Acertos de Apostas)</div>
+                <?php if(empty($top_5_acertos)): ?>
+                    <div class="text-center py-3">
+                        <small class="text-secondary">Sem dados ainda</small>
+                    </div>
+                <?php else: ?>
+                    <?php foreach($top_5_acertos as $idx => $jogador): ?>
+                        <div class="ranking-item medal-<?= $idx+1 ?>">
+                            <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                <span class="ranking-name">
+                                    <?= htmlspecialchars($jogador['nome']) ?>
+                                    <?php if (!empty($jogador['league'])): ?>
+                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                    <?php endif; ?>
+                                </span>
+                                <small class="text-secondary">Acertos: <?= (int)$jogador['acertos'] ?></small>
+                            </div>
+                            <span class="ranking-value">
+                                <?= (int)$jogador['acertos'] ?> acertos
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <h6 class="section-title"><i class="bi bi-collection"></i>Rankings por Liga</h6>
+    <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
+    <div class="row g-3 mb-3">
         <?php foreach (array_slice($ranking_labels, 0, 2, true) as $liga => $label): ?>
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-6">
                 <div class="ranking-card">
                     <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
                     <?php if(empty($ranking_por_liga[$liga])): ?>
