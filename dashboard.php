@@ -883,18 +883,6 @@ try {
                             </div>
                             
                             <div class="col-md-4">
-                                <a href="/teams.php" class="text-decoration-none">
-                                    <div class="quick-action-card">
-                                        <div class="text-center py-3">
-                                            <i class="bi bi-search display-1 text-info mb-2"></i>
-                                            <h5 class="text-white mb-1">Explorar Times</h5>
-                                            <p class="text-light-gray small mb-0">Veja elencos de outros times</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                            
-                            <div class="col-md-4">
                                 <a href="/players.php" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
