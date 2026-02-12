@@ -374,6 +374,9 @@ if (isset($_GET['id'])) {
         }
         .captured-img { width: 25px; margin-right: -8px; }
 
+    .square-55d63.square-selected { box-shadow: inset 0 0 0 3px #FC082B; }
+    .square-55d63.square-legal { box-shadow: inset 0 0 0 3px rgba(252, 8, 43, 0.5); }
+
         /* Cards Dark Mode */
         .card-dark { background-color: #1e1e1e; border: 1px solid #333; color: #e0e0e0; }
         .card-header-dark { background-color: #252525; border-bottom: 1px solid #333; color: #fff; }
@@ -645,12 +648,36 @@ if (isset($_GET['id'])) {
         if (orientation === 'black' && game.turn() === 'w') return false;
     }
 
-    function onDrop (source, target) {
-        var move = game.move({ from: source, to: target, promotion: 'q' });
-        if (move === null) return 'snapback';
+    let selectedSquare = null;
 
+    function canSelectPiece(square) {
+        const piece = game.get(square);
+        if (!piece || game.game_over() || !gameActive) return false;
+        if (game.turn() !== piece.color) return false;
+        if (orientation === 'white' && piece.color !== 'w') return false;
+        if (orientation === 'black' && piece.color !== 'b') return false;
+        return true;
+    }
+
+    function clearHighlights() {
+        $('#myBoard .square-55d63').removeClass('square-selected square-legal');
+    }
+
+    function highlightMoves(square) {
+        clearHighlights();
+        const moves = game.moves({ square: square, verbose: true });
+        $(`#myBoard .square-55d63[data-square="${square}"]`).addClass('square-selected');
+        moves.forEach(m => {
+            $(`#myBoard .square-55d63[data-square="${m.to}"]`).addClass('square-legal');
+        });
+    }
+
+    function commitMove() {
         updateUI();
-        
+        clearHighlights();
+        selectedSquare = null;
+        board.position(game.fen());
+
         $.post('index.php?game=xadrez', {
             acao: 'mover', id_partida: gameId, fen: game.fen(), pgn: game.pgn(),
             game_over: game.game_over(), draw: game.in_draw()
@@ -658,6 +685,12 @@ if (isset($_GET['id'])) {
             if(data.erro) { alert(data.erro); game.undo(); board.position(game.fen()); }
             else if(game.game_over()) { alert('Xeque-mate! Fim de jogo.'); window.location.href = 'index.php?game=xadrez'; }
         }, 'json');
+    }
+
+    function onDrop (source, target) {
+        var move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+        commitMove();
     }
 
     function updateUI () {
@@ -734,6 +767,41 @@ if (isset($_GET['id'])) {
     }
     board = Chessboard('myBoard', config);
     updateUI();
+
+    $('#myBoard').on('click', '.square-55d63', function () {
+        if (game.game_over() || !gameActive) return;
+
+        const square = $(this).data('square');
+        if (!square) return;
+
+        if (!selectedSquare) {
+            if (canSelectPiece(square)) {
+                selectedSquare = square;
+                highlightMoves(square);
+            }
+            return;
+        }
+
+        if (square === selectedSquare) {
+            clearHighlights();
+            selectedSquare = null;
+            return;
+        }
+
+        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+        if (move === null) {
+            if (canSelectPiece(square)) {
+                selectedSquare = square;
+                highlightMoves(square);
+            } else {
+                clearHighlights();
+                selectedSquare = null;
+            }
+            return;
+        }
+
+        commitMove();
+    });
 
     function startClock() {
         if(timerInterval) clearInterval(timerInterval);
