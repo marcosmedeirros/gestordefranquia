@@ -55,7 +55,7 @@ $dicionario = [
     'BRAVO', 'CALMO', 'DOCIL', 'DOIDO', 'DURO', 'FIRME', 'GERAL', 'HABIL', 
     'IDEAL', 'IGUAL', 'JOVEM', 'LEGAL', 'LENTO', 'LIVRE', 'MAIOR', 'MENOR', 
     'NATAL', 'OTIMO', 'POBRE', 'RICOS', 'SANTO', 'SERIO', 'SUTIL', 'TENSO', 
-    'TOTAL', 'UNICO', 'VAZIO', 'VERAZ', 'VITAL', 'VORAZ', 'USUAL', 'VAGAS'
+    'TOTAL', 'UNICO', 'VAZIO', 'QUACK', 'VITAL', 'VORAZ', 'USUAL', 'VAGAS'
 ];
 
 $seed = floor(time() / 86400); 
