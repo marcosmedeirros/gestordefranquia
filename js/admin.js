@@ -78,6 +78,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'coins') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>';
       pageTitle.textContent = 'Gerenciar Moedas';
+    } else if (appState.view === 'tapas') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>';
+      pageTitle.textContent = 'Gerenciar Tapas';
     } else if (appState.view === 'userApprovals') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>';
       pageTitle.textContent = 'Aprovar Usuários';
@@ -100,7 +103,8 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div></div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -133,13 +137,14 @@ async function showLeague(league) {
   try {
     const data = await api(`admin.php?action=teams&league=${league}`);
     const teams = data.teams || [];
-    container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
 <div class="row g-3">${teams.map(t => `<div class="col-md-6 col-lg-4 col-xl-3"><div class="team-card" onclick="showTeam(${t.id})">
 <div class="d-flex align-items-center"><img src="${t.photo_url || '/img/default-team.png'}" class="team-logo me-3"><div class="flex-grow-1">
 <h5 class="mb-0">${t.city}</h5><h5 class="mb-0">${t.name}</h5><small class="text-muted">${t.owner_name}</small></div></div>
 <hr class="my-2" style="border-color:var(--fba-border);"><div class="d-flex justify-content-between">
 <small class="text-light-gray"><i class="bi bi-people-fill text-orange me-1"></i>${t.player_count}</small>
-<small class="text-light-gray"><i class="bi bi-star-fill text-orange me-1"></i>${t.cap_top8}</small></div></div></div>`).join('')}</div>`;
+<small class="text-light-gray"><i class="bi bi-star-fill text-orange me-1"></i>${t.cap_top8}</small>
+<small class="text-light-gray"><i class="bi bi-hand-index-thumb text-warning me-1"></i>${parseInt(t.tapas || 0)}</small></div></div></div>`).join('')}</div>`;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times</div>';
   }
@@ -163,7 +168,8 @@ async function showTeam(teamId) {
 <div class="col-md-6"><h2 class="text-white mb-2">${t.city} ${t.name}</h2><p class="text-light-gray mb-1"><strong>Proprietário:</strong> ${t.owner_name}</p>
 <p class="text-light-gray mb-0"><strong>Liga:</strong> <span class="badge bg-gradient-orange">${t.league}</span></p></div>
 <div class="col-md-4 text-end"><button class="btn btn-outline-orange mb-2 w-100" onclick="editTeam(${t.id})"><i class="bi bi-pencil-fill me-2"></i>Editar</button>
-<div class="bg-dark rounded p-3"><h4 class="text-orange mb-0">${t.cap_top8}</h4><small class="text-light-gray">CAP Top 8</small></div></div></div></div>
+<div class="bg-dark rounded p-3 mb-2"><h4 class="text-orange mb-0">${t.cap_top8}</h4><small class="text-light-gray">CAP Top 8</small></div>
+<div class="bg-dark rounded p-3"><h4 class="text-warning mb-0">${parseInt(t.tapas || 0)}</h4><small class="text-light-gray">Tapas</small></div></div></div></div>
 <ul class="nav nav-tabs mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#roster-tab">Elenco (${t.players.length})</button></li>
 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#picks-tab">Picks (${t.picks ? t.picks.length : 0})</button></li></ul>
 <div class="tab-content">
@@ -2338,6 +2344,182 @@ async function showCoinsHistory(teamId, teamName) {
     container.innerHTML = html;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar histórico: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+
+// ========== TAPAS ==========
+let tapasLeague = 'ELITE';
+
+async function showTapas() {
+  appState.view = 'tapas';
+  updateBreadcrumb();
+
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <ul class="nav nav-tabs" id="tapasLeagueTabs">
+          <li class="nav-item">
+            <button class="nav-link ${tapasLeague === 'ELITE' ? 'active' : ''}" onclick="changeTapasLeague('ELITE')">ELITE</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${tapasLeague === 'NEXT' ? 'active' : ''}" onclick="changeTapasLeague('NEXT')">NEXT</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${tapasLeague === 'RISE' ? 'active' : ''}" onclick="changeTapasLeague('RISE')">RISE</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link ${tapasLeague === 'ROOKIE' ? 'active' : ''}" onclick="changeTapasLeague('ROOKIE')">ROOKIE</button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+    <div id="tapasContainer">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>
+
+    <div class="modal fade" id="tapasModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark-panel border-orange">
+          <div class="modal-header border-orange">
+            <h5 class="modal-title text-white"><i class="bi bi-hand-index-thumb text-warning me-2"></i>Gerenciar Tapas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="tapasTeamId">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Time</label>
+              <input type="text" class="form-control bg-dark text-white" id="tapasTeamName" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Tapas atuais</label>
+              <div class="input-group">
+                <span class="input-group-text bg-dark text-warning border-orange"><i class="bi bi-hand-index-thumb"></i></span>
+                <input type="text" class="form-control bg-dark text-white" id="tapasCurrentBalance" readonly>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Novo valor</label>
+              <input type="number" class="form-control bg-dark text-white border-secondary" id="tapasAmount" min="0" value="0">
+            </div>
+          </div>
+          <div class="modal-footer border-orange">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" onclick="submitTapas()">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  loadTapasTeams();
+}
+
+function changeTapasLeague(league) {
+  tapasLeague = league;
+  showTapas();
+}
+
+async function loadTapasTeams() {
+  const container = document.getElementById('tapasContainer');
+
+  try {
+    const data = await api(`admin.php?action=tapas&league=${tapasLeague}`);
+    const teams = data.teams || [];
+
+    if (teams.length === 0) {
+      container.innerHTML = '<div class="alert alert-info bg-dark border-orange text-white">Nenhum time encontrado nesta liga.</div>';
+      return;
+    }
+
+    const totalTapas = teams.reduce((sum, t) => sum + parseInt(t.tapas || 0), 0);
+
+    container.innerHTML = `
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="bg-dark-panel border-orange rounded p-3">
+            <h6 class="text-light-gray mb-1">Total de Tapas na Liga</h6>
+            <h3 class="text-warning mb-0"><i class="bi bi-hand-index-thumb me-2"></i>${totalTapas.toLocaleString()}</h3>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="bg-dark-panel border-orange rounded p-3">
+            <h6 class="text-light-gray mb-1">Times</h6>
+            <h3 class="text-white mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>${teams.length}</h3>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Proprietário</th>
+              <th class="text-end">Tapas</th>
+              <th class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teams.map(t => `
+              <tr>
+                <td><strong>${t.city} ${t.name}</strong></td>
+                <td class="text-light-gray">${t.owner_name}</td>
+                <td class="text-end">
+                  <span class="badge ${parseInt(t.tapas || 0) > 0 ? 'bg-warning text-dark' : 'bg-secondary'} fs-6">
+                    <i class="bi bi-hand-index-thumb me-1"></i>${parseInt(t.tapas || 0).toLocaleString()}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <button class="btn btn-sm btn-outline-orange" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0})" title="Gerenciar tapas">
+                    <i class="bi bi-hand-index-thumb"></i>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times: ' + (e.error || 'Desconhecido') + '</div>';
+  }
+}
+
+function openTapasModal(teamId, teamName, currentBalance) {
+  document.getElementById('tapasTeamId').value = teamId;
+  document.getElementById('tapasTeamName').value = teamName;
+  document.getElementById('tapasCurrentBalance').value = parseInt(currentBalance || 0).toLocaleString();
+  document.getElementById('tapasAmount').value = parseInt(currentBalance || 0);
+
+  new bootstrap.Modal(document.getElementById('tapasModal')).show();
+}
+
+async function submitTapas() {
+  const teamId = document.getElementById('tapasTeamId').value;
+  const amount = parseInt(document.getElementById('tapasAmount').value);
+
+  if (!teamId || Number.isNaN(amount) || amount < 0) {
+    alert('Preencha uma quantidade válida.');
+    return;
+  }
+
+  try {
+    const result = await api('admin.php?action=tapas', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, amount })
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('tapasModal'))?.hide();
+    alert(result.message || 'Tapas atualizados com sucesso.');
+    loadTapasTeams();
+  } catch (e) {
+    alert('Erro: ' + (e.error || 'Desconhecido'));
   }
 }
 

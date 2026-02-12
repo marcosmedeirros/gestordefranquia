@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS teams (
     city VARCHAR(120) NOT NULL,
     mascot VARCHAR(120) NOT NULL,
     photo_url VARCHAR(255) NULL,
+    tapas INT NOT NULL DEFAULT 0,
     division_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_team_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

@@ -190,6 +190,7 @@ if ($method === 'GET') {
             $query = "
                 SELECT 
                     t.id, t.city, t.name, t.mascot, t.league, t.conference, t.photo_url,
+                    COALESCE(t.tapas, 0) as tapas,
                     u.name as owner_name, u.email as owner_email,
                     d.name as division_name,
                     (SELECT COUNT(*) FROM players WHERE team_id = t.id) as player_count
@@ -268,6 +269,33 @@ if ($method === 'GET') {
             $team['cap_top8'] = topEightCap($pdo, $teamId);
 
             echo json_encode(['success' => true, 'team' => $team]);
+            break;
+
+        case 'tapas':
+            // Listar times com tapas
+            $league = isset($_GET['league']) ? strtoupper($_GET['league']) : null;
+
+            $query = "
+                SELECT 
+                    t.id, t.city, t.name, t.league,
+                    COALESCE(t.tapas, 0) as tapas,
+                    u.name as owner_name
+                FROM teams t
+                JOIN users u ON t.user_id = u.id
+            ";
+
+            if ($league && in_array($league, $validLeagues, true)) {
+                $query .= " WHERE t.league = ? ORDER BY t.tapas DESC, t.city, t.name";
+                $stmt = $pdo->prepare($query);
+                $stmt->execute([$league]);
+            } else {
+                $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.tapas DESC, t.city, t.name";
+                $stmt = $pdo->query($query);
+            }
+
+            $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'teams' => $teams, 'league' => $league]);
             break;
 
         case 'trades':
@@ -1092,6 +1120,49 @@ if ($method === 'POST') {
                 $pdo->rollBack();
                 http_response_code(500);
                 echo json_encode(['success' => false, 'error' => 'Erro ao atualizar moedas: ' . $e->getMessage()]);
+            }
+            break;
+
+        case 'tapas':
+            // Definir quantidade de tapas de um time
+            $teamId = $data['team_id'] ?? null;
+            $amount = $data['amount'] ?? null;
+
+            if (!$teamId || $amount === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Team ID e quantidade são obrigatórios']);
+                exit;
+            }
+
+            $amount = (int)$amount;
+            if ($amount < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Quantidade deve ser maior ou igual a zero']);
+                exit;
+            }
+
+            $stmtTeam = $pdo->prepare('SELECT id, city, name FROM teams WHERE id = ?');
+            $stmtTeam->execute([$teamId]);
+            $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+
+            if (!$team) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+
+            try {
+                $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
+                $stmtUpdate->execute([$amount, $teamId]);
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => sprintf('Tapas atualizados para %s %s: %d', $team['city'], $team['name'], $amount),
+                    'new_balance' => $amount
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar tapas: ' . $e->getMessage()]);
             }
             break;
 

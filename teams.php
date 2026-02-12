@@ -51,12 +51,12 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
 $stmt = $pdo->prepare('
-        SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id,
-                     u.name AS owner_name, u.phone AS owner_phone
-        FROM teams t
-        INNER JOIN users u ON u.id = t.user_id
-        WHERE t.league = ?
-        ORDER BY t.id ASC
+    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas,
+             u.name AS owner_name, u.phone AS owner_phone
+    FROM teams t
+    INNER JOIN users u ON u.id = t.user_id
+    WHERE t.league = ?
+    ORDER BY t.id ASC
 ');
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -260,6 +260,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <th class="text-white fw-bold hide-mobile">Proprietário</th>
                                 <th class="text-white fw-bold text-center">Jog.</th>
                                 <th class="text-white fw-bold text-center hide-mobile">CAP</th>
+                                <th class="text-white fw-bold text-center">Tapas</th>
                                 <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
                             </tr>
                         </thead>
@@ -293,6 +294,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <small class="text-light-gray d-block mt-1">
                                             <i class="bi bi-graph-up me-1 text-orange"></i>CAP: <?= number_format($t['cap_top8'], 0, ',', '.') ?>
                                         </small>
+                                        <small class="text-light-gray d-block">
+                                            <i class="bi bi-hand-index-thumb me-1 text-warning"></i>Tapas: <?= (int)($t['tapas'] ?? 0) ?>
+                                        </small>
                                     </div>
                                 </td>
                                 <td class="hide-mobile">
@@ -311,6 +315,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 </td>
                                 <td class="text-center hide-mobile">
                                     <span class="badge bg-gradient-orange"><?= $t['cap_top8'] ?></span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-warning text-dark"><?= (int)($t['tapas'] ?? 0) ?></span>
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center gap-2">
