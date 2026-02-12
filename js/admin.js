@@ -2478,10 +2478,10 @@ async function loadTapasTeams() {
                 </td>
                 <td class="text-center">
                   <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-sm btn-success" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0}, 'add')" title="Adicionar tapas">
+                    <button class="btn btn-sm btn-success" onclick="quickTapasChange(${t.id}, '${t.city} ${t.name}', 'add')" title="Adicionar tapas">
                       <i class="bi bi-plus"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="openTapasModal(${t.id}, '${t.city} ${t.name}', ${t.tapas || 0}, 'remove')" title="Remover tapas">
+                    <button class="btn btn-sm btn-danger" onclick="quickTapasChange(${t.id}, '${t.city} ${t.name}', 'remove')" title="Remover tapas">
                       <i class="bi bi-dash"></i>
                     </button>
                   </div>
@@ -2505,6 +2505,19 @@ function openTapasModal(teamId, teamName, currentBalance, operation = 'set') {
   document.getElementById('tapasAmount').value = 0;
 
   new bootstrap.Modal(document.getElementById('tapasModal')).show();
+}
+
+async function quickTapasChange(teamId, teamName, operation) {
+  try {
+    const result = await api('admin.php?action=tapas', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, amount: 1, operation })
+    });
+
+    loadTapasTeams();
+  } catch (e) {
+    alert(`Erro ao atualizar tapas de ${teamName}: ${e.error || 'Desconhecido'}`);
+  }
 }
 
 async function submitTapas() {
