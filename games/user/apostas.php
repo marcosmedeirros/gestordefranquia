@@ -151,15 +151,25 @@ try {
         }
 
         .aposta-card {
-            background: linear-gradient(135deg, #5a0a16, #9b0d24);
-            border: 1px solid #FC082B;
+            background: linear-gradient(135deg, #1f1f1f, #2b2b2b);
+            border: 1px solid var(--border-dark);
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 16px;
         }
 
+        .aposta-card.win {
+            background: linear-gradient(135deg, #0b2f1d, #14532d);
+            border-color: #22c55e;
+        }
+
+        .aposta-card.lose {
+            background: linear-gradient(135deg, #3a0f13, #7f1d1d);
+            border-color: #ef4444;
+        }
+
         .aposta-label {
-            color: #ffb3bf;
+            color: #b0b0b0;
             font-size: 0.85rem;
             text-transform: uppercase;
         }
@@ -180,9 +190,17 @@ try {
         .aposta-detail-item { display: flex; flex-direction: column; }
 
         .aposta-detail-label {
-            color: #ffb3bf;
+            color: #b0b0b0;
             font-size: 0.75rem;
             text-transform: uppercase;
+        }
+
+        .aposta-detail-value.status-win {
+            color: #22c55e;
+        }
+
+        .aposta-detail-value.status-lose {
+            color: #ef4444;
         }
 
         .aposta-detail-value {
@@ -254,11 +272,21 @@ try {
         <?php foreach($historico as $palpite): ?>
             <?php
                 $resultado_palpite = null;
+                $card_class = '';
+                $status_class = '';
                 if (($palpite['evento_status'] ?? '') === 'encerrada' && $palpite['vencedor_opcao_id']) {
-                    $resultado_palpite = ((int)$palpite['vencedor_opcao_id'] === (int)$palpite['opcao_id']) ? 'Ganhou' : 'Perdeu';
+                    if ((int)$palpite['vencedor_opcao_id'] === (int)$palpite['opcao_id']) {
+                        $resultado_palpite = 'Ganhou';
+                        $card_class = 'win';
+                        $status_class = 'status-win';
+                    } else {
+                        $resultado_palpite = 'Perdeu';
+                        $card_class = 'lose';
+                        $status_class = 'status-lose';
+                    }
                 }
             ?>
-            <div class="aposta-card">
+            <div class="aposta-card <?= $card_class ?>">
                 <div class="aposta-label">Evento</div>
                 <div class="aposta-evento"><?= htmlspecialchars($palpite['evento_nome']) ?></div>
                 <div class="text-light mb-2">Opção: <?= htmlspecialchars($palpite['opcao_descricao']) ?></div>
@@ -273,7 +301,7 @@ try {
                     </div>
                     <div class="aposta-detail-item">
                         <span class="aposta-detail-label">Status</span>
-                        <span class="aposta-detail-value">
+                        <span class="aposta-detail-value <?= $status_class ?>">
                             <?php if($resultado_palpite): ?>
                                 <?= $resultado_palpite ?>
                             <?php else: ?>
