@@ -905,6 +905,18 @@ try {
                                     </div>
                                 </a>
                             </div>
+
+                            <div class="col-md-4">
+                                <a href="https://games.fbabrasil.com.br/auth/login.php" class="text-decoration-none" target="_blank" rel="noopener">
+                                    <div class="quick-action-card">
+                                        <div class="text-center py-3">
+                                            <i class="bi bi-controller display-1 text-warning mb-2"></i>
+                                            <h5 class="text-white mb-1">FBA GAMES</h5>
+                                            <p class="text-light-gray small mb-0">Acesse os mini jogos</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
