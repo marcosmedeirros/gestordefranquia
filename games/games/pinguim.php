@@ -41,11 +41,10 @@ try {
     $minhas_skins = $stmtSkins->fetchAll(PDO::FETCH_COLUMN);
 
     $stmtRank = $pdo->query("
-        SELECT u.nome, MAX(d.pontuacao_final) as recorde 
+        SELECT u.nome, d.pontuacao_final as recorde 
         FROM dino_historico d 
         JOIN usuarios u ON d.id_usuario = u.id 
-        GROUP BY d.id_usuario 
-        ORDER BY recorde DESC 
+        ORDER BY d.pontuacao_final DESC 
         LIMIT 5
     ");
     $ranking_dino = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
