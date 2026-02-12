@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     if ($p['status'] == 'pendente' && $p['id_desafiado'] == $user_id) {
                         $botao = '<button onclick="aceitarDesafio('.$p['id'].')" class="btn btn-sm btn-success fw-bold shadow-sm"><i class="bi bi-check-lg me-1"></i>Aceitar</button>';
                     } elseif ($p['status'] == 'andamento') {
-                        $botao = '<a href="?id='.$p['id'].'" class="btn btn-sm btn-primary fw-bold shadow-sm"><i class="bi bi-play-fill me-1"></i>Jogar</a>';
+                        $botao = '<a href="?game=xadrez&id='.$p['id'].'" class="btn btn-sm btn-primary fw-bold shadow-sm"><i class="bi bi-play-fill me-1"></i>Jogar</a>';
                     } else {
                         $botao = '<small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Aguardando...</small>';
                     }
@@ -567,7 +567,7 @@ if (isset($_GET['id'])) {
                                                         <i class="bi bi-check-lg me-1"></i>Aceitar
                                                     </button>
                                                 <?php elseif ($p['status'] == 'andamento'): ?>
-                                                    <a href="?id=<?= $p['id'] ?>" class="btn btn-sm btn-primary fw-bold shadow-sm">
+                                                    <a href="?game=xadrez&id=<?= $p['id'] ?>" class="btn btn-sm btn-primary fw-bold shadow-sm">
                                                         <i class="bi bi-play-fill me-1"></i>Jogar
                                                     </a>
                                                 <?php else: ?>
