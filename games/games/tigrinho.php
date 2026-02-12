@@ -172,11 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .reel-track {
             display: flex; flex-direction: column; align-items: center;
             transform: translateY(0); transition: transform 0.7s ease-out;
+            background: #000;
+            min-height: 100%;
         }
         .reel-track.spinning { animation: reelSpin 1.4s linear infinite; }
         .reel-item {
             height: 100px; display: flex; align-items: center; justify-content: center;
-            width: 100%; font-size: 2.4rem;
+            width: 100%; font-size: 2.4rem; background: #000;
         }
         @keyframes reelSpin {
             from { transform: translateY(0); }
