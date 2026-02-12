@@ -28,7 +28,7 @@ const historyLeagueSelect = document.getElementById('punicaoHistoryLeague');
 const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
 
 const newMotiveInput = document.getElementById('newMotiveLabel');
-const newMotiveBtn = document.getElementById('newMotiveBtn');
+const saveCatalogBtn = document.getElementById('saveCatalogBtn');
 const newPunishmentInput = document.getElementById('newPunishmentLabel');
 const newPunishmentEffect = document.getElementById('newPunishmentEffect');
 const newPunishmentPick = document.getElementById('newPunishmentPick');
@@ -253,31 +253,38 @@ if (historyTeamSelect) {
 typeSelect.addEventListener('change', updateFormVisibility);
 submitBtn.addEventListener('click', submitPunishment);
 
-async function createMotive() {
-  const label = newMotiveInput?.value.trim();
-  if (!label) return;
-  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
-  newMotiveInput.value = '';
-  await loadCatalog();
-}
-
-async function createPunishment() {
-  const label = newPunishmentInput?.value.trim();
+async function saveCatalog() {
+  const motiveLabel = newMotiveInput?.value.trim();
+  const punishmentLabel = newPunishmentInput?.value.trim();
   const effectType = newPunishmentEffect?.value || '';
-  if (!label || !effectType) return;
-  await api('punicoes.php', {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'add_type',
-      label,
-      effect_type: effectType,
-      requires_pick: newPunishmentPick?.checked || false,
-      requires_scope: newPunishmentScope?.checked || false
-    })
-  });
-  newPunishmentInput.value = '';
+
+  if (!motiveLabel && !punishmentLabel) {
+    alert('Informe um motivo, uma punição ou ambos.');
+    return;
+  }
+
+  if (motiveLabel) {
+    await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label: motiveLabel }) });
+  }
+
+  if (punishmentLabel) {
+    await api('punicoes.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'add_type',
+        label: punishmentLabel,
+        effect_type: effectType,
+        requires_pick: newPunishmentPick?.checked || false,
+        requires_scope: newPunishmentScope?.checked || false
+      })
+    });
+  }
+
+  if (newMotiveInput) newMotiveInput.value = '';
+  if (newPunishmentInput) newPunishmentInput.value = '';
   if (newPunishmentPick) newPunishmentPick.checked = false;
   if (newPunishmentScope) newPunishmentScope.checked = false;
+
   await loadCatalog();
 }
 
@@ -289,8 +296,7 @@ async function revertPunishment(punishmentId) {
   });
 }
 
-newMotiveBtn?.addEventListener('click', createMotive);
-newPunishmentBtn?.addEventListener('click', createPunishment);
+saveCatalogBtn?.addEventListener('click', saveCatalog);
 
 loadCatalog();
 loadLeagues();

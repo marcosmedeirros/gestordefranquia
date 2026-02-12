@@ -76,7 +76,7 @@ $team = $stmtTeam->fetch();
 
     <div class="row g-4">
       <div class="col-lg-4">
-        <div class="bg-dark-panel border-orange rounded p-4 h-100">
+        <div class="bg-dark-panel border-orange rounded p-3">
           <h5 class="text-white mb-3">Nova punição</h5>
           <div class="mb-3">
             <label class="form-label text-light-gray">Motivo</label>
@@ -119,10 +119,7 @@ $team = $stmtTeam->fetch();
           <h5 class="text-white mb-3">Cadastrar motivo/punição</h5>
           <div class="mb-3">
             <label class="form-label text-light-gray">Novo motivo</label>
-            <div class="input-group">
-              <input type="text" id="newMotiveLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Diretrizes erradas">
-              <button class="btn btn-outline-light" id="newMotiveBtn"><i class="bi bi-plus-circle"></i></button>
-            </div>
+            <input type="text" id="newMotiveLabel" class="form-control bg-dark text-white border-orange" placeholder="Ex: Diretrizes erradas">
           </div>
           <div class="mb-3">
             <label class="form-label text-light-gray">Nova punição</label>
@@ -150,7 +147,7 @@ $team = $stmtTeam->fetch();
               <label class="form-check-label text-light-gray" for="newPunishmentScope">Requer temporada</label>
             </div>
           </div>
-          <button class="btn btn-outline-light mt-3 w-100" id="newPunishmentBtn"><i class="bi bi-plus-circle me-2"></i>Salvar punição</button>
+          <button class="btn btn-outline-light mt-3 w-100" id="saveCatalogBtn"><i class="bi bi-plus-circle me-2"></i>Salvar cadastros</button>
         </div>
       </div>
 
