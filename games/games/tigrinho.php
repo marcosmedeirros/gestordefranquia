@@ -28,11 +28,11 @@ try {
 }
 
 $symbols = [
-    ['id' => 'tiger', 'label' => '🐯', 'weight' => 5, 'mult' => 5],
-    ['id' => 'ingot', 'label' => '🪙', 'weight' => 6, 'mult' => 4],
-    ['id' => 'envelope', 'label' => '🧧', 'weight' => 7, 'mult' => 3],
-    ['id' => 'lantern', 'label' => '�', 'weight' => 8, 'mult' => 2],
-    ['id' => 'gem', 'label' => '💎', 'weight' => 10, 'mult' => 1]
+    ['id' => 'basket', 'label' => '🏀', 'weight' => 2, 'mult' => 32],
+    ['id' => 'tiger', 'label' => '🐯', 'weight' => 3, 'mult' => 18],
+    ['id' => 'redcard', 'label' => '🟥', 'weight' => 4, 'mult' => 10],
+    ['id' => 'lantern', 'label' => '🏮', 'weight' => 6, 'mult' => 5],
+    ['id' => 'gem', 'label' => '💎', 'weight' => 6, 'mult' => 5]
 ];
 
 $house_edge = 0.65; // 65% das vezes a casa leva
@@ -139,7 +139,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         .saldo-badge { background-color: #FC082B; color: #000; padding: 8px 15px; border-radius: 20px; font-weight: 800; font-size: 1.1em; box-shadow: 0 0 10px rgba(252, 8, 43, 0.3); }
         .admin-btn { background-color: #ff6d00; color: white; padding: 5px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; }
         .admin-btn:hover { background-color: #e65100; color: white; box-shadow: 0 0 8px #ff6d00; }
-        .slot-card { background: radial-gradient(circle at top, #2b1b0f 0%, #1b120a 50%, #121212 100%); border: 1px solid #3b2a18; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px rgba(0,0,0,0.5); }
+        .slot-card {
+            background: radial-gradient(circle at top, #2b1b0f 0%, #1b120a 50%, #121212 100%);
+            border: 1px solid #3b2a18; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px rgba(0,0,0,0.5);
+            position: relative; overflow: hidden;
+        }
+        .slot-card::before,
+        .slot-card::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0; width: 60px;
+            background-color: #f7a8c6;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ctext x='0' y='28' font-size='28'%3E%F0%9F%90%AF%3C/text%3E%3C/svg%3E");
+            background-repeat: repeat;
+            opacity: 0.65;
+            pointer-events: none;
+        }
+        .slot-card::before { left: 0; }
+        .slot-card::after { right: 0; }
         .reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
         .reel {
             background: #0f0a05; border: 2px solid #3b2a18; border-radius: 14px; height: 120px;
@@ -186,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                     <p class="text-secondary mb-4">Aposte de 1 a 5 pontos por giro. Três iguais pagam mais!</p>
 
                     <div class="d-flex justify-content-center gap-2 flex-wrap">
-                        <span class="info-pill">3 iguais = 5x / 4x / 3x / 2x / 1x</span>
+                        <span class="info-pill">🏀 32x • 🐯 18x • 🟥 10x • 🏮/💎 5x</span>
                         <span class="info-pill">2 iguais = 1x</span>
                     </div>
 
@@ -221,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         document.getElementById('track-2'),
         document.getElementById('track-3')
     ];
-    const symbolsPool = ['🐯', '🪙', '🧧', '�', '💎'];
+    const symbolsPool = ['🏀', '🐯', '🟥', '🏮', '💎'];
     const itemHeight = 100;
 
     function randomSymbol() {
