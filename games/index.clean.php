@@ -23,67 +23,94 @@ try {
     die("Erro ao carregar usuário: " . $e->getMessage());
 }
 
+// Filtros de liga nos rankings
+$ranking_leagues = [
+    'GERAL' => 'Geral',
+    'ELITE' => 'Elite',
+    'RISE' => 'Rise',
+    'NEXT' => 'Next',
+    'ROOKIE' => 'Rookie'
+];
+$league_points = strtoupper(trim($_GET['league_points'] ?? 'GERAL'));
+$league_acertos = strtoupper(trim($_GET['league_acertos'] ?? 'GERAL'));
+if (!array_key_exists($league_points, $ranking_leagues)) {
+    $league_points = 'GERAL';
+}
+if (!array_key_exists($league_acertos, $ranking_leagues)) {
+    $league_acertos = 'GERAL';
+}
+
 try {
-    $stmt = $pdo->query("
-        SELECT id, nome, pontos, league
-        FROM usuarios
-        ORDER BY pontos DESC
-        LIMIT 5
-    ");
-    $top_5_ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($league_points === 'GERAL') {
+        $stmt = $pdo->query("
+            SELECT id, nome, pontos, league
+            FROM usuarios
+            ORDER BY pontos DESC
+            LIMIT 5
+        ");
+        $top_5_ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT id, nome, pontos, league
+            FROM usuarios
+            WHERE league = :league
+            ORDER BY pontos DESC
+            LIMIT 5
+        ");
+        $stmt->execute([':league' => $league_points]);
+        $top_5_ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (PDOException $e) {
     $top_5_ranking = [];
 }
 
 // Top 5 por número de acertos em apostas (eventos encerrados)
 try {
-    $stmt = $pdo->query("
-        SELECT
-            u.id,
-            u.nome,
-            u.league,
-            COUNT(*) AS acertos,
-            COUNT(p.id) AS total_apostas
-        FROM palpites p
-        JOIN opcoes o ON p.opcao_id = o.id
-        JOIN eventos e ON o.evento_id = e.id
-        JOIN usuarios u ON p.id_usuario = u.id
-        WHERE e.status = 'encerrada'
-          AND e.vencedor_opcao_id IS NOT NULL
-          AND e.vencedor_opcao_id = p.opcao_id
-        GROUP BY u.id, u.nome, u.league
-        ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
-        LIMIT 5
-    ");
-    $top_5_acertos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($league_acertos === 'GERAL') {
+        $stmt = $pdo->query("
+            SELECT
+                u.id,
+                u.nome,
+                u.league,
+                COUNT(*) AS acertos,
+                COUNT(p.id) AS total_apostas
+            FROM palpites p
+            JOIN opcoes o ON p.opcao_id = o.id
+            JOIN eventos e ON o.evento_id = e.id
+            JOIN usuarios u ON p.id_usuario = u.id
+            WHERE e.status = 'encerrada'
+              AND e.vencedor_opcao_id IS NOT NULL
+              AND e.vencedor_opcao_id = p.opcao_id
+            GROUP BY u.id, u.nome, u.league
+            ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
+            LIMIT 5
+        ");
+        $top_5_acertos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT
+                u.id,
+                u.nome,
+                u.league,
+                COUNT(*) AS acertos,
+                COUNT(p.id) AS total_apostas
+            FROM palpites p
+            JOIN opcoes o ON p.opcao_id = o.id
+            JOIN eventos e ON o.evento_id = e.id
+            JOIN usuarios u ON p.id_usuario = u.id
+            WHERE e.status = 'encerrada'
+              AND e.vencedor_opcao_id IS NOT NULL
+              AND e.vencedor_opcao_id = p.opcao_id
+              AND u.league = :league
+            GROUP BY u.id, u.nome, u.league
+            ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
+            LIMIT 5
+        ");
+        $stmt->execute([':league' => $league_acertos]);
+        $top_5_acertos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (PDOException $e) {
     $top_5_acertos = [];
-}
-
-$ranking_por_liga = [
-    'ELITE' => [],
-    'RISE' => [],
-    'NEXT' => [],
-    'ROOKIE' => []
-];
-
-try {
-    $stmtLiga = $pdo->prepare("
-        SELECT id, nome, pontos
-        FROM usuarios
-        WHERE league = :league
-        ORDER BY pontos DESC
-        LIMIT 5
-    ");
-
-    foreach (array_keys($ranking_por_liga) as $liga) {
-        $stmtLiga->execute([':league' => $liga]);
-        $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-} catch (PDOException $e) {
-    foreach (array_keys($ranking_por_liga) as $liga) {
-        $ranking_por_liga[$liga] = [];
-    }
 }
 
 try {
@@ -769,7 +796,16 @@ try {
     <div class="row g-3 mb-3">
         <div class="col-12 col-lg-6">
             <div class="ranking-card">
-                <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 Geral (Pontos)</div>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Pontos)</div>
+                    <select class="form-select form-select-sm w-auto" data-league-filter="points">
+                        <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
+                            <option value="<?= htmlspecialchars($leagueKey) ?>" <?= $league_points === $leagueKey ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($leagueLabel) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <?php if(empty($top_5_ranking)): ?>
                     <div class="text-center py-3">
                         <small class="text-secondary">Sem dados ainda</small>
@@ -797,7 +833,16 @@ try {
 
         <div class="col-12 col-lg-6">
             <div class="ranking-card">
-                <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 Geral (Acertos de Apostas)</div>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos de Apostas)</div>
+                    <select class="form-select form-select-sm w-auto" data-league-filter="acertos">
+                        <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
+                            <option value="<?= htmlspecialchars($leagueKey) ?>" <?= $league_acertos === $leagueKey ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($leagueLabel) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <?php if(empty($top_5_acertos)): ?>
                     <div class="text-center py-3">
                         <small class="text-secondary">Sem dados ainda</small>
@@ -813,7 +858,6 @@ try {
                                         <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                     <?php endif; ?>
                                 </span>
-                                <small class="text-secondary">Acertos: <?= (int)$jogador['acertos'] ?></small>
                             </div>
                             <span class="ranking-value">
                                 <?= (int)$jogador['acertos'] ?> acertos
@@ -825,61 +869,6 @@ try {
         </div>
     </div>
 
-    <h6 class="section-title"><i class="bi bi-collection"></i>Rankings por Liga</h6>
-    <?php $ranking_labels = ['ELITE' => 'Elite', 'RISE' => 'Rise', 'NEXT' => 'Next', 'ROOKIE' => 'Rookie']; ?>
-    <div class="row g-3 mb-3">
-        <?php foreach (array_slice($ranking_labels, 0, 2, true) as $liga => $label): ?>
-            <div class="col-12 col-md-6">
-                <div class="ranking-card">
-                    <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
-                    <?php if(empty($ranking_por_liga[$liga])): ?>
-                        <div class="text-center py-3">
-                            <small class="text-secondary">Sem dados ainda</small>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item medal-<?= $idx+1 ?>">
-                                <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                    <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
-                                </div>
-                                <span class="ranking-value">
-                                    <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
-                                </span>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
-    <div class="row g-3 mb-4">
-        <?php foreach (array_slice($ranking_labels, 2, 2, true) as $liga => $label): ?>
-            <div class="col-12 col-md-6">
-                <div class="ranking-card">
-                    <div class="ranking-title"><i class="bi bi-trophy-fill me-2"></i>Top 5 <?= $label ?></div>
-                    <?php if(empty($ranking_por_liga[$liga])): ?>
-                        <div class="text-center py-3">
-                            <small class="text-secondary">Sem dados ainda</small>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item medal-<?= $idx+1 ?>">
-                                <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                    <span class="ranking-name"><?= htmlspecialchars($jogador['nome']) ?></span>
-                                </div>
-                                <span class="ranking-value">
-                                    <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
-                                </span>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
 
     <div class="text-center mb-4">
         <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
@@ -891,6 +880,22 @@ try {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.querySelectorAll('[data-league-filter]').forEach(select => {
+        select.addEventListener('change', () => {
+            const params = new URLSearchParams(window.location.search);
+            const pointsSelect = document.querySelector('[data-league-filter="points"]');
+            const acertosSelect = document.querySelector('[data-league-filter="acertos"]');
+            if (pointsSelect) {
+                params.set('league_points', pointsSelect.value);
+            }
+            if (acertosSelect) {
+                params.set('league_acertos', acertosSelect.value);
+            }
+            window.location.search = params.toString();
+        });
+    });
+</script>
 
 </body>
 </html>
