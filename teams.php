@@ -52,7 +52,8 @@ $team = $stmtTeam->fetch();
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas,
-             u.name AS owner_name, u.phone AS owner_phone
+             u.name AS owner_name, u.phone AS owner_phone,
+             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count
     FROM teams t
     INNER JOIN users u ON u.id = t.user_id
     WHERE t.league = ?
@@ -261,6 +262,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <th class="text-white fw-bold text-center">Jog.</th>
                                 <th class="text-white fw-bold text-center hide-mobile">CAP</th>
                                 <th class="text-white fw-bold text-center">Tapas</th>
+                                <th class="text-white fw-bold text-center">Punições</th>
                                 <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
                             </tr>
                         </thead>
@@ -318,6 +320,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-warning text-dark"><?= (int)($t['tapas'] ?? 0) ?></span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary"><?= (int)($t['punicoes_count'] ?? 0) ?></span>
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center gap-2">

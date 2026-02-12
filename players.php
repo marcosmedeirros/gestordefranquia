@@ -170,6 +170,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     <th>OVR</th>
                                     <th>Idade</th>
                                     <th>Posicao</th>
+                                    <th>Posicao Secundaria</th>
                                     <th>Time</th>
                                     <th>Contato</th>
                                     <th>Ações</th>
@@ -243,6 +244,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <div class="player-card-body">
                         <div class="player-card-stat"><strong>Idade</strong>${p.age ?? '-'}</div>
                         <div class="player-card-stat"><strong>Posição</strong>${p.position ?? '-'}</div>
+                        <div class="player-card-stat"><strong>Posição Secundária</strong>${p.secondary_position ?? '-'}</div>
                     </div>
                     <div class="player-card-actions">
                         ${whatsappLink ? `<a class="btn btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-muted">Sem contato</span>'}
@@ -314,6 +316,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     <td><span class="badge ${ovrClass}">${p.ovr}</span></td>
                                     <td>${p.age}</td>
                                     <td>${p.position}</td>
+                                    <td>${p.secondary_position ?? '-'}</td>
                                     <td>${teamName}</td>
                                     <td>
                                         ${whatsappLink ? `
