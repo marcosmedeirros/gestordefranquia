@@ -633,38 +633,47 @@ try {
 
     <?php if(!empty($ultimos_eventos_abertos)): ?>
         <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
-        <?php foreach($ultimos_eventos_abertos as $evento): ?>
-            <div class="card-evento">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <div class="evento-titulo"><?= htmlspecialchars($evento['nome']) ?></div>
-                        <small class="evento-data">
-                            <i class="bi bi-clock-history me-1 text-warning"></i>
-                            Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
-                        </small>
+        <div class="accordion" id="accordion-apostas">
+            <?php foreach($ultimos_eventos_abertos as $evento): ?>
+                <?php $evento_id = (int)$evento['id']; ?>
+                <div class="accordion-item bg-transparent border-0 mb-2">
+                    <h2 class="accordion-header" id="heading-<?= $evento_id ?>">
+                        <button class="accordion-button collapsed bg-dark text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<?= $evento_id ?>" aria-expanded="false" aria-controls="collapse-<?= $evento_id ?>">
+                            <div>
+                                <div class="evento-titulo mb-1"><?= htmlspecialchars($evento['nome']) ?></div>
+                                <small class="evento-data">
+                                    <i class="bi bi-clock-history me-1 text-warning"></i>
+                                    Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
+                                </small>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="collapse-<?= $evento_id ?>" class="accordion-collapse collapse" aria-labelledby="heading-<?= $evento_id ?>" data-bs-parent="#accordion-apostas">
+                        <div class="accordion-body card-evento">
+                            <div class="opcoes-grid">
+                                <?php $evento_bloqueado = in_array($evento_id, $eventos_apostados, true); ?>
+                                <?php foreach($evento['opcoes'] as $opcao): ?>
+                                    <div class="card-opcao">
+                                        <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
+                                        <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
+                                        <?php if ($evento_bloqueado): ?>
+                                            <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
+                                        <?php else: ?>
+                                            <form method="POST" action="games/apostas.php" class="bet-inline">
+                                                <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                                                <input type="number" name="valor" class="form-control form-control-sm" placeholder="Valor" min="1" step="1" required>
+                                                <button type="submit" class="btn btn-sm btn-outline-success" style="font-size: 0.8rem;">Apostar</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="opcoes-grid">
-                    <?php $evento_bloqueado = in_array((int)$evento['id'], $eventos_apostados, true); ?>
-                    <?php foreach($evento['opcoes'] as $opcao): ?>
-                        <div class="card-opcao">
-                            <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
-                            <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
-                            <?php if ($evento_bloqueado): ?>
-                                <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
-                            <?php else: ?>
-                                <form method="POST" action="games/apostas.php" class="bet-inline">
-                                    <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                                    <input type="number" name="valor" class="form-control form-control-sm" placeholder="Valor" min="1" step="1" required>
-                                    <button type="submit" class="btn btn-sm btn-outline-success" style="font-size: 0.8rem;">Apostar</button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        </div>
     <?php else: ?>
         <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
         <div class="empty-state">
