@@ -157,12 +157,13 @@ try {
             box-shadow: 0 10px 22px rgba(0,0,0,0.35);
             z-index: 2;
         }
-        .ball.shoot-success { animation: shotSuccess 0.7s ease-out forwards; }
+    .ball.shoot-success { animation: shotSuccess 0.95s ease-in-out forwards; }
         .ball.shoot-miss { animation: shotMiss 0.45s ease-in-out forwards; }
         @keyframes shotSuccess {
             0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
             55% { transform: translate(170px, -240px) scale(0.94); }
-            100% { transform: translate(170px, -210px) scale(0.9); opacity: 0.2; }
+            75% { transform: translate(170px, -205px) scale(0.9); }
+            100% { transform: translate(170px, -130px) scale(0.82); opacity: 0.15; }
         }
         @keyframes shotMiss {
             0% { transform: translate(-50%, 0) scale(1); }
