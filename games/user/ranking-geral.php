@@ -28,7 +28,7 @@ $ranking_por_liga = [
 
 try {
     $stmt = $pdo->query("
-        SELECT u.nome, u.pontos, u.league,
+    SELECT u.id, u.nome, u.pontos, u.league,
             (
                 SELECT COUNT(*)
                 FROM palpites p
@@ -49,7 +49,7 @@ try {
 
 try {
     $stmtLiga = $pdo->prepare("
-        SELECT u.nome, u.pontos, u.league,
+    SELECT u.id, u.nome, u.pontos, u.league,
             (
                 SELECT COUNT(*)
                 FROM palpites p
@@ -72,6 +72,44 @@ try {
     foreach (array_keys($ranking_por_liga) as $liga) {
         $ranking_por_liga[$liga] = [];
     }
+}
+
+$best_game_users = [];
+
+try {
+    $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao) AS recorde FROM flappy_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['id_usuario'])) {
+        $best_game_users[(int)$row['id_usuario']] = true;
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao_final) AS recorde FROM dino_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['id_usuario'])) {
+        $best_game_users[(int)$row['id_usuario']] = true;
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT vencedor_id, COUNT(*) AS vitorias FROM naval_salas WHERE status = 'fim' GROUP BY vencedor_id ORDER BY vitorias DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['vencedor_id'])) {
+        $best_game_users[(int)$row['vencedor_id']] = true;
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT vencedor, COUNT(*) AS vitorias FROM xadrez_partidas WHERE status = 'finalizada' GROUP BY vencedor ORDER BY vitorias DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['vencedor'])) {
+        $best_game_users[(int)$row['vencedor']] = true;
+    }
+} catch (PDOException $e) {
 }
 
 $tab_labels = [
@@ -186,6 +224,22 @@ $tab_labels = [
             text-overflow: ellipsis;
         }
 
+        .best-game-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #ffd54f;
+            color: #000;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+
     .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
         .nav-tabs .nav-link {
@@ -280,6 +334,9 @@ $tab_labels = [
                                 <?php if (!empty($jogador['league'])): ?>
                                     <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                 <?php endif; ?>
+                                <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                    <span class="best-game-tag">Melhor pontuação</span>
+                                <?php endif; ?>
                             </div>
                             <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
                             <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
@@ -309,6 +366,9 @@ $tab_labels = [
                                 <span class="ranking-position"><?= $idx + 1 ?></span>
                                 <div class="ranking-name">
                                     <?= htmlspecialchars($jogador['nome']) ?>
+                                    <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                        <span class="best-game-tag">Melhor pontuação</span>
+                                    <?php endif; ?>
                                 </div>
                                 <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
                                 <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
