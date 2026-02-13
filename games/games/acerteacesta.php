@@ -161,8 +161,8 @@ try {
         .ball.shoot-miss { animation: shotMiss 0.45s ease-in-out forwards; }
         @keyframes shotSuccess {
             0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
-            55% { transform: translate(96px, -180px) scale(0.94); }
-            100% { transform: translate(96px, -156px) scale(0.9); opacity: 0.2; }
+            55% { transform: translate(150px, -220px) scale(0.94); }
+            100% { transform: translate(150px, -200px) scale(0.9); opacity: 0.2; }
         }
         @keyframes shotMiss {
             0% { transform: translate(-50%, 0) scale(1); }
