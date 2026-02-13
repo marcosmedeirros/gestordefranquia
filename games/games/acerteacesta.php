@@ -1,480 +1,485 @@
 <?php
-require_once __DIR__ . '/../../backend/auth.php';
-requireAuth();
-$user = getUserSession();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require '../core/conexao.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../auth/login.php');
+    exit;
+}
+
+$userId = (int)$_SESSION['user_id'];
+$usuario = ['nome' => 'Coach', 'pontos' => 0];
+try {
+    $stmt = $pdo->prepare('SELECT nome, pontos FROM usuarios WHERE id = :id');
+    $stmt->execute([':id' => $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        $usuario['nome'] = $row['nome'];
+        $usuario['pontos'] = (int)$row['pontos'];
+    }
+} catch (PDOException $e) {
+    // Silencia falha de leitura, segue com defaults
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <?php include __DIR__ . '/../../includes/head-pwa.php'; ?>
-    <title>O Lance Livre Infinito</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Lance Livre Infinito - FBA games</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="/css/styles.css">
     <style>
-        .arcade-hero {
-            background: radial-gradient(circle at 15% 20%, rgba(252, 0, 37, 0.18), transparent 40%),
-                        radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.06), transparent 35%),
-                        linear-gradient(145deg, rgba(20, 20, 20, 0.95), rgba(12, 12, 12, 0.92));
-            border: 1px solid var(--fba-border);
-            border-radius: 18px;
-            box-shadow: var(--shadow-1);
-            padding: 24px;
+        :root {
+            --bg: #0f0f12;
+            --panel: #16171c;
+            --panel-2: #1d1f27;
+            --border: #252734;
+            --accent: #fc0025;
+            --accent-2: #ff7043;
+            --text: #e9eaee;
+            --muted: #9aa0b5;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 20%, rgba(252,0,37,0.08), transparent 40%),
+                        radial-gradient(circle at 80% 0%, rgba(255,255,255,0.05), transparent 45%),
+                        #0b0c0f;
+            color: var(--text);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(180deg, #181921 0%, #0f1015 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 18px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+        }
+
+        .brand-name {
+            font-weight: 900;
+            letter-spacing: 0.4px;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .saldo-badge {
+            background: var(--accent);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-weight: 800;
+            box-shadow: 0 6px 18px rgba(252,0,37,0.3);
+        }
+
+        .container-main { max-width: 1180px; padding: 26px 18px 60px; margin: 0 auto; }
+
+        .hero {
+            background: linear-gradient(135deg, rgba(22,23,28,0.92), rgba(18,19,26,0.94));
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 14px 34px rgba(0,0,0,0.45);
             position: relative;
             overflow: hidden;
         }
-        .arcade-hero::after {
-            content: "";
+
+        .hero::after {
+            content: '';
             position: absolute;
             inset: 0;
+            background: radial-gradient(circle at 70% 20%, rgba(252,0,37,0.14), transparent 45%);
             pointer-events: none;
-            background: radial-gradient(circle at 75% 65%, rgba(252, 0, 37, 0.12), transparent 45%);
-            opacity: 0.8;
         }
-        .game-arena {
-            background: linear-gradient(180deg, rgba(17, 17, 17, 0.92), rgba(10, 10, 10, 0.96)),
-                        radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.05), transparent 55%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 18px;
-            min-height: 360px;
+
+        .game-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            height: 100%;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+        }
+
+        .court {
             position: relative;
+            background: radial-gradient(circle at 50% 15%, rgba(255,255,255,0.05), transparent 55%),
+                        linear-gradient(180deg, #11121a 0%, #0c0d14 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            min-height: 320px;
             overflow: hidden;
-            box-shadow: var(--shadow-1);
         }
+
         .court-grid {
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-                        linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background: linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+                        linear-gradient(0deg, rgba(255,255,255,0.04) 1px, transparent 1px);
             background-size: 60px 60px;
             opacity: 0.5;
             pointer-events: none;
         }
-        .hoop {
-            position: absolute;
-            top: 46px;
-            right: 48px;
-            width: 140px;
-            height: 90px;
-        }
+
+        .hoop { position: absolute; top: 34px; right: 36px; width: 120px; height: 84px; }
         .backboard {
-            position: absolute;
-            top: 0;
-            right: 22px;
-            width: 96px;
-            height: 70px;
-            border: 2px solid rgba(255, 255, 255, 0.35);
+            position: absolute; top: 0; right: 16px; width: 92px; height: 64px;
+            border: 2px solid rgba(255,255,255,0.35);
             border-radius: 8px;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+            box-shadow: 0 12px 26px rgba(0,0,0,0.35);
         }
         .rim {
-            position: absolute;
-            bottom: 6px;
-            right: 0;
-            width: 140px;
-            height: 14px;
+            position: absolute; bottom: 6px; right: 0; width: 120px; height: 12px;
             border-radius: 10px;
-            background: linear-gradient(90deg, #ff7043, #ff512f);
-            box-shadow: 0 8px 18px rgba(255, 81, 47, 0.35);
+            background: linear-gradient(90deg, #ff8748, #ff512f);
+            box-shadow: 0 10px 20px rgba(255,81,47,0.35);
         }
         .net {
-            position: absolute;
-            bottom: -36px;
-            right: 32px;
-            width: 78px;
-            height: 58px;
-            background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0 6px, transparent 6px 12px),
-                        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.8) 0 6px, transparent 6px 12px);
+            position: absolute; bottom: -32px; right: 26px; width: 70px; height: 52px;
+            background: repeating-linear-gradient(135deg, rgba(255,255,255,0.82) 0 6px, transparent 6px 12px),
+                        repeating-linear-gradient(45deg, rgba(255,255,255,0.82) 0 6px, transparent 6px 12px);
             background-size: 12px 12px;
             transform: perspective(200px) rotateX(40deg);
-            filter: drop-shadow(0 6px 10px rgba(0,0,0,0.35));
             opacity: 0.9;
+            filter: drop-shadow(0 6px 8px rgba(0,0,0,0.35));
         }
-        .player-figure {
-            position: absolute;
-            bottom: 0;
-            left: 24px;
-            width: clamp(120px, 18vw, 220px);
-            filter: drop-shadow(0 18px 38px rgba(0,0,0,0.5));
-            pointer-events: none;
-            opacity: 0.94;
-        }
+
+        .player-img { position: absolute; bottom: 0; left: 24px; width: clamp(120px, 18vw, 210px); filter: drop-shadow(0 16px 28px rgba(0,0,0,0.5)); }
+
         .ball {
-            position: absolute;
-            bottom: 28px;
-            left: 50%;
-            width: 38px;
-            height: 38px;
-            margin-left: -19px;
-            border-radius: 50%;
+            position: absolute; bottom: 28px; left: 50%; width: 36px; height: 36px;
+            margin-left: -18px; border-radius: 50%;
             background: radial-gradient(circle at 30% 30%, #ffdb9d, #ff8b38 55%, #f05a24 100%);
             box-shadow: 0 10px 22px rgba(0,0,0,0.35);
-            z-index: 4;
+            z-index: 2;
         }
-        .ball.shoot-success { animation: shotSuccess 0.72s ease-out forwards; }
-        .ball.shoot-miss { animation: shotMiss 0.48s ease-in-out forwards; }
+        .ball.shoot-success { animation: shotSuccess 0.7s ease-out forwards; }
+        .ball.shoot-miss { animation: shotMiss 0.45s ease-in-out forwards; }
         @keyframes shotSuccess {
-            0% { transform: translate(-50%, 0) scale(1); }
-            55% { transform: translate(110px, -220px) scale(0.94); }
-            100% { transform: translate(110px, -190px) scale(0.9); opacity: 0.25; }
+            0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+            55% { transform: translate(96px, -180px) scale(0.94); }
+            100% { transform: translate(96px, -156px) scale(0.9); opacity: 0.2; }
         }
         @keyframes shotMiss {
             0% { transform: translate(-50%, 0) scale(1); }
-            40% { transform: translate(40px, -120px) scale(0.92); }
-            65% { transform: translate(-24px, -40px) rotate(-8deg); }
+            40% { transform: translate(34px, -110px) scale(0.92); }
+            65% { transform: translate(-22px, -38px) rotate(-8deg); }
             100% { transform: translate(-50%, 0) scale(1); }
         }
-        .floor-gradient {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 120px;
-            background: radial-gradient(ellipse at 50% 100%, rgba(255, 255, 255, 0.1), transparent 65%),
-                        linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.5));
-            pointer-events: none;
-        }
-        .force-bar {
+
+        .meter {
             position: relative;
-            background: linear-gradient(90deg, rgba(252,0,37,0.18), rgba(255,255,255,0.08));
-            border: 1px solid rgba(255,255,255,0.16);
-            height: 26px;
-            border-radius: 14px;
+            background: linear-gradient(90deg, rgba(252,0,37,0.16), rgba(255,255,255,0.08));
+            border: 1px solid rgba(255,255,255,0.12);
+            height: 24px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: inset 0 0 18px rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.35);
+            box-shadow: inset 0 0 18px rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.28);
         }
-        .force-bar .sweet-spot {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            background: linear-gradient(90deg, rgba(16, 185, 129, 0.22), rgba(52, 211, 153, 0.32));
-            border-left: 2px solid rgba(52, 211, 153, 0.8);
-            border-right: 2px solid rgba(52, 211, 153, 0.8);
-            box-shadow: inset 0 0 18px rgba(52, 211, 153, 0.55);
-            border-radius: 12px;
-        }
-        .force-bar .marker {
-            position: absolute;
-            top: -6px;
-            width: 6px;
-            height: 38px;
-            background: linear-gradient(180deg, #ff9f43, #ff6b08);
-            border-radius: 8px;
-            box-shadow: 0 8px 18px rgba(255, 107, 8, 0.4);
-        }
-        .force-bar.shake { animation: barShake 0.45s ease; }
-        @keyframes barShake {
-            0% { transform: translateX(0); }
-            25% { transform: translateX(-6px); }
-            50% { transform: translateX(6px); }
-            75% { transform: translateX(-4px); }
-            100% { transform: translateX(0); }
-        }
-        .game-stats {
-            background: linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 14px;
-            padding: 14px;
-        }
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            font-weight: 600;
-        }
-        .lives i { font-size: 1.1rem; }
-        .cta-button {
-            background: linear-gradient(135deg, #fc0025, #ff7043);
-            border: none;
-            padding: 12px 16px;
-            border-radius: 14px;
-            color: #fff;
-            font-weight: 700;
-            box-shadow: var(--shadow-brand);
-        }
-        .cta-button:hover { filter: brightness(1.05); transform: translateY(-1px); }
-        .mini-tip {
-            font-size: 0.9rem;
-            color: var(--fba-text-muted);
-        }
-        .status-badge {
-            padding: 6px 10px;
-            border-radius: 10px;
-            font-weight: 700;
-            background: rgba(16, 185, 129, 0.16);
-            color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.45);
-        }
-        .status-badge.negative {
-            background: rgba(255, 107, 8, 0.14);
-            color: #ff9f43;
-            border-color: rgba(255, 107, 8, 0.4);
-        }
+        .meter .sweet { position: absolute; top: 0; height: 100%; background: linear-gradient(90deg, rgba(20,170,115,0.24), rgba(48,211,150,0.34)); border-left: 2px solid rgba(48,211,150,0.8); border-right: 2px solid rgba(48,211,150,0.8); box-shadow: inset 0 0 14px rgba(48,211,150,0.55); }
+        .meter .marker { position: absolute; top: -6px; width: 6px; height: 36px; background: linear-gradient(180deg, #ffb347, #ff6a00); border-radius: 8px; box-shadow: 0 8px 18px rgba(255,106,0,0.4); }
+        .meter.shake { animation: meterShake 0.4s ease; }
+        @keyframes meterShake { 0% { transform: translateX(0); } 25% { transform: translateX(-6px);} 50% { transform: translateX(6px);} 75% { transform: translateX(-4px);} 100% { transform: translateX(0);} }
+
+        .stat-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+        .stat-label { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+        .stat-value { font-size: 1.6rem; font-weight: 800; }
+
+        .btn-accent { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #fff; font-weight: 700; }
+        .btn-accent:hover { filter: brightness(1.06); }
+        .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+
+        .overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); border-radius: 16px; z-index: 5; text-align: center; }
+        .overlay.active { display: flex; }
+        .overlay-card { background: #13141b; padding: 26px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(0,0,0,0.45); min-width: 280px; }
+
+        .tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border); font-weight: 700; color: #fff; }
     </style>
 </head>
 <body>
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="bi bi-list fs-4"></i>
-    </button>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    <?php include __DIR__ . '/../../includes/sidebar.php'; ?>
 
-    <main class="dashboard-content">
-        <div class="container-fluid">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 arcade-hero">
-                <div class="position-relative" style="z-index: 2;">
-                    <div class="pill mb-2"><i class="bi bi-controller"></i><span>Arcade FBA</span></div>
-                    <h1 class="mb-2">O Lance Livre Infinito</h1>
-                    <p class="mb-3 text-muted">Clique ou aperte espaço quando o marcador cruzar a zona verde. Cada acerto aumenta a velocidade, cada erro custa uma vida.</p>
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <span class="status-badge" id="statusBadge">Pronto para arremessar</span>
-                        <span class="mini-tip"><i class="bi bi-lightning-fill text-warning"></i> +1 ponto por cesta · 2 erros e é game over</span>
-                    </div>
-                </div>
-                <div class="text-end" style="z-index: 2;">
-                    <img src="/games/lebron.png" alt="Avatar do jogador" class="img-fluid" style="max-height: 220px; filter: drop-shadow(0 20px 38px rgba(0,0,0,0.45));">
-                </div>
+<div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
+    <div class="d-flex align-items-center gap-3">
+        <a class="brand-name" href="../index.php">🎮 FBA games</a>
+        <span class="text-secondary small">🏀 O Lance Livre Infinito</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-secondary d-none d-md-inline">Olá, <strong class="text-white"><?= htmlspecialchars($usuario['nome']) ?></strong></span>
+        <span class="saldo-badge" id="saldoDisplay"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
+        <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+<div class="container-main">
+    <div class="hero mb-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 position-relative" style="z-index:1;">
+            <div>
+                <div class="tag mb-2"><i class="bi bi-lightning-charge"></i><span>Timing puro</span></div>
+                <h2 class="mb-1">O Lance Livre Infinito</h2>
+                <p class="mb-0 text-secondary">Acerte o marcador no verde. Cada cesta aumenta a velocidade. Duas vidas apenas.</p>
             </div>
+            <img src="/games/lebron.png" alt="Jogador" class="img-fluid" style="max-height: 160px; filter: drop-shadow(0 16px 28px rgba(0,0,0,0.4));">
+        </div>
+    </div>
 
-            <div class="row g-4">
-                <div class="col-lg-8">
-                    <div class="card bg-dark-panel p-4 position-relative overflow-hidden">
-                        <div class="game-arena mb-3">
-                            <div class="court-grid"></div>
-                            <div class="hoop">
-                                <div class="backboard"></div>
-                                <div class="rim"></div>
-                                <div class="net"></div>
-                            </div>
-                            <img src="/games/lebron.png" alt="Jogador preparando o lance" class="player-figure">
-                            <div class="ball" id="ball"></div>
-                            <div class="floor-gradient"></div>
-                        </div>
-                        <div class="force-bar" id="forceBar">
-                            <div class="sweet-spot" id="sweetSpot"></div>
-                            <div class="marker" id="marker"></div>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
-                            <div class="fw-semibold" id="feedback">Clique ou pressione espaço no verde</div>
-                            <div class="mini-tip"><i class="bi bi-mouse"></i> Botão esquerdo ou <kbd>Espaço</kbd></div>
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="game-panel position-relative">
+                <div class="court mb-3">
+                    <div class="court-grid"></div>
+                    <div class="hoop">
+                        <div class="backboard"></div>
+                        <div class="rim"></div>
+                        <div class="net"></div>
+                    </div>
+                    <img src="/games/lebron.png" alt="Jogador" class="player-img">
+                    <div class="ball" id="ball"></div>
+                    <div class="overlay" id="overlay">
+                        <div class="overlay-card">
+                            <h4 class="mb-2" id="overlayTitle">Pronto?</h4>
+                            <p class="text-secondary mb-3" id="overlayText">Clique no verde para marcar.</p>
+                            <button class="btn btn-accent w-100" id="overlayButton">Começar</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-4">
-                    <div class="card bg-dark-panel h-100 p-4">
-                        <div class="game-stats mb-3">
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <span class="text-muted">Pontuação</span>
-                                <span class="fs-4 fw-bold" id="score">0</span>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <span class="text-muted">Recorde</span>
-                                <span class="fs-5 fw-semibold" id="bestScore">0</span>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between mb-2">
-                                <span class="text-muted">Vidas</span>
-                                <span class="lives" id="lives"></span>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span class="text-muted">Velocidade</span>
-                                <span class="pill" id="speedLabel"><i class="bi bi-speedometer2"></i><span>1.0x</span></span>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <h6 class="mb-2">Como jogar</h6>
-                            <ul class="text-muted small ps-3 mb-3">
-                                <li>A barra oscila. Mire no centro verde.</li>
-                                <li>Clique ou aperte espaço para travar o marcador.</li>
-                                <li>Acertos valem +1 ponto e deixam o jogo mais rápido.</li>
-                                <li>Errou? Você perde uma vida. Erre duas vezes e é fim de jogo.</li>
-                            </ul>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button class="cta-button w-100" id="shootButton">Arremessar agora</button>
-                            <button class="btn btn-outline-light w-50" id="resetButton"><i class="bi bi-arrow-repeat me-1"></i>Reiniciar</button>
-                        </div>
-                    </div>
+                <div class="meter" id="meter">
+                    <div class="sweet" id="sweet"></div>
+                    <div class="marker" id="marker"></div>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap gap-2">
+                    <div class="text-secondary" id="feedback">Clique ou use Espaço quando o marcador entrar na faixa verde.</div>
+                    <small class="text-secondary">Controles: clique / Espaço</small>
                 </div>
             </div>
         </div>
-    </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        (() => {
-            const marker = document.getElementById('marker');
-            const sweetSpotEl = document.getElementById('sweetSpot');
-            const feedback = document.getElementById('feedback');
-            const statusBadge = document.getElementById('statusBadge');
-            const ball = document.getElementById('ball');
-            const scoreEl = document.getElementById('score');
-            const bestEl = document.getElementById('bestScore');
-            const livesEl = document.getElementById('lives');
-            const speedLabel = document.getElementById('speedLabel');
-            const shootButton = document.getElementById('shootButton');
-            const resetButton = document.getElementById('resetButton');
-            const forceBar = document.getElementById('forceBar');
+        <div class="col-lg-4">
+            <div class="game-panel h-100">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="stat-card text-center">
+                            <div class="stat-label">Pontuação</div>
+                            <div class="stat-value" id="score">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card text-center">
+                            <div class="stat-label">Recorde</div>
+                            <div class="stat-value" id="best">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card text-center">
+                            <div class="stat-label">Vidas</div>
+                            <div class="stat-value" id="lives"></div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card text-center">
+                            <div class="stat-label">Velocidade</div>
+                            <div class="stat-value" id="speed">1.00x</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-accent w-100" id="shootBtn"><i class="bi bi-basket2-fill me-1"></i>Arremessar</button>
+                    <button class="btn btn-ghost w-50" id="resetBtn"><i class="bi bi-arrow-repeat me-1"></i>Reset</button>
+                </div>
+                <div class="mt-3 text-secondary small">
+                    <ul class="mb-0 ps-3">
+                        <li>Zona verde encolhe aos poucos.</li>
+                        <li>Cada acerto acelera a barra.</li>
+                        <li>Duas vidas: errou duas vezes, fim de jogo.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-            let progress = 0.5;
-            let direction = 1;
-            let lastTime = null;
-            let score = 0;
-            let best = 0;
-            let lives = 2;
-            let isGameOver = false;
+<script>
+(() => {
+    const marker = document.getElementById('marker');
+    const sweetEl = document.getElementById('sweet');
+    const meter = document.getElementById('meter');
+    const ball = document.getElementById('ball');
+    const feedback = document.getElementById('feedback');
+    const overlay = document.getElementById('overlay');
+    const overlayBtn = document.getElementById('overlayButton');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayText = document.getElementById('overlayText');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const livesEl = document.getElementById('lives');
+    const speedEl = document.getElementById('speed');
+    const shootBtn = document.getElementById('shootBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
-            const baseSpeed = 0.65; // unidades de barra por segundo
-            const minZoneWidth = 0.14;
-            const zoneDecay = 0.008; // diminui a zona a cada ponto para leve dificuldade
+    let progress = 0.5;
+    let direction = 1;
+    let lastTime = null;
+    let score = 0;
+    let best = 0;
+    let lives = 2;
+    let isRunning = false;
+    let isGameOver = false;
 
-            const updateLives = () => {
-                livesEl.innerHTML = '';
-                for (let i = 0; i < 2; i += 1) {
-                    const icon = document.createElement('i');
-                    const alive = i < lives;
-                    icon.className = alive ? 'bi bi-heart-fill text-danger me-1' : 'bi bi-heart text-secondary me-1';
-                    livesEl.appendChild(icon);
-                }
-            };
+    const baseSpeed = 0.6;
+    const speedStep = 0.12;
+    const minZone = 0.08;
+    const decay = 0.01;
 
-            const updateSpeedLabel = () => {
-                const speed = (baseSpeed + score * 0.12).toFixed(2);
-                speedLabel.querySelector('span').textContent = `${speed}x`;
-            };
+    const updateLives = () => {
+        livesEl.innerHTML = '';
+        for (let i = 0; i < 2; i += 1) {
+            const icon = document.createElement('i');
+            icon.className = i < lives ? 'bi bi-heart-fill text-danger' : 'bi bi-heart text-secondary';
+            livesEl.appendChild(icon);
+            if (i === 0) {
+                livesEl.appendChild(document.createTextNode(' '));
+            }
+        }
+    };
 
-            const updateSweetSpot = () => {
-                const width = Math.max(minZoneWidth - score * zoneDecay, 0.06);
-                const start = 0.5 - width / 2;
-                sweetSpotEl.style.left = `${start * 100}%`;
-                sweetSpotEl.style.width = `${width * 100}%`;
-            };
+    const updateSpeed = () => {
+        const speed = baseSpeed + score * speedStep;
+        speedEl.textContent = `${speed.toFixed(2)}x`;
+    };
 
-            const setFeedback = (text, positive = true) => {
-                feedback.textContent = text;
-                statusBadge.textContent = text;
-                statusBadge.classList.toggle('negative', !positive);
-            };
+    const updateSweet = () => {
+        const width = Math.max(minZone, 0.16 - score * decay);
+        const start = 0.5 - width / 2;
+        sweetEl.style.left = `${start * 100}%`;
+        sweetEl.style.width = `${width * 100}%`;
+    };
 
-            const resetBallAnimation = () => {
-                ball.classList.remove('shoot-success', 'shoot-miss');
-                void ball.offsetWidth;
-            };
+    const resetBallAnim = () => {
+        ball.classList.remove('shoot-success', 'shoot-miss');
+        void ball.offsetWidth;
+    };
 
-            const animate = (timestamp) => {
-                if (!lastTime) {
-                    lastTime = timestamp;
-                    requestAnimationFrame(animate);
-                    return;
-                }
+    const setFeedback = (text, positive = true) => {
+        feedback.textContent = text;
+        if (!positive) {
+            meter.classList.add('shake');
+            setTimeout(() => meter.classList.remove('shake'), 360);
+        }
+    };
 
-                const delta = (timestamp - lastTime) / 1000;
-                lastTime = timestamp;
+    const animate = (timestamp) => {
+        if (!isRunning) return;
 
-                const speed = baseSpeed + score * 0.12;
-                progress += direction * speed * delta;
+        if (!lastTime) {
+            lastTime = timestamp;
+        }
+        const delta = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
 
-                if (progress >= 1) {
-                    progress = 1;
-                    direction = -1;
-                } else if (progress <= 0) {
-                    progress = 0;
-                    direction = 1;
-                }
+        const speed = baseSpeed + score * speedStep;
+        progress += direction * speed * delta;
 
-                marker.style.left = `${progress * 100}%`;
-                requestAnimationFrame(animate);
-            };
+        if (progress >= 1) {
+            progress = 1;
+            direction = -1;
+        } else if (progress <= 0) {
+            progress = 0;
+            direction = 1;
+        }
 
-            const shoot = () => {
-                if (isGameOver) return;
+        marker.style.left = `${progress * 100}%`;
+        requestAnimationFrame(animate);
+    };
 
-                const width = Math.max(minZoneWidth - score * zoneDecay, 0.06);
-                const start = 0.5 - width / 2;
-                const end = 0.5 + width / 2;
+    const shoot = () => {
+        if (!isRunning || isGameOver) return;
 
-                resetBallAnimation();
+        const width = parseFloat(sweetEl.style.width) / 100 || 0.16;
+        const start = parseFloat(sweetEl.style.left) / 100 || 0.42;
+        const end = start + width;
 
-                if (progress >= start && progress <= end) {
-                    score += 1;
-                    best = Math.max(best, score);
-                    scoreEl.textContent = score;
-                    bestEl.textContent = best;
-                    setFeedback('Cesta! +1 ponto', true);
-                    ball.classList.add('shoot-success');
-                } else {
-                    lives -= 1;
-                    updateLives();
-                    setFeedback('Errou! Perdeu uma vida', false);
-                    ball.classList.add('shoot-miss');
-                    forceBar.classList.add('shake');
-                    setTimeout(() => forceBar.classList.remove('shake'), 420);
+        resetBallAnim();
 
-                    if (lives <= 0) {
-                        isGameOver = true;
-                        setFeedback('Game over. Clique em Reiniciar', false);
-                        statusBadge.textContent = 'Game over';
-                        statusBadge.classList.add('negative');
-                        return;
-                    }
-                }
-
-                updateSpeedLabel();
-                updateSweetSpot();
-            };
-
-            const resetGame = () => {
-                score = 0;
-                lives = 2;
-                progress = 0.5;
-                direction = 1;
-                isGameOver = false;
-                scoreEl.textContent = '0';
-                setFeedback('Pronto para arremessar', true);
-                updateLives();
-                updateSpeedLabel();
-                updateSweetSpot();
-                resetBallAnimation();
-            };
-
-            shootButton.addEventListener('click', shoot);
-            resetButton.addEventListener('click', resetGame);
-            document.addEventListener('keydown', (event) => {
-                if (event.code === 'Space') {
-                    event.preventDefault();
-                    shoot();
-                }
-            });
-            forceBar.addEventListener('click', shoot);
-
+        if (progress >= start && progress <= end) {
+            score += 1;
+            best = Math.max(best, score);
+            scoreEl.textContent = score;
+            bestEl.textContent = best;
+            setFeedback('Cesta! +1 ponto', true);
+            ball.classList.add('shoot-success');
+        } else {
+            lives -= 1;
             updateLives();
-            updateSweetSpot();
-            updateSpeedLabel();
-            requestAnimationFrame(animate);
-        })();
+            setFeedback('Errou! -1 vida', false);
+            ball.classList.add('shoot-miss');
 
-        (() => {
-            const sidebar = document.querySelector('.dashboard-sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            const toggle = document.getElementById('sidebarToggle');
-            const closeSidebar = () => {
-                sidebar?.classList.remove('active');
-                overlay?.classList.remove('active');
-            };
+            if (lives <= 0) {
+                isGameOver = true;
+                isRunning = false;
+                overlay.classList.add('active');
+                overlayTitle.textContent = 'Game over';
+                overlayText.textContent = 'Clique em Reset para tentar de novo.';
+                overlayBtn.textContent = 'Resetar';
+                return;
+            }
+        }
 
-            toggle?.addEventListener('click', () => {
-                sidebar?.classList.toggle('active');
-                overlay?.classList.toggle('active');
-            });
-            overlay?.addEventListener('click', closeSidebar);
-        })();
-    </script>
+        updateSpeed();
+        updateSweet();
+    };
+
+    const resetGame = () => {
+        score = 0;
+        lives = 2;
+        progress = 0.5;
+        direction = 1;
+        isRunning = true;
+        isGameOver = false;
+        lastTime = null;
+        scoreEl.textContent = '0';
+        setFeedback('Clique ou Espaço no verde', true);
+        updateLives();
+        updateSpeed();
+        updateSweet();
+        resetBallAnim();
+        overlay.classList.remove('active');
+        requestAnimationFrame(animate);
+    };
+
+    overlayBtn.addEventListener('click', () => {
+        if (isGameOver) {
+            resetGame();
+            return;
+        }
+        overlay.classList.remove('active');
+        isRunning = true;
+        lastTime = null;
+        requestAnimationFrame(animate);
+    });
+
+    shootBtn.addEventListener('click', shoot);
+    resetBtn.addEventListener('click', resetGame);
+    meter.addEventListener('click', shoot);
+
+    document.addEventListener('keydown', (ev) => {
+        if (ev.code === 'Space') {
+            ev.preventDefault();
+            shoot();
+        }
+        if (ev.code === 'KeyR') {
+            resetGame();
+        }
+    });
+
+    updateLives();
+    updateSpeed();
+    updateSweet();
+    overlay.classList.add('active');
+})();
+</script>
 </body>
 </html>
