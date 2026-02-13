@@ -161,8 +161,8 @@ try {
         .ball.shoot-miss { animation: shotMiss 0.45s ease-in-out forwards; }
         @keyframes shotSuccess {
             0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
-            55% { transform: translate(150px, -220px) scale(0.94); }
-            100% { transform: translate(150px, -200px) scale(0.9); opacity: 0.2; }
+            55% { transform: translate(170px, -240px) scale(0.94); }
+            100% { transform: translate(170px, -210px) scale(0.9); opacity: 0.2; }
         }
         @keyframes shotMiss {
             0% { transform: translate(-50%, 0) scale(1); }
@@ -331,8 +331,9 @@ try {
 
     const baseSpeed = 0.6;
     const speedStep = 0.12;
-    const minZone = 0.08;
-    const decay = 0.01;
+    const minZone = 0.06;
+    const decay = 0.012;
+    const maxZone = 0.2;
 
     const updateLives = () => {
         livesEl.innerHTML = '';
@@ -351,9 +352,15 @@ try {
         speedEl.textContent = `${speed.toFixed(2)}x`;
     };
 
-    const updateSweet = () => {
-        const width = Math.max(minZone, 0.16 - score * decay);
-        const start = 0.5 - width / 2;
+    const updateSweet = (randomize = false) => {
+        const width = Math.max(minZone, maxZone - score * decay);
+        let start = 0.5 - width / 2;
+        if (randomize) {
+            const margin = 0.04;
+            const maxStart = 1 - width - margin;
+            const minStart = margin;
+            start = Math.random() * (maxStart - minStart) + minStart;
+        }
         sweetEl.style.left = `${start * 100}%`;
         sweetEl.style.width = `${width * 100}%`;
     };
@@ -411,6 +418,7 @@ try {
             bestEl.textContent = best;
             setFeedback('Cesta! +1 ponto', true);
             ball.classList.add('shoot-success');
+            updateSweet(true);
         } else {
             lives -= 1;
             updateLives();
@@ -429,7 +437,9 @@ try {
         }
 
         updateSpeed();
-        updateSweet();
+        if (!isGameOver) {
+            updateSweet(true);
+        }
     };
 
     const resetGame = () => {
@@ -444,7 +454,7 @@ try {
         setFeedback('Clique ou Espaço no verde', true);
         updateLives();
         updateSpeed();
-        updateSweet();
+        updateSweet(true);
         resetBallAnim();
         overlay.classList.remove('active');
         requestAnimationFrame(animate);
