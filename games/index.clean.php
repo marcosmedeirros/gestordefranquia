@@ -133,11 +133,23 @@ try {
 
 $best_game_users = [];
 
+$addBestGame = function (array &$bestGameUsers, int $userId, string $label): void {
+    if ($userId <= 0) {
+        return;
+    }
+    if (!isset($bestGameUsers[$userId])) {
+        $bestGameUsers[$userId] = [];
+    }
+    if (!in_array($label, $bestGameUsers[$userId], true)) {
+        $bestGameUsers[$userId][] = $label;
+    }
+};
+
 try {
     $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao) AS recorde FROM flappy_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!empty($row['id_usuario'])) {
-        $best_game_users[(int)$row['id_usuario']] = true;
+        $addBestGame($best_game_users, (int)$row['id_usuario'], 'Flappy');
     }
 } catch (PDOException $e) {
 }
@@ -146,7 +158,7 @@ try {
     $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao_final) AS recorde FROM dino_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!empty($row['id_usuario'])) {
-        $best_game_users[(int)$row['id_usuario']] = true;
+        $addBestGame($best_game_users, (int)$row['id_usuario'], 'Pinguim');
     }
 } catch (PDOException $e) {
 }
@@ -155,7 +167,7 @@ try {
     $stmt = $pdo->query("SELECT vencedor_id, COUNT(*) AS vitorias FROM naval_salas WHERE status = 'fim' GROUP BY vencedor_id ORDER BY vitorias DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!empty($row['vencedor_id'])) {
-        $best_game_users[(int)$row['vencedor_id']] = true;
+        $addBestGame($best_game_users, (int)$row['vencedor_id'], 'Batalha Naval');
     }
 } catch (PDOException $e) {
 }
@@ -164,7 +176,7 @@ try {
     $stmt = $pdo->query("SELECT vencedor, COUNT(*) AS vitorias FROM xadrez_partidas WHERE status = 'finalizada' GROUP BY vencedor ORDER BY vitorias DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!empty($row['vencedor'])) {
-        $best_game_users[(int)$row['vencedor']] = true;
+        $addBestGame($best_game_users, (int)$row['vencedor'], 'Xadrez');
     }
 } catch (PDOException $e) {
 }
@@ -895,7 +907,9 @@ try {
                                                 <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                             <?php endif; ?>
                                             <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <span class="best-game-tag">Melhor pontuação</span>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): ?>
+                                                    <span class="best-game-tag">Top <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
                                             <?php endif; ?>
                                         </span>
                                     </div>
@@ -939,7 +953,9 @@ try {
                                                 <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                             <?php endif; ?>
                                             <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <span class="best-game-tag">Melhor pontuação</span>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): ?>
+                                                    <span class="best-game-tag">Top <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
                                             <?php endif; ?>
                                         </span>
                                     </div>
