@@ -88,6 +88,13 @@ $addBestGame = function (array &$bestGameUsers, int $userId, string $label): voi
     }
 };
 
+$bestGameIcons = [
+    'Flappy' => '🐦',
+    'Xadrez' => '♟️',
+    'Batalha Naval' => '⚓',
+    'Pinguim' => '🐧'
+];
+
 try {
     $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao) AS recorde FROM flappy_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -251,6 +258,10 @@ $tab_labels = [
             margin-left: 6px;
             white-space: nowrap;
         }
+        .best-game-flappy { background: #d32f2f; color: #fff; }
+        .best-game-xadrez { background: #fff; color: #000; }
+        .best-game-batalha-naval { background: #1976d2; color: #fff; }
+        .best-game-pinguim { background: #7b1fa2; color: #fff; }
 
     .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
@@ -347,8 +358,11 @@ $tab_labels = [
                                     <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                 <?php endif; ?>
                                 <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                    <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): ?>
-                                        <span class="best-game-tag">Top <?= htmlspecialchars($gameLabel) ?></span>
+                                    <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                        $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                        $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                    ?>
+                                        <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
@@ -381,8 +395,11 @@ $tab_labels = [
                                 <div class="ranking-name">
                                     <?= htmlspecialchars($jogador['nome']) ?>
                                     <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                        <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): ?>
-                                            <span class="best-game-tag">Top <?= htmlspecialchars($gameLabel) ?></span>
+                                        <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                            $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                            $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                        ?>
+                                            <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
