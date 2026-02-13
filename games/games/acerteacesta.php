@@ -124,22 +124,22 @@ try {
             pointer-events: none;
         }
 
-        .hoop { position: absolute; top: 34px; right: 36px; width: 120px; height: 84px; }
+        .hoop { position: absolute; top: 38px; right: 14px; width: 92px; height: 70px; }
         .backboard {
-            position: absolute; top: 0; right: 16px; width: 92px; height: 64px;
+            position: absolute; top: 0; right: 10px; width: 72px; height: 54px;
             border: 2px solid rgba(255,255,255,0.35);
             border-radius: 8px;
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
             box-shadow: 0 12px 26px rgba(0,0,0,0.35);
         }
         .rim {
-            position: absolute; bottom: 6px; right: 0; width: 120px; height: 12px;
+            position: absolute; bottom: 6px; right: 0; width: 92px; height: 10px;
             border-radius: 10px;
             background: linear-gradient(90deg, #ff8748, #ff512f);
             box-shadow: 0 10px 20px rgba(255,81,47,0.35);
         }
         .net {
-            position: absolute; bottom: -32px; right: 26px; width: 70px; height: 52px;
+            position: absolute; bottom: -28px; right: 18px; width: 58px; height: 44px;
             background: repeating-linear-gradient(135deg, rgba(255,255,255,0.82) 0 6px, transparent 6px 12px),
                         repeating-linear-gradient(45deg, rgba(255,255,255,0.82) 0 6px, transparent 6px 12px);
             background-size: 12px 12px;
@@ -330,8 +330,8 @@ try {
     let isRunning = false;
     let isGameOver = false;
 
-    const baseSpeed = 0.6;
-    const speedStep = 0.12;
+    const baseSpeed = 0.45;
+    const speedStep = 0.09;
     const minZone = 0.06;
     const decay = 0.012;
     const maxZone = 0.2;
