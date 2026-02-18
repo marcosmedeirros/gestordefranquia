@@ -862,7 +862,7 @@ async function verPropostasEnviadas(leilaoId) {
                 html += `
                 <div class="card bg-dark border border-secondary text-white mb-3 ${proposta.status === 'aceita' ? 'border-success' : ''}">
                     <div class="card-header bg-dark border-bottom border-secondary d-flex justify-content-between">
-                        <span><strong>Minha proposta</strong></span>
+                        <span><strong>Proposta de:</strong> ${proposta.team_name || '-'}</span>
                         <span class="badge ${statusClass}">${proposta.status}</span>
                     </div>
                     <div class="card-body">

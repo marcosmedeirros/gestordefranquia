@@ -410,18 +410,19 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
 }
 
 function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
-    if (!$team_id) {
+    if (!$leilao_id) {
         echo json_encode(['success' => true, 'propostas' => []]);
         return;
     }
 
-    $sql = "SELECT lp.*
+    $sql = "SELECT lp.*, t.name as team_name
             FROM leilao_propostas lp
-            WHERE lp.leilao_id = ? AND lp.team_id = ?
+            JOIN teams t ON lp.team_id = t.id
+            WHERE lp.leilao_id = ?
             ORDER BY lp.created_at DESC";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$leilao_id, $team_id]);
+    $stmt->execute([$leilao_id]);
     $propostas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($propostas as &$proposta) {
