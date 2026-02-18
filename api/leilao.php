@@ -418,7 +418,7 @@ function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
     $stmtLeilao = $pdo->prepare("SELECT team_id FROM leilao_jogadores WHERE id = ?");
     $stmtLeilao->execute([$leilao_id]);
     $leilaoRow = $stmtLeilao->fetch(PDO::FETCH_ASSOC);
-    $leilaoTeamId = $leilaoRow['team_id'] ?? null;
+    $leilaoTeamId = $leilaoRow ? ($leilaoRow['team_id'] ?? null) : null;
     $canManage = $team_id && $leilaoTeamId && (int) $leilaoTeamId === (int) $team_id;
 
     $sql = "SELECT lp.*, t.name as team_name
