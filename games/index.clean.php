@@ -71,6 +71,7 @@ try {
 
 // Top 5 por número de acertos em apostas (eventos encerrados)
 $ranking_acertos = array_fill_keys(array_keys($ranking_leagues), []);
+$ranking_acertos_24h = array_fill_keys(array_keys($ranking_leagues), []);
 
 try {
     $stmt = $pdo->query("
@@ -97,6 +98,31 @@ try {
 }
 
 try {
+    $stmt = $pdo->query("
+        SELECT
+            u.id,
+            u.nome,
+            u.league,
+            COUNT(*) AS acertos,
+            COUNT(p.id) AS total_apostas
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        JOIN usuarios u ON p.id_usuario = u.id
+        WHERE e.status = 'encerrada'
+          AND e.vencedor_opcao_id IS NOT NULL
+          AND e.vencedor_opcao_id = p.opcao_id
+          AND e.data_limite >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+        GROUP BY u.id, u.nome, u.league
+        ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
+        LIMIT 5
+    ");
+    $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $ranking_acertos_24h['GERAL'] = [];
+}
+
+try {
     $stmtLeagueAcertos = $pdo->prepare("
         SELECT
             u.id,
@@ -116,19 +142,99 @@ try {
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
+    $stmtLeagueAcertos24h = $pdo->prepare("
+        SELECT
+            u.id,
+            u.nome,
+            u.league,
+            COUNT(*) AS acertos,
+            COUNT(p.id) AS total_apostas
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        JOIN usuarios u ON p.id_usuario = u.id
+        WHERE e.status = 'encerrada'
+          AND e.vencedor_opcao_id IS NOT NULL
+          AND e.vencedor_opcao_id = p.opcao_id
+          AND e.data_limite >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+          AND u.league = :league
+        GROUP BY u.id, u.nome, u.league
+        ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
+        LIMIT 5
+    ");
     foreach (array_keys($ranking_leagues) as $leagueKey) {
         if ($leagueKey === 'GERAL') {
             continue;
         }
         $stmtLeagueAcertos->execute([':league' => $leagueKey]);
         $ranking_acertos[$leagueKey] = $stmtLeagueAcertos->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $stmtLeagueAcertos24h->execute([':league' => $leagueKey]);
+        $ranking_acertos_24h[$leagueKey] = $stmtLeagueAcertos24h->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 } catch (PDOException $e) {
     foreach (array_keys($ranking_leagues) as $leagueKey) {
         if ($leagueKey !== 'GERAL') {
             $ranking_acertos[$leagueKey] = [];
+            $ranking_acertos_24h[$leagueKey] = [];
         }
     }
+}
+
+$best_game_users = [];
+
+$addBestGame = function (array &$bestGameUsers, int $userId, string $label): void {
+    if ($userId <= 0) {
+        return;
+    }
+    if (!isset($bestGameUsers[$userId])) {
+        $bestGameUsers[$userId] = [];
+    }
+    if (!in_array($label, $bestGameUsers[$userId], true)) {
+        $bestGameUsers[$userId][] = $label;
+    }
+};
+
+$bestGameIcons = [
+    'Flappy' => '🐦',
+    'Xadrez' => '♟️',
+    'Batalha Naval' => '⚓',
+    'Pinguim' => '🐧'
+];
+
+try {
+    $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao) AS recorde FROM flappy_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['id_usuario'])) {
+        $addBestGame($best_game_users, (int)$row['id_usuario'], 'Flappy');
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT id_usuario, MAX(pontuacao_final) AS recorde FROM dino_historico GROUP BY id_usuario ORDER BY recorde DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['id_usuario'])) {
+        $addBestGame($best_game_users, (int)$row['id_usuario'], 'Pinguim');
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT vencedor_id, COUNT(*) AS vitorias FROM naval_salas WHERE status = 'fim' GROUP BY vencedor_id ORDER BY vitorias DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['vencedor_id'])) {
+        $addBestGame($best_game_users, (int)$row['vencedor_id'], 'Batalha Naval');
+    }
+} catch (PDOException $e) {
+}
+
+try {
+    $stmt = $pdo->query("SELECT vencedor, COUNT(*) AS vitorias FROM xadrez_partidas WHERE status = 'finalizada' GROUP BY vencedor ORDER BY vitorias DESC LIMIT 1");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($row['vencedor'])) {
+        $addBestGame($best_game_users, (int)$row['vencedor'], 'Xadrez');
+    }
+} catch (PDOException $e) {
 }
 
 try {
@@ -620,6 +726,26 @@ try {
             text-overflow: ellipsis;
         }
 
+        .best-game-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #ffd54f;
+            color: #000;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+        .best-game-flappy { background: #d32f2f; color: #fff; }
+        .best-game-xadrez { background: #fff; color: #000; }
+        .best-game-batalha-naval { background: #1976d2; color: #fff; }
+        .best-game-pinguim { background: #7b1fa2; color: #fff; }
+
         .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
         .medal-1::before { content: '🥇'; margin-right: 5px; }
@@ -840,6 +966,14 @@ try {
                                             <?php if (!empty($jogador['league'])): ?>
                                                 <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                             <?php endif; ?>
+                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                                ?>
+                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
                                         </span>
                                     </div>
                                     <span class="ranking-value">
@@ -857,29 +991,75 @@ try {
             <div class="ranking-card">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos de Apostas)</div>
-                    <select class="form-select form-select-sm w-auto" data-league-filter="acertos">
-                        <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
-                            <option value="<?= htmlspecialchars($leagueKey) ?>">
-                                <?= htmlspecialchars($leagueLabel) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="form-check form-switch small text-secondary m-0">
+                            <input class="form-check-input" type="checkbox" id="acertosLast24hToggle">
+                            <label class="form-check-label" for="acertosLast24hToggle">Últimas 24h</label>
+                        </div>
+                        <select class="form-select form-select-sm w-auto" data-league-filter="acertos">
+                            <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
+                                <option value="<?= htmlspecialchars($leagueKey) ?>">
+                                    <?= htmlspecialchars($leagueLabel) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
                 <div class="ranking-list" data-ranking-list="acertos">
                     <?php foreach ($ranking_acertos as $leagueKey => $rankingList): ?>
                         <?php if (empty($rankingList)): ?>
-                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>">
+                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
                                 <small class="text-secondary">Sem dados ainda</small>
                             </div>
                         <?php else: ?>
                             <?php foreach ($rankingList as $idx => $jogador): ?>
-                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>">
+                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
                                     <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
                                     <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
                                         <span class="ranking-name">
                                             <?= htmlspecialchars($jogador['nome']) ?>
                                             <?php if (!empty($jogador['league'])): ?>
                                                 <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                            <?php endif; ?>
+                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                                ?>
+                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                    <span class="ranking-value">
+                                        <?= (int)$jogador['acertos'] ?> acertos
+                                    </span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <?php foreach ($ranking_acertos_24h as $leagueKey => $rankingList): ?>
+                        <?php if (empty($rankingList)): ?>
+                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
+                                <small class="text-secondary">Sem dados nas últimas 24h</small>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($rankingList as $idx => $jogador): ?>
+                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
+                                    <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                    <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                        <span class="ranking-name">
+                                            <?= htmlspecialchars($jogador['nome']) ?>
+                                            <?php if (!empty($jogador['league'])): ?>
+                                                <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                            <?php endif; ?>
+                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                                ?>
+                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
                                             <?php endif; ?>
                                         </span>
                                     </div>
@@ -907,6 +1087,11 @@ try {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    const getAcertosPeriod = () => {
+        const toggle = document.getElementById('acertosLast24hToggle');
+        return toggle && toggle.checked ? '24h' : 'all';
+    };
+
     const applyRankingFilter = (type) => {
         const select = document.querySelector(`[data-league-filter="${type}"]`);
         const list = document.querySelector(`[data-ranking-list="${type}"]`);
@@ -915,20 +1100,29 @@ try {
         }
 
         const league = select.value;
+        const period = type === 'acertos' ? getAcertosPeriod() : 'all';
         const items = list.querySelectorAll('[data-ranking-league]');
         const empties = list.querySelectorAll('[data-ranking-empty]');
 
         items.forEach(item => {
-            item.style.display = item.dataset.rankingLeague === league ? '' : 'none';
+            const matchLeague = item.dataset.rankingLeague === league;
+            const matchPeriod = type !== 'acertos' || item.dataset.rankingPeriod === period;
+            item.style.display = matchLeague && matchPeriod ? '' : 'none';
         });
 
         empties.forEach(empty => {
-            empty.style.display = empty.dataset.rankingEmpty === league ? '' : 'none';
+            const matchLeague = empty.dataset.rankingEmpty === league;
+            const matchPeriod = type !== 'acertos' || empty.dataset.rankingPeriod === period;
+            empty.style.display = matchLeague && matchPeriod ? '' : 'none';
         });
     };
 
     document.querySelectorAll('[data-league-filter]').forEach(select => {
         select.addEventListener('change', () => applyRankingFilter(select.dataset.leagueFilter));
+    });
+
+    document.getElementById('acertosLast24hToggle')?.addEventListener('change', () => {
+        applyRankingFilter('acertos');
     });
 
     ['points', 'acertos'].forEach(applyRankingFilter);

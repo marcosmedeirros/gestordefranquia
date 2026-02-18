@@ -32,6 +32,34 @@ $team = $stmtTeam->fetch();
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .ranking-top4 {
+      background: rgba(255, 193, 7, 0.12);
+    }
+    .ranking-top4 td {
+      font-weight: 600;
+    }
+    .ranking-current {
+      position: relative;
+      background: rgba(252, 124, 0, 0.18);
+      box-shadow: inset 4px 0 0 rgba(252, 124, 0, 0.9);
+    }
+    .ranking-current .team-highlight {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(252, 124, 0, 0.18);
+      color: #ffb66c;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
+  </style>
 </head>
 <body>
   <!-- Botão Hamburguer para Mobile -->
@@ -138,6 +166,7 @@ $team = $stmtTeam->fetch();
   <script src="/js/sidebar.js"></script>
   <script>
     const userLeague = '<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>'.toUpperCase();
+    const currentTeamId = <?= (int)($team['id'] ?? 0) ?>;
     let currentLeague = userLeague;
 
     function updateActiveButton() {
@@ -200,16 +229,29 @@ $team = $stmtTeam->fetch();
                     </tr>
                   </thead>
                   <tbody>
-                    ${ranking.map((team, idx) => `
-                      <tr>
+                    ${ranking.map((team, idx) => {
+                      const isRookie = currentLeague === 'ROOKIE';
+                      const isTop4 = isRookie && idx < 4;
+                      const isMyTeam = currentTeamId && Number(team.team_id) === currentTeamId;
+                      const rowClasses = [isTop4 ? 'ranking-top4' : '', isMyTeam ? 'ranking-current' : '']
+                        .filter(Boolean)
+                        .join(' ');
+                      const badgeTop = idx < 3
+                        ? `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>`
+                        : `<strong class="text-white">${idx + 1}º</strong>`;
+                      const top4Tag = isTop4 && idx >= 3
+                        ? `<span class="badge bg-info ms-2">Top 4</span>`
+                        : '';
+                      const teamTag = isMyTeam ? '<span class="team-highlight">Seu time</span>' : '';
+                      return `
+                      <tr class="${rowClasses}">
                         <td>
-                          ${idx < 3 ? 
-                            `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>` : 
-                            `<strong class="text-white">${idx + 1}º</strong>`
-                          }
+                          ${badgeTop}
                         </td>
                         <td>
                           <span class="fw-bold text-white" style="font-size: 0.9rem;">${team.team_name}</span>
+                          ${top4Tag}
+                          ${teamTag}
                           <small class="d-md-none d-block text-light-gray">${team.league}</small>
                         </td>
                         <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
@@ -220,7 +262,8 @@ $team = $stmtTeam->fetch();
                           <strong class="text-warning">${team.total_points || 0}</strong>
                         </td>
                       </tr>
-                    `).join('')}
+                    `;
+                    }).join('')}
                   </tbody>
                 </table>
               </div>
