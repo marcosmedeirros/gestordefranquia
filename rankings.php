@@ -44,21 +44,6 @@ $team = $stmtTeam->fetch();
       background: rgba(252, 124, 0, 0.18);
       box-shadow: inset 4px 0 0 rgba(252, 124, 0, 0.9);
     }
-    .ranking-current .team-highlight {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(252, 124, 0, 0.18);
-      color: #ffb66c;
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-left: 8px;
-      white-space: nowrap;
-    }
   </style>
 </head>
 <body>
@@ -239,10 +224,6 @@ $team = $stmtTeam->fetch();
                       const badgeTop = idx < 3
                         ? `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>`
                         : `<strong class="text-white">${idx + 1}º</strong>`;
-                      const top4Tag = isTop4 && idx >= 3
-                        ? `<span class="badge bg-info ms-2">Top 4</span>`
-                        : '';
-                      const teamTag = isMyTeam ? '<span class="team-highlight">Seu time</span>' : '';
                       return `
                       <tr class="${rowClasses}">
                         <td>
@@ -250,8 +231,6 @@ $team = $stmtTeam->fetch();
                         </td>
                         <td>
                           <span class="fw-bold text-white" style="font-size: 0.9rem;">${team.team_name}</span>
-                          ${top4Tag}
-                          ${teamTag}
                           <small class="d-md-none d-block text-light-gray">${team.league}</small>
                         </td>
                         <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
