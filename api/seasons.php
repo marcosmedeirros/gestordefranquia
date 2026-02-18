@@ -123,8 +123,9 @@ function calculateSeasonYear(int $startYear, int $seasonNumber): int
 
 function getPickWindowYears(int $startYear, int $seasonNumber, int $horizon = 5): array
 {
+    // O último ano do sprint não pode ter pick, então vai até um ano antes do fim
     $windowStart = $startYear + $seasonNumber;
-    $windowEnd = $windowStart + $horizon - 1;
+    $windowEnd = $windowStart + $horizon - 2;
     return range($windowStart, $windowEnd);
 }
 
@@ -1203,7 +1204,7 @@ try {
             
             $pdo->beginTransaction();
             
-            // ATENÇÃO: Isso deleta TUDO da liga!
+            // ATENÇÃO: Isso limpa dados operacionais da liga, mas mantém pontos e títulos.
             
             // 1. Deletar picks relacionadas aos times da liga
             $pdo->exec("
@@ -1226,65 +1227,32 @@ try {
                 WHERE t.league = '$league'
             ");
             
-            // 4. Deletar pontos de ranking dos times
-            $pdo->exec("
-                DELETE trp FROM team_ranking_points trp
-                INNER JOIN teams t ON trp.team_id = t.id
-                WHERE t.league = '$league'
-            ");
-            
-            // 5. Deletar prêmios das temporadas
-            $pdo->exec("
-                DELETE sa FROM season_awards sa
-                INNER JOIN seasons s ON sa.season_id = s.id
-                WHERE s.league = '$league'
-            ");
-            
-            // 6. Deletar resultados de playoffs
-            $pdo->exec("
-                DELETE pr FROM playoff_results pr
-                INNER JOIN seasons s ON pr.season_id = s.id
-                WHERE s.league = '$league'
-            ");
-            
-            // 7. Deletar standings
+            // 4. Deletar standings
             $pdo->exec("
                 DELETE ss FROM season_standings ss
                 INNER JOIN seasons s ON ss.season_id = s.id
                 WHERE s.league = '$league'
             ");
-            
-            // 8. Deletar draft pool
+
+            // 5. Deletar draft pool
             $pdo->exec("
                 DELETE dp FROM draft_pool dp
                 INNER JOIN seasons s ON dp.season_id = s.id
                 WHERE s.league = '$league'
             ");
-            
-            // 9. Deletar temporadas
-            $pdo->exec("DELETE FROM seasons WHERE league = '$league'");
-            
-            // 10. Deletar sprints
-            $pdo->exec("DELETE FROM sprints WHERE league = '$league'");
-            
-            // 11. Deletar propostas de Free Agency da liga
+
+            // 6. Deletar propostas de Free Agency da liga
             $pdo->exec("
                 DELETE fao FROM free_agent_offers fao
                 INNER JOIN free_agents fa ON fao.free_agent_id = fa.id
                 WHERE fa.league = '$league'
             ");
-            
-            // 12. Deletar Free Agents da liga
+
+            // 7. Deletar Free Agents da liga
             $pdo->exec("DELETE FROM free_agents WHERE league = '$league'");
-            
-            // 13. Deletar times (e seus usuários associados)
-            $pdo->exec("
-                DELETE u FROM users u
-                INNER JOIN teams t ON u.id = t.user_id
-                WHERE t.league = '$league'
-            ");
-            
-            $pdo->exec("DELETE FROM teams WHERE league = '$league'");
+
+            // 8. Resetar tapas dos times
+            $pdo->exec("UPDATE teams SET tapas = 0 WHERE league = '$league'");
             
             $pdo->commit();
             
