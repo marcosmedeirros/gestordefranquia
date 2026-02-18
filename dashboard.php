@@ -31,6 +31,10 @@ $stats = $stmtPlayers->fetch();
 
 $totalPlayers = $stats['total'] ?? 0;
 $avgOvr = $totalPlayers > 0 ? round($stats['total_ovr'] / $totalPlayers, 1) : 0;
+$minPlayers = 13;
+$maxPlayers = 15;
+$playersOutOfRange = $totalPlayers < $minPlayers || $totalPlayers > $maxPlayers;
+$playersColor = $playersOutOfRange ? '#ff4444' : 'inherit';
 
 // Buscar jogadores titulares
 $stmtTitulares = $pdo->prepare("SELECT * FROM players WHERE team_id = ? AND role = 'Titular' ORDER BY ovr DESC");
@@ -776,8 +780,12 @@ try {
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <div class="stat-label">Jogadores</div>
-                                <div class="stat-value"><?= $totalPlayers ?>/15</div>
-                                <small class="text-light-gray">OVR Médio: <?= $avgOvr ?></small>
+                                <div class="stat-value" style="color: <?= $playersColor ?>;">
+                                    <?= $totalPlayers ?>/15
+                                </div>
+                                <small class="text-light-gray" style="font-size: clamp(13px, 1.1vw, 15px); color: <?= $playersColor ?>;">
+                                    Min: <?= $minPlayers ?> · Max: <?= $maxPlayers ?>
+                                </small>
                             </div>
                             <i class="bi bi-people-fill display-4 text-orange"></i>
                         </div>
@@ -791,7 +799,9 @@ try {
                         <div>
                             <div class="stat-label">CAP Top8</div>
                             <div class="stat-value" style="color: <?= $capColor ?>;"><?= $teamCap ?></div>
-                            <small class="text-light-gray">Limite: <?= $capMin ?>-<?= $capMax ?></small>
+                            <small class="text-light-gray" style="font-size: clamp(13px, 1.1vw, 15px); color: <?= $capColor ?>;">
+                                Min: <?= $capMin ?> · Max: <?= $capMax ?>
+                            </small>
                         </div>
                         <i class="bi bi-cash-stack display-4" style="color: <?= $capColor ?>;"></i>
                     </div>
