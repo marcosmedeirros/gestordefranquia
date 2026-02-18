@@ -781,7 +781,7 @@ try {
                             <div>
                                 <div class="stat-label">Jogadores</div>
                                 <div class="stat-value" style="color: <?= $playersColor ?>;">
-                                    <?= $totalPlayers ?>/15
+                                    <?= $totalPlayers ?>
                                 </div>
                                 <small class="text-light-gray" style="font-size: clamp(13px, 1.1vw, 15px); color: <?= $playersColor ?>;">
                                     Min: <?= $minPlayers ?> · Max: <?= $maxPlayers ?>
