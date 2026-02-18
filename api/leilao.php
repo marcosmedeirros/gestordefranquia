@@ -165,6 +165,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $leilao_id = $_GET['leilao_id'] ?? 0;
             verPropostas($pdo, $leilao_id, $team_id, $is_admin);
             break;
+        case 'ver_propostas_enviadas':
+            $leilao_id = $_GET['leilao_id'] ?? 0;
+            verPropostasEnviadas($pdo, $leilao_id, $team_id);
+            break;
         case 'historico':
             $league_id_param = $_GET['league_id'] ?? null;
             historicoLeiloes($pdo, $league_id_param);
@@ -402,6 +406,41 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
         $proposta['picks'] = $stmt3->fetchAll(PDO::FETCH_ASSOC);
     }
     
+    echo json_encode(['success' => true, 'propostas' => $propostas]);
+}
+
+function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
+    if (!$team_id) {
+        echo json_encode(['success' => true, 'propostas' => []]);
+        return;
+    }
+
+    $sql = "SELECT lp.*
+            FROM leilao_propostas lp
+            WHERE lp.leilao_id = ? AND lp.team_id = ?
+            ORDER BY lp.created_at DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$leilao_id, $team_id]);
+    $propostas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($propostas as &$proposta) {
+        $stmt2 = $pdo->prepare("SELECT p.* FROM players p
+                                JOIN leilao_proposta_jogadores lpj ON p.id = lpj.player_id
+                                WHERE lpj.proposta_id = ?");
+        $stmt2->execute([$proposta['id']]);
+        $proposta['jogadores'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmt3 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round,
+                                       CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                FROM leilao_proposta_picks lpp
+                                JOIN picks pk ON pk.id = lpp.pick_id
+                                LEFT JOIN teams t ON t.id = pk.original_team_id
+                                WHERE lpp.proposta_id = ?");
+        $stmt3->execute([$proposta['id']]);
+        $proposta['picks'] = $stmt3->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     echo json_encode(['success' => true, 'propostas' => $propostas]);
 }
 

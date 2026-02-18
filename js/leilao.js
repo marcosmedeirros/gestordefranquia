@@ -505,7 +505,14 @@ async function carregarLeiloesAtivos() {
                             <p class="mb-2"><i class="bi bi-trophy"></i> Liga: ${leilao.league_name}</p>
                             ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}">20:00</span></p>` : ''}
                             <hr>
-                            <p class="mb-2"><i class="bi bi-chat-dots"></i> Propostas: <span class="badge bg-info">${leilao.total_propostas || 0}</span></p>
+                            <p class="mb-2 d-flex align-items-center justify-content-between">
+                                <span><i class="bi bi-chat-dots"></i> Propostas: <span class="badge bg-info">${leilao.total_propostas || 0}</span></span>
+                                ${(!isMyTeam && userTeamId) ? `
+                                    <button class="btn btn-outline-info btn-sm" onclick="verPropostasEnviadas(${leilao.id})">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </button>
+                                ` : ''}
+                            </p>
                             ${!isMyTeam && userTeamId ? (() => {
                                 const disabled = (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) ? 'disabled' : '';
                                 const label = (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) ? 'Período fechado' : 'Enviar Proposta';
@@ -823,6 +830,60 @@ async function verMinhasPropostasRecebidas(leilaoId) {
             container.innerHTML = html;
         } else {
             container.innerHTML = '<p class="text-light-gray">Nenhuma proposta recebida ainda.</p>';
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        container.innerHTML = '<p class="text-danger">Erro ao carregar propostas.</p>';
+    }
+}
+
+async function verPropostasEnviadas(leilaoId) {
+    document.getElementById('leilaoIdVerPropostasEnviadas').value = leilaoId;
+    const container = document.getElementById('listaPropostasEnviadas');
+    container.innerHTML = '<p class="text-muted">Carregando propostas...</p>';
+
+    const modal = new bootstrap.Modal(document.getElementById('modalVerPropostasEnviadas'));
+    modal.show();
+
+    try {
+        const response = await fetch(`api/leilao.php?action=ver_propostas_enviadas&leilao_id=${leilaoId}`);
+        const data = await response.json();
+
+        if (data.success && data.propostas && data.propostas.length > 0) {
+            let html = '';
+
+            data.propostas.forEach(proposta => {
+                const statusClass = proposta.status === 'pendente'
+                    ? 'bg-warning'
+                    : proposta.status === 'aceita'
+                    ? 'bg-success'
+                    : 'bg-secondary';
+
+                html += `
+                <div class="card bg-dark border border-secondary text-white mb-3 ${proposta.status === 'aceita' ? 'border-success' : ''}">
+                    <div class="card-header bg-dark border-bottom border-secondary d-flex justify-content-between">
+                        <span><strong>Minha proposta</strong></span>
+                        <span class="badge ${statusClass}">${proposta.status}</span>
+                    </div>
+                    <div class="card-body">
+                        <h6>Jogadores oferecidos:</h6>
+                        ${proposta.jogadores.length ? `
+                        <ul>
+                            ${proposta.jogadores.map(j => `<li><strong>${j.name}</strong> - ${j.position}, OVR ${j.overall || j.ovr}, ${j.age} anos</li>`).join('')}
+                        </ul>` : '<p class="text-muted">Nenhum jogador ofertado.</p>'}
+                        <h6 class="mt-3">Picks oferecidas:</h6>
+                        ${proposta.picks && proposta.picks.length ? `
+                        <ul>
+                            ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
+                        </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
+                        ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<p class="text-light-gray">Nenhuma proposta enviada ainda.</p>';
         }
     } catch (error) {
         console.error('Erro:', error);
