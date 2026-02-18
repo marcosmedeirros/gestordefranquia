@@ -793,6 +793,7 @@ async function verMinhasPropostasRecebidas(leilaoId) {
         
         if (data.success && data.propostas && data.propostas.length > 0) {
             let html = '';
+            const canManage = !!data.can_manage;
             
             data.propostas.forEach(proposta => {
                 html += `
@@ -877,6 +878,16 @@ async function verPropostasEnviadas(leilaoId) {
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
                         ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
+                        ${(canManage && proposta.status === 'pendente') ? `
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success" onclick="aceitarProposta(${proposta.id})">
+                                <i class="bi bi-check-lg"></i> Aceitar Proposta
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="recusarProposta(${proposta.id})">
+                                <i class="bi bi-x-lg"></i> Recusar
+                            </button>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>`;
             });

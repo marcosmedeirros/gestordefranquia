@@ -415,6 +415,12 @@ function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
         return;
     }
 
+    $stmtLeilao = $pdo->prepare("SELECT team_id FROM leilao_jogadores WHERE id = ?");
+    $stmtLeilao->execute([$leilao_id]);
+    $leilaoRow = $stmtLeilao->fetch(PDO::FETCH_ASSOC);
+    $leilaoTeamId = $leilaoRow['team_id'] ?? null;
+    $canManage = $team_id && $leilaoTeamId && (int) $leilaoTeamId === (int) $team_id;
+
     $sql = "SELECT lp.*, t.name as team_name
             FROM leilao_propostas lp
             JOIN teams t ON lp.team_id = t.id
@@ -442,7 +448,7 @@ function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
         $proposta['picks'] = $stmt3->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    echo json_encode(['success' => true, 'propostas' => $propostas]);
+    echo json_encode(['success' => true, 'propostas' => $propostas, 'can_manage' => $canManage]);
 }
 
 function historicoLeiloes($pdo, $league_id) {
