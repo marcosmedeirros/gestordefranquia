@@ -838,11 +838,11 @@ async function verMinhasPropostasRecebidas(leilaoId) {
 }
 
 async function verPropostasEnviadas(leilaoId) {
-    document.getElementById('leilaoIdVerPropostasEnviadas').value = leilaoId;
-    const container = document.getElementById('listaPropostasEnviadas');
+    document.getElementById('leilaoIdVerPropostas').value = leilaoId;
+    const container = document.getElementById('listaPropostasRecebidas');
     container.innerHTML = '<p class="text-muted">Carregando propostas...</p>';
 
-    const modal = new bootstrap.Modal(document.getElementById('modalVerPropostasEnviadas'));
+    const modal = new bootstrap.Modal(document.getElementById('modalVerPropostas'));
     modal.show();
 
     try {
