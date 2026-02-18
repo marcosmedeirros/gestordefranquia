@@ -34,15 +34,16 @@ $team = $stmtTeam->fetch();
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
     .ranking-top4 {
-      background: rgba(255, 193, 7, 0.12);
+      background: rgba(13, 110, 253, 0.18);
+      box-shadow: inset 4px 0 0 rgba(13, 110, 253, 0.75);
     }
     .ranking-top4 td {
       font-weight: 600;
     }
     .ranking-current {
       position: relative;
-      background: rgba(252, 124, 0, 0.18);
-      box-shadow: inset 4px 0 0 rgba(252, 124, 0, 0.9);
+      background: rgba(25, 135, 84, 0.18);
+      box-shadow: inset 4px 0 0 rgba(25, 135, 84, 0.9);
     }
   </style>
 </head>
@@ -221,8 +222,8 @@ $team = $stmtTeam->fetch();
                       const rowClasses = [isTop4 ? 'ranking-top4' : '', isMyTeam ? 'ranking-current' : '']
                         .filter(Boolean)
                         .join(' ');
-                      const badgeTop = idx < 3
-                        ? `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : 'bg-danger'}">${idx + 1}º</span>`
+                      const badgeTop = idx < 4
+                        ? `<span class="badge ${idx === 0 ? 'bg-warning' : idx === 1 ? 'bg-secondary' : idx === 2 ? 'bg-danger' : 'bg-info'}">${idx + 1}º</span>`
                         : `<strong class="text-white">${idx + 1}º</strong>`;
                       return `
                       <tr class="${rowClasses}">
