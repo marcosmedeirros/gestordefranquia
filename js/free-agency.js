@@ -4,6 +4,42 @@
  */
 
 const isNewFaEnabled = typeof useNewFreeAgency !== 'undefined' ? !!useNewFreeAgency : false;
+let faHistoryTeamSort = null;
+let faWaiversTeamSort = null;
+
+function sortIndicator(direction) {
+    if (direction === 'asc') return ' <i class="bi bi-caret-up-fill"></i>';
+    if (direction === 'desc') return ' <i class="bi bi-caret-down-fill"></i>';
+    return '';
+}
+
+function sortByTeamName(list, getName, direction) {
+    if (!direction) return list;
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+        const nameA = (getName(a) || '').toLowerCase();
+        const nameB = (getName(b) || '').toLowerCase();
+        if (nameA === nameB) return 0;
+        return direction === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+    });
+    return sorted;
+}
+
+window.toggleFaHistoryTeamSort = function() {
+    faHistoryTeamSort = faHistoryTeamSort === 'asc' ? 'desc' : 'asc';
+    if (isNewFaEnabled) {
+        carregarHistoricoNovaFA();
+    } else {
+        carregarHistoricoFA();
+    }
+};
+
+window.toggleFaWaiversTeamSort = function() {
+    faWaiversTeamSort = faWaiversTeamSort === 'asc' ? 'desc' : 'asc';
+    if (window.__faWaiversCache) {
+        renderWaiversList(window.__faWaiversCache);
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Free Agency JS carregado');
@@ -343,9 +379,15 @@ async function carregarHistoricoNovaFA() {
             seasonFilter.addEventListener('change', () => carregarHistoricoNovaFA());
         }
 
+        const sortedHistory = sortByTeamName(
+            data.history,
+            (item) => item.team_name ? `${item.team_city} ${item.team_name}` : '',
+            faHistoryTeamSort
+        );
+
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Temporada</th></tr></thead><tbody>';
-        data.history.forEach(item => {
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th><button type="button" class="btn btn-link p-0 text-white" onclick="toggleFaHistoryTeamSort()">Time' + sortIndicator(faHistoryTeamSort) + '</button></th><th>Temporada</th></tr></thead><tbody>';
+        sortedHistory.forEach(item => {
             const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
             const seasonLabel = item.season_year ? `Temp ${item.season_year}` : '-';
             html += `<tr>
@@ -586,6 +628,7 @@ async function carregarDispensados() {
             teamFilter.addEventListener('change', () => renderWaiversList(waivers));
         }
 
+        window.__faWaiversCache = waivers;
         renderWaiversList(waivers);
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar dispensas.</p>';
@@ -611,9 +654,15 @@ function renderWaiversList(waivers) {
         return;
     }
 
+    const sorted = sortByTeamName(
+        filtered,
+        (item) => item.original_team_name || '',
+        faWaiversTeamSort
+    );
+
     let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-    html += '<thead><tr><th>Jogador</th><th>Temporada</th><th>Time</th></tr></thead><tbody>';
-    filtered.forEach(item => {
+    html += '<thead><tr><th>Jogador</th><th>Temporada</th><th><button type="button" class="btn btn-link p-0 text-white" onclick="toggleFaWaiversTeamSort()">Time' + sortIndicator(faWaiversTeamSort) + '</button></th></tr></thead><tbody>';
+    sorted.forEach(item => {
         const teamName = item.original_team_name || '-';
         let seasonLabel = '-';
         if (item.season_number) {
@@ -695,9 +744,15 @@ async function carregarHistoricoFA() {
             return;
         }
 
+        const sortedContracts = sortByTeamName(
+            data.contracts,
+            (item) => item.team_name ? `${item.team_city} ${item.team_name}` : '',
+            faHistoryTeamSort
+        );
+
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Time</th><th>Ano</th></tr></thead><tbody>';
-        data.contracts.forEach(item => {
+        html += '<thead><tr><th>Jogador</th><th>OVR</th><th><button type="button" class="btn btn-link p-0 text-white" onclick="toggleFaHistoryTeamSort()">Time' + sortIndicator(faHistoryTeamSort) + '</button></th><th>Ano</th></tr></thead><tbody>';
+        sortedContracts.forEach(item => {
             const teamName = item.team_name ? `${item.team_city} ${item.team_name}` : '-';
             const year = item.season_year || (item.waived_at ? item.waived_at.toString().slice(0, 4) : '-');
             html += `<tr>
