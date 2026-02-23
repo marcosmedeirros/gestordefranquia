@@ -7,57 +7,93 @@ echo "<h1>Sincronizador de IDs da NBA</h1>";
 // 1. Endpoint oficial da NBA que lista todos os jogadores
 $nbaApiUrl = 'https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=0&LeagueID=00&Season=2023-24';
 
-// A NBA bloqueia requisições sem User-Agent, então vamos simular um navegador usando cURL
+// 2. Configuração avançada do cURL para burlar o Firewall (Akamai) da NBA
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $nbaApiUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+curl_setopt($ch, CURLOPT_ENCODING, "gzip, deflate, br"); // Essencial: a NBA compacta a resposta
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer: https://stats.nba.com/',
-    'Accept: application/json'
+    'Host: stats.nba.com',
+    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept: application/json, text/plain, */*',
+    'Accept-Language: pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Origin: https://www.nba.com',
+    'Referer: https://www.nba.com/',
+    'Connection: keep-alive',
+    'x-nba-stats-origin: stats',
+    'x-nba-stats-token: true',
+    'Sec-Fetch-Dest: empty',
+    'Sec-Fetch-Mode: cors',
+    'Sec-Fetch-Site: same-site'
 ]);
 
 $response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
+
+// Validação de segurança do retorno HTTP
+if ($httpCode !== 200 || empty($response)) {
+    die("Erro HTTP $httpCode - O firewall da NBA ainda está bloqueando a requisição do seu servidor. O log de erro retornou vazio ou acesso negado.");
+}
 
 $nbaData = json_decode($response, true);
 
 if (!$nbaData || !isset($nbaData['resultSets'][0]['rowSet'])) {
-    die("Erro ao conectar com a API da NBA.");
+    die("Erro ao decodificar o JSON da NBA. A estrutura da API pode ter mudado.");
 }
 
-// 2. Criar um array de mapeamento rápido [ "nome do jogador" => id_nba ]
+// 3. Criar um array de mapeamento rápido [ "nome do jogador" => id_nba ]
 $nbaPlayersMap = [];
 foreach ($nbaData['resultSets'][0]['rowSet'] as $row) {
     $nbaId = $row[0];
-    $nbaName = strtolower(trim($row[2])); // Deixa tudo minúsculo para facilitar a busca
+    $nbaName = strtolower(trim($row[2])); 
     $nbaPlayersMap[$nbaName] = $nbaId;
 }
 
-// 3. Buscar os jogadores do SEU banco de dados que estão sem foto (nba_id NULL)
+// 4. Buscar os jogadores do SEU banco de dados que estão sem foto
 $stmt = $pdo->query('SELECT id, name FROM players WHERE nba_id IS NULL');
 $meusJogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $atualizados = 0;
+$naoEncontrados = [];
 
-// 4. Fazer o match e atualizar o banco
+// 5. Atualização em lote (Transaction) para não travar o banco com os 872 updates
 $updateStmt = $pdo->prepare('UPDATE players SET nba_id = ? WHERE id = ?');
 
-foreach ($meusJogadores as $jogador) {
-    $meuNome = strtolower(trim($jogador['name']));
-    
-    // Se o nome do seu banco bater exatamente com o nome da NBA
-    if (isset($nbaPlayersMap[$meuNome])) {
-        $idCorreto = $nbaPlayersMap[$meuNome];
-        
-        $updateStmt->execute([$idCorreto, $jogador['id']]);
-        $atualizados++;
-        
-        echo "✅ Foto encontrada para: {$jogador['name']} (ID: $idCorreto)<br>";
-    } else {
-        echo "❌ Nome não encontrado na API: {$jogador['name']} <br>";
-    }
-}
+try {
+    $pdo->beginTransaction(); // Trava a gravação física no disco
 
-echo "<h3>Processo concluído! $atualizados jogadores foram atualizados.</h3>";
+    foreach ($meusJogadores as $jogador) {
+        $meuNome = strtolower(trim($jogador['name']));
+        
+        // Verifica se o nome exato existe no array da NBA
+        if (isset($nbaPlayersMap[$meuNome])) {
+            $idCorreto = $nbaPlayersMap[$meuNome];
+            
+            $updateStmt->execute([$idCorreto, $jogador['id']]);
+            $atualizados++;
+        } else {
+            // Guarda na memória para listar no final
+            $naoEncontrados[] = $jogador['name'];
+        }
+    }
+
+    $pdo->commit(); // Grava os 872 updates no disco de uma vez só
+
+    echo "<h3>Processo concluído! $atualizados jogadores foram atualizados com sucesso.</h3>";
+    
+    // Lista os caras que a API não achou (por erro de grafia, Jr., Sr., etc)
+    if (count($naoEncontrados) > 0) {
+        echo "<h4>Jogadores não encontrados na NBA (Verifique a grafia no seu banco):</h4><ul>";
+        foreach ($naoEncontrados as $nomeErro) {
+            echo "<li>$nomeErro</li>";
+        }
+        echo "</ul>";
+    }
+
+} catch (Exception $e) {
+    $pdo->rollBack(); // Se der qualquer erro fatal, desfaz tudo para não corromper a tabela
+    die("Erro crítico na gravação do banco de dados: " . $e->getMessage());
+}
 ?>
