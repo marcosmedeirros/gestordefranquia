@@ -18,13 +18,24 @@ const renderRosterCard = (team) => {
     const playerList = players.map(p => {
         const tradeClass = p.available_for_trade ? 'trade' : 'notrade';
         const tradeText = p.available_for_trade ? 'Disponível' : 'Fechado';
+        
+        // Define a foto
+        const photoUrl = p.nba_id 
+            ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` 
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+
         return `
             <div class="d-flex justify-content-between align-items-center p-2 bg-dark rounded mb-2">
-                <div>
-                    <strong class="text-white">${p.name}</strong>
-                    <small class="d-block text-muted">
-                        ${p.position} • OVR ${p.ovr} • ${p.age} anos • ${p.role}
-                    </small>
+                <div class="d-flex align-items-center gap-2">
+                    <img src="${photoUrl}" alt="${p.name}" 
+                         style="width: 45px; height: 45px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+                         onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+                    <div>
+                        <strong class="text-white">${p.name}</strong>
+                        <small class="d-block text-muted">
+                            ${p.position} • OVR ${p.ovr} • ${p.age} anos • ${p.role}
+                        </small>
+                    </div>
                 </div>
                 <span class="badge badge-${tradeClass}">${tradeText}</span>
             </div>

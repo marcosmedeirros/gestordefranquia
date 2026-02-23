@@ -502,8 +502,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador</td></tr>';
                     } else {
                         data.players.forEach(p => {
+                            // Lógica para puxar a foto da NBA ou o Avatar de Iniciais
+                            const photoUrl = p.nba_id 
+                                ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` 
+                                : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+
                             tbody.innerHTML += `<tr>
-                                <td><strong>${p.name}</strong></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img src="${photoUrl}" alt="${p.name}" 
+                                             style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+                                             onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+                                        <strong>${p.name}</strong>
+                                    </div>
+                                </td>
                                 <td><span class="badge bg-warning text-dark">${p.ovr}</span></td>
                                 <td>${p.age}</td>
                                 <td>${p.position}</td>
