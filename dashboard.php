@@ -741,12 +741,12 @@ try {
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="page-header mb-4">
             <div>
                 <h1 class="text-white fw-bold mb-2">Dashboard</h1>
                 <p class="text-light-gray">Bem-vindo ao painel de controle do <?= htmlspecialchars($team['name']) ?></p>
             </div>
-            <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="page-actions">
                 <button class="btn btn-outline-light" id="copyTeamBtn">
                     <i class="bi bi-clipboard-check me-2"></i>Copiar time
                 </button>

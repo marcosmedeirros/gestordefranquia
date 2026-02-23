@@ -87,16 +87,18 @@ $team = $stmtTeam->fetch();
   </div>
 
   <div class="dashboard-content">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-header mb-4">
       <h1 class="text-white fw-bold mb-0">
         <i class="bi bi-bar-chart-fill me-2 text-orange"></i>
         Rankings
       </h1>
-      <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-      <button class="btn btn-orange" id="btnEditRanking" data-bs-toggle="modal" data-bs-target="#editRankingModal">
-        <i class="bi bi-pencil-square me-1"></i> Editar Ranking
-      </button>
-      <?php endif; ?>
+      <div class="page-actions">
+        <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+        <button class="btn btn-orange" id="btnEditRanking" data-bs-toggle="modal" data-bs-target="#editRankingModal">
+          <i class="bi bi-pencil-square me-1"></i> Editar Ranking
+        </button>
+        <?php endif; ?>
+      </div>
     </div>
 
     <div class="d-flex flex-wrap gap-2 mb-4 ranking-filters" role="group">

@@ -147,9 +147,11 @@ $team = $stmtTeam->fetch() ?: null;
 
     <!-- Main Content -->
     <div class="dashboard-content">
-        <div class="mb-4 d-flex align-items-center justify-content-between">
+        <div class="page-header mb-4">
             <h1 class="text-white fw-bold mb-2"><i class="bi bi-gear-fill me-2 text-orange"></i>Configurações</h1>
-            <a class="btn btn-outline-orange" href="/dashboard.php"><i class="bi bi-arrow-left me-1"></i> Voltar ao Dashboard</a>
+            <div class="page-actions">
+                <a class="btn btn-outline-orange" href="/dashboard.php"><i class="bi bi-arrow-left me-1"></i> Voltar ao Dashboard</a>
+            </div>
         </div>
 
         <div class="row g-4">

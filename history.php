@@ -78,7 +78,7 @@ $userLeague = $team['league'];
   </div>
 
   <div class="dashboard-content">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-header mb-4">
       <h1 class="text-white fw-bold mb-0">
         <i class="bi bi-clock-history me-2 text-orange"></i>
         Histórico de Temporadas - Liga <?= htmlspecialchars($userLeague) ?>

@@ -80,7 +80,7 @@ if (!$team) {
   </div>
 
   <div class="dashboard-content">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-header mb-4">
       <h1 class="text-white fw-bold mb-0">
         <i class="bi bi-calendar3 me-2 text-orange"></i>
         Gerenciar Temporadas

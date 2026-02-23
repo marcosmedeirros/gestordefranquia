@@ -436,7 +436,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   <!-- Main Content -->
   <div class="dashboard-content">
     <div class="mb-4">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="page-header">
         <div class="d-flex align-items-center gap-3">
           <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
           <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
@@ -451,8 +451,8 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
             </div>
           <?php endif; ?>
         </div>
-    <div>
-      <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
+        <div class="page-actions">
+          <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
               <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
@@ -474,7 +474,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     <?php else: ?>
 
     <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="tradesTabs" role="tablist">
+    <ul class="nav nav-tabs nav-tabs-scroll mb-4" id="tradesTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="received-tab" data-bs-toggle="tab" data-bs-target="#received" type="button">
           <i class="bi bi-inbox-fill me-1"></i>Recebidas

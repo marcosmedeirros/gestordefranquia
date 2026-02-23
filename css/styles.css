@@ -1209,6 +1209,32 @@ img.broken-image {
 /* Player cards container hidden by default; enabled via media queries */
 .player-card-mobile{ display: none; }
 
+/* ---------- Page header helpers ---------- */
+.page-header{
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.page-actions{
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+/* ---------- Tabs scroll (mobile) ---------- */
+.nav-tabs.nav-tabs-scroll{
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	overflow-y: hidden;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+.nav-tabs.nav-tabs-scroll::-webkit-scrollbar{ display: none; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 992px){
 	.dashboard-content{ margin-left: 0; }
@@ -1217,6 +1243,17 @@ img.broken-image {
 }
 
 @media (max-width: 768px){
+	.page-header{
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.page-actions{
+		width: 100%;
+		justify-content: flex-start;
+	}
+	.page-actions .btn{
+		width: 100%;
+	}
 	.sidebar-toggle{
 		display: flex;
 		align-items: center;
