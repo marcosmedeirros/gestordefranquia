@@ -1209,6 +1209,41 @@ img.broken-image {
 /* Player cards container hidden by default; enabled via media queries */
 .player-card-mobile{ display: none; }
 
+/* ---------- Teams mobile cards ---------- */
+.teams-mobile-cards{ display: none; }
+.team-card-mobile{
+	background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
+	border: 1px solid rgba(255,255,255,.10);
+	border-radius: 14px;
+	padding: 1rem;
+	margin-bottom: 1rem;
+	box-shadow: var(--shadow-0);
+}
+.team-card-mobile-header{
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 0.75rem;
+}
+.team-card-mobile-logo{
+	width: 48px;
+	height: 48px;
+	border-radius: 12px;
+	object-fit: cover;
+	border: 1px solid rgba(255,255,255,.18);
+}
+.team-card-mobile-stats{
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 0.75rem;
+}
+.team-card-mobile-actions{
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 /* ---------- Page header helpers ---------- */
 .page-header{
 	display: flex;
@@ -1243,6 +1278,26 @@ img.broken-image {
 }
 
 @media (max-width: 768px){
+	#teamsTableWrap{ display: none; }
+	.teams-mobile-cards{ display: block; }
+
+	.free-agency-page,
+	.free-agency-page .dashboard-content,
+	.leilao-page,
+	.leilao-page .dashboard-content{
+		overflow-x: hidden;
+	}
+
+	.free-agency-page .tab-content,
+	.leilao-page .tab-content{
+		max-width: 100%;
+	}
+
+	.stack-mobile > [class^="col"],
+	.stack-mobile > [class*=" col"]{
+		flex: 0 0 100%;
+		max-width: 100%;
+	}
 	.page-header{
 		flex-direction: column;
 		align-items: flex-start;

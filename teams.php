@@ -252,7 +252,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         <div class="card bg-dark-panel border-orange">
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive" id="teamsTableWrap">
                     <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                             <tr>
@@ -343,6 +343,74 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+                <div id="teamsCardsWrap" class="teams-mobile-cards">
+                    <?php foreach ($teams as $t): ?>
+                    <?php
+                        $hasContact = !empty($t['owner_phone_whatsapp']);
+                        $whatsAppLink = $hasContact
+                            ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
+                            : null;
+                        $searchKey = strtolower(trim(
+                            ($t['city'] ?? '') . ' ' .
+                            ($t['name'] ?? '') . ' ' .
+                            ($t['owner_name'] ?? '') . ' ' .
+                            ($t['owner_phone_display'] ?? '')
+                        ));
+                    ?>
+                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>">
+                        <div class="team-card-mobile-header">
+                            <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
+                                 alt="<?= htmlspecialchars($t['name']) ?>" 
+                                 class="team-card-mobile-logo">
+                            <div class="team-card-mobile-title">
+                                <div class="fw-bold text-orange" style="font-size: 1rem;">
+                                    <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
+                                </div>
+                                <div class="text-light-gray small">
+                                    <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
+                                </div>
+                                <?php if ($hasContact): ?>
+                                    <div class="text-light-gray small">
+                                        <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="text-muted small">Sem contato</div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="team-card-mobile-stats">
+                            <div>
+                                <span class="badge bg-gradient-orange">Jog. <?= (int)$t['total_players'] ?></span>
+                            </div>
+                            <div>
+                                <span class="badge bg-warning text-dark">CAP <?= (int)$t['cap_top8'] ?></span>
+                            </div>
+                            <div>
+                                <span class="badge bg-secondary">Punições <?= (int)($t['punicoes_count'] ?? 0) ?></span>
+                            </div>
+                            <div>
+                                <span class="badge bg-warning text-dark">Tapas <?= (int)($t['tapas'] ?? 0) ?></span>
+                            </div>
+                        </div>
+                        <div class="team-card-mobile-actions">
+                            <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                                <i class="bi bi-clipboard-check"></i> Copiar
+                            </button>
+                            <?php if ($hasContact): ?>
+                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                    <i class="bi bi-whatsapp"></i> Falar
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <div id="teamsCardsEmpty" class="text-center text-light-gray py-3" style="display: none;">
+                        <i class="bi bi-search me-2"></i>Nenhum time encontrado
+                    </div>
                 </div>
             </div>
         </div>
@@ -557,6 +625,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         // === Busca de Times ===
         const teamSearchInput = document.getElementById('teamSearchInput');
         const teamsTableBody = document.getElementById('teamsTableBody');
+        const teamsCardsWrap = document.getElementById('teamsCardsWrap');
+        const teamsCardsEmpty = document.getElementById('teamsCardsEmpty');
 
         if (teamSearchInput && teamsTableBody) {
             teamSearchInput.addEventListener('input', function() {
@@ -591,6 +661,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     // Remove mensagem se existir
                     const noResultsRow = teamsTableBody.querySelector('.no-results-row');
                     if (noResultsRow) noResultsRow.style.display = 'none';
+                }
+
+                if (teamsCardsWrap) {
+                    const cards = teamsCardsWrap.querySelectorAll('.team-card-mobile');
+                    let cardsVisible = 0;
+                    cards.forEach(card => {
+                        const searchText = (card.getAttribute('data-search') || '').toLowerCase();
+                        if (term === '' || searchText.includes(term)) {
+                            card.style.display = '';
+                            cardsVisible++;
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+
+                    if (teamsCardsEmpty) {
+                        teamsCardsEmpty.style.display = (cardsVisible === 0 && term !== '') ? '' : 'none';
+                    }
                 }
             });
         }

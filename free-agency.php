@@ -184,7 +184,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </p>
             </div>
 
-            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto free-agency-tabs" id="freeAgencyTabs" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            <ul class="nav nav-tabs nav-tabs-scroll mb-4 free-agency-tabs" id="freeAgencyTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active text-nowrap" id="fa-players-tab" data-bs-toggle="tab" data-bs-target="#fa-players" type="button" role="tab">
                         <i class="bi bi-people-fill me-1"></i><span class="d-none d-sm-inline">Free Agency</span><span class="d-sm-none">FA</span>

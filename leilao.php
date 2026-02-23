@@ -89,7 +89,7 @@ if ($is_admin) {
         }
     </style>
 </head>
-<body>
+<body class="leilao-page">
     <!-- Botão Hamburguer para Mobile -->
     <button class="sidebar-toggle" id="sidebarToggle">
         <i class="bi bi-list fs-4"></i>
@@ -122,7 +122,7 @@ if ($is_admin) {
                 </p>
             </div>
 
-            <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" role="tablist" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            <ul class="nav nav-tabs nav-tabs-scroll mb-4" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active text-nowrap" id="auction-active-tab" data-bs-toggle="tab" data-bs-target="#auction-active" type="button" role="tab">
                         <i class="bi bi-hammer me-1"></i>Leilões ativos
