@@ -1244,6 +1244,8 @@ img.broken-image {
 	gap: 8px;
 }
 
+#teamsTableWrap{ overflow-x: auto; }
+
 /* ---------- Page header helpers ---------- */
 .page-header{
 	display: flex;
@@ -1251,6 +1253,17 @@ img.broken-image {
 	justify-content: space-between;
 	gap: 12px;
 	flex-wrap: wrap;
+}
+
+/* ---------- Page overflow guards ---------- */
+.free-agency-page,
+.free-agency-page .dashboard-content,
+.free-agency-page .tab-content,
+.leilao-page,
+.leilao-page .dashboard-content,
+.leilao-page .tab-content{
+	max-width: 100%;
+	overflow-x: hidden;
 }
 
 .page-actions{

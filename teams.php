@@ -95,6 +95,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php include __DIR__ . '/includes/head-pwa.php'; ?>
     <title>Times - FBA Manager</title>
     
@@ -449,6 +450,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         </div>
     </div>
 
+    <div class="modal fade" id="copyTeamModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white"><i class="bi bi-clipboard-check me-2 text-orange"></i>Copiar Time</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-light-gray mb-2">Toque e segure para copiar o texto.</p>
+                    <textarea id="copyTeamTextarea" class="form-control bg-dark text-white border-orange" rows="8" readonly></textarea>
+                </div>
+                <div class="modal-footer border-orange">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script>
@@ -609,17 +628,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     await navigator.clipboard.writeText(text);
                     alert('Time copiado para a área de transferência!');
                 } catch (err) {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = text;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                    alert('Time copiado para a área de transferência!');
+                    showCopyFallback(text);
                 }
             } catch (err) {
                 alert(err.message || 'Erro ao copiar time');
             }
+        }
+
+        function showCopyFallback(text) {
+            const textarea = document.getElementById('copyTeamTextarea');
+            const modalEl = document.getElementById('copyTeamModal');
+            if (!textarea || !modalEl) return;
+            textarea.value = text;
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+            setTimeout(() => {
+                textarea.focus();
+                textarea.select();
+            }, 150);
         }
 
         // === Busca de Times ===
