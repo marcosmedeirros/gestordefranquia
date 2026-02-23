@@ -51,50 +51,38 @@ foreach ($nbaData['resultSets'][0]['rowSet'] as $row) {
     $nbaPlayersMap[$nbaName] = $nbaId;
 }
 
-// 4. Buscar os jogadores do SEU banco de dados que estão sem foto
-// LIGA A EXIBIÇÃO DE ERROS DO BANCO DE DADOS
+// 4. Buscar os jogadores do SEU banco de dados que estão sem foto na coluna correta
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $pdo->query('SELECT id, name FROM players WHERE nba_id IS NULL');
+// Mudamos de nba_id para nba_player_id
+$stmt = $pdo->query('SELECT id, name FROM players WHERE nba_player_id IS NULL');
 $meusJogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $atualizados = 0;
 $naoEncontrados = [];
 
-// 5. Atualização direta
-$updateStmt = $pdo->prepare('UPDATE players SET nba_id = ? WHERE id = ?');
+// 5. Atualização direta na coluna correta
+// Mudamos o SET para nba_player_id e, por precaução, já atualizamos a nba_id também para não dar conflito no front-end
+$updateStmt = $pdo->prepare('UPDATE players SET nba_player_id = ?, nba_id = ? WHERE id = ?');
 
 foreach ($meusJogadores as $jogador) {
     $meuNome = strtolower(trim($jogador['name']));
     
-    // Verifica se o nome exato existe no array da NBA
     if (isset($nbaPlayersMap[$meuNome])) {
         $idCorreto = $nbaPlayersMap[$meuNome];
         
         try {
-            // Executa o update de forma isolada
-            $updateStmt->execute([$idCorreto, $jogador['id']]);
+            // Passamos o $idCorreto duas vezes (uma para nba_player_id e outra para nba_id)
+            $updateStmt->execute([$idCorreto, $idCorreto, $jogador['id']]);
             $atualizados++;
         } catch (PDOException $e) {
-            // Se o banco recusar salvar esse jogador específico, ele mostra o erro real na tela
             die("<br><b style='color:red;'>ERRO FATAL NO SQL ao salvar {$jogador['name']}:</b> " . $e->getMessage());
         }
 
     } else {
-        // Guarda na memória os que não achou para listar no final
         $naoEncontrados[] = $jogador['name'];
     }
 }
 
-echo "<h3>Processo concluído! $atualizados jogadores foram atualizados e SALVOS com sucesso no banco.</h3>";
-
-// Lista os caras que a API não achou
-if (count($naoEncontrados) > 0) {
-    echo "<h4>Jogadores não encontrados na NBA (Verifique a grafia no banco):</h4><ul>";
-    foreach ($naoEncontrados as $nomeErro) {
-        echo "<li>$nomeErro</li>";
-    }
-
-    echo "</ul>";
-} 
+echo "<h3>Processo concluído! $atualizados jogadores foram atualizados e SALVOS nas colunas corretas.</h3>";
 ?>
