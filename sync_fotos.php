@@ -52,48 +52,49 @@ foreach ($nbaData['resultSets'][0]['rowSet'] as $row) {
 }
 
 // 4. Buscar os jogadores do SEU banco de dados que estão sem foto
+// LIGA A EXIBIÇÃO DE ERROS DO BANCO DE DADOS
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 $stmt = $pdo->query('SELECT id, name FROM players WHERE nba_id IS NULL');
 $meusJogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $atualizados = 0;
 $naoEncontrados = [];
 
-// 5. Atualização em lote (Transaction) para não travar o banco com os 872 updates
+// 5. Atualização direta
 $updateStmt = $pdo->prepare('UPDATE players SET nba_id = ? WHERE id = ?');
 
-try {
-    $pdo->beginTransaction(); // Trava a gravação física no disco
-
-    foreach ($meusJogadores as $jogador) {
-        $meuNome = strtolower(trim($jogador['name']));
+foreach ($meusJogadores as $jogador) {
+    $meuNome = strtolower(trim($jogador['name']));
+    
+    // Verifica se o nome exato existe no array da NBA
+    if (isset($nbaPlayersMap[$meuNome])) {
+        $idCorreto = $nbaPlayersMap[$meuNome];
         
-        // Verifica se o nome exato existe no array da NBA
-        if (isset($nbaPlayersMap[$meuNome])) {
-            $idCorreto = $nbaPlayersMap[$meuNome];
-            
+        try {
+            // Executa o update de forma isolada
             $updateStmt->execute([$idCorreto, $jogador['id']]);
             $atualizados++;
-        } else {
-            // Guarda na memória para listar no final
-            $naoEncontrados[] = $jogador['name'];
+        } catch (PDOException $e) {
+            // Se o banco recusar salvar esse jogador específico, ele mostra o erro real na tela
+            die("<br><b style='color:red;'>ERRO FATAL NO SQL ao salvar {$jogador['name']}:</b> " . $e->getMessage());
         }
+
+    } else {
+        // Guarda na memória os que não achou para listar no final
+        $naoEncontrados[] = $jogador['name'];
     }
-
-    $pdo->commit(); // Grava os 872 updates no disco de uma vez só
-
-    echo "<h3>Processo concluído! $atualizados jogadores foram atualizados com sucesso.</h3>";
-    
-    // Lista os caras que a API não achou (por erro de grafia, Jr., Sr., etc)
-    if (count($naoEncontrados) > 0) {
-        echo "<h4>Jogadores não encontrados na NBA (Verifique a grafia no seu banco):</h4><ul>";
-        foreach ($naoEncontrados as $nomeErro) {
-            echo "<li>$nomeErro</li>";
-        }
-        echo "</ul>";
-    }
-
-} catch (Exception $e) {
-    $pdo->rollBack(); // Se der qualquer erro fatal, desfaz tudo para não corromper a tabela
-    die("Erro crítico na gravação do banco de dados: " . $e->getMessage());
 }
+
+echo "<h3>Processo concluído! $atualizados jogadores foram atualizados e SALVOS com sucesso no banco.</h3>";
+
+// Lista os caras que a API não achou
+if (count($naoEncontrados) > 0) {
+    echo "<h4>Jogadores não encontrados na NBA (Verifique a grafia no banco):</h4><ul>";
+    foreach ($naoEncontrados as $nomeErro) {
+        echo "<li>$nomeErro</li>";
+    }
+
+    echo "</ul>";
+} 
 ?>
