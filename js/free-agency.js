@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newFaAdminLeagueSelect = document.getElementById('faNewAdminLeague');
         if (newFaAdminLeagueSelect) {
             newFaAdminLeagueSelect.addEventListener('change', () => {
+                window.onAdminLeagueChange?.();
                 carregarSolicitacoesNovaFA();
             });
             carregarSolicitacoesNovaFA();
@@ -713,16 +714,20 @@ window.onAdminLeagueChange = function() {
         faHistoryFilter.innerHTML = '<option value="">Todas temporadas</option>';
         delete faHistoryFilter.dataset.loaded;
     }
+    carregarSolicitacoesNovaFA();
     carregarDispensados();
 };
 
 function getAdminLeague() {
+    const adminLeagueSelect = document.getElementById('adminLeagueSelect');
+    if (adminLeagueSelect?.value) {
+        return adminLeagueSelect.value;
+    }
     const newAdminLeagueSelect = document.getElementById('faNewAdminLeague');
     if (newAdminLeagueSelect?.value) {
         return newAdminLeagueSelect.value;
     }
-    const adminLeagueSelect = document.getElementById('adminLeagueSelect');
-    return adminLeagueSelect?.value || defaultAdminLeague || null;
+    return defaultAdminLeague || null;
 }
 
 async function carregarHistoricoFA() {
