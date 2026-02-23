@@ -361,10 +361,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     ?>
                     <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>">
                         <div class="team-card-mobile-header">
-                            <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                                 alt="<?= htmlspecialchars($t['name']) ?>" 
-                                 class="team-card-mobile-logo"
-                                 style="width:24px;height:24px;max-width:24px;max-height:24px;object-fit:cover;">
+                               <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
+                                   alt="<?= htmlspecialchars($t['name']) ?>" 
+                                   class="team-card-mobile-logo"
+                                   style="width:40px;height:40px;max-width:40px;max-height:40px;object-fit:cover;">
                             <div class="team-card-mobile-title">
                                 <div class="fw-bold text-orange" style="font-size: 1rem;">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>

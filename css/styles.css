@@ -1215,7 +1215,7 @@ img.broken-image {
 	background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
 	border: 1px solid rgba(255,255,255,.10);
 	border-radius: 14px;
-	padding: 1rem;
+	padding: 1rem 1.1rem;
 	margin-bottom: 1rem;
 	box-shadow: var(--shadow-0);
 }
@@ -1223,27 +1223,33 @@ img.broken-image {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	margin-bottom: 0.75rem;
+	margin-bottom: 0.85rem;
 }
 .team-card-mobile-logo{
-	width: 24px !important;
-	height: 24px !important;
-	max-width: 24px !important;
-	max-height: 24px !important;
-	border-radius: 8px;
+	width: 40px !important;
+	height: 40px !important;
+	max-width: 40px !important;
+	max-height: 40px !important;
+	border-radius: 10px;
 	object-fit: cover;
 	border: 1px solid rgba(255,255,255,.18);
+}
+.team-card-mobile-title{
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 .team-card-mobile-stats{
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	margin-bottom: 0.75rem;
+	margin-bottom: 0.85rem;
 }
 .team-card-mobile-actions{
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	align-items: center;
 }
 
 #teamsTableWrap{ overflow-x: auto; }
