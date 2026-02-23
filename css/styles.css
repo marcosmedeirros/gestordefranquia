@@ -1226,8 +1226,10 @@ img.broken-image {
 	margin-bottom: 0.75rem;
 }
 .team-card-mobile-logo{
-	width: 48px;
-	height: 48px;
+	width: 36px;
+	height: 36px;
+	max-width: 36px;
+	max-height: 36px;
 	border-radius: 12px;
 	object-fit: cover;
 	border: 1px solid rgba(255,255,255,.18);
@@ -1257,13 +1259,32 @@ img.broken-image {
 
 /* ---------- Page overflow guards ---------- */
 .free-agency-page,
-.free-agency-page .dashboard-content,
-.free-agency-page .tab-content,
-.leilao-page,
-.leilao-page .dashboard-content,
-.leilao-page .tab-content{
+.leilao-page{
+	width: 100%;
 	max-width: 100%;
 	overflow-x: hidden;
+}
+
+.free-agency-page .dashboard-content,
+.free-agency-page .tab-content,
+.leilao-page .dashboard-content,
+.leilao-page .tab-content{
+	width: 100%;
+	max-width: 100%;
+	overflow-x: hidden;
+}
+
+.free-agency-page .table-responsive,
+.leilao-page .table-responsive{
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+@media (max-width: 768px){
+	.free-agency-page .table-responsive table,
+	.leilao-page .table-responsive table{
+		min-width: 720px;
+	}
 }
 
 .page-actions{

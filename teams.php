@@ -253,7 +253,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         <div class="card bg-dark-panel border-orange">
             <div class="card-body p-0">
-                <div class="table-responsive" id="teamsTableWrap">
+                <div class="table-responsive d-none d-md-block" id="teamsTableWrap">
                     <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                             <tr>
@@ -345,7 +345,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         </tbody>
                     </table>
                 </div>
-                <div id="teamsCardsWrap" class="teams-mobile-cards">
+                <div id="teamsCardsWrap" class="teams-mobile-cards d-block d-md-none">
                     <?php foreach ($teams as $t): ?>
                     <?php
                         $hasContact = !empty($t['owner_phone_whatsapp']);
