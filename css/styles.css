@@ -1226,10 +1226,10 @@ img.broken-image {
 	margin-bottom: 0.75rem;
 }
 .team-card-mobile-logo{
-	width: 36px;
-	height: 36px;
-	max-width: 36px;
-	max-height: 36px;
+	width: 28px;
+	height: 28px;
+	max-width: 28px;
+	max-height: 28px;
 	border-radius: 12px;
 	object-fit: cover;
 	border: 1px solid rgba(255,255,255,.18);
