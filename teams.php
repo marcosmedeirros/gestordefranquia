@@ -361,49 +361,55 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     ?>
                     <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>">
                         <div class="team-card-mobile-header">
-                               <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                                   alt="<?= htmlspecialchars($t['name']) ?>" 
-                                   class="team-card-mobile-logo"
-                                   style="width:40px;height:40px;max-width:40px;max-height:40px;object-fit:cover;">
+                            <div class="team-card-mobile-logo-wrap">
+                                <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
+                                     alt="<?= htmlspecialchars($t['name']) ?>" 
+                                     class="team-card-mobile-logo"
+                                     style="width:44px;height:44px;max-width:44px;max-height:44px;object-fit:cover;">
+                            </div>
                             <div class="team-card-mobile-title">
-                                <div class="fw-bold text-orange" style="font-size: 1rem;">
+                                <div class="team-card-mobile-name">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
                                 </div>
-                                <div class="text-light-gray small">
+                                <div class="team-card-mobile-owner">
                                     <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
                                 </div>
                                 <?php if ($hasContact): ?>
-                                    <div class="text-light-gray small">
+                                    <div class="team-card-mobile-contact">
                                         <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
                                     </div>
                                 <?php else: ?>
-                                    <div class="text-muted small">Sem contato</div>
+                                    <div class="team-card-mobile-contact text-muted">Sem contato</div>
                                 <?php endif; ?>
                             </div>
                         </div>
                         <div class="team-card-mobile-stats">
-                            <div>
-                                <span class="badge bg-gradient-orange">Jog. <?= (int)$t['total_players'] ?></span>
+                            <div class="team-card-mobile-stat">
+                                <span class="stat-label">Jogadores</span>
+                                <span class="stat-value text-orange"><?= (int)$t['total_players'] ?></span>
                             </div>
-                            <div>
-                                <span class="badge bg-warning text-dark">CAP <?= (int)$t['cap_top8'] ?></span>
+                            <div class="team-card-mobile-stat">
+                                <span class="stat-label">CAP</span>
+                                <span class="stat-value text-warning"><?= (int)$t['cap_top8'] ?></span>
                             </div>
-                            <div>
-                                <span class="badge bg-secondary">Punições <?= (int)($t['punicoes_count'] ?? 0) ?></span>
+                            <div class="team-card-mobile-stat">
+                                <span class="stat-label">Punições</span>
+                                <span class="stat-value"><?= (int)($t['punicoes_count'] ?? 0) ?></span>
                             </div>
-                            <div>
-                                <span class="badge bg-warning text-dark">Tapas <?= (int)($t['tapas'] ?? 0) ?></span>
+                            <div class="team-card-mobile-stat">
+                                <span class="stat-label">Tapas</span>
+                                <span class="stat-value text-warning"><?= (int)($t['tapas'] ?? 0) ?></span>
                             </div>
                         </div>
                         <div class="team-card-mobile-actions">
-                            <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                            <button class="btn btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                 <i class="bi bi-eye"></i> Ver
                             </button>
-                            <button class="btn btn-sm btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                            <button class="btn btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                 <i class="bi bi-clipboard-check"></i> Copiar
                             </button>
                             <?php if ($hasContact): ?>
-                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
+                                <a class="btn btn-outline-success" href="<?= htmlspecialchars($whatsAppLink) ?>" target="_blank" rel="noopener">
                                     <i class="bi bi-whatsapp"></i> Falar
                                 </a>
                             <?php endif; ?>

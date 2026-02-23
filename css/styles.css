@@ -1218,6 +1218,16 @@ img.broken-image {
 	padding: 1rem 1.1rem;
 	margin-bottom: 1rem;
 	box-shadow: var(--shadow-0);
+	position: relative;
+	overflow: hidden;
+}
+.team-card-mobile::before{
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(circle at 15% 0%, rgba(252,0,37,.12), transparent 45%);
+	opacity: .65;
+	pointer-events: none;
 }
 .team-card-mobile-header{
 	display: flex;
@@ -1225,11 +1235,22 @@ img.broken-image {
 	gap: 12px;
 	margin-bottom: 0.85rem;
 }
+.team-card-mobile-logo-wrap{
+	width: 56px;
+	height: 56px;
+	border-radius: 14px;
+	background: rgba(0,0,0,.35);
+	border: 1px solid rgba(255,255,255,.12);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 10px 24px rgba(0,0,0,.35);
+}
 .team-card-mobile-logo{
-	width: 40px !important;
-	height: 40px !important;
-	max-width: 40px !important;
-	max-height: 40px !important;
+	width: 44px !important;
+	height: 44px !important;
+	max-width: 44px !important;
+	max-height: 44px !important;
 	border-radius: 10px;
 	object-fit: cover;
 	border: 1px solid rgba(255,255,255,.18);
@@ -1239,17 +1260,50 @@ img.broken-image {
 	flex-direction: column;
 	gap: 2px;
 }
+.team-card-mobile-name{
+	font-weight: 800;
+	color: var(--fba-brand);
+	font-size: 1.05rem;
+}
+.team-card-mobile-owner,
+.team-card-mobile-contact{
+	color: var(--fba-text-muted);
+	font-size: 0.85rem;
+}
 .team-card-mobile-stats{
-	display: flex;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 8px;
-	margin-bottom: 0.85rem;
+	margin-bottom: 0.9rem;
+}
+.team-card-mobile-stat{
+	background: rgba(255,255,255,.04);
+	border: 1px solid rgba(255,255,255,.08);
+	border-radius: 12px;
+	padding: 8px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.team-card-mobile-stat .stat-label{
+	font-size: 0.7rem;
+	letter-spacing: .4px;
+	text-transform: uppercase;
+	color: var(--fba-text-muted);
+}
+.team-card-mobile-stat .stat-value{
+	font-weight: 800;
+	font-size: 0.95rem;
 }
 .team-card-mobile-actions{
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
+}
+.team-card-mobile-actions .btn{
+	flex: 1 1 0;
+	min-width: 90px;
 }
 
 #teamsTableWrap{ overflow-x: auto; }
