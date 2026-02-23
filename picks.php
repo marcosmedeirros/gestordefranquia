@@ -55,6 +55,23 @@ $stmtPicks = $pdo->prepare('
 ');
 $stmtPicks->execute([$team['id'], $currentSeasonYear]);
 $picks = $stmtPicks->fetchAll();
+
+$picksByRound = [
+    '1' => [],
+    '2' => [],
+    'other' => []
+];
+
+foreach ($picks as $pick) {
+    $roundKey = (string)(int)($pick['round'] ?? 0);
+    if ($roundKey === '1') {
+        $picksByRound['1'][] = $pick;
+    } elseif ($roundKey === '2') {
+        $picksByRound['2'][] = $pick;
+    } else {
+        $picksByRound['other'][] = $pick;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -210,60 +227,127 @@ $picks = $stmtPicks->fetchAll();
             As picks são geradas automaticamente quando uma nova temporada é criada. Cada time recebe 2 picks (1ª e 2ª rodada) por temporada.
         </div>
 
-        <!-- Lista de picks -->
-        <div class="table-responsive">
-            <table class="table table-dark table-hover mb-0">
-                <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
-                    <tr>
-                        <th class="text-white fw-bold">Ano</th>
-                        <th class="text-white fw-bold">Rodada</th>
-                        <th class="text-white fw-bold">Origem</th>
-                        <th class="text-white fw-bold text-end">Status</th>
-                    </tr>
-                </thead>
-                <tbody id="picksTableBody">
-                    <?php if (count($picks) === 0): ?>
-                        <tr>
-                            <td colspan="4" class="text-center text-light-gray py-4">
-                                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
-                                Nenhuma pick ainda. As picks serão geradas automaticamente quando o admin criar uma temporada.
-                            </td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($picks as $pick): ?>
-                            <tr 
-                              data-pick-id="<?= (int)$pick['id'] ?>" 
-                              data-year="<?= (int)$pick['season_year'] ?>" 
-                              data-round="<?= htmlspecialchars($pick['round']) ?>" 
-                              data-original-team-id="<?= (int)$pick['original_team_id'] ?>" 
-                              data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>"
-                              data-auto="<?= (int)($pick['auto_generated'] ?? 0) ?>">
-                                <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
-                                <td>
-                                    <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
-                                </td>
-                                <td class="text-light-gray">
-                                    <?php if ((int)$pick['original_team_id'] === (int)$team['id']): ?>
-                                        <span class="badge bg-success">Própria</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-end">
-                                    <?php if (!empty($pick['auto_generated'])): ?>
-                                        <span class="badge bg-info">
-                                            <i class="bi bi-cpu me-1"></i>Auto
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary">Manual</span>
-                                    <?php endif; ?>
-                                </td>
-                                
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+        <div class="row g-3">
+            <div class="col-12 col-lg-6">
+                <div class="card bg-dark border-0" style="border-radius: 15px;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #f17507, #ff8c1a); border-radius: 15px 15px 0 0;">
+                        <h5 class="mb-0 text-white fw-bold"><i class="bi bi-1-circle me-2"></i>Picks - 1ª Rodada</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-white fw-bold">Ano</th>
+                                    <th class="text-white fw-bold">Rodada</th>
+                                    <th class="text-white fw-bold">Origem</th>
+                                    <th class="text-white fw-bold text-end">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($picksByRound['1']) === 0): ?>
+                                    <tr>
+                                        <td colspan="4" class="text-center text-light-gray py-4">
+                                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
+                                            Nenhuma pick de 1ª rodada ainda.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($picksByRound['1'] as $pick): ?>
+                                        <tr 
+                                          data-pick-id="<?= (int)$pick['id'] ?>" 
+                                          data-year="<?= (int)$pick['season_year'] ?>" 
+                                          data-round="<?= htmlspecialchars($pick['round']) ?>" 
+                                          data-original-team-id="<?= (int)$pick['original_team_id'] ?>" 
+                                          data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>"
+                                          data-auto="<?= (int)($pick['auto_generated'] ?? 0) ?>">
+                                            <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
+                                            <td>
+                                                <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
+                                            </td>
+                                            <td class="text-light-gray">
+                                                <?php if ((int)$pick['original_team_id'] === (int)$team['id']): ?>
+                                                    <span class="badge bg-success">Própria</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="text-end">
+                                                <?php if (!empty($pick['auto_generated'])): ?>
+                                                    <span class="badge bg-info">
+                                                        <i class="bi bi-cpu me-1"></i>Auto
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Manual</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card bg-dark border-0" style="border-radius: 15px;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #f17507, #ff8c1a); border-radius: 15px 15px 0 0;">
+                        <h5 class="mb-0 text-white fw-bold"><i class="bi bi-2-circle me-2"></i>Picks - 2ª Rodada</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-white fw-bold">Ano</th>
+                                    <th class="text-white fw-bold">Rodada</th>
+                                    <th class="text-white fw-bold">Origem</th>
+                                    <th class="text-white fw-bold text-end">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($picksByRound['2']) === 0): ?>
+                                    <tr>
+                                        <td colspan="4" class="text-center text-light-gray py-4">
+                                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-orange"></i>
+                                            Nenhuma pick de 2ª rodada ainda.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($picksByRound['2'] as $pick): ?>
+                                        <tr 
+                                          data-pick-id="<?= (int)$pick['id'] ?>" 
+                                          data-year="<?= (int)$pick['season_year'] ?>" 
+                                          data-round="<?= htmlspecialchars($pick['round']) ?>" 
+                                          data-original-team-id="<?= (int)$pick['original_team_id'] ?>" 
+                                          data-notes="<?= htmlspecialchars($pick['notes'] ?? '') ?>"
+                                          data-auto="<?= (int)($pick['auto_generated'] ?? 0) ?>">
+                                            <td class="fw-bold text-orange"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
+                                            <td>
+                                                <span class="badge bg-orange"><?= $pick['round'] ?>ª Rodada</span>
+                                            </td>
+                                            <td class="text-light-gray">
+                                                <?php if ((int)$pick['original_team_id'] === (int)$team['id']): ?>
+                                                    <span class="badge bg-success">Própria</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="text-end">
+                                                <?php if (!empty($pick['auto_generated'])): ?>
+                                                    <span class="badge bg-info">
+                                                        <i class="bi bi-cpu me-1"></i>Auto
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Manual</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
