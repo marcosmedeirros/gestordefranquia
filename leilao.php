@@ -87,6 +87,31 @@ if ($is_admin) {
                 flex-wrap: wrap;
             }
         }
+
+        @media (max-width: 768px) {
+            .leilao-page .tab-pane,
+            .leilao-page .card,
+            .leilao-page .card-body {
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+
+            .leilao-page .form-select[style*="min-width"],
+            .leilao-page .form-control[style*="min-width"] {
+                min-width: 0 !important;
+                width: 100% !important;
+            }
+
+            .leilao-page .table-responsive {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            .leilao-page .list-group-item {
+                white-space: normal;
+                word-break: break-word;
+            }
+        }
     </style>
 </head>
 <body class="leilao-page">

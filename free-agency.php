@@ -122,6 +122,21 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             }
         }
 
+        @media (max-width: 768px) {
+            .free-agency-page .tab-pane,
+            .free-agency-page .card,
+            .free-agency-page .card-body {
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+
+            .free-agency-page .form-select[style*="min-width"],
+            .free-agency-page .form-control[style*="min-width"] {
+                min-width: 0 !important;
+                width: 100% !important;
+            }
+        }
+
         .legacy-fa {
             display: none !important;
         }
