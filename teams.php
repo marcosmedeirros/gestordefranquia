@@ -359,21 +359,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             ($t['owner_phone_display'] ?? '')
                         ));
                     ?>
-                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>">
-                        <div class="team-card-mobile-header">
-                            <div class="team-card-mobile-logo-wrap">
+                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px;">
+                        <div class="team-card-mobile-header" style="align-items: center;">
+                            <div class="team-card-mobile-logo-wrap" style="width: 70px; height: 70px;">
                                 <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                                      alt="<?= htmlspecialchars($t['name']) ?>" 
                                      class="team-card-mobile-logo"
-                                     style="width:52px;height:52px;max-width:52px;max-height:52px;object-fit:cover;">
+                                     style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
                             </div>
-                            <div class="team-card-mobile-title">
-                                <div class="team-card-mobile-name">
+                            <div class="team-card-mobile-title" style="color: #ffffff;">
+                                <div class="team-card-mobile-name" style="color: #ffffff;">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
                                 </div>
                             </div>
                         </div>
-                        <ul class="team-card-mobile-info">
+                        <ul class="team-card-mobile-info" style="color: #ffffff;">
                             <li><i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?></li>
                             <?php if ($hasContact): ?>
                                 <li><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></li>
