@@ -359,7 +359,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             ($t['owner_phone_display'] ?? '')
                         ));
                     ?>
-                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px;">
+                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; background: rgba(20,20,20,1);">
                         <div class="team-card-mobile-header" style="align-items: center;">
                             <div class="team-card-mobile-logo-wrap" style="width: 70px; height: 70px;">
                                 <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
@@ -368,7 +368,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                      style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
                             </div>
                             <div class="team-card-mobile-title" style="color: #ffffff;">
-                                <div class="team-card-mobile-name" style="color: #ffffff;">
+                                <div class="team-card-mobile-name" style="color: #fc0025; font-size: 1.2rem; font-weight: 800;">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
                                 </div>
                             </div>
