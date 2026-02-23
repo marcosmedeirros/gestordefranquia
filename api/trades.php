@@ -1341,6 +1341,35 @@ if ($method === 'PUT') {
             $stmtItems->execute([$tradeId]);
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
+            $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
+            $ovrCol = playerOvrColumn($pdo);
+            if ($hasSnapshot && !empty($items)) {
+                $stmtSnapshot = $pdo->prepare(
+                    "UPDATE trade_items
+                     SET player_name = ?, player_position = ?, player_age = ?, player_ovr = ?
+                     WHERE id = ?"
+                );
+                $stmtFetchPlayer = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
+
+                foreach ($items as $item) {
+                    if (empty($item['player_id'])) {
+                        continue;
+                    }
+                    if (!empty($item['player_name'])) {
+                        continue;
+                    }
+                    $stmtFetchPlayer->execute([(int)$item['player_id']]);
+                    $p = $stmtFetchPlayer->fetch(PDO::FETCH_ASSOC) ?: [];
+                    $stmtSnapshot->execute([
+                        $p['name'] ?? null,
+                        $p['position'] ?? null,
+                        isset($p['age']) ? (int)$p['age'] : null,
+                        isset($p['ovr']) ? (int)$p['ovr'] : null,
+                        (int)$item['id']
+                    ]);
+                }
+            }
+
             $stmtUpdateTradeItemPick = $pdo->prepare('UPDATE trade_items SET pick_id = ? WHERE id = ?');
 
             foreach ($items as &$item) {
