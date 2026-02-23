@@ -1216,7 +1216,7 @@ img.broken-image {
 	border: 1px solid rgba(255,255,255,.10);
 	border-radius: 14px;
 	padding: 1rem 1.1rem;
-	margin-bottom: 1rem;
+	margin-bottom: 1.4rem;
 	box-shadow: var(--shadow-0);
 	position: relative;
 	overflow: hidden;
@@ -1236,8 +1236,8 @@ img.broken-image {
 	margin-bottom: 0.85rem;
 }
 .team-card-mobile-logo-wrap{
-	width: 56px;
-	height: 56px;
+	width: 64px;
+	height: 64px;
 	border-radius: 14px;
 	background: rgba(0,0,0,.35);
 	border: 1px solid rgba(255,255,255,.12);
@@ -1247,10 +1247,10 @@ img.broken-image {
 	box-shadow: 0 10px 24px rgba(0,0,0,.35);
 }
 .team-card-mobile-logo{
-	width: 44px !important;
-	height: 44px !important;
-	max-width: 44px !important;
-	max-height: 44px !important;
+	width: 52px !important;
+	height: 52px !important;
+	max-width: 52px !important;
+	max-height: 52px !important;
 	border-radius: 10px;
 	object-fit: cover;
 	border: 1px solid rgba(255,255,255,.18);
@@ -1262,13 +1262,23 @@ img.broken-image {
 }
 .team-card-mobile-name{
 	font-weight: 800;
-	color: var(--fba-brand);
-	font-size: 1.05rem;
+	color: #ffffff;
+	font-size: 1.1rem;
 }
-.team-card-mobile-owner,
-.team-card-mobile-contact{
-	color: var(--fba-text-muted);
+.team-card-mobile-info{
+	list-style: none;
+	padding: 0;
+	margin: 0 0 0.8rem 0;
+	color: #ffffff;
 	font-size: 0.85rem;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.team-card-mobile-divider{
+	height: 1px;
+	background: rgba(255,255,255,.10);
+	margin: 0 0 0.8rem 0;
 }
 .team-card-mobile-stats{
 	display: grid;
@@ -1289,11 +1299,12 @@ img.broken-image {
 	font-size: 0.7rem;
 	letter-spacing: .4px;
 	text-transform: uppercase;
-	color: var(--fba-text-muted);
+	color: rgba(255,255,255,.75);
 }
 .team-card-mobile-stat .stat-value{
 	font-weight: 800;
 	font-size: 0.95rem;
+	color: #ffffff;
 }
 .team-card-mobile-actions{
 	display: flex;

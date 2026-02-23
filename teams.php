@@ -365,24 +365,23 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
                                      alt="<?= htmlspecialchars($t['name']) ?>" 
                                      class="team-card-mobile-logo"
-                                     style="width:44px;height:44px;max-width:44px;max-height:44px;object-fit:cover;">
+                                     style="width:52px;height:52px;max-width:52px;max-height:52px;object-fit:cover;">
                             </div>
                             <div class="team-card-mobile-title">
                                 <div class="team-card-mobile-name">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
                                 </div>
-                                <div class="team-card-mobile-owner">
-                                    <i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?>
-                                </div>
-                                <?php if ($hasContact): ?>
-                                    <div class="team-card-mobile-contact">
-                                        <i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="team-card-mobile-contact text-muted">Sem contato</div>
-                                <?php endif; ?>
                             </div>
                         </div>
+                        <ul class="team-card-mobile-info">
+                            <li><i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?></li>
+                            <?php if ($hasContact): ?>
+                                <li><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></li>
+                            <?php else: ?>
+                                <li>Sem contato</li>
+                            <?php endif; ?>
+                        </ul>
+                        <div class="team-card-mobile-divider"></div>
                         <div class="team-card-mobile-stats">
                             <div class="team-card-mobile-stat">
                                 <span class="stat-label">Jogadores</span>
