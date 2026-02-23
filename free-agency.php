@@ -70,6 +70,36 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     <link rel="stylesheet" href="css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
     <style>
+        .free-agency-page .dashboard-content,
+        .free-agency-page .tab-content,
+        .free-agency-page .tab-pane {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .free-agency-page .table-responsive {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .free-agency-page .table {
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .free-agency-page .table th,
+        .free-agency-page .table td {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .free-agency-page [style*="min-width"] {
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+
         .free-agency-page .free-agency-tabs .nav-link {
             padding: 10px 16px;
             font-size: 0.85rem;

@@ -73,6 +73,36 @@ if ($is_admin) {
     <link rel="stylesheet" href="css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
     <style>
+        .leilao-page .dashboard-content,
+        .leilao-page .tab-content,
+        .leilao-page .tab-pane {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .leilao-page .table-responsive {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .leilao-page .table {
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .leilao-page .table th,
+        .leilao-page .table td {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .leilao-page [style*="min-width"] {
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+
         @media (min-width: 992px) {
             .dashboard-content {
                 width: calc(100% - 280px);
