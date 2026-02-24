@@ -55,7 +55,12 @@ foreach ($nbaData['resultSets'][0]['rowSet'] as $row) {
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Mudamos de nba_id para nba_player_id
-$stmt = $pdo->query('SELECT id, name FROM players WHERE nba_player_id IS NULL');
+$stmt = $pdo->query('
+    SELECT p.id, p.name, t.city, t.name AS team_name
+    FROM players p
+    LEFT JOIN teams t ON t.id = p.team_id
+    WHERE p.nba_player_id IS NULL
+');
 $meusJogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $atualizados = 0;
@@ -80,9 +85,18 @@ foreach ($meusJogadores as $jogador) {
         }
 
     } else {
-        $naoEncontrados[] = $jogador['name'];
+        $teamLabel = trim(($jogador['city'] ?? '') . ' ' . ($jogador['team_name'] ?? ''));
+        $teamLabel = $teamLabel !== '' ? $teamLabel : 'Sem time';
+        $naoEncontrados[] = htmlspecialchars($jogador['name']) . ' <span style="color:#999;">(' . htmlspecialchars($teamLabel) . ')</span>';
     }
 }
 
 echo "<h3>Processo concluído! $atualizados jogadores foram atualizados e SALVOS nas colunas corretas.</h3>";
+if (!empty($naoEncontrados)) {
+    echo '<h4>Sem id_nba_player:</h4><ul>';
+    foreach ($naoEncontrados as $item) {
+        echo '<li>' . $item . '</li>';
+    }
+    echo '</ul>';
+}
 ?>
