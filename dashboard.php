@@ -1367,9 +1367,10 @@ try {
                                     <div class="col-md-2">
                                         <div class="card bg-dark text-white h-100">
                                             <div class="card-body text-center p-3">
-                                                <img src="<?= htmlspecialchars($playerPhoto) ?>" alt="<?= htmlspecialchars($playerName) ?>"
-                                                     style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;"
-                                                     onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($playerName) ?>&background=121212&color=f17507&rounded=true&bold=true'">
+                                                   <img src="<?= htmlspecialchars($playerPhoto) ?>" alt="<?= htmlspecialchars($playerName) ?>"
+                                                       class="d-block mx-auto"
+                                                       style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;"
+                                                       onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($playerName) ?>&background=121212&color=f17507&rounded=true&bold=true'">
                                                 <span class="badge bg-orange mb-2"><?= htmlspecialchars($player['position']) ?></span>
                                                 <h6 class="mb-1"><?= htmlspecialchars($player['name']) ?></h6>
                                                 <p class="mb-0 text-light-gray small">OVR: <?= $player['ovr'] ?></p>
