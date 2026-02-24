@@ -126,7 +126,7 @@ if ($method === 'GET') {
         $total = (int)$countStmt->fetchColumn();
 
         $stmt = $pdo->prepare("
-            SELECT p.id, p.name, p.age, p.ovr, p.position, p.secondary_position,
+                 SELECT p.id, p.name, p.nba_player_id, p.age, p.ovr, p.position, p.secondary_position,
                    t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p
@@ -161,7 +161,7 @@ if ($method === 'GET') {
             jsonResponse(200, ['players' => []]);
         }
         $stmt = $pdo->prepare('
-            SELECT p.id, p.name, p.age, p.ovr, p.position, p.secondary_position,
+                 SELECT p.id, p.name, p.nba_player_id, p.age, p.ovr, p.position, p.secondary_position,
                    t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p

@@ -224,6 +224,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     let totalPages = 1;
     const perPage = 50;
 
+        function getPlayerPhotoUrl(player) {
+            return player.nba_player_id
+                ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+        }
+
         function renderPlayerCard(p, whatsappLink, teamName){
             const ovr = Number(p.ovr || 0);
             let ovrClass = 'bg-success';
@@ -231,13 +237,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             else if (ovr >= 78) ovrClass = 'bg-info';
             else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
             else ovrClass = 'bg-secondary';
+            const photoUrl = getPlayerPhotoUrl(p);
 
             return `
                 <div class="player-card">
                     <div class="player-card-header">
-                        <div>
-                            <strong>${p.name}</strong>
-                            <div class="text-light-gray">${teamName}</div>
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="${photoUrl}" alt="${p.name}" 
+                                 style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+                            <div>
+                                <strong>${p.name}</strong>
+                                <div class="text-light-gray">${teamName}</div>
+                            </div>
                         </div>
                         <span class="badge ${ovrClass}">${p.ovr}</span>
                     </div>
@@ -310,9 +322,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             else if (ovr >= 72) ovrClass = 'bg-warning text-dark';
                             else ovrClass = 'bg-secondary';
 
+                            const photoUrl = getPlayerPhotoUrl(p);
                             tableBody.innerHTML += `
                                 <tr>
-                                    <td><strong>${p.name}</strong></td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <img src="${photoUrl}" alt="${p.name}"
+                                                 style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+                                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+                                            <strong>${p.name}</strong>
+                                        </div>
+                                    </td>
                                     <td><span class="badge ${ovrClass}">${p.ovr}</span></td>
                                     <td>${p.age}</td>
                                     <td>${p.position}</td>

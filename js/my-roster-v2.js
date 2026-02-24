@@ -19,6 +19,12 @@ function getOvrColor(ovr) {
   return '#ff4444';
 }
 
+function getPlayerPhotoUrl(player) {
+  return player.nba_player_id
+    ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+}
+
 function normalizeRoleKey(role) {
   const normalized = (role || '').toString().trim().toLowerCase();
   if (normalized === 'titular') return 'Titular';
@@ -153,12 +159,13 @@ function renderPlayers(players) {
       list.className = 'row g-3';
       starters.forEach(p => {
         const ovrColor = getOvrColor(p.ovr);
+        const photoUrl = getPlayerPhotoUrl(p);
         const col = document.createElement('div');
         col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
         card.className = 'card border-orange h-100 roster-card text-center';
         card.innerHTML = `
-          <div class=\"card-body p-3 d-flex flex-column gap-3 align-items-center\">\n            <div class=\"text-center\">\n              <h6 class=\"text-white mb-1 fw-bold\" style=\"font-size: 1.05rem;\">${p.name}</h6>\n              <div class=\"d-flex justify-content-center gap-2 flex-wrap small\">\n                <span class=\"badge bg-secondary\">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>\n              </div>\n            </div>\n            <div class=\"text-center\">\n              <div class=\"fw-bold\" style=\"font-size: 1.8rem; line-height: 1; color: ${ovrColor};\">${p.ovr}</div>\n              <small class=\"text-light-gray\">${p.age} anos</small>\n            </div>\n          </div>`;
+          <div class=\"card-body p-3 d-flex flex-column gap-3 align-items-center\">\n            <img src=\"${photoUrl}\" alt=\"${p.name}\" style=\"width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;\" onerror=\"this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'\">\n            <div class=\"text-center\">\n              <h6 class=\"text-white mb-1 fw-bold\" style=\"font-size: 1.05rem;\">${p.name}</h6>\n              <div class=\"d-flex justify-content-center gap-2 flex-wrap small\">\n                <span class=\"badge bg-secondary\">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>\n              </div>\n            </div>\n            <div class=\"text-center\">\n              <div class=\"fw-bold\" style=\"font-size: 1.8rem; line-height: 1; color: ${ovrColor};\">${p.ovr}</div>\n              <small class=\"text-light-gray\">${p.age} anos</small>\n            </div>\n          </div>`;
         col.appendChild(card);
         list.appendChild(col);
       });
@@ -223,13 +230,19 @@ function renderPlayersMobileCards(players) {
 
   players.forEach(p => {
     const canRetire = Number(p.age) >= 35;
+    const photoUrl = getPlayerPhotoUrl(p);
     const card = document.createElement('div');
     card.className = 'roster-mobile-card';
     card.innerHTML = `
       <div class="d-flex justify-content-between align-items-start gap-2">
-        <div>
-          <div class="text-white fw-bold">${p.name}</div>
-          <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
+        <div class="d-flex align-items-center gap-2">
+          <img src="${photoUrl}" alt="${p.name}"
+               style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+          <div>
+            <div class="text-white fw-bold">${p.name}</div>
+            <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
+          </div>
         </div>
         <div class="text-end">
           <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}</div>
@@ -264,12 +277,18 @@ function renderPlayersTable(players) {
   }
   players.forEach(p => {
     const canRetire = Number(p.age) >= 35;
+    const photoUrl = getPlayerPhotoUrl(p);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
-        <div class="d-flex flex-column">
-          <span class="fw-semibold">${p.name}</span>
-          <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
+        <div class="d-flex align-items-center gap-2">
+          <img src="${photoUrl}" alt="${p.name}"
+               style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
+               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+          <div class="d-flex flex-column">
+            <span class="fw-semibold">${p.name}</span>
+            <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
+          </div>
         </div>
       </td>
       <td>${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</td>
