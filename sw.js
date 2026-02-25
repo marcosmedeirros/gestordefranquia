@@ -1,5 +1,5 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v11';
+const CACHE_NAME = 'fba-manager-v12';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)
@@ -70,6 +70,15 @@ self.addEventListener('fetch', event => {
         .catch(() => new Response(JSON.stringify({ error: 'Offline' }), {
           headers: { 'Content-Type': 'application/json' }
         }))
+    );
+    return;
+  }
+
+  // Fotos enviadas por usuarios: sempre buscar da rede
+  if (url.pathname.startsWith('/uploads/players/')) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

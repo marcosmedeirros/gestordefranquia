@@ -20,9 +20,10 @@ function getOvrColor(ovr) {
 }
 
 function getPlayerPhotoUrl(player) {
-  const customPhoto = (player.foto_adicional || '').toString().trim();
+  let customPhoto = (player.foto_adicional || '').toString().trim();
   if (customPhoto) {
-    if (/^https?:\/\//i.test(customPhoto)) {
+    customPhoto = customPhoto.replace(/\\/g, '/');
+    if (/^data:image\//i.test(customPhoto) || /^https?:\/\//i.test(customPhoto)) {
       return customPhoto;
     }
     return `/${customPhoto.replace(/^\/+/, '')}`;
