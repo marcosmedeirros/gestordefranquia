@@ -106,6 +106,14 @@ function ensureRankingPointsColumn(PDO $pdo): void {
         $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_points INT NOT NULL DEFAULT 0 AFTER name");
     }
 }
+// Garante que a coluna teams.ranking_titles exista para sobrescrita manual de títulos
+function ensureRankingTitlesColumn(PDO $pdo): void {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE 'ranking_titles'");
+    $stmt->execute();
+    if (!$stmt->fetch()) {
+        $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0 AFTER ranking_points");
+    }
+}
 
 try {
     // Verificar tabelas para ações que precisam delas
@@ -475,6 +483,10 @@ try {
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
             $hasRankingPointsCol = teamColumnExists($pdo, 'ranking_points');
+            $hasRankingTitlesCol = teamColumnExists($pdo, 'ranking_titles');
+            $titlesSelect = $hasRankingTitlesCol
+                ? "COALESCE(t.ranking_titles, titles.total_titles) as total_titles"
+                : "COALESCE(titles.total_titles, 0) as total_titles";
 
             // Verificar disponibilidade de team_ranking_points como fallback melhor que team_season_points
             $stmtTbl = $pdo->query("SHOW TABLES LIKE 'team_ranking_points'");
@@ -487,7 +499,7 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(t.ranking_points, 0) as total_points,
-                            COALESCE(titles.total_titles, 0) as total_titles
+                            {$titlesSelect}
                         FROM teams t
                         LEFT JOIN (
                             SELECT champion_team_id as team_id, COUNT(*) as total_titles
@@ -508,7 +520,7 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(SUM(trp.total_points), 0) as total_points,
-                            COALESCE(titles.total_titles, 0) as total_titles
+                            {$titlesSelect}
                         FROM teams t
                         LEFT JOIN team_ranking_points trp ON trp.team_id = t.id
                         LEFT JOIN (
@@ -530,7 +542,7 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(points.total_points, 0) as total_points,
-                            COALESCE(titles.total_titles, 0) as total_titles
+                            {$titlesSelect}
                         FROM teams t
                         LEFT JOIN (
                             SELECT team_id, SUM(points) as total_points
@@ -575,15 +587,22 @@ try {
 
             // Garante coluna
             ensureRankingPointsColumn($pdo);
+            ensureRankingTitlesColumn($pdo);
 
             $pdo->beginTransaction();
             try {
-                $stmt = $pdo->prepare("UPDATE teams SET ranking_points = ? WHERE id = ? AND league = ?");
+                $stmtPoints = $pdo->prepare("UPDATE teams SET ranking_points = ? WHERE id = ? AND league = ?");
+                $stmtPointsTitles = $pdo->prepare("UPDATE teams SET ranking_points = ?, ranking_titles = ? WHERE id = ? AND league = ?");
                 foreach ($teamPoints as $tp) {
                     $teamId = (int)($tp['team_id'] ?? 0);
                     $points = (int)($tp['points'] ?? 0);
                     if ($teamId <= 0) continue;
-                    $stmt->execute([$points, $teamId, $league]);
+                    if (array_key_exists('titles', $tp)) {
+                        $titles = (int)($tp['titles'] ?? 0);
+                        $stmtPointsTitles->execute([$points, $titles, $teamId, $league]);
+                    } else {
+                        $stmtPoints->execute([$points, $teamId, $league]);
+                    }
                 }
                 $pdo->commit();
             } catch (Exception $e) {

@@ -132,7 +132,8 @@ $team = $stmtTeam->fetch();
                 <thead>
                   <tr>
                     <th>Time</th>
-                    <th style="width: 160px;">Pontos</th>
+                    <th style="width: 140px;">Títulos</th>
+                    <th style="width: 140px;">Pontos</th>
                   </tr>
                 </thead>
                 <tbody id="editRankingBody"></tbody>
@@ -298,7 +299,10 @@ $team = $stmtTeam->fetch();
             <tr data-team-id="${row.team_id}">
               <td><strong>${row.team_name}</strong></td>
               <td>
-                <input type="number" class="form-control" value="${row.total_points || 0}" min="0" step="1" />
+                <input type="number" class="form-control js-edit-titles" value="${row.total_titles || 0}" min="0" step="1" />
+              </td>
+              <td>
+                <input type="number" class="form-control js-edit-points" value="${row.total_points || 0}" min="0" step="1" />
               </td>
             </tr>
           `;
@@ -316,7 +320,8 @@ $team = $stmtTeam->fetch();
       const rows = Array.from(editBody.querySelectorAll('tr[data-team-id]'));
       const team_points = rows.map(tr => ({
         team_id: parseInt(tr.getAttribute('data-team-id'), 10),
-        points: parseInt(tr.querySelector('input')?.value || '0', 10)
+        titles: parseInt(tr.querySelector('.js-edit-titles')?.value || '0', 10),
+        points: parseInt(tr.querySelector('.js-edit-points')?.value || '0', 10)
       }));
       btnSaveRanking.disabled = true;
       btnSaveRanking.textContent = 'Salvando...';
