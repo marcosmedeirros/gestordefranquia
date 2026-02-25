@@ -33,11 +33,11 @@ $team = $stmtTeam->fetch();
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
-    .ranking-top4 {
+    .ranking-top5 {
       background: rgba(13, 110, 253, 0.18);
       box-shadow: inset 4px 0 0 rgba(13, 110, 253, 0.75);
     }
-    .ranking-top4 td {
+    .ranking-top5 td {
       font-weight: 600;
     }
     .ranking-current {
@@ -220,9 +220,9 @@ $team = $stmtTeam->fetch();
                   <tbody>
                     ${ranking.map((team, idx) => {
                       const isRookie = currentLeague === 'ROOKIE';
-                      const isTop4 = isRookie && idx < 4;
+                      const isTop5 = isRookie && idx < 5;
                       const isMyTeam = currentTeamId && Number(team.team_id) === currentTeamId;
-                      const rowClasses = [isTop4 ? 'ranking-top4' : '', isMyTeam ? 'ranking-current' : '']
+                      const rowClasses = [isTop5 ? 'ranking-top5' : '', isMyTeam ? 'ranking-current' : '']
                         .filter(Boolean)
                         .join(' ');
                       const badgeTop = idx < 4
