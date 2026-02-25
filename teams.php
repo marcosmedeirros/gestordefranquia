@@ -283,7 +283,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                              style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
                                         <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
                                              alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
-                                             style="width: 24px; height: 24px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                                             style="width: 28px; height: 28px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
                                     </div>
                                 </td>
                                 <td>
@@ -365,15 +365,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         ));
                     ?>
                     <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; background: rgba(20,20,20,1);">
-                        <div class="team-card-mobile-header" style="align-items: center;">
-                               <div class="team-card-mobile-logo-wrap" style="width: 70px; height: 70px; display: flex; align-items: center; gap: 8px;">
+                           <div class="team-card-mobile-header" style="align-items: center; gap: 12px;">
+                           <div class="team-card-mobile-logo-wrap" style="width: 80px; height: 70px; display: flex; align-items: center; gap: 8px;">
                                   <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>" 
                                       alt="<?= htmlspecialchars($t['name']) ?>" 
                                       class="team-card-mobile-logo"
                                       style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
                                   <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
                                       alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
-                                      style="width: 28px; height: 28px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                                  style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
                                </div>
                             <div class="team-card-mobile-title" style="color: #ffffff;">
                                 <div class="team-card-mobile-name" style="color: #fc0025; font-size: 1.2rem; font-weight: 800;">
