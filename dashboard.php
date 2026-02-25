@@ -1360,6 +1360,9 @@ try {
                                     <?php
                                         $playerName = $player['name'] ?? '';
                                         $customPhoto = trim((string)($player['foto_adicional'] ?? ''));
+                                        if ($customPhoto !== '' && !preg_match('#^https?://#i', $customPhoto)) {
+                                            $customPhoto = '/' . ltrim($customPhoto, '/');
+                                        }
                                         $nbaPlayerId = $player['nba_player_id'] ?? null;
                                         $playerPhoto = $customPhoto !== ''
                                             ? $customPhoto
