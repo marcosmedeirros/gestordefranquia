@@ -42,6 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $action = $_REQUEST['action'] ?? '';
+$rawInput = file_get_contents('php://input');
+$jsonPayload = null;
+if ($rawInput !== '') {
+    $jsonPayload = json_decode($rawInput, true);
+}
+if (!$action && is_array($jsonPayload) && isset($jsonPayload['action'])) {
+    $action = $jsonPayload['action'];
+}
 
 // Obter usuário atual
 $user = getUserSession();
@@ -193,7 +201,7 @@ try {
         case 'save_history':
             // Admin já verificado no início
             
-            $data = json_decode(file_get_contents('php://input'), true);
+            $data = is_array($jsonPayload) ? $jsonPayload : null;
             
             $seasonId = $data['season_id'] ?? null;
             
@@ -337,7 +345,7 @@ try {
         case 'save_season_points':
             // Admin já verificado no início
             
-            $data = json_decode(file_get_contents('php://input'), true);
+            $data = is_array($jsonPayload) ? $jsonPayload : null;
             
             $seasonId = $data['season_id'] ?? null;
             $league = $data['league'] ?? null;
@@ -557,7 +565,7 @@ try {
         case 'save_ranking_totals':
             // Admin já verificado no início
             // Edita diretamente o total de pontos de ranking por time (teams.ranking_points)
-            $payload = json_decode(file_get_contents('php://input'), true);
+            $payload = is_array($jsonPayload) ? $jsonPayload : null;
             $league = $payload['league'] ?? null;
             $teamPoints = $payload['team_points'] ?? [];
 
