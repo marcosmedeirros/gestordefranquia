@@ -365,7 +365,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         ));
                     ?>
                     <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; background: rgba(20,20,20,1);">
-                        <div class="team-card-mobile-header" style="align-items: center; gap: 12px; flex-wrap: nowrap;">
+                        <div class="team-card-mobile-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;">
                             <div class="team-card-mobile-logo-wrap" style="width: 84px; height: 70px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
                                   <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>" 
                                       alt="<?= htmlspecialchars($t['name']) ?>" 
