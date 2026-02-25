@@ -416,7 +416,7 @@ if ($teamId) {
               <label class="form-label text-white fw-bold">Nome</label>
               <input type="text" id="edit-name" class="form-control bg-dark text-white border-orange" required>
             </div>
-            <div class="col-md-6" id="edit-foto-adicional-wrap" style="display:none;">
+            <div class="col-md-6" id="edit-foto-adicional-wrap">
               <label class="form-label text-white fw-bold">Foto do Jogador</label>
               <input type="file" id="edit-foto-adicional" class="form-control bg-dark text-white border-orange" accept="image/*">
               <div class="mt-2">
