@@ -486,6 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editPhotoField) editPhotoField.value = '';
         const editPreview = document.getElementById('edit-foto-preview');
         if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
+        const editPhotoWrap = document.getElementById('edit-foto-adicional-wrap');
+        if (editPhotoWrap) {
+          editPhotoWrap.style.display = player.nba_player_id ? 'none' : '';
+        }
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
@@ -556,6 +560,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editPhotoField) editPhotoField.value = '';
         const editPreview = document.getElementById('edit-foto-preview');
         if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
+        const editPhotoWrap = document.getElementById('edit-foto-adicional-wrap');
+        if (editPhotoWrap) {
+          editPhotoWrap.style.display = player.nba_player_id ? 'none' : '';
+        }
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
