@@ -22,7 +22,10 @@ function getOvrColor(ovr) {
 function getPlayerPhotoUrl(player) {
   const customPhoto = (player.foto_adicional || '').toString().trim();
   if (customPhoto) {
-    return customPhoto;
+    if (/^https?:\/\//i.test(customPhoto)) {
+      return customPhoto;
+    }
+    return `/${customPhoto.replace(/^\/+/, '')}`;
   }
   return player.nba_player_id
     ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
