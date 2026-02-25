@@ -52,7 +52,7 @@ $team = $stmtTeam->fetch();
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas,
-             u.name AS owner_name, u.phone AS owner_phone,
+             u.name AS owner_name, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count
     FROM teams t
     INNER JOIN users u ON u.id = t.user_id
@@ -277,9 +277,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             ?>
                             <tr>
                                 <td>
-                                    <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                                         alt="<?= htmlspecialchars($t['name']) ?>" 
-                                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
+                                             alt="<?= htmlspecialchars($t['name']) ?>"
+                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
+                                        <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
+                                             alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
+                                             style="width: 24px; height: 24px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="fw-bold text-orange" style="font-size: 0.9rem;"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
@@ -361,12 +366,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     ?>
                     <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; background: rgba(20,20,20,1);">
                         <div class="team-card-mobile-header" style="align-items: center;">
-                            <div class="team-card-mobile-logo-wrap" style="width: 70px; height: 70px;">
-                                <img src="<?= htmlspecialchars($t['photo_url'] ?? '/img/default-team.png') ?>" 
-                                     alt="<?= htmlspecialchars($t['name']) ?>" 
-                                     class="team-card-mobile-logo"
-                                     style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
-                            </div>
+                               <div class="team-card-mobile-logo-wrap" style="width: 70px; height: 70px; display: flex; align-items: center; gap: 8px;">
+                                  <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>" 
+                                      alt="<?= htmlspecialchars($t['name']) ?>" 
+                                      class="team-card-mobile-logo"
+                                      style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
+                                  <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
+                                      alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
+                                      style="width: 28px; height: 28px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                               </div>
                             <div class="team-card-mobile-title" style="color: #ffffff;">
                                 <div class="team-card-mobile-name" style="color: #fc0025; font-size: 1.2rem; font-weight: 800;">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
