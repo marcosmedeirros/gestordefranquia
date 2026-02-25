@@ -257,7 +257,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
                             <tr>
-                                <th class="text-white fw-bold" style="width: 60px;">Logo</th>
+                                <th class="text-white fw-bold" style="width: 90px;">Logo</th>
                                 <th class="text-white fw-bold">Time</th>
                                 <th class="text-white fw-bold hide-mobile">Proprietário</th>
                                 <th class="text-white fw-bold text-center">Jog.</th>
@@ -276,14 +276,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     : null;
                             ?>
                             <tr>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
+                                <td style="min-width: 90px;">
+                                    <div class="d-flex align-items-center gap-2" style="flex-wrap: nowrap;">
                                         <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
                                              alt="<?= htmlspecialchars($t['name']) ?>"
                                              style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 2px solid var(--fba-orange);">
                                         <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
                                             alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
-                                            style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                                             style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
                                     </div>
                                 </td>
                                 <td>
