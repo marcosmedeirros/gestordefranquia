@@ -503,9 +503,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     } else {
                         data.players.forEach(p => {
                             // Lógica para puxar a foto da NBA ou o Avatar de Iniciais
-                            const photoUrl = p.nba_player_id 
-                                ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png` 
-                                : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`;
+                            const customPhoto = (p.foto_adicional || '').toString().trim();
+                            const photoUrl = customPhoto
+                                ? customPhoto
+                                : (p.nba_player_id
+                                    ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
+                                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`);
 
                             tbody.innerHTML += `<tr>
                                 <td>

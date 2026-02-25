@@ -1359,10 +1359,13 @@ try {
                                 <?php foreach ($titulares as $player): ?>
                                     <?php
                                         $playerName = $player['name'] ?? '';
+                                        $customPhoto = trim((string)($player['foto_adicional'] ?? ''));
                                         $nbaPlayerId = $player['nba_player_id'] ?? null;
-                                        $playerPhoto = $nbaPlayerId
-                                            ? 'https://cdn.nba.com/headshots/nba/latest/1040x760/' . rawurlencode((string)$nbaPlayerId) . '.png'
-                                            : 'https://ui-avatars.com/api/?name=' . rawurlencode($playerName) . '&background=121212&color=f17507&rounded=true&bold=true';
+                                        $playerPhoto = $customPhoto !== ''
+                                            ? $customPhoto
+                                            : ($nbaPlayerId
+                                                ? 'https://cdn.nba.com/headshots/nba/latest/1040x760/' . rawurlencode((string)$nbaPlayerId) . '.png'
+                                                : 'https://ui-avatars.com/api/?name=' . rawurlencode($playerName) . '&background=121212&color=f17507&rounded=true&bold=true');
                                     ?>
                                     <div class="col-md-2">
                                         <div class="card bg-dark text-white h-100">
