@@ -29,6 +29,15 @@ function getPlayerPhotoUrl(player) {
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;
 }
 
+function convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function normalizeRoleKey(role) {
   const normalized = (role || '').toString().trim().toLowerCase();
   if (normalized === 'titular') return 'Titular';
@@ -44,6 +53,7 @@ let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
 let currentSearch = '';
 let currentRoleFilter = '';
+let editPhotoFile = null;
 
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
@@ -380,6 +390,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (th && th.dataset.sort) sortPlayers(th.dataset.sort);
   });
 
+  const editPhotoInput = document.getElementById('edit-foto-adicional');
+  editPhotoInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    editPhotoFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const preview = document.getElementById('edit-foto-preview');
+      if (preview) preview.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
   const formPlayer = document.getElementById('form-player');
   const handleAddPlayer = async () => {
     const form = formPlayer;
@@ -458,7 +481,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (player) {
         document.getElementById('edit-player-id').value = player.id;
         document.getElementById('edit-name').value = player.name;
-        document.getElementById('edit-foto-adicional').value = player.foto_adicional || '';
+        editPhotoFile = null;
+        const editPhotoField = document.getElementById('edit-foto-adicional');
+        if (editPhotoField) editPhotoField.value = '';
+        const editPreview = document.getElementById('edit-foto-preview');
+        if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
@@ -524,7 +551,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (player) {
         document.getElementById('edit-player-id').value = player.id;
         document.getElementById('edit-name').value = player.name;
-        document.getElementById('edit-foto-adicional').value = player.foto_adicional || '';
+        editPhotoFile = null;
+        const editPhotoField = document.getElementById('edit-foto-adicional');
+        if (editPhotoField) editPhotoField.value = '';
+        const editPreview = document.getElementById('edit-foto-preview');
+        if (editPreview) editPreview.src = getPlayerPhotoUrl(player);
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
@@ -570,7 +601,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = {
       id: document.getElementById('edit-player-id').value,
       name: document.getElementById('edit-name').value,
-      foto_adicional: document.getElementById('edit-foto-adicional').value,
       age: document.getElementById('edit-age').value,
       position: document.getElementById('edit-position').value,
       secondary_position: document.getElementById('edit-secondary-position').value || null,
@@ -578,6 +608,9 @@ document.addEventListener('DOMContentLoaded', () => {
       role: document.getElementById('edit-role').value,
       available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
     };
+    if (editPhotoFile) {
+      data.foto_adicional = await convertToBase64(editPhotoFile);
+    }
     try {
       await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
       bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();

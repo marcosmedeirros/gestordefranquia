@@ -417,8 +417,11 @@ if ($teamId) {
               <input type="text" id="edit-name" class="form-control bg-dark text-white border-orange" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label text-white fw-bold">Link da Foto</label>
-              <input type="url" id="edit-foto-adicional" class="form-control bg-dark text-white border-orange" placeholder="https://...">
+              <label class="form-label text-white fw-bold">Foto do Jogador</label>
+              <input type="file" id="edit-foto-adicional" class="form-control bg-dark text-white border-orange" accept="image/*">
+              <div class="mt-2">
+                <img id="edit-foto-preview" src="/img/default-avatar.png" alt="Preview" style="width: 64px; height: 64px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;">
+              </div>
             </div>
             <div class="col-md-2">
               <label class="form-label text-white fw-bold">Idade</label>

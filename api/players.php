@@ -260,9 +260,41 @@ if ($method === 'PUT') {
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
     $availableForTrade = isset($body['available_for_trade']) ? (int)((bool)$body['available_for_trade']) : (int)$player['available_for_trade'];
-    $fotoAdicional = isset($body['foto_adicional']) ? trim($body['foto_adicional']) : ($player['foto_adicional'] ?? null);
-    if ($fotoAdicional === '') {
+    $hasFotoAdicionalField = array_key_exists('foto_adicional', $body);
+    $fotoAdicional = $hasFotoAdicionalField ? trim((string)$body['foto_adicional']) : ($player['foto_adicional'] ?? null);
+    if ($hasFotoAdicionalField && $fotoAdicional === '') {
         $fotoAdicional = null;
+    }
+
+    if ($hasFotoAdicionalField && $fotoAdicional && str_starts_with($fotoAdicional, 'data:image/')) {
+        try {
+            $commaPos = strpos($fotoAdicional, ',');
+            if ($commaPos === false) {
+                throw new Exception('Imagem invalida.');
+            }
+            $meta = substr($fotoAdicional, 0, $commaPos);
+            $base64 = substr($fotoAdicional, $commaPos + 1);
+            $mime = null;
+            if (preg_match('/data:(image\/(png|jpeg|jpg|webp));base64/i', $meta, $m)) {
+                $mime = strtolower($m[1]);
+            }
+            $ext = 'png';
+            if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+            if ($mime === 'image/webp') { $ext = 'webp'; }
+            $binary = base64_decode($base64);
+            if ($binary === false) { throw new Exception('Falha ao decodificar imagem.'); }
+
+            $dirFs = __DIR__ . '/../uploads/players';
+            if (!is_dir($dirFs)) { @mkdir($dirFs, 0775, true); }
+            $filename = 'player-' . $playerId . '-' . time() . '.' . $ext;
+            $fullPath = $dirFs . '/' . $filename;
+            if (file_put_contents($fullPath, $binary) === false) {
+                throw new Exception('Falha ao salvar imagem.');
+            }
+            $fotoAdicional = '/uploads/players/' . $filename;
+        } catch (Exception $e) {
+            jsonResponse(422, ['error' => 'Falha ao salvar foto do jogador.']);
+        }
     }
 
     if ($name === '' || !$age || $position === '' || !$ovr) {
@@ -338,7 +370,7 @@ if ($method === 'PUT') {
     if ($hasSeasonsInLeague) {
         $fields['seasons_in_league'] = $seasonsInLeague;
     }
-    if ($hasFotoAdicional) {
+    if ($hasFotoAdicional && $hasFotoAdicionalField) {
         $fields['foto_adicional'] = $fotoAdicional;
     }
 
