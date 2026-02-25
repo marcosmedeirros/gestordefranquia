@@ -260,6 +260,10 @@ if ($method === 'PUT') {
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
     $availableForTrade = isset($body['available_for_trade']) ? (int)((bool)$body['available_for_trade']) : (int)$player['available_for_trade'];
+    $fotoAdicional = isset($body['foto_adicional']) ? trim($body['foto_adicional']) : ($player['foto_adicional'] ?? null);
+    if ($fotoAdicional === '') {
+        $fotoAdicional = null;
+    }
 
     if ($name === '' || !$age || $position === '' || !$ovr) {
         jsonResponse(422, ['error' => 'Campos obrigatórios: nome, idade, posição, ovr.']);
@@ -310,22 +314,39 @@ if ($method === 'PUT') {
         
         $checkCol2 = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'");
         $hasSeasonsInLeague = $checkCol2->rowCount() > 0;
+
+        $checkCol3 = $pdo->query("SHOW COLUMNS FROM players LIKE 'foto_adicional'");
+        $hasFotoAdicional = $checkCol3->rowCount() > 0;
     } catch (Exception $e) {
         $hasSecondaryPosition = false;
         $hasSeasonsInLeague = false;
+        $hasFotoAdicional = false;
     }
 
     // Construir UPDATE dinamicamente
-    if ($hasSecondaryPosition && $hasSeasonsInLeague) {
-        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, seasons_in_league = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
-        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $seasonsInLeague, $role, $ovr, $availableForTrade, $playerId]);
-    } elseif ($hasSecondaryPosition) {
-        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, secondary_position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
-        $upd->execute([$name, $age, $position, $secondaryPosition ?: null, $role, $ovr, $availableForTrade, $playerId]);
-    } else {
-        $upd = $pdo->prepare('UPDATE players SET name = ?, age = ?, position = ?, role = ?, ovr = ?, available_for_trade = ? WHERE id = ?');
-        $upd->execute([$name, $age, $position, $role, $ovr, $availableForTrade, $playerId]);
+    $fields = [
+        'name' => $name,
+        'age' => $age,
+        'position' => $position,
+        'role' => $role,
+        'ovr' => $ovr,
+        'available_for_trade' => $availableForTrade,
+    ];
+    if ($hasSecondaryPosition) {
+        $fields['secondary_position'] = $secondaryPosition ?: null;
     }
+    if ($hasSeasonsInLeague) {
+        $fields['seasons_in_league'] = $seasonsInLeague;
+    }
+    if ($hasFotoAdicional) {
+        $fields['foto_adicional'] = $fotoAdicional;
+    }
+
+    $setClause = implode(', ', array_map(fn($col) => $col . ' = ?', array_keys($fields)));
+    $upd = $pdo->prepare('UPDATE players SET ' . $setClause . ' WHERE id = ?');
+    $values = array_values($fields);
+    $values[] = $playerId;
+    $upd->execute($values);
 
     $newCap = topEightCap($pdo, (int)$player['team_id']);
     if ($newCap < $config['app']['cap_min']) {

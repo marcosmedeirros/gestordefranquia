@@ -225,6 +225,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     const perPage = 50;
 
         function getPlayerPhotoUrl(player) {
+            const customPhoto = (player.foto_adicional || '').toString().trim();
+            if (player.nba_player_id && customPhoto) {
+                return customPhoto;
+            }
             return player.nba_player_id
                 ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
                 : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;

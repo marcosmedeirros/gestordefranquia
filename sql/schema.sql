@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS players (
     team_id INT NOT NULL,
     name VARCHAR(120) NOT NULL,
     nba_player_id BIGINT NULL,
+    foto_adicional VARCHAR(255) NULL,
     age INT NOT NULL,
     position VARCHAR(20) NOT NULL,
     role ENUM('Titular','Banco','Outro','G-League') NOT NULL DEFAULT 'Titular',

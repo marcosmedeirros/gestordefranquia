@@ -20,6 +20,10 @@ function getOvrColor(ovr) {
 }
 
 function getPlayerPhotoUrl(player) {
+  const customPhoto = (player.foto_adicional || '').toString().trim();
+  if (player.nba_player_id && customPhoto) {
+    return customPhoto;
+  }
   return player.nba_player_id
     ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;
@@ -454,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (player) {
         document.getElementById('edit-player-id').value = player.id;
         document.getElementById('edit-name').value = player.name;
+        document.getElementById('edit-foto-adicional').value = player.foto_adicional || '';
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
@@ -519,6 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (player) {
         document.getElementById('edit-player-id').value = player.id;
         document.getElementById('edit-name').value = player.name;
+        document.getElementById('edit-foto-adicional').value = player.foto_adicional || '';
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
@@ -564,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = {
       id: document.getElementById('edit-player-id').value,
       name: document.getElementById('edit-name').value,
+      foto_adicional: document.getElementById('edit-foto-adicional').value,
       age: document.getElementById('edit-age').value,
       position: document.getElementById('edit-position').value,
       secondary_position: document.getElementById('edit-secondary-position').value || null,
