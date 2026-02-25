@@ -398,10 +398,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = e.target.files?.[0];
     if (!file) return;
     editPhotoFile = file;
+    const preview = document.getElementById('edit-foto-preview');
+    if (!preview) return;
+    if (preview.dataset.objectUrl) {
+      URL.revokeObjectURL(preview.dataset.objectUrl);
+      delete preview.dataset.objectUrl;
+    }
+    if (window.URL && URL.createObjectURL) {
+      const objectUrl = URL.createObjectURL(file);
+      preview.src = objectUrl;
+      preview.dataset.objectUrl = objectUrl;
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const preview = document.getElementById('edit-foto-preview');
-      if (preview) preview.src = ev.target.result;
+      preview.src = ev.target.result;
     };
     reader.readAsDataURL(file);
   });
