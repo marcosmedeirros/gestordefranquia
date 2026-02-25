@@ -21,7 +21,7 @@ function getOvrColor(ovr) {
 
 function getPlayerPhotoUrl(player) {
   const customPhoto = (player.foto_adicional || '').toString().trim();
-  if (player.nba_player_id && customPhoto) {
+  if (customPhoto) {
     return customPhoto;
   }
   return player.nba_player_id
