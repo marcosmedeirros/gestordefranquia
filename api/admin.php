@@ -842,6 +842,51 @@ if ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true);
     
     switch ($action) {
+        case 'hall_of_fame':
+            ensureHallOfFameTable($pdo);
+            $id = isset($data['id']) ? (int)$data['id'] : 0;
+            if ($id <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'ID obrigatorio']);
+                exit;
+            }
+
+            $titles = isset($data['titles']) ? (int)$data['titles'] : null;
+            if ($titles !== null && $titles < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Titulos invalidos']);
+                exit;
+            }
+
+            $fields = [];
+            $params = [];
+            if ($titles !== null) {
+                $fields[] = 'titles = ?';
+                $params[] = $titles;
+            }
+
+            $teamName = isset($data['team_name']) ? trim((string)$data['team_name']) : null;
+            $gmName = isset($data['gm_name']) ? trim((string)$data['gm_name']) : null;
+            if ($teamName !== null) {
+                $fields[] = 'team_name = ?';
+                $params[] = $teamName;
+            }
+            if ($gmName !== null) {
+                $fields[] = 'gm_name = ?';
+                $params[] = $gmName;
+            }
+
+            if (empty($fields)) {
+                echo json_encode(['success' => true]);
+                exit;
+            }
+
+            $params[] = $id;
+            $stmt = $pdo->prepare('UPDATE hall_of_fame SET ' . implode(', ', $fields) . ' WHERE id = ?');
+            $stmt->execute($params);
+            echo json_encode(['success' => true]);
+            exit;
+
         case 'free_agent':
             handleFreeAgentCreation($pdo, $validLeagues, $data);
             break;
@@ -1234,6 +1279,60 @@ if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     
     switch ($action) {
+        case 'hall_of_fame':
+            ensureHallOfFameTable($pdo);
+            $isActive = (int)($data['is_active'] ?? 0) === 1;
+            $titles = isset($data['titles']) ? (int)$data['titles'] : 0;
+
+            if ($titles < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Titulos invalidos']);
+                exit;
+            }
+
+            $league = $data['league'] ?? null;
+            $teamId = isset($data['team_id']) ? (int)$data['team_id'] : null;
+            $teamName = trim((string)($data['team_name'] ?? ''));
+            $gmName = trim((string)($data['gm_name'] ?? ''));
+
+            if ($isActive) {
+                if (!$teamId) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Time obrigatorio']);
+                    exit;
+                }
+                $stmtTeam = $pdo->prepare('SELECT t.league, t.city, t.name, u.name AS owner_name FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ?');
+                $stmtTeam->execute([$teamId]);
+                $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+                if (!$team) {
+                    http_response_code(404);
+                    echo json_encode(['success' => false, 'error' => 'Time nao encontrado']);
+                    exit;
+                }
+                $league = $team['league'] ?? $league;
+                $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
+                $gmName = $team['owner_name'] ?? '';
+            } else {
+                if ($teamName === '' || $gmName === '') {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Nome do time e GM obrigatorios']);
+                    exit;
+                }
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([
+                $isActive ? 1 : 0,
+                $league ?: null,
+                $isActive ? $teamId : null,
+                $teamName ?: null,
+                $gmName ?: null,
+                $titles
+            ]);
+
+            echo json_encode(['success' => true]);
+            break;
+
         case 'player':
             // Adicionar novo jogador
             $teamId = $data['team_id'] ?? null;
@@ -1537,6 +1636,20 @@ if ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
     
     switch ($action) {
+        case 'hall_of_fame':
+            $body = json_decode(file_get_contents('php://input'), true);
+            $id = isset($body['id']) ? (int)$body['id'] : (int)$id;
+            if (!$id) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'ID obrigatorio']);
+                exit;
+            }
+            ensureHallOfFameTable($pdo);
+            $stmt = $pdo->prepare('DELETE FROM hall_of_fame WHERE id = ?');
+            $stmt->execute([$id]);
+            echo json_encode(['success' => true]);
+            break;
+
         case 'free_agent':
             if (!$id) {
                 http_response_code(400);
