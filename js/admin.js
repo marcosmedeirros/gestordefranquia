@@ -422,10 +422,6 @@ async function showHallOfFame() {
           </div>
           <div id="hofInactiveFields" style="display:none;">
             <div class="mb-3">
-              <label class="form-label text-light-gray">Nome do time</label>
-              <input type="text" class="form-control bg-dark text-white border-orange" id="hofTeamName" placeholder="Ex: Seattle Supersonics">
-            </div>
-            <div class="mb-3">
               <label class="form-label text-light-gray">Nome do GM</label>
               <input type="text" class="form-control bg-dark text-white border-orange" id="hofGmName" placeholder="Ex: John Doe">
             </div>
@@ -503,7 +499,6 @@ async function submitHallOfFameEntry() {
     payload.league = document.getElementById('hofLeague').value;
     payload.team_id = parseInt(document.getElementById('hofTeam').value || '0', 10);
   } else {
-    payload.team_name = (document.getElementById('hofTeamName').value || '').trim();
     payload.gm_name = (document.getElementById('hofGmName').value || '').trim();
   }
 
@@ -513,7 +508,6 @@ async function submitHallOfFameEntry() {
       body: JSON.stringify(payload)
     });
     document.getElementById('hofTitles').value = 0;
-    document.getElementById('hofTeamName').value = '';
     document.getElementById('hofGmName').value = '';
     loadHallOfFameList();
   } catch (e) {

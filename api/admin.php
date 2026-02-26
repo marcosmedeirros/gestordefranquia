@@ -597,9 +597,9 @@ if ($method === 'GET') {
                     $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
                     $gmName = $team['owner_name'] ?? '';
                 } else {
-                    if ($teamName === '' || $gmName === '') {
+                    if ($gmName === '') {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'error' => 'Nome do time e GM obrigatorios']);
+                        echo json_encode(['success' => false, 'error' => 'Nome do GM obrigatorio']);
                         break;
                     }
                 }
@@ -1313,9 +1313,9 @@ if ($method === 'POST') {
                 $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
                 $gmName = $team['owner_name'] ?? '';
             } else {
-                if ($teamName === '' || $gmName === '') {
+                if ($gmName === '') {
                     http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Nome do time e GM obrigatorios']);
+                    echo json_encode(['success' => false, 'error' => 'Nome do GM obrigatorio']);
                     exit;
                 }
             }
