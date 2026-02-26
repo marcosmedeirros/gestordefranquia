@@ -268,7 +268,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <div class="d-flex flex-wrap align-items-center gap-2">
                                     <span class="badge bg-warning text-dark">Criar jogador + enviar proposta</span>
                                     <button class="btn btn-sm btn-danger text-white" type="button" id="faViewApprovedBtn">
-                                        <i class="bi bi-inbox-fill me-1"></i>Solicitações do admin
+                                        <i class="bi bi-inbox-fill me-1"></i>QUE ESTA GANHANDO
                                     </button>
                                 </div>
                             </div>
@@ -770,7 +770,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         <div class="modal-dialog modal-lg">
             <div class="modal-content bg-dark border-orange">
                 <div class="modal-header border-orange">
-                    <h5 class="modal-title text-white"><i class="bi bi-inbox-fill me-2 text-orange"></i>Solicitações recebidas pelo admin</h5>
+                    <h5 class="modal-title text-white"><i class="bi bi-inbox-fill me-2 text-orange"></i>Solicitações recebidas</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
