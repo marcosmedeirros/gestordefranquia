@@ -39,10 +39,22 @@ $team = $stmtTeam->fetch();
       font-weight: 600;
       color: #fff;
       margin-bottom: 4px;
+      font-size: 1.15rem;
     }
     .hof-meta {
       color: var(--fba-text-muted);
       font-size: 0.9rem;
+    }
+    .hof-subtitle {
+      color: var(--fba-text-muted);
+      font-size: 0.85rem;
+    }
+    .hof-status {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--fba-orange);
+      font-weight: 600;
     }
     .hof-titles {
       font-size: 1.35rem;
@@ -126,14 +138,18 @@ $team = $stmtTeam->fetch();
       }
       container.innerHTML = items.map(item => {
         const league = item.league ? `<span class="badge bg-gradient-orange">${item.league}</span>` : '';
-        const gm = item.gm_name ? `<div class="hof-meta">GM: ${item.gm_name}</div>` : '';
+        const gmName = item.gm_name || 'GM não informado';
+        const isActive = Number(item.is_active) === 1;
+        const subtitle = isActive ? (item.team_name || 'Time não informado') : 'Inativo atualmente';
+        const statusLabel = isActive ? 'Ativo' : 'Inativo';
         return `
           <div class="col-md-6 col-lg-4">
             <div class="hof-card h-100">
               <div class="d-flex justify-content-between align-items-start">
                 <div>
-                  <div class="hof-title">${item.team_name || 'Time'}</div>
-                  ${gm}
+                  <div class="hof-status mb-1">${statusLabel}</div>
+                  <div class="hof-title">${gmName}</div>
+                  <div class="hof-subtitle">${subtitle}</div>
                 </div>
                 <div class="text-end">
                   ${league}

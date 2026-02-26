@@ -430,6 +430,24 @@ try {
     // Pode falhar
 }
 
+// Buscar último rumor postado
+$latestRumor = null;
+try {
+    $stmtLatestRumor = $pdo->prepare('
+        SELECT r.content, r.created_at, t.city, t.name, t.photo_url, u.name as gm_name
+        FROM rumors r
+        INNER JOIN teams t ON r.team_id = t.id
+        INNER JOIN users u ON r.user_id = u.id
+        WHERE r.league = ?
+        ORDER BY r.created_at DESC
+        LIMIT 1
+    ');
+    $stmtLatestRumor->execute([$team['league']]);
+    $latestRumor = $stmtLatestRumor->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Pode falhar se tabela não existir
+}
+
 // Buscar último campeão, vice e MVP
 $lastChampion = null;
 $lastRunnerUp = null;
@@ -968,38 +986,49 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- Draft e Trades (2 na mesma linha) -->
+        <!-- Rumores e Trades (2 na mesma linha) -->
         <div class="row g-4 mb-4">
-            <!-- Draft Ativo -->
+            <!-- Último rumor -->
             <div class="col-md-6">
                 <div class="card bg-dark-panel border-orange h-100">
                     <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-white">
-                            <i class="bi bi-trophy me-2 text-orange"></i>Draft
+                            <i class="bi bi-chat-left-text me-2 text-orange"></i>Último rumor
                         </h4>
-                        <a href="/drafts.php" class="btn btn-sm btn-outline-orange">Ver Drafts</a>
+                        <a href="/trades.php" class="btn btn-sm btn-outline-orange">Ver Rumores</a>
                     </div>
                     <div class="card-body">
-                        <?php if ($activeDraft && $currentDraftPick): ?>
-                            <!-- Draft Ativo - Próxima Pick -->
-                            <div class="text-center py-4">
-                                <p class="text-orange fw-bold mb-4">
-                                    <i class="bi bi-alarm me-2"></i>PRÓXIMA PICK
-                                </p>
-                                <div class="mb-3">
-                                    <img src="<?= htmlspecialchars($currentDraftPick['photo_url'] ?? '/img/default-team.png') ?>" 
-                                         alt="<?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?>"
-                                         class="rounded-circle" 
-                                         style="width: 80px; height: 80px; object-fit: cover; border: 3px solid var(--fba-orange); display: block; margin: 0 auto;">
+                        <?php if ($latestRumor): ?>
+                            <div class="d-flex align-items-start gap-3">
+                                <img src="<?= htmlspecialchars($latestRumor['photo_url'] ?? '/img/default-team.png') ?>"
+                                     alt="<?= htmlspecialchars(($latestRumor['city'] ?? '') . ' ' . ($latestRumor['name'] ?? 'Time')) ?>"
+                                     class="rounded-circle"
+                                     style="width: 60px; height: 60px; object-fit: cover; border: 2px solid var(--fba-orange);">
+                                <div class="flex-grow-1">
+                                    <div class="text-white fw-bold">
+                                        <?= htmlspecialchars(($latestRumor['city'] ?? '') . ' ' . ($latestRumor['name'] ?? '')) ?>
+                                    </div>
+                                    <?php if (!empty($latestRumor['gm_name'])): ?>
+                                        <div class="text-light-gray small mb-2">GM: <?= htmlspecialchars($latestRumor['gm_name']) ?></div>
+                                    <?php else: ?>
+                                        <div class="text-light-gray small mb-2">GM não informado</div>
+                                    <?php endif; ?>
+                                    <div class="text-white" style="font-size: 0.95rem;">
+                                        <?= nl2br(htmlspecialchars($latestRumor['content'])) ?>
+                                    </div>
+                                    <?php if (!empty($latestRumor['created_at'])): ?>
+                                        <div class="text-light-gray small mt-2">
+                                            <i class="bi bi-clock me-1"></i>
+                                            <?= date('d/m/Y H:i', strtotime($latestRumor['created_at'])) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
-                                <h5 class="text-white mb-0"><?= htmlspecialchars($currentDraftPick['city'] . ' ' . $currentDraftPick['team_name']) ?></h5>
                             </div>
                         <?php else: ?>
-                            <!-- Sem draft ativo -->
                             <div class="text-center text-light-gray py-4">
-                                <i class="bi bi-trophy display-4"></i>
-                                <p class="mt-3 mb-0 text-white fw-bold">Sem draft atualmente</p>
-                                <small>Aguarde o próximo draft da liga</small>
+                                <i class="bi bi-chat-left-text display-4"></i>
+                                <p class="mt-3 mb-0 text-white fw-bold">Nenhum rumor por aqui</p>
+                                <small>Aguarde os próximos rumores da liga</small>
                             </div>
                         <?php endif; ?>
                     </div>
