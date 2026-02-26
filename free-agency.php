@@ -196,6 +196,16 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             .fa-header-actions .btn {
                 width: 100%;
             }
+            .fa-hide-mobile {
+                display: none !important;
+            }
+            .fa-admin-inline {
+                display: block !important;
+            }
+        }
+
+        .fa-admin-inline {
+            display: none;
         }
 
         .fa-approved-modal {
@@ -284,7 +294,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <h5 class="mb-0 text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Free Agency</h5>
                                 <div class="d-flex flex-wrap align-items-center gap-2 fa-header-actions">
                                     <span class="badge bg-warning text-dark">Criar jogador + enviar proposta</span>
-                                    <button class="btn btn-sm btn-danger text-white" type="button" id="faViewApprovedBtn">
+                                    <button class="btn btn-sm btn-danger text-white fa-hide-mobile" type="button" id="faViewApprovedBtn">
                                         <i class="bi bi-inbox-fill me-1"></i>QUE ESTA GANHANDO
                                     </button>
                                 </div>
@@ -339,6 +349,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     <span class="badge bg-secondary" id="faNewMyCount">0</span>
                                 </div>
                                 <div id="faNewMyRequests">
+                                    <p class="text-muted">Carregando...</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 fa-admin-inline">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-white fa-section-title mb-0"><i class="bi bi-inbox-fill text-orange me-2"></i>Que está ganhando</h6>
+                                </div>
+                                <div id="faApprovedInline" class="text-light-gray">
                                     <p class="text-muted">Carregando...</p>
                                 </div>
                             </div>

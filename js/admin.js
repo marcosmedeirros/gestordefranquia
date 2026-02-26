@@ -109,6 +109,29 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div></div>`;
+  container.innerHTML += `
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="bg-dark-panel border-orange rounded p-4">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <h5 class="text-white mb-0"><i class="bi bi-clipboard-check me-2 text-orange"></i>Copiar elencos</h5>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <label for="copyRosterLeague" class="text-light-gray">Liga</label>
+            <select id="copyRosterLeague" class="form-select form-select-sm" style="min-width: 140px;">
+              <option value="ELITE">ELITE</option>
+              <option value="NEXT">NEXT</option>
+              <option value="RISE">RISE</option>
+              <option value="ROOKIE">ROOKIE</option>
+            </select>
+            <button class="btn btn-sm btn-orange" type="button" id="copyRosterBtn">
+              <i class="bi bi-clipboard me-1"></i>Copiar elencos
+            </button>
+          </div>
+        </div>
+        <small class="text-light-gray">Gera um texto com o elenco de todos os times da liga selecionada.</small>
+      </div>
+    </div>
+  </div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -128,6 +151,82 @@ async function showHome() {
       badge.style.display = 'inline-block';
     }
   } catch (e) {}
+
+  const copyBtn = document.getElementById('copyRosterBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      copyLeagueRosters();
+    });
+  }
+}
+
+function ensureCopyRosterModal() {
+  if (document.getElementById('copyRosterModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'copyRosterModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-clipboard-check me-2 text-orange"></i>Elencos da liga</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <textarea id="copyRosterTextarea" class="form-control bg-dark text-white border-secondary" rows="14" readonly></textarea>
+          <small class="text-light-gray d-block mt-2">Toque e segure para copiar no celular.</small>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" id="copyRosterClipboardBtn">
+            <i class="bi bi-clipboard me-1"></i>Copiar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const copyBtn = modal.querySelector('#copyRosterClipboardBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const textarea = document.getElementById('copyRosterTextarea');
+      if (!textarea) return;
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        alert('Elencos copiados para a área de transferência!');
+      } catch (e) {
+        textarea.focus();
+        textarea.select();
+      }
+    });
+  }
+}
+
+async function copyLeagueRosters() {
+  const league = document.getElementById('copyRosterLeague')?.value || 'ELITE';
+  ensureCopyRosterModal();
+  const textarea = document.getElementById('copyRosterTextarea');
+  if (textarea) {
+    textarea.value = 'Carregando...';
+  }
+  const modalEl = document.getElementById('copyRosterModal');
+  if (modalEl) {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+
+  try {
+    const data = await api(`admin.php?action=copy_rosters&league=${league}`);
+    if (textarea) {
+      textarea.value = data.text || 'Nenhum elenco encontrado.';
+    }
+  } catch (e) {
+    if (textarea) {
+      textarea.value = e.error || 'Erro ao copiar elencos.';
+    }
+  }
 }
 
 async function showLeague(league) {

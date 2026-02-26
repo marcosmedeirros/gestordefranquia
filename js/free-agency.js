@@ -149,6 +149,11 @@ function initNewFreeAgency() {
         });
     }
 
+    const inlineEl = document.getElementById('faApprovedInline');
+    if (inlineEl) {
+        renderAdminRequests(inlineEl);
+    }
+
         carregarLimitesNovaFA();
     carregarMinhasPropostasNovaFA();
     carregarHistoricoNovaFA();
@@ -190,9 +195,14 @@ async function openFaApprovedModal() {
         modal.show();
     }
 
+    await renderAdminRequests(listEl);
+}
+
+async function renderAdminRequests(targetEl) {
+    if (!targetEl) return;
     try {
         if (!isAdmin) {
-            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Somente administradores podem ver essas solicitações.</div>';
+            targetEl.innerHTML = '<div class="text-light-gray">Somente administradores podem ver essas solicitações.</div>';
             return;
         }
         let league = getActiveLeague();
@@ -200,19 +210,19 @@ async function openFaApprovedModal() {
             league = defaultAdminLeague;
         }
         if (!league) {
-            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma liga selecionada.</div>';
+            targetEl.innerHTML = '<div class="text-light-gray">Nenhuma liga selecionada.</div>';
             return;
         }
 
         const response = await fetch(`api/free-agency.php?action=admin_new_fa_requests&league=${encodeURIComponent(league)}`);
         const data = await response.json();
         if (!data.success || !Array.isArray(data.requests)) {
-            if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
+            targetEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
             return;
         }
 
         if (!data.requests.length) {
-            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma solicitação pendente.</div>';
+            targetEl.innerHTML = '<div class="text-light-gray">Nenhuma solicitação pendente.</div>';
             return;
         }
 
@@ -228,9 +238,9 @@ async function openFaApprovedModal() {
                 </div>
             `;
         }).join('');
-        if (listEl) listEl.innerHTML = html;
+        targetEl.innerHTML = html;
     } catch (error) {
-        if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
+        targetEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
     }
 }
 

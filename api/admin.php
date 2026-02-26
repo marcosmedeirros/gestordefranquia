@@ -182,6 +182,72 @@ function handleFreeAgentAssignment(PDO $pdo, array $data): void
 // GET - Listar dados do admin
 if ($method === 'GET') {
     switch ($action) {
+        case 'copy_rosters':
+            $league = strtoupper(trim((string)($_GET['league'] ?? '')));
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                break;
+            }
+
+            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.city, t.name');
+            $stmtTeams->execute([$league]);
+            $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+            if (!$teams) {
+                echo json_encode(['success' => true, 'text' => 'Nenhum time encontrado.']);
+                break;
+            }
+
+            $teamIds = array_map(static function ($row) {
+                return (int)$row['id'];
+            }, $teams);
+            $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+            $playerOvr = playerOvrColumn($pdo);
+            $stmtPlayers = $pdo->prepare(
+                'SELECT team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
+                 FROM players
+                 WHERE team_id IN (' . $placeholders . ')
+                 ORDER BY team_id,
+                   CASE role
+                     WHEN "Titular" THEN 1
+                     WHEN "Banco" THEN 2
+                     WHEN "Outro" THEN 3
+                     WHEN "G-League" THEN 4
+                     WHEN "G-League" THEN 4
+                     ELSE 5
+                   END,
+                   ' . $playerOvr . ' DESC,
+                   name ASC'
+            );
+            $stmtPlayers->execute($teamIds);
+            $players = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
+
+            $playersByTeam = [];
+            foreach ($players as $player) {
+                $playersByTeam[(int)$player['team_id']][] = $player;
+            }
+
+            $lines = [];
+            foreach ($teams as $team) {
+                $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
+                $lines[] = '*' . $teamName . '*';
+                $lines[] = 'GM: ' . ($team['owner_name'] ?? '-');
+                $roster = $playersByTeam[(int)$team['id']] ?? [];
+                if (!$roster) {
+                    $lines[] = '- Sem jogadores';
+                } else {
+                    foreach ($roster as $player) {
+                        $ovr = $player['ovr'] ?? '-';
+                        $age = $player['age'] ?? '-';
+                        $role = $player['role'] ?? '-';
+                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos | %s', $player['position'], $player['name'], $ovr, $age, $role);
+                    }
+                }
+                $lines[] = '';
+            }
+
+            echo json_encode(['success' => true, 'text' => trim(implode("\n", $lines))]);
+            break;
         case 'leagues':
             // Listar todas as ligas com configurações
             $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
