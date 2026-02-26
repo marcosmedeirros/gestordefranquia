@@ -72,6 +72,103 @@ function ensureTradeItemPickProtectionColumn(PDO $pdo): void {
 
 ensureTradeItemPickProtectionColumn($pdo);
 
+function ensureTradeReactionsTable(PDO $pdo): void
+{
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'trade_reactions'");
+        if ($stmt->rowCount() > 0) {
+            return;
+        }
+        $pdo->exec("CREATE TABLE trade_reactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            trade_id INT NOT NULL,
+            trade_type ENUM('single','multi') NOT NULL DEFAULT 'single',
+            user_id INT NOT NULL,
+            emoji VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_trade_reaction (trade_id, trade_type, user_id),
+            INDEX idx_trade_reaction_trade (trade_id, trade_type),
+            INDEX idx_trade_reaction_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+function ensureTradeReactionsEmojiCollation(PDO $pdo): void
+{
+    try {
+        $stmt = $pdo->query("SHOW FULL COLUMNS FROM trade_reactions LIKE 'emoji'");
+        $col = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($col && stripos((string)$col['Collation'], 'utf8mb4_bin') === false) {
+            $pdo->exec("ALTER TABLE trade_reactions MODIFY emoji VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+function buildTradeReactionsMap(PDO $pdo, array $tradeIds, int $userId, string $tradeType): array
+{
+    if (empty($tradeIds)) {
+        return [];
+    }
+
+    ensureTradeReactionsTable($pdo);
+    ensureTradeReactionsEmojiCollation($pdo);
+
+    $tradeIds = array_values(array_filter(array_map('intval', $tradeIds)));
+    if (empty($tradeIds)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($tradeIds), '?'));
+    $map = [];
+
+    $stmtAgg = $pdo->prepare("SELECT trade_id, emoji, COUNT(*) AS total FROM trade_reactions WHERE trade_type = ? AND trade_id IN ($placeholders) GROUP BY trade_id, emoji");
+    $stmtAgg->execute(array_merge([$tradeType], $tradeIds));
+    while ($row = $stmtAgg->fetch(PDO::FETCH_ASSOC)) {
+        $tid = (int)$row['trade_id'];
+        if (!isset($map[$tid])) {
+            $map[$tid] = [];
+        }
+        $map[$tid][] = [
+            'emoji' => $row['emoji'],
+            'count' => (int)$row['total']
+        ];
+    }
+
+    $stmtMine = $pdo->prepare("SELECT trade_id, emoji FROM trade_reactions WHERE trade_type = ? AND user_id = ? AND trade_id IN ($placeholders)");
+    $stmtMine->execute(array_merge([$tradeType, $userId], $tradeIds));
+    $mineByTrade = [];
+    while ($row = $stmtMine->fetch(PDO::FETCH_ASSOC)) {
+        $mineByTrade[(int)$row['trade_id']] = (string)$row['emoji'];
+    }
+
+    foreach ($tradeIds as $tid) {
+        $list = $map[$tid] ?? [];
+        $mineEmoji = $mineByTrade[$tid] ?? null;
+        if ($mineEmoji) {
+            $found = false;
+            foreach ($list as &$it) {
+                if ($it['emoji'] === $mineEmoji) {
+                    $it['mine'] = true;
+                    $found = true;
+                    break;
+                }
+            }
+            unset($it);
+            if (!$found) {
+                $list[] = ['emoji' => $mineEmoji, 'count' => 0, 'mine' => true];
+            }
+        }
+        $map[$tid] = $list;
+    }
+
+    return $map;
+}
+
 function ensureMultiTradeTables(PDO $pdo): void
 {
     try {
@@ -449,6 +546,9 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     $trades = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $tradeIds = array_map('intval', array_column($trades, 'id'));
+    $reactionsMap = buildTradeReactionsMap($pdo, $tradeIds, (int)$user['id'], 'single');
     
     // Para cada trade, buscar itens
     foreach ($trades as &$trade) {
@@ -456,6 +556,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         $trade['offer_picks'] = [];
         $trade['request_players'] = [];
         $trade['request_picks'] = [];
+        $trade['reactions'] = $reactionsMap[(int)$trade['id']] ?? [];
 
         try {
             $ovrCol = playerOvrColumn($pdo);
@@ -575,8 +676,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
     $stmt->execute($params);
     $trades = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    $tradeIds = array_map('intval', array_column($trades, 'id'));
+    $reactionsMap = buildTradeReactionsMap($pdo, $tradeIds, (int)$user['id'], 'multi');
+
     foreach ($trades as &$trade) {
         $trade['is_multi'] = true;
+        $trade['reactions'] = $reactionsMap[(int)$trade['id']] ?? [];
         $tradeId = (int)$trade['id'];
         $stmtMy = $pdo->prepare('SELECT accepted_at FROM multi_trade_teams WHERE trade_id = ? AND team_id = ?');
         $stmtMy->execute([$tradeId, $teamId]);
@@ -621,6 +726,109 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
 
     echo json_encode(['success' => true, 'trades' => $trades]);
     exit;
+}
+
+// POST - Reacoes nas trades gerais
+if ($method === 'POST' && ($_GET['action'] ?? '') === 'trade_reaction') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $tradeId = (int)($data['trade_id'] ?? 0);
+    $tradeType = $data['trade_type'] ?? 'single';
+    $action = $data['action'] ?? 'set';
+    $emoji = trim((string)($data['emoji'] ?? ''));
+
+    if ($tradeId <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'trade_id obrigatorio']);
+        exit;
+    }
+    if (!in_array($tradeType, ['single', 'multi'], true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Tipo de trade invalido']);
+        exit;
+    }
+    if ($action !== 'remove' && $emoji === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Emoji obrigatorio']);
+        exit;
+    }
+
+    ensureTradeReactionsTable($pdo);
+    ensureTradeReactionsEmojiCollation($pdo);
+
+    if (strlen($emoji) > 16) {
+        $emoji = substr($emoji, 0, 16);
+    }
+
+    if ($tradeType === 'single') {
+        $stmtTrade = $pdo->prepare('SELECT t.status, COALESCE(t.league, tf.league, tt.league) AS league FROM trades t JOIN teams tf ON t.from_team_id = tf.id JOIN teams tt ON t.to_team_id = tt.id WHERE t.id = ?');
+        $stmtTrade->execute([$tradeId]);
+    } else {
+        $stmtTrade = $pdo->prepare('SELECT mt.status, COALESCE(mt.league, creator.league) AS league FROM multi_trades mt JOIN teams creator ON mt.created_by_team_id = creator.id WHERE mt.id = ?');
+        $stmtTrade->execute([$tradeId]);
+    }
+    $tradeRow = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+    if (!$tradeRow) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Trade nao encontrada']);
+        exit;
+    }
+    if (($tradeRow['status'] ?? '') !== 'accepted') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Reacoes so em trades aceitas']);
+        exit;
+    }
+    if (!empty($tradeRow['league']) && strtoupper((string)$tradeRow['league']) !== strtoupper((string)$user['league'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Sem permissao para reagir']);
+        exit;
+    }
+
+    try {
+        if ($action === 'remove') {
+            $stmtDel = $pdo->prepare('DELETE FROM trade_reactions WHERE trade_id = ? AND trade_type = ? AND user_id = ?');
+            $stmtDel->execute([$tradeId, $tradeType, $user['id']]);
+        } else {
+            $stmtIns = $pdo->prepare('INSERT INTO trade_reactions (trade_id, trade_type, user_id, emoji, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), updated_at = NOW()');
+            $stmtIns->execute([$tradeId, $tradeType, $user['id'], $emoji]);
+        }
+
+        $stmtAgg = $pdo->prepare('SELECT emoji, COUNT(*) AS total FROM trade_reactions WHERE trade_id = ? AND trade_type = ? GROUP BY emoji');
+        $stmtAgg->execute([$tradeId, $tradeType]);
+        $list = [];
+        while ($row = $stmtAgg->fetch(PDO::FETCH_ASSOC)) {
+            $list[] = ['emoji' => $row['emoji'], 'count' => (int)$row['total']];
+        }
+
+        $stmtMine = $pdo->prepare('SELECT emoji FROM trade_reactions WHERE trade_id = ? AND trade_type = ? AND user_id = ? LIMIT 1');
+        $stmtMine->execute([$tradeId, $tradeType, $user['id']]);
+        $mineEmoji = $stmtMine->fetchColumn();
+        if ($mineEmoji) {
+            $found = false;
+            foreach ($list as &$it) {
+                if ($it['emoji'] === $mineEmoji) {
+                    $it['mine'] = true;
+                    $found = true;
+                    break;
+                }
+            }
+            unset($it);
+            if (!$found) {
+                $list[] = ['emoji' => $mineEmoji, 'count' => 0, 'mine' => true];
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'trade_id' => $tradeId,
+            'trade_type' => $tradeType,
+            'reactions' => $list
+        ]);
+        exit;
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Erro ao salvar reacao']);
+        exit;
+    }
 }
 
 // POST - Criar trade

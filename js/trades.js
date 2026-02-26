@@ -16,6 +16,7 @@ let myPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
+const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 
 const pickState = {
@@ -66,6 +67,30 @@ const formatTradePickDisplay = (pick) => {
 };
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
+
+const buildTradeReactionBar = (trade, tradeType) => {
+  const reactions = Array.isArray(trade.reactions) ? trade.reactions : [];
+  const mineEmoji = reactions.find(r => r.mine)?.emoji || null;
+  const countsMap = Object.fromEntries(reactions.map(r => [r.emoji, r.count]));
+  return tradeEmojiList.map((emoji) => {
+    const count = countsMap[emoji] || 0;
+    const activeClass = mineEmoji === emoji ? 'reaction-chip active' : 'reaction-chip';
+    const enc = encodeURIComponent(emoji);
+    return `<span class="${activeClass}" onclick="toggleTradeReaction(${trade.id}, '${tradeType}', '${enc}')">${emoji} <span class="reaction-count">${count}</span></span>`;
+  }).join(' ');
+};
+
+const updateTradeReactionsInState = (tradeId, tradeType, reactions) => {
+  const match = allLeagueTrades.find(tr => {
+    if (tradeType === 'multi') {
+      return tr.is_multi && Number(tr.id) === Number(tradeId);
+    }
+    return !tr.is_multi && Number(tr.id) === Number(tradeId);
+  });
+  if (match) {
+    match.reactions = reactions || [];
+  }
+};
 
 const getSelectedMultiTeams = () => {
   const container = document.getElementById('multiTradeTeamsList');
@@ -1083,6 +1108,10 @@ function createMultiTradeCard(trade, type) {
     ? `<span class="badge bg-info text-dark">Aceitar ${trade.teams_accepted || 0}/${trade.teams_total || 0}</span>`
     : '';
 
+  const reactionBar = type === 'league'
+    ? `<div class="reaction-bar mt-2">${buildTradeReactionBar(trade, 'multi')}</div>`
+    : '';
+
   const items = (trade.items || []).map((item) => {
     const fromLabel = teamMap[item.from_team_id] || `Time ${item.from_team_id}`;
     const toLabel = teamMap[item.to_team_id] || `Time ${item.to_team_id}`;
@@ -1115,6 +1144,7 @@ function createMultiTradeCard(trade, type) {
         ${statusBadge}
       </div>
     </div>
+    ${reactionBar}
     <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-muted">Times</span>'}</div>
     <div>
       <h6 class="text-orange mb-2">Itens</h6>
@@ -1182,6 +1212,10 @@ function createTradeCard(trade, type) {
       <small class="text-light-gray d-block">${trade.response_notes}</small>
     </div>
   ` : '';
+
+  const reactionBar = type === 'league'
+    ? `<div class="reaction-bar mt-2">${buildTradeReactionBar(trade, 'single')}</div>`
+    : '';
   
   card.innerHTML = `
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -1191,6 +1225,7 @@ function createTradeCard(trade, type) {
       </div>
       <div>${statusBadge}</div>
     </div>
+    ${reactionBar}
     
     <div class="row">
       <div class="col-md-6">
@@ -1321,6 +1356,32 @@ async function respondMultiTrade(tradeId, action) {
     }
   } catch (err) {
     alert(err.error || 'Erro ao atualizar trade múltipla');
+  }
+}
+
+async function toggleTradeReaction(tradeId, tradeType, encodedEmoji) {
+  try {
+    const emoji = decodeURIComponent(encodedEmoji);
+    const trade = allLeagueTrades.find(tr => {
+      if (tradeType === 'multi') {
+        return tr.is_multi && Number(tr.id) === Number(tradeId);
+      }
+      return !tr.is_multi && Number(tr.id) === Number(tradeId);
+    });
+    const reactions = Array.isArray(trade?.reactions) ? trade.reactions : [];
+    const mineEmoji = reactions.find(r => r.mine)?.emoji || null;
+    const action = mineEmoji === emoji ? 'remove' : 'set';
+
+    const result = await api('trades.php?action=trade_reaction', {
+      method: 'POST',
+      body: JSON.stringify({ trade_id: tradeId, trade_type: tradeType, emoji, action })
+    });
+
+    updateTradeReactionsInState(tradeId, tradeType, result.reactions || []);
+    const searchInput = document.getElementById('leagueTradesSearch');
+    filterLeagueTrades(searchInput ? searchInput.value : '');
+  } catch (err) {
+    console.warn('Falha ao reagir a trade:', err);
   }
 }
 

@@ -251,6 +251,37 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       opacity: 0.6;
     }
 
+    .reaction-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .reaction-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--fba-border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--fba-text);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border 0.2s ease, background 0.2s ease;
+    }
+
+    .reaction-chip.active {
+      border-color: var(--fba-orange);
+      background: rgba(241, 117, 7, 0.15);
+    }
+
+    .reaction-count {
+      font-size: 0.75rem;
+      color: var(--fba-text-muted);
+    }
+
     .pick-title {
       color: var(--fba-text);
       font-weight: 600;
