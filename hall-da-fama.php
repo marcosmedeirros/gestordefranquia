@@ -96,6 +96,16 @@ $team = $stmtTeam->fetch();
       </h1>
     </div>
 
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <select class="form-select form-select-sm bg-dark text-white border-orange" id="hofLeagueFilter" style="max-width: 220px;">
+        <option value="ALL">Todas as ligas</option>
+        <option value="ELITE">ELITE</option>
+        <option value="NEXT">NEXT</option>
+        <option value="RISE">RISE</option>
+        <option value="ROOKIE">ROOKIE</option>
+      </select>
+    </div>
+
     <div id="hallOfFameContainer" class="row g-3">
       <div class="text-center py-5">
         <div class="spinner-border text-orange"></div>
@@ -106,6 +116,47 @@ $team = $stmtTeam->fetch();
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
+    let hallOfFameItems = [];
+
+    function renderHallOfFame(items) {
+      const container = document.getElementById('hallOfFameContainer');
+      if (!items.length) {
+        container.innerHTML = '<div class="alert alert-info">Nenhum time no Hall da Fama.</div>';
+        return;
+      }
+      container.innerHTML = items.map(item => {
+        const league = item.league ? `<span class="badge bg-gradient-orange">${item.league}</span>` : '';
+        const gm = item.gm_name ? `<div class="hof-meta">GM: ${item.gm_name}</div>` : '';
+        return `
+          <div class="col-md-6 col-lg-4">
+            <div class="hof-card h-100">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="hof-title">${item.team_name || 'Time'}</div>
+                  ${gm}
+                </div>
+                <div class="text-end">
+                  ${league}
+                  <div class="hof-titles">${item.titles || 0}</div>
+                  <div class="hof-meta">Titulos</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function applyHallOfFameFilter() {
+      const filter = document.getElementById('hofLeagueFilter').value;
+      if (filter === 'ALL') {
+        renderHallOfFame(hallOfFameItems);
+        return;
+      }
+      const filtered = hallOfFameItems.filter(item => (item.league || '').toUpperCase() === filter);
+      renderHallOfFame(filtered);
+    }
+
     async function loadHallOfFame() {
       const container = document.getElementById('hallOfFameContainer');
       container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
@@ -115,39 +166,17 @@ $team = $stmtTeam->fetch();
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
-        const items = Array.isArray(data.items) ? data.items : [];
-        if (!items.length) {
-          container.innerHTML = '<div class="alert alert-info">Nenhum time no Hall da Fama.</div>';
-          return;
-        }
-
-        container.innerHTML = items.map(item => {
-          const league = item.league ? `<span class="badge bg-gradient-orange">${item.league}</span>` : '';
-          const gm = item.gm_name ? `<div class="hof-meta">GM: ${item.gm_name}</div>` : '';
-          return `
-            <div class="col-md-6 col-lg-4">
-              <div class="hof-card h-100">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <div class="hof-title">${item.team_name || 'Time'}</div>
-                    ${gm}
-                  </div>
-                  <div class="text-end">
-                    ${league}
-                    <div class="hof-titles">${item.titles || 0}</div>
-                    <div class="hof-meta">Titulos</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
+        hallOfFameItems = Array.isArray(data.items) ? data.items : [];
+        applyHallOfFameFilter();
       } catch (e) {
         container.innerHTML = '<div class="alert alert-danger">Erro ao carregar Hall da Fama.</div>';
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadHallOfFame);
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('hofLeagueFilter').addEventListener('change', applyHallOfFameFilter);
+      loadHallOfFame();
+    });
   </script>
   <script src="/js/pwa.js"></script>
 </body>
