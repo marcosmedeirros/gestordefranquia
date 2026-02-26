@@ -111,6 +111,72 @@ if (!function_exists('syncWaiversSeasonCounter')) {
     }
 }
 
+if (!function_exists('ensureTradeItemSnapshotColumns')) {
+    function ensureTradeItemSnapshotColumns(PDO $pdo): void
+    {
+        if (!playersTableExists($pdo, 'trade_items')) {
+            return;
+        }
+        try {
+            if (!playersColumnExists($pdo, 'trade_items', 'player_name')) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_name VARCHAR(255) NULL AFTER player_id");
+            }
+            if (!playersColumnExists($pdo, 'trade_items', 'player_position')) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_position VARCHAR(10) NULL AFTER player_name");
+            }
+            if (!playersColumnExists($pdo, 'trade_items', 'player_age')) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_age INT NULL AFTER player_position");
+            }
+            if (!playersColumnExists($pdo, 'trade_items', 'player_ovr')) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN player_ovr INT NULL AFTER player_age");
+            }
+        } catch (Exception $e) {
+            // ignore migration errors
+        }
+    }
+}
+
+if (!function_exists('snapshotTradeItemsForPlayer')) {
+    function snapshotTradeItemsForPlayer(PDO $pdo, array $playerRow): void
+    {
+        if (!playersTableExists($pdo, 'trade_items')) {
+            return;
+        }
+        ensureTradeItemSnapshotColumns($pdo);
+
+        if (!playersColumnExists($pdo, 'trade_items', 'player_id')) {
+            return;
+        }
+
+        $name = $playerRow['name'] ?? null;
+        $position = $playerRow['position'] ?? null;
+        $age = isset($playerRow['age']) ? (int)$playerRow['age'] : null;
+        $ovr = $playerRow['ovr'] ?? ($playerRow['overall'] ?? null);
+        $ovr = isset($ovr) ? (int)$ovr : null;
+
+        if (!playersColumnExists($pdo, 'trade_items', 'player_name')) {
+            return;
+        }
+
+        $stmt = $pdo->prepare(
+            'UPDATE trade_items
+             SET player_name = COALESCE(player_name, ?),
+                 player_position = COALESCE(player_position, ?),
+                 player_age = COALESCE(player_age, ?),
+                 player_ovr = COALESCE(player_ovr, ?),
+                 player_id = NULL
+             WHERE player_id = ?'
+        );
+        $stmt->execute([
+            $name,
+            $position,
+            $age,
+            $ovr,
+            (int)($playerRow['id'] ?? 0)
+        ]);
+    }
+}
+
 if ($method === 'GET') {
     $teamId = isset($_GET['team_id']) ? (int) $_GET['team_id'] : null;
     
@@ -416,6 +482,7 @@ if ($method === 'DELETE') {
             $pdo->beginTransaction();
 
             // Aposentadoria: remove o jogador e limpa possíveis registros em free_agents
+            snapshotTradeItemsForPlayer($pdo, $row);
             $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
             $del->execute([$playerId]);
 
@@ -495,6 +562,7 @@ if ($method === 'DELETE') {
         $stmtFA = $pdo->prepare('INSERT INTO free_agents (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')');
         $stmtFA->execute($values);
 
+        snapshotTradeItemsForPlayer($pdo, $row);
         $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
         $del->execute([$playerId]);
 

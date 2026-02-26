@@ -357,7 +357,7 @@ if ($method === 'GET') {
                 $ovrCol = playerOvrColumn($pdo);
                 $stmtOfferPlayers = $pdo->prepare("SELECT 
                     COALESCE(p.id, ti.player_id) AS id,
-                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
                     COALESCE(p.position, ti.player_position) AS position,
                     COALESCE(p.age, ti.player_age) AS age,
                     COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
@@ -378,7 +378,7 @@ if ($method === 'GET') {
                 
                 $stmtRequestPlayers = $pdo->prepare("SELECT 
                     COALESCE(p.id, ti.player_id) AS id,
-                    COALESCE(p.name, ti.player_name) AS name,
+                    COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
                     COALESCE(p.position, ti.player_position) AS position,
                     COALESCE(p.age, ti.player_age) AS age,
                     COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
