@@ -933,9 +933,11 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
 
     $stmt = $pdo->prepare('
      SELECT r.id, r.player_name, r.position, r.secondary_position, r.ovr, r.season_year, r.status AS request_status,
-         o.id AS offer_id, o.amount, o.status AS offer_status
+         o.id AS offer_id, o.amount, o.status AS offer_status,
+         wt.city AS winner_city, wt.name AS winner_name
         FROM fa_requests r
         JOIN fa_request_offers o ON o.request_id = r.id
+        LEFT JOIN teams wt ON r.winner_team_id = wt.id
         WHERE o.team_id = ?
         ORDER BY o.created_at DESC
     ');
@@ -956,7 +958,8 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
             'ovr' => $row['ovr'],
             'season_year' => $row['season_year'],
             'amount' => (int)$row['amount'],
-            'status' => $status
+            'status' => $status,
+            'winner_team' => trim(($row['winner_city'] ?? '') . ' ' . ($row['winner_name'] ?? ''))
         ];
     }
 

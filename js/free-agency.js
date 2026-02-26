@@ -142,6 +142,13 @@ function initNewFreeAgency() {
         });
     }
 
+    const approvedBtn = document.getElementById('faViewApprovedBtn');
+    if (approvedBtn) {
+        approvedBtn.addEventListener('click', () => {
+            openFaApprovedModal();
+        });
+    }
+
         carregarLimitesNovaFA();
     carregarMinhasPropostasNovaFA();
     carregarHistoricoNovaFA();
@@ -168,6 +175,47 @@ function initNewFreeAgency() {
                 carregarSolicitacoesNovaFA();
             });
         }
+    }
+}
+
+async function openFaApprovedModal() {
+    const listEl = document.getElementById('faApprovedList');
+    if (listEl) {
+        listEl.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+    }
+
+    const modalEl = document.getElementById('faApprovedModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    try {
+        const response = await fetch('api/free-agency.php?action=my_fa_requests');
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.requests)) {
+            if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar propostas.</div>';
+            return;
+        }
+
+        const approved = data.requests.filter(item => item.status === 'assigned');
+        if (!approved.length) {
+            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma proposta aprovada ainda.</div>';
+            return;
+        }
+
+        const html = approved.map(item => {
+            const winner = item.winner_team || 'Time não informado';
+            return `
+                <div class="border border-secondary rounded p-3 mb-2">
+                    <div class="text-white fw-bold">${item.player_name}</div>
+                    <div class="text-light-gray small">Vai para: ${winner}</div>
+                </div>
+            `;
+        }).join('');
+        if (listEl) listEl.innerHTML = html;
+    } catch (error) {
+        if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar propostas.</div>';
     }
 }
 
