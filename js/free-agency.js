@@ -191,31 +191,43 @@ async function openFaApprovedModal() {
     }
 
     try {
-        const response = await fetch('api/free-agency.php?action=my_fa_requests');
+        let league = getActiveLeague();
+        if (!league && defaultAdminLeague) {
+            league = defaultAdminLeague;
+        }
+        if (!league) {
+            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma liga selecionada.</div>';
+            return;
+        }
+
+        const response = await fetch(`api/free-agency.php?action=admin_new_fa_requests&league=${encodeURIComponent(league)}`);
         const data = await response.json();
         if (!data.success || !Array.isArray(data.requests)) {
-            if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar propostas.</div>';
+            if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
             return;
         }
 
-        const approved = data.requests.filter(item => item.status === 'assigned');
-        if (!approved.length) {
-            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma proposta aprovada ainda.</div>';
+        if (!data.requests.length) {
+            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Nenhuma solicitação pendente.</div>';
             return;
         }
 
-        const html = approved.map(item => {
-            const winner = item.winner_team || 'Time não informado';
+        const html = data.requests.map(group => {
+            const request = group.request || {};
+            const offers = Array.isArray(group.offers) ? group.offers : [];
+            const topOffer = offers[0] || null;
+            const teamName = topOffer?.team_name || 'Time não informado';
+            const amount = topOffer?.amount ?? '-';
             return `
                 <div class="border border-secondary rounded p-3 mb-2">
-                    <div class="text-white fw-bold">${item.player_name}</div>
-                    <div class="text-light-gray small">Vai para: ${winner}</div>
+                    <div class="text-white fw-bold">${request.player_name || 'Jogador'}</div>
+                    <div class="text-light-gray small">Maior proposta atual: ${teamName} (${amount} moedas)</div>
                 </div>
             `;
         }).join('');
         if (listEl) listEl.innerHTML = html;
     } catch (error) {
-        if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar propostas.</div>';
+        if (listEl) listEl.innerHTML = '<div class="text-danger">Erro ao carregar solicitações.</div>';
     }
 }
 
