@@ -26,6 +26,13 @@ function columnExists(PDO $pdo, string $table, string $column): bool {
         return (bool)$stmt->fetch();
     } catch (Exception $e) { return false; }
 }
+function tableExists(PDO $pdo, string $table): bool {
+    try {
+        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute([$table]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) { return false; }
+}
 function playerOvrColumn(PDO $pdo): string {
     return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
 }
@@ -389,6 +396,101 @@ if ($method === 'GET') {
                 ');
                 $stmtRequestPicks->execute([$trade['id']]);
                 $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            $multiTrades = [];
+            if (tableExists($pdo, 'multi_trades') && tableExists($pdo, 'multi_trade_items') && tableExists($pdo, 'multi_trade_teams')) {
+                $multiConditions = [];
+                $multiParams = [];
+
+                if ($status !== 'all') {
+                    if ($status === 'rejected') {
+                        $multiConditions[] = '1 = 0';
+                    } else {
+                        $multiConditions[] = 'mt.status = ?';
+                        $multiParams[] = $status;
+                    }
+                }
+
+                if ($league) {
+                    $multiConditions[] = 'COALESCE(mt.league, creator.league) = ?';
+                    $multiParams[] = $league;
+                }
+
+                if ($seasonYear) {
+                    $multiConditions[] = 'YEAR(mt.created_at) = ?';
+                    $multiParams[] = (int)$seasonYear;
+                }
+
+                $multiWhere = !empty($multiConditions) ? 'WHERE ' . implode(' AND ', $multiConditions) : '';
+                $multiQuery = "
+                    SELECT
+                        mt.*,
+                        COALESCE(mt.league, creator.league) AS league,
+                        creator.city AS creator_city,
+                        creator.name AS creator_name,
+                        (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id) AS teams_total,
+                        (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id AND accepted_at IS NOT NULL) AS teams_accepted
+                    FROM multi_trades mt
+                    JOIN teams creator ON mt.created_by_team_id = creator.id
+                    {$multiWhere}
+                    ORDER BY mt.created_at DESC
+                    LIMIT 100
+                ";
+
+                $stmtMulti = $pdo->prepare($multiQuery);
+                $stmtMulti->execute($multiParams);
+                $multiTrades = $stmtMulti->fetchAll(PDO::FETCH_ASSOC);
+
+                $ovrCol = playerOvrColumn($pdo);
+                $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
+                $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
+                $stmtPickInfo = $pdo->prepare('SELECT pk.*, t.city as original_team_city, t.name as original_team_name, lo.city as last_owner_city, lo.name as last_owner_name FROM picks pk JOIN teams t ON pk.original_team_id = t.id LEFT JOIN teams lo ON pk.last_owner_team_id = lo.id WHERE pk.id = ?');
+
+                foreach ($multiTrades as &$trade) {
+                    $trade['is_multi'] = true;
+
+                    $stmtTeams->execute([$trade['id']]);
+                    $trade['teams'] = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+                    $stmtItems->execute([$trade['id']]);
+                    $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($items as &$item) {
+                        if (!empty($item['player_id']) && (empty($item['player_name']) || empty($item['player_ovr']))) {
+                            $stmtP = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
+                            $stmtP->execute([(int)$item['player_id']]);
+                            $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $item['player_name'] = $item['player_name'] ?: ($p['name'] ?? null);
+                            $item['player_position'] = $item['player_position'] ?: ($p['position'] ?? null);
+                            $item['player_age'] = $item['player_age'] ?: ($p['age'] ?? null);
+                            $item['player_ovr'] = $item['player_ovr'] ?: ($p['ovr'] ?? null);
+                        }
+                        if (!empty($item['pick_id'])) {
+                            $stmtPickInfo->execute([(int)$item['pick_id']]);
+                            $pick = $stmtPickInfo->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $item['season_year'] = $pick['season_year'] ?? null;
+                            $item['round'] = $pick['round'] ?? null;
+                            $item['original_team_id'] = $pick['original_team_id'] ?? null;
+                            $item['original_team_city'] = $pick['original_team_city'] ?? null;
+                            $item['original_team_name'] = $pick['original_team_name'] ?? null;
+                            $item['last_owner_team_id'] = $pick['last_owner_team_id'] ?? null;
+                            $item['last_owner_city'] = $pick['last_owner_city'] ?? null;
+                            $item['last_owner_name'] = $pick['last_owner_name'] ?? null;
+                        }
+                    }
+                    unset($item);
+
+                    $trade['items'] = $items;
+                }
+                unset($trade);
+            }
+
+            if (!empty($multiTrades)) {
+                $trades = array_merge($trades, $multiTrades);
+                usort($trades, static function ($a, $b) {
+                    return strtotime($b['created_at']) <=> strtotime($a['created_at']);
+                });
             }
 
             echo json_encode(['success' => true, 'trades' => $trades]);

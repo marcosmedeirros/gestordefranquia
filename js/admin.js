@@ -273,8 +273,88 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
       return content ? `<ul class="list-unstyled mb-0">${content}</ul>` : '<p class="text-light-gray">Nada</p>';
     };
 
+    const formatMultiTradeItemDetail = (item) => {
+      if (!item) return 'Item';
+      if (item.player_id || item.player_name) {
+        return formatAdminTradePlayer({
+          name: item.player_name,
+          position: item.player_position,
+          age: item.player_age,
+          ovr: item.player_ovr
+        });
+      }
+      if (item.pick_id) {
+        const roundNumber = parseInt(item.round, 10);
+        const roundLabel = Number.isNaN(roundNumber) ? `${item.round}ª rodada` : `${roundNumber}ª rodada`;
+        const seasonLabel = item.season_year ? `${item.season_year}` : 'Temporada indefinida';
+        const originalTeam = `${item.original_team_city || ''} ${item.original_team_name || ''}`.trim() || 'Time indefinido';
+        return `${seasonLabel} ${roundLabel} - ${originalTeam}`;
+      }
+      return 'Item';
+    };
+
+    const renderMultiTradeCard = (tr) => {
+      const badge = {
+        pending: 'bg-warning text-dark',
+        accepted: 'bg-success',
+        cancelled: 'bg-secondary'
+      }[tr.status] || 'bg-secondary';
+
+      const teamMap = {};
+      (tr.teams || []).forEach(team => {
+        teamMap[team.id] = `${team.city} ${team.name}`;
+      });
+      const leagueLabel = tr.league || '-';
+
+      const teamsList = (tr.teams || []).map(team => {
+        const label = teamMap[team.id] || `Time ${team.id}`;
+        return `<span class="badge bg-dark border border-secondary text-white">${label}</span>`;
+      }).join('');
+
+      const items = (tr.items || []).map(item => {
+        const fromLabel = teamMap[item.from_team_id] || `Time ${item.from_team_id}`;
+        const toLabel = teamMap[item.to_team_id] || `Time ${item.to_team_id}`;
+        const detail = formatMultiTradeItemDetail(item);
+        return `<li class="text-white mb-1"><i class="bi bi-arrow-left-right text-orange"></i> <strong>${fromLabel}</strong> → <strong>${toLabel}</strong>: ${detail}</li>`;
+      }).join('');
+
+      const acceptanceBadge = tr.status === 'pending'
+        ? `<span class="badge bg-info text-dark">Aceites ${tr.teams_accepted || 0}/${tr.teams_total || 0}</span>`
+        : '';
+
+      return `<div class="bg-dark-panel rounded p-3 mb-3">
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h5 class="text-white mb-1">Trade múltipla</h5>
+    <small class="text-light-gray">${new Date(tr.created_at).toLocaleString('pt-BR')} | <span class="badge bg-gradient-orange">${leagueLabel}</span></small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    ${acceptanceBadge}
+    <span class="badge ${badge}">${tr.status}</span>
+  </div>
+</div>
+<div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-light-gray">Times</span>'}</div>
+<div>
+  <h6 class="text-orange mb-2">Itens</h6>
+  <ul class="list-unstyled mb-0">
+    ${items || '<li class="text-light-gray">Nenhum item</li>'}
+  </ul>
+</div>
+${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
+</div>`;
+    };
+
     tc.innerHTML = trades.map(tr => {
-      const badge = { pending: 'bg-warning text-dark', accepted: 'bg-success', rejected: 'bg-danger', cancelled: 'bg-secondary' }[tr.status];
+      if (tr.is_multi) {
+        return renderMultiTradeCard(tr);
+      }
+      const badge = {
+        pending: 'bg-warning text-dark',
+        accepted: 'bg-success',
+        rejected: 'bg-danger',
+        cancelled: 'bg-secondary',
+        countered: 'bg-info'
+      }[tr.status] || 'bg-secondary';
       const acceptedKey = `admin_trade_accept_${tr.id}`;
       const isAccepted = localStorage.getItem(acceptedKey) === '1';
       return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
