@@ -113,6 +113,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       </h1>
       <div class="page-actions">
         <?php if ($isAdmin): ?>
+        <button class="btn btn-outline-light me-2" onclick="openAddDraftPlayerModal()">
+          <i class="bi bi-person-plus me-2"></i>
+          Adicionar jogador
+        </button>
         <button class="btn btn-outline-orange" onclick="toggleHistoryView()">
           <i class="bi bi-clock-history me-2"></i>
           <span id="viewToggleText">Ver Histórico</span>
@@ -188,7 +192,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content bg-dark border-orange">
         <div class="modal-header border-orange">
-          <h5 class="modal-title text-white"><i class="bi bi-person-plus me-2 text-orange"></i>Escolher Jogador</h5>
+          <h5 class="modal-title text-white">
+            <i class="bi bi-person-plus me-2 text-orange"></i>
+            <span id="pickModalTitle">Escolher Jogador</span>
+          </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -286,6 +293,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     let currentSeasonIdView = null; // Para rastrear qual temporada está sendo visualizada
     let currentDraftStatusView = null;
     let selectedLeague = userLeague; // Liga atualmente selecionada no histórico
+  let allowPickSelections = true;
 
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -375,7 +383,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       document.getElementById('draftContainer').innerHTML = `
         <!-- Header do Draft -->
         <div class="row g-3 mb-4">
-          <div class="col-md-6">
+          <div class="col-md-6 col-lg-4">
             <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
@@ -394,7 +402,25 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
               </div>
             </div>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-6 col-lg-4">
+            <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
+              <div class="card-body d-flex flex-column justify-content-between h-100">
+                <div>
+                  <h5 class="text-white mb-2">
+                    <i class="bi bi-search text-orange me-2"></i>
+                    Ver opções
+                  </h5>
+                  <p class="text-light-gray mb-0">Confira quem ainda está disponível no draft.</p>
+                </div>
+                <div class="mt-3">
+                  <button class="btn btn-outline-light w-100" type="button" onclick="openOptionsModal()">
+                    <i class="bi bi-eye me-2"></i>Ver jogadores disponíveis
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
             <div class="card ${isMyTurn ? 'bg-success' : 'bg-dark-panel'} border-orange" style="border-radius: 15px;">
               <div class="card-body text-center">
                 ${session.status === 'in_progress' ? `
@@ -597,7 +623,21 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     }
 
     async function openPickModal() {
+      await openPlayersModal(true);
+    }
+
+    async function openOptionsModal() {
+      await openPlayersModal(false);
+    }
+
+    async function openPlayersModal(allowPick) {
       if (!currentDraftSession) return;
+      allowPickSelections = allowPick;
+
+      const titleEl = document.getElementById('pickModalTitle');
+      if (titleEl) {
+        titleEl.textContent = allowPick ? 'Escolher Jogador' : 'Jogadores disponíveis';
+      }
 
       const modal = new bootstrap.Modal(document.getElementById('pickModal'));
       modal.show();
@@ -608,23 +648,27 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       try {
         const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
         availablePlayersList = data.players || [];
-        renderAvailablePlayers(availablePlayersList);
+        renderAvailablePlayers(availablePlayersList, allowPickSelections);
         
         // Setup search
-        document.getElementById('playerSearch').addEventListener('input', (e) => {
-          const q = e.target.value.toLowerCase();
-          const filtered = availablePlayersList.filter(p => 
-            p.name.toLowerCase().includes(q) || 
-            p.position.toLowerCase().includes(q)
-          );
-          renderAvailablePlayers(filtered);
-        });
+        const searchInput = document.getElementById('playerSearch');
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.oninput = (e) => {
+            const q = e.target.value.toLowerCase();
+            const filtered = availablePlayersList.filter(p => 
+              p.name.toLowerCase().includes(q) || 
+              p.position.toLowerCase().includes(q)
+            );
+            renderAvailablePlayers(filtered, allowPickSelections);
+          };
+        }
       } catch (e) {
         container.innerHTML = `<div class="col-12 text-center text-danger py-3">Erro: ${e.error || 'Desconhecido'}</div>`;
       }
     }
 
-    function renderAvailablePlayers(players) {
+    function renderAvailablePlayers(players, allowPick) {
       const container = document.getElementById('availablePlayers');
       const countEl = document.getElementById('availablePlayersCount');
       if (countEl) {
@@ -636,7 +680,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       }
       container.innerHTML = players.map(p => `
         <div class="col-md-4 col-lg-3">
-          <div class="card bg-dark border-secondary player-select-card" onclick="makePick(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="border-radius: 10px;">
+          <div class="card bg-dark border-secondary ${allowPick ? 'player-select-card' : ''}" ${allowPick ? `onclick="makePick(${p.id}, '${p.name.replace(/'/g, "\\'")}')"` : ''} style="border-radius: 10px;">
             <div class="card-body p-3 text-center">
               <h6 class="text-white mb-1">${p.name}</h6>
               <span class="badge bg-orange">${p.position}</span>
