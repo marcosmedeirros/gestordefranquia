@@ -191,6 +191,10 @@ async function openFaApprovedModal() {
     }
 
     try {
+        if (!isAdmin) {
+            if (listEl) listEl.innerHTML = '<div class="text-light-gray">Somente administradores podem ver essas solicitações.</div>';
+            return;
+        }
         let league = getActiveLeague();
         if (!league && defaultAdminLeague) {
             league = defaultAdminLeague;
@@ -217,11 +221,10 @@ async function openFaApprovedModal() {
             const offers = Array.isArray(group.offers) ? group.offers : [];
             const topOffer = offers[0] || null;
             const teamName = topOffer?.team_name || 'Time não informado';
-            const amount = topOffer?.amount ?? '-';
             return `
                 <div class="border border-secondary rounded p-3 mb-2">
                     <div class="text-white fw-bold">${request.player_name || 'Jogador'}</div>
-                    <div class="text-light-gray small">Maior proposta atual: ${teamName} (${amount} moedas)</div>
+                    <div class="text-light-gray small">Maior proposta atual: ${teamName}</div>
                 </div>
             `;
         }).join('');

@@ -188,6 +188,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             font-size: 0.95rem;
             font-weight: 600;
         }
+
+        @media (max-width: 576px) {
+            .fa-header-actions {
+                width: 100%;
+            }
+            .fa-header-actions .btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body class="free-agency-page">
@@ -263,9 +272,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
                     <div class="card bg-dark-panel border-orange mb-4 fa-new-card">
                         <div class="card-header bg-dark border-bottom border-orange">
-                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="d-flex flex-column flex-sm-row flex-wrap align-items-start align-items-sm-center justify-content-between gap-2">
                                 <h5 class="mb-0 text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Free Agency</h5>
-                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="d-flex flex-wrap align-items-center gap-2 fa-header-actions">
                                     <span class="badge bg-warning text-dark">Criar jogador + enviar proposta</span>
                                     <button class="btn btn-sm btn-danger text-white" type="button" id="faViewApprovedBtn">
                                         <i class="bi bi-inbox-fill me-1"></i>QUE ESTA GANHANDO
@@ -767,7 +776,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     </div>
 
     <div class="modal fade" id="faApprovedModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
             <div class="modal-content bg-dark border-orange">
                 <div class="modal-header border-orange">
                     <h5 class="modal-title text-white"><i class="bi bi-inbox-fill me-2 text-orange"></i>Solicitações recebidas</h5>
