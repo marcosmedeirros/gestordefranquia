@@ -84,6 +84,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'userApprovals') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>';
       pageTitle.textContent = 'Aprovar Usuários';
+    } else if (appState.view === 'halloffame') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>';
+      pageTitle.textContent = 'Hall da Fama';
     }
   }
 }
@@ -101,6 +104,7 @@ async function showHome() {
 <div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
 <div class="col-md-6"><div class="action-card" onclick="showUserApprovals()"><i class="bi bi-person-check"></i><h4>Aprovar Usuários <span class="badge bg-danger" id="pending-users-count" style="display:none;">0</span></h4><p>Aprovar ou rejeitar novos cadastros</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showHallOfFame()"><i class="bi bi-award-fill"></i><h4>Hall da Fama</h4><p>Cadastre clubes e titulos</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
@@ -374,6 +378,229 @@ ${renderTradeAssets(tr.request_players || [], tr.request_picks || [])}</div></di
     }).join('');
   } catch (e) {
     document.getElementById('tradesListContainer').innerHTML = '<div class="alert alert-danger">Erro</div>';
+  }
+}
+
+// ========== HALL DA FAMA ==========
+let hallOfFameLeague = 'ELITE';
+
+async function showHallOfFame() {
+  appState.view = 'halloffame';
+  updateBreadcrumb();
+
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="bg-dark-panel border-orange rounded p-4">
+          <h5 class="text-white mb-3"><i class="bi bi-award-fill text-orange me-2"></i>Adicionar no Hall da Fama</h5>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Tipo</label>
+            <select class="form-select bg-dark text-white border-orange" id="hofType">
+              <option value="active" selected>Ativo (liga + time)</option>
+              <option value="inactive">Inativo (nome + GM)</option>
+            </select>
+          </div>
+          <div id="hofActiveFields">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Liga</label>
+              <select class="form-select bg-dark text-white border-orange" id="hofLeague">
+                <option value="ELITE">ELITE</option>
+                <option value="NEXT">NEXT</option>
+                <option value="RISE">RISE</option>
+                <option value="ROOKIE">ROOKIE</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Time</label>
+              <select class="form-select bg-dark text-white border-orange" id="hofTeam"></select>
+            </div>
+          </div>
+          <div id="hofInactiveFields" style="display:none;">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Nome do time</label>
+              <input type="text" class="form-control bg-dark text-white border-orange" id="hofTeamName" placeholder="Ex: Seattle Supersonics">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Nome do GM</label>
+              <input type="text" class="form-control bg-dark text-white border-orange" id="hofGmName" placeholder="Ex: John Doe">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Titulos</label>
+            <input type="number" class="form-control bg-dark text-white border-orange" id="hofTitles" min="0" value="0">
+          </div>
+          <button class="btn btn-orange w-100" id="hofAddBtn"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="bg-dark-panel border-orange rounded p-4">
+          <h5 class="text-white mb-3"><i class="bi bi-list-stars text-orange me-2"></i>Lista do Hall da Fama</h5>
+          <div id="hofList"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('hofType').addEventListener('change', toggleHallOfFameType);
+  document.getElementById('hofLeague').addEventListener('change', (e) => {
+    hallOfFameLeague = e.target.value;
+    loadHallOfFameTeams(hallOfFameLeague);
+  });
+  document.getElementById('hofAddBtn').addEventListener('click', submitHallOfFameEntry);
+
+  hallOfFameLeague = document.getElementById('hofLeague').value || 'ELITE';
+  loadHallOfFameTeams(hallOfFameLeague);
+  loadHallOfFameList();
+}
+
+function toggleHallOfFameType() {
+  const type = document.getElementById('hofType').value;
+  const activeFields = document.getElementById('hofActiveFields');
+  const inactiveFields = document.getElementById('hofInactiveFields');
+  if (type === 'inactive') {
+    activeFields.style.display = 'none';
+    inactiveFields.style.display = 'block';
+  } else {
+    activeFields.style.display = 'block';
+    inactiveFields.style.display = 'none';
+  }
+}
+
+async function loadHallOfFameTeams(league) {
+  const select = document.getElementById('hofTeam');
+  if (!select) return;
+  select.innerHTML = '<option>Carregando...</option>';
+  try {
+    const data = await api(`admin.php?action=teams&league=${league}`);
+    const teams = data.teams || [];
+    if (!teams.length) {
+      select.innerHTML = '<option value="">Sem times na liga</option>';
+      return;
+    }
+    select.innerHTML = teams
+      .map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`)
+      .join('');
+  } catch (e) {
+    select.innerHTML = '<option value="">Erro ao carregar</option>';
+  }
+}
+
+async function submitHallOfFameEntry() {
+  const type = document.getElementById('hofType').value;
+  const titles = parseInt(document.getElementById('hofTitles').value || '0', 10);
+
+  const payload = {
+    is_active: type === 'active' ? 1 : 0,
+    titles: Number.isNaN(titles) ? 0 : titles
+  };
+
+  if (type === 'active') {
+    payload.league = document.getElementById('hofLeague').value;
+    payload.team_id = parseInt(document.getElementById('hofTeam').value || '0', 10);
+  } else {
+    payload.team_name = (document.getElementById('hofTeamName').value || '').trim();
+    payload.gm_name = (document.getElementById('hofGmName').value || '').trim();
+  }
+
+  try {
+    await api('admin.php?action=hall_of_fame', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    document.getElementById('hofTitles').value = 0;
+    document.getElementById('hofTeamName').value = '';
+    document.getElementById('hofGmName').value = '';
+    loadHallOfFameList();
+  } catch (e) {
+    alert(e.error || 'Erro ao salvar');
+  }
+}
+
+async function loadHallOfFameList() {
+  const container = document.getElementById('hofList');
+  if (!container) return;
+  container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
+  try {
+    const data = await api('admin.php?action=hall_of_fame');
+    const items = data.items || [];
+    if (!items.length) {
+      container.innerHTML = '<div class="text-light-gray">Nenhum registro ainda.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Liga</th>
+              <th>Time</th>
+              <th>GM</th>
+              <th class="text-center" style="width: 120px;">Titulos</th>
+              <th class="text-center" style="width: 140px;">Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${item.is_active ? 'Ativo' : 'Inativo'}</td>
+                <td>${item.league || '-'}</td>
+                <td><strong>${item.team_name || '-'}</strong></td>
+                <td>${item.gm_name || '-'}</td>
+                <td class="text-center">
+                  <input type="number" class="form-control form-control-sm bg-dark text-white border-orange" min="0" value="${item.titles || 0}" data-hof-title="${item.id}">
+                </td>
+                <td class="text-center">
+                  <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-sm btn-success" onclick="saveHallOfFameTitles(${item.id})">
+                      <i class="bi bi-save"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteHallOfFameEntry(${item.id})">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div class="text-danger">Erro ao carregar lista.</div>';
+  }
+}
+
+async function saveHallOfFameTitles(id) {
+  const input = document.querySelector(`[data-hof-title="${id}"]`);
+  if (!input) return;
+  const titles = parseInt(input.value || '0', 10);
+  try {
+    await api('admin.php?action=hall_of_fame', {
+      method: 'PUT',
+      body: JSON.stringify({ id, titles: Number.isNaN(titles) ? 0 : titles })
+    });
+  } catch (e) {
+    alert(e.error || 'Erro ao salvar');
+  }
+}
+
+async function deleteHallOfFameEntry(id) {
+  if (!confirm('Remover este registro do Hall da Fama?')) return;
+  try {
+    await api('admin.php?action=hall_of_fame', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    });
+    loadHallOfFameList();
+  } catch (e) {
+    alert(e.error || 'Erro ao remover');
   }
 }
 

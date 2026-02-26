@@ -93,6 +93,9 @@ $team = $stmtTeam->fetch();
         Rankings
       </h1>
       <div class="page-actions">
+        <a class="btn btn-outline-light" href="/hall-da-fama.php">
+          <i class="bi bi-award me-1"></i> Hall da Fama
+        </a>
         <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
         <button class="btn btn-orange" id="btnEditRanking" data-bs-toggle="modal" data-bs-target="#editRankingModal">
           <i class="bi bi-pencil-square me-1"></i> Editar Ranking
