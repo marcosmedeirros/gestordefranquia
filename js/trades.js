@@ -1108,9 +1108,6 @@ function createMultiTradeCard(trade, type) {
     ? `<span class="badge bg-info text-dark">Aceitar ${trade.teams_accepted || 0}/${trade.teams_total || 0}</span>`
     : '';
 
-  const reactionBar = type === 'league'
-    ? `<div class="reaction-bar mt-2">${buildTradeReactionBar(trade, 'multi')}</div>`
-    : '';
 
   const items = (trade.items || []).map((item) => {
     const fromLabel = teamMap[item.from_team_id] || `Time ${item.from_team_id}`;
@@ -1144,7 +1141,6 @@ function createMultiTradeCard(trade, type) {
         ${statusBadge}
       </div>
     </div>
-    ${reactionBar}
     <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-muted">Times</span>'}</div>
     <div>
       <h6 class="text-orange mb-2">Itens</h6>
@@ -1153,6 +1149,7 @@ function createMultiTradeCard(trade, type) {
       </ul>
     </div>
     ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
+    ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'multi')}</div>` : ''}
   `;
 
   if (trade.status === 'pending' && type === 'received') {
@@ -1213,9 +1210,6 @@ function createTradeCard(trade, type) {
     </div>
   ` : '';
 
-  const reactionBar = type === 'league'
-    ? `<div class="reaction-bar mt-2">${buildTradeReactionBar(trade, 'single')}</div>`
-    : '';
   
   card.innerHTML = `
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -1225,7 +1219,6 @@ function createTradeCard(trade, type) {
       </div>
       <div>${statusBadge}</div>
     </div>
-    ${reactionBar}
     
     <div class="row">
       <div class="col-md-6">
@@ -1248,6 +1241,7 @@ function createTradeCard(trade, type) {
     
     ${trade.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${trade.notes}</small></div>` : ''}
     ${responseNotes}
+    ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'single')}</div>` : ''}
     
     ${trade.status === 'pending' && type === 'received' ? `
       <div class="mt-3">
