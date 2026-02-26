@@ -197,6 +197,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 width: 100%;
             }
         }
+
+        .fa-approved-modal {
+            z-index: 2000;
+        }
+
+        .fa-approved-modal + .modal-backdrop {
+            z-index: 1995;
+        }
     </style>
 </head>
 <body class="free-agency-page">
@@ -775,7 +783,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         </div>
     </div>
 
-    <div class="modal fade" id="faApprovedModal" tabindex="-1">
+    <div class="modal fade fa-approved-modal" id="faApprovedModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
             <div class="modal-content bg-dark border-orange">
                 <div class="modal-header border-orange">
