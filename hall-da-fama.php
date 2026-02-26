@@ -140,7 +140,7 @@ $team = $stmtTeam->fetch();
         const league = item.league ? `<span class="badge bg-gradient-orange">${item.league}</span>` : '';
         const gmName = item.gm_name || 'GM não informado';
         const isActive = Number(item.is_active) === 1;
-        const subtitle = isActive ? (item.team_name || 'Time não informado') : 'Inativo atualmente';
+  const subtitle = isActive ? (item.team_name || 'Time não informado') : '';
         const statusLabel = isActive ? 'Ativo' : 'Inativo';
         return `
           <div class="col-md-6 col-lg-4">
@@ -149,7 +149,7 @@ $team = $stmtTeam->fetch();
                 <div>
                   <div class="hof-status mb-1">${statusLabel}</div>
                   <div class="hof-title">${gmName}</div>
-                  <div class="hof-subtitle">${subtitle}</div>
+                  ${subtitle ? `<div class="hof-subtitle">${subtitle}</div>` : ''}
                 </div>
                 <div class="text-end">
                   ${league}
