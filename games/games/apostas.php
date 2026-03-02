@@ -58,35 +58,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
             throw new Exception("Este evento já encerrou ou foi cancelado!");
         }
 
-        // 2.1 Bloqueia múltiplos palpites do mesmo usuário no mesmo evento
+        // 2. Verifica se já existe palpite do usuário para este evento
         $stmtDup = $pdo->prepare("
-            SELECT COUNT(*)
+            SELECT p.id
             FROM palpites p
             JOIN opcoes o ON p.opcao_id = o.id
             WHERE p.id_usuario = :uid AND o.evento_id = :eid
+            LIMIT 1
         ");
         $stmtDup->execute([':uid' => $user_id, ':eid' => $dados_aposta['evento_id']]);
-        $jaApostou = (int)$stmtDup->fetchColumn();
-        if ($jaApostou > 0) {
-            throw new Exception("Você já fez um palpite neste evento.");
-        }
+        $palpiteExistente = $stmtDup->fetch(PDO::FETCH_ASSOC);
 
-        // 2. Registra o palpite (aposta fixa por acerto)
-        $stmtInsert = $pdo->prepare("
-            INSERT INTO palpites (id_usuario, opcao_id, valor, odd_registrada, data_palpite) 
-            VALUES (:uid, :oid, :val, :odd_fixa, NOW())
-        ");
-        $stmtInsert->execute([
-            ':uid' => $user_id, 
-            ':oid' => $opcao_id, 
-            ':val' => $valor_aposta,
-            ':odd_fixa' => 1
-        ]);
+        if ($palpiteExistente) {
+            $stmtUpdate = $pdo->prepare("
+                UPDATE palpites
+                SET opcao_id = :oid, valor = :val, odd_registrada = :odd_fixa, data_palpite = NOW()
+                WHERE id = :pid
+            ");
+            $stmtUpdate->execute([
+                ':oid' => $opcao_id,
+                ':val' => $valor_aposta,
+                ':odd_fixa' => 1,
+                ':pid' => $palpiteExistente['id']
+            ]);
+        } else {
+            $stmtInsert = $pdo->prepare("
+                INSERT INTO palpites (id_usuario, opcao_id, valor, odd_registrada, data_palpite) 
+                VALUES (:uid, :oid, :val, :odd_fixa, NOW())
+            ");
+            $stmtInsert->execute([
+                ':uid' => $user_id, 
+                ':oid' => $opcao_id, 
+                ':val' => $valor_aposta,
+                ':odd_fixa' => 1
+            ]);
+        }
 
         $pdo->commit();
 
         // Volta para o painel com mensagem
-    header("Location: ../index.php?msg=" . urlencode("Palpite realizado com sucesso!"));
+    header("Location: ../index.php?msg=" . urlencode($palpiteExistente ? "Palpite atualizado com sucesso!" : "Palpite realizado com sucesso!"));
         exit;
 
     } catch (Exception $e) {

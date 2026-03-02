@@ -976,9 +976,14 @@ try {
                                                 <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
                                                 <?php if ($evento_bloqueado): ?>
                                                     <div class="text-secondary" style="font-size: 0.8rem;">
-                                                        <?= $isPicked ? 'Seu palpite' : 'Você já apostou' ?>
+                                                        <?= $isPicked ? 'Seu palpite atual' : 'Você já apostou' ?>
                                                     </div>
-                                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
+                                                    <form method="POST" action="games/apostas.php" class="bet-inline">
+                                                        <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                                                        <button type="submit" class="btn btn-sm <?= $isPicked ? 'btn-outline-secondary' : 'btn-outline-warning' ?> w-100" style="font-size: 0.8rem;" <?= $isPicked ? 'disabled' : '' ?>>
+                                                            <?= $isPicked ? 'Palpite atual' : 'Mudar palpite' ?>
+                                                        </button>
+                                                    </form>
                                                 <?php else: ?>
                                                     <form method="POST" action="games/apostas.php" class="bet-inline">
                                                         <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
