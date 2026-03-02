@@ -225,18 +225,18 @@ function updateRotationFieldsVisibility() {
 
   if (!rotationStyle) return;
 
-  const isManualRotation = rotationStyle.value === 'manual';
+  const isAutoRotation = rotationStyle.value === 'auto';
 
-  // Mostrar campos SOMENTE quando rotação for manual; esconder quando automática
+  // Mostrar campos SOMENTE quando rotação for automática; esconder quando manual
   if (rotationPlayersField) {
-    rotationPlayersField.style.display = isManualRotation ? 'block' : 'none';
+    rotationPlayersField.style.display = isAutoRotation ? 'block' : 'none';
   }
   if (veteranFocusField) {
-    veteranFocusField.style.display = isManualRotation ? 'block' : 'none';
+    veteranFocusField.style.display = isAutoRotation ? 'block' : 'none';
   }
   // Minutagem por jogador só aparece quando rotação é manual
   if (playerMinutesCard) {
-    playerMinutesCard.style.display = isManualRotation ? 'block' : 'none';
+    playerMinutesCard.style.display = isAutoRotation ? 'none' : 'block';
   }
 }
 
