@@ -1270,6 +1270,9 @@ try {
         </div>
             </div>
 
+                <h6 class="section-title"><i class="bi bi-gift"></i>Prêmios</h6>
+                <p class="text-light-gray">Em breve</p>
+
             <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
             <div class="row g-3 mb-3">
                 <div class="col-12">
