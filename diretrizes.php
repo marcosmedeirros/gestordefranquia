@@ -30,6 +30,7 @@ $deadline = $stmtDeadline->fetch();
 
 $deadlineDisplay = null;
 $deadlineIso = null;
+$hasDirectiveSubmission = false;
 if ($deadline && !empty($deadline['deadline_date'])) {
     try {
         $deadlineDateTime = new DateTime($deadline['deadline_date'], new DateTimeZone('America/Sao_Paulo'));
@@ -38,6 +39,12 @@ if ($deadline && !empty($deadline['deadline_date'])) {
     } catch (Exception $e) {
         $deadlineDisplay = date('d/m/Y', strtotime($deadline['deadline_date']));
     }
+}
+
+if ($deadline && !empty($team['id'])) {
+    $stmtHasDirective = $pdo->prepare("SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ? LIMIT 1");
+    $stmtHasDirective->execute([(int)$team['id'], (int)$deadline['id']]);
+    $hasDirectiveSubmission = (bool)$stmtHasDirective->fetchColumn();
 }
 
 // Buscar jogadores do time
@@ -475,7 +482,11 @@ try {
                     Cancelar
                 </button>
                 <button type="submit" class="btn btn-orange btn-lg">
-                    <i class="bi bi-send me-2"></i>Enviar Diretrizes
+                    <?php if ($hasDirectiveSubmission): ?>
+                        <i class="bi bi-arrow-repeat me-2"></i>Atualizar Diretrizes
+                    <?php else: ?>
+                        <i class="bi bi-send me-2"></i>Enviar Diretrizes
+                    <?php endif; ?>
                 </button>
             </div>
         </form>

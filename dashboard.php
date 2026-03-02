@@ -109,6 +109,7 @@ try {
 // Buscar temporada atual da liga
 // Buscar prazo ativo de diretrizes (somente se ainda não expirou - usando horário de Brasília)
 $activeDirectiveDeadline = null;
+$hasActiveDirectiveSubmission = false;
 try {
     // Calcular horário atual de Brasília via PHP para comparação
     $nowBrasilia = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
@@ -128,6 +129,11 @@ try {
                 $activeDirectiveDeadline['deadline_date_display'] = date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date']));
             }
         }
+    if ($activeDirectiveDeadline && !empty($team['id'])) {
+        $stmtHasDirective = $pdo->prepare("SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ? LIMIT 1");
+        $stmtHasDirective->execute([(int)$team['id'], (int)$activeDirectiveDeadline['id']]);
+        $hasActiveDirectiveSubmission = (bool)$stmtHasDirective->fetchColumn();
+    }
 } catch (Exception $e) {
     // Tabela pode não existir ainda
 }
@@ -877,7 +883,11 @@ try {
                                     </p>
                                 </div>
                                 <span class="btn btn-outline-orange">
-                                    <i class="bi bi-arrow-right-circle me-2"></i>Enviar Rotação
+                                    <?php if ($hasActiveDirectiveSubmission): ?>
+                                        <i class="bi bi-search me-2"></i>Revisar
+                                    <?php else: ?>
+                                        <i class="bi bi-arrow-right-circle me-2"></i>Enviar Rotação
+                                    <?php endif; ?>
                                 </span>
                             </div>
                         </div>

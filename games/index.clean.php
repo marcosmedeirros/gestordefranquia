@@ -319,6 +319,11 @@ $flappy_pontos = 0;
 $pinguim_pontos = 0;
 $xadrez_vitorias = 0;
 $batalha_naval_vitorias = 0;
+$tigrinho_premios = 0;
+$termo_streak = 0;
+$memoria_streak = 0;
+$top_termo_streak = null;
+$top_memoria_streak = null;
 
 try {
     $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS recorde FROM flappy_historico WHERE id_usuario = ?");
@@ -350,6 +355,65 @@ try {
     $batalha_naval_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 } catch (PDOException $e) {
     $batalha_naval_vitorias = 0;
+}
+
+try {
+    $stmt = $pdo->prepare("SELECT SUM(premio) AS total FROM tigrinho_historico WHERE id_usuario = ?");
+    $stmt->execute([$user_id]);
+    $tigrinho_premios = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $tigrinho_premios = 0;
+}
+
+$today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime($today . ' -1 day'));
+
+try {
+    $hasStreak = $pdo->query("SHOW COLUMNS FROM termo_historico LIKE 'streak_count'")->rowCount() > 0;
+    if ($hasStreak) {
+        $stmt = $pdo->prepare("SELECT data_jogo, streak_count FROM termo_historico WHERE id_usuario = ? ORDER BY data_jogo DESC LIMIT 1");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && in_array($row['data_jogo'], [$today, $yesterday], true)) {
+            $termo_streak = (int)($row['streak_count'] ?? 0);
+        }
+
+        $stmtTop = $pdo->prepare("SELECT th.id_usuario, th.streak_count, u.nome
+            FROM termo_historico th
+            JOIN usuarios u ON u.id = th.id_usuario
+            WHERE th.data_jogo IN (?, ?)
+            ORDER BY th.streak_count DESC, th.data_jogo DESC
+            LIMIT 1");
+        $stmtTop->execute([$today, $yesterday]);
+        $top_termo_streak = $stmtTop->fetch(PDO::FETCH_ASSOC);
+    }
+} catch (PDOException $e) {
+    $termo_streak = 0;
+    $top_termo_streak = null;
+}
+
+try {
+    $hasStreak = $pdo->query("SHOW COLUMNS FROM memoria_historico LIKE 'streak_count'")->rowCount() > 0;
+    if ($hasStreak) {
+        $stmt = $pdo->prepare("SELECT data_jogo, streak_count FROM memoria_historico WHERE id_usuario = ? ORDER BY data_jogo DESC LIMIT 1");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && in_array($row['data_jogo'], [$today, $yesterday], true)) {
+            $memoria_streak = (int)($row['streak_count'] ?? 0);
+        }
+
+        $stmtTop = $pdo->prepare("SELECT mh.id_usuario, mh.streak_count, u.nome
+            FROM memoria_historico mh
+            JOIN usuarios u ON u.id = mh.id_usuario
+            WHERE mh.data_jogo IN (?, ?)
+            ORDER BY mh.streak_count DESC, mh.data_jogo DESC
+            LIMIT 1");
+        $stmtTop->execute([$today, $yesterday]);
+        $top_memoria_streak = $stmtTop->fetch(PDO::FETCH_ASSOC);
+    }
+} catch (PDOException $e) {
+    $memoria_streak = 0;
+    $top_memoria_streak = null;
 }
 
 try {
@@ -1042,6 +1106,12 @@ try {
                                                     <?php if (!empty($jogador['league'])): ?>
                                                         <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
                                                     <?php endif; ?>
+                                                    <?php if (!empty($top_termo_streak) && (int)$top_termo_streak['id_usuario'] === (int)($jogador['id'] ?? 0)): ?>
+                                                        <span class="best-game-tag" style="background: #ff5252; color: #fff;">Maior sequência Termo (<?= (int)$top_termo_streak['streak_count'] ?>)</span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($top_memoria_streak) && (int)$top_memoria_streak['id_usuario'] === (int)($jogador['id'] ?? 0)): ?>
+                                                        <span class="best-game-tag" style="background: #00c853; color: #fff;">Maior sequência Memória (<?= (int)$top_memoria_streak['streak_count'] ?>)</span>
+                                                    <?php endif; ?>
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
@@ -1112,6 +1182,24 @@ try {
                     <div class="stat-card">
                         <div class="stat-label"><i class="bi bi-life-preserver me-2"></i>Vitórias na Batalha Naval</div>
                         <div class="stat-value"><?= $batalha_naval_vitorias ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-emoji-smile me-2"></i>Prêmios no Tigrinho</div>
+                        <div class="stat-value"><?= number_format($tigrinho_premios, 0, ',', '.') ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-lightning me-2"></i>Sequência Termo</div>
+                        <div class="stat-value"><?= $termo_streak ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-lightning-charge me-2"></i>Sequência Memória</div>
+                        <div class="stat-value"><?= $memoria_streak ?></div>
                     </div>
                 </div>
             </div>
@@ -1212,6 +1300,12 @@ try {
                                                         ?>
                                                             <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
                                                         <?php endforeach; ?>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($top_termo_streak) && (int)$top_termo_streak['id_usuario'] === (int)($jogador['id'] ?? 0)): ?>
+                                                        <span class="best-game-tag" style="background: #ff5252; color: #fff;">Maior sequência Termo (<?= (int)$top_termo_streak['streak_count'] ?>)</span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($top_memoria_streak) && (int)$top_memoria_streak['id_usuario'] === (int)($jogador['id'] ?? 0)): ?>
+                                                        <span class="best-game-tag" style="background: #00c853; color: #fff;">Maior sequência Memória (<?= (int)$top_memoria_streak['streak_count'] ?>)</span>
                                                     <?php endif; ?>
                                                 </span>
                                             </div>

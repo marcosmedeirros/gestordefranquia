@@ -12,6 +12,15 @@ require '../core/conexao.php';
 $PONTOS_VITORIA = 10;
 $LIMITE_MOVIMENTOS = 18; 
 
+// Garantir colunas de sequência
+try {
+    $hasStreak = $pdo->query("SHOW COLUMNS FROM memoria_historico LIKE 'streak_count'")->rowCount() > 0;
+    if (!$hasStreak) {
+        $pdo->exec("ALTER TABLE memoria_historico ADD COLUMN streak_count INT DEFAULT 0 AFTER pontos_ganhos");
+    }
+} catch (Exception $e) {
+}
+
 // 1. Segurança
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
@@ -71,6 +80,37 @@ if (!is_array($tabuleiro_atual)) {
 $movimentos_atuais = $dados_jogo['movimentos'] ?? 0;
 $status_atual = $dados_jogo['status'] ?? 'jogando'; 
 
+$streak_atual = 0;
+try {
+    $stmtStreak = $pdo->prepare("SELECT data_jogo, streak_count FROM memoria_historico WHERE id_usuario = :uid ORDER BY data_jogo DESC LIMIT 1");
+    $stmtStreak->execute([':uid' => $user_id]);
+    $rowStreak = $stmtStreak->fetch(PDO::FETCH_ASSOC);
+    if ($rowStreak) {
+        $streak_atual = (int)($rowStreak['streak_count'] ?? 0);
+    }
+} catch (PDOException $e) {
+    $streak_atual = 0;
+}
+
+$update_streak = function () use ($pdo, $user_id, $hoje, &$streak_atual) {
+    $stmtToday = $pdo->prepare("SELECT streak_count FROM memoria_historico WHERE id_usuario = :uid AND data_jogo = :hoje LIMIT 1");
+    $stmtToday->execute([':uid' => $user_id, ':hoje' => $hoje]);
+    $todayRow = $stmtToday->fetch(PDO::FETCH_ASSOC);
+    if ($todayRow && (int)($todayRow['streak_count'] ?? 0) > 0) {
+        $streak_atual = (int)$todayRow['streak_count'];
+        return;
+    }
+
+    $stmtPrev = $pdo->prepare("SELECT data_jogo, streak_count FROM memoria_historico WHERE id_usuario = :uid AND data_jogo < :hoje ORDER BY data_jogo DESC LIMIT 1");
+    $stmtPrev->execute([':uid' => $user_id, ':hoje' => $hoje]);
+    $prev = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+    $yesterday = date('Y-m-d', strtotime($hoje . ' -1 day'));
+    $nova_streak = ($prev && $prev['data_jogo'] === $yesterday) ? ((int)$prev['streak_count'] + 1) : 1;
+    $pdo->prepare("UPDATE memoria_historico SET streak_count = :streak WHERE id_usuario = :uid AND data_jogo = :hoje")
+        ->execute([':streak' => $nova_streak, ':uid' => $user_id, ':hoje' => $hoje]);
+    $streak_atual = $nova_streak;
+};
+
 // --- API DE ATUALIZAÇÃO (AJAX) ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
@@ -118,6 +158,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             }
         }
 
+        if ($novo_status !== 'jogando') {
+            try {
+                $update_streak();
+            } catch (Exception $e) {
+            }
+        }
+
         echo json_encode(['status' => $novo_status, 'movimentos' => $novos_movimentos]);
         exit;
     }
@@ -150,6 +197,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             background-color: #FC082B; color: #000; padding: 8px 15px; 
             border-radius: 20px; font-weight: 800; font-size: 1.1em;
             box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
+        }
+        .streak-badge {
+            background-color: #1e1e1e;
+            color: #FC082B;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 0.95em;
+            border: 1px solid #FC082B;
         }
         .admin-btn { 
             background-color: #ff6d00; color: white; padding: 5px 15px; 
@@ -222,6 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
+        <span class="streak-badge">Sequência: <?= (int)$streak_atual ?></span>
         <span class="saldo-badge me-2"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
     </div>
 </div>
