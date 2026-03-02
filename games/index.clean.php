@@ -315,6 +315,43 @@ try {
     $total_apostas_usuario = 0;
 }
 
+$flappy_pontos = 0;
+$pinguim_pontos = 0;
+$xadrez_vitorias = 0;
+$batalha_naval_vitorias = 0;
+
+try {
+    $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS recorde FROM flappy_historico WHERE id_usuario = ?");
+    $stmt->execute([$user_id]);
+    $flappy_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['recorde'] ?? 0);
+} catch (PDOException $e) {
+    $flappy_pontos = 0;
+}
+
+try {
+    $stmt = $pdo->prepare("SELECT MAX(pontuacao_final) AS recorde FROM dino_historico WHERE id_usuario = ?");
+    $stmt->execute([$user_id]);
+    $pinguim_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['recorde'] ?? 0);
+} catch (PDOException $e) {
+    $pinguim_pontos = 0;
+}
+
+try {
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total FROM xadrez_partidas WHERE vencedor = ? AND status = 'finalizada'");
+    $stmt->execute([$user_id]);
+    $xadrez_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $xadrez_vitorias = 0;
+}
+
+try {
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS total FROM naval_salas WHERE vencedor_id = ? AND status = 'fim'");
+    $stmt->execute([$user_id]);
+    $batalha_naval_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $batalha_naval_vitorias = 0;
+}
+
 try {
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as total
@@ -1046,6 +1083,39 @@ try {
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
+            <h6 class="section-title"><i class="bi bi-speedometer2"></i>Dashboard de Games</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
+                        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-rocket-takeoff me-2"></i>Pontos no Flappy</div>
+                        <div class="stat-value"><?= number_format($flappy_pontos, 0, ',', '.') ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-snow2 me-2"></i>Pontos no Pinguim</div>
+                        <div class="stat-value"><?= number_format($pinguim_pontos, 0, ',', '.') ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-flag-fill me-2"></i>Vitórias no Xadrez</div>
+                        <div class="stat-value"><?= $xadrez_vitorias ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-life-preserver me-2"></i>Vitórias na Batalha Naval</div>
+                        <div class="stat-value"><?= $batalha_naval_vitorias ?></div>
+                    </div>
+                </div>
+            </div>
             <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
             <div class="row g-3 mb-5">
                 <div class="col-6 col-md-4 col-lg-3">
