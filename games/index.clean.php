@@ -891,12 +891,6 @@ try {
         </div>
     <?php endif; ?>
 
-    <div class="d-flex justify-content-center mb-3">
-        <span class="saldo-badge">
-            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts
-        </span>
-    </div>
-
     <div class="tab-switch-wrapper">
         <ul class="nav tab-switch" role="tablist">
             <li class="nav-item" role="presentation">
