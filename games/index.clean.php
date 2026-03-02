@@ -707,17 +707,41 @@ try {
 
         .tab-switch {
             display: inline-flex;
+            justify-content: center;
+            align-items: center;
             background: #1e1e1e;
             border: 1px solid var(--border-dark);
             border-radius: 999px;
-            padding: 4px;
-            gap: 4px;
+            padding: 6px;
+            gap: 6px;
         }
 
         .tab-switch .nav-link {
             border-radius: 999px;
-            padding: 6px 14px;
-            font-size: 0.85rem;
+            padding: 8px 18px;
+            font-size: 1rem;
+            color: #fc082b;
+            font-weight: 700;
+        }
+
+        .tab-switch .nav-link.active {
+            color: #fff;
+        }
+
+        .tab-switch-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .ranking-section {
+            display: flex;
+            justify-content: center;
+        }
+
+        .ranking-section .row {
+            width: 100%;
+            max-width: 1100px;
         }
 
         .ranking-container {
@@ -850,8 +874,7 @@ try {
         </div>
     <?php endif; ?>
 
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
-        <h6 class="section-title mb-0"><i class="bi bi-columns-gap"></i>Painel</h6>
+    <div class="tab-switch-wrapper">
         <ul class="nav tab-switch" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="tab-apostas" data-bs-toggle="tab" data-bs-target="#tab-apostas-pane" type="button" role="tab">Apostas</button>
@@ -864,8 +887,13 @@ try {
 
     <div class="tab-content">
         <div class="tab-pane fade show active" id="tab-apostas-pane" role="tabpanel" aria-labelledby="tab-apostas">
-            <h6 class="section-title"><i class="bi bi-person-circle"></i>Dashboard de Apostas</h6>
             <div class="row g-3 mb-4">
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
+                        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
+                    </div>
+                </div>
                 <div class="col-12 col-md-4">
                     <div class="stat-card">
                         <div class="stat-label"><i class="bi bi-receipt me-2"></i>Apostas Feitas</div>
@@ -884,6 +912,29 @@ try {
                         <div class="stat-value"><?= number_format($media_acerto, 1, ',', '.') ?>%</div>
                     </div>
                 </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <a href="user/apostas.php" class="stat-card text-decoration-none">
+                        <div>
+                            <div class="stat-label"><i class="bi bi-ticket-perforated me-2"></i>Minhas apostas</div>
+                            <div class="stat-value" style="font-size: 1.1rem;">Acessar histórico</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-chevron-right"></i></div>
+                    </a>
+                </div>
+                <?php if (!empty($usuario['is_admin']) && $usuario['is_admin'] == 1): ?>
+                <div class="col-12 col-md-6">
+                    <a href="admin/dashboard.php" class="stat-card text-decoration-none">
+                        <div>
+                            <div class="stat-label"><i class="bi bi-gear me-2"></i>Admin</div>
+                            <div class="stat-value" style="font-size: 1.1rem;">Criar/gerenciar apostas</div>
+                        </div>
+                        <div class="stat-icon"><i class="bi bi-shield-lock"></i></div>
+                    </a>
+                </div>
+                <?php endif; ?>
             </div>
 
             <?php if(!empty($ultimos_eventos_abertos)): ?>
@@ -937,6 +988,7 @@ try {
             <?php endif; ?>
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking de Apostas</h6>
+            <div class="ranking-section">
             <div class="row g-3 mb-3">
                 <div class="col-12 col-lg-6">
                     <div class="ranking-card">
@@ -1009,6 +1061,7 @@ try {
                     </div>
                 </div>
             </div>
+            </div>
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
@@ -1073,6 +1126,7 @@ try {
             </div>
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
+            <div class="ranking-section">
             <div class="row g-3 mb-3">
                 <div class="col-12 col-lg-6">
                     <div class="ranking-card">
@@ -1122,6 +1176,7 @@ try {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
 
             <div class="text-center mb-4">
