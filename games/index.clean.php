@@ -734,15 +734,6 @@ try {
             margin-bottom: 20px;
         }
 
-        .ranking-section {
-            display: flex;
-            justify-content: center;
-        }
-
-        .ranking-section .row {
-            width: 100%;
-            max-width: 1100px;
-        }
 
         .ranking-container {
             display: grid;
@@ -836,28 +827,6 @@ try {
     </style>
 </head>
 <body>
-
-<div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
-    <a href="#" class="brand-name">🎮 FBA games</a>
-    <div class="d-flex align-items-center gap-3">
-        <div class="d-none d-md-flex align-items-center gap-2">
-            <div>
-                <span style="color: #999; font-size: 0.9rem;">Bem-vindo(a),</span>
-                <strong><?= htmlspecialchars($usuario['nome']) ?></strong>
-            </div>
-            <a href="/user/apostas.php" class="btn btn-sm btn-outline-light">Minhas apostas</a>
-        </div>
-        <?php if (!empty($usuario['is_admin']) && $usuario['is_admin'] == 1): ?>
-            <a href="admin/dashboard.php" class="admin-btn"><i class="bi bi-gear-fill me-1"></i> Admin</a>
-        <?php endif; ?>
-        <span class="saldo-badge">
-            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts
-        </span>
-        <a href="auth/logout.php" class="btn btn-sm btn-outline-danger border-0">
-            <i class="bi bi-box-arrow-right"></i>
-        </a>
-    </div>
-</div>
 
 <div class="container-main">
     <?php if($msg): ?>
@@ -988,7 +957,6 @@ try {
             <?php endif; ?>
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking de Apostas</h6>
-            <div class="ranking-section">
             <div class="row g-3 mb-3">
                 <div class="col-12 col-lg-6">
                     <div class="ranking-card">
@@ -1061,7 +1029,6 @@ try {
                     </div>
                 </div>
             </div>
-            </div>
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
@@ -1126,7 +1093,6 @@ try {
             </div>
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
-            <div class="ranking-section">
             <div class="row g-3 mb-3">
                 <div class="col-12 col-lg-6">
                     <div class="ranking-card">
@@ -1176,7 +1142,6 @@ try {
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
 
             <div class="text-center mb-4">
