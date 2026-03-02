@@ -1255,6 +1255,13 @@ try {
             </a>
         </div>
         <div class="col-6 col-md-4 col-lg-3">
+            <a href="games/index.php?game=tigrinho" class="game-card" style="--accent: #ff7043;">
+                <span class="game-icon">🐯</span>
+                <div class="game-title">Tigrinho</div>
+                <div class="game-subtitle">Fortune Tiger</div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-3">
             <a href="games/batalhanaval.php" class="game-card" style="--accent: #00bcd4;">
                 <span class="game-icon">⚔️</span>
                 <div class="game-title">Batalha Naval</div>
