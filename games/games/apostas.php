@@ -32,24 +32,15 @@ $erro_aposta = null;
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
     try {
         $opcao_id = isset($_POST['opcao_id']) ? (int)$_POST['opcao_id'] : 0;
-        $valor_aposta = isset($_POST['valor']) ? floatval($_POST['valor']) : 0;
+        $valor_aposta = 1;
         
-        if ($opcao_id <= 0 || $valor_aposta <= 0) {
+        if ($opcao_id <= 0) {
             throw new Exception("Dados inválidos fornecidos");
         }
 
         $pdo->beginTransaction();
 
-        // 1. Verifica saldo (PONTOS)
-        $stmtUser = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
-        $stmtUser->execute([':id' => $user_id]);
-        $user = $stmtUser->fetch(PDO::FETCH_ASSOC);
-
-        if (!$user || $user['pontos'] < $valor_aposta) {
-            throw new Exception("Saldo insuficiente! Seus pontos: " . ($user['pontos'] ?? 0));
-        }
-
-        // 2. Verifica se a aposta está aberta E PEGA A ODD ATUAL
+        // 1. Verifica se a aposta está aberta
         $stmtCheck = $pdo->prepare("
             SELECT e.id as evento_id, e.status, e.data_limite, o.odd
             FROM opcoes o 
@@ -80,11 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
             throw new Exception("Você já fez um palpite neste evento.");
         }
 
-        // 3. Desconta os pontos
-        $stmtDebit = $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id");
-        $stmtDebit->execute([':val' => $valor_aposta, ':id' => $user_id]);
-
-        // 4. Registra o palpite COM A ODD CONGELADA
+        // 2. Registra o palpite (aposta fixa por acerto)
         $stmtInsert = $pdo->prepare("
             INSERT INTO palpites (id_usuario, opcao_id, valor, odd_registrada, data_palpite) 
             VALUES (:uid, :oid, :val, :odd_fixa, NOW())
@@ -93,16 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
             ':uid' => $user_id, 
             ':oid' => $opcao_id, 
             ':val' => $valor_aposta,
-            ':odd_fixa' => $dados_aposta['odd']
+            ':odd_fixa' => 1
         ]);
-
-        // 5. Recalcula as odds para o PRÓXIMO apostador
-        recalcularOdds($pdo, $dados_aposta['evento_id']);
 
         $pdo->commit();
 
         // Volta para o painel com mensagem
-        header("Location: ../index.php?msg=" . urlencode("Aposta realizada com sucesso!"));
+    header("Location: ../index.php?msg=" . urlencode("Palpite realizado com sucesso!"));
         exit;
 
     } catch (Exception $e) {
@@ -281,25 +265,10 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             font-size: 0.95rem;
         }
 
-        .opcao-odd {
-            color: var(--accent-green);
-            font-weight: 800;
-            font-size: 1.5em;
-            display: block;
-            margin-bottom: 12px;
-            text-shadow: 0 0 5px rgba(252, 8, 43, 0.2);
-        }
-
         .form-aposta {
             display: flex;
             flex-direction: column;
             gap: 8px;
-        }
-
-        .input-group-sm input {
-            background-color: #2b2b2b;
-            border-color: #444;
-            color: #fff;
         }
 
         .btn-apostar {
@@ -444,6 +413,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
     <!-- SEÇÃO: APOSTAS DISPONÍVEIS -->
     <h6 class="section-title"><i class="bi bi-lightning-charge-fill"></i>Apostas Disponíveis</h6>
+    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>1 ponto</strong>.</p>
 
     <?php if(empty($eventos_disponiveis)): ?>
         <div class="empty-state">
@@ -470,14 +440,9 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                             <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
                             
                             <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
-                            <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
                             
                             <div class="form-aposta">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text bg-dark border-secondary text-secondary">pts</span>
-                                    <input type="number" name="valor" class="form-control" placeholder="Valor" min="1" required step="1">
-                                </div>
-                                <button type="submit" class="btn-apostar">APOSTAR</button>
+                                <button type="submit" class="btn-apostar">SELECIONAR VENCEDOR</button>
                             </div>
                         </form>
                     <?php endforeach; ?>
@@ -501,16 +466,13 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                     <tr>
                         <th class="ps-4">Data</th>
                         <th>Evento / Palpite</th>
-                        <th>Valor</th>
-                        <th>Odd</th>
-                        <th>Possível Ganho</th>
+                        <th>Recompensa</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach($historico_apostas as $aposta): ?>
                         <?php
-                            $odd_final = $aposta['odd_registrada'];
                             $status_badge = "status-aberta";
                             $status_texto = "<i class='bi bi-hourglass-split me-1'></i>Aberta";
                             $linha_class = "";
@@ -544,14 +506,8 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <strong class="text-white"><?= htmlspecialchars($aposta['evento_nome']) ?></strong><br>
                                 <small class="text-info"><?= htmlspecialchars($aposta['aposta_feita']) ?></small>
                             </td>
-                            <td class="fw-bold text-success bet-amount">
-                                <?= number_format($aposta['valor'], 0, ',', '.') ?> pts
-                            </td>
-                            <td class="text-info">
-                                <?= number_format($odd_final, 2) ?>x
-                            </td>
                             <td class="fw-bold">
-                                <?= number_format($aposta['valor'] * $odd_final, 0, ',', '.') ?> pts
+                                1 ponto
                             </td>
                             <td>
                                 <span class="badge badge-status <?= $status_badge ?> bet-status">

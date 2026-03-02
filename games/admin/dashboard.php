@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                 // 2. Busca palpites vencedores usando a ODD REGISTRADA NO MOMENTO DA APOSTA
                 // Nota: 'odd_registrada' é a coluna nova que você criou. Se não tiver, usa 'odd' da tabela opcoes como fallback inseguro.
-                $sqlPagamento = "SELECT id_usuario, valor, odd_registrada FROM palpites WHERE opcao_id = ?";
+                $sqlPagamento = "SELECT id_usuario FROM palpites WHERE opcao_id = ?";
                 $busca = $pdo->prepare($sqlPagamento);
                 $busca->execute([$vencedor_opcao_id]);
                 
@@ -144,11 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $payStmt = $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?");
 
                 while ($row = $busca->fetch(PDO::FETCH_ASSOC)) {
-                    // Usa a odd congelada. Se for nula (aposta antiga), usa 1.0 (ou trate como erro)
-                    $odd_final = $row['odd_registrada'] ?? 1.0;
-                    
-                    $premio = $row['valor'] * $odd_final;
-                    $payStmt->execute([$premio, $row['id_usuario']]);
+                    $payStmt->execute([1, $row['id_usuario']]);
                     $pagos++;
                 }
                 $pdo->commit();

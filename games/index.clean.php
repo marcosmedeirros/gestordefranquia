@@ -317,6 +317,27 @@ try {
 
 try {
     $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total
+        FROM palpites p
+        JOIN opcoes o ON p.opcao_id = o.id
+        JOIN eventos e ON o.evento_id = e.id
+        WHERE p.id_usuario = :uid
+          AND e.status = 'encerrada'
+          AND e.vencedor_opcao_id IS NOT NULL
+          AND e.vencedor_opcao_id = p.opcao_id
+    ");
+    $stmt->execute([':uid' => $user_id]);
+    $apostas_ganhas = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $apostas_ganhas = 0;
+}
+
+$media_acerto = $total_apostas_usuario > 0
+    ? round(($apostas_ganhas / $total_apostas_usuario) * 100, 1)
+    : 0;
+
+try {
+    $stmt = $pdo->prepare("
         SELECT DISTINCT o.evento_id
         FROM palpites p
         JOIN opcoes o ON p.opcao_id = o.id
@@ -673,6 +694,32 @@ try {
             filter: brightness(0) invert(1);
         }
 
+        .nav-tabs .nav-link {
+            color: #ccc;
+            border: 1px solid transparent;
+        }
+
+        .nav-tabs .nav-link.active {
+            color: #fff;
+            background-color: #1e1e1e;
+            border-color: var(--border-dark) var(--border-dark) transparent;
+        }
+
+        .tab-switch {
+            display: inline-flex;
+            background: #1e1e1e;
+            border: 1px solid var(--border-dark);
+            border-radius: 999px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .tab-switch .nav-link {
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+        }
+
         .ranking-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -803,88 +850,177 @@ try {
         </div>
     <?php endif; ?>
 
-    <h6 class="section-title"><i class="bi bi-person-circle"></i>Minhas Estatísticas</h6>
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
-                <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
-            </div>
-        </div>
-        <div class="col-12 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-activity me-2"></i>Apostas Ativas</div>
-                <div class="stat-value"><?= $minhas_apostas_abertas ?></div>
-            </div>
-        </div>
-        <div class="col-12 col-md-4">
-            <div class="stat-card">
-                <div class="stat-label"><i class="bi bi-receipt me-2"></i>Total de Apostas</div>
-                <div class="stat-value"><?= $total_apostas_usuario ?></div>
-            </div>
-        </div>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+        <h6 class="section-title mb-0"><i class="bi bi-columns-gap"></i>Painel</h6>
+        <ul class="nav tab-switch" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-apostas" data-bs-toggle="tab" data-bs-target="#tab-apostas-pane" type="button" role="tab">Apostas</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-games" data-bs-toggle="tab" data-bs-target="#tab-games-pane" type="button" role="tab">Games</button>
+            </li>
+        </ul>
     </div>
 
-    <?php if(!empty($ultimos_eventos_abertos)): ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
-        <div class="accordion" id="accordion-apostas">
-            <?php foreach($ultimos_eventos_abertos as $evento): ?>
-                <?php $evento_id = (int)$evento['id']; ?>
-                <div class="accordion-item bg-transparent border-0 mb-2">
-                    <h2 class="accordion-header" id="heading-<?= $evento_id ?>">
-                        <button class="accordion-button collapsed bg-dark text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<?= $evento_id ?>" aria-expanded="false" aria-controls="collapse-<?= $evento_id ?>">
-                            <div>
-                                <div class="evento-titulo mb-1"><?= htmlspecialchars($evento['nome']) ?></div>
-                                <small class="evento-data">
-                                    <i class="bi bi-clock-history me-1 text-warning"></i>
-                                    Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
-                                </small>
-                            </div>
-                        </button>
-                    </h2>
-                    <div id="collapse-<?= $evento_id ?>" class="accordion-collapse collapse" aria-labelledby="heading-<?= $evento_id ?>" data-bs-parent="#accordion-apostas">
-                        <div class="accordion-body card-evento">
-                            <div class="opcoes-grid">
-                                <?php $evento_bloqueado = in_array($evento_id, $eventos_apostados, true); ?>
-                                <?php foreach($evento['opcoes'] as $opcao): ?>
-                                    <div class="card-opcao">
-                                        <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
-                                        <span class="opcao-odd"><?= number_format($opcao['odd'], 2) ?>x</span>
-                                        <?php if ($evento_bloqueado): ?>
-                                            <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
-                                        <?php else: ?>
-                                            <form method="POST" action="games/apostas.php" class="bet-inline">
-                                                <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                                                <input type="number" name="valor" class="form-control form-control-sm" placeholder="Valor" min="1" step="1" required>
-                                                <button type="submit" class="btn btn-sm btn-outline-success" style="font-size: 0.8rem;">Apostar</button>
-                                            </form>
-                                        <?php endif; ?>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-apostas-pane" role="tabpanel" aria-labelledby="tab-apostas">
+            <h6 class="section-title"><i class="bi bi-person-circle"></i>Dashboard de Apostas</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-receipt me-2"></i>Apostas Feitas</div>
+                        <div class="stat-value"><?= $total_apostas_usuario ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-trophy me-2"></i>Apostas Ganhas</div>
+                        <div class="stat-value"><?= $apostas_ganhas ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-label"><i class="bi bi-bullseye me-2"></i>Média de Acerto</div>
+                        <div class="stat-value"><?= number_format($media_acerto, 1, ',', '.') ?>%</div>
+                    </div>
+                </div>
+            </div>
+
+            <?php if(!empty($ultimos_eventos_abertos)): ?>
+                <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
+                <p class="text-secondary">Selecione o vencedor. Se acertar, você ganha <strong>1 ponto</strong>.</p>
+                <div class="accordion" id="accordion-apostas">
+                    <?php foreach($ultimos_eventos_abertos as $evento): ?>
+                        <?php $evento_id = (int)$evento['id']; ?>
+                        <div class="accordion-item bg-transparent border-0 mb-2">
+                            <h2 class="accordion-header" id="heading-<?= $evento_id ?>">
+                                <button class="accordion-button collapsed bg-dark text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<?= $evento_id ?>" aria-expanded="false" aria-controls="collapse-<?= $evento_id ?>">
+                                    <div>
+                                        <div class="evento-titulo mb-1"><?= htmlspecialchars($evento['nome']) ?></div>
+                                        <small class="evento-data">
+                                            <i class="bi bi-clock-history me-1 text-warning"></i>
+                                            Encerra em: <?= date('d/m/Y às H:i', strtotime($evento['data_limite'])) ?>
+                                        </small>
                                     </div>
-                                <?php endforeach; ?>
+                                </button>
+                            </h2>
+                            <div id="collapse-<?= $evento_id ?>" class="accordion-collapse collapse" aria-labelledby="heading-<?= $evento_id ?>" data-bs-parent="#accordion-apostas">
+                                <div class="accordion-body card-evento">
+                                    <div class="opcoes-grid">
+                                        <?php $evento_bloqueado = in_array($evento_id, $eventos_apostados, true); ?>
+                                        <?php foreach($evento['opcoes'] as $opcao): ?>
+                                            <div class="card-opcao">
+                                                <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
+                                                <?php if ($evento_bloqueado): ?>
+                                                    <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
+                                                <?php else: ?>
+                                                    <form method="POST" action="games/apostas.php" class="bet-inline">
+                                                        <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success w-100" style="font-size: 0.8rem;">Selecionar vencedor</button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                    <div class="empty-text">Nenhum evento disponível no momento</div>
+                </div>
+            <?php endif; ?>
+
+            <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking de Apostas</h6>
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-lg-6">
+                    <div class="ranking-card">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos)</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="form-check form-switch small text-secondary m-0">
+                                    <input class="form-check-input" type="checkbox" id="acertosLast24hToggle">
+                                    <label class="form-check-label" for="acertosLast24hToggle">Últimas 24h</label>
+                                </div>
+                                <select class="form-select form-select-sm w-auto" data-league-filter="acertos">
+                                    <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
+                                        <option value="<?= htmlspecialchars($leagueKey) ?>">
+                                            <?= htmlspecialchars($leagueLabel) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="ranking-list" data-ranking-list="acertos">
+                            <?php foreach ($ranking_acertos as $leagueKey => $rankingList): ?>
+                                <?php if (empty($rankingList)): ?>
+                                    <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
+                                        <small class="text-secondary">Sem dados ainda</small>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($rankingList as $idx => $jogador): ?>
+                                        <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
+                                            <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                                <span class="ranking-name">
+                                                    <?= htmlspecialchars($jogador['nome']) ?>
+                                                    <?php if (!empty($jogador['league'])): ?>
+                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </div>
+                                            <span class="ranking-value">
+                                                <?= (int)$jogador['acertos'] ?> acertos
+                                            </span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                            <?php foreach ($ranking_acertos_24h as $leagueKey => $rankingList): ?>
+                                <?php if (empty($rankingList)): ?>
+                                    <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
+                                        <small class="text-secondary">Sem dados nas últimas 24h</small>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($rankingList as $idx => $jogador): ?>
+                                        <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
+                                            <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                                <span class="ranking-name">
+                                                    <?= htmlspecialchars($jogador['nome']) ?>
+                                                    <?php if (!empty($jogador['league'])): ?>
+                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </div>
+                                            <span class="ranking-value">
+                                                <?= (int)$jogador['acertos'] ?> acertos
+                                            </span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
-            <?php endforeach; ?>
+            </div>
         </div>
-    <?php else: ?>
-        <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
-        <div class="empty-state">
-            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-            <div class="empty-text">Nenhum evento disponível no momento</div>
-        </div>
-    <?php endif; ?>
 
-    <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
-    <div class="row g-3 mb-5">
-        <div class="col-6 col-md-4 col-lg-3">
-            <a href="games/index.php?game=flappy" class="game-card" style="--accent: #ff9800;">
-                <span class="game-icon">🐦</span>
-                <div class="game-title">Flappy Bird</div>
-                <div class="game-subtitle">Desvie dos canos</div>
-            </a>
-        </div>
+        <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
+            <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
+            <div class="row g-3 mb-5">
+                <div class="col-6 col-md-4 col-lg-3">
+                    <a href="games/index.php?game=flappy" class="game-card" style="--accent: #ff9800;">
+                        <span class="game-icon">🐦</span>
+                        <div class="game-title">Flappy Bird</div>
+                        <div class="game-subtitle">Desvie dos canos</div>
+                    </a>
+                </div>
         <div class="col-6 col-md-4 col-lg-3">
             <a href="games/index.php?game=pinguim" class="game-card" style="--accent: #29b6f6;">
                 <span class="game-icon">🐧</span>
@@ -934,150 +1070,64 @@ try {
                 <div class="game-subtitle">Desafio multiplayer</div>
             </a>
         </div>
-    </div>
-
-    <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-6">
-            <div class="ranking-card">
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Pontos)</div>
-                    <select class="form-select form-select-sm w-auto" data-league-filter="points">
-                        <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
-                            <option value="<?= htmlspecialchars($leagueKey) ?>">
-                                <?= htmlspecialchars($leagueLabel) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="ranking-list" data-ranking-list="points">
-                    <?php foreach ($ranking_points as $leagueKey => $rankingList): ?>
-                        <?php if (empty($rankingList)): ?>
-                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>">
-                                <small class="text-secondary">Sem dados ainda</small>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($rankingList as $idx => $jogador): ?>
-                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>">
-                                    <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                    <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                        <span class="ranking-name">
-                                            <?= htmlspecialchars($jogador['nome']) ?>
-                                            <?php if (!empty($jogador['league'])): ?>
-                                                <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
-                                                ?>
-                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <span class="ranking-value">
-                                        <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </div>
             </div>
-        </div>
 
-        <div class="col-12 col-lg-6">
-            <div class="ranking-card">
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos de Apostas)</div>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="form-check form-switch small text-secondary m-0">
-                            <input class="form-check-input" type="checkbox" id="acertosLast24hToggle">
-                            <label class="form-check-label" for="acertosLast24hToggle">Últimas 24h</label>
+            <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-lg-6">
+                    <div class="ranking-card">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Pontos)</div>
+                            <select class="form-select form-select-sm w-auto" data-league-filter="points">
+                                <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
+                                    <option value="<?= htmlspecialchars($leagueKey) ?>">
+                                        <?= htmlspecialchars($leagueLabel) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
-                        <select class="form-select form-select-sm w-auto" data-league-filter="acertos">
-                            <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
-                                <option value="<?= htmlspecialchars($leagueKey) ?>">
-                                    <?= htmlspecialchars($leagueLabel) ?>
-                                </option>
+                        <div class="ranking-list" data-ranking-list="points">
+                            <?php foreach ($ranking_points as $leagueKey => $rankingList): ?>
+                                <?php if (empty($rankingList)): ?>
+                                    <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>">
+                                        <small class="text-secondary">Sem dados ainda</small>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($rankingList as $idx => $jogador): ?>
+                                        <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>">
+                                            <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
+                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                                <span class="ranking-name">
+                                                    <?= htmlspecialchars($jogador['nome']) ?>
+                                                    <?php if (!empty($jogador['league'])): ?>
+                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                                        <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                                            $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                                            $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+                                                        ?>
+                                                            <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
+                                                        <?php endforeach; ?>
+                                                    <?php endif; ?>
+                                                </span>
+                                            </div>
+                                            <span class="ranking-value">
+                                                <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                                            </span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             <?php endforeach; ?>
-                        </select>
+                        </div>
                     </div>
                 </div>
-                <div class="ranking-list" data-ranking-list="acertos">
-                    <?php foreach ($ranking_acertos as $leagueKey => $rankingList): ?>
-                        <?php if (empty($rankingList)): ?>
-                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
-                                <small class="text-secondary">Sem dados ainda</small>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($rankingList as $idx => $jogador): ?>
-                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
-                                    <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                    <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                        <span class="ranking-name">
-                                            <?= htmlspecialchars($jogador['nome']) ?>
-                                            <?php if (!empty($jogador['league'])): ?>
-                                                <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
-                                                ?>
-                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <span class="ranking-value">
-                                        <?= (int)$jogador['acertos'] ?> acertos
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                    <?php foreach ($ranking_acertos_24h as $leagueKey => $rankingList): ?>
-                        <?php if (empty($rankingList)): ?>
-                            <div class="text-center py-3" data-ranking-empty="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
-                                <small class="text-secondary">Sem dados nas últimas 24h</small>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($rankingList as $idx => $jogador): ?>
-                                <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
-                                    <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                    <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
-                                        <span class="ranking-name">
-                                            <?= htmlspecialchars($jogador['nome']) ?>
-                                            <?php if (!empty($jogador['league'])): ?>
-                                                <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                                    $icon = $bestGameIcons[$gameLabel] ?? '⭐';
-                                                ?>
-                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <span class="ranking-value">
-                                        <?= (int)$jogador['acertos'] ?> acertos
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </div>
+            </div>
+
+            <div class="text-center mb-4">
+                <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
             </div>
         </div>
-    </div>
-
-
-    <div class="text-center mb-4">
-        <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
     </div>
 </div>
 
@@ -1126,6 +1176,11 @@ try {
     });
 
     ['points', 'acertos'].forEach(applyRankingFilter);
+
+    const apostaTabButton = document.getElementById('tab-apostas');
+    if (apostaTabButton) {
+        new bootstrap.Tab(apostaTabButton).show();
+    }
 </script>
 
 </body>
