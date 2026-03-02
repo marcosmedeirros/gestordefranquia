@@ -363,7 +363,7 @@ async function loadExistingDirective() {
       
       // Preencher estilos (selects)
       ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 'defensive_focus',
-       'rotation_style', 'game_style', 'offense_style', 'rotation_players'].forEach(field => {
+       'rotation_style', 'game_style', 'offense_style', 'rotation_players', 'technical_model'].forEach(field => {
         const select = document.querySelector(`select[name="${field}"]`);
         if (select && d[field]) {
           select.value = d[field];
@@ -390,6 +390,12 @@ async function loadExistingDirective() {
       const notesField = document.querySelector('textarea[name="notes"]');
       if (notesField && d.notes) {
         notesField.value = d.notes;
+      }
+
+      // Preencher playbook (Elite)
+      const playbookField = document.querySelector('textarea[name="playbook"]');
+      if (playbookField && d.playbook) {
+        playbookField.value = d.playbook;
       }
       
       // Render e preencher minutagem dos jogadores (após selects definidos)
@@ -577,6 +583,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     gleague_1_id: gleague1 ? parseInt(gleague1) : null,
     gleague_2_id: gleague2 ? parseInt(gleague2) : null,
     notes: fd.get('notes'),
+    technical_model: fd.get('technical_model') || null,
+    playbook: fd.get('playbook') || null,
     player_minutes: playerMinutes
   };
 

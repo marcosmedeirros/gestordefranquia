@@ -499,8 +499,10 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(t.ranking_points, 0) as total_points,
-                            {$titlesSelect}
+                            {$titlesSelect},
+                            u.name as owner_name
                         FROM teams t
+                        LEFT JOIN users u ON u.id = t.user_id
                         LEFT JOIN (
                             SELECT champion_team_id as team_id, COUNT(*) as total_titles
                             FROM season_history
@@ -509,7 +511,7 @@ try {
                         ) titles ON titles.team_id = t.id";
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
-                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name
                           ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
@@ -520,8 +522,10 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(SUM(trp.total_points), 0) as total_points,
-                            {$titlesSelect}
+                            {$titlesSelect},
+                            u.name as owner_name
                         FROM teams t
+                        LEFT JOIN users u ON u.id = t.user_id
                         LEFT JOIN team_ranking_points trp ON trp.team_id = t.id
                         LEFT JOIN (
                             SELECT champion_team_id as team_id, COUNT(*) as total_titles
@@ -531,7 +535,7 @@ try {
                         ) titles ON titles.team_id = t.id";
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
-                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_titles
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_titles, owner_name
                           ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
@@ -542,8 +546,10 @@ try {
                             CONCAT(t.city, ' ', t.name) as team_name,
                             t.league,
                             COALESCE(points.total_points, 0) as total_points,
-                            {$titlesSelect}
+                            {$titlesSelect},
+                            u.name as owner_name
                         FROM teams t
+                        LEFT JOIN users u ON u.id = t.user_id
                         LEFT JOIN (
                             SELECT team_id, SUM(points) as total_points
                             FROM team_season_points
@@ -557,7 +563,7 @@ try {
                         ) titles ON titles.team_id = t.id";
                 $params = [];
                 if ($league) { $sql .= " WHERE t.league = ?"; $params[] = $league; }
-                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles
+                $sql .= " GROUP BY t.id, t.city, t.name, t.league, total_points, total_titles, owner_name
                           ORDER BY t.league, total_points DESC, total_titles DESC, t.city, t.name";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);

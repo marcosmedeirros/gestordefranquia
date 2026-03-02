@@ -287,9 +287,40 @@ try {
                                 <option value="shoot_at_will">Shoot at Will</option>
                             </select>
                         </div>
+                        <?php if (($team['league'] ?? '') === 'ELITE'): ?>
+                        <div class="col-md-6">
+                            <label class="form-label text-white">Modelo técnico</label>
+                            <select class="form-select bg-dark text-white border-orange" name="technical_model">
+                                <option value="">Selecione...</option>
+                                <option value="FBA 14">FBA 14</option>
+                                <option value="Michael Stauffer">Michael Stauffer</option>
+                                <option value="Joe Mazzulla">Joe Mazzulla</option>
+                                <option value="Mark Daigneault">Mark Daigneault</option>
+                                <option value="Greg Popovich">Greg Popovich</option>
+                                <option value="Phil Jackson">Phil Jackson</option>
+                                <option value="Steve Kerr">Steve Kerr</option>
+                                <option value="Rick Carlisle">Rick Carlisle</option>
+                                <option value="Erik Spoelstra">Erik Spoelstra</option>
+                                <option value="Mike D'Antoni">Mike D'Antoni</option>
+                            </select>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
+
+            <?php if (($team['league'] ?? '') === 'ELITE'): ?>
+            <!-- Playbook (Elite) -->
+            <div class="card bg-dark-panel border-orange mb-4">
+                <div class="card-header bg-transparent border-orange">
+                    <h5 class="text-white mb-0"><i class="bi bi-journal-text me-2"></i>Playbook</h5>
+                </div>
+                <div class="card-body">
+                    <label class="form-label text-white">Playbook (descreva as jogadas)</label>
+                    <textarea class="form-control bg-dark text-white border-orange" name="playbook" rows="4" placeholder="Descreva o playbook do time..."></textarea>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Configurações Defensivas -->
             <div class="card bg-dark-panel border-orange mb-4">

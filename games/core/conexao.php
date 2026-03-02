@@ -1,6 +1,9 @@
 <?php
 // core/conexao.php
 
+// Garantir que as funções de data usem o fuso horário de Brasília
+date_default_timezone_set('America/Sao_Paulo');
+
 $host = 'localhost';
 $dbname = 'u289267434_gamesfba';
 $user = 'u289267434_gamesfba';

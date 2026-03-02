@@ -435,6 +435,10 @@ if ($method === 'POST') {
             try {
                 $pdo->beginTransaction();
 
+                $isElite = strtoupper($team['league'] ?? '') === 'ELITE';
+                $technicalModel = $isElite ? ($data['technical_model'] ?? null) : null;
+                $playbook = $isElite ? ($data['playbook'] ?? null) : null;
+
                 // Verificar se já existe diretriz para este prazo
                 $stmtCheck = $pdo->prepare('SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ?');
                 $stmtCheck->execute([$team['id'], $deadlineId]);
@@ -449,7 +453,7 @@ if ($method === 'POST') {
                             rotation_style = ?, game_style = ?, offense_style = ?,
                             rotation_players = ?, veteran_focus = ?,
                             gleague_1_id = ?, gleague_2_id = ?,
-                            notes = ?, updated_at = NOW()
+                            notes = ?, technical_model = ?, playbook = ?, updated_at = NOW()
                         WHERE id = ?
                     ");
                     $stmt->execute([
@@ -460,6 +464,8 @@ if ($method === 'POST') {
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null,
+                        $technicalModel,
+                        $playbook,
                         $existing['id']
                     ]);
                 } else {
@@ -471,8 +477,9 @@ if ($method === 'POST') {
                             pace, offensive_rebound, offensive_aggression, defensive_rebound, defensive_focus,
                             rotation_style, game_style, offense_style,
                             rotation_players, veteran_focus,
-                            gleague_1_id, gleague_2_id, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            gleague_1_id, gleague_2_id, notes,
+                            technical_model, playbook
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $team['id'], $deadlineId,
@@ -482,7 +489,9 @@ if ($method === 'POST') {
                         $data['rotation_style'] ?? 'auto', $data['game_style'] ?? 'balanced', $data['offense_style'] ?? 'no_preference',
                         $data['rotation_players'] ?? 10, $data['veteran_focus'] ?? 50,
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
-                        $data['notes'] ?? null
+                        $data['notes'] ?? null,
+                        $technicalModel,
+                        $playbook
                     ]);
                 }
 

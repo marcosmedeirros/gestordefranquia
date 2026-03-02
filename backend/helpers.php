@@ -372,6 +372,24 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
     }
 
     try {
+        $hasTechnicalModel = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'technical_model'")->rowCount() > 0;
+        if (!$hasTechnicalModel) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN technical_model VARCHAR(60) NULL COMMENT 'Modelo técnico (Elite)' AFTER gleague_2_id");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] technical_model: ' . $e->getMessage());
+    }
+
+    try {
+        $hasPlaybook = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'playbook'")->rowCount() > 0;
+        if (!$hasPlaybook) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN playbook TEXT NULL COMMENT 'Playbook (Elite)' AFTER technical_model");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] playbook: ' . $e->getMessage());
+    }
+
+    try {
         $fks = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'team_directives' AND REFERENCED_TABLE_NAME = 'players' AND COLUMN_NAME = 'gleague_1_id'")->rowCount();
         if ($fks === 0) {
             $pdo->exec("ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague1 FOREIGN KEY (gleague_1_id) REFERENCES players(id) ON DELETE SET NULL");

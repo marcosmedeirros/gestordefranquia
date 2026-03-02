@@ -238,6 +238,7 @@ $team = $stmtTeam->fetch();
                         </td>
                         <td>
                           <span class="fw-bold text-white" style="font-size: 0.9rem;">${team.team_name}</span>
+                          ${team.owner_name ? `<small class="d-block text-light-gray">GM: ${team.owner_name}</small>` : ''}
                           <small class="d-md-none d-block text-light-gray">${team.league}</small>
                         </td>
                         <td class="hide-mobile"><span class="badge bg-gradient-orange">${team.league}</span></td>
