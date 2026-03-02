@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 
 session_start();
 require '../core/conexao.php';
-require '../core/funcoes.php'; // Traz a função recalcularOdds()
+require '../core/funcoes.php';
 
 // --- 1. SEGURANÇA ---
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
@@ -29,8 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_evento') {
         $nome_evento = trim($_POST['nome_evento']);
         $data_limite = $_POST['data_limite'];
-        $opcoes_nomes = $_POST['opcoes_nomes']; 
-        $opcoes_odds  = $_POST['opcoes_odds'];
+    $opcoes_nomes = $_POST['opcoes_nomes']; 
 
         if (empty($nome_evento) || empty($data_limite) || count(array_filter($opcoes_nomes)) < 2) {
             $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'><i class='bi bi-exclamation-triangle me-2'></i>Preencha dados obrigatórios (mínimo 2 opções).</div>";
@@ -43,15 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite]);
                 $evento_id = $pdo->lastInsertId();
 
-                $sqlOpcao = "INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, :odd)";
+                $sqlOpcao = "INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)";
                 $stmtOpcao = $pdo->prepare($sqlOpcao);
 
                 for ($i = 0; $i < count($opcoes_nomes); $i++) {
                     if (!empty($opcoes_nomes[$i])) {
                         $stmtOpcao->execute([
                             ':eid' => $evento_id, 
-                            ':desc' => $opcoes_nomes[$i], 
-                            ':odd' => $opcoes_odds[$i]
+                            ':desc' => $opcoes_nomes[$i]
                         ]);
                     }
                 }
@@ -72,27 +70,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         $op_ids   = $_POST['opcoes_ids'] ?? []; 
         $op_nomes = $_POST['opcoes_nomes'];
-        $op_odds  = $_POST['opcoes_odds'];
-
         try {
             $pdo->beginTransaction();
 
             $stmt = $pdo->prepare("UPDATE eventos SET nome = :nome, data_limite = :data WHERE id = :id");
             $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite, ':id' => $id_evento]);
 
-            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao = :desc, odd = :odd WHERE id = :oid AND evento_id = :eid");
-            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, :odd)");
+            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao = :desc WHERE id = :oid AND evento_id = :eid");
+            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)");
 
             for ($i = 0; $i < count($op_nomes); $i++) {
                 $nome = trim($op_nomes[$i]);
-                $odd  = $op_odds[$i];
                 $oid  = $op_ids[$i] ?? '';
 
                 if (!empty($nome)) {
                     if (!empty($oid)) {
-                        $stmtUpd->execute([':desc' => $nome, ':odd' => $odd, ':oid' => $oid, ':eid' => $id_evento]);
+                        $stmtUpd->execute([':desc' => $nome, ':oid' => $oid, ':eid' => $id_evento]);
                     } else {
-                        $stmtIns->execute([':eid' => $id_evento, ':desc' => $nome, ':odd' => $odd]);
+                        $stmtIns->execute([':eid' => $id_evento, ':desc' => $nome]);
                     }
                 }
             }
@@ -105,19 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    // C. RECALCULAR ODDS (MANUAL)
-    if (isset($_POST['acao']) && $_POST['acao'] == 'recalcular_odds') {
-        $id_evento = $_POST['id_evento'];
-        try {
-            if (recalcularOdds($pdo, $id_evento)) {
-                 $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-calculator me-2'></i>Odds balanceadas com sucesso!</div>";
-            } else {
-                 $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'>Não foi possível recalcular (verifique se há opções).</div>";
-            }
-        } catch (Exception $e) {
-            $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
-        }
-    }
 
     // D. ENCERRAR EVENTO E PAGAR (CORRIGIDO PARA ODD CONGELADA ❄️)
     if (isset($_POST['acao']) && $_POST['acao'] == 'encerrar_evento') {
@@ -166,8 +148,7 @@ $eventos = $stmtEventos->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($eventos as $key => $evt) {
     $sqlOpcoes = "SELECT o.*, 
-                 (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id = o.id) as total_palpites,
-                 (SELECT SUM(valor) FROM palpites p WHERE p.opcao_id = o.id) as total_valor
+                 (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id = o.id) as total_palpites
                  FROM opcoes o WHERE o.evento_id = ?";
     
     $stmtOpcoes = $pdo->prepare($sqlOpcoes);
@@ -254,7 +235,7 @@ foreach ($eventos as $key => $evt) {
         .nav-pills .nav-link:hover { color: #fff; background-color: #333; }
     .nav-pills .nav-link.active { background-color: #FC082B; color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(252, 8, 43, 0.4); }
         
-        /* Badges de Odds */
+        /* Badges de Opções */
         .badge-odd { 
             background-color: #2b2b2b; 
             border: 1px solid #444; 
@@ -315,12 +296,10 @@ foreach ($eventos as $key => $evt) {
                             <div class="input-group mb-2">
                                 <input type="hidden" name="opcoes_ids[]" value="">
                                 <input type="text" name="opcoes_nomes[]" class="form-control" placeholder="Nome (Ex: Time A)" required>
-                                <input type="number" step="0.01" name="opcoes_odds[]" class="form-control text-center" placeholder="Odd" style="max-width: 90px;" required>
                             </div>
                             <div class="input-group mb-2">
                                 <input type="hidden" name="opcoes_ids[]" value="">
                                 <input type="text" name="opcoes_nomes[]" class="form-control" placeholder="Nome (Ex: Time B)" required>
-                                <input type="number" step="0.01" name="opcoes_odds[]" class="form-control text-center" placeholder="Odd" style="max-width: 90px;" required>
                             </div>
                         </div>
 
@@ -400,19 +379,12 @@ foreach ($eventos as $key => $evt) {
                                     if($evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id']) {
                                         $classe = "badge-winner";
                                     }
-                                    $volume = $op['total_valor'] ?? 0;
                                 ?>
                                 <div class="badge badge-odd <?= $classe ?> d-flex flex-column align-items-start text-start" style="min-width: 130px;">
                                     <div class="d-flex w-100 justify-content-between align-items-center mb-1">
                                         <span class="fw-normal"><?= htmlspecialchars($op['descricao']) ?></span>
                                         <?php if($evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id']): ?>
                                             <i class="bi bi-check-circle-fill text-success"></i>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="d-flex w-100 justify-content-between align-items-center">
-                                        <strong class="fs-5 text-warning"><?= number_format($op['odd'], 2) ?></strong>
-                                        <?php if($volume > 0): ?>
-                                            <small class="text-secondary" style="font-size: 0.7em;">$<?= number_format($volume, 0, ',', '.') ?></small>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -448,13 +420,12 @@ foreach ($eventos as $key => $evt) {
 </div>
 
 <script>
-function addCampo(id = '', nome = '', odd = '') {
+function addCampo(id = '', nome = '') {
     const div = document.createElement('div');
     div.className = 'input-group mb-2';
     div.innerHTML = `
         <input type="hidden" name="opcoes_ids[]" value="${id}">
         <input type="text" name="opcoes_nomes[]" class="form-control" value="${nome}" placeholder="Nome da Opção" required>
-        <input type="number" step="0.01" name="opcoes_odds[]" class="form-control text-center" value="${odd}" placeholder="Odd" style="max-width: 90px;" required>
         <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()"><i class="bi bi-x-lg"></i></button>
     `;
     document.getElementById('container-opcoes').appendChild(div);
@@ -479,7 +450,7 @@ function prepararEdicao(evento) {
     container.innerHTML = ''; 
 
     evento.opcoes.forEach(op => {
-        addCampo(op.id, op.descricao, op.odd);
+        addCampo(op.id, op.descricao);
     });
 
     document.getElementById('cardFormulario').scrollIntoView({ behavior: 'smooth' });

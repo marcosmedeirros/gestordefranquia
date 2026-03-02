@@ -278,7 +278,7 @@ try {
 
     $ultimos_eventos_abertos = $eventos_abertos; // exibir todas as apostas ativas
     foreach ($ultimos_eventos_abertos as &$evento) {
-        $stmtOpcoes = $pdo->prepare("SELECT id, descricao, odd FROM opcoes WHERE evento_id = :eid ORDER BY id ASC");
+    $stmtOpcoes = $pdo->prepare("SELECT id, descricao FROM opcoes WHERE evento_id = :eid ORDER BY id ASC");
         $stmtOpcoes->execute([':eid' => $evento['id']]);
         $evento['opcoes'] = $stmtOpcoes->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -338,16 +338,21 @@ $media_acerto = $total_apostas_usuario > 0
 
 try {
     $stmt = $pdo->prepare("
-        SELECT DISTINCT o.evento_id
+        SELECT o.evento_id, p.opcao_id
         FROM palpites p
         JOIN opcoes o ON p.opcao_id = o.id
         WHERE p.id_usuario = :uid
     ");
     $stmt->execute([':uid' => $user_id]);
-    $eventos_apostados = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
-    $eventos_apostados = array_map('intval', $eventos_apostados);
+    $eventos_apostados = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $aposta_por_evento = [];
+    foreach ($eventos_apostados as $row) {
+        $aposta_por_evento[(int)$row['evento_id']] = (int)$row['opcao_id'];
+    }
+    $eventos_apostados = array_map('intval', array_keys($aposta_por_evento));
 } catch (PDOException $e) {
     $eventos_apostados = [];
+    $aposta_por_evento = [];
 }
 
 try {
@@ -647,6 +652,12 @@ try {
             background: #2b2b2b;
         }
 
+        .card-opcao.picked {
+            border-color: #fc082b;
+            background: rgba(252, 8, 43, 0.15);
+            box-shadow: 0 0 12px rgba(252, 8, 43, 0.25);
+        }
+
         .opcao-nome {
             font-weight: 600;
             color: #eee;
@@ -720,12 +731,12 @@ try {
             border-radius: 999px;
             padding: 8px 18px;
             font-size: 1rem;
-            color: #fc082b;
+            color: #e0e0e0;
             font-weight: 700;
         }
 
         .tab-switch .nav-link.active {
-            color: #fff;
+            color: #fc082b;
         }
 
         .tab-switch-wrapper {
@@ -843,6 +854,12 @@ try {
         </div>
     <?php endif; ?>
 
+    <div class="d-flex justify-content-center mb-3">
+        <span class="saldo-badge">
+            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts
+        </span>
+    </div>
+
     <div class="tab-switch-wrapper">
         <ul class="nav tab-switch" role="tablist">
             <li class="nav-item" role="presentation">
@@ -857,12 +874,6 @@ try {
     <div class="tab-content">
         <div class="tab-pane fade show active" id="tab-apostas-pane" role="tabpanel" aria-labelledby="tab-apostas">
             <div class="row g-3 mb-4">
-                <div class="col-12 col-md-4">
-                    <div class="stat-card">
-                        <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
-                        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
-                    </div>
-                </div>
                 <div class="col-12 col-md-4">
                     <div class="stat-card">
                         <div class="stat-label"><i class="bi bi-receipt me-2"></i>Apostas Feitas</div>
@@ -929,10 +940,13 @@ try {
                                     <div class="opcoes-grid">
                                         <?php $evento_bloqueado = in_array($evento_id, $eventos_apostados, true); ?>
                                         <?php foreach($evento['opcoes'] as $opcao): ?>
-                                            <div class="card-opcao">
+                                            <?php $isPicked = !empty($aposta_por_evento[$evento_id]) && (int)$aposta_por_evento[$evento_id] === (int)$opcao['id']; ?>
+                                            <div class="card-opcao <?= $isPicked ? 'picked' : '' ?>">
                                                 <span class="opcao-nome"><?= htmlspecialchars($opcao['descricao']) ?></span>
                                                 <?php if ($evento_bloqueado): ?>
-                                                    <div class="text-secondary" style="font-size: 0.8rem;">Você já apostou</div>
+                                                    <div class="text-secondary" style="font-size: 0.8rem;">
+                                                        <?= $isPicked ? 'Seu palpite' : 'Você já apostou' ?>
+                                                    </div>
                                                     <button type="button" class="btn btn-sm btn-outline-secondary w-100" style="font-size: 0.8rem;" disabled>Apostado</button>
                                                 <?php else: ?>
                                                     <form method="POST" action="games/apostas.php" class="bet-inline">
@@ -958,7 +972,7 @@ try {
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking de Apostas</h6>
             <div class="row g-3 mb-3">
-                <div class="col-12 col-lg-6">
+                <div class="col-12">
                     <div class="ranking-card">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos)</div>
@@ -1094,7 +1108,7 @@ try {
 
             <h6 class="section-title"><i class="bi bi-trophy"></i>Rankings Gerais</h6>
             <div class="row g-3 mb-3">
-                <div class="col-12 col-lg-6">
+                <div class="col-12">
                     <div class="ranking-card">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Pontos)</div>
