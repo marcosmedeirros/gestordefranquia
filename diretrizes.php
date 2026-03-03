@@ -298,6 +298,7 @@ try {
                             <label class="form-label text-white">Modelo técnico</label>
                             <select class="form-select bg-dark text-white border-orange" name="technical_model">
                                 <option value="">Selecione...</option>
+                                <option value="HC">HC</option>
                                 <option value="FBA 14">FBA 14</option>
                                 <option value="Michael Stauffer">Michael Stauffer</option>
                                 <option value="Joe Mazzulla">Joe Mazzulla</option>

@@ -1331,6 +1331,7 @@ async function showDirectives() {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
+ {
     const data = await api('diretrizes.php?action=list_deadlines_admin');
     const deadlines = data.deadlines || [];
     
@@ -1631,14 +1632,14 @@ async function viewDirectives(deadlineId, league) {
                 <div class="card-body">
                   <div class="row">
                     <div class="col-md-6">
-                      <h6 class="text-orange">Quinteto Titular</h6>
-                      <ul class="text-light-gray">
+                      <h6 class="text-orange mb-2">Quinteto Titular</h6>
+                      <ul class="text-light-gray small">
                         ${starters}
                       </ul>
                     </div>
                     <div class="col-md-6">
-                      <h6 class="text-orange">Banco (${benchItems.length} jogadores)</h6>
-                      <ul class="text-light-gray">
+                      <h6 class="text-orange mb-2">Banco (${benchItems.length} jogadores)</h6>
+                      <ul class="text-light-gray small">
                         ${bench}
                       </ul>
                     </div>
@@ -1662,6 +1663,13 @@ async function viewDirectives(deadlineId, league) {
                         <div class="col-md-3">Defensive Focus: ${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</div>
                       </div>
                     </div>
+                    ${(d.technical_model || d.playbook) ? `<div class="col-12 mt-3">
+                      <h6 class="text-orange">Elite</h6>
+                      <div class="row text-light-gray small">
+                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${d.technical_model}</div>` : ''}
+                      </div>
+                      ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${d.playbook}</div>` : ''}
+                    </div>` : ''}
                     ${isManualRotation ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Rotação e Foco</h6>
                       <div class="row text-light-gray small">
@@ -2584,7 +2592,7 @@ async function loadCoinsTeams() {
                   </span>
                 </td>
                 <td class="text-center">
-                  <button class="btn btn-sm btn-outline-orange me-1" onclick="openCoinsModal(${t.id}, '${t.city} ${t.name}', ${t.moedas})" title="Gerenciar moedas">
+                  <button class="btn btn-sm btn-success" onclick="openCoinsModal(${t.id}, '${t.city} ${t.name}', ${t.moedas})" title="Gerenciar moedas">
                     <i class="bi bi-coin"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-secondary" onclick="showCoinsHistory(${t.id}, '${t.city} ${t.name}')" title="Ver histórico">
@@ -2690,7 +2698,7 @@ async function showCoinsHistory(teamId, teamName) {
         <button class="btn btn-back" onclick="loadCoinsTeams()"><i class="bi bi-arrow-left"></i> Voltar para lista</button>
       </div>
       <div class="bg-dark-panel border-orange rounded p-3 mb-3">
-        <h5 class="text-white mb-0"><i class="bi bi-clock-history text-orange me-2"></i>Histórico de Moedas: ${teamName}</h5>
+        <h5 class="modal-title text-white"><i class="bi bi-coin text-orange me-2"></i>Histórico de Moedas: ${teamName}</h5>
       </div>
     `;
     
