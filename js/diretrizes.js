@@ -101,13 +101,16 @@ function renderPlayerMinutes() {
     starters.forEach((id, idx) => {
       const player = playersById[id];
       if (!player) return;
-  const slotLabel = STARTER_LABELS[idx] || `${idx + 1}`;
+      const slotLabel = STARTER_LABELS[idx] || `${idx + 1}`;
+      const ovrLabel = player.ovr ?? '?';
+      const ageLabel = player.age ?? '?';
+      const nameLabel = `${player.name} (${ovrLabel}/${ageLabel})`;
       const row = document.createElement('div');
       row.className = 'col-12';
       row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">Titular ${slotLabel}: ${player.name}</span>
+            <span class="text-white small">Titular ${slotLabel}: ${nameLabel}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"
@@ -133,12 +136,15 @@ function renderPlayerMinutes() {
     bench.forEach((id, idx) => {
       const player = playersById[id];
       if (!player) return;
+      const ovrLabel = player.ovr ?? '?';
+      const ageLabel = player.age ?? '?';
+      const nameLabel = `${player.name} (${ovrLabel}/${ageLabel})`;
       const row = document.createElement('div');
       row.className = 'col-12';
       row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">Banco ${idx + 1}: ${player.name}</span>
+            <span class="text-white small">Banco ${idx + 1}: ${nameLabel}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"

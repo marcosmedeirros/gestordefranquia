@@ -49,8 +49,8 @@ if ($deadline && !empty($team['id'])) {
 
 // Buscar jogadores do time
 $stmtPlayers = $pdo->prepare("
-    SELECT id, name, position, ovr, role 
-    FROM players 
+    SELECT id, name, position, ovr, age, role
+    FROM players
     WHERE team_id = ? 
     ORDER BY ovr DESC
 ");
@@ -207,7 +207,7 @@ try {
                                 <option value="">Selecione...</option>
                                 <?php foreach ($players as $p): ?>
                                 <option value="<?= $p['id'] ?>" data-ovr="<?= $p['ovr'] ?>">
-                                    <?= htmlspecialchars($p['name']) ?> - <?= $p['position'] ?> (<?= $p['ovr'] ?>)
+                                    <?= htmlspecialchars($p['name']) ?> (<?= htmlspecialchars($p['ovr']) ?>/<?= htmlspecialchars($p['age'] ?? '?') ?>) - <?= $p['position'] ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
@@ -231,7 +231,7 @@ try {
                                 <input class="form-check-input bench-player-checkbox" type="checkbox" 
                                        name="bench_players[]" value="<?= $p['id'] ?>" id="bench_<?= $p['id'] ?>">
                                 <label class="form-check-label text-white small" for="bench_<?= $p['id'] ?>">
-                                    <?= htmlspecialchars($p['name']) ?> <span class="text-light-gray">(<?= $p['position'] ?> - <?= $p['ovr'] ?>)</span>
+                                    <?= htmlspecialchars($p['name']) ?> <span class="text-light-gray">(<?= $p['ovr'] ?>/<?= htmlspecialchars($p['age'] ?? '?') ?>) - <?= $p['position'] ?></span>
                                 </label>
                             </div>
                         </div>

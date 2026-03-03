@@ -172,14 +172,14 @@ if ($method === 'GET') {
             if ($all && $league) {
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
-                           s1.name as starter_1_name, s1.position as starter_1_pos,
-                           s2.name as starter_2_name, s2.position as starter_2_pos,
-                           s3.name as starter_3_name, s3.position as starter_3_pos,
-                           s4.name as starter_4_name, s4.position as starter_4_pos,
-                           s5.name as starter_5_name, s5.position as starter_5_pos,
-                           b1.name as bench_1_name, b1.position as bench_1_pos,
-                           b2.name as bench_2_name, b2.position as bench_2_pos,
-                           b3.name as bench_3_name, b3.position as bench_3_pos
+                           s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
+                           s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
+                           s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
+                           s4.name as starter_4_name, s4.position as starter_4_pos, s4.ovr as starter_4_ovr, s4.age as starter_4_age,
+                           s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
+                           b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
+                           b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -198,14 +198,14 @@ if ($method === 'GET') {
             } else {
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
-                           s1.name as starter_1_name, s1.position as starter_1_pos,
-                           s2.name as starter_2_name, s2.position as starter_2_pos,
-                           s3.name as starter_3_name, s3.position as starter_3_pos,
-                           s4.name as starter_4_name, s4.position as starter_4_pos,
-                           s5.name as starter_5_name, s5.position as starter_5_pos,
-                           b1.name as bench_1_name, b1.position as bench_1_pos,
-                           b2.name as bench_2_name, b2.position as bench_2_pos,
-                           b3.name as bench_3_name, b3.position as bench_3_pos
+                           s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
+                           s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
+                           s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
+                           s4.name as starter_4_name, s4.position as starter_4_pos, s4.ovr as starter_4_ovr, s4.age as starter_4_age,
+                           s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
+                           b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
+                           b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -236,14 +236,14 @@ if ($method === 'GET') {
                 $fallback = true;
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
-                           s1.name as starter_1_name, s1.position as starter_1_pos,
-                           s2.name as starter_2_name, s2.position as starter_2_pos,
-                           s3.name as starter_3_name, s3.position as starter_3_pos,
-                           s4.name as starter_4_name, s4.position as starter_4_pos,
-                           s5.name as starter_5_name, s5.position as starter_5_pos,
-                           b1.name as bench_1_name, b1.position as bench_1_pos,
-                           b2.name as bench_2_name, b2.position as bench_2_pos,
-                           b3.name as bench_3_name, b3.position as bench_3_pos
+                           s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
+                           s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
+                           s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
+                           s4.name as starter_4_name, s4.position as starter_4_pos, s4.ovr as starter_4_ovr, s4.age as starter_4_age,
+                           s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
+                           b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
+                           b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -266,14 +266,14 @@ if ($method === 'GET') {
                 $fallback = true;
                 $stmt = $pdo->prepare("
                     SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
-                           s1.name as starter_1_name, s1.position as starter_1_pos,
-                           s2.name as starter_2_name, s2.position as starter_2_pos,
-                           s3.name as starter_3_name, s3.position as starter_3_pos,
-                           s4.name as starter_4_name, s4.position as starter_4_pos,
-                           s5.name as starter_5_name, s5.position as starter_5_pos,
-                           b1.name as bench_1_name, b1.position as bench_1_pos,
-                           b2.name as bench_2_name, b2.position as bench_2_pos,
-                           b3.name as bench_3_name, b3.position as bench_3_pos
+                           s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
+                           s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
+                           s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
+                           s4.name as starter_4_name, s4.position as starter_4_pos, s4.ovr as starter_4_ovr, s4.age as starter_4_age,
+                           s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
+                           b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
+                           b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -300,7 +300,8 @@ if ($method === 'GET') {
                     // Buscar minutagem com nome e posição do jogador
                     $stmtMin = $pdo->prepare("
                         SELECT dpm.directive_id, dpm.player_id, dpm.minutes_per_game, 
-                               p.name as player_name, p.position as player_position
+                               p.name as player_name, p.position as player_position,
+                               p.ovr as player_ovr, p.age as player_age
                         FROM directive_player_minutes dpm
                         INNER JOIN players p ON dpm.player_id = p.id
                         WHERE dpm.directive_id IN ($placeholders)
@@ -318,7 +319,9 @@ if ($method === 'GET') {
                         $minutesByDirective[$dId][$pId] = (int)$mr['minutes_per_game'];
                         $playerInfoByDirective[$dId][$pId] = [
                             'name' => $mr['player_name'],
-                            'position' => $mr['player_position']
+                            'position' => $mr['player_position'],
+                            'ovr' => $mr['player_ovr'],
+                            'age' => $mr['player_age']
                         ];
                     }
                     foreach ($directives as &$dRow) {
