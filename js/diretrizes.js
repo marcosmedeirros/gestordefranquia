@@ -2,6 +2,7 @@ const api = async (path, options = {}) => {
   const doFetch = async (url) => {
     const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       ...options,
     });
     let body = {};
