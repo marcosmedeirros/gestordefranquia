@@ -1331,7 +1331,6 @@ async function showDirectives() {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
- {
     const data = await api('diretrizes.php?action=list_deadlines_admin');
     const deadlines = data.deadlines || [];
     
