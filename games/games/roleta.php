@@ -4,6 +4,7 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
 require '../core/conexao.php';
+require_once '../core/mobile-helpers.php';
 
 // 1. Segurança
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
@@ -146,9 +147,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             background-color: #004d40; border: 8px solid #3e2723; border-radius: 10px;
             padding: 20px; max-width: 900px; margin: 0 auto; user-select: none;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
-        .bet-grid { display: grid; grid-template-columns: 50px repeat(12, 1fr); gap: 2px; }
+        .bet-grid { display: grid; grid-template-columns: 50px repeat(12, 1fr); gap: 2px; min-width: 520px; }
         
         .bet-cell {
             background-color: #2e7d32; border: 1px solid #4caf50; height: 60px;
@@ -188,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         .chip-btn.active { transform: scale(1.1) translateY(-5px); opacity: 1; box-shadow: 0 0 15px #ffd700; border-color: #ffd700; }
 
         /* RODA CANVAS */
-        #wheel-container { position: relative; width: 320px; height: 320px; margin: 0 auto 30px; }
+        #wheel-container { position: relative; width: min(320px, 90vw); height: min(320px, 90vw); margin: 0 auto 30px; }
         #wheel-canvas { 
             width: 100%; height: 100%; border-radius: 50%; 
             transition: transform 4s cubic-bezier(0.1, 0.7, 0.1, 1); 
@@ -205,9 +208,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             background: rgba(0,0,0,0.9); padding: 20px 40px; border-radius: 15px; border: 2px solid #ffd700;
             text-align: center; display: none; z-index: 20; min-width: 200px; box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
+
+        @media (max-width: 768px) {
+            .navbar-custom { padding: 12px; }
+            .betting-table { padding: 12px; max-width: 100%; }
+            .bet-grid { grid-template-columns: 40px repeat(12, minmax(32px, 1fr)); gap: 1px; }
+            .bet-cell { height: 48px; font-size: 0.9rem; }
+            body { padding: 0 8px; }
+        }
     </style>
 </head>
 <body>
+<?php render_mobile_orientation_guard(false); ?>
 
 <div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top">
     <div class="d-flex align-items-center gap-3">
@@ -267,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     <!-- RODA -->
     <div id="wheel-container">
         <div id="wheel-arrow"></div>
-        <canvas id="wheel-canvas" width="400" height="400"></canvas>
+        <canvas id="wheel-canvas" class="responsive-canvas" width="400" height="400"></canvas>
         
         <div id="result-overlay" class="result-overlay">
             <h1 class="display-3 mb-0 fw-bold" id="res-num">0</h1>

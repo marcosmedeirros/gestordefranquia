@@ -5,6 +5,7 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
+require_once '../core/mobile-helpers.php';
 
 // 1. Segurança Básica
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
@@ -201,9 +202,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
         }
         .rank-list li { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 5px 0; }
+
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            .hud { width: 100%; flex-direction: column; gap: 6px; align-items: flex-start; font-size: 1rem; }
+            #game-wrapper { height: auto; }
+            #gameCanvas { width: 100%; max-width: 100%; height: auto; }
+            #game-container-inner { width: 100%; }
+            #start-msg { min-width: 0; width: 90%; }
+        }
     </style>
 </head>
 <body>
+<?php render_mobile_orientation_guard(true); ?>
 
 <!-- Header -->
 <div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top">
@@ -227,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     </div>
     
     <div id="game-container-inner">
-        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        <canvas id="gameCanvas" class="responsive-canvas" width="800" height="300"></canvas>
         
         <!-- LOJA DE SKINS -->
         <div id="shop-modal">
