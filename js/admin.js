@@ -1611,6 +1611,17 @@ async function viewDirectives(deadlineId, league) {
               });
               const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
               
+              // Jogadores enviados para a G-League
+              const gLeaguePlayers = [1, 2].map(i => {
+                const id = d[`gleague_${i}_id`];
+                if (!id) return null;
+                const info = playerInfo[id] || {};
+                const name = d[`gleague_${i}_name`] || info.name || '?';
+                const pos = d[`gleague_${i}_pos`] || info.position || '?';
+                return `<li>${name} (${pos})</li>`;
+              }).filter(Boolean);
+              const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
+              
               return `
               <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1640,6 +1651,12 @@ async function viewDirectives(deadlineId, league) {
                       <h6 class="text-orange mb-2">Banco (${benchItems.length} jogadores)</h6>
                       <ul class="text-light-gray small">
                         ${bench}
+                      </ul>
+                    </div>
+                    <div class="col-md-6 col-lg-4 mt-3">
+                      <h6 class="text-orange mb-2">G-League</h6>
+                      <ul class="text-light-gray small">
+                        ${gLeagueList}
                       </ul>
                     </div>
                     <div class="col-12 mt-3">
