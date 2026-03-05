@@ -248,6 +248,56 @@ if ($user && isset($user['id'])) {
             padding: 1.4rem;
             font-size: 1.05rem;
         }
+
+        /* Pool de jogadores - layout responsivo para mobile */
+        @media (max-width: 576px) {
+            .pool-table-wrapper {
+                overflow: visible;
+            }
+            #poolTableEl thead {
+                display: none;
+            }
+            #poolTableEl tbody tr {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+                padding: 0.65rem 0.75rem;
+                border-bottom: 1px solid var(--draft-border);
+            }
+            #poolTableEl td {
+                width: 100%;
+                padding: 0;
+                border: 0;
+            }
+            #poolTableEl td:first-child {
+                display: none;
+            }
+            #poolTableEl td[data-label]::before {
+                content: attr(data-label) ": ";
+                color: var(--draft-muted);
+                font-size: 0.85rem;
+                font-weight: 500;
+                margin-right: 4px;
+            }
+            #poolTableEl td:nth-child(2) {
+                font-weight: 600;
+                font-size: 1rem;
+            }
+            #poolTableEl td:nth-child(3),
+            #poolTableEl td:nth-child(4),
+            #poolTableEl td:nth-child(5) {
+                color: var(--draft-muted);
+                font-size: 0.9rem;
+            }
+            #poolTableEl td:nth-child(6) {
+                margin-top: 0.35rem;
+            }
+            #poolTableEl td:nth-child(6) .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -331,7 +381,7 @@ if ($user && isset($user['id'])) {
                             </div>
                         </div>
                     </div>
-                    <div class="table-responsive">
+                    <div class="table-responsive pool-table-wrapper">
                         <table class="table table-dark table-hover align-middle mb-0" id="poolTableEl">
                             <thead>
                                 <tr>
@@ -599,12 +649,12 @@ if ($user && isset($user['id'])) {
                         : '<span class="text-muted">-</span>';
                     return `
                         <tr>
-                            <td>${startIndex + index + 1}</td>
-                            <td>${player.name}</td>
-                            <td>${player.position}</td>
-                            <td>${player.ovr}</td>
-                            <td>${player.age || '-'}</td>
-                            <td class="text-end">${action}</td>
+                            <td data-label="#">${startIndex + index + 1}</td>
+                            <td data-label="Jogador">${player.name}</td>
+                            <td data-label="Posição">${player.position}</td>
+                            <td data-label="OVR">${player.ovr}</td>
+                            <td data-label="Idade">${player.age || '-'}</td>
+                            <td class="text-end" data-label="Ação">${action}</td>
                         </tr>
                     `;
                 })

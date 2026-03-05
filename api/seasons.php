@@ -5,6 +5,13 @@ header('Content-Type: application/json');
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 
+function columnExists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
 $user = getUserSession();
 if (!$user) {
     http_response_code(401);
@@ -1228,7 +1235,7 @@ try {
             
             $pdo->beginTransaction();
             
-            // ATENÇÃO: Isso limpa dados operacionais da liga, mas mantém pontos e títulos.
+            // ATENÇÃO: Isso limpa dados operacionais da liga e também zera pontos/títulos de ranking.
             
             // 1. Deletar picks relacionadas aos times da liga
             $pdo->exec("
@@ -1277,6 +1284,21 @@ try {
 
             // 8. Resetar tapas dos times
             $pdo->exec("UPDATE teams SET tapas = 0 WHERE league = '$league'");
+
+            // 9. Zerar ranking (pontos e tÃ­tulos) e limpar histÃ³rico detalhado da liga
+            if (columnExists($pdo, 'teams', 'ranking_points')) {
+                $stmtResetPoints = $pdo->prepare("UPDATE teams SET ranking_points = 0 WHERE league = ?");
+                $stmtResetPoints->execute([$league]);
+            }
+            if (columnExists($pdo, 'teams', 'ranking_titles')) {
+                $stmtResetTitles = $pdo->prepare("UPDATE teams SET ranking_titles = 0 WHERE league = ?");
+                $stmtResetTitles->execute([$league]);
+            }
+            $stmtTable = $pdo->query("SHOW TABLES LIKE 'team_ranking_points'");
+            if ($stmtTable && $stmtTable->rowCount() > 0) {
+                $stmtDel = $pdo->prepare("DELETE FROM team_ranking_points WHERE league = ?");
+                $stmtDel->execute([$league]);
+            }
             
             $pdo->commit();
             
