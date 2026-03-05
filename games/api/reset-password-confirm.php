@@ -24,11 +24,16 @@ try {
 
     ensureResetColumns($pdo);
 
-    $stmt = $pdo->prepare('SELECT id FROM usuarios WHERE reset_token = ? AND reset_token_expiry > NOW() LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, reset_token_expiry FROM usuarios WHERE reset_token = ? LIMIT 1');
     $stmt->execute([$token]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
+        jsonResponse(400, ['error' => 'Token inválido ou expirado. Solicite um novo link.']);
+    }
+
+    $expiry = $user['reset_token_expiry'] ?? null;
+    if ($expiry && strtotime($expiry) < time()) {
         jsonResponse(400, ['error' => 'Token inválido ou expirado. Solicite um novo link.']);
     }
 
