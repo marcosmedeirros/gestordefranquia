@@ -15,6 +15,8 @@ return [
         'verify_base_url' => getenv('FBA_VERIFY_BASE_URL') ?: 'https://example.com/api/verify.php?token=',
         // Base URL used in password reset emails.
         'reset_base_url' => getenv('FBA_RESET_BASE_URL') ?: 'https://example.com/reset-password.php?token=',
+        // Optional base URL for the FBA games password reset flow (falls back to current host/games/auth/resetar.php).
+        'reset_games_base_url' => getenv('FBA_RESET_GAMES_BASE_URL') ?: '',
         // SMTP settings (recommended for Hostinger and other providers).
         'smtp' => [
             'host' => getenv('FBA_SMTP_HOST') ?: '',
