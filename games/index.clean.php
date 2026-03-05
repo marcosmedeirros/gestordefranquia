@@ -944,9 +944,22 @@ try {
             .game-icon { font-size: 2.5rem; }
             .ranking-position { min-width: 25px; }
         }
-    </style>
+</style>
 </head>
 <body>
+
+<div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
+    <a href="index.php" class="brand-name">🎮 FBA games</a>
+    <div class="d-flex align-items-center gap-3">
+        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?> pts</span>
+        <a href="user/alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
+            <i class="bi bi-shield-lock"></i>
+        </a>
+        <a href="auth/logout.php" class="btn btn-sm btn-outline-danger border-0" title="Sair">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
+</div>
 
 <div class="container-main">
     <?php if($msg): ?>
