@@ -49,6 +49,9 @@ AddDefaultCharset UTF-8
     RewriteRule ^\.git - [F,L]
     RewriteRule ^backend/config\.php$ - [F,L]
     RewriteRule ^sql/ - [F,L]
+
+    # Compatibilidade: links antigos de reset com /games/auth/...
+    RewriteRule ^games/auth/resetar\.php$ /auth/resetar.php [L,R=301]
 </IfModule>
 
 # Proteção de arquivos

@@ -77,7 +77,8 @@ function buildGamesResetUrl(string $token): string
     if (!$base) {
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br';
-        $base = $scheme . '://' . $host . '/games/auth/resetar.php';
+        // Domínio games.* já está na raiz; não repetir /games no caminho
+        $base = $scheme . '://' . $host . '/auth/resetar.php';
     }
 
     if (str_contains($base, '{token}')) {
