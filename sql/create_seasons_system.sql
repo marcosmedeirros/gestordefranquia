@@ -156,8 +156,8 @@ CREATE TABLE IF NOT EXISTS league_sprint_config (
 -- Inserir configurações padrão
 INSERT INTO league_sprint_config (league, max_seasons) VALUES
 ('ELITE', 20),
-('NEXT', 15),
-('RISE', 10),
+('NEXT', 20),
+('RISE', 15),
 ('ROOKIE', 10)
 ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons);
 
