@@ -105,6 +105,18 @@ if ($user && isset($user['id'])) {
             padding: 1rem;
         }
 
+        .pick-card-lg {
+            padding: 1.25rem;
+            border-width: 1.5px;
+            box-shadow: 0 8px 28px rgba(252, 0, 37, 0.18);
+        }
+
+        .pick-card-sm {
+            padding: 0.8rem;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
         .pick-card.compact {
             padding: 0.6rem;
             border-radius: 12px;
@@ -119,6 +131,11 @@ if ($user && isset($user['id'])) {
         .next-pick-highlight {
             border-color: rgba(255, 255, 255, 0.2);
             background: rgba(255, 255, 255, 0.04);
+        }
+
+        .previous-pick-card {
+            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.03);
         }
 
         .reaction-bar {
@@ -345,7 +362,7 @@ if ($user && isset($user['id'])) {
                     <div class="mb-2" id="clockBanner"></div>
                     <div id="currentPickCard"></div>
                     <hr class="border-secondary my-4">
-                    <h6 class="text-uppercase accent-label">Próximo Pick</h6>
+                    <h6 class="text-uppercase accent-label">Pick Anterior</h6>
                     <div id="nextPickCard" class="mt-3"></div>
                 </div>
                 <div class="card-dark p-4">
@@ -534,6 +551,7 @@ if ($user && isset($user['id'])) {
                         <div>
                             <div class="small accent-label">${label}</div>
                             <div class="fw-semibold">${teamLabel(pick)}</div>
+                            <div class="small text-muted">GM: ${pick.team_owner || 'Sem GM'}</div>
                             <div class="small accent-label">Rodada ${pick.round}</div>
                         </div>
                     </div>
@@ -738,12 +756,12 @@ if ($user && isset($user['id'])) {
                 state.pool = poolRes.success ? poolRes.players : [];
                 renderStats();
                 const currentPick = state.order.find((pick) => !pick.picked_player_id);
-                const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
+                const previousPick = [...state.order].filter(p => p.picked_player_id).pop() || null;
                 handlePickChange(currentPick);
                 // sem relógio
-                renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight');
-                renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight');
-                renderOrderList(currentPick, nextPick);
+                renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight pick-card-lg');
+                renderPickCard(elements.nextPickCard, previousPick, 'Pick Anterior', 'previous-pick-card pick-card-sm');
+                renderOrderList(currentPick, previousPick);
                 renderPool(currentPick);
                 renderRosters();
             } catch (error) {
