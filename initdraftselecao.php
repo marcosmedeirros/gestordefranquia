@@ -362,7 +362,7 @@ if ($user && isset($user['id'])) {
                     <div class="mb-2" id="clockBanner"></div>
                     <div id="currentPickCard"></div>
                     <hr class="border-secondary my-4">
-                    <h6 class="text-uppercase accent-label">Pick Anterior</h6>
+                    <h6 class="text-uppercase accent-label">Próximo Pick</h6>
                     <div id="nextPickCard" class="mt-3"></div>
                 </div>
                 <div class="card-dark p-4">
@@ -551,7 +551,7 @@ if ($user && isset($user['id'])) {
                         <div>
                             <div class="small accent-label">${label}</div>
                             <div class="fw-semibold">${teamLabel(pick)}</div>
-                            <div class="small text-muted">GM: ${pick.team_owner || 'Sem GM'}</div>
+                            <div class="small text-white">GM: ${pick.team_owner || 'Sem GM'}</div>
                             <div class="small accent-label">Rodada ${pick.round}</div>
                         </div>
                     </div>
@@ -756,12 +756,12 @@ if ($user && isset($user['id'])) {
                 state.pool = poolRes.success ? poolRes.players : [];
                 renderStats();
                 const currentPick = state.order.find((pick) => !pick.picked_player_id);
-                const previousPick = [...state.order].filter(p => p.picked_player_id).pop() || null;
+                const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
                 handlePickChange(currentPick);
                 // sem relógio
                 renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight pick-card-lg');
-                renderPickCard(elements.nextPickCard, previousPick, 'Pick Anterior', 'previous-pick-card pick-card-sm');
-                renderOrderList(currentPick, previousPick);
+                renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight pick-card-sm');
+                renderOrderList(currentPick, nextPick);
                 renderPool(currentPick);
                 renderRosters();
             } catch (error) {
