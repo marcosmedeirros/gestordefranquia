@@ -19,15 +19,17 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #05060d;
-            --panel: #0f111c;
-            --panel-2: #16192a;
-            --stroke: #222845;
+            --bg: #060712;
+            --panel: #0d0f1c;
+            --panel-2: #15182a;
+            --panel-3: #1c2140;
+            --stroke: #202640;
             --text: #e9ecf8;
-            --muted: #9aa3c7;
-            --accent: #ff3264;
-            --glow: 0 12px 40px rgba(255, 50, 100, 0.25);
-            --rounded: 20px;
+            --muted: #a3add2;
+            --accent: #ff4f7d;
+            --accent-2: #6d8bff;
+            --glow: 0 14px 46px rgba(255, 79, 125, 0.26);
+            --rounded: 22px;
             --grid-gap: 14px;
         }
 
@@ -36,12 +38,24 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         body {
             margin: 0;
             font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
-            background:
-                radial-gradient(circle at 20% 25%, rgba(255, 50, 100, 0.18), transparent 38%),
-                radial-gradient(circle at 85% 70%, rgba(75, 123, 255, 0.18), transparent 40%),
-                linear-gradient(135deg, #05060d 0%, #0b0d18 55%, #05060d 100%);
             color: var(--text);
             min-height: 100vh;
+            background:
+                radial-gradient(circle at 18% 24%, rgba(255, 79, 125, 0.16), transparent 35%),
+                radial-gradient(circle at 80% 70%, rgba(100, 141, 255, 0.16), transparent 40%),
+                linear-gradient(140deg, #050712 0%, #0b0d18 55%, #050712 100%);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 12px),
+                radial-gradient(circle at 30% 10%, rgba(255, 255, 255, 0.12), transparent 36%);
+            background-size: 12px 12px, 100% 100%;
+            pointer-events: none;
+            opacity: 0.55;
         }
 
         a { color: inherit; text-decoration: none; }
@@ -53,16 +67,29 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .hero {
-            background: linear-gradient(120deg, rgba(255, 50, 100, 0.25), rgba(9, 12, 28, 0.9));
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 26px;
-            padding: 22px 24px;
+            background: linear-gradient(110deg, rgba(255, 79, 125, 0.24), rgba(14, 17, 34, 0.94));
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 28px;
+            padding: 24px 26px;
             box-shadow: var(--glow);
             display: flex;
             flex-wrap: wrap;
             gap: 18px;
             align-items: center;
             justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            background: radial-gradient(circle, rgba(109, 139, 255, 0.18), transparent 55%);
+            top: -80px;
+            right: -60px;
+            filter: blur(2px);
         }
 
         .hero-title {
@@ -72,14 +99,16 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .hero-badge {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            background: linear-gradient(145deg, #ff6f91, #7c3aed);
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            background: conic-gradient(from 120deg, #ff4f7d, #6d8bff, #ffb347, #ff4f7d);
             display: grid;
             place-items: center;
-            font-weight: 700;
+            font-weight: 800;
             letter-spacing: 0.02em;
+            color: #050712;
+            box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
         }
 
         .hero h1 {
@@ -103,7 +132,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
 
         .layout {
             display: grid;
-            grid-template-columns: 340px 1fr;
+            grid-template-columns: 360px 1fr;
             gap: 18px;
             margin-top: 22px;
         }
@@ -113,12 +142,25 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .card {
-            background: var(--panel);
+            background: linear-gradient(160deg, rgba(28, 33, 64, 0.28), rgba(13, 15, 28, 0.92));
             border: 1px solid var(--stroke);
             border-radius: var(--rounded);
             padding: 18px 18px 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
         }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 50%, rgba(255, 255, 255, 0.02));
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .card > * { position: relative; z-index: 1; }
 
         .card h2, .card h3 {
             margin: 0 0 10px;
@@ -161,10 +203,11 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             border: 1px dashed rgba(255, 255, 255, 0.25);
             border-radius: 18px;
             padding: 14px;
-            background: rgba(255, 255, 255, 0.02);
-            min-height: 240px;
+            background: linear-gradient(145deg, rgba(28, 33, 64, 0.6), rgba(13, 15, 28, 0.9));
+            min-height: 260px;
             position: relative;
             overflow: hidden;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
         }
 
         .btn {
@@ -177,10 +220,11 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             letter-spacing: 0.01em;
             cursor: pointer;
             box-shadow: var(--glow);
-            transition: transform 0.1s ease, box-shadow 0.2s ease;
+            transition: transform 0.1s ease, box-shadow 0.2s ease, filter 0.2s ease;
         }
 
         .btn:active { transform: translateY(1px); box-shadow: none; }
+        .btn:hover { filter: brightness(1.05); }
 
         .pack-grid {
             display: grid;
@@ -221,15 +265,16 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .pack-foil {
-            width: 160px;
-            height: 220px;
+            width: 170px;
+            height: 230px;
             margin: 20px auto;
             border-radius: 16px;
-            background: linear-gradient(130deg, #2a2f55, #0b0d18 40%, #ff4d7a 60%, #0b0d18);
-            border: 1px solid rgba(255,255,255,0.14);
+            background: linear-gradient(135deg, #22305f, #0b0d18 45%, #ff4d7a 62%, #0b0d18);
+            border: 1px solid rgba(255,255,255,0.18);
             position: relative;
-            box-shadow: 0 12px 38px rgba(0,0,0,0.35);
+            box-shadow: 0 14px 42px rgba(0,0,0,0.42);
             animation: packPulse 1.4s ease-in-out infinite;
+            overflow: hidden;
         }
 
         .pack-foil::after {
@@ -237,7 +282,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             position: absolute;
             inset: 0;
             border-radius: 16px;
-            background: linear-gradient(60deg, rgba(255,255,255,0.08), transparent 35%, rgba(255,255,255,0.14));
+            background: linear-gradient(60deg, rgba(255,255,255,0.08), transparent 35%, rgba(255,255,255,0.18));
             mix-blend-mode: screen;
         }
 
@@ -267,23 +312,48 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .sticker {
-            border-radius: 14px;
+            border-radius: 18px;
             border: 1px solid var(--stroke);
-            background: var(--panel-2);
-            padding: 10px;
+            background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.04), transparent 40%), var(--panel-2);
+            padding: 12px;
             display: grid;
-            gap: 8px;
+            gap: 9px;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.32);
+            isolation: isolate;
+        }
+
+        .sticker .frame {
+            position: absolute;
+            inset: -4px;
+            background-image: var(--frame);
+            background-size: cover;
+            background-position: center;
+            opacity: 0.45;
+            filter: saturate(1.1);
+            mix-blend-mode: screen;
+        }
+
+        .sticker .content {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            gap: 8px;
+        }
+
+        .sticker-thumb {
+            position: relative;
         }
 
         .sticker img {
             width: 100%;
-            height: 170px;
+            height: 180px;
             object-fit: cover;
-            border-radius: 12px;
+            border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: linear-gradient(145deg, #14192f, #0b0d18);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
         }
 
         .sticker .code {
@@ -296,10 +366,11 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 8px;
+            padding: 5px 10px;
             border-radius: 12px;
             font-size: 0.85rem;
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
         }
 
         .rarity {
@@ -309,9 +380,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         .rarity-lendaria { color: #f7c948; }
-        .rarity-epica { color: #d06bff; }
-        .rarity-rara { color: #53c5ff; }
-        .rarity-comum { color: #9ae6b4; }
+        .rarity-epica { color: #d8a7ff; }
+        .rarity-rara { color: #6bd4ff; }
+        .rarity-comum { color: #a7f3ce; }
 
         .status-chip {
             font-size: 0.85rem;
@@ -320,6 +391,26 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: rgba(255, 255, 255, 0.03);
+        }
+
+        .sticker-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-chip {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(5, 7, 18, 0.72);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 10px;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            color: #e9ecf8;
+            backdrop-filter: blur(6px);
         }
 
         .album-grid {
@@ -411,7 +502,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
 
             <div class="card tab-content hidden" data-tab-content="album">
                 <div class="album-controls">
-                    <h2 style="margin:0;">Album</h2>
+                    <h2 style="margin:0;">Álbum</h2>
                     <select id="categoryFilter">
                         <option value="all">Todas as categorias</option>
                     </select>
@@ -429,6 +520,13 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             epica: { label: 'Épica', color: '#d06bff', weight: 0.15 },
             rara: { label: 'Rara', color: '#53c5ff', weight: 0.3 },
             comum: { label: 'Comum', color: '#9ae6b4', weight: 0.5 },
+        };
+
+        const rarityFrames = {
+            lendaria: 'figuras/4-lendario.jpeg',
+            epica: 'figuras/3-epico.jpeg',
+            rara: 'figuras/2-raro.jpeg',
+            comum: 'figuras/1-comum.jpeg',
         };
 
         const stickers = [
@@ -521,19 +619,26 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             }
             const cards = state.lastPack.map((sticker, idx) => {
                 const rarity = rarityConfig[sticker.rarity] || {};
+                const frame = rarityFrames[sticker.rarity] || rarityFrames.comum;
                 const delay = withReveal ? idx * 90 : 0;
                 return `
-                    <div class="sticker ${withReveal ? 'reveal' : ''}" style="animation-delay:${delay}ms;">
+                    <div class="sticker ${withReveal ? 'reveal' : ''}" style="animation-delay:${delay}ms; --frame:url('${frame}');">
+                        <div class="frame"></div>
                         <div class="glow-border"></div>
-                        <img src="${sticker.image}" alt="${sticker.name}" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
-                        <div class="code">#${sticker.id}</div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <div>
-                                <div style="font-weight:700;">${sticker.name}</div>
-                                <div class="muted" style="font-size:0.9rem;">${sticker.blurb || ''}</div>
+                        <div class="content">
+                            <div class="sticker-thumb">
+                                <span class="card-chip">${sticker.category}</span>
+                                <img src="${sticker.image}" alt="${sticker.name}" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
                             </div>
-                            <div class="badge">
-                                <span class="rarity rarity-${sticker.rarity}">${rarity.label || sticker.rarity}</span>
+                            <div class="code">#${sticker.id}</div>
+                            <div class="sticker-meta">
+                                <div>
+                                    <div style="font-weight:700;">${sticker.name}</div>
+                                    <div class="muted" style="font-size:0.9rem;">${sticker.blurb || ''}</div>
+                                </div>
+                                <div class="badge">
+                                    <span class="rarity rarity-${sticker.rarity}">${rarity.label || sticker.rarity}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -554,24 +659,31 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 const owned = state.collection[sticker.id] || 0;
                 const placed = owned > 0;
                 const rarity = rarityConfig[sticker.rarity] || {};
+                const frame = rarityFrames[sticker.rarity] || rarityFrames.comum;
                 const duplicates = Math.max(owned - 1, 0);
                 return `
-                    <div class="sticker">
+                    <div class="sticker" style="--frame:url('${frame}');">
+                        <div class="frame"></div>
                         <div class="glow-border"></div>
-                        <img src="${sticker.image}" alt="${sticker.name}" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
-                        <div class="code">#${sticker.id} • ${sticker.category}</div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
-                            <div>
-                                <div style="font-weight:700;">${sticker.name}</div>
-                                <div class="muted" style="font-size:0.9rem;">${sticker.blurb || ''}</div>
+                        <div class="content">
+                            <div class="sticker-thumb">
+                                <span class="card-chip">${sticker.category}</span>
+                                <img src="${sticker.image}" alt="${sticker.name}" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
                             </div>
-                            <span class="badge">
-                                <span class="rarity rarity-${sticker.rarity}">${rarity.label || sticker.rarity}</span>
-                            </span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <span class="status-chip">${placed ? 'Colada' : 'Faltando'}</span>
-                            ${duplicates ? `<span class="status-chip">Repetidas: ${duplicates}</span>` : ''}
+                            <div class="code">#${sticker.id} • ${sticker.category}</div>
+                            <div class="sticker-meta">
+                                <div>
+                                    <div style="font-weight:700;">${sticker.name}</div>
+                                    <div class="muted" style="font-size:0.9rem;">${sticker.blurb || ''}</div>
+                                </div>
+                                <span class="badge">
+                                    <span class="rarity rarity-${sticker.rarity}">${rarity.label || sticker.rarity}</span>
+                                </span>
+                            </div>
+                            <div class="sticker-meta">
+                                <span class="status-chip">${placed ? 'Colada' : 'Faltando'}</span>
+                                ${duplicates ? `<span class="status-chip">Repetidas: ${duplicates}</span>` : ''}
+                            </div>
                         </div>
                     </div>
                 `;
