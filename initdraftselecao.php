@@ -393,7 +393,7 @@ if ($user && isset($user['id'])) {
                         </div>
                         <div class="col-md-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="poolOnlyAvailable">
+                                <input class="form-check-input" type="checkbox" id="poolOnlyAvailable" checked>
                                 <label class="form-check-label" for="poolOnlyAvailable">Apenas disponíveis</label>
                             </div>
                         </div>
@@ -464,7 +464,7 @@ if ($user && isset($user['id'])) {
             lastPickId: null,
             poolSearch: '',
             poolPosition: '',
-            poolOnlyAvailable: false,
+            poolOnlyAvailable: true,
             poolSortField: 'ovr',
             poolSortAsc: false,
             poolPage: 1,
