@@ -163,6 +163,8 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             padding: 14px;
             background: rgba(255, 255, 255, 0.02);
             min-height: 240px;
+            position: relative;
+            overflow: hidden;
         }
 
         .btn {
@@ -185,6 +187,83 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: var(--grid-gap);
             margin-top: 14px;
+        }
+
+        .tabs {
+            display: inline-flex;
+            border: 1px solid var(--stroke);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--panel-2);
+        }
+
+        .tab {
+            padding: 10px 14px;
+            cursor: pointer;
+            color: var(--muted);
+            border-right: 1px solid var(--stroke);
+            background: transparent;
+        }
+
+        .tab:last-child { border-right: none; }
+
+        .tab.active {
+            color: #fff;
+            background: linear-gradient(120deg, #ff4d7a33, #7c3aed33);
+        }
+
+        .hidden { display: none; }
+
+        @keyframes packPulse {
+            0% { transform: translateY(0) rotate(-1deg); }
+            50% { transform: translateY(-4px) rotate(1deg); }
+            100% { transform: translateY(0) rotate(-1deg); }
+        }
+
+        .pack-foil {
+            width: 160px;
+            height: 220px;
+            margin: 20px auto;
+            border-radius: 16px;
+            background: linear-gradient(130deg, #2a2f55, #0b0d18 40%, #ff4d7a 60%, #0b0d18);
+            border: 1px solid rgba(255,255,255,0.14);
+            position: relative;
+            box-shadow: 0 12px 38px rgba(0,0,0,0.35);
+            animation: packPulse 1.4s ease-in-out infinite;
+        }
+
+        .pack-foil::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            background: linear-gradient(60deg, rgba(255,255,255,0.08), transparent 35%, rgba(255,255,255,0.14));
+            mix-blend-mode: screen;
+        }
+
+        .pack-open {
+            animation: none;
+            transform: scale(1.04);
+            box-shadow: var(--glow);
+        }
+
+        .reveal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--grid-gap);
+            margin-top: 10px;
+        }
+
+        .sticker.reveal {
+            opacity: 0;
+            transform: translateY(14px) scale(0.98);
+            animation: popIn 0.32s ease forwards;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: translateY(14px) scale(0.98); }
+            70% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         .sticker {
@@ -299,8 +378,15 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             </div>
         </div>
 
+        <div style="margin-top:18px; display:flex; justify-content:flex-start;">
+            <div class="tabs">
+                <div class="tab active" data-tab="shop">Loja</div>
+                <div class="tab" data-tab="album">Álbum</div>
+            </div>
+        </div>
+
         <div class="layout">
-            <div class="card">
+            <div class="card tab-content" data-tab-content="shop">
                 <h2>Pacotes</h2>
                 <div class="muted">Abra um pacote para revelar 3 figurinhas com raridades diferentes.</div>
                 <div class="stats">
@@ -323,7 +409,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card tab-content hidden" data-tab-content="album">
                 <div class="album-controls">
                     <h2 style="margin:0;">Album</h2>
                     <select id="categoryFilter">
@@ -404,27 +490,40 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
 
         function openPack() {
-            state.lastPack = [];
-            for (let i = 0; i < 3; i += 1) {
-                const sticker = pullSticker();
-                if (sticker) state.lastPack.push(sticker);
-            }
-            saveCollection();
-            renderPack();
-            renderAlbum();
-            renderStats();
+            const area = document.getElementById('packArea');
+            area.innerHTML = `
+                <div class="pack-foil" id="packFoil"></div>
+                <div class="muted" style="text-align:center;">Abrindo pacote...</div>
+            `;
+            const foil = document.getElementById('packFoil');
+            foil.classList.remove('pack-open');
+
+            // Simula o rasgar do pacote antes de revelar
+            setTimeout(() => {
+                foil.classList.add('pack-open');
+                state.lastPack = [];
+                for (let i = 0; i < 3; i += 1) {
+                    const sticker = pullSticker();
+                    if (sticker) state.lastPack.push(sticker);
+                }
+                saveCollection();
+                renderPack(true);
+                renderAlbum();
+                renderStats();
+            }, 700);
         }
 
-        function renderPack() {
+        function renderPack(withReveal = false) {
             const area = document.getElementById('packArea');
             if (!state.lastPack.length) {
                 area.innerHTML = '<div class="muted empty">Nenhum pacote aberto ainda.</div>';
                 return;
             }
-            const cards = state.lastPack.map((sticker) => {
+            const cards = state.lastPack.map((sticker, idx) => {
                 const rarity = rarityConfig[sticker.rarity] || {};
+                const delay = withReveal ? idx * 90 : 0;
                 return `
-                    <div class="sticker">
+                    <div class="sticker ${withReveal ? 'reveal' : ''}" style="animation-delay:${delay}ms;">
                         <div class="glow-border"></div>
                         <img src="${sticker.image}" alt="${sticker.name}" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
                         <div class="code">#${sticker.id}</div>
@@ -440,7 +539,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                     </div>
                 `;
             }).join('');
-            area.innerHTML = `<div class="pack-grid">${cards}</div>`;
+            area.innerHTML = `<div class="reveal-grid">${cards}</div>`;
         }
 
         function renderAlbum() {
@@ -502,8 +601,21 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             select.addEventListener('change', renderAlbum);
         }
 
+        function setupTabs() {
+            document.querySelectorAll('.tab').forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    const target = tab.dataset.tab;
+                    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+                    document.querySelectorAll('.tab-content').forEach((panel) => {
+                        panel.classList.toggle('hidden', panel.dataset.tabContent !== target);
+                    });
+                });
+            });
+        }
+
         document.getElementById('openPackBtn').addEventListener('click', openPack);
         setupCategoryFilter();
+        setupTabs();
         renderAlbum();
         renderStats();
     </script>
