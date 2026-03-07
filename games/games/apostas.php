@@ -10,6 +10,10 @@ session_start();
 require '../core/conexao.php';
 require '../core/funcoes.php';
 
+// Horário atual de Brasília para validar prazos corretamente
+$nowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
+$nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
+
 // Segurança
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
@@ -54,7 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
             throw new Exception("Opção de aposta inválida.");
         }
 
-        if ($dados_aposta['status'] != 'aberta' || strtotime($dados_aposta['data_limite']) < time()) {
+        if ($dados_aposta['status'] != 'aberta') {
+            throw new Exception("Este evento já encerrou ou foi cancelado!");
+        }
+        // Comparar usando horário de Brasília para evitar encerramento adiantado
+        $deadline = new DateTime($dados_aposta['data_limite'], new DateTimeZone('America/Sao_Paulo'));
+        if ($deadline < $nowBrt) {
             throw new Exception("Este evento já encerrou ou foi cancelado!");
         }
 
@@ -109,7 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
 
 // 2. Busca Eventos Disponíveis
 try {
-    $stmtEventos = $pdo->query("SELECT id, nome, data_limite FROM eventos WHERE status = 'aberta' AND data_limite > NOW() ORDER BY data_limite ASC LIMIT 50");
+    $stmtEventos = $pdo->prepare("SELECT id, nome, data_limite FROM eventos WHERE status = 'aberta' AND data_limite > :now_brt ORDER BY data_limite ASC LIMIT 50");
+    $stmtEventos->execute([':now_brt' => $nowBrtStr]);
     $eventos_disponiveis = $stmtEventos->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Anexa opções para cada evento

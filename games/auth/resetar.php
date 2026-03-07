@@ -1,49 +1,8 @@
 <?php
 // resetar.php - REDEFINIÇÃO DE SENHA (FBA games)
 session_start();
-require '../core/conexao.php';
 
-$erro = "";
-$sucesso = "";
-
-$token = trim($_GET['token'] ?? ($_POST['token'] ?? ''));
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $senha = trim($_POST['senha'] ?? '');
-    $confirmar = trim($_POST['confirmar'] ?? '');
-
-    if ($token === '') {
-        $erro = "Token inválido. Solicite um novo link.";
-    } elseif ($senha === '' || $confirmar === '') {
-        $erro = "Preencha todos os campos.";
-    } elseif ($senha !== $confirmar) {
-        $erro = "As senhas não coincidem.";
-    } elseif (strlen($senha) < 6) {
-        $erro = "A senha deve ter pelo menos 6 caracteres.";
-    } else {
-        try {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64) NULL");
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_token_expiry DATETIME NULL");
-        } catch (Exception $e) {
-            // ignora se já existir
-        }
-
-        $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE reset_token = :token AND reset_token_expiry > NOW() LIMIT 1");
-        $stmt->execute([':token' => $token]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$user) {
-            $erro = "Token inválido ou expirado. Solicite um novo link.";
-        } else {
-            $hash = password_hash($senha, PASSWORD_BCRYPT);
-            $update = $pdo->prepare("UPDATE usuarios SET senha = :senha, reset_token = NULL, reset_token_expiry = NULL WHERE id = :id");
-            $update->execute([':senha' => $hash, ':id' => $user['id']]);
-
-            $sucesso = "Senha redefinida com sucesso! Redirecionando para o login...";
-            header("refresh:2;url=login.php");
-        }
-    }
-}
+$token = trim($_GET['token'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="pt-br" data-bs-theme="dark">
@@ -130,19 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h3 class="text-center mb-2 fw-bold text-white"><i class="bi bi-shield-lock-fill me-2"></i>Redefinir senha</h3>
                 <p class="text-center text-secondary small mb-4">Digite sua nova senha abaixo</p>
 
-                <?php if($erro): ?>
-                    <div class="alert alert-danger text-center p-2 small border-0 bg-danger bg-opacity-25 text-white">
-                        <i class="bi bi-exclamation-circle me-1"></i><?= $erro ?>
-                    </div>
-                <?php endif; ?>
+                <div id="reset-message"></div>
 
-                <?php if($sucesso): ?>
-                    <div class="alert alert-success text-center p-2 small border-0 bg-success bg-opacity-25 text-white">
-                        <i class="bi bi-check-circle me-1"></i><?= $sucesso ?>
-                    </div>
-                <?php endif; ?>
-
-                <form method="POST">
+                <form id="form-reset">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
 
                     <div class="mb-3">
@@ -166,4 +115,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
 </body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const api = (path, options = {}) => fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+}).then(async res => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw body;
+    return body;
+});
+
+const showMessage = (elementId, message, type = 'danger') => {
+    const el = document.getElementById(elementId);
+    const bg = type === 'success' ? 'success' : 'danger';
+    el.innerHTML = `<div class="alert alert-${type} text-center p-2 small border-0 bg-${bg} bg-opacity-25 text-white">${message}</div>`;
+};
+
+const form = document.getElementById('form-reset');
+const token = (form.querySelector('input[name="token"]').value || '').trim();
+
+if (!token) {
+    showMessage('reset-message', 'Token inválido. Solicite um novo link.');
+    form.querySelector('button[type="submit"]').disabled = true;
+}
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const password = (form.senha.value || '').trim();
+    const confirm = (form.confirmar.value || '').trim();
+
+    if (!token) {
+        showMessage('reset-message', 'Token inválido. Solicite um novo link.');
+        return;
+    }
+
+    if (password === '' || confirm === '') {
+        showMessage('reset-message', 'Preencha todos os campos.');
+        return;
+    }
+
+    if (password !== confirm) {
+        showMessage('reset-message', 'As senhas não coincidem.');
+        return;
+    }
+
+    if (password.length < 6) {
+        showMessage('reset-message', 'A senha deve ter pelo menos 6 caracteres.');
+        return;
+    }
+
+    try {
+        await api('../api/reset-password-confirm.php', {
+            method: 'POST',
+            body: JSON.stringify({ token, password })
+        });
+
+        showMessage('reset-message', 'Senha redefinida com sucesso! Redirecionando para o login...', 'success');
+        setTimeout(() => {
+            window.location.href = 'login.php';
+        }, 2000);
+    } catch (err) {
+        showMessage('reset-message', err.error || 'Erro ao redefinir senha. Solicite um novo link.');
+    }
+});
+</script>
 </html>

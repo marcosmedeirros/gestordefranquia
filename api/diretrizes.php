@@ -179,7 +179,9 @@ if ($method === 'GET') {
                            s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
                            b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
                            b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
-                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age,
+                           g1.name as gleague_1_name, g1.position as gleague_1_pos, g1.ovr as gleague_1_ovr, g1.age as gleague_1_age,
+                           g2.name as gleague_2_name, g2.position as gleague_2_pos, g2.ovr as gleague_2_ovr, g2.age as gleague_2_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -190,6 +192,8 @@ if ($method === 'GET') {
                     LEFT JOIN players b1 ON td.bench_1_id = b1.id
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    LEFT JOIN players g1 ON td.gleague_1_id = g1.id
+                    LEFT JOIN players g2 ON td.gleague_2_id = g2.id
                     WHERE t.league = ?
                     ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                     LIMIT 200
@@ -205,7 +209,9 @@ if ($method === 'GET') {
                            s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
                            b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
                            b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
-                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age,
+                           g1.name as gleague_1_name, g1.position as gleague_1_pos, g1.ovr as gleague_1_ovr, g1.age as gleague_1_age,
+                           g2.name as gleague_2_name, g2.position as gleague_2_pos, g2.ovr as gleague_2_ovr, g2.age as gleague_2_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -216,6 +222,8 @@ if ($method === 'GET') {
                     LEFT JOIN players b1 ON td.bench_1_id = b1.id
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    LEFT JOIN players g1 ON td.gleague_1_id = g1.id
+                    LEFT JOIN players g2 ON td.gleague_2_id = g2.id
                     WHERE td.deadline_id = ?
                     ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                 ");
@@ -243,7 +251,9 @@ if ($method === 'GET') {
                            s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
                            b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
                            b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
-                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age,
+                           g1.name as gleague_1_name, g1.position as gleague_1_pos, g1.ovr as gleague_1_ovr, g1.age as gleague_1_age,
+                           g2.name as gleague_2_name, g2.position as gleague_2_pos, g2.ovr as gleague_2_ovr, g2.age as gleague_2_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -254,6 +264,8 @@ if ($method === 'GET') {
                     LEFT JOIN players b1 ON td.bench_1_id = b1.id
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    LEFT JOIN players g1 ON td.gleague_1_id = g1.id
+                    LEFT JOIN players g2 ON td.gleague_2_id = g2.id
                     WHERE t.league = ?
                     ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                     LIMIT 200
@@ -273,7 +285,9 @@ if ($method === 'GET') {
                            s5.name as starter_5_name, s5.position as starter_5_pos, s5.ovr as starter_5_ovr, s5.age as starter_5_age,
                            b1.name as bench_1_name, b1.position as bench_1_pos, b1.ovr as bench_1_ovr, b1.age as bench_1_age,
                            b2.name as bench_2_name, b2.position as bench_2_pos, b2.ovr as bench_2_ovr, b2.age as bench_2_age,
-                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age
+                           b3.name as bench_3_name, b3.position as bench_3_pos, b3.ovr as bench_3_ovr, b3.age as bench_3_age,
+                           g1.name as gleague_1_name, g1.position as gleague_1_pos, g1.ovr as gleague_1_ovr, g1.age as gleague_1_age,
+                           g2.name as gleague_2_name, g2.position as gleague_2_pos, g2.ovr as gleague_2_ovr, g2.age as gleague_2_age
                     FROM team_directives td
                     LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
@@ -284,6 +298,8 @@ if ($method === 'GET') {
                     LEFT JOIN players b1 ON td.bench_1_id = b1.id
                     LEFT JOIN players b2 ON td.bench_2_id = b2.id
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
+                    LEFT JOIN players g1 ON td.gleague_1_id = g1.id
+                    LEFT JOIN players g2 ON td.gleague_2_id = g2.id
                     ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
                     LIMIT 200
                 ");

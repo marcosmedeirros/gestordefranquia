@@ -15,6 +15,11 @@ $user_id = $_SESSION['user_id'];
 $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 $erro = isset($_GET['erro']) ? htmlspecialchars($_GET['erro']) : "";
 
+// Horário de referência: Brasília
+$nowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
+$nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
+$yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');
+
 try {
     $stmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
@@ -98,7 +103,7 @@ try {
 }
 
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -112,11 +117,12 @@ try {
         WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
-          AND e.data_limite >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+          AND e.data_limite >= :yesterday_brt
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
+    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr]);
     $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos_24h['GERAL'] = [];
@@ -156,7 +162,7 @@ try {
         WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
-          AND e.data_limite >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+          AND e.data_limite >= :yesterday_brt
           AND u.league = :league
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
@@ -168,7 +174,7 @@ try {
         }
         $stmtLeagueAcertos->execute([':league' => $leagueKey]);
         $ranking_acertos[$leagueKey] = $stmtLeagueAcertos->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $stmtLeagueAcertos24h->execute([':league' => $leagueKey]);
+        $stmtLeagueAcertos24h->execute([':league' => $leagueKey, ':yesterday_brt' => $yesterdayBrtStr]);
         $ranking_acertos_24h[$leagueKey] = $stmtLeagueAcertos24h->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 } catch (PDOException $e) {
@@ -239,20 +245,22 @@ try {
 
 try {
     try {
-        $stmt = $pdo->query("
+        $stmt = $pdo->prepare("
             SELECT e.id, e.nome, e.data_limite, e.league
             FROM eventos e
-            WHERE e.status = 'aberta' AND e.data_limite > NOW()
+            WHERE e.status = 'aberta' AND e.data_limite > :now_brt
             ORDER BY e.data_limite ASC
         ");
+        $stmt->execute([':now_brt' => $nowBrtStr]);
         $eventos_abertos = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (PDOException $e) {
-        $stmt = $pdo->query("
+        $stmt = $pdo->prepare("
             SELECT e.id, e.nome, e.data_limite
             FROM eventos e
-            WHERE e.status = 'aberta' AND e.data_limite > NOW()
+            WHERE e.status = 'aberta' AND e.data_limite > :now_brt
             ORDER BY e.data_limite ASC
         ");
+        $stmt->execute([':now_brt' => $nowBrtStr]);
         $eventos_abertos = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         foreach ($eventos_abertos as &$evento) {
             $evento['league'] = 'GERAL';
@@ -936,9 +944,22 @@ try {
             .game-icon { font-size: 2.5rem; }
             .ranking-position { min-width: 25px; }
         }
-    </style>
+</style>
 </head>
 <body>
+
+<div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
+    <a href="index.php" class="brand-name">🎮 FBA games</a>
+    <div class="d-flex align-items-center gap-3">
+        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?> pts</span>
+        <a href="user/alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
+            <i class="bi bi-shield-lock"></i>
+        </a>
+        <a href="auth/logout.php" class="btn btn-sm btn-outline-danger border-0" title="Sair">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
+</div>
 
 <div class="container-main">
     <?php if($msg): ?>

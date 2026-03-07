@@ -238,6 +238,9 @@ try {
     <div class="d-flex align-items-center gap-3">
     <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
         <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
+        <a href="alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
+            <i class="bi bi-shield-lock"></i>
+        </a>
         <a href="../auth/logout.php" class="btn btn-sm btn-outline-danger border-0">
             <i class="bi bi-box-arrow-right"></i>
         </a>

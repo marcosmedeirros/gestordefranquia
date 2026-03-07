@@ -1,74 +1,10 @@
 <?php
 // recuperar.php - RECUPERAÇÃO DE SENHA (FBA games)
 session_start();
-require '../core/conexao.php';
-
-$erro = "";
-$sucesso = "";
 
 if (isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
     exit;
-}
-
-function sendResetEmail(string $email, string $nome, string $resetUrl): bool
-{
-    $subject = 'Recuperação de Senha - FBA games';
-    $message = "Olá {$nome},\n\n" .
-        "Recebemos uma solicitação para redefinir sua senha do FBA games.\n\n" .
-        "Clique no link abaixo para criar uma nova senha:\n" .
-        "{$resetUrl}\n\n" .
-        "Este link expira em 1 hora.\n\n" .
-        "Se você não solicitou esta alteração, ignore este e-mail.\n\n" .
-        "Atenciosamente,\nEquipe FBA games";
-
-    $headers = implode("\r\n", [
-        'MIME-Version: 1.0',
-        'Content-type: text/plain; charset=UTF-8',
-        'From: FBA games <no-reply@fbabrasil.com.br>'
-    ]);
-
-    return mail($email, $subject, $message, $headers);
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = strtolower(trim($_POST['email'] ?? ''));
-
-    if ($email === '') {
-        $erro = "Informe seu e-mail.";
-    } else {
-        try {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64) NULL");
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_token_expiry DATETIME NULL");
-        } catch (Exception $e) {
-            // ignora se já existir
-        }
-
-        $stmt = $pdo->prepare("SELECT id, nome FROM usuarios WHERE email = :email LIMIT 1");
-        $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($user) {
-            $token = bin2hex(random_bytes(32));
-            $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
-
-            $update = $pdo->prepare("UPDATE usuarios SET reset_token = :token, reset_token_expiry = :expiry WHERE id = :id");
-            $update->execute([':token' => $token, ':expiry' => $expiry, ':id' => $user['id']]);
-
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'games.fbabrasil.com.br';
-            $resetUrl = $scheme . '://' . $host . '/auth/resetar.php?token=' . urlencode($token);
-
-            $sent = sendResetEmail($email, $user['nome'], $resetUrl);
-            if (!$sent) {
-                $erro = "Falha ao enviar o e-mail. Tente novamente mais tarde.";
-            }
-        }
-
-        if ($erro === "") {
-            $sucesso = "Se o e-mail existir, você receberá um link de recuperação.";
-        }
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -156,19 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h3 class="text-center mb-2 fw-bold text-white"><i class="bi bi-envelope-fill me-2"></i>Recuperar acesso</h3>
                 <p class="text-center text-secondary small mb-4">Enviaremos um link para seu e-mail</p>
 
-                <?php if($erro): ?>
-                    <div class="alert alert-danger text-center p-2 small border-0 bg-danger bg-opacity-25 text-white">
-                        <i class="bi bi-exclamation-circle me-1"></i><?= $erro ?>
-                    </div>
-                <?php endif; ?>
+                <div id="reset-message"></div>
 
-                <?php if($sucesso): ?>
-                    <div class="alert alert-success text-center p-2 small border-0 bg-success bg-opacity-25 text-white">
-                        <i class="bi bi-check-circle me-1"></i><?= $sucesso ?>
-                    </div>
-                <?php endif; ?>
-
-                <form method="POST">
+                <form id="form-recuperar">
                     <div class="mb-4">
                         <label class="form-label">E-mail</label>
                         <input type="email" name="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
@@ -185,4 +111,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
 </body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const api = (path, options = {}) => fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+}).then(async res => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw body;
+    return body;
+});
+
+const showMessage = (elementId, message, type = 'danger') => {
+    const el = document.getElementById(elementId);
+    const bg = type === 'success' ? 'success' : 'danger';
+    el.innerHTML = `<div class="alert alert-${type} text-center p-2 small border-0 bg-${bg} bg-opacity-25 text-white">${message}</div>`;
+};
+
+document.getElementById('form-recuperar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = (e.target.email.value || '').trim();
+
+    if (!email) {
+        showMessage('reset-message', 'Informe seu e-mail.');
+        return;
+    }
+
+    try {
+        const result = await api('../api/reset-password.php', {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
+
+        showMessage('reset-message', result.message || 'Se o e-mail existir, você receberá um link de recuperação.', 'success');
+        e.target.reset();
+    } catch (err) {
+        showMessage('reset-message', err.error || 'Erro ao enviar o link. Tente novamente.');
+    }
+});
+</script>
 </html>
