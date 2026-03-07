@@ -4,9 +4,35 @@ let currentSlot = null;
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
 const hasCard = (id) => Number(state.collection[id] || 0) > 0;
-const post = (action, payload = {}) => fetch(`${API}?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
-const postForm = (action, formData) => fetch(`${API}?action=${action}`, { method: 'POST', body: formData }).then((r) => r.json());
-const get = (action) => fetch(`${API}?action=${action}`).then((r) => r.json());
+
+async function parseApiResponse(response) {
+    const raw = await response.text();
+    try {
+        return JSON.parse(raw || '{}');
+    } catch (err) {
+        const preview = (raw || '').slice(0, 180).trim();
+        throw new Error(preview ? `Resposta inválida do servidor: ${preview}` : 'Resposta inválida do servidor.');
+    }
+}
+
+async function post(action, payload = {}) {
+    const response = await fetch(`${API}?action=${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return parseApiResponse(response);
+}
+
+async function postForm(action, formData) {
+    const response = await fetch(`${API}?action=${action}`, { method: 'POST', body: formData });
+    return parseApiResponse(response);
+}
+
+async function get(action) {
+    const response = await fetch(`${API}?action=${action}`);
+    return parseApiResponse(response);
+}
 
 async function bootstrap() {
     const res = await get('bootstrap');
@@ -260,18 +286,23 @@ document.getElementById('admin-card-form')?.addEventListener('submit', async (e)
 
     const fb = document.getElementById('admin-feedback');
     fb.textContent = 'Salvando...';
-    const res = await postForm('admin_create_card', form);
-    if (!res.ok) {
-        fb.textContent = res.message || 'Erro ao cadastrar';
+    try {
+        const res = await postForm('admin_create_card', form);
+        if (!res.ok) {
+            fb.textContent = res.message || 'Erro ao cadastrar';
+            fb.className = 'mt-3 text-sm text-red-300';
+            return;
+        }
+        state.master.push(res.card);
+        fb.textContent = 'Carta cadastrada com sucesso.';
+        fb.className = 'mt-3 text-sm text-emerald-300';
+        document.getElementById('admin-card-form').reset();
+        renderAdminCards();
+        renderAlbum();
+    } catch (err) {
+        fb.textContent = err.message || 'Falha de comunicação com o servidor.';
         fb.className = 'mt-3 text-sm text-red-300';
-        return;
     }
-    state.master.push(res.card);
-    fb.textContent = 'Carta cadastrada com sucesso.';
-    fb.className = 'mt-3 text-sm text-emerald-300';
-    document.getElementById('admin-card-form').reset();
-    renderAdminCards();
-    renderAlbum();
 });
 
 bootstrap();

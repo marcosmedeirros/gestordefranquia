@@ -267,7 +267,8 @@ if ($action === 'admin_create_card') {
         out(['ok' => true, 'card' => ['id' => $cardId, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $img]]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        out(['ok' => false, 'message' => 'Erro ao cadastrar carta'], 500);
+        error_log('[album-fba] admin_create_card erro: ' . $e->getMessage());
+        out(['ok' => false, 'message' => 'Erro ao cadastrar carta: ' . $e->getMessage()], 500);
     }
 }
 
