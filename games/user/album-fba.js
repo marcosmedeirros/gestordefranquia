@@ -150,6 +150,21 @@ async function selectCard(cardId) {
     closeSelectModal();
 }
 
+async function clearTeam() {
+    const hasAny = state.myTeam.some((id) => id !== null);
+    if (!hasAny) return;
+    const backup = [...state.myTeam];
+    state.myTeam = [null, null, null, null, null];
+    const res = await post('save_team', { team: state.myTeam });
+    if (!res.ok) {
+        state.myTeam = backup;
+        alert(res.message || 'Erro ao limpar escalação');
+        return;
+    }
+    renderCourt();
+}
+window.clearTeam = clearTeam;
+
 function closeSelectModal() {
     const m = document.getElementById('select-modal');
     m.classList.add('hidden');
@@ -228,12 +243,12 @@ async function openPack(type) {
         state.user.coins = Number(res.coins || state.user.coins);
         state.collection = res.collection || state.collection;
         document.getElementById('coin-count').innerText = state.user.coins;
-        showRevealModal(Array.isArray(res.cards) ? res.cards : []);
+        showRevealModal(Array.isArray(res.cards) ? res.cards : [], Number(res.bonus_points || 0));
     }, 1000);
 }
 window.openPack = openPack;
 
-function showRevealModal(cards) {
+function showRevealModal(cards, bonusPoints = 0) {
     const m = document.getElementById('reveal-modal');
     const c = document.getElementById('revealed-cards-container');
     const b = document.getElementById('btn-close-modal');
@@ -252,7 +267,12 @@ function showRevealModal(cards) {
             if (!this.classList.contains('flipped')) {
                 this.classList.add('flipped');
                 flipped++;
-                if (flipped === cards.length) setTimeout(() => { t.innerText = 'Cartas adicionadas ao Álbum!'; b.classList.remove('hidden'); }, 600);
+                if (flipped === cards.length) setTimeout(() => {
+                    t.innerText = bonusPoints > 0
+                        ? `Cartas adicionadas ao Álbum! Bônus de repetidas: +${bonusPoints} pontos`
+                        : 'Cartas adicionadas ao Álbum!';
+                    b.classList.remove('hidden');
+                }, 600);
             }
         };
         c.appendChild(el);

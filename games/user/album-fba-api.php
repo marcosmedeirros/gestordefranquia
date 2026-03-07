@@ -48,9 +48,9 @@ function schema(PDO $pdo): void
 function packs(): array
 {
     return [
-        'basico' => ['price' => 30, 'rates' => ['lendario' => 1, 'epico' => 4, 'rara' => 20, 'comum' => 75]],
-        'premium' => ['price' => 60, 'rates' => ['lendario' => 5, 'epico' => 15, 'rara' => 30, 'comum' => 50]],
-        'ultra' => ['price' => 100, 'rates' => ['lendario' => 10, 'epico' => 25, 'rara' => 40, 'comum' => 25]],
+        'basico' => ['price' => 30, 'cards' => 2, 'rates' => ['lendario' => 1, 'epico' => 4, 'rara' => 20, 'comum' => 75]],
+        'premium' => ['price' => 60, 'cards' => 2, 'rates' => ['lendario' => 5, 'epico' => 15, 'rara' => 30, 'comum' => 50]],
+        'ultra' => ['price' => 100, 'cards' => 3, 'rates' => ['lendario' => 10, 'epico' => 25, 'rara' => 40, 'comum' => 25]],
     ];
 }
 
@@ -154,7 +154,9 @@ if ($action === 'buy_pack') {
         $d->execute([':p' => (int)$cfg[$type]['price'], ':id' => $user_id]);
         $coll = collection($pdo, $user_id);
         $cards = [];
-        for ($i = 0; $i < 3; $i++) {
+        $bonusPoints = 0;
+        $cardsToDraw = max(1, (int)($cfg[$type]['cards'] ?? 3));
+        for ($i = 0; $i < $cardsToDraw; $i++) {
             $card = draw($pdo, $cfg[$type]['rates']);
             if (!$card) {
                 $pdo->rollBack();
@@ -164,14 +166,21 @@ if ($action === 'buy_pack') {
             $ins = $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u,:c,1) ON DUPLICATE KEY UPDATE quantidade=quantidade+1");
             $ins->execute([':u' => $user_id, ':c' => $card['id']]);
             $coll[$card['id']] = ($coll[$card['id']] ?? 0) + 1;
+            if ($coll[$card['id']] >= 5) {
+                $bonusPoints += 3;
+            }
             $card['is_new'] = $isNew;
             $cards[] = $card;
+        }
+        if ($bonusPoints > 0) {
+            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
         }
         $n = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id");
         $n->execute([':id' => $user_id]);
         $final = (int)$n->fetchColumn();
         $pdo->commit();
-        out(['ok' => true, 'coins' => $final, 'cards' => $cards, 'collection' => $coll]);
+        out(['ok' => true, 'coins' => $final, 'cards' => $cards, 'collection' => $coll, 'bonus_points' => $bonusPoints]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao abrir pacote'], 500);

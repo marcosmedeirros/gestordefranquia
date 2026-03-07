@@ -138,6 +138,9 @@ $teams = [
             <div class="flex justify-center mb-8">
                 <div class="bg-zinc-900 border border-red-700 rounded-full px-8 py-3">OVR DO TIME: <span id="team-ovr-display" class="text-3xl font-black text-white ml-2">0</span></div>
             </div>
+            <div class="mb-6">
+                <button type="button" onclick="clearTeam()" class="bg-zinc-900 hover:bg-zinc-800 border border-red-700 rounded-lg px-5 py-2 font-bold">Limpar escalação</button>
+            </div>
             <div class="basketball-court shadow-2xl">
                 <div class="court-3pt"></div>
                 <div class="court-paint"></div>
@@ -254,11 +257,11 @@ $teams = [
         </div>
     </div>
 
-    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
-        <div class="bg-black border border-red-700 rounded-xl p-4 w-11/12 max-w-md">
-            <div class="flex justify-between items-center mb-3">
+    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-[50px]">
+        <div class="bg-black border border-red-700 rounded-xl p-4 w-11/12 max-w-md my-[50px] max-h-[calc(100vh-100px)] overflow-y-auto relative">
+            <button onclick="closeAlbumCardModal()" class="absolute top-2 right-3 text-zinc-300 hover:text-white text-3xl font-bold leading-none" aria-label="Fechar">&times;</button>
+            <div class="flex justify-between items-center mb-3 pr-8">
                 <h3 class="fba-title text-xl text-white">Carta</h3>
-                <button onclick="closeAlbumCardModal()" class="text-zinc-400 hover:text-white text-3xl font-bold leading-none">&times;</button>
             </div>
             <img id="album-card-modal-img" src="" alt="Carta" class="w-full rounded-lg border border-zinc-700">
             <div class="mt-3 text-white font-bold" id="album-card-modal-name"></div>
