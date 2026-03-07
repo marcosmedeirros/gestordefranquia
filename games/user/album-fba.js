@@ -151,16 +151,12 @@ async function selectCard(cardId) {
 }
 
 async function clearTeam() {
-    const hasAny = state.myTeam.some((id) => id !== null);
-    if (!hasAny) return;
-    const backup = [...state.myTeam];
-    state.myTeam = [null, null, null, null, null];
-    const res = await post('save_team', { team: state.myTeam });
+    const res = await post('clear_team');
     if (!res.ok) {
-        state.myTeam = backup;
         alert(res.message || 'Erro ao limpar escalação');
         return;
     }
+    state.myTeam = [null, null, null, null, null];
     renderCourt();
 }
 window.clearTeam = clearTeam;

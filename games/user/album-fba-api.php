@@ -187,6 +187,13 @@ if ($action === 'buy_pack') {
     }
 }
 
+if ($action === 'clear_team') {
+    $s = $pdo->prepare("INSERT INTO fba_user_team (user_id,slot_pg,slot_sg,slot_sf,slot_pf,slot_c) VALUES (:u,NULL,NULL,NULL,NULL,NULL)
+        ON DUPLICATE KEY UPDATE slot_pg=NULL,slot_sg=NULL,slot_sf=NULL,slot_pf=NULL,slot_c=NULL");
+    $s->execute([':u' => $user_id]);
+    out(['ok' => true, 'my_team' => [null, null, null, null, null]]);
+}
+
 if ($action === 'save_team') {
     $b = body();
     $arr = $b['team'] ?? null;
