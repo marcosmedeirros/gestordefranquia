@@ -1294,7 +1294,7 @@ try {
                 <h6 class="section-title"><i class="bi bi-gift"></i>Prêmios</h6>
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-8 col-lg-6">
-                        <a href="user/album-fba.php" class="game-card text-decoration-none" style="--accent: #22d3ee; height: auto; min-height: 130px;">
+                        <a href="album-fba.php" class="game-card text-decoration-none" style="--accent: #22d3ee; height: auto; min-height: 130px;">
                             <span class="game-icon">📚</span>
                             <div class="game-title">Álbum FBA</div>
                             <div class="game-subtitle">Abra pacotes e complete sua coleção de cartas</div>
