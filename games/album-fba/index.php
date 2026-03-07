@@ -1,6 +1,11 @@
 <?php
-// Protótipo do álbum de figurinhas FBA – versão estática/localStorage.
+// Protótipo do álbum de figurinhas FBA com persistência em banco.
 // Gate simples: só acessa com o parâmetro ?k=album2026 (não linke em menus).
+require_once __DIR__ . '/../../backend/auth.php';
+requireAuth();
+$sessionUser = getUserSession();
+$is_admin = (($_SESSION['is_admin'] ?? false) || (($sessionUser['user_type'] ?? '') === 'admin'));
+
 $secret = 'album2026';
 if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
     http_response_code(404);
@@ -473,6 +478,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             <div class="tabs">
                 <div class="tab active" data-tab="shop">Loja</div>
                 <div class="tab" data-tab="album">Álbum</div>
+                <?php if ($is_admin): ?>
+                    <div class="tab" data-tab="admin">Admin</div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -494,7 +502,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                     <div class="muted" style="margin-bottom: 6px;">Progresso do álbum</div>
                     <div class="progress"><span id="progressBar" style="width:0%"></span></div>
                 </div>
-                <button class="btn" id="openPackBtn">Abrir pacote agora</button>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 8px;">
+                    <button class="btn" id="openPackBtn">Abrir pacote agora</button>
+                </div>
                 <div class="pack-area" id="packArea">
                     <div class="muted empty">Nenhum pacote aberto ainda.</div>
                 </div>
@@ -509,6 +519,16 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 </div>
                 <div class="album-grid" id="albumGrid"></div>
             </div>
+
+            <?php if ($is_admin): ?>
+            <div class="card tab-content hidden" data-tab-content="admin">
+                <h2>Admin</h2>
+                <div class="muted">Ações administrativas do álbum.</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
+                    <button class="btn" id="addStickerBtn" style="background: linear-gradient(120deg, #4e7bff, #7c3aed);">Adicionar cartinha</button>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -547,24 +567,17 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             { id: '050', name: 'Mascote Oficial', category: 'Extras', rarity: 'comum', image: 'img/050.png', blurb: 'Carisma na quadra.' },
         ];
 
-        const storageKey = 'album_fba_colecao';
         const state = {
-            collection: loadCollection(),
+            collection: {},
             lastPack: [],
         };
 
         function loadCollection() {
-            try {
-                const saved = localStorage.getItem(storageKey);
-                return saved ? JSON.parse(saved) : {};
-            } catch (err) {
-                console.warn('Não foi possível carregar o álbum salvo', err);
-                return {};
-            }
+            return {};
         }
 
         function saveCollection() {
-            localStorage.setItem(storageKey, JSON.stringify(state.collection));
+            // Persistencia agora e feita via API no banco.
         }
 
         function pickRarity() {
@@ -725,11 +738,118 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             });
         }
 
+        const albumApiUrl = `api.php?k=<?= urlencode($secret) ?>`;
+        let isOpening = false;
+
+        async function apiRequest(action, method = 'GET', payload = null) {
+            const url = `${albumApiUrl}&action=${encodeURIComponent(action)}`;
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+            };
+            if (payload !== null) {
+                options.body = JSON.stringify(payload);
+            }
+            const response = await fetch(url, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Falha ao processar o album.');
+            }
+            return data;
+        }
+
+        async function loadCollectionFromDb() {
+            const data = await apiRequest('state', 'GET');
+            state.collection = data.collection || {};
+        }
+
+        async function drawFromServer(count) {
+            const data = await apiRequest('open_pack', 'POST', { count });
+            state.lastPack = Array.isArray(data.pack) ? data.pack : [];
+            state.collection = data.collection || {};
+        }
+
+        function setButtonsDisabled(disabled) {
+            const openBtn = document.getElementById('openPackBtn');
+            const addBtn = document.getElementById('addStickerBtn');
+            if (openBtn) {
+                openBtn.disabled = !!disabled;
+            }
+            if (addBtn) {
+                addBtn.disabled = !!disabled;
+            }
+        }
+
+        async function openPack() {
+            if (isOpening) {
+                return;
+            }
+            isOpening = true;
+            setButtonsDisabled(true);
+            const area = document.getElementById('packArea');
+            area.innerHTML = `
+                <div class="pack-foil" id="packFoil"></div>
+                <div class="muted" style="text-align:center;">Abrindo pacote...</div>
+            `;
+            const foil = document.getElementById('packFoil');
+            foil.classList.remove('pack-open');
+
+            setTimeout(async () => {
+                foil.classList.add('pack-open');
+                try {
+                    await drawFromServer(3);
+                    renderPack(true);
+                    renderAlbum();
+                    renderStats();
+                } catch (err) {
+                    area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao abrir pacote.'}</div>`;
+                } finally {
+                    isOpening = false;
+                    setButtonsDisabled(false);
+                }
+            }, 700);
+        }
+
+        async function addSingleSticker() {
+            if (isOpening) {
+                return;
+            }
+            isOpening = true;
+            setButtonsDisabled(true);
+            const area = document.getElementById('packArea');
+            area.innerHTML = '<div class="muted empty">Adicionando cartinha...</div>';
+            try {
+                await drawFromServer(1);
+                renderPack(true);
+                renderAlbum();
+                renderStats();
+            } catch (err) {
+                area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao adicionar cartinha.'}</div>`;
+            } finally {
+                isOpening = false;
+                setButtonsDisabled(false);
+            }
+        }
+
         document.getElementById('openPackBtn').addEventListener('click', openPack);
+        const addStickerBtn = document.getElementById('addStickerBtn');
+        if (addStickerBtn) {
+            addStickerBtn.addEventListener('click', addSingleSticker);
+        }
         setupCategoryFilter();
         setupTabs();
-        renderAlbum();
-        renderStats();
+
+        (async () => {
+            try {
+                await loadCollectionFromDb();
+            } catch (err) {
+                const area = document.getElementById('packArea');
+                area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao carregar album.'}</div>`;
+                setButtonsDisabled(true);
+            }
+            renderAlbum();
+            renderStats();
+        })();
     </script>
 </body>
 </html>
