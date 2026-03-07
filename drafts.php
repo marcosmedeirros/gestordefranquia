@@ -237,6 +237,34 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     </div>
   </div>
 
+  <!-- Modal para trocar pick em andamento -->
+  <div class="modal fade" id="tradePickModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">
+            <i class="bi bi-arrow-left-right me-2 text-orange"></i>
+            Trocar Pick
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray mb-2" id="tradePickInfo">Pick selecionada</p>
+          <label class="form-label text-white">Novo time dono da pick</label>
+          <select id="tradePickTeamSelect" class="form-select bg-dark text-white border-secondary">
+            <option value="">Selecione o time...</option>
+          </select>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="submitTradePick()">
+            <i class="bi bi-check2-circle me-1"></i>Confirmar troca
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal para adicionar novo jogador ao draft (Admin) -->
   <div class="modal fade" id="addDraftPlayerModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -293,7 +321,9 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     let currentSeasonIdView = null; // Para rastrear qual temporada está sendo visualizada
     let currentDraftStatusView = null;
     let selectedLeague = userLeague; // Liga atualmente selecionada no histórico
-  let allowPickSelections = true;
+    let currentDraftPicks = [];
+    let currentPickForTrade = null;
+    let allowPickSelections = true;
 
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -325,6 +355,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         const orderData = await api(`draft.php?action=draft_order&draft_session_id=${currentDraftSession.id}`);
         const picks = orderData.order || [];
         const session = orderData.session;
+        currentDraftPicks = picks;
 
         renderDraft(session, picks);
 
@@ -579,12 +610,13 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     }
 
     function renderPickCard(pick, session, displayNum) {
-      const isCurrent = session.status === 'in_progress' && 
-                        pick.round == session.current_round && 
+      const isCurrent = session.status === 'in_progress' &&
+                        pick.round == session.current_round &&
                         pick.pick_position == session.current_pick &&
                         !pick.picked_player_id;
       const isCompleted = pick.picked_player_id !== null;
       const isMyPick = parseInt(pick.team_id) === userTeamId;
+      const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
       let cardClass = 'pick-card';
       if (isCurrent) cardClass += ' current';
       if (isCompleted) cardClass += ' completed';
@@ -598,12 +630,24 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'}">
                   #${pick.pick_position}
                 </span>
-                
+                ${canTradePick ? `
+                  <button class="btn btn-sm btn-outline-warning" type="button"
+                          onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')">
+                    <i class="bi bi-arrow-left-right"></i>
+                  </button>
+                ` : ''}
               </div>
               <div class="text-center">
                 <strong class="text-white" style="font-size: 0.85rem;">
                   ${pick.team_city} ${pick.team_name}
                 </strong>
+                ${pick.traded_from_team_id ? `
+                  <div class="mt-1">
+                    <span class="badge bg-warning text-dark traded-badge">
+                      via ${pick.traded_from_city || ''} ${pick.traded_from_name || ''}
+                    </span>
+                  </div>
+                ` : ''}
                 ${isCompleted ? `
                   <div class="mt-2 p-2 bg-success bg-opacity-25 rounded">
                     <small class="text-success d-block fw-bold">${pick.player_name}</small>
@@ -620,6 +664,81 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           </div>
         </div>
       `;
+    }
+
+    function openTradePickModal(pickId, round, pickPosition, currentTeamId, currentTeamName) {
+      if (!currentDraftSession || !currentDraftPicks.length) return;
+
+      currentPickForTrade = {
+        pickId: Number(pickId),
+        round: Number(round),
+        pickPosition: Number(pickPosition),
+        currentTeamId: Number(currentTeamId)
+      };
+
+      const info = document.getElementById('tradePickInfo');
+      if (info) {
+        info.textContent = `Rodada ${round} - Pick #${pickPosition} atualmente com ${currentTeamName}`;
+      }
+
+      const select = document.getElementById('tradePickTeamSelect');
+      if (select) {
+        const teamsById = new Map();
+        currentDraftPicks.forEach((p) => {
+          teamsById.set(Number(p.team_id), `${p.team_city} ${p.team_name}`);
+          if (p.original_team_id) {
+            teamsById.set(Number(p.original_team_id), `${p.original_city} ${p.original_name}`);
+          }
+        });
+
+        select.innerHTML = '<option value="">Selecione o time...</option>';
+        Array.from(teamsById.entries())
+          .filter(([teamId]) => teamId !== Number(currentTeamId))
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .forEach(([teamId, label]) => {
+            const opt = document.createElement('option');
+            opt.value = String(teamId);
+            opt.textContent = label;
+            select.appendChild(opt);
+          });
+      }
+
+      const modal = new bootstrap.Modal(document.getElementById('tradePickModal'));
+      modal.show();
+    }
+
+    async function submitTradePick() {
+      if (!currentDraftSession || !currentPickForTrade) return;
+      const select = document.getElementById('tradePickTeamSelect');
+      const toTeamId = Number(select?.value || 0);
+
+      if (!toTeamId) {
+        alert('Selecione o time que vai receber a pick.');
+        return;
+      }
+
+      if (!confirm(`Confirmar troca da pick #${currentPickForTrade.pickPosition} (rodada ${currentPickForTrade.round})?`)) {
+        return;
+      }
+
+      try {
+        const result = await api('draft.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'trade_pick',
+            draft_session_id: currentDraftSession.id,
+            pick_id: currentPickForTrade.pickId,
+            to_team_id: toTeamId
+          })
+        });
+
+        alert(result.message || 'Pick trocada com sucesso!');
+        bootstrap.Modal.getInstance(document.getElementById('tradePickModal')).hide();
+        currentPickForTrade = null;
+        await loadDraft();
+      } catch (e) {
+        alert('Erro: ' + (e.error || 'Desconhecido'));
+      }
     }
 
     async function openPickModal() {

@@ -522,6 +522,83 @@ if ($method === 'POST') {
             }
             break;
 
+        // JOGADOR/ADMIN: Trocar pick em andamento
+        case 'trade_pick':
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            $pickId = $data['pick_id'] ?? null;
+            $toTeamId = $data['to_team_id'] ?? null;
+
+            if (!$draftSessionId || !$pickId || !$toTeamId) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ?');
+            $stmtSession->execute([(int)$draftSessionId]);
+            $session = $stmtSession->fetch(PDO::FETCH_ASSOC);
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']);
+                exit;
+            }
+
+            if (($session['status'] ?? '') !== 'in_progress') {
+                echo json_encode(['success' => false, 'error' => 'Só é possível trocar pick com draft em andamento']);
+                exit;
+            }
+
+            $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE id = ? AND draft_session_id = ?');
+            $stmtPick->execute([(int)$pickId, (int)$draftSessionId]);
+            $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+            if (!$pick) {
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
+                exit;
+            }
+
+            if (!empty($pick['picked_player_id'])) {
+                echo json_encode(['success' => false, 'error' => 'Essa pick já foi utilizada']);
+                exit;
+            }
+
+            $fromTeamId = (int)$pick['team_id'];
+            $toTeamId = (int)$toTeamId;
+            if ($fromTeamId === $toTeamId) {
+                echo json_encode(['success' => false, 'error' => 'A pick já pertence a esse time']);
+                exit;
+            }
+
+            if (!$isAdmin) {
+                if (!$team || (int)$team['id'] !== $fromTeamId) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'error' => 'Você só pode trocar picks do seu time']);
+                    exit;
+                }
+            }
+
+            $stmtToTeam = $pdo->prepare('SELECT id, league FROM teams WHERE id = ?');
+            $stmtToTeam->execute([$toTeamId]);
+            $toTeam = $stmtToTeam->fetch(PDO::FETCH_ASSOC);
+            if (!$toTeam) {
+                echo json_encode(['success' => false, 'error' => 'Time de destino não encontrado']);
+                exit;
+            }
+
+            if (($toTeam['league'] ?? null) !== ($session['league'] ?? null)) {
+                echo json_encode(['success' => false, 'error' => 'O time de destino precisa ser da mesma liga']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+                $pdo->prepare('UPDATE draft_order SET team_id = ?, traded_from_team_id = ? WHERE id = ?')
+                    ->execute([(int)$toTeamId, (int)$fromTeamId, (int)$pickId]);
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'Pick trocada com sucesso!']);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Erro ao trocar pick: ' . $e->getMessage()]);
+            }
+            break;
+
         // ADMIN: Iniciar draft
         case 'start_draft':
             if (!$isAdmin) {
@@ -660,8 +737,8 @@ if ($method === 'POST') {
 
             try {
                 $pdo->beginTransaction();
-                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW(), team_id = ?, original_team_id = ? WHERE id = ?')
-                    ->execute([(int)$playerId, (int)$targetTeamId, (int)$targetTeamId, (int)$currentPick['id']]);
+                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW(), team_id = ? WHERE id = ?')
+                    ->execute([(int)$playerId, (int)$targetTeamId, (int)$currentPick['id']]);
 
                 $stmtTotalRound = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?');
                 $stmtTotalRound->execute([(int)$draftSessionId, (int)$session['current_round']]);
