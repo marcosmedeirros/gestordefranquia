@@ -137,6 +137,9 @@ $teams = [
         <section id="section-album" class="block">
             <h2 class="text-2xl font-bold fba-title">Plantel FBA 2026</h2>
             <p class="text-zinc-400" id="album-progress">Progresso: 0 figurinhas</p>
+            <div class="mt-4 max-w-md">
+                <input id="album-collection-filter" type="text" placeholder="Pesquisar por coleção..." class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+            </div>
             <div id="album-container" class="flex flex-col gap-8 mt-6"></div>
         </section>
 
@@ -197,17 +200,20 @@ $teams = [
 
         <section id="section-admin" class="hidden">
             <h2 class="text-3xl font-bold fba-title mb-2">Admin de Cartas</h2>
-            <p class="text-zinc-400 mb-6">Cadastrar por time, posição, raridade e upload de imagem.</p>
+            <p class="text-zinc-400 mb-6">Cadastrar por coleção, time, posição, raridade e upload de imagem.</p>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-black border border-red-700 rounded-xl p-5">
                     <form id="admin-card-form" class="space-y-3">
                         <input type="hidden" id="admin-card-id" value="">
+                        <input id="admin-collection" placeholder="Nome da coleção" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
                         <select id="admin-team" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
                             <option value="">Selecione o time</option>
                             <?php foreach ($teams as $team): ?>
                                 <option value="<?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?></option>
                             <?php endforeach; ?>
+                            <option value="__other__">Outro (digitar)</option>
                         </select>
+                        <input id="admin-team-other" placeholder="Digite o nome do time" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2 hidden">
                         <input id="admin-name" placeholder="Nome da carta" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
                         <div class="grid grid-cols-3 gap-3">
                             <select id="admin-position" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
@@ -231,8 +237,8 @@ $teams = [
                 <div class="bg-black border border-red-700 rounded-xl p-5">
                     <h3 class="fba-title text-xl mb-3">Últimas Cartas</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-                        <select id="admin-filter-team" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
-                            <option value="">Todos os times</option>
+                        <select id="admin-filter-collection" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                            <option value="">Todas as coleções</option>
                         </select>
                         <select id="admin-filter-rarity" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
                             <option value="">Todos os tipos</option>

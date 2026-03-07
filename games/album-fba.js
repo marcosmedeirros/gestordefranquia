@@ -77,18 +77,22 @@ window.switchTab = switchTab;
 function renderAlbum() {
     const c = document.getElementById('album-container');
     c.innerHTML = '';
-    let count = 0;
-    const teams = [...new Set(state.master.map((x) => x.team))];
-    teams.forEach((team) => {
-        const cards = state.master.filter((x) => x.team === team);
+    const totalCollected = state.master.reduce((sum, card) => sum + (hasCard(card.id) ? 1 : 0), 0);
+    const filterEl = document.getElementById('album-collection-filter');
+    const query = String(filterEl?.value || '').trim().toLowerCase();
+    const collections = [...new Set(state.master.map((x) => x.collection || 'Geral'))]
+        .filter((name) => !query || String(name).toLowerCase().includes(query))
+        .sort((a, b) => String(a).localeCompare(String(b)));
+
+    collections.forEach((collectionName) => {
+        const cards = state.master.filter((x) => (x.collection || 'Geral') === collectionName);
         const section = document.createElement('div');
         section.className = 'bg-zinc-950/60 p-4 rounded-xl border border-zinc-700';
-        section.innerHTML = `<h3 class="text-xl font-bold fba-title mb-4 border-b border-zinc-700 pb-2 text-red-400">${team}</h3>`;
+        section.innerHTML = `<h3 class="text-xl font-bold fba-title mb-4 border-b border-zinc-700 pb-2 text-red-400">${collectionName}</h3>`;
         const grid = document.createElement('div');
         grid.className = 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4';
         cards.forEach((card) => {
             const got = hasCard(card.id);
-            if (got) count++;
             const slot = document.createElement('div');
             slot.className = `album-slot rounded-xl overflow-hidden relative flex items-center justify-center ${got ? 'collected ' + rarityClass(card.rarity) : 'p-2'}`;
             slot.innerHTML = got
@@ -103,7 +107,10 @@ function renderAlbum() {
         section.appendChild(grid);
         c.appendChild(section);
     });
-    document.getElementById('album-progress').innerText = `Progresso: ${count} / ${state.master.length} figurinhas`;
+    if (!collections.length) {
+        c.innerHTML = '<div class="text-zinc-400">Nenhuma coleção encontrada para o filtro informado.</div>';
+    }
+    document.getElementById('album-progress').innerText = `Progresso: ${totalCollected} / ${state.master.length} figurinhas`;
     document.getElementById('coin-count').innerText = state.user.coins || 0;
 }
 
@@ -207,7 +214,7 @@ function openAlbumCardModal(card, qty) {
 
     if (img) img.src = card.img;
     if (name) name.textContent = card.name;
-    if (meta) meta.textContent = `${card.team} â€¢ ${card.position} â€¢ OVR ${card.ovr} â€¢ ${String(card.rarity || '').toUpperCase()}`;
+    if (meta) meta.textContent = `${card.collection || 'Geral'} • ${card.team} • ${card.position} • OVR ${card.ovr} • ${String(card.rarity || '').toUpperCase()}`;
     if (count) count.textContent = `Quantidade: x${qty || 1}`;
 
     modal.classList.remove('hidden');
@@ -289,7 +296,7 @@ function showRevealModal(cards, bonusPoints = 0) {
     cards.forEach((card, i) => {
         const el = document.createElement('div');
         el.className = 'revealed-card card-container w-56 h-80';
-        el.innerHTML = `<div class="card-inner shadow-2xl"><div class="card-back flex flex-col justify-center items-center"><h3 class="text-4xl font-black text-zinc-500 italic">FBA</h3><div class="mt-4 bg-zinc-800 px-3 py-1 rounded text-xs font-bold text-zinc-300 border border-zinc-700 animate-pulse">TOCAR</div></div><div class="card-front border-4 ${rarityClass(card.rarity)}"><img src="${card.img}" class="w-full h-full object-cover"><div class="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-2"><div class="text-sm font-bold">${card.name}</div><div class="text-xs text-zinc-300">${card.team} â€¢ ${card.position} â€¢ OVR ${card.ovr}</div></div></div></div>`;
+        el.innerHTML = `<div class="card-inner shadow-2xl"><div class="card-back flex flex-col justify-center items-center"><h3 class="text-4xl font-black text-zinc-500 italic">FBA</h3><div class="mt-4 bg-zinc-800 px-3 py-1 rounded text-xs font-bold text-zinc-300 border border-zinc-700 animate-pulse">TOCAR</div></div><div class="card-front border-4 ${rarityClass(card.rarity)}"><img src="${card.img}" class="w-full h-full object-cover"><div class="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-2"><div class="text-sm font-bold">${card.name}</div><div class="text-xs text-zinc-300">${card.collection || 'Geral'} • ${card.team} • ${card.position} • OVR ${card.ovr}</div></div></div></div>`;
         el.onclick = function () {
             if (!this.classList.contains('flipped')) {
                 this.classList.add('flipped');
@@ -319,24 +326,26 @@ function renderAdminCards() {
     const list = document.getElementById('admin-cards-list');
     if (!list || !state.user?.is_admin) return;
 
-    const teamFilter = document.getElementById('admin-filter-team');
+    const collectionFilter = document.getElementById('admin-filter-collection');
     const rarityFilter = document.getElementById('admin-filter-rarity');
 
-    const teams = [...new Set(state.master.map((c) => c.team).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    if (teamFilter && !teamFilter.dataset.loaded) {
-        teams.forEach((team) => {
+    const collections = [...new Set(state.master.map((c) => c.collection || 'Geral').filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (collectionFilter) {
+        const selected = collectionFilter.value;
+        collectionFilter.innerHTML = '<option value="">Todas as coleções</option>';
+        collections.forEach((collectionName) => {
             const option = document.createElement('option');
-            option.value = team;
-            option.textContent = team;
-            teamFilter.appendChild(option);
+            option.value = collectionName;
+            option.textContent = collectionName;
+            collectionFilter.appendChild(option);
         });
-        teamFilter.dataset.loaded = '1';
+        collectionFilter.value = collections.includes(selected) ? selected : '';
     }
 
-    const selectedTeam = teamFilter?.value || '';
+    const selectedCollection = collectionFilter?.value || '';
     const selectedRarity = rarityFilter?.value || '';
     const filtered = state.master.filter((card) => {
-        if (selectedTeam && card.team !== selectedTeam) return false;
+        if (selectedCollection && (card.collection || 'Geral') !== selectedCollection) return false;
         if (selectedRarity && card.rarity !== selectedRarity) return false;
         return true;
     });
@@ -347,7 +356,7 @@ function renderAdminCards() {
             <div class="bg-zinc-900 rounded-lg p-3 border border-zinc-700 flex justify-between gap-2">
                 <div>
                     <div class="font-bold">${c.name}</div>
-                    <div class="text-xs text-zinc-400">${c.team} • ${c.position} • ${c.rarity.toUpperCase()}</div>
+                    <div class="text-xs text-zinc-400">${c.collection || 'Geral'} • ${c.team} • ${c.position} • ${c.rarity.toUpperCase()}</div>
                 </div>
                 <div class="text-end">
                     <div class="text-white font-black">${c.ovr}</div>
@@ -364,11 +373,16 @@ function renderAdminCards() {
 function resetAdminForm() {
     const form = document.getElementById('admin-card-form');
     if (form) form.reset();
+    const teamOther = document.getElementById('admin-team-other');
     const idInput = document.getElementById('admin-card-id');
     const saveBtn = document.getElementById('admin-save-btn');
     const cancelBtn = document.getElementById('admin-cancel-edit-btn');
     const deleteBtn = document.getElementById('admin-delete-btn');
     if (idInput) idInput.value = '';
+    if (teamOther) {
+        teamOther.value = '';
+        teamOther.classList.add('hidden');
+    }
     if (saveBtn) saveBtn.textContent = 'Cadastrar Carta';
     if (cancelBtn) cancelBtn.classList.add('hidden');
     if (deleteBtn) deleteBtn.classList.add('hidden');
@@ -377,8 +391,18 @@ function resetAdminForm() {
 window.startEditCard = function(cardId) {
     const card = state.master.find((c) => Number(c.id) === Number(cardId));
     if (!card) return;
+    const teamSelect = document.getElementById('admin-team');
+    const teamOther = document.getElementById('admin-team-other');
     document.getElementById('admin-card-id').value = String(card.id);
-    document.getElementById('admin-team').value = card.team || '';
+    document.getElementById('admin-collection').value = card.collection || 'Geral';
+    if (teamSelect) {
+        const hasOption = Array.from(teamSelect.options).some((opt) => opt.value === (card.team || ''));
+        teamSelect.value = hasOption ? (card.team || '') : '__other__';
+    }
+    if (teamOther) {
+        teamOther.value = (teamSelect && teamSelect.value === '__other__') ? (card.team || '') : '';
+        teamOther.classList.toggle('hidden', !(teamSelect && teamSelect.value === '__other__'));
+    }
     document.getElementById('admin-name').value = card.name || '';
     document.getElementById('admin-position').value = card.position || 'PG';
     document.getElementById('admin-rarity').value = card.rarity || 'comum';
@@ -390,6 +414,25 @@ window.startEditCard = function(cardId) {
     if (cancelBtn) cancelBtn.classList.remove('hidden');
     if (deleteBtn) deleteBtn.classList.remove('hidden');
 };
+
+function toggleAdminTeamOtherField() {
+    const teamSelect = document.getElementById('admin-team');
+    const teamOther = document.getElementById('admin-team-other');
+    if (!teamSelect || !teamOther) return;
+    const isOther = teamSelect.value === '__other__';
+    teamOther.classList.toggle('hidden', !isOther);
+    if (!isOther) teamOther.value = '';
+}
+
+function getAdminTeamName() {
+    const teamSelect = document.getElementById('admin-team');
+    const teamOther = document.getElementById('admin-team-other');
+    if (!teamSelect) return '';
+    if (teamSelect.value === '__other__') {
+        return String(teamOther?.value || '').trim();
+    }
+    return String(teamSelect.value || '').trim();
+}
 
 window.deleteCardById = async function(cardId) {
     if (!confirm('Tem certeza que deseja excluir esta carta?')) return;
@@ -433,13 +476,15 @@ document.getElementById('admin-delete-btn')?.addEventListener('click', async () 
         await window.deleteCardById(id);
     }
 });
+document.getElementById('admin-team')?.addEventListener('change', toggleAdminTeamOtherField);
+document.getElementById('album-collection-filter')?.addEventListener('input', renderAlbum);
 
-document.getElementById('admin-filter-team')?.addEventListener('change', renderAdminCards);
+document.getElementById('admin-filter-collection')?.addEventListener('change', renderAdminCards);
 document.getElementById('admin-filter-rarity')?.addEventListener('change', renderAdminCards);
 document.getElementById('admin-filter-clear')?.addEventListener('click', () => {
-    const team = document.getElementById('admin-filter-team');
+    const collection = document.getElementById('admin-filter-collection');
     const rarity = document.getElementById('admin-filter-rarity');
-    if (team) team.value = '';
+    if (collection) collection.value = '';
     if (rarity) rarity.value = '';
     renderAdminCards();
 });
@@ -453,8 +498,19 @@ document.getElementById('admin-card-form')?.addEventListener('submit', async (e)
         alert('Selecione uma imagem da figurinha.');
         return;
     }
+    const teamName = getAdminTeamName();
+    const collectionName = document.getElementById('admin-collection')?.value.trim() || '';
+    if (!collectionName) {
+        alert('Informe o nome da coleção.');
+        return;
+    }
+    if (!teamName) {
+        alert('Selecione um time ou informe no campo "Outro".');
+        return;
+    }
     const form = new FormData();
-    form.append('team_name', document.getElementById('admin-team').value.trim());
+    form.append('collection_name', collectionName);
+    form.append('team_name', teamName);
     form.append('card_name', document.getElementById('admin-name').value.trim());
     form.append('position', document.getElementById('admin-position').value);
     form.append('rarity', document.getElementById('admin-rarity').value);
@@ -494,5 +550,6 @@ document.getElementById('admin-card-form')?.addEventListener('submit', async (e)
         fb.className = 'mt-3 text-sm text-red-300';
     }
 });
+toggleAdminTeamOtherField();
 bootstrap();
 

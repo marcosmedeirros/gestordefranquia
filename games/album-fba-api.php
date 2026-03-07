@@ -43,6 +43,12 @@ function schema(PDO $pdo): void
         user_id INT PRIMARY KEY, slot_pg INT NULL, slot_sg INT NULL, slot_sf INT NULL, slot_pf INT NULL, slot_c INT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $col = $pdo->query("SHOW COLUMNS FROM fba_cards LIKE 'collection_name'");
+    if (!$col || $col->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE fba_cards ADD COLUMN collection_name VARCHAR(120) NOT NULL DEFAULT 'Geral' AFTER team_id");
+        $pdo->exec("ALTER TABLE fba_cards ADD INDEX idx_collection (collection_name)");
+    }
 }
 
 function packs(): array
@@ -56,11 +62,11 @@ function packs(): array
 
 function master(PDO $pdo): array
 {
-    $stmt = $pdo->query("SELECT c.id, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
-        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id = c.team_id WHERE c.ativo = 1 ORDER BY t.nome, c.ovr DESC, c.nome");
+    $stmt = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id = c.team_id WHERE c.ativo = 1 ORDER BY colecao, t.nome, c.ovr DESC, c.nome");
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $out[] = ['id' => (int)$r['id'], 'team' => $r['team'], 'name' => $r['nome'], 'position' => strtoupper($r['posicao']), 'rarity' => $r['raridade'], 'ovr' => (int)$r['ovr'], 'img' => $r['img_url']];
+        $out[] = ['id' => (int)$r['id'], 'collection' => $r['colecao'], 'team' => $r['team'], 'name' => $r['nome'], 'position' => strtoupper($r['posicao']), 'rarity' => $r['raridade'], 'ovr' => (int)$r['ovr'], 'img' => $r['img_url']];
     }
     return $out;
 }
@@ -110,17 +116,17 @@ function roll(array $rates): string
 function draw(PDO $pdo, array $rates): ?array
 {
     $rar = roll($rates);
-    $stmt = $pdo->prepare("SELECT c.id, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+    $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
         FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND c.raridade=:r ORDER BY RAND() LIMIT 1");
     $stmt->execute([':r' => $rar]);
     $c = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$c) {
-        $stmt2 = $pdo->query("SELECT c.id, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+        $stmt2 = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
             FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 ORDER BY RAND() LIMIT 1");
         $c = $stmt2->fetch(PDO::FETCH_ASSOC);
     }
     if (!$c) return null;
-    return ['id' => (int)$c['id'], 'team' => $c['team'], 'name' => $c['nome'], 'position' => strtoupper($c['posicao']), 'rarity' => $c['raridade'], 'ovr' => (int)$c['ovr'], 'img' => $c['img_url']];
+    return ['id' => (int)$c['id'], 'collection' => $c['colecao'], 'team' => $c['team'], 'name' => $c['nome'], 'position' => strtoupper($c['posicao']), 'rarity' => $c['raridade'], 'ovr' => (int)$c['ovr'], 'img' => $c['img_url']];
 }
 
 schema($pdo);
@@ -232,13 +238,14 @@ if ($action === 'save_team') {
 
 if ($action === 'admin_create_card') {
     if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissÃ£o'], 403);
+    $collection = trim((string)($_POST['collection_name'] ?? ''));
     $team = trim((string)($_POST['team_name'] ?? ''));
     $name = trim((string)($_POST['card_name'] ?? ''));
     $pos = strtoupper(trim((string)($_POST['position'] ?? '')));
     $rar = trim((string)($_POST['rarity'] ?? ''));
     $ovr = (int)($_POST['ovr'] ?? 0);
 
-    if ($team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
+    if ($collection === '' || $team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
         out(['ok' => false, 'message' => 'Dados invÃ¡lidos'], 400);
     }
     if (!isset($_FILES['card_image']) || !is_array($_FILES['card_image']) || (int)($_FILES['card_image']['error'] ?? 1) !== UPLOAD_ERR_OK) {
@@ -274,8 +281,8 @@ if ($action === 'admin_create_card') {
         $t->execute([':n' => $team]);
         $teamId = (int)$pdo->lastInsertId();
 
-        $c = $pdo->prepare("INSERT INTO fba_cards (team_id,nome,posicao,raridade,ovr,img_url,created_by) VALUES (:t,:n,:p,:r,:o,'',:u)");
-        $c->execute([':t' => $teamId, ':n' => $name, ':p' => $pos, ':r' => $rar, ':o' => $ovr, ':u' => $user_id]);
+        $c = $pdo->prepare("INSERT INTO fba_cards (team_id,collection_name,nome,posicao,raridade,ovr,img_url,created_by) VALUES (:t,:c,:n,:p,:r,:o,'',:u)");
+        $c->execute([':t' => $teamId, ':c' => $collection, ':n' => $name, ':p' => $pos, ':r' => $rar, ':o' => $ovr, ':u' => $user_id]);
         $cardId = (int)$pdo->lastInsertId();
 
         $dir = __DIR__ . DIRECTORY_SEPARATOR . 'album-fba' . DIRECTORY_SEPARATOR . 'figuras';
@@ -296,7 +303,7 @@ if ($action === 'admin_create_card') {
         $u->execute([':img' => $img, ':id' => $cardId]);
 
         $pdo->commit();
-        out(['ok' => true, 'card' => ['id' => $cardId, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $img]]);
+        out(['ok' => true, 'card' => ['id' => $cardId, 'collection' => $collection, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $img]]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[album-fba] admin_create_card erro: ' . $e->getMessage());
@@ -308,13 +315,14 @@ if ($action === 'admin_create_card') {
 if ($action === 'admin_update_card') {
     if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
     $cardId = (int)($_POST['card_id'] ?? 0);
+    $collection = trim((string)($_POST['collection_name'] ?? ''));
     $team = trim((string)($_POST['team_name'] ?? ''));
     $name = trim((string)($_POST['card_name'] ?? ''));
     $pos = strtoupper(trim((string)($_POST['position'] ?? '')));
     $rar = trim((string)($_POST['rarity'] ?? ''));
     $ovr = (int)($_POST['ovr'] ?? 0);
 
-    if ($cardId <= 0 || $team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
+    if ($cardId <= 0 || $collection === '' || $team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
         out(['ok' => false, 'message' => 'Dados inválidos'], 400);
     }
 
@@ -371,9 +379,10 @@ if ($action === 'admin_update_card') {
         $t->execute([':n' => $team]);
         $teamId = (int)$pdo->lastInsertId();
 
-        $u = $pdo->prepare("UPDATE fba_cards SET team_id = :t, nome = :n, posicao = :p, raridade = :r, ovr = :o, img_url = :i WHERE id = :id");
+        $u = $pdo->prepare("UPDATE fba_cards SET team_id = :t, collection_name = :c, nome = :n, posicao = :p, raridade = :r, ovr = :o, img_url = :i WHERE id = :id");
         $u->execute([
             ':t' => $teamId,
+            ':c' => $collection,
             ':n' => $name,
             ':p' => $pos,
             ':r' => $rar,
@@ -383,7 +392,7 @@ if ($action === 'admin_update_card') {
         ]);
 
         $pdo->commit();
-        out(['ok' => true, 'card' => ['id' => $cardId, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $newImg]]);
+        out(['ok' => true, 'card' => ['id' => $cardId, 'collection' => $collection, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $newImg]]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[album-fba] admin_update_card erro: ' . $e->getMessage());
