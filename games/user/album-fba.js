@@ -1,6 +1,7 @@
 const API = 'album-fba-api.php';
 let state = { user: null, master: [], collection: {}, myTeam: [null, null, null, null, null], ranking: [], packTypes: {} };
 let currentSlot = null;
+const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
 const hasCard = (id) => Number(state.collection[id] || 0) > 0;
@@ -66,6 +67,10 @@ function renderAlbum() {
             slot.innerHTML = got
                 ? `<img src="${card.img}" class="w-full h-full object-cover"><div class="absolute top-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[0.6rem] font-bold text-white">#${card.id}</div><div class="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[0.6rem] font-bold text-emerald-300">x${state.collection[card.id]}</div>`
                 : `<div class="opacity-30 text-[0.65rem] font-bold text-center">${card.name}<br>#${card.id}</div>`;
+            if (got) {
+                slot.classList.add('cursor-pointer', 'hover:scale-[1.02]', 'transition-transform');
+                slot.onclick = () => openAlbumCardModal(card, Number(state.collection[card.id] || 1));
+            }
             grid.appendChild(slot);
         });
         section.appendChild(grid);
@@ -109,10 +114,11 @@ function openSelectModal(slot) {
     const m = document.getElementById('select-modal');
     const c = document.getElementById('select-cards-container');
     c.innerHTML = '';
-    const cards = state.master.filter((x) => hasCard(x.id));
-    if (!cards.length) c.innerHTML = '<p class="text-slate-400 col-span-full text-center py-8">Você não tem nenhuma carta.</p>';
+    const requiredPosition = slotPositions[slot] || null;
+    const cards = state.master.filter((x) => hasCard(x.id) && (!requiredPosition || String(x.position).toUpperCase() === requiredPosition));
+    if (!cards.length) c.innerHTML = `<p class="text-slate-400 col-span-full text-center py-8">Você não tem carta disponível para a posição ${requiredPosition || '-'}.<\/p>`;
     cards.forEach((card) => {
-        const used = state.myTeam.includes(card.id);
+        const used = state.myTeam.some((id, idx) => idx !== slot && id === card.id);
         const el = document.createElement('div');
         el.className = `aspect-[2.5/3.5] rounded-lg overflow-hidden relative border-2 ${rarityClass(card.rarity)} ${used ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:scale-105'} transition-transform`;
         el.innerHTML = `<img src="${card.img}" class="w-full h-full object-cover"><div class="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[0.7rem] font-bold text-yellow-400 border border-yellow-500/30">OVR ${card.ovr}</div>${used ? '<div class="absolute inset-0 bg-black/60 flex items-center justify-center font-bold text-sm text-center p-2">EM USO</div>' : ''}`;
@@ -150,6 +156,36 @@ function closeSelectModal() {
     m.classList.remove('flex');
 }
 window.closeSelectModal = closeSelectModal;
+
+function openAlbumCardModal(card, qty) {
+    const modal = document.getElementById('album-card-modal');
+    if (!modal || !card) return;
+    const img = document.getElementById('album-card-modal-img');
+    const name = document.getElementById('album-card-modal-name');
+    const meta = document.getElementById('album-card-modal-meta');
+    const count = document.getElementById('album-card-modal-count');
+    if (img) img.src = card.img;
+    if (name) name.textContent = card.name;
+    if (meta) meta.textContent = `${card.team} • ${card.position} • OVR ${card.ovr} • ${String(card.rarity || '').toUpperCase()}`;
+    if (count) count.textContent = `Quantidade: x${qty || 1}`;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeAlbumCardModal() {
+    const modal = document.getElementById('album-card-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+window.closeAlbumCardModal = closeAlbumCardModal;
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const modal = document.getElementById('album-card-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        closeAlbumCardModal();
+    }
+});
 
 async function renderRanking() {
     const tb = document.getElementById('ranking-tbody');

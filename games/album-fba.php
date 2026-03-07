@@ -190,6 +190,7 @@ $teams = [
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-black border border-red-700 rounded-xl p-5">
                     <form id="admin-card-form" class="space-y-3">
+                        <input type="hidden" id="admin-card-id" value="">
                         <select id="admin-team" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
                             <option value="">Selecione o time</option>
                             <?php foreach ($teams as $team): ?>
@@ -206,13 +207,31 @@ $teams = [
                             </select>
                             <input id="admin-ovr" type="number" min="50" max="99" placeholder="OVR" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
                         </div>
-                        <input id="admin-image-file" type="file" accept="image/*" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
-                        <button class="w-full bg-red-700 hover:bg-red-600 rounded py-2 font-bold">Cadastrar Carta</button>
+                        <input id="admin-image-file" type="file" accept="image/*" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button id="admin-save-btn" class="w-full bg-red-700 hover:bg-red-600 rounded py-2 font-bold" type="submit">Cadastrar Carta</button>
+                            <button id="admin-cancel-edit-btn" class="w-full bg-zinc-700 hover:bg-zinc-600 rounded py-2 font-bold hidden" type="button">Cancelar edição</button>
+                            <button id="admin-delete-btn" class="w-full bg-red-900 hover:bg-red-800 rounded py-2 font-bold hidden" type="button">Excluir carta</button>
+                        </div>
+                        <small class="text-zinc-400 block">Na edição, a imagem é opcional (envie só se quiser trocar).</small>
                     </form>
                     <p id="admin-feedback" class="mt-3 text-sm text-zinc-300"></p>
                 </div>
                 <div class="bg-black border border-red-700 rounded-xl p-5">
                     <h3 class="fba-title text-xl mb-3">Últimas Cartas</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                        <select id="admin-filter-team" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                            <option value="">Todos os times</option>
+                        </select>
+                        <select id="admin-filter-rarity" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                            <option value="">Todos os tipos</option>
+                            <option value="comum">Comum</option>
+                            <option value="rara">Rara</option>
+                            <option value="epico">Épica</option>
+                            <option value="lendario">Lendária</option>
+                        </select>
+                        <button id="admin-filter-clear" class="bg-zinc-800 hover:bg-zinc-700 rounded py-2 font-bold" type="button">Limpar filtros</button>
+                    </div>
                     <div id="admin-cards-list" class="space-y-2 max-h-[420px] overflow-y-auto pr-2"></div>
                 </div>
             </div>
@@ -232,6 +251,19 @@ $teams = [
                 <button onclick="closeSelectModal()" class="text-zinc-400 hover:text-white text-3xl font-bold">&times;</button>
             </div>
             <div id="select-cards-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-4"></div>
+        </div>
+    </div>
+
+    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
+        <div class="bg-black border border-red-700 rounded-xl p-4 w-11/12 max-w-md">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="fba-title text-xl text-white">Carta</h3>
+                <button onclick="closeAlbumCardModal()" class="text-zinc-400 hover:text-white text-3xl font-bold leading-none">&times;</button>
+            </div>
+            <img id="album-card-modal-img" src="" alt="Carta" class="w-full rounded-lg border border-zinc-700">
+            <div class="mt-3 text-white font-bold" id="album-card-modal-name"></div>
+            <div class="text-zinc-300 text-sm" id="album-card-modal-meta"></div>
+            <div class="text-red-300 text-sm mt-1" id="album-card-modal-count"></div>
         </div>
     </div>
 

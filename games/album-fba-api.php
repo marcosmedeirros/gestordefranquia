@@ -5,7 +5,7 @@ require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => false, 'message' => 'Não autenticado']);
+    echo json_encode(['ok' => false, 'message' => 'NÃ£o autenticado']);
     exit;
 }
 
@@ -128,7 +128,7 @@ schema($pdo);
 $meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
 $meStmt->execute([':id' => $user_id]);
 $me = $meStmt->fetch(PDO::FETCH_ASSOC);
-if (!$me) out(['ok' => false, 'message' => 'Usuário inválido'], 400);
+if (!$me) out(['ok' => false, 'message' => 'UsuÃ¡rio invÃ¡lido'], 400);
 $is_admin = ((int)($me['is_admin'] ?? 0) === 1);
 
 $action = $_GET['action'] ?? '';
@@ -140,7 +140,7 @@ if ($action === 'buy_pack') {
     $b = body();
     $type = (string)($b['packType'] ?? '');
     $cfg = packs();
-    if (!isset($cfg[$type])) out(['ok' => false, 'message' => 'Pacote inválido'], 400);
+    if (!isset($cfg[$type])) out(['ok' => false, 'message' => 'Pacote invÃ¡lido'], 400);
     try {
         $pdo->beginTransaction();
         $u = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id FOR UPDATE");
@@ -181,7 +181,7 @@ if ($action === 'buy_pack') {
 if ($action === 'save_team') {
     $b = body();
     $arr = $b['team'] ?? null;
-    if (!is_array($arr) || count($arr) !== 5) out(['ok' => false, 'message' => 'Time inválido'], 400);
+    if (!is_array($arr) || count($arr) !== 5) out(['ok' => false, 'message' => 'Time invÃ¡lido'], 400);
     $slots = [];
     foreach ($arr as $v) $slots[] = ($v && (int)$v > 0) ? (int)$v : null;
     $nn = array_values(array_filter($slots, static fn($x) => $x !== null));
@@ -190,7 +190,23 @@ if ($action === 'save_team') {
         $ph = implode(',', array_fill(0, count($nn), '?'));
         $q = $pdo->prepare("SELECT card_id FROM fba_user_collection WHERE user_id=? AND card_id IN ($ph)");
         $q->execute(array_merge([$user_id], $nn));
-        if (count($q->fetchAll(PDO::FETCH_COLUMN)) !== count($nn)) out(['ok' => false, 'message' => 'Você não possui todas as cartas'], 400);
+        if (count($q->fetchAll(PDO::FETCH_COLUMN)) !== count($nn)) out(['ok' => false, 'message' => 'VocÃª nÃ£o possui todas as cartas'], 400);
+
+        $qPos = $pdo->prepare("SELECT id, UPPER(posicao) AS posicao FROM fba_cards WHERE id IN ($ph)");
+        $qPos->execute($nn);
+        $posById = [];
+        foreach ($qPos->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $posById[(int)$row['id']] = (string)$row['posicao'];
+        }
+        $expectedBySlot = ['PG', 'SG', 'SF', 'PF', 'C'];
+        foreach ($slots as $idx => $cardId) {
+            if (!$cardId) continue;
+            $expectedPos = $expectedBySlot[$idx];
+            $actualPos = $posById[(int)$cardId] ?? null;
+            if ($actualPos !== $expectedPos) {
+                out(['ok' => false, 'message' => "A carta selecionada para {$expectedPos} deve ser da mesma posiÃ§Ã£o."], 400);
+            }
+        }
     }
     $s = $pdo->prepare("INSERT INTO fba_user_team (user_id,slot_pg,slot_sg,slot_sf,slot_pf,slot_c) VALUES (:u,:pg,:sg,:sf,:pf,:c)
         ON DUPLICATE KEY UPDATE slot_pg=VALUES(slot_pg),slot_sg=VALUES(slot_sg),slot_sf=VALUES(slot_sf),slot_pf=VALUES(slot_pf),slot_c=VALUES(slot_c)");
@@ -199,7 +215,7 @@ if ($action === 'save_team') {
 }
 
 if ($action === 'admin_create_card') {
-    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
+    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissÃ£o'], 403);
     $team = trim((string)($_POST['team_name'] ?? ''));
     $name = trim((string)($_POST['card_name'] ?? ''));
     $pos = strtoupper(trim((string)($_POST['position'] ?? '')));
@@ -207,10 +223,10 @@ if ($action === 'admin_create_card') {
     $ovr = (int)($_POST['ovr'] ?? 0);
 
     if ($team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
-        out(['ok' => false, 'message' => 'Dados inválidos'], 400);
+        out(['ok' => false, 'message' => 'Dados invÃ¡lidos'], 400);
     }
     if (!isset($_FILES['card_image']) || !is_array($_FILES['card_image']) || (int)($_FILES['card_image']['error'] ?? 1) !== UPLOAD_ERR_OK) {
-        out(['ok' => false, 'message' => 'Upload da imagem é obrigatório'], 400);
+        out(['ok' => false, 'message' => 'Upload da imagem Ã© obrigatÃ³rio'], 400);
     }
 
     $imgFile = $_FILES['card_image'];
@@ -233,7 +249,7 @@ if ($action === 'admin_create_card') {
         'image/webp' => 'webp'
     ];
     if (!isset($allowed[$mime])) {
-        out(['ok' => false, 'message' => 'Formato inválido. Use JPG, PNG ou WEBP'], 400);
+        out(['ok' => false, 'message' => 'Formato invÃ¡lido. Use JPG, PNG ou WEBP'], 400);
     }
 
     try {
@@ -248,7 +264,7 @@ if ($action === 'admin_create_card') {
 
         $dir = __DIR__ . DIRECTORY_SEPARATOR . 'album-fba' . DIRECTORY_SEPARATOR . 'figuras';
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-            throw new RuntimeException('Não foi possível criar diretório de imagens');
+            throw new RuntimeException('NÃ£o foi possÃ­vel criar diretÃ³rio de imagens');
         }
 
         $ext = $allowed[$mime];
@@ -272,4 +288,124 @@ if ($action === 'admin_create_card') {
     }
 }
 
-out(['ok' => false, 'message' => 'Ação inválida'], 400);
+
+if ($action === 'admin_update_card') {
+    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
+    $cardId = (int)($_POST['card_id'] ?? 0);
+    $team = trim((string)($_POST['team_name'] ?? ''));
+    $name = trim((string)($_POST['card_name'] ?? ''));
+    $pos = strtoupper(trim((string)($_POST['position'] ?? '')));
+    $rar = trim((string)($_POST['rarity'] ?? ''));
+    $ovr = (int)($_POST['ovr'] ?? 0);
+
+    if ($cardId <= 0 || $team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
+        out(['ok' => false, 'message' => 'Dados inválidos'], 400);
+    }
+
+    $stmtCard = $pdo->prepare("SELECT id, img_url FROM fba_cards WHERE id = :id AND ativo = 1");
+    $stmtCard->execute([':id' => $cardId]);
+    $currentCard = $stmtCard->fetch(PDO::FETCH_ASSOC);
+    if (!$currentCard) {
+        out(['ok' => false, 'message' => 'Carta não encontrada'], 404);
+    }
+
+    $newImg = (string)($currentCard['img_url'] ?? '');
+    $hasUpload = isset($_FILES['card_image']) && is_array($_FILES['card_image']) && (int)($_FILES['card_image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+
+    if ($hasUpload) {
+        $imgFile = $_FILES['card_image'];
+        $tmpPath = $imgFile['tmp_name'] ?? '';
+        $mime = '';
+        if (is_string($tmpPath) && $tmpPath !== '' && function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $detected = finfo_file($finfo, $tmpPath);
+                finfo_close($finfo);
+                $mime = is_string($detected) ? $detected : '';
+            }
+        }
+        if ($mime === '') {
+            $mime = (string)($imgFile['type'] ?? '');
+        }
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp'
+        ];
+        if (!isset($allowed[$mime])) {
+            out(['ok' => false, 'message' => 'Formato inválido. Use JPG, PNG ou WEBP'], 400);
+        }
+
+        $dir = __DIR__ . DIRECTORY_SEPARATOR . 'album-fba' . DIRECTORY_SEPARATOR . 'figuras';
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            out(['ok' => false, 'message' => 'Falha ao criar diretório de imagens'], 500);
+        }
+        $ext = $allowed[$mime];
+        $finalName = $cardId . '.' . $ext;
+        $finalPath = $dir . DIRECTORY_SEPARATOR . $finalName;
+        if (!move_uploaded_file($tmpPath, $finalPath)) {
+            out(['ok' => false, 'message' => 'Falha ao salvar nova imagem'], 500);
+        }
+        $newImg = 'album-fba/figuras/' . $finalName;
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $t = $pdo->prepare("INSERT INTO fba_card_teams (nome) VALUES (:n) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
+        $t->execute([':n' => $team]);
+        $teamId = (int)$pdo->lastInsertId();
+
+        $u = $pdo->prepare("UPDATE fba_cards SET team_id = :t, nome = :n, posicao = :p, raridade = :r, ovr = :o, img_url = :i WHERE id = :id");
+        $u->execute([
+            ':t' => $teamId,
+            ':n' => $name,
+            ':p' => $pos,
+            ':r' => $rar,
+            ':o' => $ovr,
+            ':i' => $newImg,
+            ':id' => $cardId
+        ]);
+
+        $pdo->commit();
+        out(['ok' => true, 'card' => ['id' => $cardId, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $newImg]]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[album-fba] admin_update_card erro: ' . $e->getMessage());
+        out(['ok' => false, 'message' => 'Erro ao atualizar carta: ' . $e->getMessage()], 500);
+    }
+}
+
+if ($action === 'admin_delete_card') {
+    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
+    $b = body();
+    $cardId = (int)($b['card_id'] ?? 0);
+    if ($cardId <= 0) {
+        out(['ok' => false, 'message' => 'Carta inválida'], 400);
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $check = $pdo->prepare("SELECT id FROM fba_cards WHERE id = :id");
+        $check->execute([':id' => $cardId]);
+        if (!$check->fetchColumn()) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Carta não encontrada'], 404);
+        }
+
+        $pdo->prepare("DELETE FROM fba_user_collection WHERE card_id = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_user_team SET slot_pg = NULL WHERE slot_pg = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_user_team SET slot_sg = NULL WHERE slot_sg = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_user_team SET slot_sf = NULL WHERE slot_sf = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_user_team SET slot_pf = NULL WHERE slot_pf = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_user_team SET slot_c = NULL WHERE slot_c = :id")->execute([':id' => $cardId]);
+        $pdo->prepare("UPDATE fba_cards SET ativo = 0 WHERE id = :id")->execute([':id' => $cardId]);
+
+        $pdo->commit();
+        out(['ok' => true, 'deleted_id' => $cardId]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[album-fba] admin_delete_card erro: ' . $e->getMessage());
+        out(['ok' => false, 'message' => 'Erro ao excluir carta: ' . $e->getMessage()], 500);
+    }
+}
+out(['ok' => false, 'message' => 'AÃ§Ã£o invÃ¡lida'], 400);

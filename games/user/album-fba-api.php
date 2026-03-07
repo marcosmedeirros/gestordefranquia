@@ -191,6 +191,22 @@ if ($action === 'save_team') {
         $q = $pdo->prepare("SELECT card_id FROM fba_user_collection WHERE user_id=? AND card_id IN ($ph)");
         $q->execute(array_merge([$user_id], $nn));
         if (count($q->fetchAll(PDO::FETCH_COLUMN)) !== count($nn)) out(['ok' => false, 'message' => 'Você não possui todas as cartas'], 400);
+
+        $qPos = $pdo->prepare("SELECT id, UPPER(posicao) AS posicao FROM fba_cards WHERE id IN ($ph)");
+        $qPos->execute($nn);
+        $posById = [];
+        foreach ($qPos->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $posById[(int)$row['id']] = (string)$row['posicao'];
+        }
+        $expectedBySlot = ['PG', 'SG', 'SF', 'PF', 'C'];
+        foreach ($slots as $idx => $cardId) {
+            if (!$cardId) continue;
+            $expectedPos = $expectedBySlot[$idx];
+            $actualPos = $posById[(int)$cardId] ?? null;
+            if ($actualPos !== $expectedPos) {
+                out(['ok' => false, 'message' => "A carta selecionada para {$expectedPos} deve ser da mesma posição."], 400);
+            }
+        }
     }
     $s = $pdo->prepare("INSERT INTO fba_user_team (user_id,slot_pg,slot_sg,slot_sf,slot_pf,slot_c) VALUES (:u,:pg,:sg,:sf,:pf,:c)
         ON DUPLICATE KEY UPDATE slot_pg=VALUES(slot_pg),slot_sg=VALUES(slot_sg),slot_sf=VALUES(slot_sf),slot_pf=VALUES(slot_pf),slot_c=VALUES(slot_c)");
