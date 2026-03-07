@@ -200,24 +200,69 @@ if ($action === 'save_team') {
 
 if ($action === 'admin_create_card') {
     if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
-    $b = body();
-    $team = trim((string)($b['team_name'] ?? ''));
-    $name = trim((string)($b['card_name'] ?? ''));
-    $pos = strtoupper(trim((string)($b['position'] ?? '')));
-    $rar = trim((string)($b['rarity'] ?? ''));
-    $ovr = (int)($b['ovr'] ?? 0);
-    $img = trim((string)($b['img_url'] ?? ''));
-    if ($team === '' || $name === '' || $img === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
+    $team = trim((string)($_POST['team_name'] ?? ''));
+    $name = trim((string)($_POST['card_name'] ?? ''));
+    $pos = strtoupper(trim((string)($_POST['position'] ?? '')));
+    $rar = trim((string)($_POST['rarity'] ?? ''));
+    $ovr = (int)($_POST['ovr'] ?? 0);
+
+    if ($team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
         out(['ok' => false, 'message' => 'Dados inválidos'], 400);
     }
+    if (!isset($_FILES['card_image']) || !is_array($_FILES['card_image']) || (int)($_FILES['card_image']['error'] ?? 1) !== UPLOAD_ERR_OK) {
+        out(['ok' => false, 'message' => 'Upload da imagem é obrigatório'], 400);
+    }
+
+    $imgFile = $_FILES['card_image'];
+    $tmpPath = $imgFile['tmp_name'] ?? '';
+    $mime = '';
+    if (is_string($tmpPath) && $tmpPath !== '' && function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $detected = finfo_file($finfo, $tmpPath);
+            finfo_close($finfo);
+            $mime = is_string($detected) ? $detected : '';
+        }
+    }
+    if ($mime === '') {
+        $mime = (string)($imgFile['type'] ?? '');
+    }
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp'
+    ];
+    if (!isset($allowed[$mime])) {
+        out(['ok' => false, 'message' => 'Formato inválido. Use JPG, PNG ou WEBP'], 400);
+    }
+
     try {
         $pdo->beginTransaction();
         $t = $pdo->prepare("INSERT INTO fba_card_teams (nome) VALUES (:n) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
         $t->execute([':n' => $team]);
         $teamId = (int)$pdo->lastInsertId();
-        $c = $pdo->prepare("INSERT INTO fba_cards (team_id,nome,posicao,raridade,ovr,img_url,created_by) VALUES (:t,:n,:p,:r,:o,:i,:u)");
-        $c->execute([':t' => $teamId, ':n' => $name, ':p' => $pos, ':r' => $rar, ':o' => $ovr, ':i' => $img, ':u' => $user_id]);
+
+        $c = $pdo->prepare("INSERT INTO fba_cards (team_id,nome,posicao,raridade,ovr,img_url,created_by) VALUES (:t,:n,:p,:r,:o,'',:u)");
+        $c->execute([':t' => $teamId, ':n' => $name, ':p' => $pos, ':r' => $rar, ':o' => $ovr, ':u' => $user_id]);
         $cardId = (int)$pdo->lastInsertId();
+
+        $dir = __DIR__ . DIRECTORY_SEPARATOR . 'album-fba' . DIRECTORY_SEPARATOR . 'figuras';
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new RuntimeException('Não foi possível criar diretório de imagens');
+        }
+
+        $ext = $allowed[$mime];
+        $finalName = $cardId . '.' . $ext;
+        $finalPath = $dir . DIRECTORY_SEPARATOR . $finalName;
+
+        if (!move_uploaded_file($tmpPath, $finalPath)) {
+            throw new RuntimeException('Falha ao salvar imagem');
+        }
+
+        $img = 'album-fba/figuras/' . $finalName;
+        $u = $pdo->prepare("UPDATE fba_cards SET img_url = :img WHERE id = :id");
+        $u->execute([':img' => $img, ':id' => $cardId]);
+
         $pdo->commit();
         out(['ok' => true, 'card' => ['id' => $cardId, 'team' => $team, 'name' => $name, 'position' => $pos, 'rarity' => $rar, 'ovr' => $ovr, 'img' => $img]]);
     } catch (Throwable $e) {

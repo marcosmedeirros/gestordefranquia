@@ -4,6 +4,41 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: auth/login.php');
     exit;
 }
+
+$teams = [
+    'Anchorage Envood',
+    'Athens Olympics',
+    'Boston Panthers',
+    'Buffalo Blackouts',
+    'Calgary Mooses',
+    'Chicago Dope',
+    'Colorado Frostborn',
+    'Dallas Blues',
+    'El Paso Guerreros',
+    'Hawaii Heatwave',
+    'Houston Parfums',
+    'Kansas City Swifties',
+    'Kentucky Cavalinhos',
+    'Los Angeles Celestials',
+    'Los Angeles Souks',
+    'Louisville Shuffle',
+    'México City Catrinas',
+    'Miami Sunsets',
+    'Milwaukee Beezz',
+    'New Jersey Reapers',
+    'New York Mafia',
+    'Oakland Blue Foxes',
+    'Oklahoma Gunslingers',
+    'Oregon Puddles',
+    'Orlando Black Lions',
+    'Philadelphia Devils',
+    'Pittsburgh Phantoms',
+    'San Antonio Vultures',
+    'San Francisco JoyBoys',
+    'San Jose Carpinteros',
+    'St. Louis Archers',
+    'Washington Peacemakers'
+];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -14,35 +49,192 @@ if (!isset($_SESSION['user_id'])) {
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Poppins:wght@300;400;600&display=swap');
-        body{font-family:'Poppins',sans-serif;background:#0f172a;color:#fff;overflow-x:hidden}h1,h2,h3,.fba-title{font-family:'Oswald',sans-serif;text-transform:uppercase}
-        .rarity-comum{border-color:#94a3b8;background:linear-gradient(145deg,#1e293b,#334155)}.rarity-rara{border-color:#3b82f6;background:linear-gradient(145deg,#1e3a8a,#2563eb);box-shadow:0 0 10px rgba(59,130,246,.5)}.rarity-epico{border-color:#a855f7;background:linear-gradient(145deg,#4c1d95,#9333ea);box-shadow:0 0 15px rgba(168,85,247,.6)}.rarity-lendario{border-color:#eab308;background:linear-gradient(145deg,#713f12,#ca8a04);box-shadow:0 0 20px rgba(234,179,8,.8);animation:pulse-gold 2s infinite}
-        @keyframes pulse-gold{0%{box-shadow:0 0 15px rgba(234,179,8,.6)}50%{box-shadow:0 0 30px rgba(234,179,8,1)}100%{box-shadow:0 0 15px rgba(234,179,8,.6)}}
-        .pack{transition:transform .2s;cursor:pointer;border:4px solid #f87171;box-shadow:0 10px 25px rgba(220,38,38,.5)}.pack:hover{transform:scale(1.05) translateY(-10px)}.shaking{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both;animation-iteration-count:3}
-        @keyframes shake{10%,90%{transform:translate3d(-2px,0,0) rotate(-2deg)}20%,80%{transform:translate3d(4px,0,0) rotate(2deg)}30%,50%,70%{transform:translate3d(-6px,0,0) rotate(-4deg)}40%,60%{transform:translate3d(6px,0,0) rotate(4deg)}}
-        .modal{backdrop-filter:blur(10px);background:rgba(0,0,0,.8)}.revealed-card{opacity:0;transform:scale(.5) translateY(100px);transition:all .6s cubic-bezier(.175,.885,.32,1.275)}.revealed-card.show{opacity:1;transform:scale(1) translateY(0)}
-        .card-container{perspective:1000px;cursor:pointer}.card-inner{position:relative;width:100%;height:100%;transition:transform .6s cubic-bezier(.175,.885,.32,1.275);transform-style:preserve-3d}.card-container.flipped .card-inner{transform:rotateY(180deg)}.card-front,.card-back{position:absolute;width:100%;height:100%;backface-visibility:hidden;border-radius:.75rem;overflow:hidden}.card-back{background:linear-gradient(135deg,#1e293b,#0f172a);border:4px solid #334155}.card-front{transform:rotateY(180deg)}
-        .album-slot{aspect-ratio:2.5/3.5;border:2px dashed #475569;background:rgba(30,41,59,.5);transition:.3s}.album-slot.collected{border-style:solid;border-width:3px;background-image:url('https://www.transparenttextures.com/patterns/carbon-fibre.png')}.album-slot:not(.collected){filter:grayscale(100%) opacity(40%)}
-        .basketball-court{background:#e6915c;background-image:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(0,0,0,.05) 40px,rgba(0,0,0,.05) 80px);border:4px solid #fff;position:relative;width:100%;max-width:500px;aspect-ratio:1/1.2;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 50px rgba(0,0,0,.3)}.court-paint{border:4px solid #fff;border-bottom:none;position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:160px;height:200px;background:#cc7a48}.court-3pt{border:4px solid #fff;border-radius:50%;position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:450px;height:400px;pointer-events:none}.court-slot{position:absolute;width:70px;height:98px;transform:translate(-50%,-50%);border:2px dashed rgba(255,255,255,.8);border-radius:8px;background:rgba(0,0,0,.3);cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.5rem;z-index:10}.court-slot:hover{background:rgba(255,255,255,.2);border-style:solid}.court-slot img{width:100%;height:100%;object-fit:cover;border-radius:6px;border:2px solid #fff}.pos-pg{top:15%;left:50%}.pos-sg{top:40%;left:20%}.pos-sf{top:40%;left:80%}.pos-pf{top:75%;left:30%}.pos-c{top:75%;left:70%}
+        body { font-family: 'Poppins', sans-serif; background-color: #050505; color: #fff; overflow-x: hidden; }
+        h1, h2, h3, .fba-title { font-family: 'Oswald', sans-serif; text-transform: uppercase; }
+
+        .rarity-comum { border-color: #b0b0b0; background: linear-gradient(145deg, #1a1a1a, #2a2a2a); }
+        .rarity-rara { border-color: #ef4444; background: linear-gradient(145deg, #2a0a0a, #6b1111); box-shadow: 0 0 10px rgba(239, 68, 68, 0.55); }
+        .rarity-epico { border-color: #ff6b6b; background: linear-gradient(145deg, #3b0f0f, #9b1c1c); box-shadow: 0 0 15px rgba(255, 107, 107, 0.65); }
+        .rarity-lendario { border-color: #ffffff; background: linear-gradient(145deg, #400000, #b30000); box-shadow: 0 0 20px rgba(255, 255, 255, 0.8); animation: pulse-white 2s infinite; }
+        @keyframes pulse-white { 0% { box-shadow: 0 0 12px rgba(255,255,255,.6); } 50% { box-shadow: 0 0 28px rgba(255,255,255,1); } 100% { box-shadow: 0 0 12px rgba(255,255,255,.6); } }
+
+        .pack { transition: transform .2s; cursor: pointer; border: 3px solid #ef4444; box-shadow: 0 10px 25px rgba(239, 68, 68, .45); }
+        .pack:hover { transform: scale(1.05) translateY(-10px); }
+        .shaking { animation: shake .5s cubic-bezier(.36,.07,.19,.97) both; animation-iteration-count: 3; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0) rotate(-2deg); }
+            20%, 80% { transform: translate3d(4px, 0, 0) rotate(2deg); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0) rotate(-4deg); }
+            40%, 60% { transform: translate3d(6px, 0, 0) rotate(4deg); }
+        }
+
+        .modal { backdrop-filter: blur(10px); background-color: rgba(0, 0, 0, 0.86); }
+        .revealed-card { opacity: 0; transform: scale(.5) translateY(100px); transition: all .6s cubic-bezier(.175,.885,.32,1.275); }
+        .revealed-card.show { opacity: 1; transform: scale(1) translateY(0); }
+
+        .card-container { perspective: 1000px; cursor: pointer; }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform .6s cubic-bezier(.175,.885,.32,1.275); transform-style: preserve-3d; }
+        .card-container.flipped .card-inner { transform: rotateY(180deg); }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: .75rem; overflow: hidden; }
+        .card-back { background: linear-gradient(135deg, #191919, #070707); border: 4px solid #303030; }
+        .card-front { transform: rotateY(180deg); }
+
+        .album-slot { aspect-ratio: 2.5 / 3.5; border: 2px dashed #3d3d3d; background-color: rgba(32, 32, 32, .5); transition: all .3s; }
+        .album-slot.collected { border-style: solid; border-width: 3px; background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png'); }
+        .album-slot:not(.collected) { filter: grayscale(100%) opacity(40%); }
+
+        .basketball-court {
+            background-color: #2a2a2a;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.04) 40px, rgba(255,255,255,.04) 80px);
+            border: 4px solid #ef4444;
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1 / 1.2;
+            margin: 0 auto;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0,0,0,.45);
+        }
+        .court-paint { border: 4px solid #ffffff; border-bottom: none; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 160px; height: 200px; background-color: #1c1c1c; }
+        .court-3pt { border: 4px solid #ffffff; border-radius: 50%; position: absolute; bottom: -50px; left: 50%; transform: translateX(-50%); width: 450px; height: 400px; pointer-events: none; }
+        .court-slot { position: absolute; width: 70px; height: 98px; transform: translate(-50%, -50%); border: 2px dashed rgba(255,255,255,.8); border-radius: 8px; background: rgba(0,0,0,.45); cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.5rem; z-index: 10; }
+        .court-slot:hover { background: rgba(255,255,255,.1); border-style: solid; }
+        .court-slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 2px solid white; }
+        .pos-pg { top: 15%; left: 50%; } .pos-sg { top: 40%; left: 20%; } .pos-sf { top: 40%; left: 80%; } .pos-pf { top: 75%; left: 30%; } .pos-c { top: 75%; left: 70%; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
-<header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-10 shadow-lg"><div class="container mx-auto flex justify-between items-center gap-3"><h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">FBA <span class="text-white text-xl">Coleção Oficial</span></h1><div class="flex items-center gap-3"><a href="index.php" class="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700 text-sm hover:bg-slate-700">Painel</a><div class="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">Moedas: <span id="coin-count" class="text-xl font-bold ml-2 text-yellow-400">0</span></div></div></div></header>
-<div class="container mx-auto px-4 mt-6 flex justify-center gap-2 md:gap-4 border-b border-slate-700 pb-2 flex-wrap">
-    <button onclick="switchTab('album')" id="tab-album" class="px-4 md:px-6 py-2 rounded-t-lg bg-blue-600 font-bold fba-title">Meu Álbum</button>
-    <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Meu Time</button>
-    <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Ranking</button>
-    <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Abrir Pacotes</button>
-    <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700 hidden">Admin</button>
-</div>
-<main class="container mx-auto px-4 py-8 flex-grow">
-    <section id="section-album" class="block"><h2 class="text-2xl font-bold fba-title">Plantel FBA 2026</h2><p class="text-slate-400" id="album-progress">Progresso: 0 figurinhas</p><div id="album-container" class="flex flex-col gap-8 mt-6"></div></section>
-    <section id="section-team" class="hidden text-center"><h2 class="text-3xl font-bold fba-title mb-2">Quinteto Ideal</h2><p class="text-slate-400 mb-6">Escale suas melhores cartas na quadra.</p><div class="flex justify-center mb-8"><div class="bg-gradient-to-r from-slate-800 to-slate-900 border border-yellow-500/50 rounded-full px-8 py-3">OVR DO TIME: <span id="team-ovr-display" class="text-3xl font-black text-yellow-400 ml-2">0</span></div></div><div class="basketball-court shadow-2xl"><div class="court-3pt"></div><div class="court-paint"></div><div class="court-slot pos-pg" onclick="openSelectModal(0)" id="court-slot-0">+</div><div class="court-slot pos-sg" onclick="openSelectModal(1)" id="court-slot-1">+</div><div class="court-slot pos-sf" onclick="openSelectModal(2)" id="court-slot-2">+</div><div class="court-slot pos-pf" onclick="openSelectModal(3)" id="court-slot-3">+</div><div class="court-slot pos-c" onclick="openSelectModal(4)" id="court-slot-4">+</div></div></section>
-    <section id="section-ranking" class="hidden text-center"><h2 class="text-3xl font-bold fba-title mb-2">Ranking Global</h2><div class="max-w-3xl mx-auto bg-slate-900 rounded-xl border border-slate-700 overflow-hidden shadow-2xl mt-8"><table class="w-full text-left"><thead><tr class="bg-slate-800 text-slate-300 text-sm uppercase tracking-wider fba-title"><th class="p-4 w-20 text-center border-b border-slate-700">Pos</th><th class="p-4 border-b border-slate-700">Jogador</th><th class="p-4 w-32 text-center border-b border-slate-700">OVR</th></tr></thead><tbody id="ranking-tbody"></tbody></table></div></section>
-    <section id="section-store" class="hidden text-center"><h2 class="text-3xl font-bold fba-title mb-2">Loja de Pacotes</h2><p class="text-slate-400 mb-10">Drop rate aplicado no servidor.</p><div class="flex flex-wrap justify-center gap-8"><div class="flex flex-col items-center"><div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden !border-slate-400" style="background:linear-gradient(135deg,#475569,#1e293b)" onclick="openPack('basico')"><h3 class="text-3xl font-black italic">BÁSICO</h3></div><button class="mt-4 bg-slate-700 hover:bg-slate-600 px-6 py-2 rounded-full font-bold" onclick="openPack('basico')">30</button></div><div class="flex flex-col items-center"><div id="pack-premium" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden !border-blue-400" style="background:linear-gradient(135deg,#2563eb,#1e3a8a)" onclick="openPack('premium')"><h3 class="text-3xl font-black italic">PREMIUM</h3></div><button class="mt-4 bg-blue-700 hover:bg-blue-600 px-6 py-2 rounded-full font-bold" onclick="openPack('premium')">60</button></div><div class="flex flex-col items-center"><div id="pack-ultra" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden !border-yellow-400" style="background:linear-gradient(135deg,#eab308,#713f12)" onclick="openPack('ultra')"><h3 class="text-3xl font-black italic">ULTRA</h3></div><button class="mt-4 bg-yellow-600 hover:bg-yellow-500 text-black px-6 py-2 rounded-full font-bold" onclick="openPack('ultra')">100</button></div></div></section>
-    <section id="section-admin" class="hidden"><h2 class="text-3xl font-bold fba-title mb-2">Admin de Cartas</h2><p class="text-slate-400 mb-6">Cadastrar por time, posição, imagem e raridade.</p><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-slate-900 border border-slate-700 rounded-xl p-5"><form id="admin-card-form" class="space-y-3"><input id="admin-team" placeholder="Time" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2" required><input id="admin-name" placeholder="Nome da carta" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2" required><div class="grid grid-cols-3 gap-3"><select id="admin-position" class="bg-slate-800 border border-slate-600 rounded px-3 py-2"><option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option></select><select id="admin-rarity" class="bg-slate-800 border border-slate-600 rounded px-3 py-2"><option value="comum">Comum</option><option value="rara">Rara</option><option value="epico">Épica</option><option value="lendario">Lendária</option></select><input id="admin-ovr" type="number" min="50" max="99" placeholder="OVR" class="bg-slate-800 border border-slate-600 rounded px-3 py-2" required></div><input id="admin-img" type="url" placeholder="URL da imagem" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2" required><button class="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 font-bold">Cadastrar Carta</button></form><p id="admin-feedback" class="mt-3 text-sm text-slate-300"></p></div><div class="bg-slate-900 border border-slate-700 rounded-xl p-5"><h3 class="fba-title text-xl mb-3">Últimas Cartas</h3><div id="admin-cards-list" class="space-y-2 max-h-[420px] overflow-y-auto pr-2"></div></div></div></section>
-</main>
-<div id="reveal-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center"><h2 class="text-4xl fba-title text-white mb-10 animate-pulse" id="reveal-title">Revelando...</h2><div id="revealed-cards-container" class="flex flex-wrap justify-center gap-6 max-w-5xl px-4"></div><button id="btn-close-modal" class="mt-12 px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold fba-title hidden" onclick="closeRevealModal()">Ir para o Álbum</button></div>
-<div id="select-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center"><div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-11/12 max-w-4xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-6"><h2 class="text-2xl fba-title text-white">Selecione uma Carta</h2><button onclick="closeSelectModal()" class="text-slate-400 hover:text-white text-3xl font-bold">&times;</button></div><div id="select-cards-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-4"></div></div></div>
-<script src="album-fba.js"></script>
+    <header class="bg-black border-b border-red-700 p-4 sticky top-0 z-10 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <img src="/img/fba-logo.png" alt="FBA" class="h-12 w-auto" onerror="this.style.display='none'">
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="index.php" class="bg-zinc-900 px-3 py-2 rounded-lg border border-red-700 text-sm hover:bg-zinc-800">Voltar</a>
+                <div class="bg-zinc-900 px-4 py-2 rounded-lg border border-red-700">Moedas: <span id="coin-count" class="text-xl font-bold ml-2 text-white">0</span></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 mt-6 flex justify-center gap-2 md:gap-4 border-b border-zinc-700 pb-2 flex-wrap">
+        <button onclick="switchTab('album')" id="tab-album" class="px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title">Meu Álbum</button>
+        <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Meu Time</button>
+        <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Ranking</button>
+        <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Abrir Pacotes</button>
+        <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800 hidden">Admin</button>
+    </div>
+
+    <main class="container mx-auto px-4 py-8 flex-grow">
+        <section id="section-album" class="block">
+            <h2 class="text-2xl font-bold fba-title">Plantel FBA 2026</h2>
+            <p class="text-zinc-400" id="album-progress">Progresso: 0 figurinhas</p>
+            <div id="album-container" class="flex flex-col gap-8 mt-6"></div>
+        </section>
+
+        <section id="section-team" class="hidden text-center">
+            <h2 class="text-3xl font-bold fba-title mb-2">Quinteto Ideal</h2>
+            <p class="text-zinc-400 mb-6">Escale suas melhores cartas na quadra.</p>
+            <div class="flex justify-center mb-8">
+                <div class="bg-zinc-900 border border-red-700 rounded-full px-8 py-3">OVR DO TIME: <span id="team-ovr-display" class="text-3xl font-black text-white ml-2">0</span></div>
+            </div>
+            <div class="basketball-court shadow-2xl">
+                <div class="court-3pt"></div>
+                <div class="court-paint"></div>
+                <div class="court-slot pos-pg" onclick="openSelectModal(0)" id="court-slot-0">+</div>
+                <div class="court-slot pos-sg" onclick="openSelectModal(1)" id="court-slot-1">+</div>
+                <div class="court-slot pos-sf" onclick="openSelectModal(2)" id="court-slot-2">+</div>
+                <div class="court-slot pos-pf" onclick="openSelectModal(3)" id="court-slot-3">+</div>
+                <div class="court-slot pos-c" onclick="openSelectModal(4)" id="court-slot-4">+</div>
+            </div>
+        </section>
+
+        <section id="section-ranking" class="hidden text-center">
+            <h2 class="text-3xl font-bold fba-title mb-2">Ranking Global</h2>
+            <div class="max-w-3xl mx-auto bg-black rounded-xl border border-red-700 overflow-hidden shadow-2xl mt-8">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-zinc-900 text-zinc-300 text-sm uppercase tracking-wider fba-title">
+                            <th class="p-4 w-20 text-center border-b border-zinc-700">Pos</th>
+                            <th class="p-4 border-b border-zinc-700">Jogador</th>
+                            <th class="p-4 w-32 text-center border-b border-zinc-700">OVR</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="section-store" class="hidden text-center">
+            <h2 class="text-3xl font-bold fba-title mb-2">Loja de Pacotes</h2>
+            <p class="text-zinc-400 mb-10">Drop rate aplicado no servidor.</p>
+            <div class="flex flex-wrap justify-center gap-8">
+                <div class="flex flex-col items-center">
+                    <div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#2e2e2e,#111111)" onclick="openPack('basico')"><h3 class="text-3xl font-black italic">BÁSICO</h3></div>
+                    <button class="mt-4 bg-zinc-800 hover:bg-zinc-700 px-6 py-2 rounded-full font-bold border border-red-700" onclick="openPack('basico')">30</button>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div id="pack-premium" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#7f1d1d,#1f0a0a)" onclick="openPack('premium')"><h3 class="text-3xl font-black italic">PREMIUM</h3></div>
+                    <button class="mt-4 bg-red-800 hover:bg-red-700 px-6 py-2 rounded-full font-bold border border-red-500" onclick="openPack('premium')">60</button>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div id="pack-ultra" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#ffffff,#b91c1c)" onclick="openPack('ultra')"><h3 class="text-3xl font-black italic text-black">ULTRA</h3></div>
+                    <button class="mt-4 bg-white hover:bg-zinc-200 text-black px-6 py-2 rounded-full font-bold border border-red-700" onclick="openPack('ultra')">100</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-admin" class="hidden">
+            <h2 class="text-3xl font-bold fba-title mb-2">Admin de Cartas</h2>
+            <p class="text-zinc-400 mb-6">Cadastrar por time, posição, raridade e upload de imagem.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-black border border-red-700 rounded-xl p-5">
+                    <form id="admin-card-form" class="space-y-3">
+                        <select id="admin-team" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
+                            <option value="">Selecione o time</option>
+                            <?php foreach ($teams as $team): ?>
+                                <option value="<?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input id="admin-name" placeholder="Nome da carta" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
+                        <div class="grid grid-cols-3 gap-3">
+                            <select id="admin-position" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                                <option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option>
+                            </select>
+                            <select id="admin-rarity" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                                <option value="comum">Comum</option><option value="rara">Rara</option><option value="epico">Épica</option><option value="lendario">Lendária</option>
+                            </select>
+                            <input id="admin-ovr" type="number" min="50" max="99" placeholder="OVR" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
+                        </div>
+                        <input id="admin-image-file" type="file" accept="image/*" class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2" required>
+                        <button class="w-full bg-red-700 hover:bg-red-600 rounded py-2 font-bold">Cadastrar Carta</button>
+                    </form>
+                    <p id="admin-feedback" class="mt-3 text-sm text-zinc-300"></p>
+                </div>
+                <div class="bg-black border border-red-700 rounded-xl p-5">
+                    <h3 class="fba-title text-xl mb-3">Últimas Cartas</h3>
+                    <div id="admin-cards-list" class="space-y-2 max-h-[420px] overflow-y-auto pr-2"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="reveal-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
+        <h2 class="text-4xl fba-title text-white mb-10 animate-pulse" id="reveal-title">Revelando...</h2>
+        <div id="revealed-cards-container" class="flex flex-wrap justify-center gap-6 max-w-5xl px-4"></div>
+        <button id="btn-close-modal" class="mt-12 px-8 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-bold fba-title hidden" onclick="closeRevealModal()">Ir para o Álbum</button>
+    </div>
+
+    <div id="select-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
+        <div class="bg-black border border-red-700 rounded-xl p-6 w-11/12 max-w-4xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl fba-title text-white">Selecione uma Carta</h2>
+                <button onclick="closeSelectModal()" class="text-zinc-400 hover:text-white text-3xl font-bold">&times;</button>
+            </div>
+            <div id="select-cards-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-4"></div>
+        </div>
+    </div>
+
+    <script src="album-fba.js"></script>
 </body>
 </html>
