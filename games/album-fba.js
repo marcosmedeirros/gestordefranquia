@@ -144,7 +144,7 @@ function openSelectModal(slot) {
     const requiredPosition = slotPositions[slot] || null;
     const cards = state.master.filter((x) => hasCard(x.id) && (!requiredPosition || String(x.position).toUpperCase() === requiredPosition));
     if (!cards.length) {
-        c.innerHTML = `<p class="text-zinc-400 col-span-full text-center py-8">VocÃª nÃ£o tem carta disponÃ­vel para a posiÃ§Ã£o ${requiredPosition || '-'}.<\/p>`;
+        c.innerHTML = `<p class="text-zinc-400 col-span-full text-center py-8">Voce nao tem carta disponivel para a posicao ${requiredPosition || '-'}.<\/p>`;
     }
     cards.forEach((card) => {
         const used = state.myTeam.some((id, idx) => idx !== slot && id === card.id);
@@ -243,10 +243,10 @@ async function renderRanking() {
     tb.innerHTML = '';
     board.forEach((p, i) => {
         const mine = p.name === state.user.name || p.isUser;
-        const pos = i === 0 ? 'ðŸ¥‡' : i === 1 ? 'ðŸ¥ˆ' : i === 2 ? 'ðŸ¥‰' : String(i + 1);
+        const pos = String(i + 1);
         const tr = document.createElement('tr');
         tr.className = mine ? 'bg-red-900/40 border-b border-red-500/30 font-bold text-white' : 'border-b border-zinc-700/50';
-        tr.innerHTML = `<td class="p-4 text-center text-xl">${pos}</td><td class="p-4">${p.name}${mine ? ' (VocÃª)' : ''}</td><td class="p-4 text-center font-black text-white">${Number(p.ovr || 0)}</td>`;
+        tr.innerHTML = `<td class="p-4 text-center text-xl">${pos}</td><td class="p-4">${p.name}${mine ? ' (Voce)' : ''}</td><td class="p-4 text-center font-black text-white">${Number(p.ovr || 0)}</td>`;
         tb.appendChild(tr);
     });
 }

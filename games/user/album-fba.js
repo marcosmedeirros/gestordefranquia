@@ -212,10 +212,10 @@ async function renderRanking() {
     tb.innerHTML = '';
     board.forEach((p, i) => {
         const mine = p.name === state.user.name || p.isUser;
-        const pos = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1);
+        const pos = String(i + 1);
         const tr = document.createElement('tr');
         tr.className = mine ? 'bg-blue-900/40 border-b border-blue-500/30 font-bold text-white' : 'border-b border-slate-700/50';
-        tr.innerHTML = `<td class="p-4 text-center text-xl">${pos}</td><td class="p-4">${p.name}${mine ? ' (Você)' : ''}</td><td class="p-4 text-center font-black text-yellow-400">${Number(p.ovr || 0)}</td>`;
+        tr.innerHTML = `<td class="p-4 text-center text-xl">${pos}</td><td class="p-4">${p.name}${mine ? ' (Voce)' : ''}</td><td class="p-4 text-center font-black text-yellow-400">${Number(p.ovr || 0)}</td>`;
         tb.appendChild(tr);
     });
 }

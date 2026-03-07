@@ -102,6 +102,14 @@ $teams = [
         .court-slot:hover { background: rgba(255,255,255,.1); border-style: solid; }
         .court-slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 2px solid white; }
         .pos-pg { top: 15%; left: 50%; } .pos-sg { top: 40%; left: 20%; } .pos-sf { top: 40%; left: 80%; } .pos-pf { top: 75%; left: 30%; } .pos-c { top: 75%; left: 70%; }
+        @media (max-width: 640px) {
+            .basketball-court { max-width: 320px; }
+            .court-paint { width: 120px; height: 160px; }
+            .court-3pt { width: 320px; height: 300px; bottom: -40px; }
+            .court-slot { width: 52px; height: 74px; font-size: 1.15rem; }
+            .pack { width: 11rem !important; height: 14rem !important; }
+            .revealed-card { width: 9.5rem !important; height: 13.5rem !important; }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -117,7 +125,7 @@ $teams = [
         </div>
     </header>
 
-    <div class="container mx-auto px-4 mt-6 flex justify-center gap-2 md:gap-4 border-b border-zinc-700 pb-2 flex-wrap">
+    <div class="container mx-auto px-4 mt-6 flex md:justify-center justify-start gap-2 md:gap-4 border-b border-zinc-700 pb-2 flex-nowrap overflow-x-auto">
         <button onclick="switchTab('album')" id="tab-album" class="px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title">Meu Álbum</button>
         <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Meu Time</button>
         <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Ranking</button>
@@ -257,8 +265,8 @@ $teams = [
         </div>
     </div>
 
-    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-[50px]">
-        <div class="bg-black border border-red-700 rounded-xl p-4 w-11/12 max-w-md my-[50px] max-h-[calc(100vh-100px)] overflow-y-auto relative">
+    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-[50px] px-3">
+        <div class="bg-black border border-red-700 rounded-xl p-4 w-full max-w-xs sm:max-w-sm my-[50px] max-h-[calc(100vh-100px)] overflow-y-auto relative">
             <button onclick="closeAlbumCardModal()" class="absolute top-2 right-3 text-zinc-300 hover:text-white text-3xl font-bold leading-none" aria-label="Fechar">&times;</button>
             <div class="flex justify-between items-center mb-3 pr-8">
                 <h3 class="fba-title text-xl text-white">Carta</h3>
@@ -267,6 +275,7 @@ $teams = [
             <div class="mt-3 text-white font-bold" id="album-card-modal-name"></div>
             <div class="text-zinc-300 text-sm" id="album-card-modal-meta"></div>
             <div class="text-red-300 text-sm mt-1" id="album-card-modal-count"></div>
+            <div class="text-zinc-400 text-xs mt-2">Aperte ESC para sair</div>
         </div>
     </div>
 
