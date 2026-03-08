@@ -144,6 +144,7 @@ $teams = [
         <button onclick="switchTab('album')" id="tab-album" class="px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title">Meu Álbum</button>
         <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Meu Time</button>
         <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Ranking</button>
+        <button onclick="switchTab('market')" id="tab-market" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Mercado</button>
         <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Abrir Pacotes</button>
         <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800 hidden">Admin</button>
     </div>
@@ -192,6 +193,50 @@ $teams = [
                     <tbody id="ranking-tbody"></tbody>
                 </table>
             </div>
+        </section>
+
+        <section id="section-market" class="hidden">
+            <h2 class="text-3xl font-bold fba-title mb-2">Mercado de Cartas</h2>
+            <p class="text-zinc-400 mb-4">Venda duplicadas e compre cartas de outros usuarios com pontos.</p>
+
+            <div class="bg-black border border-red-700 rounded-xl p-4 mb-4">
+                <h3 class="fba-title text-xl mb-3">Criar anuncio</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <select id="market-sell-card" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2 md:col-span-2"></select>
+                    <input id="market-sell-price" type="number" min="1" step="1" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2" placeholder="Preco em pontos">
+                    <button id="market-sell-btn" class="bg-red-700 hover:bg-red-600 rounded px-4 py-2 font-bold">Anunciar</button>
+                </div>
+                <p id="market-sell-hint" class="text-zinc-400 text-sm mt-2"></p>
+            </div>
+
+            <div class="bg-black border border-red-700 rounded-xl p-4 mb-4">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <h3 class="fba-title text-xl">Minhas cartas a venda</h3>
+                    <button id="market-toggle-mine" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-sm font-bold">Ver minhas cartas a venda</button>
+                </div>
+                <div id="market-mine-wrap" class="hidden">
+                    <div id="market-mine-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+            </div>
+
+            <div class="bg-black border border-red-700 rounded-xl p-4">
+                <h3 class="fba-title text-xl mb-3">Cartas a venda</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <input id="market-filter-name" type="text" placeholder="Filtrar por nome" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                    <select id="market-filter-collection" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                        <option value="">Todas as colecoes</option>
+                    </select>
+                    <select id="market-filter-rarity" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
+                        <option value="">Todas as raridades</option>
+                        <option value="comum">Comum</option>
+                        <option value="rara">Rara</option>
+                        <option value="epico">Epica</option>
+                        <option value="lendario">Lendaria</option>
+                    </select>
+                </div>
+                <div id="market-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+            </div>
+            <p id="market-feedback" class="text-sm text-zinc-300 mt-3"></p>
         </section>
 
         <section id="section-store" class="hidden text-center">

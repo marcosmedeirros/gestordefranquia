@@ -1,5 +1,17 @@
 const API = 'album-fba-api.php';
-let state = { user: null, master: [], collection: {}, myTeam: [null, null, null, null, null], ranking: [], packTypes: {} };
+let state = {
+    user: null,
+    master: [],
+    collection: {},
+    myTeam: [null, null, null, null, null],
+    ranking: [],
+    packTypes: {},
+    market: {
+        listings: [],
+        myListings: [],
+        priceCaps: { comum: 20, rara: 40, epico: 60, lendario: 100 }
+    }
+};
 let currentSlot = null;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
@@ -79,7 +91,7 @@ async function bootstrap() {
 }
 
 function switchTab(tab) {
-    const all = ['album', 'team', 'ranking', 'store'];
+    const all = ['album', 'team', 'ranking', 'market', 'store'];
     if (state.user?.is_admin) all.push('admin');
     all.forEach((t) => {
         document.getElementById('section-' + t)?.classList.add('hidden');
@@ -92,6 +104,7 @@ function switchTab(tab) {
     if (tab === 'album') renderAlbum();
     if (tab === 'team') renderCourt();
     if (tab === 'ranking') renderRanking();
+    if (tab === 'market') renderMarket();
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -334,6 +347,164 @@ async function renderRanking() {
     });
 }
 
+function marketCardById(cardId) {
+    return state.master.find((c) => Number(c.id) === Number(cardId)) || null;
+}
+
+function marketSellOptions() {
+    return state.master
+        .filter((card) => Number(state.collection[card.id] || 0) > 1)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+function updateMarketSellHint() {
+    const sellSelect = document.getElementById('market-sell-card');
+    const hint = document.getElementById('market-sell-hint');
+    const priceInput = document.getElementById('market-sell-price');
+    if (!sellSelect || !hint || !priceInput) return;
+    const card = marketCardById(Number(sellSelect.value || 0));
+    if (!card) {
+        hint.textContent = 'Voce precisa ter cartas duplicadas para anunciar.';
+        priceInput.max = '1';
+        priceInput.value = '1';
+        return;
+    }
+    const max = Number(state.market.priceCaps[card.rarity] || 1);
+    const rarity = rarityLabel(card.rarity);
+    priceInput.max = String(max);
+    let current = Number(priceInput.value || 1);
+    if (current < 1) current = 1;
+    if (current > max) current = max;
+    priceInput.value = String(current);
+    hint.textContent = `Maximo para ${rarity}: ${max} pontos.`;
+}
+
+function renderMarketMine() {
+    const mineList = document.getElementById('market-mine-list');
+    if (!mineList) return;
+    const mine = Array.isArray(state.market.myListings) ? state.market.myListings : [];
+    if (!mine.length) {
+        mineList.innerHTML = '<div class="text-zinc-400">Voce nao tem cartas a venda.</div>';
+        return;
+    }
+    mineList.innerHTML = mine.map((item) => `
+        <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-3">
+            <div class="flex items-start justify-between gap-2">
+                <div>
+                    <div class="font-bold">${item.card_name}</div>
+                    <div class="text-xs text-zinc-400">${item.card_collection} • ${rarityLabel(item.card_rarity)}</div>
+                </div>
+                <button type="button" class="bg-red-800 hover:bg-red-700 rounded w-8 h-8 font-bold" data-market-cancel="${item.id}" title="Cancelar venda">X</button>
+            </div>
+            <div class="text-sm text-red-300 font-bold mt-2">${Number(item.price_points)} pts</div>
+        </div>
+    `).join('');
+}
+
+function filteredMarketListings() {
+    const nameQuery = String(document.getElementById('market-filter-name')?.value || '').trim().toLowerCase();
+    const collectionFilter = String(document.getElementById('market-filter-collection')?.value || '');
+    const rarityFilter = String(document.getElementById('market-filter-rarity')?.value || '');
+    return (Array.isArray(state.market.listings) ? state.market.listings : []).filter((item) => {
+        const nameOk = !nameQuery || String(item.card_name || '').toLowerCase().includes(nameQuery);
+        const collectionOk = !collectionFilter || String(item.card_collection || '') === collectionFilter;
+        const rarityOk = !rarityFilter || String(item.card_rarity || '') === rarityFilter;
+        return nameOk && collectionOk && rarityOk;
+    });
+}
+
+function renderMarketListings() {
+    const list = document.getElementById('market-list');
+    if (!list) return;
+    const rows = filteredMarketListings();
+    if (!rows.length) {
+        list.innerHTML = '<div class="text-zinc-400">Nenhuma carta encontrada com esses filtros.</div>';
+        return;
+    }
+    list.innerHTML = rows.map((item) => {
+        const mine = Number(item.seller_user_id) === Number(state.user?.id || 0);
+        return `
+            <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-3">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <div class="font-bold">${item.card_name}</div>
+                        <div class="text-xs text-zinc-400">${item.card_collection} • ${rarityLabel(item.card_rarity)} • ${item.seller_name}</div>
+                    </div>
+                    <div class="text-red-300 font-black">${Number(item.price_points)} pts</div>
+                </div>
+                <div class="mt-3">
+                    ${mine
+                        ? '<span class="text-xs px-2 py-1 rounded bg-zinc-700 text-zinc-200">Seu anuncio</span>'
+                        : `<button type="button" class="bg-red-700 hover:bg-red-600 rounded px-3 py-2 text-sm font-bold" data-market-buy="${item.id}">Comprar</button>`}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderMarketCollectionFilter() {
+    const select = document.getElementById('market-filter-collection');
+    if (!select) return;
+    const current = String(select.value || '');
+    const collections = [...new Set(state.master.map((c) => c.collection || 'Geral'))].sort((a, b) => String(a).localeCompare(String(b)));
+    select.innerHTML = '<option value="">Todas as colecoes</option>' + collections.map((c) => `<option value="${c}">${c}</option>`).join('');
+    if (collections.includes(current)) {
+        select.value = current;
+    }
+}
+
+function renderMarketSellSelect() {
+    const sellSelect = document.getElementById('market-sell-card');
+    const sellBtn = document.getElementById('market-sell-btn');
+    if (!sellSelect || !sellBtn) return;
+    const cards = marketSellOptions();
+    if (!cards.length) {
+        sellSelect.innerHTML = '<option value="">Sem duplicadas disponiveis</option>';
+        sellSelect.disabled = true;
+        sellBtn.disabled = true;
+        updateMarketSellHint();
+        return;
+    }
+    const prev = String(sellSelect.value || '');
+    sellSelect.innerHTML = cards.map((card) => {
+        const dup = Math.max(Number(state.collection[card.id] || 0) - 1, 0);
+        return `<option value="${card.id}">${card.name} (${card.collection} • dup ${dup})</option>`;
+    }).join('');
+    if (cards.some((c) => String(c.id) === prev)) {
+        sellSelect.value = prev;
+    }
+    sellSelect.disabled = false;
+    sellBtn.disabled = false;
+    updateMarketSellHint();
+}
+
+async function refreshMarketState() {
+    const res = await get('market_state');
+    if (!res.ok) {
+        throw new Error(res.message || 'Erro ao carregar mercado');
+    }
+    state.market.listings = Array.isArray(res.listings) ? res.listings : [];
+    state.market.myListings = Array.isArray(res.my_listings) ? res.my_listings : [];
+    state.market.priceCaps = res.price_caps || state.market.priceCaps;
+    state.collection = res.collection || state.collection;
+    state.user.coins = Number(res.coins || state.user.coins || 0);
+}
+
+async function renderMarket() {
+    const fb = document.getElementById('market-feedback');
+    try {
+        await refreshMarketState();
+        renderMarketCollectionFilter();
+        renderMarketSellSelect();
+        renderMarketMine();
+        renderMarketListings();
+        document.getElementById('coin-count').innerText = state.user.coins || 0;
+        if (fb) fb.textContent = '';
+    } catch (err) {
+        if (fb) fb.textContent = err.message || 'Erro ao carregar mercado.';
+    }
+}
+
 async function openPack(type) {
     const cfg = state.packTypes[type];
     if (!cfg) return;
@@ -554,6 +725,79 @@ document.getElementById('admin-delete-btn')?.addEventListener('click', async () 
 });
 document.getElementById('admin-team')?.addEventListener('change', toggleAdminTeamOtherField);
 document.getElementById('album-collection-filter')?.addEventListener('input', renderAlbum);
+document.getElementById('market-sell-card')?.addEventListener('change', updateMarketSellHint);
+document.getElementById('market-filter-name')?.addEventListener('input', renderMarketListings);
+document.getElementById('market-filter-collection')?.addEventListener('change', renderMarketListings);
+document.getElementById('market-filter-rarity')?.addEventListener('change', renderMarketListings);
+document.getElementById('market-toggle-mine')?.addEventListener('click', () => {
+    const wrap = document.getElementById('market-mine-wrap');
+    const btn = document.getElementById('market-toggle-mine');
+    if (!wrap || !btn) return;
+    wrap.classList.toggle('hidden');
+    btn.textContent = wrap.classList.contains('hidden') ? 'Ver minhas cartas a venda' : 'Ocultar minhas cartas a venda';
+});
+
+document.getElementById('market-sell-btn')?.addEventListener('click', async () => {
+    const cardId = Number(document.getElementById('market-sell-card')?.value || 0);
+    const price = Number(document.getElementById('market-sell-price')?.value || 0);
+    const fb = document.getElementById('market-feedback');
+    if (!cardId || !price) {
+        if (fb) fb.textContent = 'Selecione uma carta e informe o preco.';
+        return;
+    }
+    try {
+        const res = await post('market_create_listing', { card_id: cardId, price_points: price });
+        if (!res.ok) {
+            if (fb) fb.textContent = res.message || 'Erro ao criar anuncio.';
+            return;
+        }
+        await renderMarket();
+        renderAlbum();
+        if (fb) fb.textContent = 'Carta anunciada com sucesso.';
+    } catch (err) {
+        if (fb) fb.textContent = err.message || 'Erro ao criar anuncio.';
+    }
+});
+
+document.getElementById('market-list')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-market-buy]');
+    if (!btn) return;
+    const listingId = Number(btn.getAttribute('data-market-buy') || 0);
+    const fb = document.getElementById('market-feedback');
+    if (!listingId) return;
+    try {
+        const res = await post('market_buy_listing', { listing_id: listingId });
+        if (!res.ok) {
+            if (fb) fb.textContent = res.message || 'Erro ao comprar carta.';
+            return;
+        }
+        await renderMarket();
+        renderAlbum();
+        if (fb) fb.textContent = 'Compra concluida com sucesso.';
+    } catch (err) {
+        if (fb) fb.textContent = err.message || 'Erro ao comprar carta.';
+    }
+});
+
+document.getElementById('market-mine-list')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-market-cancel]');
+    if (!btn) return;
+    const listingId = Number(btn.getAttribute('data-market-cancel') || 0);
+    const fb = document.getElementById('market-feedback');
+    if (!listingId) return;
+    try {
+        const res = await post('market_cancel_listing', { listing_id: listingId });
+        if (!res.ok) {
+            if (fb) fb.textContent = res.message || 'Erro ao cancelar anuncio.';
+            return;
+        }
+        await renderMarket();
+        renderAlbum();
+        if (fb) fb.textContent = 'Anuncio cancelado e carta devolvida.';
+    } catch (err) {
+        if (fb) fb.textContent = err.message || 'Erro ao cancelar anuncio.';
+    }
+});
 
 document.getElementById('admin-filter-collection')?.addEventListener('change', renderAdminCards);
 document.getElementById('admin-filter-rarity')?.addEventListener('change', renderAdminCards);

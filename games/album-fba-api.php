@@ -43,6 +43,20 @@ function schema(PDO $pdo): void
         user_id INT PRIMARY KEY, slot_pg INT NULL, slot_sg INT NULL, slot_sf INT NULL, slot_pf INT NULL, slot_c INT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_market_listings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        seller_user_id INT NOT NULL,
+        buyer_user_id INT NULL,
+        card_id INT NOT NULL,
+        price_points INT NOT NULL,
+        status ENUM('active','sold','cancelled') NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        sold_at TIMESTAMP NULL DEFAULT NULL,
+        cancelled_at TIMESTAMP NULL DEFAULT NULL,
+        INDEX idx_market_status (status, created_at),
+        INDEX idx_market_seller (seller_user_id, status),
+        INDEX idx_market_card (card_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $col = $pdo->query("SHOW COLUMNS FROM fba_cards LIKE 'collection_name'");
     if (!$col || $col->rowCount() === 0) {
@@ -193,6 +207,28 @@ function draw(PDO $pdo, array $rates): ?array
     return ['id' => (int)$c['id'], 'collection' => $c['colecao'], 'team' => $c['team'], 'name' => $c['nome'], 'position' => strtoupper($c['posicao']), 'rarity' => $c['raridade'], 'ovr' => (int)$c['ovr'], 'img' => $c['img_url']];
 }
 
+function marketPriceCaps(): array
+{
+    return ['comum' => 20, 'rara' => 40, 'epico' => 60, 'lendario' => 100];
+}
+
+function cardById(PDO $pdo, int $cardId): ?array
+{
+    $stmt = $pdo->prepare("SELECT id, COALESCE(collection_name, 'Geral') collection_name, nome, raridade, ativo FROM fba_cards WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $cardId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    return [
+        'id' => (int)$row['id'],
+        'collection' => (string)$row['collection_name'],
+        'name' => (string)$row['nome'],
+        'rarity' => (string)$row['raridade'],
+        'active' => (int)$row['ativo'] === 1
+    ];
+}
+
 schema($pdo);
 
 $meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
@@ -211,6 +247,177 @@ if ($action === 'ranking_team') {
         out(['ok' => false, 'message' => 'Usuário inválido'], 400);
     }
     out(['ok' => true, 'team' => rankingTeam($pdo, $targetUserId)]);
+}
+
+if ($action === 'market_state') {
+    $listStmt = $pdo->query("
+        SELECT m.id, m.seller_user_id, m.card_id, m.price_points, m.created_at,
+               u.nome seller_name,
+               c.nome card_name, c.raridade card_rarity, COALESCE(c.collection_name, 'Geral') card_collection,
+               t.nome card_team
+        FROM fba_market_listings m
+        INNER JOIN usuarios u ON u.id = m.seller_user_id
+        INNER JOIN fba_cards c ON c.id = m.card_id
+        INNER JOIN fba_card_teams t ON t.id = c.team_id
+        WHERE m.status = 'active'
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT 500
+    ");
+    $rows = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $myRows = array_values(array_filter($rows, static fn($r) => (int)$r['seller_user_id'] === $user_id));
+    $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+    $coinsStmt->execute([':id' => $user_id]);
+    $coins = (int)$coinsStmt->fetchColumn();
+
+    out([
+        'ok' => true,
+        'coins' => $coins,
+        'collection' => collection($pdo, $user_id),
+        'listings' => $rows,
+        'my_listings' => $myRows,
+        'price_caps' => marketPriceCaps()
+    ]);
+}
+
+if ($action === 'market_create_listing') {
+    $b = body();
+    $cardId = (int)($b['card_id'] ?? 0);
+    $price = (int)($b['price_points'] ?? 0);
+    if ($cardId <= 0 || $price <= 0) {
+        out(['ok' => false, 'message' => 'Dados invalidos'], 400);
+    }
+
+    $card = cardById($pdo, $cardId);
+    if (!$card || !$card['active']) {
+        out(['ok' => false, 'message' => 'Carta invalida'], 400);
+    }
+    $caps = marketPriceCaps();
+    $max = (int)($caps[$card['rarity']] ?? 0);
+    if ($max <= 0 || $price > $max) {
+        out(['ok' => false, 'message' => 'Preco acima do limite da raridade'], 400);
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $qtyStmt = $pdo->prepare("SELECT quantidade FROM fba_user_collection WHERE user_id = :u AND card_id = :c FOR UPDATE");
+        $qtyStmt->execute([':u' => $user_id, ':c' => $cardId]);
+        $qty = (int)$qtyStmt->fetchColumn();
+        if ($qty < 2) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'So e possivel anunciar cartas duplicadas'], 400);
+        }
+
+        $dec = $pdo->prepare("UPDATE fba_user_collection SET quantidade = quantidade - 1 WHERE user_id = :u AND card_id = :c AND quantidade >= 2");
+        $dec->execute([':u' => $user_id, ':c' => $cardId]);
+        if ($dec->rowCount() !== 1) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Falha ao reservar carta'], 400);
+        }
+
+        $ins = $pdo->prepare("INSERT INTO fba_market_listings (seller_user_id, card_id, price_points, status) VALUES (:s, :c, :p, 'active')");
+        $ins->execute([':s' => $user_id, ':c' => $cardId, ':p' => $price]);
+        $pdo->commit();
+        out(['ok' => true]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao criar anuncio'], 500);
+    }
+}
+
+if ($action === 'market_cancel_listing') {
+    $b = body();
+    $listingId = (int)($b['listing_id'] ?? 0);
+    if ($listingId <= 0) {
+        out(['ok' => false, 'message' => 'Anuncio invalido'], 400);
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $q = $pdo->prepare("SELECT id, seller_user_id, card_id, status FROM fba_market_listings WHERE id = :id FOR UPDATE");
+        $q->execute([':id' => $listingId]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['status'] !== 'active') {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Anuncio nao esta ativo'], 400);
+        }
+        if ((int)$row['seller_user_id'] !== $user_id) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Sem permissao para cancelar'], 403);
+        }
+
+        $up = $pdo->prepare("UPDATE fba_market_listings SET status = 'cancelled', cancelled_at = NOW() WHERE id = :id AND status = 'active'");
+        $up->execute([':id' => $listingId]);
+        if ($up->rowCount() !== 1) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Falha ao cancelar anuncio'], 400);
+        }
+
+        $ret = $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u, :c, 1) ON DUPLICATE KEY UPDATE quantidade = quantidade + 1");
+        $ret->execute([':u' => $user_id, ':c' => (int)$row['card_id']]);
+
+        $pdo->commit();
+        out(['ok' => true]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao cancelar anuncio'], 500);
+    }
+}
+
+if ($action === 'market_buy_listing') {
+    $b = body();
+    $listingId = (int)($b['listing_id'] ?? 0);
+    if ($listingId <= 0) {
+        out(['ok' => false, 'message' => 'Anuncio invalido'], 400);
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $q = $pdo->prepare("SELECT id, seller_user_id, card_id, price_points, status FROM fba_market_listings WHERE id = :id FOR UPDATE");
+        $q->execute([':id' => $listingId]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['status'] !== 'active') {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Anuncio nao esta ativo'], 400);
+        }
+        $sellerId = (int)$row['seller_user_id'];
+        if ($sellerId === $user_id) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Nao pode comprar o proprio anuncio'], 400);
+        }
+        $price = (int)$row['price_points'];
+
+        $buyerQ = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+        $buyerQ->execute([':id' => $user_id]);
+        $buyerCoins = (int)$buyerQ->fetchColumn();
+        if ($buyerCoins < $price) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Pontos insuficientes'], 400);
+        }
+
+        $sellerQ = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+        $sellerQ->execute([':id' => $sellerId]);
+        if ($sellerQ->fetchColumn() === false) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Vendedor invalido'], 400);
+        }
+
+        $pdo->prepare("UPDATE usuarios SET pontos = pontos - :p WHERE id = :id")->execute([':p' => $price, ':id' => $user_id]);
+        $pdo->prepare("UPDATE usuarios SET pontos = pontos + :p WHERE id = :id")->execute([':p' => $price, ':id' => $sellerId]);
+        $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u, :c, 1) ON DUPLICATE KEY UPDATE quantidade = quantidade + 1")
+            ->execute([':u' => $user_id, ':c' => (int)$row['card_id']]);
+        $done = $pdo->prepare("UPDATE fba_market_listings SET status = 'sold', buyer_user_id = :b, sold_at = NOW() WHERE id = :id AND status = 'active'");
+        $done->execute([':b' => $user_id, ':id' => $listingId]);
+        if ($done->rowCount() !== 1) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Falha ao concluir compra'], 400);
+        }
+        $pdo->commit();
+        out(['ok' => true]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao comprar carta'], 500);
+    }
 }
 
 if ($action === 'buy_pack') {
