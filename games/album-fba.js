@@ -542,9 +542,14 @@ document.getElementById('admin-card-form')?.addEventListener('submit', async (e)
             fb.textContent = 'Carta cadastrada com sucesso.';
         }
         fb.className = 'mt-3 text-sm text-emerald-300';
-        resetAdminForm();
         renderAdminCards();
         renderAlbum();
+        if (cardId) {
+            if (fileInput) fileInput.value = '';
+            window.startEditCard(res.card?.id || cardId);
+        } else {
+            resetAdminForm();
+        }
     } catch (err) {
         fb.textContent = err.message || 'Falha de comunicação com o servidor.';
         fb.className = 'mt-3 text-sm text-red-300';
