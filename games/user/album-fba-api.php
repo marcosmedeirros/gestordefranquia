@@ -85,7 +85,7 @@ function team(PDO $pdo, int $uid): array
 
 function ranking(PDO $pdo): array
 {
-    $sql = "SELECT u.nome, COALESCE(c1.ovr,0)+COALESCE(c2.ovr,0)+COALESCE(c3.ovr,0)+COALESCE(c4.ovr,0)+COALESCE(c5.ovr,0) total_ovr
+    $sql = "SELECT u.id user_id, u.nome, COALESCE(c1.ovr,0)+COALESCE(c2.ovr,0)+COALESCE(c3.ovr,0)+COALESCE(c4.ovr,0)+COALESCE(c5.ovr,0) total_ovr
         FROM usuarios u
         LEFT JOIN fba_user_team uq ON uq.user_id=u.id
         LEFT JOIN fba_cards c1 ON c1.id=uq.slot_pg
@@ -95,7 +95,70 @@ function ranking(PDO $pdo): array
         LEFT JOIN fba_cards c5 ON c5.id=uq.slot_c
         ORDER BY total_ovr DESC, u.nome ASC LIMIT 50";
     $stmt = $pdo->query($sql);
-    return array_map(static fn($r) => ['name' => $r['nome'], 'ovr' => (int)$r['total_ovr']], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    return array_map(static fn($r) => ['user_id' => (int)$r['user_id'], 'name' => $r['nome'], 'ovr' => (int)$r['total_ovr']], $stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+function rankingTeam(PDO $pdo, int $targetUserId): array
+{
+    $stmt = $pdo->prepare("SELECT u.nome, ut.slot_pg, ut.slot_sg, ut.slot_sf, ut.slot_pf, ut.slot_c
+        FROM usuarios u
+        LEFT JOIN fba_user_team ut ON ut.user_id = u.id
+        WHERE u.id = :id
+        LIMIT 1");
+    $stmt->execute([':id' => $targetUserId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        out(['ok' => false, 'message' => 'Usuário não encontrado'], 404);
+    }
+
+    $slots = [
+        'PG' => $row['slot_pg'] ? (int)$row['slot_pg'] : null,
+        'SG' => $row['slot_sg'] ? (int)$row['slot_sg'] : null,
+        'SF' => $row['slot_sf'] ? (int)$row['slot_sf'] : null,
+        'PF' => $row['slot_pf'] ? (int)$row['slot_pf'] : null,
+        'C' => $row['slot_c'] ? (int)$row['slot_c'] : null,
+    ];
+
+    $cardIds = array_values(array_filter($slots, static fn($id) => $id !== null));
+    $cardsById = [];
+    if ($cardIds) {
+        $ph = implode(',', array_fill(0, count($cardIds), '?'));
+        $q = $pdo->prepare("SELECT c.id, t.nome AS team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+            FROM fba_cards c
+            INNER JOIN fba_card_teams t ON t.id = c.team_id
+            WHERE c.id IN ($ph)");
+        $q->execute($cardIds);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $card) {
+            $cardsById[(int)$card['id']] = [
+                'id' => (int)$card['id'],
+                'team' => $card['team'],
+                'name' => $card['nome'],
+                'position' => strtoupper((string)$card['posicao']),
+                'rarity' => $card['raridade'],
+                'ovr' => (int)$card['ovr'],
+                'img' => $card['img_url'],
+            ];
+        }
+    }
+
+    $lineup = [];
+    $total = 0;
+    foreach ($slots as $position => $cardId) {
+        $card = $cardId ? ($cardsById[$cardId] ?? null) : null;
+        if ($card) {
+            $total += (int)$card['ovr'];
+        }
+        $lineup[] = [
+            'slot' => $position,
+            'card' => $card,
+        ];
+    }
+
+    return [
+        'name' => $row['nome'],
+        'ovr' => $total,
+        'lineup' => $lineup,
+    ];
 }
 
 function roll(array $rates): string
@@ -133,8 +196,15 @@ $is_admin = ((int)($me['is_admin'] ?? 0) === 1);
 
 $action = $_GET['action'] ?? '';
 
-if ($action === 'bootstrap') out(['ok' => true, 'user' => ['name' => $me['nome'], 'coins' => (int)$me['pontos'], 'is_admin' => $is_admin], 'master_data' => master($pdo), 'collection' => collection($pdo, $user_id), 'my_team' => team($pdo, $user_id), 'ranking' => ranking($pdo), 'pack_types' => packs()]);
+if ($action === 'bootstrap') out(['ok' => true, 'user' => ['id' => $user_id, 'name' => $me['nome'], 'coins' => (int)$me['pontos'], 'is_admin' => $is_admin], 'master_data' => master($pdo), 'collection' => collection($pdo, $user_id), 'my_team' => team($pdo, $user_id), 'ranking' => ranking($pdo), 'pack_types' => packs()]);
 if ($action === 'ranking') out(['ok' => true, 'ranking' => ranking($pdo)]);
+if ($action === 'ranking_team') {
+    $targetUserId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+    if ($targetUserId <= 0) {
+        out(['ok' => false, 'message' => 'Usuário inválido'], 400);
+    }
+    out(['ok' => true, 'team' => rankingTeam($pdo, $targetUserId)]);
+}
 
 if ($action === 'buy_pack') {
     $b = body();

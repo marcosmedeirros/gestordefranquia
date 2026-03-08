@@ -299,6 +299,19 @@ $teams = [
         </div>
     </div>
 
+    <div id="ranking-team-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-6 px-3">
+        <div class="bg-black border border-red-700 rounded-xl p-4 w-full max-w-5xl max-h-[92vh] overflow-hidden relative">
+            <button onclick="closeRankingTeamModal()" class="absolute top-2 right-3 text-zinc-300 hover:text-white text-3xl font-bold leading-none" aria-label="Fechar">&times;</button>
+            <div class="pr-8 mb-3">
+                <h3 class="fba-title text-xl text-white" id="ranking-team-modal-title">Quinteto</h3>
+                <div class="text-sm text-white font-bold">OVR: <span id="ranking-team-modal-ovr">0</span></div>
+            </div>
+            <div id="ranking-team-modal-loading" class="text-zinc-300 text-sm mb-3 hidden">Carregando quinteto...</div>
+            <div id="ranking-team-modal-grid" class="grid grid-cols-2 md:grid-cols-5 gap-3 overflow-y-auto max-h-[72vh] pr-1"></div>
+            <div class="text-zinc-400 text-xs mt-3">Aperte ESC para sair</div>
+        </div>
+    </div>
+
     <script src="album-fba.js"></script>
 </body>
 </html>

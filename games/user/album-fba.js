@@ -8,6 +8,10 @@ const hasCard = (id) => Number(state.collection[id] || 0) > 0;
 const rarityLabel = (r) => ({ comum: 'Comum', rara: 'Rara', epico: 'Epica', lendario: 'Lendaria' }[r] || r);
 const post = (action, payload = {}) => fetch(`${API}?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
 const get = (action) => fetch(`${API}?action=${action}`).then((r) => r.json());
+const getWithParams = (action, params = {}) => {
+    const query = new URLSearchParams({ action, ...params }).toString();
+    return fetch(`${API}?${query}`).then((r) => r.json());
+};
 
 function showPackOdds(type) {
     const cfg = state.packTypes?.[type];
@@ -206,11 +210,51 @@ function closeAlbumCardModal() {
     modal.classList.remove('flex');
 }
 window.closeAlbumCardModal = closeAlbumCardModal;
+
+function openRankingTeamModal(teamData) {
+    const modal = document.getElementById('ranking-team-modal');
+    if (!modal || !teamData) return;
+    const title = document.getElementById('ranking-team-modal-title');
+    const ovr = document.getElementById('ranking-team-modal-ovr');
+    const grid = document.getElementById('ranking-team-modal-grid');
+    if (!grid) return;
+
+    if (title) title.textContent = `Quinteto de ${teamData.name || 'Jogador'}`;
+    if (ovr) ovr.textContent = Number(teamData.ovr || 0);
+    const lineup = Array.isArray(teamData.lineup) ? teamData.lineup : [];
+    grid.innerHTML = '';
+    lineup.forEach((slotData) => {
+        const pos = slotData?.slot || '-';
+        const card = slotData?.card || null;
+        const item = document.createElement('div');
+        item.className = `rounded-lg border ${card ? rarityClass(card.rarity) : 'border-slate-700'} bg-slate-900/60 p-2`;
+        item.innerHTML = card
+            ? `<div class="text-[0.7rem] font-bold text-slate-200 mb-1">${pos}</div><div class="aspect-[2.5/3.5] rounded overflow-hidden relative"><img src="${card.img}" class="w-full h-full object-cover"><div class="absolute bottom-0 left-0 right-0 bg-black/75 px-1 py-1"><div class="text-[0.65rem] font-bold leading-tight">${card.name}</div><div class="text-[0.6rem] text-slate-300">${card.team} • OVR ${card.ovr}</div></div></div>`
+            : `<div class="text-[0.7rem] font-bold text-slate-200 mb-1">${pos}</div><div class="aspect-[2.5/3.5] rounded border border-dashed border-slate-600 bg-slate-800/60 flex items-center justify-center text-slate-400 text-xs font-bold text-center px-2">Sem carta</div>`;
+        grid.appendChild(item);
+    });
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeRankingTeamModal() {
+    const modal = document.getElementById('ranking-team-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+window.closeRankingTeamModal = closeRankingTeamModal;
+
 document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    const modal = document.getElementById('album-card-modal');
-    if (modal && !modal.classList.contains('hidden')) {
+    const albumModal = document.getElementById('album-card-modal');
+    if (albumModal && !albumModal.classList.contains('hidden')) {
         closeAlbumCardModal();
+        return;
+    }
+    const rankingModal = document.getElementById('ranking-team-modal');
+    if (rankingModal && !rankingModal.classList.contains('hidden')) {
+        closeRankingTeamModal();
     }
 });
 
@@ -223,15 +267,29 @@ async function renderRanking() {
     const meIdx = board.findIndex((x) => x.name === state.user.name);
     const my = teamOVR();
     if (meIdx >= 0) board[meIdx].ovr = my;
-    else board.push({ name: state.user.name, ovr: my, isUser: true });
+    else board.push({ user_id: state.user.id, name: state.user.name, ovr: my, isUser: true });
     board.sort((a, b) => b.ovr - a.ovr);
     tb.innerHTML = '';
     board.forEach((p, i) => {
         const mine = p.name === state.user.name || p.isUser;
         const pos = String(i + 1);
         const tr = document.createElement('tr');
-        tr.className = mine ? 'bg-blue-900/40 border-b border-blue-500/30 font-bold text-white' : 'border-b border-slate-700/50';
+        tr.className = mine ? 'bg-blue-900/40 border-b border-blue-500/30 font-bold text-white cursor-pointer hover:bg-blue-900/60' : 'border-b border-slate-700/50 cursor-pointer hover:bg-slate-800/70';
         tr.innerHTML = `<td class="p-4 text-center text-xl">${pos}</td><td class="p-4">${p.name}${mine ? ' (Voce)' : ''}</td><td class="p-4 text-center font-black text-yellow-400">${Number(p.ovr || 0)}</td>`;
+        tr.onclick = async () => {
+            if (!p.user_id) return;
+            const loading = document.getElementById('ranking-team-modal-loading');
+            if (loading) loading.classList.remove('hidden');
+            openRankingTeamModal({ name: p.name, ovr: p.ovr, lineup: [] });
+            const preview = await getWithParams('ranking_team', { user_id: p.user_id });
+            if (loading) loading.classList.add('hidden');
+            if (!preview.ok || !preview.team) {
+                alert(preview.message || 'Nao foi possivel carregar o quinteto.');
+                closeRankingTeamModal();
+                return;
+            }
+            openRankingTeamModal(preview.team);
+        };
         tb.appendChild(tr);
     });
 }
