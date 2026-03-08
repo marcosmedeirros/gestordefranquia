@@ -396,6 +396,9 @@ function renderMarketMine() {
                 </div>
                 <button type="button" class="bg-red-800 hover:bg-red-700 rounded w-8 h-8 font-bold" data-market-cancel="${item.id}" title="Cancelar venda">X</button>
             </div>
+            <div class="mt-2">
+                <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-44 object-cover rounded border border-zinc-700" onerror="this.style.display='none'">
+            </div>
             <div class="text-sm text-red-300 font-bold mt-2">${Number(item.price_points)} pts</div>
         </div>
     `).join('');
@@ -431,6 +434,9 @@ function renderMarketListings() {
                         <div class="text-xs text-zinc-400">${item.card_collection} • ${rarityLabel(item.card_rarity)} • ${item.seller_name}</div>
                     </div>
                     <div class="text-red-300 font-black">${Number(item.price_points)} pts</div>
+                </div>
+                <div class="mt-2">
+                    <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-44 object-cover rounded border border-zinc-700" onerror="this.style.display='none'">
                 </div>
                 <div class="mt-3">
                     ${mine

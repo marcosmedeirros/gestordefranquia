@@ -254,7 +254,7 @@ if ($action === 'market_state') {
         SELECT m.id, m.seller_user_id, m.card_id, m.price_points, m.created_at,
                u.nome seller_name,
                c.nome card_name, c.raridade card_rarity, COALESCE(c.collection_name, 'Geral') card_collection,
-               t.nome card_team
+               t.nome card_team, c.img_url card_img
         FROM fba_market_listings m
         INNER JOIN usuarios u ON u.id = m.seller_user_id
         INNER JOIN fba_cards c ON c.id = m.card_id
