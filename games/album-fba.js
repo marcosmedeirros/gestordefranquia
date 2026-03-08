@@ -396,8 +396,8 @@ function renderMarketMine() {
                 </div>
                 <button type="button" class="bg-red-800 hover:bg-red-700 rounded w-8 h-8 font-bold" data-market-cancel="${item.id}" title="Cancelar venda">X</button>
             </div>
-            <div class="mt-2">
-                <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-44 object-cover rounded border border-zinc-700" onerror="this.style.display='none'">
+            <div class="mt-2 bg-zinc-950 rounded border border-zinc-700 p-1">
+                <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-36 object-contain rounded" onerror="this.style.display='none'">
             </div>
             <div class="text-sm text-red-300 font-bold mt-2">${Number(item.price_points)} pts</div>
         </div>
@@ -435,8 +435,8 @@ function renderMarketListings() {
                     </div>
                     <div class="text-red-300 font-black">${Number(item.price_points)} pts</div>
                 </div>
-                <div class="mt-2">
-                    <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-44 object-cover rounded border border-zinc-700" onerror="this.style.display='none'">
+                <div class="mt-2 bg-zinc-950 rounded border border-zinc-700 p-1">
+                    <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-36 object-contain rounded" onerror="this.style.display='none'">
                 </div>
                 <div class="mt-3">
                     ${mine

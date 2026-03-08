@@ -215,7 +215,7 @@ $teams = [
                     <button id="market-toggle-mine" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-sm font-bold">Ver minhas cartas a venda</button>
                 </div>
                 <div id="market-mine-wrap" class="hidden">
-                    <div id="market-mine-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                    <div id="market-mine-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
                 </div>
             </div>
 
@@ -234,7 +234,7 @@ $teams = [
                         <option value="lendario">Lendaria</option>
                     </select>
                 </div>
-                <div id="market-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                <div id="market-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
             </div>
             <p id="market-feedback" class="text-sm text-zinc-300 mt-3"></p>
         </section>
