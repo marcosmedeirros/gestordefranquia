@@ -944,12 +944,20 @@ try {
             display: inline-block;
         }
 
-        .ranking-name {
+        .ranking-info {
+            display: flex;
+            flex-direction: column;
             flex: 1;
+            min-width: 0;
             margin: 0 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        }
+
+        .ranking-name {
+            display: block;
+            line-height: 1.25;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .ranking-meta {
@@ -981,7 +989,13 @@ try {
         .best-game-batalha-naval { background: #1976d2; color: #fff; }
         .best-game-pinguim { background: #7b1fa2; color: #fff; }
 
-        .ranking-value { font-weight: 700; color: #fff; text-align: right; }
+        .ranking-value {
+            font-weight: 700;
+            color: #fff;
+            text-align: right;
+            white-space: nowrap;
+            margin-left: auto;
+        }
 
         .medal-1::before { content: '🥇'; margin-right: 5px; }
         .medal-2::before { content: '🥈'; margin-right: 5px; }
@@ -997,12 +1011,7 @@ try {
             .game-icon { font-size: 2.5rem; }
             .ranking-position { min-width: 25px; }
             .ranking-item { align-items: flex-start; }
-            .ranking-name {
-                white-space: normal;
-                overflow: visible;
-                text-overflow: clip;
-                word-break: break-word;
-            }
+            .ranking-info { margin: 0; }
             .ranking-name small {
                 display: block;
                 margin-top: 2px;
@@ -1010,10 +1019,7 @@ try {
             .ranking-meta {
                 font-size: 0.7rem;
             }
-            .ranking-value {
-                white-space: nowrap;
-                align-self: flex-start;
-            }
+            .ranking-value { align-self: flex-start; }
         }
 </style>
 </head>
@@ -1192,14 +1198,11 @@ try {
                                     <?php foreach ($rankingList as $idx => $jogador): ?>
                                         <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="all">
                                             <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                            <div class="ranking-info">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
                                                     <?php
                                                     $metaParts = [];
-                                                    if (!empty($jogador['league'])) {
-                                                        $metaParts[] = $jogador['league'];
-                                                    }
                                                     if (!empty($jogador['team_name'])) {
                                                         $metaParts[] = $jogador['team_name'];
                                                     }
@@ -1230,14 +1233,11 @@ try {
                                     <?php foreach ($rankingList as $idx => $jogador): ?>
                                         <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>" data-ranking-period="24h">
                                             <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                            <div class="ranking-info">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
                                                     <?php
                                                     $metaParts = [];
-                                                    if (!empty($jogador['league'])) {
-                                                        $metaParts[] = $jogador['league'];
-                                                    }
                                                     if (!empty($jogador['team_name'])) {
                                                         $metaParts[] = $jogador['team_name'];
                                                     }
@@ -1408,14 +1408,11 @@ try {
                                     <?php foreach ($rankingList as $idx => $jogador): ?>
                                         <div class="ranking-item medal-<?= $idx+1 ?>" data-ranking-league="<?= htmlspecialchars($leagueKey) ?>">
                                             <span class="ranking-position" aria-label="Posição <?= $idx+1 ?>"></span>
-                                            <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
+                                            <div class="ranking-info">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
                                                     <?php
                                                     $metaParts = [];
-                                                    if (!empty($jogador['league'])) {
-                                                        $metaParts[] = $jogador['league'];
-                                                    }
                                                     if (!empty($jogador['team_name'])) {
                                                         $metaParts[] = $jogador['team_name'];
                                                     }

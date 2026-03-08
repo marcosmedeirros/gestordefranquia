@@ -457,6 +457,119 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             background: linear-gradient(140deg, rgba(255, 50, 100, 0.6), rgba(124, 58, 237, 0.55));
             filter: blur(16px);
         }
+
+        .market-box {
+            border: 1px solid var(--stroke);
+            background: var(--panel-2);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .market-form {
+            display: grid;
+            grid-template-columns: 1fr 140px auto;
+            gap: 8px;
+            align-items: end;
+        }
+
+        .market-form input {
+            background: var(--panel-2);
+            border: 1px solid var(--stroke);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 9px 10px;
+            font-size: 0.95rem;
+            width: 100%;
+        }
+
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+
+        .market-item {
+            border: 1px solid var(--stroke);
+            background: rgba(255,255,255,0.02);
+            border-radius: 12px;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .market-item-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: start;
+        }
+
+        .market-price {
+            font-weight: 700;
+            color: #ffd166;
+            white-space: nowrap;
+        }
+
+        .market-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .market-filters {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .market-filters input {
+            background: var(--panel-2);
+            border: 1px solid var(--stroke);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 9px 10px;
+            font-size: 0.95rem;
+            width: 100%;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(120deg, #445a8f, #556b9f);
+            box-shadow: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(120deg, #b64056, #8f2f46);
+            box-shadow: none;
+        }
+
+        .market-msg {
+            min-height: 22px;
+            font-size: 0.9rem;
+        }
+
+        .btn-icon {
+            width: 34px;
+            min-width: 34px;
+            height: 34px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        @media (max-width: 700px) {
+            .market-form {
+                grid-template-columns: 1fr;
+            }
+            .market-filters {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -478,6 +591,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             <div class="tabs">
                 <div class="tab active" data-tab="shop">Loja</div>
                 <div class="tab" data-tab="album">Álbum</div>
+                <div class="tab" data-tab="market">Mercado</div>
                 <?php if ($is_admin): ?>
                     <div class="tab" data-tab="admin">Admin</div>
                 <?php endif; ?>
@@ -505,6 +619,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 8px;">
                     <button class="btn" id="openPackBtn">Abrir pacote agora</button>
                 </div>
+                <div style="margin-top: 10px;" class="muted">
+                    Seus pontos: <strong id="userPointsLabel">0</strong>
+                </div>
                 <div class="pack-area" id="packArea">
                     <div class="muted empty">Nenhum pacote aberto ainda.</div>
                 </div>
@@ -518,6 +635,55 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                     </select>
                 </div>
                 <div class="album-grid" id="albumGrid"></div>
+            </div>
+
+            <div class="card tab-content hidden" data-tab-content="market">
+                <h2>Mercado de Duplicadas</h2>
+                <div class="muted">Anuncie apenas cartinhas repetidas e compre com pontos.</div>
+                <div style="margin:10px 0 12px;">
+                    <button class="btn btn-secondary" id="toggleMyListingsBtn" type="button">Ver minhas cartas a venda</button>
+                </div>
+
+                <div class="market-box" style="margin-top:10px;">
+                    <div style="font-weight:700; margin-bottom:8px;">Criar anuncio</div>
+                    <div class="market-form">
+                        <div>
+                            <label class="muted" for="marketStickerSelect">Cartinha duplicada</label>
+                            <select id="marketStickerSelect"></select>
+                        </div>
+                        <div>
+                            <label class="muted" for="marketPriceInput">Preco (pontos)</label>
+                            <input type="number" id="marketPriceInput" min="1" step="1" value="1">
+                        </div>
+                        <button class="btn" id="createListingBtn" type="button">Anunciar</button>
+                    </div>
+                    <div class="muted" id="marketCapHint" style="margin-top:8px;"></div>
+                </div>
+
+                <div class="market-box hidden" id="myListingsBox">
+                    <div style="font-weight:700; margin-bottom:8px;">Meus anuncios</div>
+                    <div id="myListings"></div>
+                </div>
+
+                <div class="market-box">
+                    <div style="font-weight:700; margin-bottom:8px;">Anuncios ativos</div>
+                    <div class="market-filters">
+                        <input type="text" id="marketFilterName" placeholder="Filtrar por nome">
+                        <select id="marketFilterCategory">
+                            <option value="all">Todas as colecoes</option>
+                        </select>
+                        <select id="marketFilterRarity">
+                            <option value="all">Todas as raridades</option>
+                            <option value="comum">Comum</option>
+                            <option value="rara">Rara</option>
+                            <option value="epica">Epica</option>
+                            <option value="lendaria">Lendaria</option>
+                        </select>
+                    </div>
+                    <div id="activeListings"></div>
+                </div>
+
+                <div id="marketMessage" class="market-msg muted"></div>
             </div>
 
             <?php if ($is_admin): ?>
@@ -567,61 +733,38 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             { id: '050', name: 'Mascote Oficial', category: 'Extras', rarity: 'comum', image: 'img/050.png', blurb: 'Carisma na quadra.' },
         ];
 
+        const currentUserId = <?= (int)($sessionUser['id'] ?? 0) ?>;
+        const stickersById = {};
+        stickers.forEach((sticker) => {
+            stickersById[sticker.id] = sticker;
+        });
+
         const state = {
             collection: {},
             lastPack: [],
+            userPoints: 0,
+            market: {
+                activeListings: [],
+                myListings: [],
+                priceCaps: {
+                    comum: 20,
+                    rara: 40,
+                    epica: 60,
+                    lendaria: 100,
+                },
+            },
         };
 
-        function loadCollection() {
-            return {};
+        function formatPoints(points) {
+            const value = Number(points || 0);
+            return value.toLocaleString('pt-BR');
         }
 
-        function saveCollection() {
-            // Persistencia agora e feita via API no banco.
-        }
-
-        function pickRarity() {
-            const total = Object.values(rarityConfig).reduce((sum, r) => sum + r.weight, 0);
-            const roll = Math.random() * total;
-            let acc = 0;
-            for (const key in rarityConfig) {
-                acc += rarityConfig[key].weight;
-                if (roll <= acc) return key;
+        function renderUserPoints() {
+            const label = document.getElementById('userPointsLabel');
+            if (label) {
+                label.textContent = formatPoints(state.userPoints);
             }
-            return 'comum';
-        }
-
-        function pullSticker() {
-            const rarity = pickRarity();
-            const pool = stickers.filter((s) => s.rarity === rarity);
-            if (!pool.length) return null;
-            const pick = pool[Math.floor(Math.random() * pool.length)];
-            state.collection[pick.id] = (state.collection[pick.id] || 0) + 1;
-            return pick;
-        }
-
-        function openPack() {
-            const area = document.getElementById('packArea');
-            area.innerHTML = `
-                <div class="pack-foil" id="packFoil"></div>
-                <div class="muted" style="text-align:center;">Abrindo pacote...</div>
-            `;
-            const foil = document.getElementById('packFoil');
-            foil.classList.remove('pack-open');
-
-            // Simula o rasgar do pacote antes de revelar
-            setTimeout(() => {
-                foil.classList.add('pack-open');
-                state.lastPack = [];
-                for (let i = 0; i < 3; i += 1) {
-                    const sticker = pullSticker();
-                    if (sticker) state.lastPack.push(sticker);
-                }
-                saveCollection();
-                renderPack(true);
-                renderAlbum();
-                renderStats();
-            }, 700);
         }
 
         function renderPack(withReveal = false) {
@@ -712,6 +855,8 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             document.getElementById('statCollected').textContent = `${owned}/${total}`;
             document.getElementById('statDuplicates').textContent = duplicates;
             document.getElementById('progressBar').style.width = `${percent}%`;
+            renderUserPoints();
+            updateMarketStickerSelect();
         }
 
         function setupCategoryFilter() {
@@ -734,6 +879,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                     document.querySelectorAll('.tab-content').forEach((panel) => {
                         panel.classList.toggle('hidden', panel.dataset.tabContent !== target);
                     });
+                    if (target === 'market') {
+                        refreshMarketState();
+                    }
                 });
             });
         }
@@ -761,12 +909,27 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         async function loadCollectionFromDb() {
             const data = await apiRequest('state', 'GET');
             state.collection = data.collection || {};
+            state.userPoints = Number(data.user_points || 0);
+        }
+
+        async function loadMarketFromDb() {
+            const data = await apiRequest('market_state', 'GET');
+            state.collection = data.collection || state.collection;
+            state.userPoints = Number(data.user_points || 0);
+            state.market.activeListings = Array.isArray(data.active_listings) ? data.active_listings : [];
+            state.market.myListings = Array.isArray(data.my_listings) ? data.my_listings : [];
+            if (data.price_caps && typeof data.price_caps === 'object') {
+                state.market.priceCaps = data.price_caps;
+            }
         }
 
         async function drawFromServer(count) {
             const data = await apiRequest('open_pack', 'POST', { count });
             state.lastPack = Array.isArray(data.pack) ? data.pack : [];
             state.collection = data.collection || {};
+            if (typeof data.user_points !== 'undefined') {
+                state.userPoints = Number(data.user_points || 0);
+            }
         }
 
         function setButtonsDisabled(disabled) {
@@ -801,6 +964,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                     renderPack(true);
                     renderAlbum();
                     renderStats();
+                    renderMarketLists();
                 } catch (err) {
                     area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao abrir pacote.'}</div>`;
                 } finally {
@@ -823,12 +987,288 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 renderPack(true);
                 renderAlbum();
                 renderStats();
+                renderMarketLists();
             } catch (err) {
                 area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao adicionar cartinha.'}</div>`;
             } finally {
                 isOpening = false;
                 setButtonsDisabled(false);
             }
+        }
+
+        function updateMarketCapHint() {
+            const select = document.getElementById('marketStickerSelect');
+            const input = document.getElementById('marketPriceInput');
+            const hint = document.getElementById('marketCapHint');
+            if (!select || !input || !hint) {
+                return;
+            }
+            const sticker = stickersById[select.value];
+            if (!sticker) {
+                hint.textContent = 'Voce precisa ter duplicadas para anunciar.';
+                input.value = 1;
+                input.max = 1;
+                return;
+            }
+            const cap = Number(state.market.priceCaps[sticker.rarity] || 1);
+            input.max = cap;
+            let current = Number(input.value || 1);
+            if (current < 1) {
+                current = 1;
+            }
+            if (current > cap) {
+                current = cap;
+            }
+            input.value = current;
+            const rarityLabel = (rarityConfig[sticker.rarity] || {}).label || sticker.rarity;
+            hint.textContent = `Maximo para ${rarityLabel}: ${cap} pontos.`;
+        }
+
+        function updateMarketStickerSelect() {
+            const select = document.getElementById('marketStickerSelect');
+            if (!select) {
+                return;
+            }
+            const previous = select.value;
+            const duplicates = stickers
+                .filter((sticker) => (state.collection[sticker.id] || 0) > 1)
+                .sort((a, b) => a.id.localeCompare(b.id));
+
+            if (!duplicates.length) {
+                select.innerHTML = '<option value="">Sem duplicadas disponiveis</option>';
+                select.disabled = true;
+                const createBtn = document.getElementById('createListingBtn');
+                if (createBtn) {
+                    createBtn.disabled = true;
+                }
+                updateMarketCapHint();
+                return;
+            }
+
+            select.disabled = false;
+            select.innerHTML = duplicates.map((sticker) => {
+                const qty = state.collection[sticker.id] || 0;
+                const dup = Math.max(qty - 1, 0);
+                const label = `${sticker.id} - ${sticker.name} (${dup} dup)`;
+                return `<option value="${sticker.id}">${label}</option>`;
+            }).join('');
+            if (previous && duplicates.some((s) => s.id === previous)) {
+                select.value = previous;
+            }
+            const createBtn = document.getElementById('createListingBtn');
+            if (createBtn) {
+                createBtn.disabled = false;
+            }
+            updateMarketCapHint();
+        }
+
+        function renderMarketLists() {
+            const myNode = document.getElementById('myListings');
+            const activeNode = document.getElementById('activeListings');
+            if (!myNode || !activeNode) {
+                return;
+            }
+
+            const myListings = state.market.myListings || [];
+            if (!myListings.length) {
+                myNode.innerHTML = '<div class="muted">Voce nao possui anuncios ativos.</div>';
+            } else {
+                myNode.innerHTML = `<div class="market-grid">${myListings.map((listing) => {
+                    const sticker = stickersById[listing.sticker_id] || null;
+                    const name = sticker ? sticker.name : `Cartinha #${listing.sticker_id}`;
+                    return `
+                        <div class="market-item">
+                            <div class="market-item-head">
+                                <div>
+                                    <div style="font-weight:700;">${name}</div>
+                                    <div class="muted" style="font-size:0.85rem;">#${listing.sticker_id}</div>
+                                </div>
+                                <div class="market-price">${formatPoints(listing.price_points)} pts</div>
+                            </div>
+                            <div class="market-actions">
+                                <button class="btn btn-danger btn-icon" data-cancel-listing="${listing.id}" type="button" title="Cancelar venda">X</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}</div>`;
+            }
+
+            const nameFilter = ((document.getElementById('marketFilterName')?.value) || '').trim().toLowerCase();
+            const categoryFilter = (document.getElementById('marketFilterCategory')?.value) || 'all';
+            const rarityFilter = (document.getElementById('marketFilterRarity')?.value) || 'all';
+
+            const activeListings = (state.market.activeListings || []).filter((listing) => {
+                const sticker = stickersById[listing.sticker_id] || null;
+                const stickerName = ((sticker && sticker.name) ? sticker.name : '').toLowerCase();
+                const category = (sticker && sticker.category) ? sticker.category : '';
+                const rarity = (listing.rarity || (sticker ? sticker.rarity : '') || '').toLowerCase();
+                const matchesName = !nameFilter || stickerName.includes(nameFilter);
+                const matchesCategory = categoryFilter === 'all' || category === categoryFilter;
+                const matchesRarity = rarityFilter === 'all' || rarity === rarityFilter;
+                return matchesName && matchesCategory && matchesRarity;
+            });
+
+            if (!activeListings.length) {
+                activeNode.innerHTML = '<div class="muted">Nao ha anuncios ativos no momento.</div>';
+            } else {
+                activeNode.innerHTML = `<div class="market-grid">${activeListings.map((listing) => {
+                    const sticker = stickersById[listing.sticker_id] || null;
+                    const name = sticker ? sticker.name : `Cartinha #${listing.sticker_id}`;
+                    const isMine = Number(listing.seller_user_id) === Number(currentUserId);
+                    const buttonHtml = isMine
+                        ? '<span class="status-chip">Seu anuncio</span>'
+                        : `<button class="btn btn-secondary" data-buy-listing="${listing.id}" type="button">Comprar</button>`;
+                    return `
+                        <div class="market-item">
+                            <div class="market-item-head">
+                                <div>
+                                    <div style="font-weight:700;">${name}</div>
+                                    <div class="muted" style="font-size:0.85rem;">#${listing.sticker_id} • ${listing.seller_name || 'Usuario'}</div>
+                                </div>
+                                <div class="market-price">${formatPoints(listing.price_points)} pts</div>
+                            </div>
+                            <div class="market-actions">${buttonHtml}</div>
+                        </div>
+                    `;
+                }).join('')}</div>`;
+            }
+        }
+
+        function setMarketMessage(message, isError = false) {
+            const node = document.getElementById('marketMessage');
+            if (!node) {
+                return;
+            }
+            node.textContent = message || '';
+            node.style.color = isError ? '#ff9aa9' : 'var(--muted)';
+        }
+
+        async function refreshMarketState() {
+            try {
+                await loadMarketFromDb();
+                renderStats();
+                renderMarketLists();
+                setMarketMessage('');
+            } catch (err) {
+                setMarketMessage(err.message || 'Erro ao carregar mercado.', true);
+            }
+        }
+
+        async function createListing() {
+            const select = document.getElementById('marketStickerSelect');
+            const input = document.getElementById('marketPriceInput');
+            if (!select || !input || !select.value) {
+                setMarketMessage('Selecione uma cartinha duplicada para anunciar.', true);
+                return;
+            }
+            const sticker = stickersById[select.value];
+            if (!sticker) {
+                setMarketMessage('Cartinha invalida.', true);
+                return;
+            }
+            const cap = Number(state.market.priceCaps[sticker.rarity] || 1);
+            const price = Number(input.value || 0);
+            if (!Number.isInteger(price) || price < 1 || price > cap) {
+                setMarketMessage(`Preco invalido. Limite desta raridade: ${cap}.`, true);
+                return;
+            }
+            const button = document.getElementById('createListingBtn');
+            if (button) {
+                button.disabled = true;
+            }
+            try {
+                await apiRequest('create_listing', 'POST', {
+                    sticker_id: select.value,
+                    price_points: price,
+                });
+                setMarketMessage('Anuncio criado com sucesso.');
+                await refreshMarketState();
+            } catch (err) {
+                setMarketMessage(err.message || 'Erro ao criar anuncio.', true);
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+        async function buyListing(listingId) {
+            try {
+                await apiRequest('buy_listing', 'POST', { listing_id: Number(listingId) });
+                setMarketMessage('Compra concluida com sucesso.');
+                await refreshMarketState();
+                renderAlbum();
+            } catch (err) {
+                setMarketMessage(err.message || 'Erro ao comprar cartinha.', true);
+            }
+        }
+
+        async function cancelListing(listingId) {
+            try {
+                await apiRequest('cancel_listing', 'POST', { listing_id: Number(listingId) });
+                setMarketMessage('Anuncio cancelado.');
+                await refreshMarketState();
+                renderAlbum();
+            } catch (err) {
+                setMarketMessage(err.message || 'Erro ao cancelar anuncio.', true);
+            }
+        }
+
+        function setupMarketActions() {
+            const select = document.getElementById('marketStickerSelect');
+            if (select) {
+                select.addEventListener('change', updateMarketCapHint);
+            }
+            const toggleBtn = document.getElementById('toggleMyListingsBtn');
+            const myListingsBox = document.getElementById('myListingsBox');
+            if (toggleBtn && myListingsBox) {
+                toggleBtn.addEventListener('click', () => {
+                    myListingsBox.classList.toggle('hidden');
+                    toggleBtn.textContent = myListingsBox.classList.contains('hidden')
+                        ? 'Ver minhas cartas a venda'
+                        : 'Ocultar minhas cartas a venda';
+                });
+            }
+            const createBtn = document.getElementById('createListingBtn');
+            if (createBtn) {
+                createBtn.addEventListener('click', createListing);
+            }
+            document.getElementById('myListings')?.addEventListener('click', (event) => {
+                const target = event.target.closest('[data-cancel-listing]');
+                if (!target) {
+                    return;
+                }
+                cancelListing(target.dataset.cancelListing);
+            });
+            document.getElementById('activeListings')?.addEventListener('click', (event) => {
+                const target = event.target.closest('[data-buy-listing]');
+                if (!target) {
+                    return;
+                }
+                buyListing(target.dataset.buyListing);
+            });
+        }
+
+        function setupMarketFilters() {
+            const categorySelect = document.getElementById('marketFilterCategory');
+            if (categorySelect) {
+                const categories = Array.from(new Set(stickers.map((s) => s.category))).sort();
+                categories.forEach((cat) => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    categorySelect.appendChild(opt);
+                });
+            }
+
+            ['marketFilterName', 'marketFilterCategory', 'marketFilterRarity'].forEach((id) => {
+                const node = document.getElementById(id);
+                if (!node) {
+                    return;
+                }
+                const eventName = id === 'marketFilterName' ? 'input' : 'change';
+                node.addEventListener(eventName, renderMarketLists);
+            });
         }
 
         document.getElementById('openPackBtn').addEventListener('click', openPack);
@@ -838,17 +1278,22 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         }
         setupCategoryFilter();
         setupTabs();
+        setupMarketActions();
+        setupMarketFilters();
 
         (async () => {
             try {
                 await loadCollectionFromDb();
+                await loadMarketFromDb();
             } catch (err) {
                 const area = document.getElementById('packArea');
                 area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao carregar album.'}</div>`;
                 setButtonsDisabled(true);
+                setMarketMessage(err.message || 'Erro ao carregar mercado.', true);
             }
             renderAlbum();
             renderStats();
+            renderMarketLists();
         })();
     </script>
 </body>
