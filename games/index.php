@@ -817,6 +817,14 @@ try {
                 <div class="game-subtitle">Desafio multiplayer</div>
             </a>
         </div>
+
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card" style="--accent: #e53935;">
+                <span class="game-icon">🖼️</span>
+                <div class="game-title">Album FBA</div>
+                <div class="game-subtitle">Colecione figurinhas</div>
+            </a>
+        </div>
     </div>
 
     <!-- SEÇÃO: RANKINGS -->

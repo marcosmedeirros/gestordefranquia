@@ -60,6 +60,21 @@ $teams = [
 
         .pack { transition: transform .2s; cursor: pointer; border: 3px solid #ef4444; box-shadow: 0 10px 25px rgba(239, 68, 68, .45); }
         .pack:hover { transform: scale(1.05) translateY(-10px); }
+        .pack-info-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            border-radius: 9999px;
+            border: 2px solid rgba(255,255,255,.75);
+            background: rgba(0,0,0,.55);
+            color: #fff;
+            font-weight: 800;
+            line-height: 1;
+            z-index: 2;
+        }
+        .pack-info-btn:hover { background: rgba(0,0,0,.78); }
         .shaking { animation: shake .5s cubic-bezier(.36,.07,.19,.97) both; animation-iteration-count: 3; }
         @keyframes shake {
             10%, 90% { transform: translate3d(-2px, 0, 0) rotate(-2deg); }
@@ -181,18 +196,17 @@ $teams = [
 
         <section id="section-store" class="hidden text-center">
             <h2 class="text-3xl font-bold fba-title mb-2">Loja de Pacotes</h2>
-            <p class="text-zinc-400 mb-10">Drop rate aplicado no servidor.</p>
-            <div class="flex flex-wrap justify-center gap-8">
+            <div class="flex flex-wrap justify-center gap-8 mt-10">
                 <div class="flex flex-col items-center">
-                    <div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#2e2e2e,#111111)" onclick="openPack('basico')"><h3 class="text-3xl font-black italic">BÁSICO</h3></div>
+                    <div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#2e2e2e,#111111)" onclick="openPack('basico')"><button type="button" class="pack-info-btn" onclick="event.stopPropagation(); showPackOdds('basico')">!</button><h3 class="text-3xl font-black italic">BÁSICO</h3></div>
                     <button class="mt-4 bg-zinc-800 hover:bg-zinc-700 px-6 py-2 rounded-full font-bold border border-red-700" onclick="openPack('basico')">30</button>
                 </div>
                 <div class="flex flex-col items-center">
-                    <div id="pack-premium" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#7f1d1d,#1f0a0a)" onclick="openPack('premium')"><h3 class="text-3xl font-black italic">PREMIUM</h3></div>
+                    <div id="pack-premium" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#7f1d1d,#1f0a0a)" onclick="openPack('premium')"><button type="button" class="pack-info-btn" onclick="event.stopPropagation(); showPackOdds('premium')">!</button><h3 class="text-3xl font-black italic">PREMIUM</h3></div>
                     <button class="mt-4 bg-red-800 hover:bg-red-700 px-6 py-2 rounded-full font-bold border border-red-500" onclick="openPack('premium')">60</button>
                 </div>
                 <div class="flex flex-col items-center">
-                    <div id="pack-ultra" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#ffffff,#b91c1c)" onclick="openPack('ultra')"><h3 class="text-3xl font-black italic text-black">ULTRA</h3></div>
+                    <div id="pack-ultra" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#ffffff,#b91c1c)" onclick="openPack('ultra')"><button type="button" class="pack-info-btn" onclick="event.stopPropagation(); showPackOdds('ultra')">!</button><h3 class="text-3xl font-black italic text-black">ULTRA</h3></div>
                     <button class="mt-4 bg-white hover:bg-zinc-200 text-black px-6 py-2 rounded-full font-bold border border-red-700" onclick="openPack('ultra')">100</button>
                 </div>
             </div>

@@ -5,8 +5,24 @@ const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
 const hasCard = (id) => Number(state.collection[id] || 0) > 0;
+const rarityLabel = (r) => ({ comum: 'Comum', rara: 'Rara', epico: 'Epica', lendario: 'Lendaria' }[r] || r);
 const post = (action, payload = {}) => fetch(`${API}?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
 const get = (action) => fetch(`${API}?action=${action}`).then((r) => r.json());
+
+function showPackOdds(type) {
+    const cfg = state.packTypes?.[type];
+    if (!cfg || !cfg.rates) {
+        alert('Probabilidades indisponiveis no momento.');
+        return;
+    }
+    const order = ['lendario', 'epico', 'rara', 'comum'];
+    const lines = order
+        .filter((r) => cfg.rates[r] !== undefined)
+        .map((r) => `${rarityLabel(r)}: ${Number(cfg.rates[r])}%`);
+    const title = String(type || '').toUpperCase();
+    alert(`Probabilidades do pacote ${title}:\n${lines.join('\n')}`);
+}
+window.showPackOdds = showPackOdds;
 
 async function bootstrap() {
     const res = await get('bootstrap');
