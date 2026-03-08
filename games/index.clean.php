@@ -41,8 +41,18 @@ $ranking_points = array_fill_keys(array_keys($ranking_leagues), []);
 
 try {
     $stmt = $pdo->query("
-        SELECT id, nome, pontos, league
-        FROM usuarios
+        SELECT
+            u.id,
+            u.nome,
+            u.pontos,
+            u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name
+        FROM usuarios u
         ORDER BY pontos DESC
         LIMIT 5
     ");
@@ -53,8 +63,18 @@ try {
 
 try {
     $stmtLeaguePoints = $pdo->prepare("
-        SELECT id, nome, pontos, league
-        FROM usuarios
+        SELECT
+            u.id,
+            u.nome,
+            u.pontos,
+            u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name
+        FROM usuarios u
         WHERE league = :league
         ORDER BY pontos DESC
         LIMIT 5
@@ -84,6 +104,12 @@ try {
             u.id,
             u.nome,
             u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -108,6 +134,12 @@ try {
             u.id,
             u.nome,
             u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -134,6 +166,12 @@ try {
             u.id,
             u.nome,
             u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -153,6 +191,12 @@ try {
             u.id,
             u.nome,
             u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -908,6 +952,15 @@ try {
             text-overflow: ellipsis;
         }
 
+        .ranking-meta {
+            display: block;
+            margin-top: 2px;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            line-height: 1.2;
+            white-space: normal;
+        }
+
         .best-game-tag {
             display: inline-flex;
             align-items: center;
@@ -953,6 +1006,9 @@ try {
             .ranking-name small {
                 display: block;
                 margin-top: 2px;
+            }
+            .ranking-meta {
+                font-size: 0.7rem;
             }
             .ranking-value {
                 white-space: nowrap;
@@ -1139,8 +1195,16 @@ try {
                                             <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
-                                                    <?php if (!empty($jogador['league'])): ?>
-                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php
+                                                    $metaParts = [];
+                                                    if (!empty($jogador['league'])) {
+                                                        $metaParts[] = $jogador['league'];
+                                                    }
+                                                    if (!empty($jogador['team_name'])) {
+                                                        $metaParts[] = $jogador['team_name'];
+                                                    }
+                                                    if (!empty($metaParts)): ?>
+                                                        <small class="ranking-meta"><?= htmlspecialchars(implode(' • ', $metaParts)) ?></small>
                                                     <?php endif; ?>
                                                     <?php if (!empty($top_termo_streak) && (int)$top_termo_streak['id_usuario'] === (int)($jogador['id'] ?? 0)): ?>
                                                         <span class="best-game-tag" style="background: #ff5252; color: #fff;">Maior sequência Termo (<?= (int)$top_termo_streak['streak_count'] ?>)</span>
@@ -1169,8 +1233,16 @@ try {
                                             <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
-                                                    <?php if (!empty($jogador['league'])): ?>
-                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php
+                                                    $metaParts = [];
+                                                    if (!empty($jogador['league'])) {
+                                                        $metaParts[] = $jogador['league'];
+                                                    }
+                                                    if (!empty($jogador['team_name'])) {
+                                                        $metaParts[] = $jogador['team_name'];
+                                                    }
+                                                    if (!empty($metaParts)): ?>
+                                                        <small class="ranking-meta"><?= htmlspecialchars(implode(' • ', $metaParts)) ?></small>
                                                     <?php endif; ?>
                                                 </span>
                                             </div>
@@ -1339,8 +1411,16 @@ try {
                                             <div style="display: flex; flex-direction: column; flex: 1; margin: 0 10px;">
                                                 <span class="ranking-name">
                                                     <?= htmlspecialchars($jogador['nome']) ?>
-                                                    <?php if (!empty($jogador['league'])): ?>
-                                                        <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
+                                                    <?php
+                                                    $metaParts = [];
+                                                    if (!empty($jogador['league'])) {
+                                                        $metaParts[] = $jogador['league'];
+                                                    }
+                                                    if (!empty($jogador['team_name'])) {
+                                                        $metaParts[] = $jogador['team_name'];
+                                                    }
+                                                    if (!empty($metaParts)): ?>
+                                                        <small class="ranking-meta"><?= htmlspecialchars(implode(' • ', $metaParts)) ?></small>
                                                     <?php endif; ?>
                                                     <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
                                                         <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
