@@ -285,13 +285,13 @@ $teams = [
         </div>
     </div>
 
-    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-[50px] px-3">
-        <div class="bg-black border border-red-700 rounded-xl p-4 w-full max-w-xs sm:max-w-sm my-[50px] max-h-[calc(100vh-100px)] overflow-y-auto relative">
+    <div id="album-card-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center py-6 px-3">
+        <div class="bg-black border border-red-700 rounded-xl p-4 w-full max-w-[20rem] sm:max-w-[22rem] max-h-[92vh] overflow-hidden relative">
             <button onclick="closeAlbumCardModal()" class="absolute top-2 right-3 text-zinc-300 hover:text-white text-3xl font-bold leading-none" aria-label="Fechar">&times;</button>
             <div class="flex justify-between items-center mb-3 pr-8">
                 <h3 class="fba-title text-xl text-white">Carta</h3>
             </div>
-            <img id="album-card-modal-img" src="" alt="Carta" class="w-full rounded-lg border border-zinc-700">
+            <img id="album-card-modal-img" src="" alt="Carta" class="w-full max-h-[58vh] object-contain rounded-lg border border-zinc-700">
             <div class="mt-3 text-white font-bold" id="album-card-modal-name"></div>
             <div class="text-zinc-300 text-sm" id="album-card-modal-meta"></div>
             <div class="text-red-300 text-sm mt-1" id="album-card-modal-count"></div>
