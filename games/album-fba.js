@@ -269,7 +269,7 @@ function openRankingTeamModal(teamData) {
         const item = document.createElement('div');
         item.className = `rounded-lg border ${card ? rarityClass(card.rarity) : 'border-zinc-700'} bg-zinc-900/60 p-2`;
         item.innerHTML = card
-            ? `<div class="text-[0.7rem] font-bold text-zinc-200 mb-1">${pos}</div><div class="aspect-[2.5/3.5] rounded overflow-hidden relative"><img src="${card.img}" class="w-full h-full object-cover"><div class="absolute bottom-0 left-0 right-0 bg-black/75 px-1 py-1"><div class="text-[0.65rem] font-bold leading-tight">${card.name}</div><div class="text-[0.6rem] text-zinc-300">${card.team} • OVR ${card.ovr}</div></div></div>`
+            ? `<div class="text-[0.7rem] font-bold text-zinc-200 mb-1">${pos}</div><div class="aspect-[2.5/3.5] rounded overflow-hidden relative bg-black"><img src="${card.img}" class="w-full h-full object-contain"><div class="absolute bottom-0 left-0 right-0 bg-black/75 px-1 py-1"><div class="text-[0.65rem] font-bold leading-tight">${card.name}</div><div class="text-[0.6rem] text-zinc-300">${card.team} • OVR ${card.ovr}</div></div></div>`
             : `<div class="text-[0.7rem] font-bold text-zinc-200 mb-1">${pos}</div><div class="aspect-[2.5/3.5] rounded border border-dashed border-zinc-600 bg-zinc-800/60 flex items-center justify-center text-zinc-400 text-xs font-bold text-center px-2">Sem carta</div>`;
         grid.appendChild(item);
     });

@@ -943,6 +943,21 @@ try {
             .game-card { height: 150px; }
             .game-icon { font-size: 2.5rem; }
             .ranking-position { min-width: 25px; }
+            .ranking-item { align-items: flex-start; }
+            .ranking-name {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+                word-break: break-word;
+            }
+            .ranking-name small {
+                display: block;
+                margin-top: 2px;
+            }
+            .ranking-value {
+                white-space: nowrap;
+                align-self: flex-start;
+            }
         }
 </style>
 </head>
