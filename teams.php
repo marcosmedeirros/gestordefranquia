@@ -581,22 +581,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             const tbody = document.getElementById('teamsTableBody');
             if (!capHeader || !capIcon || !tbody) return;
 
-            let capSortDirection = 'desc';
-            const sortTableByCap = () => {
-                const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.dataset.cap !== undefined);
-                rows.sort((a, b) => {
-                    const aCap = parseInt(a.dataset.cap || '0', 10) || 0;
-                    const bCap = parseInt(b.dataset.cap || '0', 10) || 0;
-                    return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
-                });
-                rows.forEach((row) => tbody.appendChild(row));
-            };
-
-            capHeader.addEventListener('click', () => {
-                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
-                capIcon.textContent = capSortDirection === 'asc' ? '?' : '?';
-                sortTableByCap();
-            });
+                        });
 
             sortTableByCap();
         });
@@ -868,28 +853,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             });
         }
-        let capSortDirection = 'desc';
-        function sortTableByCap() {
-            const rows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('no-results-row')) : [];
-            rows.sort((a, b) => {
-                const aCap = Number(a.dataset.cap || 0);
-                const bCap = Number(b.dataset.cap || 0);
-                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
-            });
-            if (teamsTableBody) {
-                teamsTableBody.innerHTML = '';
-                rows.forEach((row) => teamsTableBody.appendChild(row));
-            }
-        }
-
-        const capHeader = document.getElementById('capSortHeader');
-        const capIcon = document.getElementById('capSortIcon');
-        if (capHeader && capIcon) {
-            capHeader.addEventListener('click', () => {
-                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
-                capIcon.textContent = capSortDirection === 'asc' ? '?' : '?';
-                sortTableByCap();
-            });
+                    });
             // ordena??o inicial por CAP desc
             sortTableByCap();
         });
@@ -897,7 +861,39 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             sortTableByCap();
         }
 
-    </script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const capHeader = document.getElementById('capSortHeader');
+            const capIcon = document.getElementById('capSortIcon');
+            const tbody = document.getElementById('teamsTableBody');
+            if (!capHeader || !capIcon || !tbody) return;
+
+            
+        let capSortDirection = 'desc';
+        const capHeader = document.getElementById('capSortHeader');
+        const capIcon = document.getElementById('capSortIcon');
+        const capTbody = document.getElementById('teamsTableBody');
+
+        function sortTableByCap() {
+            if (!capTbody) return;
+            const rows = Array.from(capTbody.querySelectorAll('tr')).filter(r => r.dataset.cap !== undefined);
+            rows.sort((a, b) => {
+                const aCap = parseInt(a.dataset.cap || '0', 10) || 0;
+                const bCap = parseInt(b.dataset.cap || '0', 10) || 0;
+                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
+            });
+            rows.forEach((row) => capTbody.appendChild(row));
+        }
+
+        if (capHeader && capIcon && capTbody) {
+            capHeader.style.cursor = 'pointer';
+            capHeader.addEventListener('click', () => {
+                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
+                capIcon.textContent = capSortDirection === 'asc' ? '^' : 'v';
+                sortTableByCap();
+            });
+            sortTableByCap();
+        }
+</script>
     <script src="/js/pwa.js"></script>
 </body>
 </html>

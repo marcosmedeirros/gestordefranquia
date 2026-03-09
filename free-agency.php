@@ -18,6 +18,8 @@ $league_id = $_SESSION['current_league_id'] ?? null;
 $team_name = '';
 $team_moedas = 0;
 $team_league = null;
+$team_roster_count = 0;
+$team_pending_offers = 0;
 if ($team_id) {
     $stmt = $pdo->prepare("SELECT name, moedas, league FROM teams WHERE id = ?");
     $stmt->execute([$team_id]);
@@ -25,6 +27,12 @@ if ($team_id) {
     $team_name = $team['name'] ?? '';
     $team_moedas = (int)($team['moedas'] ?? 0);
     $team_league = $team['league'] ?? null;
+    $stmtRoster = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
+    $stmtRoster->execute([$team_id]);
+    $team_roster_count = (int)$stmtRoster->fetchColumn();
+    $stmtPending = $pdo->prepare("SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = 'pending'");
+    $stmtPending->execute([$team_id]);
+    $team_pending_offers = (int)$stmtPending->fetchColumn();
 }
 $team_league = $team_league ?? ($_SESSION['user_league'] ?? null);
 
@@ -37,6 +45,13 @@ if (!$team_id && $user_id) {
         $team_name = $team['name'] ?? $team_name;
         $team_moedas = (int)($team['moedas'] ?? $team_moedas);
         $team_league = $team['league'] ?? $team_league;
+        // Contagem de elenco e propostas pendentes
+        $stmtRoster = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
+        $stmtRoster->execute([$team_id]);
+        $team_roster_count = (int)$stmtRoster->fetchColumn();
+        $stmtPending = $pdo->prepare("SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = 'pending'");
+        $stmtPending->execute([$team_id]);
+        $team_pending_offers = (int)$stmtPending->fetchColumn();
     }
 }
 $team_league = $team_league ?? ($_SESSION['user_league'] ?? null);
@@ -734,6 +749,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                         <label for="offerAmount" class="form-label">Moedas do lance</label>
                         <input type="number" id="offerAmount" class="form-control" min="0" value="0">
                     </div>
+                    <div class="mb-3">
+                        <label for="offerPriority" class="form-label">Prioridade</label>
+                        <select id="offerPriority" class="form-select">
+                            <option value="1">1 (alta)</option>
+                            <option value="2">2 (média)</option>
+                            <option value="3">3 (baixa)</option>
+                        </select>
+                    </div>
                     <div class="alert alert-warning">
                         Moedas disponiveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong><br>
                         <small class="text-dark">Dica: informe <strong>0 moedas</strong> para <strong>cancelar</strong> sua proposta.</small>
@@ -825,6 +848,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         const userTeamId = <?= $team_id ? $team_id : 'null' ?>;
         const userTeamName = '<?= addslashes($team_name) ?>';
         const userMoedas = <?= $team_moedas ?>;
+        const userRosterCount = <?= (int)$team_roster_count ?>;
+        let userPendingOffers = <?= (int)$team_pending_offers ?>;
+        const rosterLimit = 15;
         const userLeague = <?= $team_league ? "'" . addslashes($team_league) . "'" : 'null' ?>;
         const defaultAdminLeague = '<?= addslashes($default_admin_league) ?>';
         const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;

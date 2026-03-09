@@ -303,6 +303,20 @@ function ensureOfferAmountColumn(PDO $pdo): void
     $checked = true;
 }
 
+function ensureOfferPriorityColumn(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!columnExists($pdo, 'free_agent_offers', 'priority')) {
+            $pdo->exec('ALTER TABLE free_agent_offers ADD COLUMN priority TINYINT NOT NULL DEFAULT 1 AFTER amount');
+        }
+    } catch (Exception $e) {
+        error_log('[free-agency] priority column: ' . $e->getMessage());
+    }
+    $checked = true;
+}
+
 function ensureTeamPunishmentColumns(PDO $pdo): void
 {
     try {
@@ -1069,7 +1083,7 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
     if ($teamLeague && $league !== $teamLeague) {
         jsonError('Liga invalida para o seu time');
     }
-    if ($amount <= 0) {
+    if ($amount < 0) {
         jsonError('Valor da proposta invalido');
     }
     if ($teamCoins < $amount) {
@@ -1407,25 +1421,30 @@ function removePlayer(PDO $pdo, array $body): void
 function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, int $teamCoins): void
 {
     ensureOfferAmountColumn($pdo);
+    ensureOfferPriorityColumn($pdo);
 
     if (!$teamId) {
         jsonError('Voce precisa ter um time');
     }
 
     if (isTeamFaBanned($pdo, (int)$teamId)) {
-        jsonError('Seu time está bloqueado de usar a Free Agency nesta temporada');
+        jsonError('Seu time est? bloqueado de usar a Free Agency nesta temporada');
     }
 
     $player_id = (int)($body['free_agent_id'] ?? 0);
     $amount = (int)($body['amount'] ?? 0);
+    $priority = (int)($body['priority'] ?? 1);
+    if ($priority < 1 || $priority > 3) {
+        $priority = 1;
+    }
 
     if (!$player_id) {
         jsonError('Dados invalidos');
     }
 
-    // Bloqueio por período fechado na liga do time
+    // Bloqueio por per?odo fechado na liga do time
     if ($teamLeague && !getFaEnabled($pdo, $teamLeague)) {
-        jsonError('O período de propostas está fechado para esta liga');
+        jsonError('O per?odo de propostas est? fechado para esta liga');
     }
 
     // Cancelar proposta quando amount = 0
@@ -1465,27 +1484,38 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $stmt->execute([$player_id, $teamId]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$existing) {
-        $stmtLimit = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
-        $stmtLimit->execute([$teamId]);
-        $pendingCount = (int)$stmtLimit->fetchColumn();
-        if ($pendingCount >= 3) {
-            jsonError('Limite de 3 propostas pendentes por time');
+    if ($amount > 0 && !$existing) {
+        // Limite de elenco: jogadores atuais + ofertas pendentes n?o pode exceder 15
+        $stmtRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+        $stmtRoster->execute([$teamId]);
+        $rosterCount = (int)$stmtRoster->fetchColumn();
+
+        $stmtPend = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
+        $stmtPend->execute([$teamId]);
+        $pendingCount = (int)$stmtPend->fetchColumn();
+
+        if (($rosterCount + $pendingCount) >= 15) {
+            jsonError('Elenco cheio ou limite de propostas atingido (15 jogadores).');
         }
     }
 
-    if ($existing) {
-        $stmt = $pdo->prepare('UPDATE free_agent_offers SET amount = ?, status = "pending" WHERE id = ?');
-        $stmt->execute([$amount, $existing['id']]);
+    if (!$existing) {
+        // Limite de propostas pendentes adicionais (seguran?a existente)
+        $stmtLimit = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
+        $stmtLimit->execute([$teamId]);
+        $pendingCount = (int)$stmtLimit->fetchColumn();
+        if ($pendingCount >= 10) {
+            jsonError('Limite de 10 propostas pendentes por time');
+        }
+
+        $stmt = $pdo->prepare('INSERT INTO free_agent_offers (free_agent_id, team_id, amount, priority, status, created_at) VALUES (?, ?, ?, ?, "pending", NOW())');
+        $stmt->execute([$player_id, $teamId, $amount, $priority]);
     } else {
-        $stmt = $pdo->prepare('
-            INSERT INTO free_agent_offers (free_agent_id, team_id, amount, status, created_at)
-            VALUES (?, ?, ?, "pending", NOW())
-        ');
-        $stmt->execute([$player_id, $teamId, $amount]);
+        $stmt = $pdo->prepare('UPDATE free_agent_offers SET amount = ?, priority = ?, status = "pending", updated_at = NOW() WHERE id = ?');
+        $stmt->execute([$amount, $priority, $existing['id']]);
     }
 
-    jsonSuccess();
+    jsonSuccess(['success' => true]);
 }
 
 function approveOffer(PDO $pdo, array $body, int $adminId): void

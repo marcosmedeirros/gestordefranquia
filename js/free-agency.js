@@ -315,8 +315,8 @@ async function submitNewFaRequest() {
         return;
     }
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-        alert('Informe o valor da proposta (moedas).');
+    if (!Number.isFinite(amount) || amount < 0) {
+        alert('Informe uma quantidade válida de moedas (0 ou mais).');
         return;
     }
 
@@ -1325,6 +1325,8 @@ function abrirModalOferta(playerId, playerName, currentAmount = 1) {
     document.getElementById('freeAgentNomeOffer').textContent = playerName;
     document.getElementById('offerAmount').value = currentAmount ?? 0;
     document.getElementById('offerAmount').min = 0;
+    const prioritySelect = document.getElementById('offerPriority');
+    if (prioritySelect) prioritySelect.value = '1';
 
     const modal = new bootstrap.Modal(document.getElementById('modalOffer'));
     modal.show();
@@ -1345,6 +1347,7 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
     }
     const playerId = document.getElementById('freeAgentIdOffer').value;
     const amount = parseInt(document.getElementById('offerAmount').value, 10);
+    const priority = parseInt(document.getElementById('offerPriority')?.value, 10) || 1;
     if (!Number.isFinite(amount) || amount < 0) {
         alert('Informe uma quantidade valida de moedas.');
         return;
@@ -1354,6 +1357,11 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
     if (amount === 0) {
         if (!confirm('Cancelar sua proposta para este jogador?')) return;
     } else {
+        const pendingSlots = (rosterLimit - (userRosterCount + userPendingOffers));
+        if (pendingSlots <= 0) {
+            alert('Elenco cheio ou limite de propostas atingido.');
+            return;
+        }
         if (amount > userMoedas) {
             alert('Voce nao tem moedas suficientes.');
             return;
@@ -1364,7 +1372,7 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
         const response = await fetch('api/free-agency.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'place_offer', free_agent_id: playerId, amount })
+            body: JSON.stringify({ action: 'place_offer', free_agent_id: playerId, amount, priority })
         });
 
         const data = await response.json();
@@ -1374,6 +1382,11 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
         }
 
         bootstrap.Modal.getInstance(document.getElementById('modalOffer'))?.hide();
+        if (amount > 0) {
+            userPendingOffers = (userPendingOffers || 0) + 1;
+        } else if (amount === 0 && userPendingOffers > 0) {
+            userPendingOffers -= 1;
+        }
         carregarFreeAgents();
     } catch (error) {
         console.error('Erro:', error);
