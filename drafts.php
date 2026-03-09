@@ -529,13 +529,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
             ${showRound2Admin ? `
               <div class="card bg-dark border-secondary mb-3" style="border-radius: 12px;">
                 <div class="card-body">
-                  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-                    <div>
-                      <h6 class="text-white mb-1"><i class="bi bi-person-check me-2 text-orange"></i>Seleção Admin - 2ª Rodada</h6>
-                      <small class="text-light-gray">Escolha o time e o jogador disponível.</small>
-                    </div>
-                    <span class="badge bg-secondary" id="round2RemainingBadge">-</span>
-                  </div>
+                  <h6 class="text-white mb-3"><i class="bi bi-person-check me-2 text-orange"></i>2ª Rodada (admin)</h6>
                   <div class="row g-2 align-items-end">
                     <div class="col-md-5">
                       <label class="form-label text-white">Time</label>
@@ -544,29 +538,27 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
                       </select>
                     </div>
                     <div class="col-md-5">
-                      <label class="form-label text-white">Jogador</label>
+                      <label class="form-label text-white">Jogador disponível</label>
                       <select class="form-select bg-dark text-white border-secondary" id="round2PlayerSelect">
                         <option value="">Selecione o jogador...</option>
                       </select>
                     </div>
                     <div class="col-md-2">
                       <button class="btn btn-orange w-100" onclick="submitRound2Pick()">
-                        <i class="bi bi-check2-circle me-1"></i>Adicionar
+                        <i class="bi bi-check2-circle me-1"></i>Enviar
                       </button>
                     </div>
                   </div>
-                  <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <small class="text-light-gray">Jogadores disponíveis</small>
-                      <small class="text-light-gray" id="round2PlayersCount">0</small>
-                    </div>
-                    <div class="mb-2">
-                      <button class="btn btn-sm btn-outline-light" type="button" onclick="openAddDraftPlayerModal()">
-                        <i class="bi bi-person-plus me-1"></i>Adicionar novo jogador ao draft
-                      </button>
-                    </div>
-                    <div id="round2PlayersList" class="row g-2"></div>
+                  <div class="mt-3 d-flex justify-content-between align-items-center">
+                    <small class="text-light-gray">Jogadores ainda disponíveis</small>
+                    <small class="text-light-gray" id="round2PlayersCount">0</small>
                   </div>
+                  <div class="mb-2">
+                    <button class="btn btn-sm btn-outline-light" type="button" onclick="openAddDraftPlayerModal()">
+                      <i class="bi bi-person-plus me-1"></i>Adicionar novo jogador ao draft
+                    </button>
+                  </div>
+                  <div id="round2PlayersList" class="row g-2"></div>
                 </div>
               </div>
             ` : ''}
@@ -817,21 +809,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       const playerSelect = document.getElementById('round2PlayerSelect');
       const playersList = document.getElementById('round2PlayersList');
       const playersCount = document.getElementById('round2PlayersCount');
-      const remainingBadge = document.getElementById('round2RemainingBadge');
       if (!teamSelect || !playerSelect || !playersList) return;
 
-      const unpickedRound2 = round2PicksRaw.filter(p => !p.picked_player_id);
-      remainingBadge.textContent = `${unpickedRound2.length} picks pendentes`;
-
       teamSelect.innerHTML = '<option value="">Selecione o time...</option>';
-      const teamMap = new Map();
-      round2PicksRaw.forEach(p => {
-        const key = String(p.team_id);
-        if (!teamMap.has(key)) {
-          teamMap.set(key, `${p.team_city} ${p.team_name}`);
-        }
-      });
-
+      const teamMap = new Map(round2PicksRaw.map(p => [String(p.team_id), `${p.team_city} ${p.team_name}`]));
       Array.from(teamMap.entries())
         .sort((a, b) => a[1].localeCompare(b[1]))
         .forEach(([id, label]) => {
@@ -842,15 +823,10 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
         });
 
       refreshRound2Players();
-
-      teamSelect.onchange = () => {
-        refreshRound2Players();
-      };
     }
 
     async function refreshRound2Players() {
       if (!currentDraftSession) return;
-      const teamSelect = document.getElementById('round2TeamSelect');
       const playerSelect = document.getElementById('round2PlayerSelect');
       const playersList = document.getElementById('round2PlayersList');
       const playersCount = document.getElementById('round2PlayersCount');
