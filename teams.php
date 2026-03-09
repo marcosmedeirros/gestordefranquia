@@ -256,7 +256,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 <div class="table-responsive d-none d-md-block" id="teamsTableWrap">
                     <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
-                            <tr>
+                            <tr data-cap="<?= (int)$t['cap_top8'] ?>">
                                 <th class="text-white fw-bold" style="width: 90px;">Logo</th>
                                 <th class="text-white fw-bold">Time</th>
                                 <th class="text-white fw-bold hide-mobile">Proprietário</th>
@@ -531,37 +531,41 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         const currentSeasonYear = <?= $currentSeasonYear ? (int)$currentSeasonYear : 'null' ?>;
 
         async function verJogadores(teamId, teamName) {
-            document.getElementById('modalTitle').textContent = 'Elenco: ' + teamName;
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('content').style.display = 'none';
-            
+            const titleEl = document.getElementById('modalTitle');
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('content');
+            const tbody = document.getElementById('playersList');
+            if (!titleEl || !loadingEl || !contentEl || !tbody) return;
+
+            titleEl.textContent = 'Elenco: ' + teamName;
+            loadingEl.style.display = 'block';
+            contentEl.style.display = 'none';
+
             const modal = new bootstrap.Modal(document.getElementById('playersModal'));
             modal.show();
 
             try {
                 const res = await fetch(`/api/team-players.php?team_id=${teamId}`);
                 const data = await res.json();
+                if (!data.success || !Array.isArray(data.players)) throw new Error('Erro ao carregar jogadores');
 
-                if (data.success && data.players) {
-                    const tbody = document.getElementById('playersList');
-                    tbody.innerHTML = '';
+                tbody.innerHTML = '';
+                if (data.players.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador</td></tr>';
+                } else {
+                    data.players.forEach((p) => {
+                        const customPhoto = (p.foto_adicional || '').toString().trim();
+                        const photoUrl = customPhoto
+                            ? customPhoto
+                            : (p.nba_player_id
+                                ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
+                                : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`);
 
-                    if (data.players.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum jogador</td></tr>';
-                    } else {
-                        data.players.forEach(p => {
-                            // Lógica para puxar a foto da NBA ou o Avatar de Iniciais
-                            const customPhoto = (p.foto_adicional || '').toString().trim();
-                            const photoUrl = customPhoto
-                                ? customPhoto
-                                : (p.nba_player_id
-                                    ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
-                                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true`);
-
-                            tbody.innerHTML += `<tr>
+                        tbody.innerHTML += `
+                            <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <img src="${photoUrl}" alt="${p.name}" 
+                                        <img src="${photoUrl}" alt="${p.name}"
                                              style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                                              onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
                                         <strong>${p.name}</strong>
@@ -572,30 +576,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <td>${p.position}</td>
                                 <td>${p.role}</td>
                             </tr>`;
-            });
-        }
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            const capHeader = document.getElementById('capSortHeader');
-            const capIcon = document.getElementById('capSortIcon');
-            const tbody = document.getElementById('teamsTableBody');
-            if (!capHeader || !capIcon || !tbody) return;
-
-                        });
-
-            sortTableByCap();
-        });
-            });
-            // ordena??o inicial por CAP desc
-            sortTableByCap();
-        });
-        }
-
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('content').style.display = 'block';
+                    });
                 }
+
+                loadingEl.style.display = 'none';
+                contentEl.style.display = 'block';
             } catch (err) {
-                document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Erro ao carregar</div>';
+                loadingEl.innerHTML = '<div class="alert alert-danger">Erro ao carregar</div>';
             }
         }
 
@@ -623,7 +610,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
                 const baseYear = Number(currentSeasonYear) || 0;
                 let picks = data.picks || [];
-                picks = picks.filter(pk => Number(pk.season_year) >= baseYear);
+                picks = picks.filter((pk) => Number(pk.season_year) >= baseYear);
                 picks.sort((a, b) => {
                     const yearDiff = Number(a.season_year) - Number(b.season_year);
                     if (yearDiff !== 0) return yearDiff;
@@ -633,22 +620,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (!picks.length) {
                     listEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma pick futura.</td></tr>';
                 } else {
-                    picks.forEach(pk => {
+                    picks.forEach((pk) => {
                         const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
                         const via = pk.last_owner_city && pk.last_owner_name
                             ? `${pk.last_owner_city} ${pk.last_owner_name}`
                             : `${pk.original_team_city} ${pk.original_team_name}`;
-                        const origin = isOwn ? 'Própria' : `Via ${via}`;
-                        const status = isOwn ? '<span class="badge bg-success">Própria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
+                        const origin = isOwn ? 'Pr�pria' : `Via ${via}`;
+                        const status = isOwn ? '<span class="badge bg-success">Pr�pria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
 
                         listEl.innerHTML += `
-                            <tr data-cap="<?= (int)$t['cap_top8'] ?>">
+                            <tr>
                                 <td>${pk.season_year}</td>
                                 <td><span class="badge bg-secondary">R${pk.round}</span></td>
                                 <td>${origin}</td>
                                 <td>${status}</td>
-                            </tr>
-                        `;
+                            </tr>`;
                     });
                 }
 
@@ -676,15 +662,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (!picksData || picksData.error) throw new Error(picksData.error || 'Erro ao carregar picks');
 
                 const teamInfo = (teamData.teams && teamData.teams[0]) ? teamData.teams[0] : null;
-                if (!teamInfo) throw new Error('Time não encontrado');
+                if (!teamInfo) throw new Error('Time n�o encontrado');
 
                 const roster = playersData.players || [];
                 let picks = picksData.picks || [];
-                picks = picks.filter(pk => Number(pk.season_year) > Number(currentSeasonYear));
+                picks = picks.filter((pk) => Number(pk.season_year) > Number(currentSeasonYear));
 
-                const positions = ['PG','SG','SF','PF','C'];
+                const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
                 const startersMap = {};
-                positions.forEach(pos => startersMap[pos] = null);
+                positions.forEach((pos) => startersMap[pos] = null);
 
                 const formatAge = (age) => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
 
@@ -695,23 +681,23 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     return `${label}: ${player.name} - ${ovr} | ${formatAge(age)}`;
                 };
 
-                const starters = roster.filter(p => p.role === 'Titular');
-                starters.forEach(p => {
+                const starters = roster.filter((p) => p.role === 'Titular');
+                starters.forEach((p) => {
                     if (positions.includes(p.position) && !startersMap[p.position]) {
                         startersMap[p.position] = p;
                     }
                 });
 
-                const benchPlayers = roster.filter(p => p.role === 'Banco');
-                const othersPlayers = roster.filter(p => p.role === 'Outro');
-                const gleaguePlayers = roster.filter(p => (p.role || '').toLowerCase() === 'g-league');
+                const benchPlayers = roster.filter((p) => p.role === 'Banco');
+                const othersPlayers = roster.filter((p) => p.role === 'Outro');
+                const gleaguePlayers = roster.filter((p) => (p.role || '').toLowerCase() === 'g-league');
 
-                const round1Years = picks.filter(pk => pk.round == 1).map(pk => {
+                const round1Years = picks.filter((pk) => pk.round == 1).map((pk) => {
                     const isTraded = (pk.original_team_id != pk.team_id);
                     const via = pk.last_owner_city && pk.last_owner_name ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
                     return `-${pk.season_year}${isTraded ? ` (via ${via})` : ''} `;
                 });
-                const round2Years = picks.filter(pk => pk.round == 2).map(pk => {
+                const round2Years = picks.filter((pk) => pk.round == 2).map((pk) => {
                     const isTraded = (pk.original_team_id != pk.team_id);
                     const via = pk.last_owner_city && pk.last_owner_name ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
                     return `-${pk.season_year}${isTraded ? ` (via ${via})` : ''} `;
@@ -722,11 +708,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 lines.push(teamInfo.owner_name || '-');
                 lines.push('');
                 lines.push('_Starters_');
-                positions.forEach(pos => lines.push(formatLine(pos, startersMap[pos])));
+                positions.forEach((pos) => lines.push(formatLine(pos, startersMap[pos])));
                 lines.push('');
                 lines.push('_Bench_');
                 if (benchPlayers.length) {
-                    benchPlayers.forEach(p => {
+                    benchPlayers.forEach((p) => {
                         const ovr = p.ovr ?? '-';
                         const age = p.age ?? '-';
                         lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
@@ -737,7 +723,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 lines.push('');
                 lines.push('_Others_');
                 if (othersPlayers.length) {
-                    othersPlayers.forEach(p => {
+                    othersPlayers.forEach((p) => {
                         const ovr = p.ovr ?? '-';
                         const age = p.age ?? '-';
                         lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
@@ -748,7 +734,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 lines.push('');
                 lines.push('_G-League_');
                 if (gleaguePlayers.length) {
-                    gleaguePlayers.forEach(p => {
+                    gleaguePlayers.forEach((p) => {
                         const ovr = p.ovr ?? '-';
                         const age = p.age ?? '-';
                         lines.push(`${p.position}: ${p.name} - ${ovr} | ${formatAge(age)}`);
@@ -757,10 +743,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     lines.push('-');
                 }
                 lines.push('');
-                lines.push('_Picks 1º round_:');
+                lines.push('_Picks 1� round_:');
                 lines.push(...(round1Years.length ? round1Years : ['-']));
                 lines.push('');
-                lines.push('_Picks 2º round_:');
+                lines.push('_Picks 2� round_:');
                 lines.push(...(round2Years.length ? round2Years : ['-']));
                 lines.push('');
                 const capTop8 = teamInfo.cap_top8 ?? 0;
@@ -771,7 +757,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 const text = lines.join('\n');
                 try {
                     await navigator.clipboard.writeText(text);
-                    alert('Time copiado para a área de transferência!');
+                    alert('Time copiado para a �rea de transfer�ncia!');
                 } catch (err) {
                     showCopyFallback(text);
                 }
@@ -793,107 +779,91 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             }, 150);
         }
 
-        // === Busca de Times ===
-        const teamSearchInput = document.getElementById('teamSearchInput');
-        const teamsTableBody = document.getElementById('teamsTableBody');
-        const teamsCardsWrap = document.getElementById('teamsCardsWrap');
-        const teamsCardsEmpty = document.getElementById('teamsCardsEmpty');
+        document.addEventListener('DOMContentLoaded', () => {
+            // Busca de Times
+            const teamSearchInput = document.getElementById('teamSearchInput');
+            const teamsTableBody = document.getElementById('teamsTableBody');
+            const teamsCardsWrap = document.getElementById('teamsCardsWrap');
+            const teamsCardsEmpty = document.getElementById('teamsCardsEmpty');
 
-        if (teamSearchInput && teamsTableBody) {
-            teamSearchInput.addEventListener('input', function() {
-                const term = this.value.toLowerCase().trim();
-                const rows = teamsTableBody.querySelectorAll('tr');
-                let visibleCount = 0;
-                
-                rows.forEach(row => {
-                    // Busca em todo o conteúdo da linha (time, cidade, proprietário)
-                    const rowText = row.textContent.toLowerCase();
-                    
-                    if (term === '' || rowText.includes(term)) {
-                        row.style.display = '';
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-                
-                // Feedback visual se não encontrar nada
-                if (visibleCount === 0 && term !== '') {
-                    // Verifica se já existe mensagem de "não encontrado"
-                    let noResultsRow = teamsTableBody.querySelector('.no-results-row');
-                    if (!noResultsRow) {
-                        noResultsRow = document.createElement('tr');
-                        noResultsRow.className = 'no-results-row';
-                        noResultsRow.innerHTML = '<td colspan="6" class="text-center text-light-gray py-3"><i class="bi bi-search me-2"></i>Nenhum time encontrado</td>';
-                        teamsTableBody.appendChild(noResultsRow);
-                    }
-                    noResultsRow.style.display = '';
-                } else {
-                    // Remove mensagem se existir
-                    const noResultsRow = teamsTableBody.querySelector('.no-results-row');
-                    if (noResultsRow) noResultsRow.style.display = 'none';
-                }
+            if (teamSearchInput && teamsTableBody) {
+                teamSearchInput.addEventListener('input', function () {
+                    const term = this.value.toLowerCase().trim();
+                    const rows = teamsTableBody.querySelectorAll('tr');
+                    let visibleCount = 0;
 
-                if (teamsCardsWrap) {
-                    const cards = teamsCardsWrap.querySelectorAll('.team-card-mobile');
-                    let cardsVisible = 0;
-                    cards.forEach(card => {
-                        const searchText = (card.getAttribute('data-search') || '').toLowerCase();
-                        if (term === '' || searchText.includes(term)) {
-                            card.style.display = '';
-                            cardsVisible++;
+                    rows.forEach((row) => {
+                        const rowText = row.textContent.toLowerCase();
+                        if (term === '' || rowText.includes(term)) {
+                            row.style.display = '';
+                            visibleCount++;
                         } else {
-                            card.style.display = 'none';
+                            row.style.display = 'none';
                         }
                     });
 
-                    if (teamsCardsEmpty) {
-                        teamsCardsEmpty.style.display = (cardsVisible === 0 && term !== '') ? '' : 'none';
+                    if (visibleCount === 0 && term !== '') {
+                        let noResultsRow = teamsTableBody.querySelector('.no-results-row');
+                        if (!noResultsRow) {
+                            noResultsRow = document.createElement('tr');
+                            noResultsRow.className = 'no-results-row';
+                            noResultsRow.innerHTML = '<td colspan="6" class="text-center text-light-gray py-3"><i class="bi bi-search me-2"></i>Nenhum time encontrado</td>';
+                            teamsTableBody.appendChild(noResultsRow);
+                        }
+                        noResultsRow.style.display = '';
+                    } else {
+                        const noResultsRow = teamsTableBody.querySelector('.no-results-row');
+                        if (noResultsRow) noResultsRow.style.display = 'none';
                     }
-                }
-            });
-        }
-                    });
-            // ordena??o inicial por CAP desc
-            sortTableByCap();
-        });
-            // ordenação inicial por CAP desc
-            sortTableByCap();
-        }
 
-        document.addEventListener('DOMContentLoaded', () => {
+                    if (teamsCardsWrap) {
+                        const cards = teamsCardsWrap.querySelectorAll('.team-card-mobile');
+                        let cardsVisible = 0;
+                        cards.forEach((card) => {
+                            const searchText = (card.getAttribute('data-search') || '').toLowerCase();
+                            if (term === '' || searchText.includes(term)) {
+                                card.style.display = '';
+                                cardsVisible++;
+                            } else {
+                                card.style.display = 'none';
+                            }
+                        });
+
+                        if (teamsCardsEmpty) {
+                            teamsCardsEmpty.style.display = (cardsVisible === 0 && term !== '') ? '' : 'none';
+                        }
+                    }
+                });
+            }
+
+            // Ordena��o por CAP
+            let capSortDirection = 'desc';
             const capHeader = document.getElementById('capSortHeader');
             const capIcon = document.getElementById('capSortIcon');
-            const tbody = document.getElementById('teamsTableBody');
-            if (!capHeader || !capIcon || !tbody) return;
+            const capTbody = document.getElementById('teamsTableBody');
 
-            
-        let capSortDirection = 'desc';
-        const capHeader = document.getElementById('capSortHeader');
-        const capIcon = document.getElementById('capSortIcon');
-        const capTbody = document.getElementById('teamsTableBody');
+            function sortTableByCap() {
+                if (!capTbody) return;
+                const rows = Array.from(capTbody.querySelectorAll('tr[data-cap]'));
+                rows.sort((a, b) => {
+                    const aCap = parseInt(a.dataset.cap || '0', 10) || 0;
+                    const bCap = parseInt(b.dataset.cap || '0', 10) || 0;
+                    return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
+                });
+                rows.forEach((row) => capTbody.appendChild(row));
+                if (capIcon) capIcon.textContent = capSortDirection === 'asc' ? '^' : 'v';
+            }
 
-        function sortTableByCap() {
-            if (!capTbody) return;
-            const rows = Array.from(capTbody.querySelectorAll('tr')).filter(r => r.dataset.cap !== undefined);
-            rows.sort((a, b) => {
-                const aCap = parseInt(a.dataset.cap || '0', 10) || 0;
-                const bCap = parseInt(b.dataset.cap || '0', 10) || 0;
-                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
-            });
-            rows.forEach((row) => capTbody.appendChild(row));
-        }
-
-        if (capHeader && capIcon && capTbody) {
-            capHeader.style.cursor = 'pointer';
-            capHeader.addEventListener('click', () => {
-                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
-                capIcon.textContent = capSortDirection === 'asc' ? '^' : 'v';
+            if (capHeader && capIcon && capTbody) {
+                capHeader.style.cursor = 'pointer';
+                capHeader.addEventListener('click', () => {
+                    capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
+                    sortTableByCap();
+                });
                 sortTableByCap();
-            });
-            sortTableByCap();
-        }
-</script>
+            }
+        });
+    </script>
     <script src="/js/pwa.js"></script>
 </body>
 </html>
