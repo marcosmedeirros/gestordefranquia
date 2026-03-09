@@ -575,27 +575,31 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             });
         }
         
-        let capSortDirection = 'desc';
-        function sortTableByCap() {
+        document.addEventListener('DOMContentLoaded', () => {
+            const capHeader = document.getElementById('capSortHeader');
+            const capIcon = document.getElementById('capSortIcon');
             const tbody = document.getElementById('teamsTableBody');
-            if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => Number.isFinite(Number(r.dataset.cap)));
-            rows.sort((a, b) => {
-                const aCap = Number(a.dataset.cap || 0);
-                const bCap = Number(b.dataset.cap || 0);
-                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
-            });
-            tbody.innerHTML = '';
-            rows.forEach((row) => tbody.appendChild(row));
-        }
+            if (!capHeader || !capIcon || !tbody) return;
 
-        const capHeader = document.getElementById('capSortHeader');
-        const capIcon = document.getElementById('capSortIcon');
-        if (capHeader && capIcon) {
+            let capSortDirection = 'desc';
+            const sortTableByCap = () => {
+                const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.dataset.cap !== undefined);
+                rows.sort((a, b) => {
+                    const aCap = parseInt(a.dataset.cap || '0', 10) || 0;
+                    const bCap = parseInt(b.dataset.cap || '0', 10) || 0;
+                    return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
+                });
+                rows.forEach((row) => tbody.appendChild(row));
+            };
+
             capHeader.addEventListener('click', () => {
                 capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
                 capIcon.textContent = capSortDirection === 'asc' ? '?' : '?';
                 sortTableByCap();
+            });
+
+            sortTableByCap();
+        });
             });
             // ordena??o inicial por CAP desc
             sortTableByCap();
