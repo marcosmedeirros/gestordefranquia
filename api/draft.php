@@ -700,6 +700,8 @@ if ($method === 'POST') {
             $draftSessionId = $data['draft_session_id'] ?? null;
             $playerId = $data['player_id'] ?? null;
             $teamIdOverride = $data['team_id'] ?? null; // Admin pode definir outro time
+            $roundOverride = $isAdmin ? ($data['round'] ?? null) : null;
+            $pickIdOverride = $isAdmin ? ($data['pick_id'] ?? null) : null;
             if (!$draftSessionId || !$playerId) {
                 echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
                 exit;
@@ -709,21 +711,56 @@ if ($method === 'POST') {
             $stmtSession->execute([$draftSessionId]);
             $session = $stmtSession->fetch();
             if (!$session) {
-                echo json_encode(['success' => false, 'error' => 'Draft não está em andamento']);
+                echo json_encode(['success' => false, 'error' => 'Draft n??o est?? em andamento']);
                 exit;
             }
 
-            $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? AND picked_player_id IS NULL');
-            $stmtPick->execute([(int)$draftSessionId, (int)$session['current_round'], (int)$session['current_pick']]);
-            $currentPick = $stmtPick->fetch();
+            $currentPick = null;
+
+            if ($isAdmin && $pickIdOverride) {
+                $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE id = ? AND draft_session_id = ? AND picked_player_id IS NULL');
+                $stmtPick->execute([(int)$pickIdOverride, (int)$draftSessionId]);
+                $currentPick = $stmtPick->fetch();
+            }
+
+            if (!$currentPick && $isAdmin && $roundOverride) {
+                $roundOverride = (int)$roundOverride;
+
+                if ($teamIdOverride) {
+                    $stmtPick = $pdo->prepare(
+                        'SELECT * FROM draft_order 
+                         WHERE draft_session_id = ? AND round = ? AND team_id = ? AND picked_player_id IS NULL
+                         ORDER BY pick_position ASC LIMIT 1'
+                    );
+                    $stmtPick->execute([(int)$draftSessionId, $roundOverride, (int)$teamIdOverride]);
+                    $currentPick = $stmtPick->fetch();
+                }
+
+                if (!$currentPick) {
+                    $stmtPick = $pdo->prepare(
+                        'SELECT * FROM draft_order 
+                         WHERE draft_session_id = ? AND round = ? AND picked_player_id IS NULL
+                         ORDER BY pick_position ASC LIMIT 1'
+                    );
+                    $stmtPick->execute([(int)$draftSessionId, $roundOverride]);
+                    $currentPick = $stmtPick->fetch();
+                }
+            }
+
             if (!$currentPick) {
-                echo json_encode(['success' => false, 'error' => 'Nenhuma pick pendente']);
+                $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? AND picked_player_id IS NULL');
+                $stmtPick->execute([(int)$draftSessionId, (int)$session['current_round'], (int)$session['current_pick']]);
+                $currentPick = $stmtPick->fetch();
+            }
+
+            if (!$currentPick) {
+                echo json_encode(['success' => false, 'error' => 'Nenhuma pick pendente para a rodada informada']);
                 exit;
             }
 
             $targetTeamId = $isAdmin && $teamIdOverride ? (int)$teamIdOverride : (int)$currentPick['team_id'];
             if (!$isAdmin && (int)$currentPick['team_id'] !== (int)$team['id']) {
-                echo json_encode(['success' => false, 'error' => 'Não é a sua vez de escolher']);
+                echo json_encode(['success' => false, 'error' => 'N??o ?? a sua vez de escolher']);
                 exit;
             }
 
@@ -731,7 +768,7 @@ if ($method === 'POST') {
             $stmtPlayer->execute([(int)$playerId]);
             $player = $stmtPlayer->fetch();
             if (!$player) {
-                echo json_encode(['success' => false, 'error' => 'Jogador não disponível']);
+                echo json_encode(['success' => false, 'error' => 'Jogador n??o dispon??vel']);
                 exit;
             }
 
@@ -741,9 +778,9 @@ if ($method === 'POST') {
                     ->execute([(int)$playerId, (int)$targetTeamId, (int)$currentPick['id']]);
 
                 $stmtTotalRound = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?');
-                $stmtTotalRound->execute([(int)$draftSessionId, (int)$session['current_round']]);
+                $stmtTotalRound->execute([(int)$draftSessionId, (int)$currentPick['round']]);
                 $roundSize = (int)$stmtTotalRound->fetchColumn();
-                $pickNumber = (($session['current_round'] - 1) * $roundSize) + $session['current_pick'];
+                $pickNumber = (($currentPick['round'] - 1) * $roundSize) + $currentPick['pick_position'];
 
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
@@ -751,23 +788,15 @@ if ($method === 'POST') {
                 $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
                     ->execute([(int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
 
-                $nextPick = (int)$session['current_pick'] + 1;
-                $nextRound = (int)$session['current_round'];
+                $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+                $stmtNext->execute([(int)$draftSessionId]);
+                $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 
-                $stmtCount = $pdo->prepare('SELECT COUNT(*) as total FROM draft_order WHERE draft_session_id = ? AND round = ?');
-                $stmtCount->execute([(int)$draftSessionId, (int)$nextRound]);
-                $totalPicks = (int)($stmtCount->fetch()['total'] ?? 0);
-
-                if ($nextPick > $totalPicks) {
-                    $nextRound++;
-                    $nextPick = 1;
-                    if ($nextRound > (int)$session['total_rounds']) {
-                        $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
-                    } else {
-                        $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')->execute([(int)$nextRound, (int)$nextPick, (int)$draftSessionId]);
-                    }
+                if ($next) {
+                    $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
+                        ->execute([(int)$next['round'], (int)$next['pick_position'], (int)$draftSessionId]);
                 } else {
-                    $pdo->prepare('UPDATE draft_sessions SET current_pick = ? WHERE id = ?')->execute([(int)$nextPick, (int)$draftSessionId]);
+                    $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
                 }
 
                 $pdo->commit();
@@ -777,8 +806,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
             }
             break;
-
-        // ADMIN: Preencher pick de draft passado/completado
+// ADMIN: Preencher pick de draft passado/completado
         case 'fill_past_pick':
             if (!$isAdmin) {
                 http_response_code(403);

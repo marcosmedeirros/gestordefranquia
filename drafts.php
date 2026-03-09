@@ -917,6 +917,7 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
           body: JSON.stringify({
             action: 'make_pick',
             draft_session_id: currentDraftSession.id,
+            round: 2,
             player_id: parseInt(playerId, 10),
             team_id: parseInt(teamId, 10)
           })
