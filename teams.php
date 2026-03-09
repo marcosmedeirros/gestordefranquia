@@ -261,7 +261,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <th class="text-white fw-bold">Time</th>
                                 <th class="text-white fw-bold hide-mobile">Proprietário</th>
                                 <th class="text-white fw-bold text-center">Jog.</th>
-                                <th class="text-white fw-bold text-center hide-mobile">CAP</th>
+                                <th class="text-white fw-bold text-center hide-mobile" id="capSortHeader" style="cursor: pointer;">
+                                    CAP
+                                    <span id="capSortIcon" class="text-orange" style="font-size: 0.85rem;">⇅</span>
+                                </th>
                                 <th class="text-white fw-bold text-center">Tapas</th>
                                 <th class="text-white fw-bold text-center">Punições</th>
                                 <th class="text-white fw-bold text-center" style="width: 100px;">Ações</th>
@@ -569,8 +572,32 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <td>${p.position}</td>
                                 <td>${p.role}</td>
                             </tr>`;
-                        });
-                    }
+            });
+        }
+        
+        let capSortDirection = 'desc';
+        function sortTableByCap() {
+            const rows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('no-results-row')) : [];
+            rows.sort((a, b) => {
+                const aCap = Number(a.dataset.cap || 0);
+                const bCap = Number(b.dataset.cap || 0);
+                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
+            });
+            if (teamsTableBody) {
+                teamsTableBody.innerHTML = '';
+                rows.forEach((row) => teamsTableBody.appendChild(row));
+            }
+        }
+
+        const capHeader = document.getElementById('capSortHeader');
+        const capIcon = document.getElementById('capSortIcon');
+        if (capHeader && capIcon && teamsTableBody) {
+            capHeader.addEventListener('click', () => {
+                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
+                capIcon.textContent = capSortDirection === 'asc' ? '↑' : '↓';
+                sortTableByCap();
+            });
+        }
 
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('content').style.display = 'block';
@@ -623,7 +650,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         const status = isOwn ? '<span class="badge bg-success">Própria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
 
                         listEl.innerHTML += `
-                            <tr>
+                            <tr data-cap="<?= (int)$t['cap_top8'] ?>">
                                 <td>${pk.season_year}</td>
                                 <td><span class="badge bg-secondary">R${pk.round}</span></td>
                                 <td>${origin}</td>
