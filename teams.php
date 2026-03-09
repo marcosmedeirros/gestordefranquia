@@ -577,16 +577,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         
         let capSortDirection = 'desc';
         function sortTableByCap() {
-            const rows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('no-results-row')) : [];
+            if (!teamsTableBody) return;
+            const rows = Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => {
+                const val = Number(r.dataset.cap || NaN);
+                return Number.isFinite(val);
+            });
             rows.sort((a, b) => {
                 const aCap = Number(a.dataset.cap || 0);
                 const bCap = Number(b.dataset.cap || 0);
                 return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
             });
-            if (teamsTableBody) {
-                teamsTableBody.innerHTML = '';
-                rows.forEach((row) => teamsTableBody.appendChild(row));
-            }
+            teamsTableBody.innerHTML = '';
+            rows.forEach((row) => teamsTableBody.appendChild(row));
         }
 
         const capHeader = document.getElementById('capSortHeader');
@@ -883,6 +885,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 capIcon.textContent = capSortDirection === 'asc' ? '▲' : '▼';
                 sortTableByCap();
             });
+            // ordenação inicial por CAP desc
+            sortTableByCap();
         }
 
     </script>
