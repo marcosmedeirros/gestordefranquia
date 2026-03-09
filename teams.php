@@ -577,28 +577,29 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         
         let capSortDirection = 'desc';
         function sortTableByCap() {
-            if (!teamsTableBody) return;
-            const rows = Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => {
-                const val = Number(r.dataset.cap || NaN);
-                return Number.isFinite(val);
-            });
+            const tbody = document.getElementById('teamsTableBody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => Number.isFinite(Number(r.dataset.cap)));
             rows.sort((a, b) => {
                 const aCap = Number(a.dataset.cap || 0);
                 const bCap = Number(b.dataset.cap || 0);
                 return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
             });
-            teamsTableBody.innerHTML = '';
-            rows.forEach((row) => teamsTableBody.appendChild(row));
+            tbody.innerHTML = '';
+            rows.forEach((row) => tbody.appendChild(row));
         }
 
         const capHeader = document.getElementById('capSortHeader');
         const capIcon = document.getElementById('capSortIcon');
-        if (capHeader && capIcon && teamsTableBody) {
+        if (capHeader && capIcon) {
             capHeader.addEventListener('click', () => {
                 capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
-                capIcon.textContent = capSortDirection === 'asc' ? '↑' : '↓';
+                capIcon.textContent = capSortDirection === 'asc' ? '?' : '?';
                 sortTableByCap();
             });
+            // ordena??o inicial por CAP desc
+            sortTableByCap();
+        });
         }
 
                     document.getElementById('loading').style.display = 'none';
@@ -879,12 +880,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         const capHeader = document.getElementById('capSortHeader');
         const capIcon = document.getElementById('capSortIcon');
-        if (capHeader && capIcon && teamsTableBody) {
+        if (capHeader && capIcon) {
             capHeader.addEventListener('click', () => {
                 capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
-                capIcon.textContent = capSortDirection === 'asc' ? '▲' : '▼';
+                capIcon.textContent = capSortDirection === 'asc' ? '?' : '?';
                 sortTableByCap();
             });
+            // ordena??o inicial por CAP desc
+            sortTableByCap();
+        });
             // ordenação inicial por CAP desc
             sortTableByCap();
         }
