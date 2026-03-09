@@ -773,6 +773,7 @@ if ($method === 'POST') {
             }
 
             try {
+                $duplicateRoster = false;
                 $pdo->beginTransaction();
                 $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW(), team_id = ? WHERE id = ?')
                     ->execute([(int)$playerId, (int)$targetTeamId, (int)$currentPick['id']]);
@@ -785,8 +786,16 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
 
-                $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([(int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
+                $stmtExisting->execute([(int)$targetTeamId, $player['name']]);
+                $existingPlayerId = $stmtExisting->fetchColumn();
+
+                if ($existingPlayerId) {
+                    $duplicateRoster = true;
+                } else {
+                    $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([(int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                }
 
                 $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
                 $stmtNext->execute([(int)$draftSessionId]);
@@ -800,7 +809,10 @@ if ($method === 'POST') {
                 }
 
                 $pdo->commit();
-                echo json_encode(['success' => true, 'message' => 'Pick realizada!', 'player' => $player]);
+                $message = $duplicateRoster
+                    ? 'Pick realizada! Jogador j?? existia no elenco e n??o foi duplicado.'
+                    : 'Pick realizada!';
+                echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
