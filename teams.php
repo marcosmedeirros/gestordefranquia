@@ -57,7 +57,7 @@ $stmt = $pdo->prepare('
     FROM teams t
     INNER JOIN users u ON u.id = t.user_id
     WHERE t.league = ?
-    ORDER BY t.id ASC
+    ORDER BY t.city ASC, t.name ASC
 ');
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -861,6 +861,30 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             });
         }
+        let capSortDirection = 'desc';
+        function sortTableByCap() {
+            const rows = teamsTableBody ? Array.from(teamsTableBody.querySelectorAll('tr')).filter(r => !r.classList.contains('no-results-row')) : [];
+            rows.sort((a, b) => {
+                const aCap = Number(a.dataset.cap || 0);
+                const bCap = Number(b.dataset.cap || 0);
+                return capSortDirection === 'asc' ? aCap - bCap : bCap - aCap;
+            });
+            if (teamsTableBody) {
+                teamsTableBody.innerHTML = '';
+                rows.forEach((row) => teamsTableBody.appendChild(row));
+            }
+        }
+
+        const capHeader = document.getElementById('capSortHeader');
+        const capIcon = document.getElementById('capSortIcon');
+        if (capHeader && capIcon && teamsTableBody) {
+            capHeader.addEventListener('click', () => {
+                capSortDirection = capSortDirection === 'asc' ? 'desc' : 'asc';
+                capIcon.textContent = capSortDirection === 'asc' ? '▲' : '▼';
+                sortTableByCap();
+            });
+        }
+
     </script>
     <script src="/js/pwa.js"></script>
 </body>
