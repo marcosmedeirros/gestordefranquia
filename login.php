@@ -75,7 +75,12 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-gray">Senha</label>
-                                <input name="password" type="password" class="form-control form-control-lg" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required>
+                                <div class="input-group">
+                                    <input id="loginPassword" name="password" type="password" class="form-control form-control-lg" placeholder="••••••••" required>
+                                    <button class="btn btn-outline-secondary" type="button" id="toggleLoginPassword" aria-label="Mostrar/ocultar senha">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-orange btn-lg w-100 mb-3">
                                 <i class="bi bi-box-arrow-in-right me-2"></i>Entrar
@@ -194,3 +199,5 @@
     </script>
 </body>
 </html>
+
+<script>document.addEventListener('DOMContentLoaded',()=>{const toggle=(btnId,inputId)=>{const btn=document.getElementById(btnId);const input=document.getElementById(inputId);if(!btn||!input)return;btn.addEventListener('click',()=>{const isPwd=input.type==='password';input.type=isPwd?'text':'password';const icon=btn.querySelector('i');if(icon) icon.className=isPwd?'bi bi-eye-slash':'bi bi-eye';});};toggle('toggleLoginPassword','loginPassword');toggle('toggleRegisterPassword','registerPassword');});</script>

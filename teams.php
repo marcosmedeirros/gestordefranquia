@@ -256,7 +256,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 <div class="table-responsive d-none d-md-block" id="teamsTableWrap">
                     <table class="table table-dark table-hover mb-0" id="teamsTable">
                         <thead style="background: linear-gradient(135deg, #f17507, #ff8c1a);">
-                            <tr data-cap="<?= (int)$t['cap_top8'] ?>">
+                            <tr>
                                 <th class="text-white fw-bold" style="width: 90px;">Logo</th>
                                 <th class="text-white fw-bold">Time</th>
                                 <th class="text-white fw-bold hide-mobile">Proprietário</th>
@@ -278,7 +278,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
                                     : null;
                             ?>
-                            <tr>
+                            <tr data-cap="<?= (int)$t['cap_top8'] ?>">
                                 <td style="min-width: 90px;">
                                     <div class="d-flex align-items-center gap-2" style="flex-wrap: nowrap;">
                                         <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
