@@ -11,8 +11,10 @@ const api = async (path, options = {}) => {
 
 let myTeamId = window.__TEAM_ID__;
 let myLeague = window.__USER_LEAGUE__;
+let myTeamName = window.__TEAM_NAME__ || 'Seu time';
 let allTeams = [];
 let myPlayers = [];
+let targetTeamPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
@@ -65,6 +67,79 @@ const formatTradePickDisplay = (pick) => {
 
   return display;
 };
+
+const calcTop8Cap = (players = []) => {
+  const sorted = [...players].sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0));
+  return sorted.slice(0, 8).reduce((sum, p) => sum + (Number(p.ovr) || 0), 0);
+};
+
+const computeCapProjection = (basePlayers = [], outgoing = [], incoming = []) => {
+  const outIds = new Set(outgoing.map((p) => Number(p.id)));
+  const roster = basePlayers.filter((p) => !outIds.has(Number(p.id))).concat(incoming.map((p) => ({ ...p })));
+  return calcTop8Cap(roster);
+};
+
+const formatCapValue = (value) => Number.isFinite(value) ? value.toLocaleString('pt-BR') : '-';
+
+function updateCapImpact() {
+  const capRow = document.getElementById('capImpactRow');
+  if (!capRow) return;
+
+  const myCurrent = calcTop8Cap(myPlayers);
+  const targetCurrent = calcTop8Cap(targetTeamPlayers);
+  const offerPlayers = playerState.offer.selected || [];
+  const requestPlayers = playerState.request.selected || [];
+
+  const myProjected = computeCapProjection(myPlayers, offerPlayers, requestPlayers);
+  const targetProjected = targetTeamPlayers.length
+    ? computeCapProjection(targetTeamPlayers, requestPlayers, offerPlayers)
+    : null;
+
+  const myDelta = Number.isFinite(myProjected) ? myProjected - myCurrent : null;
+  const targetDelta = Number.isFinite(targetProjected) ? targetProjected - targetCurrent : null;
+
+  const capMyCurrentEl = document.getElementById('capMyCurrent');
+  const capMyProjectedEl = document.getElementById('capMyProjected');
+  const capMyDeltaEl = document.getElementById('capMyDelta');
+  const capTargetCurrentEl = document.getElementById('capTargetCurrent');
+  const capTargetProjectedEl = document.getElementById('capTargetProjected');
+  const capTargetDeltaEl = document.getElementById('capTargetDelta');
+  const capTargetLabel = document.getElementById('capTargetLabel');
+
+  const applyDeltaBadge = (el, delta) => {
+    if (!el) return;
+    el.className = 'badge';
+    if (!Number.isFinite(delta)) {
+      el.classList.add('bg-secondary');
+      el.textContent = '±0';
+      return;
+    }
+    if (delta > 0) {
+      el.classList.add('bg-success');
+    } else if (delta < 0) {
+      el.classList.add('bg-danger');
+    } else {
+      el.classList.add('bg-secondary');
+    }
+    el.textContent = `${delta > 0 ? '+' : ''}${delta}`;
+  };
+
+  if (capMyCurrentEl) capMyCurrentEl.textContent = formatCapValue(myCurrent);
+  if (capMyProjectedEl) capMyProjectedEl.textContent = Number.isFinite(myProjected) ? formatCapValue(myProjected) : '-';
+  applyDeltaBadge(capMyDeltaEl, myDelta);
+
+  const targetTeamSelect = document.getElementById('targetTeam');
+  if (capTargetLabel && targetTeamSelect) {
+    const opt = targetTeamSelect.selectedOptions[0];
+    capTargetLabel.textContent = opt ? opt.textContent : 'Time alvo';
+  }
+
+  if (capTargetCurrentEl) capTargetCurrentEl.textContent = targetTeamPlayers.length ? formatCapValue(targetCurrent) : '-';
+  if (capTargetProjectedEl) capTargetProjectedEl.textContent = (targetTeamPlayers.length && Number.isFinite(targetProjected))
+    ? formatCapValue(targetProjected)
+    : '-';
+  applyDeltaBadge(capTargetDeltaEl, (targetTeamPlayers.length && Number.isFinite(targetDelta)) ? targetDelta : null);
+}
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
 
@@ -478,6 +553,7 @@ function setAvailablePlayers(side, players, { resetSelected = false } = {}) {
   }
   renderPlayerOptions(side);
   renderSelectedPlayers(side);
+  updateCapImpact();
 }
 
 function syncSelectedPlayerMetadata(side) {
@@ -633,6 +709,7 @@ function addPlayerToSelection(side, playerId, fallbackPlayer = null, shouldRende
   if (shouldRender) {
     renderPlayerOptions(side);
     renderSelectedPlayers(side);
+    updateCapImpact();
   }
 }
 
@@ -642,6 +719,7 @@ function removePlayerFromSelection(side, playerId) {
   state.selected = state.selected.filter((p) => Number(p.id) !== Number(playerId));
   renderPlayerOptions(side);
   renderSelectedPlayers(side);
+  updateCapImpact();
 }
 
 function resetPlayerSelection(side) {
@@ -649,6 +727,7 @@ function resetPlayerSelection(side) {
   playerState[side].selected = [];
   renderPlayerOptions(side);
   renderSelectedPlayers(side);
+  updateCapImpact();
 }
 
 function getPlayerSelectionIds(side) {
@@ -662,6 +741,7 @@ function prefillPlayerSelections(side, playersFromTrade) {
   if (!Array.isArray(playersFromTrade) || playersFromTrade.length === 0) {
     renderPlayerOptions(side);
     renderSelectedPlayers(side);
+    updateCapImpact();
     return;
   }
   playersFromTrade.forEach((player) => {
@@ -669,6 +749,7 @@ function prefillPlayerSelections(side, playersFromTrade) {
   });
   renderPlayerOptions(side);
   renderSelectedPlayers(side);
+  updateCapImpact();
 }
 
 function addPickToSelection(side, pickId, fallbackPick = null, shouldRender = true) {
@@ -734,6 +815,8 @@ function resetTradeFormState() {
     targetSelect.disabled = false;
     targetSelect.value = '';
   }
+  targetTeamPlayers = [];
+  updateCapImpact();
 }
 
 function clearCounterProposalState() {
@@ -906,6 +989,7 @@ async function loadMyAssets() {
     
     console.log('Minhas picks:', myPicks.length);
     setAvailablePicks('offer', myPicks);
+    updateCapImpact();
   } catch (err) {
     console.error('Erro ao carregar assets:', err);
   }
@@ -914,18 +998,21 @@ async function loadMyAssets() {
 async function onTargetTeamChange(e) {
   const teamId = e.target.value;
   if (!teamId) {
+    targetTeamPlayers = [];
     setAvailablePlayers('request', [], { resetSelected: true });
     setAvailablePicks('request', [], { resetSelected: true });
+    updateCapImpact();
     return;
   }
   
   try {
     // Carregar jogadores do time alvo
     const playersData = await api(`players.php?team_id=${teamId}`);
-  const players = playersData.players || [];
+    const players = playersData.players || [];
     
   console.log('Jogadores do time alvo carregados:', players.length);
     
+    targetTeamPlayers = players;
     setAvailablePlayers('request', players, { resetSelected: true });
     
     // Carregar picks do time alvo
@@ -934,6 +1021,7 @@ async function onTargetTeamChange(e) {
     
     console.log('Picks do time alvo:', picks.length);
     setAvailablePicks('request', picks, { resetSelected: true });
+    updateCapImpact();
   } catch (err) {
     console.error('Erro ao carregar assets do time:', err);
   }
