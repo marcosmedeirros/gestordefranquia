@@ -335,6 +335,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         <button class="btn btn-sm btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                             <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Ver</span>
                                         </button>
+                                        <button class="btn btn-sm btn-outline-warning" onclick="verPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')" title="Ver picks futuras">
+                                            <i class="bi bi-calendar-event"></i><span class="d-none d-md-inline ms-1">Picks</span>
+                                        </button>
                                         <button class="btn btn-sm btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')" title="Copiar time">
                                             <i class="bi bi-clipboard-check"></i><span class="d-none d-md-inline ms-1">Copiar</span>
                                         </button>
@@ -412,6 +415,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <button class="btn btn-orange" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                 <i class="bi bi-eye"></i> Ver
                             </button>
+                            <button class="btn btn-outline-warning" onclick="verPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                                <i class="bi bi-calendar-event"></i> Picks
+                            </button>
                             <button class="btn btn-outline-light" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                                 <i class="bi bi-clipboard-check"></i> Copiar
                             </button>
@@ -456,6 +462,37 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                     </tr>
                                 </thead>
                                 <tbody id="playersList"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="picksModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white" id="picksModalTitle"></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="picksLoading" class="text-center py-4">
+                        <div class="spinner-border text-orange" role="status"></div>
+                    </div>
+                    <div id="picksContent" style="display: none;">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead style="background: var(--fba-orange); color: #000;">
+                                    <tr>
+                                        <th>Ano</th>
+                                        <th>Rodada</th>
+                                        <th>Origem</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="picksList"></tbody>
                             </table>
                         </div>
                     </div>
@@ -540,6 +577,66 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             } catch (err) {
                 document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Erro ao carregar</div>';
+            }
+        }
+
+        async function verPicks(teamId, teamName) {
+            const modalEl = document.getElementById('picksModal');
+            const titleEl = document.getElementById('picksModalTitle');
+            const loadingEl = document.getElementById('picksLoading');
+            const contentEl = document.getElementById('picksContent');
+            const listEl = document.getElementById('picksList');
+            if (!modalEl || !titleEl || !loadingEl || !contentEl || !listEl) return;
+
+            titleEl.textContent = 'Picks: ' + teamName;
+            loadingEl.style.display = 'block';
+            loadingEl.innerHTML = '<div class="spinner-border text-orange" role="status"></div>';
+            contentEl.style.display = 'none';
+            listEl.innerHTML = '';
+
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+
+            try {
+                const res = await fetch(`/api/picks.php?team_id=${teamId}`);
+                const data = await res.json();
+                if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar picks');
+
+                const baseYear = Number(currentSeasonYear) || 0;
+                let picks = data.picks || [];
+                picks = picks.filter(pk => Number(pk.season_year) >= baseYear);
+                picks.sort((a, b) => {
+                    const yearDiff = Number(a.season_year) - Number(b.season_year);
+                    if (yearDiff !== 0) return yearDiff;
+                    return Number(a.round) - Number(b.round);
+                });
+
+                if (!picks.length) {
+                    listEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma pick futura.</td></tr>';
+                } else {
+                    picks.forEach(pk => {
+                        const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
+                        const via = pk.last_owner_city && pk.last_owner_name
+                            ? `${pk.last_owner_city} ${pk.last_owner_name}`
+                            : `${pk.original_team_city} ${pk.original_team_name}`;
+                        const origin = isOwn ? 'Própria' : `Via ${via}`;
+                        const status = isOwn ? '<span class="badge bg-success">Própria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
+
+                        listEl.innerHTML += `
+                            <tr>
+                                <td>${pk.season_year}</td>
+                                <td><span class="badge bg-secondary">R${pk.round}</span></td>
+                                <td>${origin}</td>
+                                <td>${status}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                loadingEl.style.display = 'none';
+                contentEl.style.display = 'block';
+            } catch (err) {
+                loadingEl.innerHTML = `<div class="alert alert-danger mb-0">Erro: ${err.message || 'Desconhecido'}</div>`;
             }
         }
 

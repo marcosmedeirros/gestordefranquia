@@ -922,10 +922,11 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
             team_id: parseInt(teamId, 10)
           })
         });
-        alert(result.message || 'Pick registrada!');
+        const msg = result.message || result.error || 'Pick registrada!';
+        alert(msg);
         await loadDraft();
       } catch (e) {
-        alert('Erro: ' + (e.error || 'Desconhecido'));
+        alert('Erro: ' + (e.error || e.message || 'Desconhecido'));
       }
     }
 
