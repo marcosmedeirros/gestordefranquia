@@ -179,7 +179,7 @@ const updateMultiItemTeamOptions = () => {
     } else {
       toSelect.value = '';
     }
-    updateMultiItemOptions(row).catch((err) => console.warn('Erro ao atualizar itens:', err));
+    updateMultiItemOptions(row, true).catch((err) => console.warn('Erro ao atualizar itens:', err));
   });
 };
 
@@ -199,7 +199,7 @@ const loadMultiAssets = async (teamId, type) => {
   return list;
 };
 
-const updateMultiItemOptions = async (row) => {
+const updateMultiItemOptions = async (row, keepItemSelection = false) => {
   const fromSelect = row.querySelector('[data-role="from-team"]');
   const typeSelect = row.querySelector('[data-role="item-type"]');
   const itemSelect = row.querySelector('[data-role="item-id"]');
@@ -207,6 +207,7 @@ const updateMultiItemOptions = async (row) => {
 
   const teamId = Number(fromSelect.value);
   const type = typeSelect.value;
+  const previousItemId = keepItemSelection ? itemSelect.value : '';
   if (!teamId || !type) {
     itemSelect.innerHTML = '<option value="">Selecione a origem e o tipo</option>';
     return;
@@ -214,7 +215,7 @@ const updateMultiItemOptions = async (row) => {
 
   const list = await loadMultiAssets(teamId, type === 'player' ? 'players' : 'picks');
   if (!list || list.length === 0) {
-    itemSelect.innerHTML = '<option value="">Nenhum item disponível</option>';
+    itemSelect.innerHTML = '<option value="">Nenhum item dispon?vel</option>';
     return;
   }
 
@@ -225,9 +226,13 @@ const updateMultiItemOptions = async (row) => {
   } else {
     itemSelect.innerHTML = '<option value="">Selecione a pick</option>' + list.map((pick) => {
       const summary = buildPickSummary(pick);
-      const via = summary.via ? ` • ${summary.via}` : '';
+      const via = summary.via ? ` ? ${summary.via}` : '';
       return `<option value="${pick.id}">${summary.title} (${summary.origin}${via})</option>`;
     }).join('');
+  }
+
+  if (keepItemSelection && previousItemId) {
+    itemSelect.value = previousItemId;
   }
 };
 
@@ -273,7 +278,7 @@ const addMultiTradeItemRow = () => {
 
   row.addEventListener('change', (event) => {
     if (event.target.matches('[data-role="from-team"]') || event.target.matches('[data-role="item-type"]')) {
-      updateMultiItemOptions(row);
+      updateMultiItemOptions(row, false);
     }
     if (event.target.matches('[data-role="from-team"]')) {
       updateMultiItemTeamOptions();
