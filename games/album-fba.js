@@ -87,6 +87,7 @@ async function bootstrap() {
 
     renderAlbum();
     renderCourt();
+    renderMarket();
     if (state.user.is_admin) renderAdminCards();
 }
 
@@ -94,11 +95,19 @@ function switchTab(tab) {
     const all = ['album', 'team', 'ranking', 'market', 'store'];
     if (state.user?.is_admin) all.push('admin');
     all.forEach((t) => {
-        document.getElementById('section-' + t)?.classList.add('hidden');
+        const section = document.getElementById('section-' + t);
+        if (section) {
+            section.classList.add('hidden');
+            section.style.display = 'none';
+        }
         const b = document.getElementById('tab-' + t);
         if (b) b.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800';
     });
-    document.getElementById('section-' + tab)?.classList.remove('hidden');
+    const activeSection = document.getElementById('section-' + tab);
+    if (activeSection) {
+        activeSection.classList.remove('hidden');
+        activeSection.style.display = '';
+    }
     const active = document.getElementById('tab-' + tab);
     if (active) active.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title text-white';
     if (tab === 'album') renderAlbum();

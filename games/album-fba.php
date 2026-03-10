@@ -51,6 +51,7 @@ $teams = [
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Poppins:wght@300;400;600&display=swap');
         body { font-family: 'Poppins', sans-serif; background-color: #050505; color: #fff; overflow-x: hidden; }
         h1, h2, h3, .fba-title { font-family: 'Oswald', sans-serif; text-transform: uppercase; }
+        .hidden { display: none !important; }
 
         .rarity-comum { border-color: #b0b0b0; background: linear-gradient(145deg, #1a1a1a, #2a2a2a); }
         .rarity-rara { border-color: #ef4444; background: linear-gradient(145deg, #2a0a0a, #6b1111); box-shadow: 0 0 10px rgba(239, 68, 68, 0.55); }
