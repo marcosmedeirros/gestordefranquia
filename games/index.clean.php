@@ -97,6 +97,8 @@ try {
 // Top 5 por número de acertos em apostas (eventos encerrados)
 $ranking_acertos = array_fill_keys(array_keys($ranking_leagues), []);
 $ranking_acertos_24h = array_fill_keys(array_keys($ranking_leagues), []);
+$ranking_geral_games = [];
+$ranking_geral_apostas = [];
 
 try {
     $stmt = $pdo->query("
@@ -228,6 +230,61 @@ try {
             $ranking_acertos_24h[$leagueKey] = [];
         }
     }
+}
+
+// Ranking geral completo (games - pontos)
+try {
+    $stmt = $pdo->query("
+        SELECT
+            u.id,
+            u.nome,
+            u.pontos,
+            u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name
+        FROM usuarios u
+        ORDER BY u.pontos DESC, u.nome ASC
+        LIMIT 50
+    ");
+    $ranking_geral_games = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $ranking_geral_games = [];
+}
+
+// Ranking geral completo (apostas - acertos)
+try {
+    $stmt = $pdo->query("
+        SELECT
+            u.id,
+            u.nome,
+            u.league,
+            (
+                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
+                FROM teams t
+                WHERE t.user_id = u.id
+                LIMIT 1
+            ) AS team_name,
+            COALESCE(SUM(
+                CASE
+                    WHEN e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id
+                        THEN 1 ELSE 0
+                END
+            ), 0) AS acertos
+        FROM usuarios u
+        LEFT JOIN palpites p ON p.id_usuario = u.id
+        LEFT JOIN opcoes o ON p.opcao_id = o.id
+        LEFT JOIN eventos e ON o.evento_id = e.id
+        GROUP BY u.id, u.nome, u.league
+        ORDER BY acertos DESC, u.nome ASC
+        LIMIT 50
+    ");
+    $ranking_geral_apostas = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $ranking_geral_apostas = [];
 }
 
 $best_game_users = [];
@@ -1257,6 +1314,39 @@ try {
                     </div>
                 </div>
             </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="ranking-card">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="ranking-title"><i class="bi bi-list-ol me-2"></i>Ranking Geral (Apostas)</div>
+                            <small class="text-secondary">Top 50 - número de acertos</small>
+                        </div>
+                        <?php if (empty($ranking_geral_apostas)): ?>
+                            <div class="text-center py-3">
+                                <small class="text-secondary">Sem dados ainda</small>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($ranking_geral_apostas as $idx => $jogador): ?>
+                                <div class="ranking-item">
+                                    <span class="ranking-position">#<?= $idx + 1 ?></span>
+                                    <div class="ranking-info">
+                                        <span class="ranking-name">
+                                            <?= htmlspecialchars($jogador['nome']) ?>
+                                            <?php if (!empty($jogador['team_name'])): ?>
+                                                <small class="ranking-meta"><?= htmlspecialchars($jogador['team_name']) ?></small>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                    <span class="ranking-value">
+                                        <?= (int)$jogador['acertos'] ?> acertos
+                                    </span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
@@ -1443,6 +1533,47 @@ try {
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="ranking-card">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="ranking-title"><i class="bi bi-list-ol me-2"></i>Ranking Geral (Games)</div>
+                            <small class="text-secondary">Top 50 - pontos acumulados</small>
+                        </div>
+                        <?php if (empty($ranking_geral_games)): ?>
+                            <div class="text-center py-3">
+                                <small class="text-secondary">Sem dados ainda</small>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($ranking_geral_games as $idx => $jogador): ?>
+                                <div class="ranking-item">
+                                    <span class="ranking-position">#<?= $idx + 1 ?></span>
+                                    <div class="ranking-info">
+                                        <span class="ranking-name">
+                                            <?= htmlspecialchars($jogador['nome']) ?>
+                                            <?php if (!empty($jogador['team_name'])): ?>
+                                                <small class="ranking-meta"><?= htmlspecialchars($jogador['team_name']) ?></small>
+                                            <?php endif; ?>
+                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
+                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
+                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
+                                                    $icon = $bestGameIcons[$gameLabel] ?? 'â­';
+                                                ?>
+                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                    <span class="ranking-value">
+                                        <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                                    </span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
