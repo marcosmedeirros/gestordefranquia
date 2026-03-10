@@ -28,18 +28,17 @@ try {
     die("Erro ao carregar usuário: " . $e->getMessage());
 }
 
-// Liga do usuário (caso exista) para filtrar rankings
+// Liga do usuário (informativa)
 $userLeague = $usuario['league'] ?? null;
 
-// Mantém estrutura de rankings (mesmo com uma única liga geral)
 $ranking_leagues = [
     'GERAL' => 'Geral'
 ];
 
-$ranking_points = array_fill_keys(array_keys($ranking_leagues), []);
+$ranking_points = ['GERAL' => []];
 
 try {
-    $stmt = $pdo->prepare("
+    $stmt = $pdo->query("
         SELECT
             u.id,
             u.nome,
@@ -52,15 +51,9 @@ try {
                 LIMIT 1
             ) AS team_name
         FROM usuarios u
-        " . ($userLeague ? "WHERE u.league = :league" : "") . "
         ORDER BY pontos DESC
         LIMIT 5
     ");
-    if ($userLeague) {
-        $stmt->execute([':league' => $userLeague]);
-    } else {
-        $stmt->execute();
-    }
     $ranking_points['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_points['GERAL'] = [];
@@ -106,7 +99,7 @@ $ranking_geral_games = [];
 $ranking_geral_apostas = [];
 
 try {
-    $stmt = $pdo->prepare("
+    $stmt = $pdo->query("
         SELECT
             u.id,
             u.nome,
@@ -126,16 +119,10 @@ try {
         WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
-        " . ($userLeague ? "AND u.league = :league" : "") . "
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
-    if ($userLeague) {
-        $stmt->execute([':league' => $userLeague]);
-    } else {
-        $stmt->execute();
-    }
     $ranking_acertos['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos['GERAL'] = [];
@@ -163,16 +150,11 @@ try {
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
           AND e.data_limite >= :yesterday_brt
-        " . ($userLeague ? "AND u.league = :league" : "") . "
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
-    $params = [':yesterday_brt' => $yesterdayBrtStr];
-    if ($userLeague) {
-        $params[':league'] = $userLeague;
-    }
-    $stmt->execute($params);
+    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr]);
     $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos_24h['GERAL'] = [];

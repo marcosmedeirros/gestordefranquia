@@ -739,6 +739,20 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             stickersById[sticker.id] = sticker;
         });
 
+        function getStickerQty(id) {
+            const map = state.collection || {};
+            const key1 = String(id);
+            const key2 = String(Number(id));
+            const val1 = map[key1];
+            if (typeof val1 !== 'undefined') {
+                return Number(val1 || 0);
+            }
+            if (key2 !== key1 && typeof map[key2] !== 'undefined') {
+                return Number(map[key2] || 0);
+            }
+            return 0;
+        }
+
         const state = {
             collection: {},
             lastPack: [],
@@ -812,7 +826,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 return;
             }
             grid.innerHTML = filtered.map((sticker) => {
-                const owned = state.collection[sticker.id] || 0;
+                const owned = getStickerQty(sticker.id);
                 const placed = owned > 0;
                 const rarity = rarityConfig[sticker.rarity] || {};
                 const frame = rarityFrames[sticker.rarity] || rarityFrames.comum;
@@ -848,9 +862,9 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
 
         function renderStats() {
             const total = stickers.length;
-            const ownedIds = Object.keys(state.collection).filter((id) => state.collection[id] > 0);
+            const ownedIds = stickers.filter((s) => getStickerQty(s.id) > 0).map((s) => s.id);
             const owned = ownedIds.length;
-            const duplicates = Object.values(state.collection).reduce((acc, qty) => acc + Math.max(qty - 1, 0), 0);
+            const duplicates = stickers.reduce((acc, s) => acc + Math.max(getStickerQty(s.id) - 1, 0), 0);
             const percent = total ? Math.round((owned / total) * 100) : 0;
             document.getElementById('statCollected').textContent = `${owned}/${total}`;
             document.getElementById('statDuplicates').textContent = duplicates;
@@ -1031,7 +1045,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             }
             const previous = select.value;
             const duplicates = stickers
-                .filter((sticker) => (state.collection[sticker.id] || 0) > 1)
+                .filter((sticker) => getStickerQty(sticker.id) > 1)
                 .sort((a, b) => a.id.localeCompare(b.id));
 
             if (!duplicates.length) {
@@ -1047,7 +1061,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
 
             select.disabled = false;
             select.innerHTML = duplicates.map((sticker) => {
-                const qty = state.collection[sticker.id] || 0;
+                const qty = getStickerQty(sticker.id);
                 const dup = Math.max(qty - 1, 0);
                 const label = `${sticker.id} - ${sticker.name} (${dup} dup)`;
                 return `<option value="${sticker.id}">${label}</option>`;
