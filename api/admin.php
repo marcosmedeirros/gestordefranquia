@@ -375,6 +375,7 @@ if ($method === 'GET') {
                 SELECT 
                     t.id, t.city, t.name, t.league,
                     COALESCE(t.tapas, 0) as tapas,
+                    COALESCE(t.tapas_used, 0) as tapas_used,
                     u.name as owner_name
                 FROM teams t
                 JOIN users u ON t.user_id = u.id
@@ -1592,7 +1593,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(tapas, 0) as tapas FROM teams WHERE id = ?');
+            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(tapas, 0) as tapas, COALESCE(tapas_used, 0) as tapas_used FROM teams WHERE id = ?');
             $stmtTeam->execute([$teamId]);
             $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
@@ -1603,6 +1604,7 @@ if ($method === 'POST') {
             }
 
             $currentTapas = (int)($team['tapas'] ?? 0);
+            $currentUsed = (int)($team['tapas_used'] ?? 0);
             if ($operation === 'add') {
                 $newBalance = $currentTapas + $amount;
             } elseif ($operation === 'remove') {
@@ -1611,14 +1613,26 @@ if ($method === 'POST') {
                 $newBalance = $amount;
             }
 
+            $removed = 0;
+            if ($operation === 'remove' && $currentTapas > 0) {
+                $removed = max(0, $currentTapas - $newBalance);
+            }
+
             try {
-                $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
-                $stmtUpdate->execute([$newBalance, $teamId]);
+                if ($removed > 0) {
+                    $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ?, tapas_used = tapas_used + ? WHERE id = ?');
+                    $stmtUpdate->execute([$newBalance, $removed, $teamId]);
+                    $currentUsed += $removed;
+                } else {
+                    $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
+                    $stmtUpdate->execute([$newBalance, $teamId]);
+                }
 
                 echo json_encode([
                     'success' => true,
                     'message' => sprintf('Tapas atualizados para %s %s: %d', $team['city'], $team['name'], $newBalance),
-                    'new_balance' => $newBalance
+                    'new_balance' => $newBalance,
+                    'tapas_used' => $currentUsed
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);

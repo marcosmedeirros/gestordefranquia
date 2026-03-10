@@ -2863,16 +2863,23 @@ async function loadTapasTeams() {
     }
 
     const totalTapas = teams.reduce((sum, t) => sum + parseInt(t.tapas || 0), 0);
+    const totalTapasUsed = teams.reduce((sum, t) => sum + parseInt(t.tapas_used || 0), 0);
 
     container.innerHTML = `
       <div class="row mb-3">
-        <div class="col-md-6">
+        <div class="col-md-4">
           <div class="bg-dark-panel border-orange rounded p-3">
             <h6 class="text-light-gray mb-1">Total de Tapas na Liga</h6>
             <h3 class="text-warning mb-0"><i class="bi bi-hand-index-thumb me-2"></i>${totalTapas.toLocaleString()}</h3>
           </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
+          <div class="bg-dark-panel border-orange rounded p-3">
+            <h6 class="text-light-gray mb-1">Tapas usados</h6>
+            <h3 class="text-danger mb-0"><i class="bi bi-hand-index-thumb me-2"></i>${totalTapasUsed.toLocaleString()}</h3>
+          </div>
+        </div>
+        <div class="col-md-4">
           <div class="bg-dark-panel border-orange rounded p-3">
             <h6 class="text-light-gray mb-1">Times</h6>
             <h3 class="text-white mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>${teams.length}</h3>
@@ -2887,6 +2894,7 @@ async function loadTapasTeams() {
               <th>Time</th>
               <th>Proprietário</th>
               <th class="text-end">Tapas</th>
+              <th class="text-end">Usados</th>
               <th class="text-center">Ações</th>
             </tr>
           </thead>
@@ -2898,6 +2906,11 @@ async function loadTapasTeams() {
                 <td class="text-end">
                   <span class="badge ${parseInt(t.tapas || 0) > 0 ? 'bg-warning text-dark' : 'bg-secondary'} fs-6">
                     <i class="bi bi-hand-index-thumb me-1"></i>${parseInt(t.tapas || 0).toLocaleString()}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <span class="badge ${parseInt(t.tapas_used || 0) > 0 ? 'bg-danger' : 'bg-secondary'} fs-6">
+                    <i class="bi bi-hand-index-thumb me-1"></i>${parseInt(t.tapas_used || 0).toLocaleString()}
                   </span>
                 </td>
                 <td class="text-center">
