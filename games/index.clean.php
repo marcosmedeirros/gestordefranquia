@@ -21,26 +21,25 @@ $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 $yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die("Erro ao carregar usuário: " . $e->getMessage());
 }
 
-// Filtros de liga nos rankings (client-side)
+// Liga do usuário (caso exista) para filtrar rankings
+$userLeague = $usuario['league'] ?? null;
+
+// Mantém estrutura de rankings (mesmo com uma única liga geral)
 $ranking_leagues = [
-    'GERAL' => 'Geral',
-    'ELITE' => 'Elite',
-    'RISE' => 'Rise',
-    'NEXT' => 'Next',
-    'ROOKIE' => 'Rookie'
+    'GERAL' => 'Geral'
 ];
 
 $ranking_points = array_fill_keys(array_keys($ranking_leagues), []);
 
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -53,9 +52,15 @@ try {
                 LIMIT 1
             ) AS team_name
         FROM usuarios u
+        " . ($userLeague ? "WHERE u.league = :league" : "") . "
         ORDER BY pontos DESC
         LIMIT 5
     ");
+    if ($userLeague) {
+        $stmt->execute([':league' => $userLeague]);
+    } else {
+        $stmt->execute();
+    }
     $ranking_points['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_points['GERAL'] = [];
@@ -101,7 +106,7 @@ $ranking_geral_games = [];
 $ranking_geral_apostas = [];
 
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -121,10 +126,16 @@ try {
         WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
+        " . ($userLeague ? "AND u.league = :league" : "") . "
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
+    if ($userLeague) {
+        $stmt->execute([':league' => $userLeague]);
+    } else {
+        $stmt->execute();
+    }
     $ranking_acertos['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos['GERAL'] = [];
@@ -152,11 +163,16 @@ try {
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
           AND e.data_limite >= :yesterday_brt
+        " . ($userLeague ? "AND u.league = :league" : "") . "
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
-    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr]);
+    $params = [':yesterday_brt' => $yesterdayBrtStr];
+    if ($userLeague) {
+        $params[':league'] = $userLeague;
+    }
+    $stmt->execute($params);
     $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos_24h['GERAL'] = [];
@@ -1318,32 +1334,9 @@ try {
             <div class="row g-3 mb-4">
                 <div class="col-12">
                     <div class="ranking-card">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="ranking-title"><i class="bi bi-list-ol me-2"></i>Ranking Geral (Apostas)</div>
-                            <small class="text-secondary">Top 50 - número de acertos</small>
+                        <div class="text-center py-3">
+                            <small class="text-secondary">Sem dados ainda</small>
                         </div>
-                        <?php if (empty($ranking_geral_apostas)): ?>
-                            <div class="text-center py-3">
-                                <small class="text-secondary">Sem dados ainda</small>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($ranking_geral_apostas as $idx => $jogador): ?>
-                                <div class="ranking-item">
-                                    <span class="ranking-position">#<?= $idx + 1 ?></span>
-                                    <div class="ranking-info">
-                                        <span class="ranking-name">
-                                            <?= htmlspecialchars($jogador['nome']) ?>
-                                            <?php if (!empty($jogador['team_name'])): ?>
-                                                <small class="ranking-meta"><?= htmlspecialchars($jogador['team_name']) ?></small>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <span class="ranking-value">
-                                        <?= (int)$jogador['acertos'] ?> acertos
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -1537,46 +1530,7 @@ try {
                 </div>
             </div>
 
-            <div class="row g-3 mb-4">
-                <div class="col-12">
-                    <div class="ranking-card">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="ranking-title"><i class="bi bi-list-ol me-2"></i>Ranking Geral (Games)</div>
-                            <small class="text-secondary">Top 50 - pontos acumulados</small>
-                        </div>
-                        <?php if (empty($ranking_geral_games)): ?>
-                            <div class="text-center py-3">
-                                <small class="text-secondary">Sem dados ainda</small>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($ranking_geral_games as $idx => $jogador): ?>
-                                <div class="ranking-item">
-                                    <span class="ranking-position">#<?= $idx + 1 ?></span>
-                                    <div class="ranking-info">
-                                        <span class="ranking-name">
-                                            <?= htmlspecialchars($jogador['nome']) ?>
-                                            <?php if (!empty($jogador['team_name'])): ?>
-                                                <small class="ranking-meta"><?= htmlspecialchars($jogador['team_name']) ?></small>
-                                            <?php endif; ?>
-                                            <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                                <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                                    $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                                    $icon = $bestGameIcons[$gameLabel] ?? 'â­';
-                                                ?>
-                                                    <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <span class="ranking-value">
-                                        <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+            
 
             <div class="text-center mb-4">
                 <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
@@ -1639,3 +1593,5 @@ try {
 
 </body>
 </html>
+
+
