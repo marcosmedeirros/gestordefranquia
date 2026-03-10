@@ -1272,15 +1272,8 @@ try {
                     </div>
                 </div>
             </div>
-
-            <div class="row g-3 mb-4">
-                <div class="col-12">
-                    <div class="ranking-card">
-                        <div class="text-center py-3">
-                            <small class="text-secondary">Sem dados ainda</small>
-                        </div>
-                    </div>
-                </div>
+            <div class="text-center mb-4">
+                <a href="user/ranking-geral.php" class="btn btn-outline-light">Ver ranking geral</a>
             </div>
         </div>
 

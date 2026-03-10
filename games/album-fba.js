@@ -89,6 +89,7 @@ async function bootstrap() {
     renderCourt();
     renderMarket();
     if (state.user.is_admin) renderAdminCards();
+    switchTab('album');
 }
 
 function switchTab(tab) {
@@ -98,7 +99,9 @@ function switchTab(tab) {
         const section = document.getElementById('section-' + t);
         if (section) {
             section.classList.add('hidden');
+            section.classList.remove('block');
             section.style.display = 'none';
+            section.setAttribute('aria-hidden', 'true');
         }
         const b = document.getElementById('tab-' + t);
         if (b) b.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800';
@@ -106,7 +109,9 @@ function switchTab(tab) {
     const activeSection = document.getElementById('section-' + tab);
     if (activeSection) {
         activeSection.classList.remove('hidden');
+        activeSection.classList.add('block');
         activeSection.style.display = '';
+        activeSection.setAttribute('aria-hidden', 'false');
     }
     const active = document.getElementById('tab-' + tab);
     if (active) active.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title text-white';
