@@ -44,12 +44,7 @@ try {
             u.nome,
             u.pontos,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name
+            NULL AS team_name
         FROM usuarios u
         ORDER BY pontos DESC
         LIMIT 5
@@ -66,12 +61,7 @@ try {
             u.nome,
             u.pontos,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name
+            NULL AS team_name
         FROM usuarios u
         WHERE league = :league
         ORDER BY pontos DESC
@@ -104,12 +94,7 @@ try {
             u.id,
             u.nome,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name,
+            NULL AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -134,12 +119,7 @@ try {
             u.id,
             u.nome,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name,
+            NULL AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -166,12 +146,7 @@ try {
             u.id,
             u.nome,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name,
+            NULL AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -191,12 +166,7 @@ try {
             u.id,
             u.nome,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name,
+            NULL AS team_name,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -238,12 +208,7 @@ try {
             u.nome,
             u.pontos,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name
+            NULL AS team_name
         FROM usuarios u
         ORDER BY u.pontos DESC, u.nome ASC
         LIMIT 50
@@ -260,12 +225,7 @@ try {
             u.id,
             u.nome,
             u.league,
-            (
-                SELECT TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, '')))
-                FROM teams t
-                WHERE t.user_id = u.id
-                LIMIT 1
-            ) AS team_name,
+            NULL AS team_name,
             COALESCE(SUM(
                 CASE
                     WHEN e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id
