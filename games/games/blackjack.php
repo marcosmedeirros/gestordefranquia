@@ -63,10 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     // A. INICIAR APOSTA (DEAL)
     if ($acao == 'apostar') {
         $valor = (int)$_POST['valor'];
+        $maxAposta = 15;
         
         // VALIDAÇÃO DE LIMITE
         if ($valor <= 0) die(json_encode(['erro' => 'Valor inválido']));
-        if ($valor > 15) die(json_encode(['erro' => 'Aposta máxima permitida: 15 pontos!']));
+        if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 15 pontos!']));
         
         try {
             // TRANSAÇÃO REAL: Desconta aposta inicial
@@ -171,6 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         // Cobra aposta adicional para a nova mão
         $valorSplit = $maoAtiva['aposta'];
+        if (($valorSplit * 2) > 15) {
+            echo json_encode(['erro' => 'Aposta máxima permitida: 15 pontos!']);
+            exit;
+        }
         try {
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
