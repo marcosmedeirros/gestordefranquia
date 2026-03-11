@@ -34,11 +34,11 @@ $stmt = $pdo->prepare("
         from_team.name AS from_name,
         to_team.city AS to_city,
         to_team.name AS to_name,
-        from_user.phone AS from_user_phone
+        to_user.phone AS receiving_user_phone
     FROM trades t
     JOIN teams from_team ON t.from_team_id = from_team.id
     JOIN teams to_team ON t.to_team_id = to_team.id
-    JOIN users from_user ON from_team.user_id = from_user.id
+    JOIN users to_user ON to_team.user_id = to_user.id
     WHERE t.league = ?
     AND t.status = 'pending'
       AND t.created_at >= (NOW() - INTERVAL 1 HOUR)
@@ -135,7 +135,7 @@ foreach ($rows as $row) {
         'status' => $row['status'],
         'from_team' => trim($row['from_city'] . ' ' . $row['from_name']),
         'to_team' => trim($row['to_city'] . ' ' . $row['to_name']),
-        'from_user_phone' => $row['from_user_phone'],
+        'from_user_phone' => $row['receiving_user_phone'],
         'created_at' => $row['created_at'],
         'items' => $itemsByTrade[$tradeId] ?? ['sent' => ['players' => [], 'picks' => []], 'requested' => ['players' => [], 'picks' => []]]
     ];
