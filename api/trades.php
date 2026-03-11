@@ -34,7 +34,42 @@ function playerOvrColumn(PDO $pdo): string {
     return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
 }
 
-function sendTradeWebhook(PDO $pdo, int $tradeId): void
+function postTradeWebhook(string $webhookUrl, array $payload, string $context, int $tradeId): void
+{
+    $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    if ($body === false) {
+        return;
+    }
+
+    $ch = curl_init($webhookUrl);
+    if ($ch === false) {
+        return;
+    }
+
+    $headers = [
+        'Content-Type: application/json',
+        'Accept: application/json',
+    ];
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 6,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($response === false || $httpCode >= 400) {
+        $err = curl_error($ch);
+        error_log('[' . $context . '] failed trade_id=' . $tradeId . ' code=' . $httpCode . ' err=' . $err);
+    }
+    curl_close($ch);
+}
+
+function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created'): void
 {
     $webhookUrl = 'https://fbabrasil.com.br/nova-trade';
 
@@ -143,7 +178,8 @@ function sendTradeWebhook(PDO $pdo, int $tradeId): void
     }
 
     $payload = [
-        'event' => 'trade_created',
+        'event' => $event,
+        'trade_type' => 'single',
         'trade' => [
             'id' => (int)$trade['id'],
             'league' => $trade['league'],
@@ -177,37 +213,130 @@ function sendTradeWebhook(PDO $pdo, int $tradeId): void
         ],
     ];
 
-    $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
-    if ($body === false) {
+    postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
+}
+
+function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created'): void
+{
+    $webhookUrl = 'https://fbabrasil.com.br/nova-trade';
+
+    $stmtTrade = $pdo->prepare('SELECT id, league, notes, status, created_at, created_by_team_id FROM multi_trades WHERE id = ?');
+    $stmtTrade->execute([$tradeId]);
+    $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+    if (!$trade) {
         return;
     }
 
-    $ch = curl_init($webhookUrl);
-    if ($ch === false) {
-        return;
+    $stmtTeams = $pdo->prepare('
+        SELECT t.id, t.city, t.name, t.league, u.name AS owner_name, u.phone AS owner_phone
+        FROM multi_trade_teams mtt
+        JOIN teams t ON t.id = mtt.team_id
+        JOIN users u ON u.id = t.user_id
+        WHERE mtt.trade_id = ?
+    ');
+    $stmtTeams->execute([$tradeId]);
+    $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+    $itemsStmt = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
+    $itemsStmt->execute([$tradeId]);
+    $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $pickIds = [];
+    foreach ($items as $item) {
+        if (!empty($item['pick_id'])) {
+            $pickIds[] = (int)$item['pick_id'];
+        }
     }
 
-    $headers = [
-        'Content-Type: application/json',
-        'Accept: application/json',
+    $pickMap = [];
+    if ($pickIds) {
+        $pickIds = array_values(array_unique($pickIds));
+        $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks->execute($pickIds);
+        foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
+            $pickMap[(int)$pick['id']] = $pick;
+        }
+    }
+
+    $ovrCol = playerOvrColumn($pdo);
+    $hasSnapshot = columnExists($pdo, 'multi_trade_items', 'player_name');
+
+    $payloadItems = [];
+    foreach ($items as $item) {
+        $player = null;
+        $pick = null;
+
+        $playerId = (int)($item['player_id'] ?? 0);
+        if ($playerId > 0) {
+            $player = [
+                'id' => $playerId,
+                'name' => $hasSnapshot ? ($item['player_name'] ?? null) : null,
+                'position' => $hasSnapshot ? ($item['player_position'] ?? null) : null,
+                'ovr' => $hasSnapshot ? ($item['player_ovr'] ?? null) : null,
+                'age' => $hasSnapshot ? ($item['player_age'] ?? null) : null,
+            ];
+
+            if (!$player['name']) {
+                $stmtPlayer = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
+                $stmtPlayer->execute([$playerId]);
+                $row = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
+                if ($row) {
+                    $player['name'] = $row['name'];
+                    $player['position'] = $row['position'];
+                    $player['ovr'] = $row['ovr'];
+                    $player['age'] = $row['age'];
+                }
+            }
+        }
+
+        $pickId = (int)($item['pick_id'] ?? 0);
+        if ($pickId > 0) {
+            $pickRow = $pickMap[$pickId] ?? null;
+            $pick = [
+                'id' => $pickId,
+                'season_year' => $pickRow['season_year'] ?? null,
+                'round' => $pickRow['round'] ?? null,
+                'original_team' => $pickRow ? trim(($pickRow['city'] ?? '') . ' ' . ($pickRow['team_name'] ?? '')) : null,
+                'protection' => $item['pick_protection'] ?? null,
+            ];
+        }
+
+        $payloadItems[] = [
+            'from_team_id' => (int)($item['from_team_id'] ?? 0),
+            'to_team_id' => (int)($item['to_team_id'] ?? 0),
+            'player' => $player,
+            'pick' => $pick,
+        ];
+    }
+
+    $payloadTeams = [];
+    foreach ($teams as $team) {
+        $payloadTeams[] = [
+            'id' => (int)$team['id'],
+            'name' => trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')),
+            'league' => $team['league'] ?? null,
+            'owner_name' => $team['owner_name'] ?? null,
+            'owner_phone' => $team['owner_phone'] ?? null,
+        ];
+    }
+
+    $payload = [
+        'event' => $event,
+        'trade_type' => 'multi',
+        'trade' => [
+            'id' => (int)$trade['id'],
+            'league' => $trade['league'],
+            'status' => $trade['status'],
+            'notes' => $trade['notes'],
+            'created_at' => $trade['created_at'],
+            'created_by_team_id' => (int)$trade['created_by_team_id'],
+        ],
+        'teams' => $payloadTeams,
+        'items' => $payloadItems,
     ];
 
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_POSTFIELDS => $body,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_TIMEOUT => 6,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    if ($response === false || $httpCode >= 400) {
-        $err = curl_error($ch);
-        error_log('[trade-webhook] failed trade_id=' . $tradeId . ' code=' . $httpCode . ' err=' . $err);
-    }
-    curl_close($ch);
+    postTradeWebhook($webhookUrl, $payload, 'multi-trade-webhook', $tradeId);
 }
 
 // Snapshot dos jogadores nos itens da trade, para manter histórico mesmo se o jogador for dispensado
@@ -1185,9 +1314,9 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
 
         $pdo->commit();
         try {
-            sendTradeWebhook($pdo, (int)$tradeId);
+            sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_created');
         } catch (Exception $e) {
-            error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+            error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
         }
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
@@ -1479,6 +1608,11 @@ if ($method === 'POST') {
         }
         
         $pdo->commit();
+        try {
+            sendTradeWebhook($pdo, (int)$tradeId, 'trade_created');
+        } catch (Exception $e) {
+            error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+        }
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -1531,6 +1665,12 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
             $stmtCancel = $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?');
             $stmtCancel->execute(['cancelled', $tradeId]);
             $pdo->commit();
+            try {
+                $event = $action === 'rejected' ? 'trade_rejected' : 'trade_cancelled';
+                sendMultiTradeWebhook($pdo, (int)$tradeId, $event);
+            } catch (Exception $e) {
+                error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+            }
             echo json_encode(['success' => true, 'status' => 'cancelled']);
             exit;
         }
@@ -1614,6 +1754,11 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
 
                 $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $tradeId]);
                 $pdo->commit();
+                try {
+                    sendMultiTradeWebhook($pdo, (int)$tradeId, 'trade_accepted');
+                } catch (Exception $e) {
+                    error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+                }
                 echo json_encode(['success' => true, 'status' => 'accepted']);
                 exit;
             }
@@ -1808,6 +1953,12 @@ if ($method === 'PUT') {
         }
         
         $pdo->commit();
+        try {
+            $event = $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled');
+            sendTradeWebhook($pdo, (int)$tradeId, $event);
+        } catch (Exception $e) {
+            error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+        }
         echo json_encode(['success' => true]);
     } catch (PDOException $e) {
         $pdo->rollBack();
