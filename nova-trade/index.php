@@ -27,7 +27,7 @@ function ensureTradeWebhookTable(PDO $pdo): void
     }
 }
 
-function readJsonBody(): array
+function readTradeWebhookBody(): array
 {
     $raw = file_get_contents('php://input');
     if ($raw === false || trim($raw) === '') {
@@ -42,7 +42,7 @@ ensureTradeWebhookTable($pdo);
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 if ($method === 'POST') {
-    $payload = readJsonBody();
+    $payload = readTradeWebhookBody();
     if (!$payload) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Invalid JSON body']);
