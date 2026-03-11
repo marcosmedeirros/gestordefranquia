@@ -198,6 +198,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         </div>
     </div>
 
+    <div class="modal fade" id="playerDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark-panel border-orange">
+                <div class="modal-header border-orange">
+                    <h5 class="modal-title text-white" id="playerDetailsTitle">Detalhes do Jogador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" id="playerDetailsContent"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>
     <script>
@@ -264,6 +276,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     </div>
                     <div class="player-card-actions">
                         ${whatsappLink ? `<a class="btn btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-muted">Sem contato</span>'}
+                        <button class="btn btn-outline-info" type="button" onclick="openPlayerDetails(${p.id})">
+                            <i class="bi bi-info-circle"></i> Detalhes
+                        </button>
                         <a class="btn btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
                             <i class="bi bi-arrow-left-right"></i> Trocar
                         </a>
@@ -349,6 +364,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         </a>` : '<span class="text-muted">Sem contato</span>'}
                                     </td>
                                     <td>
+                                        <button class="btn btn-sm btn-outline-info me-2" type="button" onclick="openPlayerDetails(${p.id})">
+                                            <i class="bi bi-info-circle"></i> Detalhes
+                                        </button>
                                         <a class="btn btn-sm btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
                                             <i class="bi bi-arrow-left-right"></i> Trocar
                                         </a>
@@ -428,6 +446,123 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 }
             }, 500);
         });
+
+        const detailsModalEl = document.getElementById('playerDetailsModal');
+        const detailsModal = detailsModalEl ? new bootstrap.Modal(detailsModalEl) : null;
+
+        function formatDateTime(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        async function openPlayerDetails(playerId) {
+            if (!detailsModalEl) return;
+            const content = document.getElementById('playerDetailsContent');
+            const title = document.getElementById('playerDetailsTitle');
+            if (content) {
+                content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange" role="status"></div></div>';
+            }
+            if (title) title.textContent = 'Detalhes do Jogador';
+
+            detailsModal?.show();
+
+            try {
+                const res = await fetch(`/api/team.php?action=player_details&player_id=${playerId}`);
+                const data = await res.json();
+                if (!data || data.error) {
+                    if (content) content.innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar detalhes.'}</div>`;
+                    return;
+                }
+
+                const player = data.player || {};
+                if (title) title.textContent = player.name || 'Detalhes do Jogador';
+
+                const transfers = Array.isArray(data.transfers) ? data.transfers : [];
+                const ovrTimeline = Array.isArray(data.ovr_timeline) ? data.ovr_timeline : [];
+                const awards = Array.isArray(data.awards) ? data.awards : [];
+
+                const transferHtml = transfers.length
+                    ? transfers.map((t) => `
+                        <div class="d-flex flex-column gap-1 border-bottom border-secondary py-2">
+                            <div class="text-white"><strong>${t.from_team}</strong> → <strong>${t.to_team}</strong></div>
+                            <div class="text-light-gray small">Trade #${t.trade_id} • ${t.status} • ${formatDateTime(t.created_at)}</div>
+                        </div>
+                    `).join('')
+                    : '<div class="text-light-gray">Nenhuma trade encontrada.</div>';
+
+                const ovrHtml = ovrTimeline.length
+                    ? ovrTimeline.map((o) => `
+                        <div class="d-flex justify-content-between border-bottom border-secondary py-2">
+                            <div class="text-white">Idade ${o.age ?? '-'}</div>
+                            <div class="text-orange fw-bold">OVR ${o.ovr ?? '-'}</div>
+                        </div>
+                    `).join('')
+                    : '<div class="text-light-gray">Sem histórico de OVR registrado.</div>';
+
+                const awardsHtml = awards.length
+                    ? awards.map((a) => `
+                        <div class="d-flex justify-content-between border-bottom border-secondary py-2">
+                            <div class="text-white">${a.award}</div>
+                            <div class="text-light-gray">${a.league || '-'} ${a.year || ''}</div>
+                        </div>
+                    `).join('')
+                    : '<div class="text-light-gray">Nenhum prêmio registrado.</div>';
+
+
+                if (content) {
+                    content.innerHTML = `
+                        <div class="mb-3">
+                            <div class="text-light-gray">Time atual</div>
+                            <div class="text-white fw-bold">${player.team_name || '-'}</div>
+                            <div class="text-light-gray small">Liga ${player.league || '-'}</div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-6 col-md-3">
+                                <div class="bg-dark rounded p-2 text-center">
+                                    <div class="text-light-gray small">OVR</div>
+                                    <div class="text-orange fw-bold">${player.ovr ?? '-'}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-dark rounded p-2 text-center">
+                                    <div class="text-light-gray small">Idade</div>
+                                    <div class="text-white fw-bold">${player.age ?? '-'}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-dark rounded p-2 text-center">
+                                    <div class="text-light-gray small">Posição</div>
+                                    <div class="text-white fw-bold">${player.position ?? '-'}</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-dark rounded p-2 text-center">
+                                    <div class="text-light-gray small">Pos. Sec.</div>
+                                    <div class="text-white fw-bold">${player.secondary_position || '-'}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <h6 class="text-orange">Transferências</h6>
+                            ${transferHtml}
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="text-orange">OVR por idade</h6>
+                            ${ovrHtml}
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="text-orange">Prêmios</h6>
+                            ${awardsHtml}
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                if (content) content.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes.</div>';
+            }
+        }
     </script>
     <script src="/js/sidebar.js"></script>
 </body>

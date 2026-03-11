@@ -26,6 +26,21 @@ function appendPhoneFields(array &$row): void {
     $row['owner_phone_whatsapp'] = $normalizedPhone;
 }
 
+function playerOvrColumnForDetails(PDO $pdo): string {
+    try {
+        $hasOvr = $pdo->query("SHOW COLUMNS FROM players LIKE 'ovr'")->fetch();
+        if ($hasOvr) {
+            return 'ovr';
+        }
+        $hasOverall = $pdo->query("SHOW COLUMNS FROM players LIKE 'overall'")->fetch();
+        if ($hasOverall) {
+            return 'overall';
+        }
+    } catch (Exception $e) {
+    }
+    return 'ovr';
+}
+
 /**
  * Sincroniza contador de trades por time com base em current_cycle/trades_cycle.
  * Retorna o valor atual de trades_used (0 quando reseta ou não encontrado).
@@ -152,6 +167,180 @@ if ($method === 'GET') {
                 'total' => $total,
                 'total_pages' => $perPage > 0 ? (int)ceil($total / $perPage) : 1
             ]
+        ]);
+    }
+
+    if ($action === 'player_details') {
+        $playerId = isset($_GET['player_id']) ? (int)$_GET['player_id'] : 0;
+        if ($playerId <= 0) {
+            jsonResponse(400, ['error' => 'player_id é obrigatório.']);
+        }
+
+        $user = getUserSession();
+        if (!$user) {
+            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+        }
+
+        $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
+
+        $stmtPlayer = $pdo->prepare('
+            SELECT p.*, t.id AS team_id, t.city, t.name AS team_name, t.league,
+                   u.name AS owner_name, u.phone AS owner_phone
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            JOIN users u ON t.user_id = u.id
+            WHERE p.id = ?
+            LIMIT 1
+        ');
+        $stmtPlayer->execute([$playerId]);
+        $player = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
+        if (!$player) {
+            jsonResponse(404, ['error' => 'Jogador não encontrado.']);
+        }
+
+        if (!$isAdmin && isset($player['league']) && $player['league'] !== ($user['league'] ?? '')) {
+            jsonResponse(403, ['error' => 'Sem permissão para acessar este jogador.']);
+        }
+
+        $playerName = (string)($player['name'] ?? '');
+        $ovrColumn = playerOvrColumnForDetails($pdo);
+
+        $stmtTrades = $pdo->prepare("
+            SELECT
+                t.id AS trade_id,
+                t.league,
+                t.status,
+                t.created_at,
+                t.updated_at,
+                from_team.city AS from_city,
+                from_team.name AS from_name,
+                to_team.city AS to_city,
+                to_team.name AS to_name,
+                ti.from_team,
+                ti.player_name,
+                ti.player_position,
+                ti.player_age,
+                ti.player_ovr
+            FROM trade_items ti
+            JOIN trades t ON t.id = ti.trade_id
+            JOIN teams from_team ON t.from_team_id = from_team.id
+            JOIN teams to_team ON t.to_team_id = to_team.id
+            WHERE ti.pick_id IS NULL
+              AND (ti.player_id = ? OR (ti.player_id IS NULL AND ti.player_name = ?))
+            ORDER BY t.created_at DESC
+        ");
+        $stmtTrades->execute([$playerId, $playerName]);
+        $tradeRows = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
+
+        $transfers = [];
+        $ovrHistory = [];
+
+        foreach ($tradeRows as $row) {
+            $fromTeamName = trim(($row['from_city'] ?? '') . ' ' . ($row['from_name'] ?? ''));
+            $toTeamName = trim(($row['to_city'] ?? '') . ' ' . ($row['to_name'] ?? ''));
+            $sent = (int)($row['from_team'] ?? 0) === 1;
+            $from = $sent ? $fromTeamName : $toTeamName;
+            $to = $sent ? $toTeamName : $fromTeamName;
+
+            $transfers[] = [
+                'trade_id' => (int)$row['trade_id'],
+                'league' => $row['league'],
+                'status' => $row['status'],
+                'from_team' => $from,
+                'to_team' => $to,
+                'created_at' => $row['created_at'],
+                'updated_at' => $row['updated_at']
+            ];
+
+            if ($row['player_age'] !== null || $row['player_ovr'] !== null) {
+                $ovrHistory[] = [
+                    'age' => $row['player_age'] !== null ? (int)$row['player_age'] : null,
+                    'ovr' => $row['player_ovr'] !== null ? (int)$row['player_ovr'] : null,
+                    'source' => 'trade',
+                    'date' => $row['created_at']
+                ];
+            }
+        }
+
+        if (isset($player['age']) || isset($player['ovr'])) {
+            $ovrHistory[] = [
+                'age' => isset($player['age']) ? (int)$player['age'] : null,
+                'ovr' => isset($player['ovr']) ? (int)$player['ovr'] : null,
+                'source' => 'current',
+                'date' => null
+            ];
+        }
+
+        $ovrByAge = [];
+        foreach ($ovrHistory as $entry) {
+            if ($entry['age'] === null) {
+                continue;
+            }
+            $ageKey = (int)$entry['age'];
+            if (!isset($ovrByAge[$ageKey]) || ((int)$entry['ovr'] > (int)($ovrByAge[$ageKey]['ovr'] ?? 0))) {
+                $ovrByAge[$ageKey] = $entry;
+            }
+        }
+        ksort($ovrByAge);
+        $ovrTimeline = array_values($ovrByAge);
+
+        $awardRows = [];
+        try {
+            $stmtAwards = $pdo->prepare('
+                SELECT league, year, season_number, sprint_number,
+                       mvp_player, dpoy_player, mip_player, sixth_man_player, roy_player
+                FROM season_history
+                WHERE mvp_player = ? OR dpoy_player = ? OR mip_player = ? OR sixth_man_player = ? OR roy_player = ?
+                ORDER BY year DESC, season_number DESC
+            ');
+            $stmtAwards->execute([$playerName, $playerName, $playerName, $playerName, $playerName]);
+            $awardRows = $stmtAwards->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $awardRows = [];
+        }
+
+        $awards = [];
+        foreach ($awardRows as $row) {
+            $year = $row['year'] ?? null;
+            $seasonNumber = $row['season_number'] ?? null;
+            $label = [];
+            if (!empty($row['mvp_player']) && $row['mvp_player'] === $playerName) $label[] = 'MVP';
+            if (!empty($row['dpoy_player']) && $row['dpoy_player'] === $playerName) $label[] = 'DPOY';
+            if (!empty($row['mip_player']) && $row['mip_player'] === $playerName) $label[] = 'MIP';
+            if (!empty($row['sixth_man_player']) && $row['sixth_man_player'] === $playerName) $label[] = 'Sexto Homem';
+            if (!empty($row['roy_player']) && $row['roy_player'] === $playerName) $label[] = 'ROY';
+
+            foreach ($label as $award) {
+                $awards[] = [
+                    'award' => $award,
+                    'league' => $row['league'] ?? null,
+                    'year' => $year !== null ? (int)$year : null,
+                    'season_number' => $seasonNumber !== null ? (int)$seasonNumber : null,
+                    'sprint_number' => $row['sprint_number'] ?? null
+                ];
+            }
+        }
+
+
+        appendPhoneFields($player);
+
+        jsonResponse(200, [
+            'player' => [
+                'id' => (int)$player['id'],
+                'name' => $player['name'],
+                'age' => $player['age'] ?? null,
+                'position' => $player['position'] ?? null,
+                'secondary_position' => $player['secondary_position'] ?? null,
+                'ovr' => $player[$ovrColumn] ?? ($player['ovr'] ?? null),
+                'team_id' => (int)$player['team_id'],
+                'team_name' => trim(($player['city'] ?? '') . ' ' . ($player['team_name'] ?? '')),
+                'league' => $player['league'] ?? null,
+                'owner_name' => $player['owner_name'] ?? null,
+                'owner_phone' => $player['owner_phone_whatsapp'] ?? null
+            ],
+            'transfers' => $transfers,
+            'ovr_timeline' => $ovrTimeline,
+            'awards' => $awards
         ]);
     }
 
