@@ -233,6 +233,7 @@ if ($method === 'GET') {
         $tradeRows = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
 
         $transfers = [];
+        $transferKeys = [];
         $ovrHistory = [];
 
         foreach ($tradeRows as $row) {
@@ -251,16 +252,20 @@ if ($method === 'GET') {
                 }
             }
 
-            $transfers[] = [
-                'trade_id' => (int)$row['trade_id'],
-                'league' => $row['league'],
-                'status' => $row['status'],
-                'from_team' => $from,
-                'to_team' => $to,
-                'created_at' => $row['created_at'],
-                'updated_at' => $row['updated_at'],
-                'year' => $year
-            ];
+            $key = strtolower(trim($year . '|' . $from . '|' . $to));
+            if (!isset($transferKeys[$key])) {
+                $transferKeys[$key] = true;
+                $transfers[] = [
+                    'trade_id' => (int)$row['trade_id'],
+                    'league' => $row['league'],
+                    'status' => $row['status'],
+                    'from_team' => $from,
+                    'to_team' => $to,
+                    'created_at' => $row['created_at'],
+                    'updated_at' => $row['updated_at'],
+                    'year' => $year
+                ];
+            }
 
             if ($row['player_age'] !== null || $row['player_ovr'] !== null) {
                 $ovrHistory[] = [
