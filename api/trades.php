@@ -34,6 +34,182 @@ function playerOvrColumn(PDO $pdo): string {
     return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
 }
 
+function sendTradeWebhook(PDO $pdo, int $tradeId): void
+{
+    $webhookUrl = 'https://fbabrasil.com.br/nova-trade';
+
+    $stmtTrade = $pdo->prepare('SELECT id, from_team_id, to_team_id, league, notes, status, created_at FROM trades WHERE id = ?');
+    $stmtTrade->execute([$tradeId]);
+    $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+    if (!$trade) {
+        return;
+    }
+
+    $stmtTeams = $pdo->prepare('
+        SELECT t.id, t.city, t.name, t.league, u.name AS owner_name, u.phone AS owner_phone
+        FROM teams t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.id IN (?, ?)
+    ');
+    $stmtTeams->execute([(int)$trade['from_team_id'], (int)$trade['to_team_id']]);
+    $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+    $teamMap = [];
+    foreach ($teams as $row) {
+        $teamMap[(int)$row['id']] = $row;
+    }
+
+    $fromTeam = $teamMap[(int)$trade['from_team_id']] ?? null;
+    $toTeam = $teamMap[(int)$trade['to_team_id']] ?? null;
+
+    $itemsStmt = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
+    $itemsStmt->execute([$tradeId]);
+    $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $pickIds = [];
+    foreach ($items as $item) {
+        if (!empty($item['pick_id'])) {
+            $pickIds[] = (int)$item['pick_id'];
+        }
+    }
+
+    $pickMap = [];
+    if ($pickIds) {
+        $pickIds = array_values(array_unique($pickIds));
+        $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks->execute($pickIds);
+        foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
+            $pickMap[(int)$pick['id']] = $pick;
+        }
+    }
+
+    $fromPlayers = [];
+    $toPlayers = [];
+    $fromPicks = [];
+    $toPicks = [];
+
+    $ovrCol = playerOvrColumn($pdo);
+    $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
+
+    foreach ($items as $item) {
+        $isFrom = !empty($item['from_team']);
+        $playerId = (int)($item['player_id'] ?? 0);
+        $pickId = (int)($item['pick_id'] ?? 0);
+
+        if ($playerId > 0) {
+            $player = [
+                'id' => $playerId,
+                'name' => $hasSnapshot ? ($item['player_name'] ?? null) : null,
+                'position' => $hasSnapshot ? ($item['player_position'] ?? null) : null,
+                'ovr' => $hasSnapshot ? ($item['player_ovr'] ?? null) : null,
+                'age' => $hasSnapshot ? ($item['player_age'] ?? null) : null,
+            ];
+
+            if (!$player['name']) {
+                $stmtPlayer = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
+                $stmtPlayer->execute([$playerId]);
+                $row = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
+                if ($row) {
+                    $player['name'] = $row['name'];
+                    $player['position'] = $row['position'];
+                    $player['ovr'] = $row['ovr'];
+                    $player['age'] = $row['age'];
+                }
+            }
+
+            if ($isFrom) {
+                $fromPlayers[] = $player;
+            } else {
+                $toPlayers[] = $player;
+            }
+        }
+
+        if ($pickId > 0) {
+            $pick = $pickMap[$pickId] ?? null;
+            $entry = [
+                'id' => $pickId,
+                'season_year' => $pick['season_year'] ?? null,
+                'round' => $pick['round'] ?? null,
+                'original_team' => $pick ? trim(($pick['city'] ?? '') . ' ' . ($pick['team_name'] ?? '')) : null,
+                'protection' => $item['pick_protection'] ?? null,
+            ];
+
+            if ($isFrom) {
+                $fromPicks[] = $entry;
+            } else {
+                $toPicks[] = $entry;
+            }
+        }
+    }
+
+    $payload = [
+        'event' => 'trade_created',
+        'trade' => [
+            'id' => (int)$trade['id'],
+            'league' => $trade['league'],
+            'status' => $trade['status'],
+            'notes' => $trade['notes'],
+            'created_at' => $trade['created_at'],
+        ],
+        'from_team' => $fromTeam ? [
+            'id' => (int)$fromTeam['id'],
+            'name' => trim(($fromTeam['city'] ?? '') . ' ' . ($fromTeam['name'] ?? '')),
+            'league' => $fromTeam['league'] ?? null,
+            'owner_name' => $fromTeam['owner_name'] ?? null,
+        ] : null,
+        'to_team' => $toTeam ? [
+            'id' => (int)$toTeam['id'],
+            'name' => trim(($toTeam['city'] ?? '') . ' ' . ($toTeam['name'] ?? '')),
+            'league' => $toTeam['league'] ?? null,
+            'owner_name' => $toTeam['owner_name'] ?? null,
+            'owner_phone' => $toTeam['owner_phone'] ?? null,
+        ] : null,
+        'receiving_user_phone' => $toTeam['owner_phone'] ?? null,
+        'items' => [
+            'from' => [
+                'players' => $fromPlayers,
+                'picks' => $fromPicks,
+            ],
+            'to' => [
+                'players' => $toPlayers,
+                'picks' => $toPicks,
+            ],
+        ],
+    ];
+
+    $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    if ($body === false) {
+        return;
+    }
+
+    $ch = curl_init($webhookUrl);
+    if ($ch === false) {
+        return;
+    }
+
+    $headers = [
+        'Content-Type: application/json',
+        'Accept: application/json',
+    ];
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 6,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($response === false || $httpCode >= 400) {
+        $err = curl_error($ch);
+        error_log('[trade-webhook] failed trade_id=' . $tradeId . ' code=' . $httpCode . ' err=' . $err);
+    }
+    curl_close($ch);
+}
+
 // Snapshot dos jogadores nos itens da trade, para manter histórico mesmo se o jogador for dispensado
 function ensureTradeItemSnapshotColumns(PDO $pdo): void {
     if (!tableExists($pdo, 'trade_items')) return;
@@ -1008,6 +1184,11 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         }
 
         $pdo->commit();
+        try {
+            sendTradeWebhook($pdo, (int)$tradeId);
+        } catch (Exception $e) {
+            error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+        }
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();
