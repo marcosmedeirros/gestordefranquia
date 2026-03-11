@@ -226,8 +226,9 @@ if ($method === 'GET') {
             JOIN trades t ON t.id = ti.trade_id
             JOIN teams from_team ON t.from_team_id = from_team.id
             JOIN teams to_team ON t.to_team_id = to_team.id
-            WHERE ti.pick_id IS NULL
-              AND (ti.player_id = ? OR (ti.player_id IS NULL AND ti.player_name = ?))
+                        WHERE ti.pick_id IS NULL
+                            AND t.status = 'accepted'
+                            AND (ti.player_id = ? OR (ti.player_id IS NULL AND ti.player_name = ?))
             ORDER BY t.created_at DESC
         ");
         $stmtTrades->execute([$playerId, $playerName]);
@@ -256,8 +257,9 @@ if ($method === 'GET') {
                 JOIN multi_trades mt ON mt.id = mti.trade_id
                 JOIN teams from_team ON from_team.id = mti.from_team_id
                 JOIN teams to_team ON to_team.id = mti.to_team_id
-                WHERE mti.pick_id IS NULL
-                  AND (mti.player_id = ? OR (mti.player_id IS NULL AND mti.player_name = ?))
+                                WHERE mti.pick_id IS NULL
+                                    AND mt.status = 'accepted'
+                                    AND (mti.player_id = ? OR (mti.player_id IS NULL AND mti.player_name = ?))
                 ORDER BY mt.created_at DESC
             ");
             $stmtMulti->execute([$playerId, $playerName]);
@@ -335,42 +337,6 @@ if ($method === 'GET') {
         ksort($ovrByAge);
         $ovrTimeline = array_values($ovrByAge);
 
-        $awardRows = [];
-        try {
-            $stmtAwards = $pdo->prepare('
-                SELECT league, year, season_number, sprint_number,
-                       mvp_player, dpoy_player, mip_player, sixth_man_player, roy_player
-                FROM season_history
-                WHERE mvp_player = ? OR dpoy_player = ? OR mip_player = ? OR sixth_man_player = ? OR roy_player = ?
-                ORDER BY year DESC, season_number DESC
-            ');
-            $stmtAwards->execute([$playerName, $playerName, $playerName, $playerName, $playerName]);
-            $awardRows = $stmtAwards->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $awardRows = [];
-        }
-
-        $awards = [];
-        foreach ($awardRows as $row) {
-            $year = $row['year'] ?? null;
-            $seasonNumber = $row['season_number'] ?? null;
-            $label = [];
-            if (!empty($row['mvp_player']) && $row['mvp_player'] === $playerName) $label[] = 'MVP';
-            if (!empty($row['dpoy_player']) && $row['dpoy_player'] === $playerName) $label[] = 'DPOY';
-            if (!empty($row['mip_player']) && $row['mip_player'] === $playerName) $label[] = 'MIP';
-            if (!empty($row['sixth_man_player']) && $row['sixth_man_player'] === $playerName) $label[] = 'Sexto Homem';
-            if (!empty($row['roy_player']) && $row['roy_player'] === $playerName) $label[] = 'ROY';
-
-            foreach ($label as $award) {
-                $awards[] = [
-                    'award' => $award,
-                    'league' => $row['league'] ?? null,
-                    'year' => $year !== null ? (int)$year : null,
-                    'season_number' => $seasonNumber !== null ? (int)$seasonNumber : null,
-                    'sprint_number' => $row['sprint_number'] ?? null
-                ];
-            }
-        }
 
 
         appendPhoneFields($player);
@@ -391,7 +357,7 @@ if ($method === 'GET') {
             ],
             'transfers' => $transfers,
             'ovr_timeline' => $ovrTimeline,
-            'awards' => $awards
+            'awards' => []
         ]);
     }
 

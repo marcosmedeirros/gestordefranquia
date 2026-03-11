@@ -481,7 +481,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
                 const transfers = Array.isArray(data.transfers) ? data.transfers : [];
                 const ovrTimeline = Array.isArray(data.ovr_timeline) ? data.ovr_timeline : [];
-                const awards = Array.isArray(data.awards) ? data.awards : [];
 
                 const transferHtml = transfers.length
                     ? transfers.map((t) => `
@@ -499,16 +498,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         </div>
                     `).join('')
                     : '<div class="text-light-gray">Sem histórico de OVR registrado.</div>';
-
-                const awardsHtml = awards.length
-                    ? awards.map((a) => `
-                        <div class="d-flex justify-content-between border-bottom border-secondary py-2">
-                            <div class="text-white">${a.award}</div>
-                            <div class="text-light-gray">${a.league || '-'} ${a.year || ''}</div>
-                        </div>
-                    `).join('')
-                    : '<div class="text-light-gray">Nenhum prêmio registrado.</div>';
-
 
                 if (content) {
                     content.innerHTML = `
@@ -550,10 +539,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="mb-3">
                             <h6 class="text-orange">OVR por idade</h6>
                             ${ovrHtml}
-                        </div>
-                        <div class="mb-3">
-                            <h6 class="text-orange">Prêmios</h6>
-                            ${awardsHtml}
                         </div>
                     `;
                 }
