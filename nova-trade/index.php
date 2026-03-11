@@ -5,76 +5,6 @@ header('Content-Type: application/json; charset=utf-8');
 
 $pdo = db();
 
-function ensureTradeWebhookTable(PDO $pdo): void
-{
-    try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS trade_webhooks (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            trade_id INT NOT NULL,
-            league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
-            from_team VARCHAR(150) NULL,
-            to_team VARCHAR(150) NULL,
-            receiving_phone VARCHAR(30) NULL,
-            payload_json LONGTEXT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_trade_webhook_trade (trade_id),
-            INDEX idx_trade_webhook_league (league, created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'DB error: ' . $e->getMessage()]);
-        exit;
-    }
-}
-
-function readTradeWebhookBody(): array
-{
-    $raw = file_get_contents('php://input');
-    if ($raw === false || trim($raw) === '') {
-        return [];
-    }
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
-
-ensureTradeWebhookTable($pdo);
-
-$method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
-
-if ($method === 'POST') {
-    $payload = readTradeWebhookBody();
-    if (!$payload) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid JSON body']);
-        exit;
-    }
-
-    $tradeId = (int)($payload['trade']['id'] ?? $payload['trade_id'] ?? 0);
-    $league = $payload['trade']['league'] ?? ($payload['league'] ?? null);
-    $fromTeam = $payload['from_team']['name'] ?? null;
-    $toTeam = $payload['to_team']['name'] ?? null;
-    $phone = $payload['receiving_user_phone'] ?? ($payload['to_team']['owner_phone'] ?? null);
-
-    if ($tradeId <= 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'trade_id is required']);
-        exit;
-    }
-
-    $stmt = $pdo->prepare('INSERT IGNORE INTO trade_webhooks (trade_id, league, from_team, to_team, receiving_phone, payload_json) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([
-        $tradeId,
-        $league,
-        $fromTeam,
-        $toTeam,
-        $phone,
-        json_encode($payload, JSON_UNESCAPED_UNICODE)
-    ]);
-
-    echo json_encode(['success' => true]);
-    exit;
-}
-
 $league = strtoupper((string)($_GET['league'] ?? ''));
 $limit = (int)($_GET['limit'] ?? 10);
 if ($limit <= 0) {
@@ -94,7 +24,27 @@ if ($league === '' || !in_array($league, $validLeagues, true)) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT trade_id, league, from_team, to_team, receiving_phone, payload_json, created_at FROM trade_webhooks WHERE league = ? ORDER BY created_at DESC LIMIT ?');
+$stmt = $pdo->prepare('
+    SELECT
+        t.id AS trade_id,
+        t.league,
+        t.created_at,
+        t.status,
+        from_team.city AS from_city,
+        from_team.name AS from_name,
+        to_team.city AS to_city,
+        to_team.name AS to_name,
+        from_user.phone AS from_user_phone
+    FROM trades t
+    JOIN teams from_team ON t.from_team_id = from_team.id
+    JOIN teams to_team ON t.to_team_id = to_team.id
+    JOIN users from_user ON from_team.user_id = from_user.id
+    WHERE t.league = ?
+      AND t.status = 'pending'
+      AND t.created_at >= (NOW() - INTERVAL 1 HOUR)
+    ORDER BY t.created_at DESC
+    LIMIT ?
+');
 $stmt->bindValue(1, $league, PDO::PARAM_STR);
 $stmt->bindValue(2, $limit, PDO::PARAM_INT);
 $stmt->execute();
@@ -102,21 +52,14 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $out = [];
 foreach ($rows as $row) {
-    $payload = null;
-    if (!empty($row['payload_json'])) {
-        $decoded = json_decode($row['payload_json'], true);
-        if (is_array($decoded)) {
-            $payload = $decoded;
-        }
-    }
     $out[] = [
         'trade_id' => (int)$row['trade_id'],
         'league' => $row['league'],
-        'from_team' => $row['from_team'],
-        'to_team' => $row['to_team'],
-        'receiving_phone' => $row['receiving_phone'],
-        'created_at' => $row['created_at'],
-        'payload' => $payload
+        'status' => $row['status'],
+        'from_team' => trim($row['from_city'] . ' ' . $row['from_name']),
+        'to_team' => trim($row['to_city'] . ' ' . $row['to_name']),
+        'from_user_phone' => $row['from_user_phone'],
+        'created_at' => $row['created_at']
     ];
 }
 
