@@ -220,7 +220,8 @@ if ($method === 'GET') {
                 ti.player_name,
                 ti.player_position,
                 ti.player_age,
-                ti.player_ovr
+                ti.player_ovr,
+                'single' AS trade_type
             FROM trade_items ti
             JOIN trades t ON t.id = ti.trade_id
             JOIN teams from_team ON t.from_team_id = from_team.id
@@ -231,6 +232,41 @@ if ($method === 'GET') {
         ");
         $stmtTrades->execute([$playerId, $playerName]);
         $tradeRows = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
+
+        $multiRows = [];
+        try {
+            $stmtMulti = $pdo->prepare("
+                SELECT
+                    mt.id AS trade_id,
+                    mt.league,
+                    mt.status,
+                    mt.created_at,
+                    mt.updated_at,
+                    from_team.city AS from_city,
+                    from_team.name AS from_name,
+                    to_team.city AS to_city,
+                    to_team.name AS to_name,
+                    1 AS from_team,
+                    mti.player_name,
+                    mti.player_position,
+                    mti.player_age,
+                    mti.player_ovr,
+                    'multi' AS trade_type
+                FROM multi_trade_items mti
+                JOIN multi_trades mt ON mt.id = mti.trade_id
+                JOIN teams from_team ON from_team.id = mti.from_team_id
+                JOIN teams to_team ON to_team.id = mti.to_team_id
+                WHERE mti.pick_id IS NULL
+                  AND (mti.player_id = ? OR (mti.player_id IS NULL AND mti.player_name = ?))
+                ORDER BY mt.created_at DESC
+            ");
+            $stmtMulti->execute([$playerId, $playerName]);
+            $multiRows = $stmtMulti->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Exception $e) {
+            $multiRows = [];
+        }
+
+        $tradeRows = array_merge($tradeRows, $multiRows);
 
         $transfers = [];
         $transferKeys = [];
