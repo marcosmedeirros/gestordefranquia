@@ -135,7 +135,7 @@ foreach ($rows as $row) {
         'status' => $row['status'],
         'from_team' => trim($row['from_city'] . ' ' . $row['from_name']),
         'to_team' => trim($row['to_city'] . ' ' . $row['to_name']),
-        'from_user_phone' => $row['receiving_user_phone'],
+        'to_user_phone' => $row['receiving_user_phone'],
         'created_at' => $row['created_at'],
         'items' => $itemsByTrade[$tradeId] ?? ['sent' => ['players' => [], 'picks' => []], 'requested' => ['players' => [], 'picks' => []]]
     ];
