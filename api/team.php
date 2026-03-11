@@ -242,6 +242,15 @@ if ($method === 'GET') {
             $from = $sent ? $fromTeamName : $toTeamName;
             $to = $sent ? $toTeamName : $fromTeamName;
 
+            $year = null;
+            if (!empty($row['created_at'])) {
+                try {
+                    $year = (int)(new DateTime($row['created_at']))->format('Y');
+                } catch (Exception $e) {
+                    $year = null;
+                }
+            }
+
             $transfers[] = [
                 'trade_id' => (int)$row['trade_id'],
                 'league' => $row['league'],
@@ -249,7 +258,8 @@ if ($method === 'GET') {
                 'from_team' => $from,
                 'to_team' => $to,
                 'created_at' => $row['created_at'],
-                'updated_at' => $row['updated_at']
+                'updated_at' => $row['updated_at'],
+                'year' => $year
             ];
 
             if ($row['player_age'] !== null || $row['player_ovr'] !== null) {

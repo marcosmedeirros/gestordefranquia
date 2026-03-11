@@ -276,7 +276,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     </div>
                     <div class="player-card-actions">
                         ${whatsappLink ? `<a class="btn btn-outline-success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-muted">Sem contato</span>'}
-                        <button class="btn btn-outline-info" type="button" onclick="openPlayerDetails(${p.id})">
+                        <button class="btn btn-outline-info mb-1" type="button" onclick="openPlayerDetails(${p.id})">
                             <i class="bi bi-info-circle"></i> Detalhes
                         </button>
                         <a class="btn btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
@@ -364,7 +364,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                         </a>` : '<span class="text-muted">Sem contato</span>'}
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-info me-2" type="button" onclick="openPlayerDetails(${p.id})">
+                                        <button class="btn btn-sm btn-outline-info me-2 mb-1" type="button" onclick="openPlayerDetails(${p.id})">
                                             <i class="bi bi-info-circle"></i> Detalhes
                                         </button>
                                         <a class="btn btn-sm btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador">
@@ -486,8 +486,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 const transferHtml = transfers.length
                     ? transfers.map((t) => `
                         <div class="d-flex flex-column gap-1 border-bottom border-secondary py-2">
-                            <div class="text-white"><strong>${t.from_team}</strong> → <strong>${t.to_team}</strong></div>
-                            <div class="text-light-gray small">Trade #${t.trade_id} • ${t.status} • ${formatDateTime(t.created_at)}</div>
+                            <div class="text-white">${t.year || '-'}: ${t.from_team} → ${t.to_team}</div>
                         </div>
                     `).join('')
                     : '<div class="text-light-gray">Nenhuma trade encontrada.</div>';
@@ -516,7 +515,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="mb-3">
                             <div class="text-light-gray">Time atual</div>
                             <div class="text-white fw-bold">${player.team_name || '-'}</div>
-                            <div class="text-light-gray small">Liga ${player.league || '-'}</div>
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-6 col-md-3">
