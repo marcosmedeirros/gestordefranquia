@@ -24,7 +24,7 @@ if ($league === '' || !in_array($league, $validLeagues, true)) {
     exit;
 }
 
-$stmt = $pdo->prepare('
+$stmt = $pdo->prepare("
     SELECT
         t.id AS trade_id,
         t.league,
@@ -40,11 +40,11 @@ $stmt = $pdo->prepare('
     JOIN teams to_team ON t.to_team_id = to_team.id
     JOIN users from_user ON from_team.user_id = from_user.id
     WHERE t.league = ?
-      AND t.status = 'pending'
+    AND t.status = 'pending'
       AND t.created_at >= (NOW() - INTERVAL 1 HOUR)
     ORDER BY t.created_at DESC
     LIMIT ?
-');
+");
 $stmt->bindValue(1, $league, PDO::PARAM_STR);
 $stmt->bindValue(2, $limit, PDO::PARAM_INT);
 $stmt->execute();
