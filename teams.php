@@ -622,11 +622,9 @@ $whatsappDefaultMessage = rawurlencode('OlÃ¡! Podemos conversar sobre nossas fra
                 } else {
                     picks.forEach((pk) => {
                         const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                        const via = pk.last_owner_city && pk.last_owner_name
-                            ? `${pk.last_owner_city} ${pk.last_owner_name}`
-                            : `${pk.original_team_city} ${pk.original_team_name}`;
-                        const origin = isOwn ? 'Própria' : `Via ${via}`;
-                        const status = isOwn ? '<span class="badge bg-success">Própria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
+                        const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
+                        const origin = isOwn ? 'Prï¿½pria' : `Via ${originalOwner}`;
+                        const status = isOwn ? '<span class="badge bg-success">Prï¿½pria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
 
                         listEl.innerHTML += `
                             <tr>
@@ -662,7 +660,7 @@ $whatsappDefaultMessage = rawurlencode('OlÃ¡! Podemos conversar sobre nossas fra
                 if (!picksData || picksData.error) throw new Error(picksData.error || 'Erro ao carregar picks');
 
                 const teamInfo = (teamData.teams && teamData.teams[0]) ? teamData.teams[0] : null;
-                if (!teamInfo) throw new Error('Time não encontrado');
+                if (!teamInfo) throw new Error('Time nï¿½o encontrado');
 
                 const roster = playersData.players || [];
                 let picks = picksData.picks || [];
@@ -743,10 +741,10 @@ $whatsappDefaultMessage = rawurlencode('OlÃ¡! Podemos conversar sobre nossas fra
                     lines.push('-');
                 }
                 lines.push('');
-                lines.push('_Picks 1º round_:');
+                lines.push('_Picks 1ï¿½ round_:');
                 lines.push(...(round1Years.length ? round1Years : ['-']));
                 lines.push('');
-                lines.push('_Picks 2º round_:');
+                lines.push('_Picks 2ï¿½ round_:');
                 lines.push(...(round2Years.length ? round2Years : ['-']));
                 lines.push('');
                 const capTop8 = teamInfo.cap_top8 ?? 0;
@@ -757,7 +755,7 @@ $whatsappDefaultMessage = rawurlencode('OlÃ¡! Podemos conversar sobre nossas fra
                 const text = lines.join('\n');
                 try {
                     await navigator.clipboard.writeText(text);
-                    alert('Time copiado para a área de transferência!');
+                    alert('Time copiado para a ï¿½rea de transferï¿½ncia!');
                 } catch (err) {
                     showCopyFallback(text);
                 }
@@ -836,7 +834,7 @@ $whatsappDefaultMessage = rawurlencode('OlÃ¡! Podemos conversar sobre nossas fra
                 });
             }
 
-            // Ordenação por CAP
+            // Ordenaï¿½ï¿½o por CAP
             let capSortDirection = 'desc';
             const capHeader = document.getElementById('capSortHeader');
             const capIcon = document.getElementById('capSortIcon');
