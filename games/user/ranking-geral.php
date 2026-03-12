@@ -26,47 +26,135 @@ $ranking_por_liga = [
     'ROOKIE' => []
 ];
 
+$filterStart = isset($_GET['start_date']) ? trim($_GET['start_date']) : '';
+$filterEnd = isset($_GET['end_date']) ? trim($_GET['end_date']) : '';
+$filterActive = false;
+$filterStartAt = null;
+$filterEndAt = null;
+
+if ($filterStart !== '' && $filterEnd !== '') {
+    $startDate = DateTime::createFromFormat('Y-m-d', $filterStart);
+    $endDate = DateTime::createFromFormat('Y-m-d', $filterEnd);
+    if ($startDate && $endDate) {
+        $filterActive = true;
+        $filterStartAt = $startDate->format('Y-m-d') . ' 00:00:00';
+        $filterEndAt = $endDate->format('Y-m-d') . ' 23:59:59';
+    }
+}
+
 try {
-    $stmt = $pdo->query("
-    SELECT u.id, u.nome, u.pontos, u.league,
-            (
-                SELECT COUNT(*)
-                FROM palpites p
-                JOIN opcoes o ON p.opcao_id = o.id
-                JOIN eventos e ON o.evento_id = e.id
-                WHERE p.id_usuario = u.id
-                  AND e.status = 'encerrada'
-                  AND e.vencedor_opcao_id IS NOT NULL
-                  AND e.vencedor_opcao_id = p.opcao_id
-            ) as acertos
-        FROM usuarios u
-        ORDER BY u.pontos DESC
-    ");
-    $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($filterActive) {
+        $stmt = $pdo->prepare("        
+            SELECT
+                u.id,
+                u.nome,
+                u.league,
+                COALESCE(SUM(CASE
+                    WHEN e.status = 'encerrada'
+                     AND e.vencedor_opcao_id IS NOT NULL
+                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
+                    ELSE 0
+                END), 0) AS pontos,
+                COALESCE(SUM(CASE
+                    WHEN e.status = 'encerrada'
+                     AND e.vencedor_opcao_id IS NOT NULL
+                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
+                    ELSE 0
+                END), 0) AS acertos
+            FROM usuarios u
+            LEFT JOIN palpites p
+                ON p.id_usuario = u.id
+               AND p.data_palpite BETWEEN :start_at AND :end_at
+            LEFT JOIN opcoes o ON p.opcao_id = o.id
+            LEFT JOIN eventos e ON o.evento_id = e.id
+            GROUP BY u.id, u.nome, u.league
+            ORDER BY pontos DESC, acertos DESC, u.nome ASC
+        ");
+        $stmt->execute([
+            ':start_at' => $filterStartAt,
+            ':end_at' => $filterEndAt
+        ]);
+        $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } else {
+        $stmt = $pdo->query("        
+        SELECT u.id, u.nome, u.pontos, u.league,
+                (
+                    SELECT COUNT(*)
+                    FROM palpites p
+                    JOIN opcoes o ON p.opcao_id = o.id
+                    JOIN eventos e ON o.evento_id = e.id
+                    WHERE p.id_usuario = u.id
+                      AND e.status = 'encerrada'
+                      AND e.vencedor_opcao_id IS NOT NULL
+                      AND e.vencedor_opcao_id = p.opcao_id
+                ) as acertos
+            FROM usuarios u
+            ORDER BY u.pontos DESC
+        ");
+        $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 } catch (PDOException $e) {
     $ranking_geral = [];
 }
 
 try {
-    $stmtLiga = $pdo->prepare("
-    SELECT u.id, u.nome, u.pontos, u.league,
-            (
-                SELECT COUNT(*)
-                FROM palpites p
-                JOIN opcoes o ON p.opcao_id = o.id
-                JOIN eventos e ON o.evento_id = e.id
-                WHERE p.id_usuario = u.id
-                  AND e.status = 'encerrada'
-                  AND e.vencedor_opcao_id IS NOT NULL
-                  AND e.vencedor_opcao_id = p.opcao_id
-            ) as acertos
-        FROM usuarios u
-        WHERE u.league = :league
-        ORDER BY u.pontos DESC
-    ");
-    foreach (array_keys($ranking_por_liga) as $liga) {
-        $stmtLiga->execute([':league' => $liga]);
-        $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($filterActive) {
+        $stmtLiga = $pdo->prepare("        
+            SELECT
+                u.id,
+                u.nome,
+                u.league,
+                COALESCE(SUM(CASE
+                    WHEN e.status = 'encerrada'
+                     AND e.vencedor_opcao_id IS NOT NULL
+                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
+                    ELSE 0
+                END), 0) AS pontos,
+                COALESCE(SUM(CASE
+                    WHEN e.status = 'encerrada'
+                     AND e.vencedor_opcao_id IS NOT NULL
+                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
+                    ELSE 0
+                END), 0) AS acertos
+            FROM usuarios u
+            LEFT JOIN palpites p
+                ON p.id_usuario = u.id
+               AND p.data_palpite BETWEEN :start_at AND :end_at
+            LEFT JOIN opcoes o ON p.opcao_id = o.id
+            LEFT JOIN eventos e ON o.evento_id = e.id
+            WHERE u.league = :league
+            GROUP BY u.id, u.nome, u.league
+            ORDER BY pontos DESC, acertos DESC, u.nome ASC
+        ");
+        foreach (array_keys($ranking_por_liga) as $liga) {
+            $stmtLiga->execute([
+                ':league' => $liga,
+                ':start_at' => $filterStartAt,
+                ':end_at' => $filterEndAt
+            ]);
+            $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+    } else {
+        $stmtLiga = $pdo->prepare("        
+        SELECT u.id, u.nome, u.pontos, u.league,
+                (
+                    SELECT COUNT(*)
+                    FROM palpites p
+                    JOIN opcoes o ON p.opcao_id = o.id
+                    JOIN eventos e ON o.evento_id = e.id
+                    WHERE p.id_usuario = u.id
+                      AND e.status = 'encerrada'
+                      AND e.vencedor_opcao_id IS NOT NULL
+                      AND e.vencedor_opcao_id = p.opcao_id
+                ) as acertos
+            FROM usuarios u
+            WHERE u.league = :league
+            ORDER BY u.pontos DESC
+        ");
+        foreach (array_keys($ranking_por_liga) as $liga) {
+            $stmtLiga->execute([':league' => $liga]);
+            $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
     }
 } catch (PDOException $e) {
     foreach (array_keys($ranking_por_liga) as $liga) {
@@ -317,7 +405,22 @@ $tab_labels = [
 <div class="container-main">
     <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking Geral</h6>
 
-    <div class="d-flex justify-content-end mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+        <form class="row g-2 align-items-end" method="get">
+            <div class="col-auto">
+                <label class="form-label small text-secondary mb-1" for="startDate">Dia inicial</label>
+                <input type="date" class="form-control form-control-sm" id="startDate" name="start_date" value="<?= htmlspecialchars($filterStart) ?>">
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-secondary mb-1" for="endDate">Dia final</label>
+                <input type="date" class="form-control form-control-sm" id="endDate" name="end_date" value="<?= htmlspecialchars($filterEnd) ?>">
+            </div>
+            <div class="col-auto d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-warning">Filtrar</button>
+                <a class="btn btn-sm btn-outline-light" href="ranking-geral.php">Limpar</a>
+            </div>
+        </form>
+
         <div class="d-flex align-items-center gap-2">
             <span class="text-secondary small">Ordenar por:</span>
             <select class="form-select form-select-sm w-auto" id="rankingSort">
