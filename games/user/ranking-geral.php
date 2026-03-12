@@ -396,15 +396,17 @@ $tab_labels = [
     <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking Geral</h6>
 
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
-        <form class="row g-2 align-items-end" method="get">
+        <form class="row g-2 align-items-end" method="get" id="dateFilterForm">
             <div class="col-auto">
                 <label class="form-label small text-secondary mb-1" for="startDate">Dia inicial</label>
-                <input type="text" class="form-control form-control-sm" id="startDate" name="start_date" value="<?= htmlspecialchars($filterStart) ?>" placeholder="dd/mm/aaaa" inputmode="numeric">
+                <input type="date" class="form-control form-control-sm" id="startDate" name="start_date_ui">
             </div>
             <div class="col-auto">
                 <label class="form-label small text-secondary mb-1" for="endDate">Dia final</label>
-                <input type="text" class="form-control form-control-sm" id="endDate" name="end_date" value="<?= htmlspecialchars($filterEnd) ?>" placeholder="dd/mm/aaaa" inputmode="numeric">
+                <input type="date" class="form-control form-control-sm" id="endDate" name="end_date_ui">
             </div>
+            <input type="hidden" name="start_date" id="startDateValue" value="<?= htmlspecialchars($filterStart) ?>">
+            <input type="hidden" name="end_date" id="endDateValue" value="<?= htmlspecialchars($filterEnd) ?>">
             <div class="col-auto d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-warning">Filtrar</button>
                 <a class="btn btn-sm btn-outline-light" href="ranking-geral.php">Limpar</a>
@@ -535,6 +537,48 @@ $tab_labels = [
                 list.innerHTML = '';
             }
             items.forEach(item => list.appendChild(item));
+        }
+
+        const dateForm = document.getElementById('dateFilterForm');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const startDateValue = document.getElementById('startDateValue');
+        const endDateValue = document.getElementById('endDateValue');
+
+        const toIsoDate = (value) => {
+            if (!value) return '';
+            const parts = value.split('/');
+            if (parts.length !== 3) return '';
+            const [day, month, year] = parts;
+            if (!day || !month || !year) return '';
+            return `${year}-${month}-${day}`;
+        };
+
+        const toBrDate = (value) => {
+            if (!value) return '';
+            const parts = value.split('-');
+            if (parts.length !== 3) return '';
+            const [year, month, day] = parts;
+            if (!day || !month || !year) return '';
+            return `${day}/${month}/${year}`;
+        };
+
+        if (startDateInput && startDateValue?.value) {
+            startDateInput.value = toIsoDate(startDateValue.value);
+        }
+        if (endDateInput && endDateValue?.value) {
+            endDateInput.value = toIsoDate(endDateValue.value);
+        }
+
+        if (dateForm) {
+            dateForm.addEventListener('submit', () => {
+                if (startDateValue && startDateInput) {
+                    startDateValue.value = toBrDate(startDateInput.value);
+                }
+                if (endDateValue && endDateInput) {
+                    endDateValue.value = toBrDate(endDateInput.value);
+                }
+            });
         }
 
         function applyRankingSort() {
