@@ -33,8 +33,8 @@ $filterStartAt = null;
 $filterEndAt = null;
 
 if ($filterStart !== '' && $filterEnd !== '') {
-    $startDate = DateTime::createFromFormat('Y-m-d', $filterStart);
-    $endDate = DateTime::createFromFormat('Y-m-d', $filterEnd);
+    $startDate = DateTime::createFromFormat('d/m/Y', $filterStart);
+    $endDate = DateTime::createFromFormat('d/m/Y', $filterEnd);
     if ($startDate && $endDate) {
         $filterActive = true;
         $filterStartAt = $startDate->format('Y-m-d') . ' 00:00:00';
@@ -49,12 +49,7 @@ try {
                 u.id,
                 u.nome,
                 u.league,
-                COALESCE(SUM(CASE
-                    WHEN e.status = 'encerrada'
-                     AND e.vencedor_opcao_id IS NOT NULL
-                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
-                    ELSE 0
-                END), 0) AS pontos,
+                u.pontos,
                 COALESCE(SUM(CASE
                     WHEN e.status = 'encerrada'
                      AND e.vencedor_opcao_id IS NOT NULL
@@ -68,7 +63,7 @@ try {
             LEFT JOIN opcoes o ON p.opcao_id = o.id
             LEFT JOIN eventos e ON o.evento_id = e.id
             GROUP BY u.id, u.nome, u.league
-            ORDER BY pontos DESC, acertos DESC, u.nome ASC
+            ORDER BY u.pontos DESC, acertos DESC, u.nome ASC
         ");
         $stmt->execute([
             ':start_at' => $filterStartAt,
@@ -104,12 +99,7 @@ try {
                 u.id,
                 u.nome,
                 u.league,
-                COALESCE(SUM(CASE
-                    WHEN e.status = 'encerrada'
-                     AND e.vencedor_opcao_id IS NOT NULL
-                     AND e.vencedor_opcao_id = p.opcao_id THEN 1
-                    ELSE 0
-                END), 0) AS pontos,
+                u.pontos,
                 COALESCE(SUM(CASE
                     WHEN e.status = 'encerrada'
                      AND e.vencedor_opcao_id IS NOT NULL
@@ -124,7 +114,7 @@ try {
             LEFT JOIN eventos e ON o.evento_id = e.id
             WHERE u.league = :league
             GROUP BY u.id, u.nome, u.league
-            ORDER BY pontos DESC, acertos DESC, u.nome ASC
+            ORDER BY u.pontos DESC, acertos DESC, u.nome ASC
         ");
         foreach (array_keys($ranking_por_liga) as $liga) {
             $stmtLiga->execute([
@@ -409,11 +399,11 @@ $tab_labels = [
         <form class="row g-2 align-items-end" method="get">
             <div class="col-auto">
                 <label class="form-label small text-secondary mb-1" for="startDate">Dia inicial</label>
-                <input type="date" class="form-control form-control-sm" id="startDate" name="start_date" value="<?= htmlspecialchars($filterStart) ?>">
+                <input type="text" class="form-control form-control-sm" id="startDate" name="start_date" value="<?= htmlspecialchars($filterStart) ?>" placeholder="dd/mm/aaaa" inputmode="numeric">
             </div>
             <div class="col-auto">
                 <label class="form-label small text-secondary mb-1" for="endDate">Dia final</label>
-                <input type="date" class="form-control form-control-sm" id="endDate" name="end_date" value="<?= htmlspecialchars($filterEnd) ?>">
+                <input type="text" class="form-control form-control-sm" id="endDate" name="end_date" value="<?= htmlspecialchars($filterEnd) ?>" placeholder="dd/mm/aaaa" inputmode="numeric">
             </div>
             <div class="col-auto d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-warning">Filtrar</button>
