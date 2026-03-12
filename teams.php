@@ -623,8 +623,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     picks.forEach((pk) => {
                         const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
                         const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
-                        const origin = isOwn ? 'Pr�pria' : `Via ${originalOwner}`;
-                        const status = isOwn ? '<span class="badge bg-success">Pr�pria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
+                        const origin = isOwn ? 'Propria' : `Via ${originalOwner}`;
+                        const status = isOwn ? '<span class="badge bg-success">Propria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
 
                         listEl.innerHTML += `
                             <tr>
