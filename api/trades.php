@@ -792,6 +792,178 @@ function normalizePickPayloadList($raw): array
     return $normalized;
 }
 
+function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int $seasonYear): ?array
+{
+    try {
+        if ($seasonId) {
+            $stmt = $pdo->prepare(
+                "SELECT ds.* FROM draft_sessions ds WHERE ds.season_id = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+            );
+            $stmt->execute([$seasonId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return $row;
+            }
+        }
+
+        if ($league && $seasonYear) {
+            $stmt = $pdo->prepare(
+                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id WHERE s.league = ? AND s.year = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+            );
+            $stmt->execute([$league, $seasonYear]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return $row;
+            }
+        }
+
+        if ($league) {
+            $stmt = $pdo->prepare(
+                "SELECT ds.* FROM draft_sessions ds WHERE ds.league = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+            );
+            $stmt->execute([$league]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return $row;
+            }
+        }
+    } catch (Exception $e) {
+        return null;
+    }
+
+    return null;
+}
+
+function buildDraftOrderMap(PDO $pdo, int $draftSessionId): array
+{
+    $map = [];
+    try {
+        $stmt = $pdo->prepare('SELECT id, team_id, original_team_id, pick_position, round FROM draft_order WHERE draft_session_id = ? ORDER BY round ASC, pick_position ASC, id ASC');
+        $stmt->execute([$draftSessionId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $overall = 1;
+        foreach ($rows as $row) {
+            $key = (int)$row['original_team_id'] . '-' . (int)$row['round'];
+            $map[$key] = [
+                'draft_order_id' => (int)$row['id'],
+                'team_id' => (int)$row['team_id'],
+                'original_team_id' => (int)$row['original_team_id'],
+                'round' => (int)$row['round'],
+                'pick_position' => (int)$row['pick_position'],
+                'pick_number' => $overall
+            ];
+            $overall++;
+        }
+    } catch (Exception $e) {
+        return [];
+    }
+    return $map;
+}
+
+function applyDraftContextToPick(array $pick, ?array $draftSession, array $draftMap, ?int $sessionSeasonId = null, ?int $sessionYear = null): array
+{
+    if (!$draftSession) {
+        return $pick;
+    }
+    if ($sessionSeasonId && !empty($pick['season_id']) && (int)$pick['season_id'] !== $sessionSeasonId) {
+        return $pick;
+    }
+    if ($sessionYear && empty($pick['season_id']) && !empty($pick['season_year']) && (int)$pick['season_year'] !== $sessionYear) {
+        return $pick;
+    }
+    $round = isset($pick['round']) ? (int)$pick['round'] : 0;
+    $originalTeamId = isset($pick['original_team_id']) ? (int)$pick['original_team_id'] : 0;
+    if ($round <= 0 || $originalTeamId <= 0) {
+        return $pick;
+    }
+    $key = $originalTeamId . '-' . $round;
+    if (!isset($draftMap[$key])) {
+        return $pick;
+    }
+    $info = $draftMap[$key];
+    $pick['draft_session_id'] = (int)$draftSession['id'];
+    $pick['draft_pick_number'] = (int)$info['pick_number'];
+    $pick['draft_pick_position'] = (int)$info['pick_position'];
+    $pick['draft_round'] = (int)$info['round'];
+    return $pick;
+}
+
+function enrichPickListWithDraftContext(PDO $pdo, array $picks, ?string $league): array
+{
+    if (empty($picks)) {
+        return $picks;
+    }
+
+    $seasonId = null;
+    $seasonYear = null;
+    foreach ($picks as $pick) {
+        if (!$seasonId && !empty($pick['season_id'])) {
+            $seasonId = (int)$pick['season_id'];
+        }
+        if (!$seasonYear && !empty($pick['season_year'])) {
+            $seasonYear = (int)$pick['season_year'];
+        }
+        if ($seasonId || $seasonYear) {
+            break;
+        }
+    }
+
+    $draftSession = findActiveDraftSession($pdo, $league, $seasonId, $seasonYear);
+    if (!$draftSession) {
+        return $picks;
+    }
+    $draftMap = buildDraftOrderMap($pdo, (int)$draftSession['id']);
+    if (empty($draftMap)) {
+        return $picks;
+    }
+
+    $sessionSeasonId = !empty($draftSession['season_id']) ? (int)$draftSession['season_id'] : null;
+    $sessionYear = null;
+    if ($sessionSeasonId) {
+        try {
+            $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
+            $stmtSeason->execute([$sessionSeasonId]);
+            $sessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
+        } catch (Exception $e) {
+            $sessionYear = null;
+        }
+    }
+
+    return array_map(static function ($pick) use ($draftSession, $draftMap, $sessionSeasonId, $sessionYear) {
+        return applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear);
+    }, $picks);
+}
+
+function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $toTeamId, ?string $league): void
+{
+    try {
+        $stmtPick = $pdo->prepare('SELECT season_id, season_year, round, original_team_id FROM picks WHERE id = ?');
+        $stmtPick->execute([$pickId]);
+        $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+        if (!$pick) {
+            return;
+        }
+
+        $seasonId = !empty($pick['season_id']) ? (int)$pick['season_id'] : null;
+        $seasonYear = !empty($pick['season_year']) ? (int)$pick['season_year'] : null;
+        $draftSession = findActiveDraftSession($pdo, $league, $seasonId, $seasonYear);
+        if (!$draftSession) {
+            return;
+        }
+
+        $round = (int)($pick['round'] ?? 0);
+        $originalTeamId = (int)($pick['original_team_id'] ?? 0);
+        if ($round <= 0 || $originalTeamId <= 0) {
+            return;
+        }
+
+        $stmtUpdate = $pdo->prepare('UPDATE draft_order SET team_id = ?, traded_from_team_id = ? WHERE draft_session_id = ? AND original_team_id = ? AND round = ?');
+        $stmtUpdate->execute([$toTeamId, $fromTeamId, (int)$draftSession['id'], $originalTeamId, $round]);
+    } catch (Exception $e) {
+        // Silencia para não bloquear a trade
+    }
+}
+
 // Pegar time do usuário
 $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -855,6 +1027,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     $tradeIds = array_map('intval', array_column($trades, 'id'));
     $reactionsMap = buildTradeReactionsMap($pdo, $tradeIds, (int)$user['id'], 'single');
     
+    $draftLeague = $user['league'] ?? null;
     // Para cada trade, buscar itens
     foreach ($trades as &$trade) {
         $trade['offer_players'] = [];
@@ -895,7 +1068,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NOT NULL
             ');
             $stmtOfferPicks->execute([$trade['id']]);
-            $trade['offer_picks'] = $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC);
+            $trade['offer_picks'] = enrichPickListWithDraftContext($pdo, $stmtOfferPicks->fetchAll(PDO::FETCH_ASSOC), $draftLeague);
         } catch (PDOException $e) {
             error_log('Erro ao buscar picks oferecidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
         }
@@ -932,7 +1105,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NOT NULL
             ');
             $stmtRequestPicks->execute([$trade['id']]);
-            $trade['request_picks'] = $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC);
+            $trade['request_picks'] = enrichPickListWithDraftContext($pdo, $stmtRequestPicks->fetchAll(PDO::FETCH_ASSOC), $draftLeague);
         } catch (PDOException $e) {
             error_log('Erro ao buscar picks pedidas da trade #' . $trade['id'] . ': ' . $e->getMessage());
         }
@@ -984,6 +1157,21 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
     $tradeIds = array_map('intval', array_column($trades, 'id'));
     $reactionsMap = buildTradeReactionsMap($pdo, $tradeIds, (int)$user['id'], 'multi');
 
+    $draftLeague = $user['league'] ?? null;
+    $draftSession = findActiveDraftSession($pdo, $draftLeague, null, null);
+    $draftMap = $draftSession ? buildDraftOrderMap($pdo, (int)$draftSession['id']) : [];
+    $sessionSeasonId = $draftSession && !empty($draftSession['season_id']) ? (int)$draftSession['season_id'] : null;
+    $sessionYear = null;
+    if ($sessionSeasonId) {
+        try {
+            $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
+            $stmtSeason->execute([$sessionSeasonId]);
+            $sessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
+        } catch (Exception $e) {
+            $sessionYear = null;
+        }
+    }
+
     foreach ($trades as &$trade) {
         $trade['is_multi'] = true;
         $trade['reactions'] = $reactionsMap[(int)$trade['id']] ?? [];
@@ -1022,6 +1210,15 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $item['last_owner_team_id'] = $pick['last_owner_team_id'] ?? null;
                 $item['last_owner_city'] = $pick['last_owner_city'] ?? null;
                 $item['last_owner_name'] = $pick['last_owner_name'] ?? null;
+                if ($draftSession && !empty($draftMap)) {
+                    $pickWithDraft = applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear);
+                    if (!empty($pickWithDraft['draft_pick_number'])) {
+                        $item['draft_pick_number'] = $pickWithDraft['draft_pick_number'];
+                        $item['draft_pick_position'] = $pickWithDraft['draft_pick_position'] ?? null;
+                        $item['draft_round'] = $pickWithDraft['draft_round'] ?? null;
+                        $item['draft_session_id'] = $pickWithDraft['draft_session_id'] ?? null;
+                    }
+                }
             }
         }
         unset($item);
@@ -1740,6 +1937,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                             }
                         } else {
                             $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
+                            syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
                         }
                     }
                 }
@@ -1939,6 +2137,7 @@ if ($method === 'PUT') {
                     if ($stmtTransferPick->rowCount() === 0) {
                         throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                     }
+                    syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
                 }
             }
 

@@ -49,13 +49,17 @@ const formatTradePickDisplay = (pick) => {
   if (!pick) return '';
   const year = pick.season_year || '?';
   const round = pick.round || '?';
+  const pickNumber = pick.draft_pick_number || null;
+  const hasYearRound = year !== '?' && round !== '?';
   
   // Mostrar de quem é a pick (time original)
   const originalTeam = pick.original_team_city && pick.original_team_name 
     ? `${pick.original_team_city} ${pick.original_team_name}` 
     : 'Time';
   
-  let display = `Pick ${year} R${round} (${originalTeam})`;
+  let display = pickNumber
+    ? `Pick ${pickNumber} (${originalTeam})${hasYearRound ? ` - ${year} R${round}` : ''}`
+    : `Pick ${year} R${round} (${originalTeam})`;
   
   // Se a pick foi trocada (team_id != original_team_id), mostrar "via"
   if (pick.team_id && pick.original_team_id && pick.team_id != pick.original_team_id) {
@@ -302,7 +306,8 @@ const updateMultiItemOptions = async (row, keepItemSelection = false) => {
     itemSelect.innerHTML = '<option value="">Selecione a pick</option>' + list.map((pick) => {
       const summary = buildPickSummary(pick);
       const via = summary.via ? ` ? ${summary.via}` : '';
-      return `<option value="${pick.id}">${summary.title} (${summary.origin}${via})</option>`;
+      const meta = summary.meta ? ` ${summary.meta}` : '';
+      return `<option value="${pick.id}">${summary.title}${meta} (${summary.origin}${via})</option>`;
     }).join('');
   }
 
@@ -458,6 +463,7 @@ const resetMultiTradeForm = () => {
 const buildPickSummary = (pick) => {
   const year = pick.season_year || '?';
   const round = pick.round || '?';
+  const pickNumber = pick.draft_pick_number || null;
   const origin = pick.original_team_city && pick.original_team_name
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || 'Time');
@@ -465,9 +471,10 @@ const buildPickSummary = (pick) => {
     ? `via ${pick.last_owner_city} ${pick.last_owner_name}`
     : '';
   return {
-    title: `Pick ${year} R${round}`,
+    title: pickNumber ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
-    via
+    via,
+    meta: pickNumber ? `${year} R${round}` : ''
   };
 };
 
@@ -533,7 +540,8 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   pickState[side].available = raw.filter((pick) => {
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
-    return year > currentSeasonYear;
+    if (year > currentSeasonYear) return true;
+    return year === currentSeasonYear && Number.isFinite(Number(pick.draft_pick_number || 0)) && Number(pick.draft_pick_number) > 0;
   });
   if (resetSelected) {
     pickState[side].selected = [];
@@ -598,7 +606,7 @@ function renderPickOptions(side) {
       <div class="pick-option-card ${selectedClass}">
         <div>
           <div class="pick-title">${summary.title}</div>
-          <div class="pick-meta">${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
+          <div class="pick-meta">${summary.meta ? `${summary.meta} • ` : ''}${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
         </div>
         <button type="button" class="btn btn-sm ${isSelected ? 'btn-outline-secondary' : 'btn-outline-orange'}" data-action="add-pick" data-pick-id="${pick.id}" ${disabledAttr}>
           ${isSelected ? 'Selecionada' : 'Adicionar'}
@@ -624,7 +632,7 @@ function renderSelectedPicks(side) {
       <div class="selected-pick-card" data-pick-id="${pick.id}">
         <div class="selected-pick-info">
           <div class="pick-title mb-1">${summary.title}</div>
-          <div class="pick-meta">${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
+          <div class="pick-meta">${summary.meta ? `${summary.meta} • ` : ''}${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
         </div>
         <div class="selected-pick-actions">
           <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-pick" data-pick-id="${pick.id}">
