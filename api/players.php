@@ -236,8 +236,8 @@ if ($method === 'POST') {
     $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
     $stmtLeague->execute([$teamId]);
     $teamLeague = strtoupper((string)$stmtLeague->fetchColumn());
-    if ($teamLeague !== 'ELITE') {
-        jsonResponse(403, ['error' => 'Adição de jogador disponível apenas para a liga ELITE.']);
+    if (!in_array($teamLeague, ['ELITE', 'NEXT'], true)) {
+        jsonResponse(403, ['error' => 'Adição de jogador disponível apenas para a liga ELITE ou NEXT.']);
     }
 
     // Validar limitadores de função
