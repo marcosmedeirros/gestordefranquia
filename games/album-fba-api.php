@@ -64,7 +64,6 @@ function schema(PDO $pdo): void
         $pdo->exec("ALTER TABLE fba_cards ADD INDEX idx_collection (collection_name)");
     }
 }
-
 function packs(): array
 {
     return [
@@ -73,18 +72,16 @@ function packs(): array
         'ultra' => ['price' => 100, 'cards' => 2, 'rates' => ['lendario' => 10, 'epico' => 25, 'rara' => 40, 'comum' => 25]],
     ];
 }
-
 function master(PDO $pdo): array
 {
-    $stmt = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+    $stmt = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url, c.created_at
         FROM fba_cards c INNER JOIN fba_card_teams t ON t.id = c.team_id WHERE c.ativo = 1 ORDER BY colecao, t.nome, c.ovr DESC, c.nome");
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $out[] = ['id' => (int)$r['id'], 'collection' => $r['colecao'], 'team' => $r['team'], 'name' => $r['nome'], 'position' => strtoupper($r['posicao']), 'rarity' => $r['raridade'], 'ovr' => (int)$r['ovr'], 'img' => $r['img_url']];
+        $out[] = ['id' => (int)$r['id'], 'collection' => $r['colecao'], 'team' => $r['team'], 'name' => $r['nome'], 'position' => strtoupper($r['posicao']), 'rarity' => $r['raridade'], 'ovr' => (int)$r['ovr'], 'img' => $r['img_url'], 'created_at' => $r['created_at']];
     }
     return $out;
 }
-
 function collection(PDO $pdo, int $uid): array
 {
     $stmt = $pdo->prepare("SELECT card_id, quantidade FROM fba_user_collection WHERE user_id = :u");
@@ -181,7 +178,6 @@ function rankingTeam(PDO $pdo, int $targetUserId): array
         'lineup' => $lineup,
     ];
 }
-
 function roll(array $rates): string
 {
     $n = mt_rand(1, 100);
@@ -194,13 +190,15 @@ function roll(array $rates): string
 function draw(PDO $pdo, array $rates): ?array
 {
     $rar = roll($rates);
+    $excludedCollection = 'Rookie Stars';
     $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
-        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND c.raridade=:r ORDER BY RAND() LIMIT 1");
-    $stmt->execute([':r' => $rar]);
+        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND c.raridade=:r AND COALESCE(c.collection_name, 'Geral') <> :exclude ORDER BY RAND() LIMIT 1");
+    $stmt->execute([':r' => $rar, ':exclude' => $excludedCollection]);
     $c = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$c) {
-        $stmt2 = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
-            FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 ORDER BY RAND() LIMIT 1");
+        $stmt2 = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+            FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND COALESCE(c.collection_name, 'Geral') <> :exclude ORDER BY RAND() LIMIT 1");
+        $stmt2->execute([':exclude' => $excludedCollection]);
         $c = $stmt2->fetch(PDO::FETCH_ASSOC);
     }
     if (!$c) return null;
@@ -228,7 +226,6 @@ function cardById(PDO $pdo, int $cardId): ?array
         'active' => (int)$row['ativo'] === 1
     ];
 }
-
 schema($pdo);
 
 $meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
@@ -603,7 +600,6 @@ if ($action === 'admin_update_card') {
     if ($cardId <= 0 || $collection === '' || $team === '' || $name === '' || !in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true) || !in_array($rar, ['comum', 'rara', 'epico', 'lendario'], true) || $ovr < 50 || $ovr > 99) {
         out(['ok' => false, 'message' => 'Dados inválidos'], 400);
     }
-
     $stmtCard = $pdo->prepare("SELECT id, img_url FROM fba_cards WHERE id = :id AND ativo = 1");
     $stmtCard->execute([':id' => $cardId]);
     $currentCard = $stmtCard->fetch(PDO::FETCH_ASSOC);

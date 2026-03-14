@@ -129,9 +129,25 @@ function renderAlbum() {
     const totalCollected = state.master.reduce((sum, card) => sum + (hasCard(card.id) ? 1 : 0), 0);
     const filterEl = document.getElementById('album-collection-filter');
     const query = String(filterEl?.value || '').trim().toLowerCase();
+    const collectionDates = state.master.reduce((acc, card) => {
+        const name = card.collection || 'Geral';
+        const raw = card.created_at || card.createdAt || '';
+        const ts = Date.parse(raw);
+        if (!Number.isNaN(ts)) {
+            acc[name] = acc[name] ? Math.min(acc[name], ts) : ts;
+        }
+        return acc;
+    }, {});
     const collections = [...new Set(state.master.map((x) => x.collection || 'Geral'))]
         .filter((name) => !query || String(name).toLowerCase().includes(query))
-        .sort((a, b) => String(a).localeCompare(String(b)));
+        .sort((a, b) => {
+            const aDate = collectionDates[a];
+            const bDate = collectionDates[b];
+            if (typeof aDate === 'number' && typeof bDate === 'number' && aDate !== bDate) {
+                return bDate - aDate;
+            }
+            return String(a).localeCompare(String(b));
+        });
 
     collections.forEach((collectionName) => {
         const cards = state.master.filter((x) => (x.collection || 'Geral') === collectionName);
