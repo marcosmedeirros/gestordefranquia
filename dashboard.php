@@ -909,51 +909,6 @@ try {
         </div>
         <?php endif; ?>
 
-        <div class="row g-4 mb-4">
-            <div class="col-12">
-                <a href="/diretrizes.php?mode=profile" class="text-decoration-none">
-                    <div class="card bg-dark-panel border-orange">
-                        <div class="card-header bg-transparent border-orange">
-                            <h4 class="mb-0 text-white">
-                                <i class="bi bi-clipboard-data text-orange me-2"></i>Diretriz do Time
-                            </h4>
-                        </div>
-                        <div class="card-body">
-                            <?php if ($teamDirectiveProfile): ?>
-                                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-                                    <div>
-                                        <p class="text-light-gray mb-1">Sua diretriz base está salva</p>
-                                        <p class="text-light-gray mb-0">
-                                            Estilo: <?= htmlspecialchars($teamDirectiveProfile['game_style'] ?? 'balanced') ?> · Rotação: <?= htmlspecialchars($teamDirectiveProfile['rotation_style'] ?? 'auto') ?>
-                                            <?php if (!empty($teamDirectiveProfile['technical_model'])): ?>
-                                                · Modelo: <?= htmlspecialchars($teamDirectiveProfile['technical_model']) ?>
-                                            <?php endif; ?>
-                                        </p>
-                                        <?php if ($teamDirectiveProfileUpdatedAt): ?>
-                                            <small class="text-light-gray">Atualizada em <?= htmlspecialchars(date('d/m/Y H:i', strtotime($teamDirectiveProfileUpdatedAt))) ?></small>
-                                        <?php endif; ?>
-                                    </div>
-                                    <span class="btn btn-outline-orange">
-                                        <i class="bi bi-pencil-square me-2"></i>Editar
-                                    </span>
-                                </div>
-                            <?php else: ?>
-                                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-                                    <div>
-                                        <p class="text-light-gray mb-1">Você ainda não salvou uma diretriz base do time</p>
-                                        <p class="text-light-gray mb-0">Salve agora para reutilizar nos próximos envios</p>
-                                    </div>
-                                    <span class="btn btn-outline-orange">
-                                        <i class="bi bi-plus-circle me-2"></i>Criar
-                                    </span>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        </div>
-
         <!-- Ações Rápidas -->
         <div class="row g-4 mb-4">
             <div class="col-12">
@@ -966,12 +921,16 @@ try {
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <a href="/trades.php" class="text-decoration-none">
+                                <a href="/diretrizes.php?mode=profile" class="text-decoration-none">
                                     <div class="quick-action-card">
                                         <div class="text-center py-3">
-                                            <i class="bi bi-arrow-left-right display-1 text-orange mb-2"></i>
-                                            <h5 class="text-white mb-1">Propor Trade</h5>
-                                            <p class="text-light-gray small mb-0">Negocie jogadores e picks</p>
+                                            <i class="bi bi-clipboard-data display-1 text-orange mb-2"></i>
+                                            <h5 class="text-white mb-1">Diretrizes do Time</h5>
+                                            <?php if ($teamDirectiveProfile): ?>
+                                                <p class="text-light-gray small mb-0">Diretriz base salva</p>
+                                            <?php else: ?>
+                                                <p class="text-light-gray small mb-0">Crie sua diretriz base</p>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </a>

@@ -390,6 +390,15 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
     }
 
     try {
+        $hasModelChanged = $pdo->query("SHOW COLUMNS FROM team_directives LIKE 'technical_model_changed'")->rowCount() > 0;
+        if (!$hasModelChanged) {
+            $pdo->exec("ALTER TABLE team_directives ADD COLUMN technical_model_changed TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Modelo tecnico alterado no envio' AFTER technical_model");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureDirectiveOptionalColumns] technical_model_changed: ' . $e->getMessage());
+    }
+
+    try {
         $fks = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'team_directives' AND REFERENCED_TABLE_NAME = 'players' AND COLUMN_NAME = 'gleague_1_id'")->rowCount();
         if ($fks === 0) {
             $pdo->exec("ALTER TABLE team_directives ADD CONSTRAINT fk_directive_gleague1 FOREIGN KEY (gleague_1_id) REFERENCES players(id) ON DELETE SET NULL");

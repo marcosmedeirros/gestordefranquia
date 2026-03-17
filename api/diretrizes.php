@@ -541,6 +541,8 @@ if ($method === 'POST') {
                 $stmtCheck->execute([$team['id'], $deadlineId]);
                 $existing = $stmtCheck->fetch();
 
+                $technicalModelChangedFlag = $modelChanged ? 1 : 0;
+
                 if ($existing) {
                     $stmt = $pdo->prepare("
                         UPDATE team_directives SET
@@ -550,7 +552,7 @@ if ($method === 'POST') {
                             rotation_style = ?, game_style = ?, offense_style = ?,
                             rotation_players = ?, veteran_focus = ?,
                             gleague_1_id = ?, gleague_2_id = ?,
-                            notes = ?, technical_model = ?, playbook = ?, updated_at = NOW()
+                            notes = ?, technical_model = ?, technical_model_changed = ?, playbook = ?, updated_at = NOW()
                         WHERE id = ?
                     ");
                     $stmt->execute([
@@ -562,6 +564,7 @@ if ($method === 'POST') {
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null,
                         $technicalModel,
+                        $technicalModelChangedFlag,
                         $playbook,
                         $existing['id']
                     ]);
@@ -575,7 +578,7 @@ if ($method === 'POST') {
                             rotation_style, game_style, offense_style,
                             rotation_players, veteran_focus,
                             gleague_1_id, gleague_2_id, notes,
-                            technical_model, playbook
+                            technical_model, technical_model_changed, playbook
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
@@ -588,6 +591,7 @@ if ($method === 'POST') {
                         $data['gleague_1_id'] ?? null, $data['gleague_2_id'] ?? null,
                         $data['notes'] ?? null,
                         $technicalModel,
+                        $technicalModelChangedFlag,
                         $playbook
                     ]);
                 }

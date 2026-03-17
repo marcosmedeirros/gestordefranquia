@@ -1682,7 +1682,7 @@ async function viewDirectives(deadlineId, league) {
                     ${(d.technical_model || d.playbook) ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Elite</h6>
                       <div class="row text-light-gray small">
-                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${d.technical_model}</div>` : ''}
+                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${d.technical_model}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>` : ''}
                       </div>
                       ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${d.playbook}</div>` : ''}
                     </div>` : ''}

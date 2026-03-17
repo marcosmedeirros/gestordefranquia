@@ -700,6 +700,7 @@ async function submitDirective(payload) {
 
     if (DIRECTIVE_MODE === 'profile') {
       alert('Diretriz do time salva com sucesso!');
+      window.location.href = '/dashboard.php';
       return;
     }
 
