@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
 $pdo = db();
+ensureTeamDirectiveProfileColumns($pdo);
 
 // Buscar time do usuário
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
@@ -27,6 +29,9 @@ $stmtDeadline = $pdo->prepare("
 ");
 $stmtDeadline->execute([$team['league'], $nowBrasilia]);
 $deadline = $stmtDeadline->fetch();
+
+$forceProfileMode = isset($_GET['mode']) && $_GET['mode'] === 'profile';
+$directiveMode = ($forceProfileMode || !$deadline) ? 'profile' : 'deadline';
 
 $deadlineDisplay = null;
 $deadlineIso = null;
@@ -158,9 +163,16 @@ try {
         <?php if (!$deadline): ?>
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            Não há prazo ativo para envio de diretrizes no momento.
+            Não há prazo ativo para envio de diretrizes no momento. Você pode salvar a diretriz base do seu time.
         </div>
-        <?php else: ?>
+        <?php endif; ?>
+        <?php if ($deadline && $directiveMode === 'profile'): ?>
+        <div class="alert alert-warning bg-dark border-warning mb-4">
+            <i class="bi bi-info-circle me-2"></i>
+            Você está editando a diretriz base do time. Para enviar no prazo, use o card de envio no dashboard.
+        </div>
+        <?php endif; ?>
+        <?php if ($deadline && $directiveMode === 'deadline'): ?>
         <div class="alert alert-info bg-dark-panel border-orange mb-4">
             <div class="d-flex align-items-center">
                 <i class="bi bi-calendar-event text-orange me-3 fs-3"></i>
@@ -173,6 +185,7 @@ try {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Regras de Minutagem -->
         <div class="alert alert-warning bg-dark border-warning mb-4">
@@ -187,7 +200,7 @@ try {
         </div>
 
         <form id="form-diretrizes">
-            <input type="hidden" id="deadline-id" value="<?= $deadline['id'] ?>">
+            <input type="hidden" id="deadline-id" value="<?= ($directiveMode === 'deadline' && $deadline) ? $deadline['id'] : '' ?>">
             
             <!-- Quinteto Titular -->
             <div class="card bg-dark-panel border-orange mb-4">
@@ -310,6 +323,7 @@ try {
                                 <option value="Erik Spoelstra">Erik Spoelstra</option>
                                 <option value="Mike D'Antoni">Mike D'Antoni</option>
                             </select>
+                            <small class="text-light-gray d-block mt-1" id="technical-model-remaining"></small>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -482,7 +496,9 @@ try {
                     Cancelar
                 </button>
                 <button type="submit" class="btn btn-orange btn-lg">
-                    <?php if ($hasDirectiveSubmission): ?>
+                    <?php if ($directiveMode === 'profile'): ?>
+                        <i class="bi bi-save2 me-2"></i>Salvar Diretriz do Time
+                    <?php elseif ($hasDirectiveSubmission): ?>
                         <i class="bi bi-arrow-repeat me-2"></i>Atualizar Diretrizes
                     <?php else: ?>
                         <i class="bi bi-send me-2"></i>Enviar Diretrizes
@@ -490,14 +506,14 @@ try {
                 </button>
             </div>
         </form>
-        <?php endif; ?>
     </div>
 
     <script>
-        window.__DEADLINE_ID__ = <?= $deadline ? (int)$deadline['id'] : 'null' ?>;
+        window.__DEADLINE_ID__ = <?= ($directiveMode === 'deadline' && $deadline) ? (int)$deadline['id'] : 'null' ?>;
         window.__SEASON_STATUS__ = <?= json_encode($currentSeason['status'] ?? null) ?>;
         window.__DEADLINE_PHASE__ = <?= json_encode($deadline['phase'] ?? null) ?>;
         window.__DEADLINE_ISO__ = <?= json_encode($deadlineIso) ?>;
+        window.__DIRECTIVE_MODE__ = <?= json_encode($directiveMode) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/sidebar.js"></script>

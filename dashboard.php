@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
 $pdo = db();
+ensureTeamDirectiveProfileColumns($pdo);
 
 // Buscar time do usuário
 $stmtTeam = $pdo->prepare('
@@ -17,6 +19,16 @@ $stmtTeam = $pdo->prepare('
 ');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
+
+$teamDirectiveProfile = null;
+$teamDirectiveProfileUpdatedAt = null;
+if ($team && !empty($team['directive_profile'])) {
+    $decodedProfile = json_decode($team['directive_profile'], true);
+    if (is_array($decodedProfile)) {
+        $teamDirectiveProfile = $decodedProfile;
+        $teamDirectiveProfileUpdatedAt = $team['directive_profile_updated_at'] ?? null;
+    }
+}
 
 // Se não tem time, redireciona para onboarding
 if (!$team) {
@@ -896,6 +908,51 @@ try {
             </div>
         </div>
         <?php endif; ?>
+
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <a href="/diretrizes.php?mode=profile" class="text-decoration-none">
+                    <div class="card bg-dark-panel border-orange">
+                        <div class="card-header bg-transparent border-orange">
+                            <h4 class="mb-0 text-white">
+                                <i class="bi bi-clipboard-data text-orange me-2"></i>Diretriz do Time
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <?php if ($teamDirectiveProfile): ?>
+                                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+                                    <div>
+                                        <p class="text-light-gray mb-1">Sua diretriz base está salva</p>
+                                        <p class="text-light-gray mb-0">
+                                            Estilo: <?= htmlspecialchars($teamDirectiveProfile['game_style'] ?? 'balanced') ?> · Rotação: <?= htmlspecialchars($teamDirectiveProfile['rotation_style'] ?? 'auto') ?>
+                                            <?php if (!empty($teamDirectiveProfile['technical_model'])): ?>
+                                                · Modelo: <?= htmlspecialchars($teamDirectiveProfile['technical_model']) ?>
+                                            <?php endif; ?>
+                                        </p>
+                                        <?php if ($teamDirectiveProfileUpdatedAt): ?>
+                                            <small class="text-light-gray">Atualizada em <?= htmlspecialchars(date('d/m/Y H:i', strtotime($teamDirectiveProfileUpdatedAt))) ?></small>
+                                        <?php endif; ?>
+                                    </div>
+                                    <span class="btn btn-outline-orange">
+                                        <i class="bi bi-pencil-square me-2"></i>Editar
+                                    </span>
+                                </div>
+                            <?php else: ?>
+                                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+                                    <div>
+                                        <p class="text-light-gray mb-1">Você ainda não salvou uma diretriz base do time</p>
+                                        <p class="text-light-gray mb-0">Salve agora para reutilizar nos próximos envios</p>
+                                    </div>
+                                    <span class="btn btn-outline-orange">
+                                        <i class="bi bi-plus-circle me-2"></i>Criar
+                                    </span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
 
         <!-- Ações Rápidas -->
         <div class="row g-4 mb-4">

@@ -18,7 +18,54 @@ if (!$user) {
 
 $pdo = db();
 ensureDirectiveOptionalColumns($pdo);
+ensureTeamDirectiveProfileColumns($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
+
+function buildTeamDirectiveProfilePayload(array $data): array
+{
+    $benchPlayers = $data['bench_players'] ?? [];
+    if (!is_array($benchPlayers)) {
+        $benchPlayers = [];
+    }
+    $benchPlayers = array_values(array_filter($benchPlayers));
+
+    $profile = [
+        'starter_1_id' => $data['starter_1_id'] ?? null,
+        'starter_2_id' => $data['starter_2_id'] ?? null,
+        'starter_3_id' => $data['starter_3_id'] ?? null,
+        'starter_4_id' => $data['starter_4_id'] ?? null,
+        'starter_5_id' => $data['starter_5_id'] ?? null,
+        'bench_players' => $benchPlayers,
+        'bench_1_id' => $benchPlayers[0] ?? null,
+        'bench_2_id' => $benchPlayers[1] ?? null,
+        'bench_3_id' => $benchPlayers[2] ?? null,
+        'pace' => $data['pace'] ?? 'no_preference',
+        'offensive_rebound' => $data['offensive_rebound'] ?? 'no_preference',
+        'offensive_aggression' => $data['offensive_aggression'] ?? 'no_preference',
+        'defensive_rebound' => $data['defensive_rebound'] ?? 'no_preference',
+        'defensive_focus' => $data['defensive_focus'] ?? 'no_preference',
+        'rotation_style' => $data['rotation_style'] ?? 'auto',
+        'game_style' => $data['game_style'] ?? 'balanced',
+        'offense_style' => $data['offense_style'] ?? 'no_preference',
+        'rotation_players' => $data['rotation_players'] ?? 10,
+        'veteran_focus' => $data['veteran_focus'] ?? 50,
+        'gleague_1_id' => $data['gleague_1_id'] ?? null,
+        'gleague_2_id' => $data['gleague_2_id'] ?? null,
+        'notes' => $data['notes'] ?? null,
+        'technical_model' => $data['technical_model'] ?? null,
+        'playbook' => $data['playbook'] ?? null,
+        'player_minutes' => $data['player_minutes'] ?? []
+    ];
+
+    return $profile;
+}
+
+function saveTeamDirectiveProfile(PDO $pdo, int $teamId, array $data): void
+{
+    $profile = buildTeamDirectiveProfilePayload($data);
+    $stmt = $pdo->prepare('UPDATE teams SET directive_profile = ?, directive_profile_updated_at = NOW() WHERE id = ?');
+    $stmt->execute([json_encode($profile), $teamId]);
+}
 
 function buildDeadlineDateTime(?string $date, ?string $time = null): string {
     if (!$date) {
@@ -68,7 +115,7 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'active_deadline';
 
     // Buscar time do usuário (não exigido para admin listar prazos)
-    $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtTeam = $pdo->prepare('SELECT id, league, directive_profile, directive_profile_updated_at, technical_model_current, technical_model_changes_used FROM teams WHERE user_id = ? LIMIT 1');
     $stmtTeam->execute([$user['id']]);
     $team = $stmtTeam->fetch();
 
@@ -134,6 +181,28 @@ if ($method === 'GET') {
             }
 
             echo json_encode(['success' => true, 'directive' => $directive]);
+            break;
+
+        case 'team_profile':
+            $profile = null;
+            if (!empty($team['directive_profile'])) {
+                $decoded = json_decode($team['directive_profile'], true);
+                if (is_array($decoded)) {
+                    $profile = $decoded;
+                }
+            }
+            $changesUsed = (int)($team['technical_model_changes_used'] ?? 0);
+            $changesLimit = 3;
+            $changesRemaining = max(0, $changesLimit - $changesUsed);
+            echo json_encode([
+                'success' => true,
+                'profile' => $profile,
+                'profile_updated_at' => $team['directive_profile_updated_at'] ?? null,
+                'technical_model_current' => $team['technical_model_current'] ?? null,
+                'technical_model_changes_used' => $changesUsed,
+                'technical_model_changes_limit' => $changesLimit,
+                'technical_model_changes_remaining' => $changesRemaining
+            ]);
             break;
 
         case 'list_deadlines_admin':
@@ -395,7 +464,7 @@ if ($method === 'POST') {
     $action = $data['action'] ?? 'submit_directive';
 
     // Buscar time (não exigido para criar prazo)
-    $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtTeam = $pdo->prepare('SELECT id, league, directive_profile, directive_profile_updated_at, technical_model_current, technical_model_changes_used FROM teams WHERE user_id = ? LIMIT 1');
     $stmtTeam->execute([$user['id']]);
     $team = $stmtTeam->fetch();
 
@@ -457,6 +526,15 @@ if ($method === 'POST') {
                 $isElite = strtoupper($team['league'] ?? '') === 'ELITE';
                 $technicalModel = $isElite ? ($data['technical_model'] ?? null) : null;
                 $playbook = $isElite ? ($data['playbook'] ?? null) : null;
+
+                $changesUsed = (int)($team['technical_model_changes_used'] ?? 0);
+                $changesLimit = 3;
+                $currentModel = $team['technical_model_current'] ?? null;
+                $isModelChoice = $technicalModel && $technicalModel !== 'FBA 14';
+                $modelChanged = $isModelChoice && $technicalModel !== $currentModel;
+                if ($isElite && $modelChanged && $changesUsed >= $changesLimit) {
+                    throw new Exception('Limite de mudanças do modelo técnico atingido (3 escolhas).');
+                }
 
                 // Verificar se já existe diretriz para este prazo
                 $stmtCheck = $pdo->prepare('SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ?');
@@ -609,12 +687,61 @@ if ($method === 'POST') {
                     $stmtMinutes->execute([$directiveId, $playerIdInt, $m]);
                 }
 
+                // Atualizar modelo técnico do time (contando mudanças)
+                $modelNotice = null;
+                $changesRemaining = max(0, $changesLimit - $changesUsed);
+                if ($isElite && $modelChanged) {
+                    $changesUsed++;
+                    $changesRemaining = max(0, $changesLimit - $changesUsed);
+                    $stmtModel = $pdo->prepare('UPDATE teams SET technical_model_current = ?, technical_model_changes_used = ? WHERE id = ?');
+                    $stmtModel->execute([$technicalModel, $changesUsed, $team['id']]);
+                    $modelNotice = 'Modelo técnico atualizado. Você perdeu 1 mudança.';
+                }
+
+                // Salvar diretriz base do time para reutilização
+                saveTeamDirectiveProfile($pdo, (int)$team['id'], $data);
+
                 $pdo->commit();
-                echo json_encode(['success' => true, 'message' => 'Diretriz enviada com sucesso']);
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Diretriz enviada com sucesso',
+                    'model_change_notice' => $modelNotice,
+                    'technical_model_changes_used' => $changesUsed,
+                    'technical_model_changes_limit' => $changesLimit,
+                    'technical_model_changes_remaining' => $changesRemaining,
+                    'technical_model_current' => $modelChanged ? $technicalModel : $currentModel
+                ]);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
                 echo json_encode(['success' => false, 'error' => 'Erro ao enviar diretriz: ' . $e->getMessage()]);
+            }
+            break;
+
+        case 'save_team_profile':
+            // Salvar diretriz base do time (sem prazo)
+            // Validar quinteto titular (5 jogadores)
+            $startersProfile = array_filter([
+                $data['starter_1_id'] ?? null,
+                $data['starter_2_id'] ?? null,
+                $data['starter_3_id'] ?? null,
+                $data['starter_4_id'] ?? null,
+                $data['starter_5_id'] ?? null
+            ]);
+            if (count($startersProfile) !== 5) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Quinteto titular deve ter exatamente 5 jogadores']);
+                exit;
+            }
+            try {
+                $pdo->beginTransaction();
+                saveTeamDirectiveProfile($pdo, (int)$team['id'], $data);
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'Diretriz do time salva com sucesso']);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao salvar diretriz do time: ' . $e->getMessage()]);
             }
             break;
 

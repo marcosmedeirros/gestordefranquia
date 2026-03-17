@@ -19,7 +19,15 @@ const api = async (path, options = {}) => {
 let allPlayersData = [];
 let playersById = {};
 let currentDirective = null; // manter dados carregados para re-render confiável
+let teamProfile = null;
+let modelMeta = {
+  currentModel: null,
+  changesUsed: 0,
+  changesLimit: 3,
+  changesRemaining: 3,
+};
 const STARTER_LABELS = ['PG', 'SG', 'SF', 'PF', 'C'];
+const DIRECTIVE_MODE = window.__DIRECTIVE_MODE__ || 'deadline';
 
 // Buscar todos os jogadores do time para renderizar campos de minutagem
 async function loadPlayersData() {
@@ -32,6 +40,135 @@ async function loadPlayersData() {
     }
   } catch (err) {
     console.error('Erro ao carregar jogadores:', err);
+  }
+}
+
+function applyDirectiveToForm(d) {
+  if (!d) return;
+  currentDirective = d;
+
+  // Preencher titulares
+  for (let i = 1; i <= 5; i++) {
+    const select = document.querySelector(`select[name="starter_${i}_id"]`);
+    if (select && d[`starter_${i}_id`]) {
+      select.value = d[`starter_${i}_id`];
+    }
+  }
+
+  // Atualizar visibilidade dos checkboxes (esconder titulares)
+  updateBenchCheckboxesVisibility();
+
+  // Limpar e preencher banco
+  document.querySelectorAll('.bench-player-checkbox').forEach(cb => { cb.checked = false; });
+
+  const starterIds = [];
+  for (let i = 1; i <= 5; i++) {
+    const sid = parseInt(d[`starter_${i}_id`]);
+    if (!isNaN(sid) && sid > 0) starterIds.push(sid);
+  }
+
+  let benchIds = [];
+  if (Array.isArray(d.bench_players)) {
+    benchIds = d.bench_players.map(id => parseInt(id)).filter(id => !isNaN(id));
+  } else if (d.player_minutes) {
+    Object.keys(d.player_minutes).forEach(playerId => {
+      const id = parseInt(playerId);
+      if (!starterIds.includes(id)) benchIds.push(id);
+    });
+  } else {
+    for (let i = 1; i <= 3; i++) {
+      const bid = parseInt(d[`bench_${i}_id`]);
+      if (!isNaN(bid) && bid > 0) benchIds.push(bid);
+    }
+  }
+
+  benchIds.forEach(id => {
+    if (starterIds.includes(id)) return;
+    const checkbox = document.getElementById(`bench_${id}`);
+    if (checkbox) checkbox.checked = true;
+  });
+
+  // Preencher estilos (selects)
+  ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 'defensive_focus',
+   'rotation_style', 'game_style', 'offense_style', 'rotation_players', 'technical_model'].forEach(field => {
+    const select = document.querySelector(`select[name="${field}"]`);
+    if (select && d[field]) {
+      select.value = d[field];
+    }
+  });
+
+  // Preencher slider veteran_focus
+  const veteranInput = document.querySelector('input[name="veteran_focus"]');
+  if (veteranInput && d.veteran_focus !== undefined) {
+    veteranInput.value = d.veteran_focus;
+    const valueSpan = document.getElementById('veteran_focus-value');
+    if (valueSpan) valueSpan.textContent = d.veteran_focus + '%';
+  }
+
+  // Preencher G-League
+  ['gleague_1_id', 'gleague_2_id'].forEach(field => {
+    const select = document.querySelector(`select[name="${field}"]`);
+    if (select && d[field]) {
+      select.value = d[field];
+    }
+  });
+
+  // Preencher observações
+  const notesField = document.querySelector('textarea[name="notes"]');
+  if (notesField && d.notes) {
+    notesField.value = d.notes;
+  }
+
+  // Preencher playbook (Elite)
+  const playbookField = document.querySelector('textarea[name="playbook"]');
+  if (playbookField && d.playbook) {
+    playbookField.value = d.playbook;
+  }
+
+  // Render e preencher minutagem dos jogadores
+  renderPlayerMinutes();
+  if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
+    setTimeout(() => {
+      Object.keys(d.player_minutes).forEach(playerId => {
+        const input = document.querySelector(`input[name="minutes_player_${playerId}"]`);
+        if (input) input.value = d.player_minutes[playerId];
+      });
+      updateTotalMinutesDisplay();
+    }, 50);
+  }
+
+  // Atualizar contador do banco
+  const benchCount = document.getElementById('bench-count');
+  if (benchCount) {
+    const checked = document.querySelectorAll('.bench-player-checkbox:checked').length;
+    benchCount.textContent = checked;
+  }
+
+  // Atualizar visibilidade após carregar dados
+  updateRotationFieldsVisibility();
+}
+
+async function loadTeamProfile() {
+  try {
+    const data = await api('diretrizes.php?action=team_profile');
+    teamProfile = data.profile || null;
+    modelMeta = {
+      currentModel: data.technical_model_current || null,
+      changesUsed: data.technical_model_changes_used || 0,
+      changesLimit: data.technical_model_changes_limit || 3,
+      changesRemaining: data.technical_model_changes_remaining || 3,
+    };
+
+    const remainingEl = document.getElementById('technical-model-remaining');
+    if (remainingEl) {
+      remainingEl.textContent = `Mudanças restantes no modelo técnico: ${modelMeta.changesRemaining}`;
+    }
+
+    if (teamProfile) {
+      applyDirectiveToForm(teamProfile);
+    }
+  } catch (err) {
+    console.error('Erro ao carregar diretriz do time:', err);
   }
 }
 
@@ -336,95 +473,7 @@ async function loadExistingDirective() {
   try {
     const data = await api(`diretrizes.php?action=my_directive&deadline_id=${deadlineId}`);
     if (data.directive) {
-      const d = data.directive;
-      currentDirective = d;
-      
-      // Preencher titulares
-      for (let i = 1; i <= 5; i++) {
-        const select = document.querySelector(`select[name="starter_${i}_id"]`);
-        if (select && d[`starter_${i}_id`]) {
-          select.value = d[`starter_${i}_id`];
-        }
-      }
-      
-      // Coletar IDs dos titulares para excluir do banco
-      const starterIds = [];
-      for (let i = 1; i <= 5; i++) {
-        const sid = parseInt(d[`starter_${i}_id`]);
-        if (!isNaN(sid) && sid > 0) starterIds.push(sid);
-      }
-      
-      // Atualizar visibilidade dos checkboxes (esconder titulares)
-      updateBenchCheckboxesVisibility();
-      
-      // Preencher banco via checkboxes (baseado nos player_minutes que não são titulares)
-      if (d.player_minutes) {
-        Object.keys(d.player_minutes).forEach(playerId => {
-          const id = parseInt(playerId);
-          if (!starterIds.includes(id)) {
-            const checkbox = document.getElementById(`bench_${id}`);
-            if (checkbox) checkbox.checked = true;
-          }
-        });
-      }
-      
-      // Preencher estilos (selects)
-      ['pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 'defensive_focus',
-       'rotation_style', 'game_style', 'offense_style', 'rotation_players', 'technical_model'].forEach(field => {
-        const select = document.querySelector(`select[name="${field}"]`);
-        if (select && d[field]) {
-          select.value = d[field];
-        }
-      });
-      
-      // Preencher slider veteran_focus
-      const veteranInput = document.querySelector('input[name="veteran_focus"]');
-      if (veteranInput && d.veteran_focus !== undefined) {
-        veteranInput.value = d.veteran_focus;
-        const valueSpan = document.getElementById('veteran_focus-value');
-        if (valueSpan) valueSpan.textContent = d.veteran_focus + '%';
-      }
-      
-      // Preencher G-League
-      ['gleague_1_id', 'gleague_2_id'].forEach(field => {
-        const select = document.querySelector(`select[name="${field}"]`);
-        if (select && d[field]) {
-          select.value = d[field];
-        }
-      });
-      
-      // Preencher observações
-      const notesField = document.querySelector('textarea[name="notes"]');
-      if (notesField && d.notes) {
-        notesField.value = d.notes;
-      }
-
-      // Preencher playbook (Elite)
-      const playbookField = document.querySelector('textarea[name="playbook"]');
-      if (playbookField && d.playbook) {
-        playbookField.value = d.playbook;
-      }
-      
-      // Render e preencher minutagem dos jogadores (após selects definidos)
-      renderPlayerMinutes();
-      if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
-        setTimeout(() => {
-          Object.keys(d.player_minutes).forEach(playerId => {
-            const input = document.querySelector(`input[name="minutes_player_${playerId}"]`);
-            if (input) input.value = d.player_minutes[playerId];
-          });
-        }, 50);
-      }
-      
-      // Atualizar contador do banco
-      const benchCount = document.getElementById('bench-count');
-      if (benchCount) {
-        const checked = document.querySelectorAll('.bench-player-checkbox:checked').length;
-        benchCount.textContent = checked;
-      }
-      
-      // Atualizar visibilidade após carregar dados
-      updateRotationFieldsVisibility();
+      applyDirectiveToForm(data.directive);
     }
   } catch (err) {
     console.error('Erro ao carregar diretriz:', err);
@@ -436,7 +485,7 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   e.preventDefault();
   
   const deadlineId = window.__DEADLINE_ID__;
-  if (!deadlineId) {
+  if (DIRECTIVE_MODE === 'deadline' && !deadlineId) {
     alert('Prazo não definido');
     return;
   }
@@ -569,8 +618,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   }
   
   const payload = {
-    action: 'submit_directive',
-    deadline_id: deadlineId,
+    action: DIRECTIVE_MODE === 'profile' ? 'save_team_profile' : 'submit_directive',
+    deadline_id: DIRECTIVE_MODE === 'deadline' ? deadlineId : undefined,
     starter_1_id: parseInt(fd.get('starter_1_id')),
     starter_2_id: parseInt(fd.get('starter_2_id')),
     starter_3_id: parseInt(fd.get('starter_3_id')),
@@ -595,6 +644,25 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     player_minutes: playerMinutes
   };
 
+  // Regras de mudança de modelo técnico (apenas no envio oficial)
+  if (DIRECTIVE_MODE === 'deadline') {
+    const modelSelect = document.querySelector('select[name="technical_model"]');
+    const newModel = modelSelect ? (modelSelect.value || '') : '';
+    const currentModel = modelMeta.currentModel || '';
+    const isCountedModel = newModel && newModel !== 'FBA 14';
+    const modelChanged = isCountedModel && newModel !== currentModel;
+    if (modelChanged) {
+      if (modelMeta.changesRemaining <= 0) {
+        showValidationError(['Limite de mudanças do modelo técnico atingido (3 escolhas).']);
+        return;
+      }
+      const confirmChange = confirm(`Modelo técnico atualizado. Isso consome 1 mudança. Restam ${modelMeta.changesRemaining - 1} mudanças. Deseja continuar?`);
+      if (!confirmChange) {
+        return;
+      }
+    }
+  }
+
   // Se houver erros, mostrar modal com opção de enviar mesmo assim
   if (validationErrors.length > 0) {
     showValidationError(validationErrors, () => submitDirective({ ...payload, allow_invalid: true }));
@@ -610,10 +678,31 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
 
 async function submitDirective(payload) {
   try {
-    await api('diretrizes.php', { 
+    const result = await api('diretrizes.php', { 
       method: 'POST', 
       body: JSON.stringify(payload) 
     });
+    if (result && result.model_change_notice) {
+      alert(result.model_change_notice);
+    }
+    if (result && typeof result.technical_model_changes_remaining !== 'undefined') {
+      modelMeta = {
+        currentModel: result.technical_model_current || modelMeta.currentModel,
+        changesUsed: result.technical_model_changes_used ?? modelMeta.changesUsed,
+        changesLimit: result.technical_model_changes_limit ?? modelMeta.changesLimit,
+        changesRemaining: result.technical_model_changes_remaining ?? modelMeta.changesRemaining,
+      };
+      const remainingEl = document.getElementById('technical-model-remaining');
+      if (remainingEl) {
+        remainingEl.textContent = `Mudanças restantes no modelo técnico: ${modelMeta.changesRemaining}`;
+      }
+    }
+
+    if (DIRECTIVE_MODE === 'profile') {
+      alert('Diretriz do time salva com sucesso!');
+      return;
+    }
+
     alert('Diretrizes enviadas com sucesso!');
     window.location.href = '/dashboard.php';
   } catch (err) {
@@ -688,6 +777,9 @@ function showValidationError(errors, onSendAnyway) {
 // Carregar diretriz ao iniciar
 document.addEventListener('DOMContentLoaded', async () => {
   await loadPlayersData();
+  await loadTeamProfile();
   renderPlayerMinutes();
-  loadExistingDirective();
+  if (DIRECTIVE_MODE === 'deadline') {
+    loadExistingDirective();
+  }
 });

@@ -508,6 +508,52 @@ function ensureDirectiveOptionalColumns(PDO $pdo): void
     $checked = true;
 }
 
+function ensureTeamDirectiveProfileColumns(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $hasProfile = $pdo->query("SHOW COLUMNS FROM teams LIKE 'directive_profile'")->rowCount() > 0;
+        if (!$hasProfile) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN directive_profile LONGTEXT NULL COMMENT 'Diretriz base do time (JSON)' AFTER photo_url");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureTeamDirectiveProfileColumns] directive_profile: ' . $e->getMessage());
+    }
+
+    try {
+        $hasProfileUpdatedAt = $pdo->query("SHOW COLUMNS FROM teams LIKE 'directive_profile_updated_at'")->rowCount() > 0;
+        if (!$hasProfileUpdatedAt) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN directive_profile_updated_at DATETIME NULL COMMENT 'Última atualização da diretriz base' AFTER directive_profile");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureTeamDirectiveProfileColumns] directive_profile_updated_at: ' . $e->getMessage());
+    }
+
+    try {
+        $hasModelCurrent = $pdo->query("SHOW COLUMNS FROM teams LIKE 'technical_model_current'")->rowCount() > 0;
+        if (!$hasModelCurrent) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN technical_model_current VARCHAR(60) NULL COMMENT 'Modelo técnico atual (conta mudanças)' AFTER directive_profile_updated_at");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureTeamDirectiveProfileColumns] technical_model_current: ' . $e->getMessage());
+    }
+
+    try {
+        $hasModelChanges = $pdo->query("SHOW COLUMNS FROM teams LIKE 'technical_model_changes_used'")->rowCount() > 0;
+        if (!$hasModelChanges) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN technical_model_changes_used INT NOT NULL DEFAULT 0 COMMENT 'Mudanças usadas no modelo técnico' AFTER technical_model_current");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureTeamDirectiveProfileColumns] technical_model_changes_used: ' . $e->getMessage());
+    }
+
+    $checked = true;
+}
+
 /**
  * Retorna URL de imagem válida ou imagem padrão
  */
