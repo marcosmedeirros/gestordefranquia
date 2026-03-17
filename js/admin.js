@@ -1508,12 +1508,14 @@ async function viewDirectives(deadlineId, league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
   
   try {
-  const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&debug=1`);
+  const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&debug=1&_ts=${Date.now()}`);
   const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
   const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
+  const debugPayload = JSON.stringify(data || {}, null, 2);
   const debugInfo = `
     <div class="alert alert-warning small mb-3">
       Debug: total=${data.debug?.total_directives ?? 'N/A'} · deadline=${data.debug?.deadline_count ?? 'N/A'} · league=${data.debug?.league_count ?? 'N/A'} · join=${data.debug?.league_join_count ?? 'N/A'} · fallback=${data.fallback ? '1' : '0'}
+      <pre class="mt-2 mb-0" style="white-space: pre-wrap;">${debugPayload}</pre>
     </div>
   `;
     
