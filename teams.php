@@ -89,6 +89,13 @@ foreach ($teams as &$t) {
 }
 unset($t); // Importante: limpar referência do foreach
 
+$totalCapTop8 = 0;
+foreach ($teams as $t) {
+    $totalCapTop8 += (int)($t['cap_top8'] ?? 0);
+}
+$teamsCount = count($teams);
+$averageCapTop8 = $teamsCount > 0 ? round($totalCapTop8 / $teamsCount, 1) : 0;
+
 $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
 ?>
 <!DOCTYPE html>
@@ -434,6 +441,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php endforeach; ?>
                     <div id="teamsCardsEmpty" class="text-center text-light-gray py-3" style="display: none;">
                         <i class="bi bi-search me-2"></i>Nenhum time encontrado
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-dark-panel border-orange mt-4">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
+                    <div class="text-light-gray">
+                        <strong class="text-white">Soma total de CAP (Top 8):</strong>
+                        <?= number_format($totalCapTop8, 0, ',', '.') ?>
+                    </div>
+                    <div class="text-light-gray">
+                        <strong class="text-white">Média por time:</strong>
+                        <?= number_format($averageCapTop8, 1, ',', '.') ?>
                     </div>
                 </div>
             </div>
