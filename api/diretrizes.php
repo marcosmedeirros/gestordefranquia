@@ -252,7 +252,7 @@ if ($method === 'GET') {
                            g1.name as gleague_1_name, g1.position as gleague_1_pos, g1.ovr as gleague_1_ovr, g1.age as gleague_1_age,
                            g2.name as gleague_2_name, g2.position as gleague_2_pos, g2.ovr as gleague_2_ovr, g2.age as gleague_2_age
                     FROM team_directives td
-                    LEFT JOccoIN teams t ON td.team_id = t.id
+                    LEFT JOIN teams t ON td.team_id = t.id
                     LEFT JOIN players s1 ON td.starter_1_id = s1.id
                     LEFT JOIN players s2 ON td.starter_2_id = s2.id
                     LEFT JOIN players s3 ON td.starter_3_id = s3.id
