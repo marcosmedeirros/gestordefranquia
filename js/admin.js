@@ -1511,11 +1511,11 @@ async function viewDirectives(deadlineId, league) {
   const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&debug=1`);
   const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
   const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
-  const debugInfo = data.debug ? `
+  const debugInfo = `
     <div class="alert alert-warning small mb-3">
-      Debug: total=${data.debug.total_directives || 0} · deadline=${data.debug.deadline_count || 0} · league=${data.debug.league_count || 0} · join=${data.debug.league_join_count || 0}
+      Debug: total=${data.debug?.total_directives ?? 'N/A'} · deadline=${data.debug?.deadline_count ?? 'N/A'} · league=${data.debug?.league_count ?? 'N/A'} · join=${data.debug?.league_join_count ?? 'N/A'} · fallback=${data.fallback ? '1' : '0'}
     </div>
-  ` : '';
+  `;
     
     // Mapear labels para os novos valores
     const gameStyleLabels = {
@@ -1562,7 +1562,7 @@ async function viewDirectives(deadlineId, league) {
         <div class="card-body">
           ${fallbackNotice}
           ${directives.length === 0 ? 
-            `${debugInfo}<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>` :
+            `${debugInfo}${fallbackNotice}<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>` :
             directives.map(d => {
               const updatedAt = d.updated_at || null;
               const submittedAt = d.submitted_at || d.created_at || null;
