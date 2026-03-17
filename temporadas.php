@@ -133,7 +133,7 @@ if (!$team) {
           <div class="col-md-6 col-lg-3">
             <div class="league-card" onclick="showLeagueManagement('NEXT')" style="cursor: pointer;">
               <h3>NEXT</h3>
-              <p class="text-light-gray mb-2">20 temporadas por sprint</p>
+              <p class="text-light-gray mb-2">21 temporadas por sprint</p>
               <span class="badge bg-gradient-orange">Gerenciar</span>
             </div>
           </div>
@@ -495,7 +495,7 @@ if (!$team) {
     function getMaxSeasonsForLeague(league) {
       switch(league) {
         case 'ELITE': return 20;
-        case 'NEXT': return 20;
+        case 'NEXT': return 21;
         case 'RISE': return 15;
         case 'ROOKIE': return 10;
         default: return 10;
