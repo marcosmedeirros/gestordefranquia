@@ -418,6 +418,51 @@ if ($method === 'GET') {
                 }
             }
 
+            // Anexar diretriz anterior por time para comparação
+            if ($directives) {
+                $prevStmt = $pdo->prepare("SELECT * FROM team_directives WHERE team_id = ? AND COALESCE(updated_at, submitted_at, created_at) < ? ORDER BY COALESCE(updated_at, submitted_at, created_at) DESC LIMIT 1");
+                $prevMinutesStmt = $pdo->prepare("SELECT player_id, minutes_per_game FROM directive_player_minutes WHERE directive_id = ?");
+
+                $prevFields = [
+                    'id',
+                    'team_id',
+                    'deadline_id',
+                    'starter_1_id', 'starter_2_id', 'starter_3_id', 'starter_4_id', 'starter_5_id',
+                    'bench_1_id', 'bench_2_id', 'bench_3_id',
+                    'pace', 'offensive_rebound', 'offensive_aggression', 'defensive_rebound', 'defensive_focus',
+                    'rotation_style', 'game_style', 'offense_style',
+                    'rotation_players', 'veteran_focus',
+                    'gleague_1_id', 'gleague_2_id',
+                    'notes', 'technical_model', 'playbook',
+                    'submitted_at', 'updated_at', 'created_at'
+                ];
+
+                foreach ($directives as &$dRow) {
+                    $currentTs = $dRow['updated_at'] ?? $dRow['submitted_at'] ?? $dRow['created_at'] ?? null;
+                    if (!$currentTs || empty($dRow['team_id'])) {
+                        continue;
+                    }
+
+                    $prevStmt->execute([(int)$dRow['team_id'], $currentTs]);
+                    $prev = $prevStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$prev) {
+                        continue;
+                    }
+
+                    $prevFiltered = array_intersect_key($prev, array_flip($prevFields));
+                    $prevMinutesStmt->execute([$prev['id']]);
+                    $prevMinutesRows = $prevMinutesStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $prevMinutes = [];
+                    foreach ($prevMinutesRows as $pmRow) {
+                        $prevMinutes[(int)$pmRow['player_id']] = (int)$pmRow['minutes_per_game'];
+                    }
+                    $prevFiltered['player_minutes'] = $prevMinutes;
+
+                    $dRow['previous_directive'] = $prevFiltered;
+                }
+                unset($dRow);
+            }
+
             $deadlineCount = 0;
             $leagueCount = 0;
             $leagueJoinCount = 0;
@@ -579,7 +624,7 @@ if ($method === 'POST') {
                             rotation_players, veteran_focus,
                             gleague_1_id, gleague_2_id, notes,
                             technical_model, technical_model_changed, playbook
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $team['id'], $deadlineId,

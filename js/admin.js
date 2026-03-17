@@ -1567,6 +1567,10 @@ async function viewDirectives(deadlineId, league) {
               const pm = normalizeDirectiveMinutes(d.player_minutes);
               const playerInfo = normalizeDirectivePlayerInfo(d.player_info);
               const isManualRotation = d.rotation_style === 'manual';
+              const prev = d.previous_directive || null;
+              const prevPm = prev ? normalizeDirectiveMinutes(prev.player_minutes) : {};
+              const hasPrev = !!prev;
+              const changedField = (field) => hasPrev && String(prev?.[field] ?? '') !== String(d?.[field] ?? '');
               
               // Coletar IDs dos titulares
               const starterIds = [];
@@ -1581,11 +1585,36 @@ async function viewDirectives(deadlineId, league) {
                 const m = isManualRotation && id && pm[id] ? `${pm[id]} min` : '';
                 const name = d['starter_' + i + '_name'] || '?';
                 const pos = d['starter_' + i + '_pos'] || '?';
-                return `<li>${name} (${pos})${m ? ' - ' + m : ''}</li>`;
+                const prevId = prev ? prev['starter_' + i + '_id'] : null;
+                const starterChanged = hasPrev && String(prevId ?? '') !== String(id ?? '');
+                const minutesChanged = isManualRotation && hasPrev && id && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[id]);
+                const rowClass = (starterChanged || minutesChanged) ? 'text-danger' : '';
+                return `<li class="${rowClass}">${name} (${pos})${m ? ' - ' + m : ''}</li>`;
               }).join('');
               
               // Banco dinâmico: pegar dos player_minutes os que não são titulares
               const benchItems = [];
+              const prevStarterIds = [];
+              if (hasPrev) {
+                for (let i = 1; i <= 5; i++) {
+                  const pid = prev['starter_' + i + '_id'];
+                  if (pid) prevStarterIds.push(parseInt(pid));
+                }
+              }
+              const prevBenchIds = [];
+              if (hasPrev) {
+                if (prev && prev.player_minutes && Object.keys(prevPm).length > 0) {
+                  Object.keys(prevPm).forEach(playerId => {
+                    const id = parseInt(playerId);
+                    if (!prevStarterIds.includes(id)) prevBenchIds.push(id);
+                  });
+                } else {
+                  for (let i = 1; i <= 3; i++) {
+                    const bid = prev['bench_' + i + '_id'];
+                    if (bid) prevBenchIds.push(parseInt(bid));
+                  }
+                }
+              }
               Object.keys(pm).forEach(playerId => {
                 const id = parseInt(playerId);
                 if (!starterIds.includes(id)) {
@@ -1606,7 +1635,10 @@ async function viewDirectives(deadlineId, league) {
                   }
                   // Só mostrar minutos se rotação for manual
                   const minLabel = isManualRotation ? ` - ${pm[playerId]} min` : '';
-                  benchItems.push(`<li>${name} (${pos})${minLabel}</li>`);
+                  const benchChanged = hasPrev && prevBenchIds.length > 0 && !prevBenchIds.includes(id);
+                  const minutesChanged = isManualRotation && hasPrev && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[playerId]);
+                  const rowClass = (benchChanged || minutesChanged) ? 'text-danger' : '';
+                  benchItems.push(`<li class="${rowClass}">${name} (${pos})${minLabel}</li>`);
                 }
               });
               const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
@@ -1662,38 +1694,38 @@ async function viewDirectives(deadlineId, league) {
                     <div class="col-12 mt-3">
                       <h6 class="text-orange">Estilo de Jogo</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-4">Game Style: ${gameStyleLabels[d.game_style] || d.game_style}</div>
-                        <div class="col-md-4">Offense Style: ${offenseStyleLabels[d.offense_style] || d.offense_style}</div>
-                        <div class="col-md-4">Rotação: ${rotationLabels[d.rotation_style] || d.rotation_style}</div>
+                        <div class="col-md-4">Game Style: ${changedField('game_style') ? `<span class="text-danger">${gameStyleLabels[d.game_style] || d.game_style}</span>` : (gameStyleLabels[d.game_style] || d.game_style)}</div>
+                        <div class="col-md-4">Offense Style: ${changedField('offense_style') ? `<span class="text-danger">${offenseStyleLabels[d.offense_style] || d.offense_style}</span>` : (offenseStyleLabels[d.offense_style] || d.offense_style)}</div>
+                        <div class="col-md-4">Rotação: ${changedField('rotation_style') ? `<span class="text-danger">${rotationLabels[d.rotation_style] || d.rotation_style}</span>` : (rotationLabels[d.rotation_style] || d.rotation_style)}</div>
                       </div>
                     </div>
                     <div class="col-12 mt-3">
                       <h6 class="text-orange">Configurações</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-3">Tempo Ataque: ${paceLabels[d.pace] || d.pace}</div>
-                        <div class="col-md-3">Agress. Def.: ${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</div>
-                        <div class="col-md-3">Reb. Ofensivo: ${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</div>
-                        <div class="col-md-3">Reb. Defensivo: ${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</div>
+                        <div class="col-md-3">Tempo Ataque: ${changedField('pace') ? `<span class="text-danger">${paceLabels[d.pace] || d.pace}</span>` : (paceLabels[d.pace] || d.pace)}</div>
+                        <div class="col-md-3">Agress. Def.: ${changedField('offensive_aggression') ? `<span class="text-danger">${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</span>` : (defAggrLabels[d.offensive_aggression] || d.offensive_aggression)}</div>
+                        <div class="col-md-3">Reb. Ofensivo: ${changedField('offensive_rebound') ? `<span class="text-danger">${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</span>` : (offRebLabels[d.offensive_rebound] || d.offensive_rebound)}</div>
+                        <div class="col-md-3">Reb. Defensivo: ${changedField('defensive_rebound') ? `<span class="text-danger">${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</span>` : (defRebLabels[d.defensive_rebound] || d.defensive_rebound)}</div>
                       </div>
                       <div class="row text-light-gray small mt-2">
-                        <div class="col-md-3">Defensive Focus: ${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</div>
+                        <div class="col-md-3">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
                       </div>
                     </div>
                     ${(d.technical_model || d.playbook) ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Elite</h6>
                       <div class="row text-light-gray small">
-                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${d.technical_model}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>` : ''}
+                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${d.technical_model}</span>` : d.technical_model}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>` : ''}
                       </div>
-                      ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${d.playbook}</div>` : ''}
+                      ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${d.playbook}</span>` : d.playbook}</div>` : ''}
                     </div>` : ''}
                     ${isManualRotation ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Rotação e Foco</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-6">Jogadores na Rotação: ${d.rotation_players || 10}</div>
-                        <div class="col-md-6">Foco Veteranos: ${d.veteran_focus || 50}%</div>
+                        <div class="col-md-6">Jogadores na Rotação: ${changedField('rotation_players') ? `<span class="text-danger">${d.rotation_players || 10}</span>` : (d.rotation_players || 10)}</div>
+                        <div class="col-md-6">Foco Veteranos: ${changedField('veteran_focus') ? `<span class="text-danger">${d.veteran_focus || 50}%</span>` : (d.veteran_focus || 50) + '%'}</div>
                       </div>
                     </div>` : ''}
-                    ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${d.notes}</p></div>` : ''}
+                    ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${changedField('notes') ? `<span class="text-danger">${d.notes}</span>` : d.notes}</p></div>` : ''}
                   </div>
                 </div>
               </div>
