@@ -106,13 +106,26 @@ function getCapAfterRemoval(playerId) {
   return calculateCapTop8(remaining);
 }
 
+function getCapStatusText(newCap) {
+  const capMin = Number(window.__CAP_MIN__);
+  const capMax = Number(window.__CAP_MAX__);
+  if (Number.isFinite(capMin) && Number.isFinite(capMax)) {
+    if (newCap < capMin) return 'Voce vai ficar abaixo do cap.';
+    if (newCap > capMax) return 'Voce vai ficar acima do cap.';
+  }
+  return 'Voce vai ficar dentro do cap.';
+}
+
 function openWaiveModal(player) {
   if (!player) return;
   pendingWaivePlayerId = player.id;
   const nameEl = document.getElementById('waive-player-name');
   const capEl = document.getElementById('waive-player-cap');
+  const statusEl = document.getElementById('waive-cap-status');
   if (nameEl) nameEl.textContent = player.name || 'jogador';
-  if (capEl) capEl.textContent = getCapAfterRemoval(player.id);
+  const newCap = getCapAfterRemoval(player.id);
+  if (capEl) capEl.textContent = newCap;
+  if (statusEl) statusEl.textContent = getCapStatusText(newCap);
   const modalEl = document.getElementById('waivePlayerModal');
   if (modalEl) {
     new bootstrap.Modal(modalEl).show();
