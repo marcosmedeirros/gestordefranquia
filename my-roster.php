@@ -477,6 +477,32 @@ if ($teamId) {
     </div>
   </div>
 
+  <!-- Waive Player Modal -->
+  <div class="modal fade" id="waivePlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-x me-2 text-orange"></i>Dispensar Jogador</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray mb-3">
+            Se voce dispensar <strong class="text-white" id="waive-player-name">jogador</strong>,
+            seu CAP Top8 vai ser <strong class="text-orange" id="waive-player-cap">0</strong>.
+          </p>
+          <div class="alert alert-warning mb-0" style="border-radius: 12px;">
+            <i class="bi bi-info-circle me-2"></i>
+            O jogador sera enviado para a Free Agency.
+          </div>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-danger" id="btn-confirm-waive"><i class="bi bi-person-x me-1"></i>Dispensar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     console.log('Team ID:', window.__TEAM_ID__, 'Team:', <?= json_encode($team) ?>);
