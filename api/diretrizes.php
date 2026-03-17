@@ -369,7 +369,7 @@ if ($method === 'GET') {
                     LEFT JOIN players b3 ON td.bench_3_id = b3.id
                     LEFT JOIN players g1 ON td.gleague_1_id = g1.id
                     LEFT JOIN players g2 ON td.gleague_2_id = g2.id
-                    ORDER BY COALESCE(td.updated_at, td.submitted_at, td.created_at) DESC, t.name
+                    ORDER BY COALESCE(td.updated_at, td.submitted_at) DESC, t.name
                     LIMIT 200
                 ");
                 $stmt->execute();
@@ -420,7 +420,7 @@ if ($method === 'GET') {
 
             // Anexar diretriz anterior por time para comparação
             if ($directives) {
-                $prevStmt = $pdo->prepare("SELECT * FROM team_directives WHERE team_id = ? AND COALESCE(updated_at, submitted_at, created_at) < ? ORDER BY COALESCE(updated_at, submitted_at, created_at) DESC LIMIT 1");
+                $prevStmt = $pdo->prepare("SELECT * FROM team_directives WHERE team_id = ? AND COALESCE(updated_at, submitted_at) < ? ORDER BY COALESCE(updated_at, submitted_at) DESC LIMIT 1");
                 $prevMinutesStmt = $pdo->prepare("SELECT player_id, minutes_per_game FROM directive_player_minutes WHERE directive_id = ?");
 
                 $prevFields = [
@@ -434,11 +434,11 @@ if ($method === 'GET') {
                     'rotation_players', 'veteran_focus',
                     'gleague_1_id', 'gleague_2_id',
                     'notes', 'technical_model', 'playbook',
-                    'submitted_at', 'updated_at', 'created_at'
+                    'submitted_at', 'updated_at'
                 ];
 
                 foreach ($directives as &$dRow) {
-                    $currentTs = $dRow['updated_at'] ?? $dRow['submitted_at'] ?? $dRow['created_at'] ?? null;
+                    $currentTs = $dRow['updated_at'] ?? $dRow['submitted_at'] ?? null;
                     if (!$currentTs || empty($dRow['team_id'])) {
                         continue;
                     }
