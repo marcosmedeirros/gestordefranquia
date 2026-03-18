@@ -32,7 +32,7 @@ function criar_baralho() {
 }
 
 function proximo_turno($pdo, $sala_id, $pos_atual) {
-    $stmt = $pdo->prepare("SELECT posicao, bet_round FROM poker_jogadores WHERE id_sala = :s AND status IN ('ativo', 'all-in') ORDER BY posicao ASC");
+    $stmt = $pdo->prepare("SELECT posicao, bet_round FROM poker_jogadores WHERE id_sala = :s AND aguardando = 0 AND status IN ('ativo', 'all-in') ORDER BY posicao ASC");
     $stmt->execute([':s' => $sala_id]);
     $jogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -49,12 +49,43 @@ function proximo_turno($pdo, $sala_id, $pos_atual) {
 }
 
 function checar_fim_de_rodada($pdo, $sala_id, $bet_atual) {
-    $stmt = $pdo->prepare("SELECT COUNT(*) as ativos, SUM(CASE WHEN bet_round = :b THEN 1 ELSE 0 END) as igualados FROM poker_jogadores WHERE id_sala = :s AND status = 'ativo'");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as ativos, SUM(CASE WHEN bet_round = :b THEN 1 ELSE 0 END) as igualados FROM poker_jogadores WHERE id_sala = :s AND aguardando = 0 AND status = 'ativo'");
     $stmt->execute([':b' => $bet_atual, ':s' => $sala_id]);
     $res = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Se todos os ativos igualaram a aposta
     return ($res['ativos'] > 0 && $res['ativos'] == $res['igualados']);
+}
+
+function iniciar_mao($pdo, $sala_id) {
+    $stmt = $pdo->prepare("SELECT * FROM poker_jogadores WHERE id_sala = :id AND aguardando = 0 ORDER BY posicao ASC");
+    $stmt->execute([':id' => $sala_id]);
+    $jogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (count($jogadores) < 2) throw new Exception("Mínimo de 2 jogadores para iniciar.");
+
+    $deck = criar_baralho();
+
+    foreach ($jogadores as $j) {
+        $c1 = array_pop($deck); $c2 = array_pop($deck);
+        $pdo->prepare("UPDATE poker_jogadores SET cards = :c, status = 'ativo', bet_round = 0, pronto = 0 WHERE id = :id")
+            ->execute([':c' => "$c1,$c2", ':id' => $j['id']]);
+    }
+
+    $pdo->prepare("UPDATE poker_jogadores SET cards = '', bet_round = 0, pronto = 0 WHERE id_sala = :id AND aguardando = 1")
+        ->execute([':id' => $sala_id]);
+
+    $primeiro_turno = $jogadores[0]['posicao'];
+
+    $pdo->prepare("UPDATE poker_salas SET status = 'jogando', stage = 'pre-flop', pote = 0, bet_atual = 0, community_cards = '', deck = :deck, turno_posicao = :turno, vencedor_info = NULL WHERE id = :id")
+        ->execute([':deck' => implode(',', $deck), ':turno' => $primeiro_turno, ':id' => $sala_id]);
+}
+
+function finalizar_mao($pdo, $sala_id, $vencedor_info) {
+    $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info, pote = 0, bet_atual = 0, turno_posicao = NULL WHERE id = :id")
+        ->execute([':info' => $vencedor_info, ':id' => $sala_id]);
+    $pdo->prepare("UPDATE poker_jogadores SET status = 'ativo', bet_round = 0, pronto = 0, aguardando = 0 WHERE id_sala = :id")
+        ->execute([':id' => $sala_id]);
 }
 
 // --- API AJAX ---
@@ -73,15 +104,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtJogadores->execute([':id' => $sala_id]);
             $jogadores = $stmtJogadores->fetchAll(PDO::FETCH_ASSOC);
 
-            $dados = ['sala' => $sala, 'jogadores' => [], 'meu_lugar' => null, 'ativos' => 0];
+            $dados = ['sala' => $sala, 'jogadores' => [], 'meu_lugar' => null, 'ativos' => 0, 'prontos' => 0, 'total_prontos' => 0];
 
             foreach ($jogadores as $j) {
+                $j['pronto'] = isset($j['pronto']) ? (int)$j['pronto'] : 0;
+                $j['aguardando'] = isset($j['aguardando']) ? (int)$j['aguardando'] : 0;
                 if ($j['id_usuario'] != $user_id && $sala['stage'] != 'showdown' && $j['cards'] != '') {
                     $j['cards'] = '??,??';
                 }
                 $dados['jogadores'][$j['posicao']] = $j;
                 if ($j['id_usuario'] == $user_id) $dados['meu_lugar'] = $j['posicao'];
-                if ($j['status'] != 'ausente') $dados['ativos']++;
+                if ($j['status'] != 'ausente' && $j['aguardando'] == 0) {
+                    $dados['ativos']++;
+                    $dados['total_prontos']++;
+                    if ($j['pronto'] == 1) $dados['prontos']++;
+                }
             }
             echo json_encode(['sucesso' => true, 'dados' => $dados]);
             exit;
@@ -93,10 +130,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $buy_in = 100;
             if ($meu_perfil['pontos'] < $buy_in) throw new Exception("Saldo insuficiente.");
 
+            $stmtJa = $pdo->prepare("SELECT id FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid LIMIT 1");
+            $stmtJa->execute([':sala' => $sala_id, ':uid' => $user_id]);
+            if ($stmtJa->fetch()) throw new Exception("Você já está sentado.");
+
+            $stmtSala = $pdo->prepare("SELECT status FROM poker_salas WHERE id = :id");
+            $stmtSala->execute([':id' => $sala_id]);
+            $sala = $stmtSala->fetch(PDO::FETCH_ASSOC);
+            $aguardando = ($sala && $sala['status'] === 'jogando') ? 1 : 0;
+
             $pdo->beginTransaction();
             $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $buy_in, ':id' => $user_id]);
-            $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos)")
-                ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos]);
+            $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao, pronto, aguardando) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos, 0, :aguardando)")
+                ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos, ':aguardando' => $aguardando]);
             $pdo->commit();
             echo json_encode(['sucesso' => true]); exit;
         }
@@ -115,28 +161,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             echo json_encode(['sucesso' => true]); exit;
         }
 
+        if ($acao == 'pronto') {
+            $pdo->beginTransaction();
+            $stmtSala = $pdo->prepare("SELECT status FROM poker_salas WHERE id = :id FOR UPDATE");
+            $stmtSala->execute([':id' => $sala_id]);
+            $sala = $stmtSala->fetch(PDO::FETCH_ASSOC);
+
+            if ($sala && $sala['status'] === 'jogando') throw new Exception("Aguarde o fim da mão atual.");
+
+            $stmtEu = $pdo->prepare("SELECT id, aguardando FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid FOR UPDATE");
+            $stmtEu->execute([':sala' => $sala_id, ':uid' => $user_id]);
+            $eu = $stmtEu->fetch(PDO::FETCH_ASSOC);
+
+            if (!$eu) throw new Exception("Você não está sentado.");
+            if ((int)$eu['aguardando'] === 1) throw new Exception("Você entra na próxima mão.");
+
+            $pdo->prepare("UPDATE poker_jogadores SET pronto = 1 WHERE id = :id")->execute([':id' => $eu['id']]);
+
+            $stmtReady = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN pronto = 1 THEN 1 ELSE 0 END) as prontos FROM poker_jogadores WHERE id_sala = :sala AND aguardando = 0");
+            $stmtReady->execute([':sala' => $sala_id]);
+            $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
+
+            if ((int)$ready['total'] >= 2 && (int)$ready['total'] == (int)$ready['prontos']) {
+                iniciar_mao($pdo, $sala_id);
+            }
+
+            $pdo->commit();
+            echo json_encode(['sucesso' => true]); exit;
+        }
+
         // 3. INICIAR JOGO
         if ($acao == 'iniciar') {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT * FROM poker_jogadores WHERE id_sala = :id");
-            $stmt->execute([':id' => $sala_id]);
-            $jogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmtReady = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN pronto = 1 THEN 1 ELSE 0 END) as prontos FROM poker_jogadores WHERE id_sala = :sala AND aguardando = 0");
+            $stmtReady->execute([':sala' => $sala_id]);
+            $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
 
-            if (count($jogadores) < 2) throw new Exception("Mínimo de 2 jogadores para iniciar.");
-
-            $deck = criar_baralho();
-            
-            // Dá as cartas
-            foreach ($jogadores as $j) {
-                $c1 = array_pop($deck); $c2 = array_pop($deck);
-                $pdo->prepare("UPDATE poker_jogadores SET cards = :c, status = 'ativo', bet_round = 0 WHERE id = :id")
-                    ->execute([':c' => "$c1,$c2", ':id' => $j['id']]);
+            if ((int)$ready['total'] < 2 || (int)$ready['total'] != (int)$ready['prontos']) {
+                throw new Exception("Aguardando todos prontos.");
             }
 
-            $primeiro_turno = $jogadores[0]['posicao'];
-
-            $pdo->prepare("UPDATE poker_salas SET status = 'jogando', stage = 'pre-flop', pote = 0, bet_atual = 0, community_cards = '', deck = :deck, turno_posicao = :turno, vencedor_info = NULL WHERE id = :id")
-                ->execute([':deck' => implode(',', $deck), ':turno' => $primeiro_turno, ':id' => $sala_id]);
+            iniciar_mao($pdo, $sala_id);
 
             $pdo->commit();
             echo json_encode(['sucesso' => true]); exit;
@@ -157,6 +222,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtEu->execute([':sala' => $sala_id, ':uid' => $user_id]);
             $eu = $stmtEu->fetch(PDO::FETCH_ASSOC);
 
+            if (!$eu) throw new Exception("Você não está sentado.");
+            if ($sala['status'] !== 'jogando') throw new Exception("Aguardando nova mão.");
+            if ((int)$eu['aguardando'] === 1) throw new Exception("Aguardando próxima mão.");
             if ($sala['turno_posicao'] != $eu['posicao']) throw new Exception("Não é o seu turno.");
 
             $pote_add = 0;
@@ -202,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $vencedor = $stmtWin->fetch(PDO::FETCH_ASSOC);
                 
                 $pdo->prepare("UPDATE poker_jogadores SET chips = chips + :pote WHERE id = :id")->execute([':pote' => $novo_pote, ':id' => $vencedor['id']]);
-                $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info WHERE id = :id")->execute([':info' => "{$vencedor['nome']} venceu (Desistência).", ':id' => $sala_id]);
+                finalizar_mao($pdo, $sala_id, "{$vencedor['nome']} venceu (Desistência).");
             } 
             else {
                 // Checa se a rodada de apostas acabou
@@ -236,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                         $vencedor = $stmtAct->fetch(PDO::FETCH_ASSOC);
 
                         $pdo->prepare("UPDATE poker_jogadores SET chips = chips + :pote WHERE id = :id")->execute([':pote' => $novo_pote, ':id' => $vencedor['id']]);
-                        $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info WHERE id = :id")->execute([':info' => "{$vencedor['nome']} venceu no Showdown!", ':id' => $sala_id]);
+                        finalizar_mao($pdo, $sala_id, "{$vencedor['nome']} venceu no Showdown!");
                     } else {
                         // Próxima fase
                         $pdo->prepare("UPDATE poker_salas SET stage = :st, community_cards = :cc, deck = :dk, bet_atual = 0, turno_posicao = :tp WHERE id = :id")
@@ -351,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         <span class="fs-5">Olá, <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong></span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <button onclick="iniciarJogo()" class="btn btn-outline-success btn-sm border-0 d-none" id="btnIniciar"><i class="bi bi-play-fill"></i> Dar Cartas</button>
+        <button onclick="marcarPronto()" class="btn btn-outline-success btn-sm border-0 d-none" id="btnPronto"><i class="bi bi-check2-circle"></i> Pronto</button>
         <button onclick="levantar()" class="btn btn-outline-danger btn-sm border-0 d-none" id="btnSairMesa"><i class="bi bi-box-arrow-right"></i> Sair da Mesa</button>
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
         <span class="saldo-badge" id="saldoGeral"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
@@ -366,6 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         
         <div class="table-center">
             <div class="pot-display" id="mesaPot">POT: 0 moedas</div>
+            <div class="text-muted" id="mesaProntos" style="font-size:0.85rem;"></div>
             <div class="community-cards" id="mesaCartas"></div>
         </div>
 
@@ -402,6 +471,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             
             const poteAtual = (data.sala && data.sala.pote !== null && data.sala.pote !== undefined) ? data.sala.pote : 0;
             $('#mesaPot').text('POT: ' + poteAtual + ' moedas');
+            if (data.sala.status === 'esperando' && data.total_prontos > 0) {
+                $('#mesaProntos').text('Prontos: ' + data.prontos + '/' + data.total_prontos);
+            } else {
+                $('#mesaProntos').text('');
+            }
 
             // Winner Display
             if (data.sala.stage === 'showdown' && data.sala.vencedor_info) {
@@ -422,21 +496,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             // Gerencia UI de controles
             if(data.meu_lugar !== null) {
                 $('#btnSairMesa').removeClass('d-none');
-                
-                if (data.sala.status === 'esperando' && data.ativos >= 2) {
-                    $('#btnIniciar').removeClass('d-none');
+
+                let eu = data.jogadores[data.meu_lugar];
+                if (data.sala.status === 'esperando' && data.ativos >= 2 && eu.aguardando == 0) {
+                    $('#btnPronto').removeClass('d-none');
+                    if (eu.pronto == 1) {
+                        $('#btnPronto').addClass('disabled').text('Pronto');
+                    } else {
+                        $('#btnPronto').removeClass('disabled').html('<i class="bi bi-check2-circle"></i> Pronto');
+                    }
                 } else {
-                    $('#btnIniciar').addClass('d-none');
+                    $('#btnPronto').addClass('d-none');
                 }
 
                 if(data.sala.turno_posicao == data.meu_lugar && data.sala.status === 'jogando') {
                     $('#controlesJogo').removeClass('d-none');
-                    let eu = data.jogadores[data.meu_lugar];
                     valorParaPagar = data.sala.bet_atual - eu.bet_round;
                     $('#btnCall').text(valorParaPagar > 0 ? 'CALL (' + valorParaPagar + ')' : 'CHECK');
                 } else {
                     $('#controlesJogo').addClass('d-none');
                 }
+            } else {
+                $('#btnSairMesa').addClass('d-none');
+                $('#btnPronto').addClass('d-none');
+                $('#controlesJogo').addClass('d-none');
             }
 
             // Renderiza Assentos
@@ -448,6 +531,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     let isActive = (data.sala.turno_posicao == i && data.sala.status === 'jogando') ? 'active' : '';
                     let isFold = jogador.status === 'fold' ? 'fold' : '';
                     let betDisplay = jogador.bet_round > 0 ? `style="display:block;"` : '';
+                    let statusInfo = '';
+                    if (jogador.aguardando == 1) {
+                        statusInfo = '<span class="text-muted" style="font-size:0.7rem;">Aguardando próxima mão</span>';
+                    } else if (data.sala.status === 'esperando' && jogador.pronto == 1) {
+                        statusInfo = '<span class="text-success" style="font-size:0.7rem;">Pronto</span>';
+                    }
                     
                     let holeCardsHtml = '';
                     if(jogador.cards) {
@@ -459,6 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                         <div class="seat pos-${i} ${isMe} ${isActive} ${isFold}">
                             <div class="bet-bubble" ${betDisplay}>${jogador.bet_round}</div>
                             <span class="player-name">${jogador.nome}</span>
+                            ${statusInfo}
                             <span class="player-chips">${jogador.chips}</span>
                             ${holeCardsHtml}
                         </div>
@@ -488,8 +578,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         }
     }
 
-    function iniciarJogo() {
-        $.post('index.php?game=poker', { acao: 'iniciar' }, function(res) {
+    function marcarPronto() {
+        $.post('index.php?game=poker', { acao: 'pronto' }, function(res) {
             if(res.erro) alert(res.erro); atualizarMesa();
         }, 'json');
     }

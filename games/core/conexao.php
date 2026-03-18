@@ -37,6 +37,26 @@ try {
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
     }
+
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM poker_jogadores LIKE 'pronto'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE poker_jogadores ADD COLUMN pronto TINYINT(1) NOT NULL DEFAULT 0 AFTER bet_round");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
+
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM poker_jogadores LIKE 'aguardando'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE poker_jogadores ADD COLUMN aguardando TINYINT(1) NOT NULL DEFAULT 0 AFTER pronto");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
 } catch (PDOException $e) {
     die("Erro na conexão: " . $e->getMessage());
 }
