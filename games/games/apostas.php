@@ -484,7 +484,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas
         </span>
         <span class="saldo-badge">
-            <i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems
+            <i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS
         </span>
         
         <a href="../index.php" class="btn btn-sm btn-outline-light border-0">

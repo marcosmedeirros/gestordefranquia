@@ -238,7 +238,7 @@ try {
     <div class="d-flex align-items-center gap-3">
     <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
         <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas</span>
-        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS</span>
         <a href="alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
             <i class="bi bi-shield-lock"></i>
         </a>
