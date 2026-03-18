@@ -515,7 +515,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         .poker-table {
             background: radial-gradient(circle, #00695c 0%, #00362c 100%);
             border: 15px solid #3e2723;
-            border-radius: 200px; width: 900px; height: 450px; position: relative;
+            border-radius: 200px; width: min(900px, 95vw); height: min(450px, 55vw); position: relative;
             box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 20px 40px rgba(0,0,0,0.6);
         }
 
@@ -578,16 +578,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         }
         
         #vencedorAviso { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); background: #ffd700; color: #000; padding: 10px 30px; border-radius: 10px; font-weight: bold; font-size: 1.2rem; display: none; z-index: 50; }
+
+        .orientation-lock {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9); color: #fff;
+            display: none; align-items: center; justify-content: center; text-align: center;
+            padding: 20px; z-index: 2000;
+        }
+        .orientation-lock.show { display: flex; }
+        .orientation-box { max-width: 360px; }
+        .orientation-icon { font-size: 2.5rem; margin-bottom: 10px; }
     </style>
 </head>
 <body>
+
+<div class="orientation-lock" id="orientationLock">
+    <div class="orientation-box">
+        <div class="orientation-icon">📱↔️</div>
+        <div class="fw-bold" style="font-size:1.1rem;">Vire o celular na horizontal</div>
+        <div class="text-muted" style="font-size:0.9rem;">Para jogar, use o modo paisagem.</div>
+    </div>
+</div>
 
 <div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg">
     <div class="d-flex align-items-center gap-3">
         <span class="fs-5">Olá, <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong></span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <button onclick="marcarPronto()" class="btn btn-outline-success btn-sm border-0 d-none" id="btnPronto"><i class="bi bi-check2-circle"></i> Pronto</button>
         <button onclick="levantar()" class="btn btn-outline-danger btn-sm border-0 d-none" id="btnSairMesa"><i class="bi bi-box-arrow-right"></i> Sair da Mesa</button>
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
         <span class="saldo-badge" id="saldoGeral"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
@@ -612,6 +628,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 </div>
 
 <div class="controls-area d-none" id="controlesJogo">
+    <button onclick="marcarPronto()" class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow d-none" id="btnPronto"><i class="bi bi-check2-circle"></i> Pronto</button>
     <button class="btn btn-danger btn-lg fw-bold px-5 rounded-pill shadow" id="btnFold" onclick="acaoPoker('fold')">FOLD</button>
     <button class="btn btn-warning btn-lg fw-bold px-5 rounded-pill shadow" id="btnCall" onclick="acaoPoker('call')">CALL</button>
     <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow" id="btnRaise" onclick="abrirRaise()">RAISE</button>
@@ -784,8 +801,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if (amt && !isNaN(amt)) acaoPoker('raise', amt);
     }
 
+    function checarOrientacao() {
+        const lock = document.getElementById('orientationLock');
+        if (!lock) return;
+        const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+        const isSmall = window.innerWidth <= 900;
+        if (isPortrait && isSmall) {
+            lock.classList.add('show');
+        } else {
+            lock.classList.remove('show');
+        }
+    }
+
     atualizarMesa();
     setInterval(atualizarMesa, 2000);
+    checarOrientacao();
+    window.addEventListener('resize', checarOrientacao);
+    window.addEventListener('orientationchange', checarOrientacao);
 </script>
 </body>
 </html>

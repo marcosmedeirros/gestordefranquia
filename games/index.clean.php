@@ -1505,6 +1505,13 @@ try {
             </a>
         </div>
         <div class="col-6 col-md-4 col-lg-3">
+            <a href="games/index.php?game=poker" class="game-card" style="--accent: #8d6e63;">
+                <span class="game-icon">🃏</span>
+                <div class="game-title">Poker</div>
+                <div class="game-subtitle">Texas Hold'em</div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-3">
             <a href="games/index.php?game=tigrinho" class="game-card" style="--accent: #ff7043;">
                 <span class="game-icon">🐯</span>
                 <div class="game-title">Tigrinho</div>
