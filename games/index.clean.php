@@ -28,6 +28,82 @@ try {
     die("Erro ao carregar usuário: " . $e->getMessage());
 }
 
+$loja_msg = null;
+$loja_erro = null;
+
+$monthStart = (new DateTime('first day of this month 00:00:00', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+$monthEnd = (new DateTime('last day of this month 23:59:59', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+$tapas_compradas_mes = 0;
+try {
+    $stmtTapas = $pdo->prepare("SELECT COALESCE(SUM(qty), 0) as total FROM fba_shop_purchases WHERE user_id = :uid AND item = 'tapa' AND created_at BETWEEN :start AND :end");
+    $stmtTapas->execute([':uid' => $user_id, ':start' => $monthStart, ':end' => $monthEnd]);
+    $tapas_compradas_mes = (int)($stmtTapas->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+} catch (PDOException $e) {
+    $tapas_compradas_mes = 0;
+}
+
+$tapas_limite_mes = 3;
+$tapas_restantes = max(0, $tapas_limite_mes - $tapas_compradas_mes);
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
+    $acao_loja = $_POST['acao_loja'];
+    try {
+        if ($acao_loja === 'trocar_moedas') {
+            $custo_moedas = 1000;
+            $ganho_fba = 100;
+
+            $pdo->beginTransaction();
+            $stmtSaldo = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtSaldo->execute([':id' => $user_id]);
+            $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
+            if (!$saldo || (int)$saldo['pontos'] < $custo_moedas) {
+                throw new Exception('Moedas insuficientes para a troca.');
+            }
+
+            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :cost, fba_points = fba_points + :gain WHERE id = :id")
+                ->execute([':cost' => $custo_moedas, ':gain' => $ganho_fba, ':id' => $user_id]);
+            $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'moedas_to_fba', 1)")
+                ->execute([':uid' => $user_id]);
+
+            $pdo->commit();
+            $usuario['pontos'] = (int)$saldo['pontos'] - $custo_moedas;
+            $usuario['fba_points'] = (int)$saldo['fba_points'] + $ganho_fba;
+            $loja_msg = 'Troca realizada: 1000 moedas por 100 FBA Points.';
+        }
+
+        if ($acao_loja === 'comprar_tapa') {
+            $custo_fba = 3500;
+            if ($tapas_restantes <= 0) {
+                throw new Exception('Limite mensal de tapas atingido.');
+            }
+
+            $pdo->beginTransaction();
+            $stmtSaldo = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtSaldo->execute([':id' => $user_id]);
+            $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
+            if (!$saldo || (int)$saldo['fba_points'] < $custo_fba) {
+                throw new Exception('FBA Points insuficientes para comprar o tapa.');
+            }
+
+            $pdo->prepare("UPDATE usuarios SET fba_points = fba_points - :cost WHERE id = :id")
+                ->execute([':cost' => $custo_fba, ':id' => $user_id]);
+            $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'tapa', 1)")
+                ->execute([':uid' => $user_id]);
+
+            $pdo->commit();
+            $usuario['fba_points'] = (int)$saldo['fba_points'] - $custo_fba;
+            $tapas_compradas_mes += 1;
+            $tapas_restantes = max(0, $tapas_limite_mes - $tapas_compradas_mes);
+            $loja_msg = 'Tapa comprado com sucesso.';
+        }
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $loja_erro = $e->getMessage();
+    }
+}
+
 // Liga do usuário (informativa)
 $userLeague = $usuario['league'] ?? null;
 
@@ -1087,6 +1163,20 @@ try {
 
     <div class="tab-content">
         <div class="tab-pane fade show active" id="tab-apostas-pane" role="tabpanel" aria-labelledby="tab-apostas">
+            <?php if($loja_msg): ?>
+                <div class="alert alert-success border-0 bg-success bg-opacity-10 text-success mb-4 d-flex align-items-center">
+                    <i class="bi bi-check-circle-fill me-3"></i>
+                    <div><?= htmlspecialchars($loja_msg) ?></div>
+                </div>
+            <?php endif; ?>
+
+            <?php if($loja_erro): ?>
+                <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger mb-4 d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill me-3"></i>
+                    <div><?= htmlspecialchars($loja_erro) ?></div>
+                </div>
+            <?php endif; ?>
+
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
                     <div class="stat-card">
@@ -1104,6 +1194,35 @@ try {
                     <div class="stat-card">
                         <div class="stat-label"><i class="bi bi-bullseye me-2"></i>Média de Acerto</div>
                         <div class="stat-value"><?= number_format($media_acerto, 1, ',', '.') ?>%</div>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="section-title"><i class="bi bi-shop"></i>Loja</h6>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <div class="card-evento">
+                        <div class="evento-titulo">Trocar moedas por FBA Points</div>
+                        <div class="text-secondary mb-3">1000 moedas por 100 FBA Points.</div>
+                        <form method="POST">
+                            <input type="hidden" name="acao_loja" value="trocar_moedas">
+                            <button type="submit" class="btn btn-success w-100" <?= ((int)($usuario['pontos'] ?? 0) < 1000) ? 'disabled' : '' ?>>
+                                Trocar 1000 moedas
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="card-evento">
+                        <div class="evento-titulo">Badges / Tapas</div>
+                        <div class="text-secondary mb-2">1 tapa custa 3500 FBA Points.</div>
+                        <div class="text-secondary mb-3">Limite mensal: <?= $tapas_limite_mes ?> tapas. Restam <?= $tapas_restantes ?>.</div>
+                        <form method="POST">
+                            <input type="hidden" name="acao_loja" value="comprar_tapa">
+                            <button type="submit" class="btn btn-warning w-100" <?= ($tapas_restantes <= 0 || (int)($usuario['fba_points'] ?? 0) < 3500) ? 'disabled' : '' ?>>
+                                Comprar 1 tapa
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
