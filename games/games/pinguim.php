@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     </div>
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
-        <span class="saldo-badge" id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge" id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
     </div>
 </div>
 
@@ -403,7 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     function comprarSkin(skinKey, preco) {
         if(currentSaldo < preco) { alert('Saldo insuficiente!'); return; }
-        if(!confirm('Comprar skin por ' + preco + ' pontos?')) return;
+        if(!confirm('Comprar skin por ' + preco + ' moedas?')) return;
 
         const fd = new FormData();
         fd.append('acao', 'comprar_skin');
@@ -666,7 +666,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     <i class="bi bi-arrow-clockwise"></i> JOGAR DO ZERO
                 </button>
                 <button class="btn btn-outline-warning fw-bold w-100 rounded-pill" onclick="reviveGame()">
-                    <i class="bi bi-heart-pulse-fill"></i> REVIVER POR 10 PTS
+                    <i class="bi bi-heart-pulse-fill"></i> REVIVER POR 10 MOEDAS
                 </button>
             `;
         } else {
@@ -683,14 +683,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         .then(data => {
             if(data.sucesso) {
                 currentSaldo = data.novo_saldo;
-                saldoDisplay.innerText = currentSaldo.toLocaleString('pt-BR') + " pts";
+                saldoDisplay.innerText = currentSaldo.toLocaleString('pt-BR') + " moedas";
                 isGameOver = false;
                 hasRevived = true; 
                 obstacles = []; 
                 spawnTimer = 60; 
                 startMsg.style.display = 'none';
                 animate(); 
-                showFloatingText("REVIVEU! -10 PTS", dino.x, dino.y - 50);
+                showFloatingText("REVIVEU! -10 MOEDAS", dino.x, dino.y - 50);
             } else {
                 alert("Erro: " + data.erro);
                 finishGame(Math.floor(score)); 
@@ -724,7 +724,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     function creditMilestoneCoins(amount) {
         if (amount <= 0) return;
-        showFloatingText(`+${amount} PTS`, dino.x + 20, dino.y - 50);
+        showFloatingText(`+${amount} MOEDAS`, dino.x + 20, dino.y - 50);
 
         const formData = new FormData();
         formData.append('acao', 'salvar_milestone');
@@ -736,7 +736,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             const ganho = (data && typeof data.creditado !== 'undefined') ? parseInt(data.creditado, 10) : amount;
             if(ganho > 0) {
                 currentSaldo += ganho; 
-                saldoDisplay.innerText = currentSaldo.toLocaleString('pt-BR') + " pts";
+                saldoDisplay.innerText = currentSaldo.toLocaleString('pt-BR') + " moedas";
                 saldoDisplay.style.backgroundColor = "#ffeb3b";
                 saldoDisplay.style.color = "#000";
                 setTimeout(() => { saldoDisplay.style.backgroundColor = "#FC082B"; }, 500);

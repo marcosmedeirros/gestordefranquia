@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -237,7 +237,8 @@ try {
     <a href="../index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
     <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
-        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
         <a href="alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
             <i class="bi bi-shield-lock"></i>
         </a>
@@ -259,13 +260,13 @@ try {
         <div class="col-12 col-md-4">
             <div class="stat-card">
                 <div class="stat-label">Total apostado</div>
-                <div class="stat-value"><?= number_format((float)$resumo['total_apostado'], 0, ',', '.') ?> pts</div>
+                <div class="stat-value"><?= number_format((float)$resumo['total_apostado'], 0, ',', '.') ?> moedas</div>
             </div>
         </div>
         <div class="col-12 col-md-4">
             <div class="stat-card">
                 <div class="stat-label">Total de ganhos</div>
-                <div class="stat-value"><?= number_format((float)$resumo['total_ganhos'], 0, ',', '.') ?> pts</div>
+                <div class="stat-value"><?= number_format((float)$resumo['total_ganhos'], 0, ',', '.') ?> moedas</div>
             </div>
         </div>
     </div>
@@ -296,7 +297,7 @@ try {
                 <div class="aposta-details">
                     <div class="aposta-detail-item">
                         <span class="aposta-detail-label">Valor</span>
-                        <span class="aposta-detail-value"><?= number_format($palpite['valor'], 0, ',', '.') ?> pts</span>
+                        <span class="aposta-detail-value"><?= number_format($palpite['valor'], 0, ',', '.') ?> moedas</span>
                     </div>
                     <div class="aposta-detail-item">
                         <span class="aposta-detail-label">Odd</span>

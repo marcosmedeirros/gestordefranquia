@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -50,6 +50,7 @@ try {
                 u.nome,
                 u.league,
                 u.pontos,
+                COALESCE(u.fba_points, 0) AS fba_points,
                 COALESCE(SUM(CASE
                     WHEN e.status = 'encerrada'
                      AND e.vencedor_opcao_id IS NOT NULL
@@ -72,7 +73,7 @@ try {
         $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
         $stmt = $pdo->query("        
-        SELECT u.id, u.nome, u.pontos, u.league,
+        SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                 (
                     SELECT COUNT(*)
                     FROM palpites p
@@ -100,6 +101,7 @@ try {
                 u.nome,
                 u.league,
                 u.pontos,
+                COALESCE(u.fba_points, 0) AS fba_points,
                 COALESCE(SUM(CASE
                     WHEN e.status = 'encerrada'
                      AND e.vencedor_opcao_id IS NOT NULL
@@ -126,7 +128,7 @@ try {
         }
     } else {
         $stmtLiga = $pdo->prepare("        
-        SELECT u.id, u.nome, u.pontos, u.league,
+        SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                 (
                     SELECT COUNT(*)
                     FROM palpites p
@@ -292,7 +294,7 @@ $tab_labels = [
 
         .ranking-item {
             display: grid;
-            grid-template-columns: 40px 1fr 120px 120px;
+            grid-template-columns: 40px 1fr 120px 120px 120px;
             align-items: center;
             padding: 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -382,7 +384,8 @@ $tab_labels = [
     <a href="../index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
-        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
         <a href="alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
             <i class="bi bi-shield-lock"></i>
         </a>
@@ -416,7 +419,8 @@ $tab_labels = [
         <div class="d-flex align-items-center gap-2">
             <span class="text-secondary small">Ordenar por:</span>
             <select class="form-select form-select-sm w-auto" id="rankingSort">
-                <option value="pontos">Pontos</option>
+                <option value="pontos">Moedas</option>
+                <option value="gems">FBA Gems</option>
                 <option value="acertos">Acertos</option>
             </select>
         </div>
@@ -444,11 +448,12 @@ $tab_labels = [
                     <div class="ranking-item header-row">
                         <span>#</span>
                         <span>Time</span>
-                        <span class="text-end">Pontos</span>
+                        <span class="text-end">Moedas</span>
+                        <span class="text-end">FBA Gems</span>
                         <span class="text-end">Acertos</span>
                     </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
-                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
+                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                             <span class="ranking-position"><?= $idx + 1 ?></span>
                             <div class="ranking-name">
                                 <?= htmlspecialchars($jogador['nome']) ?>
@@ -464,7 +469,8 @@ $tab_labels = [
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
-                            <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
+                            <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> moedas</span>
+                            <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                             <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                         </div>
                     <?php endforeach; ?>
@@ -484,11 +490,12 @@ $tab_labels = [
                         <div class="ranking-item header-row">
                             <span>#</span>
                             <span>Time</span>
-                            <span class="text-end">Pontos</span>
+                            <span class="text-end">Moedas</span>
+                            <span class="text-end">FBA Gems</span>
                             <span class="text-end">Acertos</span>
                         </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
+                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                                 <span class="ranking-position"><?= $idx + 1 ?></span>
                                 <div class="ranking-name">
                                     <?= htmlspecialchars($jogador['nome']) ?>
@@ -501,7 +508,8 @@ $tab_labels = [
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-                                <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> pts</span>
+                                <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> moedas</span>
+                                <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                                 <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                             </div>
                         <?php endforeach; ?>

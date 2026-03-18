@@ -15,7 +15,15 @@ try {
     
     // Configura o PDO para lançar exceções em caso de erro (bom para debug)
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM usuarios LIKE 'fba_points'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE usuarios ADD COLUMN fba_points INT NOT NULL DEFAULT 0 AFTER pontos");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
 } catch (PDOException $e) {
     die("Erro na conexão: " . $e->getMessage());
 }

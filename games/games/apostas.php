@@ -24,7 +24,7 @@ $user_id = $_SESSION['user_id'];
 
 // 1. Dados do Usuário
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -405,7 +405,10 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
         </div>
         
         <span class="saldo-badge">
-            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts
+            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas
+        </span>
+        <span class="saldo-badge">
+            <i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems
         </span>
         
         <a href="../index.php" class="btn btn-sm btn-outline-light border-0">
@@ -434,7 +437,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
     <!-- SEÇÃO: APOSTAS DISPONÍVEIS -->
     <h6 class="section-title"><i class="bi bi-lightning-charge-fill"></i>Apostas Disponíveis</h6>
-    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>1 ponto</strong>.</p>
+    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>100 FBA Points</strong>.</p>
 
     <?php if(empty($eventos_disponiveis)): ?>
         <div class="empty-state">
@@ -528,7 +531,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <small class="text-info"><?= htmlspecialchars($aposta['aposta_feita']) ?></small>
                             </td>
                             <td class="fw-bold">
-                                1 ponto
+                                100 FBA Points
                             </td>
                             <td>
                                 <span class="badge badge-status <?= $status_badge ?> bet-status">

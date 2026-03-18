@@ -21,7 +21,7 @@ $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 $yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -95,6 +95,7 @@ try {
             u.nome,
             u.league,
             NULL AS team_name,
+            COALESCE(u.fba_points, 0) AS fba_points,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -120,6 +121,7 @@ try {
             u.nome,
             u.league,
             NULL AS team_name,
+            COALESCE(u.fba_points, 0) AS fba_points,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -147,6 +149,7 @@ try {
             u.nome,
             u.league,
             NULL AS team_name,
+            COALESCE(u.fba_points, 0) AS fba_points,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -167,6 +170,7 @@ try {
             u.nome,
             u.league,
             NULL AS team_name,
+            COALESCE(u.fba_points, 0) AS fba_points,
             COUNT(*) AS acertos,
             COUNT(p.id) AS total_apostas
         FROM palpites p
@@ -218,7 +222,7 @@ try {
     $ranking_geral_games = [];
 }
 
-// Ranking geral completo (apostas - acertos)
+// Ranking geral completo (apostas - fba points)
 try {
     $stmt = $pdo->query("
         SELECT
@@ -226,6 +230,7 @@ try {
             u.nome,
             u.league,
             NULL AS team_name,
+            COALESCE(u.fba_points, 0) AS fba_points,
             COALESCE(SUM(
                 CASE
                     WHEN e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id
@@ -237,7 +242,7 @@ try {
         LEFT JOIN opcoes o ON p.opcao_id = o.id
         LEFT JOIN eventos e ON o.evento_id = e.id
         GROUP BY u.id, u.nome, u.league
-        ORDER BY acertos DESC, u.nome ASC
+        ORDER BY fba_points DESC, acertos DESC, u.nome ASC
         LIMIT 50
     ");
     $ranking_geral_apostas = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -1043,7 +1048,8 @@ try {
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
     <a href="index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
-        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
         <a href="user/alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
             <i class="bi bi-shield-lock"></i>
         </a>
@@ -1127,7 +1133,7 @@ try {
 
             <?php if(!empty($ultimos_eventos_abertos)): ?>
                 <h6 class="section-title"><i class="bi bi-lightning-fill"></i>Apostas Gerais</h6>
-                <p class="text-secondary">Selecione o vencedor. Se acertar, você ganha <strong>1 ponto</strong>.</p>
+                <p class="text-secondary">Selecione o vencedor. Se acertar, você ganha <strong>100 FBA Points</strong>.</p>
                 <div class="accordion" id="accordion-apostas">
                     <?php foreach($ultimos_eventos_abertos as $evento): ?>
                         <?php $evento_id = (int)$evento['id']; ?>
@@ -1188,7 +1194,7 @@ try {
                 <div class="col-12">
                     <div class="ranking-card">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (Acertos)</div>
+                            <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (FBA Gems)</div>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="form-check form-switch small text-secondary m-0">
                                     <input class="form-check-input" type="checkbox" id="acertosLast24hToggle">
@@ -1233,7 +1239,7 @@ try {
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
-                                                <?= (int)$jogador['acertos'] ?> acertos
+                                                <?= number_format($jogador['fba_points'] ?? ((int)$jogador['acertos'] * 100), 0, ',', '.') ?> FBA Gems · <?= (int)$jogador['acertos'] ?> acertos
                                             </span>
                                         </div>
                                     <?php endforeach; ?>
@@ -1262,7 +1268,7 @@ try {
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
-                                                <?= (int)$jogador['acertos'] ?> acertos
+                                                <?= number_format(((int)$jogador['acertos']) * 100, 0, ',', '.') ?> FBA Gems · <?= (int)$jogador['acertos'] ?> acertos
                                             </span>
                                         </div>
                                     <?php endforeach; ?>
@@ -1282,8 +1288,8 @@ try {
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
                     <div class="stat-card">
-                        <div class="stat-label"><i class="bi bi-coin me-2"></i>Saldo Atual</div>
-                        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</div>
+                        <div class="stat-label"><i class="bi bi-coin me-2"></i>Moedas</div>
+                        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas</div>
                     </div>
                 </div>
                 <div class="col-12 col-md-4">
@@ -1407,7 +1413,7 @@ try {
                 <div class="col-12">
                     <div class="ranking-card">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Pontos)</div>
+                            <div class="ranking-title"><i class="bi bi-fire me-2"></i>Top 5 (Moedas)</div>
                             <select class="form-select form-select-sm w-auto" data-league-filter="points">
                                 <?php foreach ($ranking_leagues as $leagueKey => $leagueLabel): ?>
                                     <option value="<?= htmlspecialchars($leagueKey) ?>">
@@ -1454,7 +1460,7 @@ try {
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
-                                                <?= number_format($jogador['pontos'], 0, ',', '.') ?> pts
+                                                <?= number_format($jogador['pontos'], 0, ',', '.') ?> moedas
                                             </span>
                                         </div>
                                     <?php endforeach; ?>

@@ -12,7 +12,7 @@ require '../core/funcoes.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
 // Busca dados do admin para o Header
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -123,14 +123,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $busca->execute([$vencedor_opcao_id]);
                 
                 $pagos = 0;
-                $payStmt = $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?");
+                $payStmt = $pdo->prepare("UPDATE usuarios SET fba_points = fba_points + ? WHERE id = ?");
 
                 while ($row = $busca->fetch(PDO::FETCH_ASSOC)) {
-                    $payStmt->execute([1, $row['id_usuario']]);
+                    $payStmt->execute([100, $row['id_usuario']]);
                     $pagos++;
                 }
                 $pdo->commit();
-                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente.</div>";
+                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (100 FBA Points por acerto).</div>";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
@@ -259,7 +259,8 @@ foreach ($eventos as $key => $evt) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Site</a>
-        <span class="saldo-badge me-2"><?= number_format($user['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge me-2"><i class="bi bi-coin me-1"></i><?= number_format($user['pontos'], 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
     </div>
 </div>
 
