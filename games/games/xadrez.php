@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit;
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -405,7 +405,8 @@ if (isset($_GET['id'])) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
-        <span class="saldo-badge me-2"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge me-2"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA Points</span>
     </div>
 </div>
 
