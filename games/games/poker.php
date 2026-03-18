@@ -587,6 +587,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         .orientation-lock.show { display: flex; }
         .orientation-box { max-width: 360px; }
         .orientation-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+        @media (max-width: 900px) {
+            .poker-room { margin-top: 30px; }
+            .poker-table { border-width: 10px; border-radius: 160px; }
+            .table-logo { font-size: 2.2rem; }
+            .seat { width: 85px; height: 85px; }
+            .player-name { font-size: 0.75rem; }
+            .player-chips { font-size: 0.8rem; }
+            .card-poker { width: 42px; height: 62px; font-size: 0.95rem; }
+            .hole-cards .card-poker { width: 28px; height: 40px; font-size: 0.7rem; }
+            .controls-area { padding: 12px; gap: 10px; }
+            .controls-area .btn { font-size: 0.85rem; padding: 8px 16px; }
+        }
     </style>
 </head>
 <body>
