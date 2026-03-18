@@ -466,6 +466,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     function atualizarMesa() {
         $.post('index.php?game=poker', { acao: 'buscar_mesa' }, function(res) {
+            if(res && res.erro) {
+                $('#mesaProntos').text(res.erro);
+                return;
+            }
             if(!res.sucesso) return;
             const data = res.dados;
             
