@@ -466,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                                 $textoVencedor = $qtdVencedores > 1
                                     ? 'Empate entre ' . implode(' e ', $nomes)
                                     : $nomes[0] . ' venceu';
-                                finalizar_mao($pdo, $sala_id, $textoVencedor . " no Showdown!", $maoNome);
+                                finalizar_mao($pdo, $sala_id, $textoVencedor . " com {$maoNome}!", $maoNome);
                             } else {
                                 finalizar_mao($pdo, $sala_id, "Showdown encerrado.", $maoNome);
                             }
