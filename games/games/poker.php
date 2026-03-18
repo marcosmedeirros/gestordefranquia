@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         // 2. SENTAR/LEVANTAR
         if ($acao == 'sentar') {
             $pos = (int)$_POST['posicao'];
-            $buy_in = 500; 
+            $buy_in = 100;
             if ($meu_perfil['pontos'] < $buy_in) throw new Exception("Saldo insuficiente.");
 
             $pdo->beginTransaction();
@@ -400,7 +400,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if(!res.sucesso) return;
             const data = res.dados;
             
-            $('#mesaPot').text('POT: ' + data.sala.pote + ' moedas');
+            const poteAtual = (data.sala && data.sala.pote !== null && data.sala.pote !== undefined) ? data.sala.pote : 0;
+            $('#mesaPot').text('POT: ' + poteAtual + ' moedas');
 
             // Winner Display
             if (data.sala.stage === 'showdown' && data.sala.vencedor_info) {
@@ -472,7 +473,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     function sentar(pos) {
-        if(confirm('Entrar na mesa com 500 moedas?')) {
+        if(confirm('Entrar na mesa com 100 moedas?')) {
             $.post('index.php?game=poker', { acao: 'sentar', posicao: pos }, function(res) {
                 if(res.erro) alert(res.erro); atualizarMesa();
             }, 'json');
