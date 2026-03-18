@@ -1125,7 +1125,7 @@ try {
     <a href="index.php" class="brand-name">🎮 FBA games</a>
     <div class="d-flex align-items-center gap-3">
         <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?> moedas</span>
-        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Gems</span>
+        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA Points</span>
         <a href="user/alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
             <i class="bi bi-shield-lock"></i>
         </a>
