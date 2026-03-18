@@ -1295,9 +1295,8 @@ try {
                 </div>
                 <div class="col-12 col-md-4">
                     <div class="card-evento">
-                        <div class="evento-titulo">Badges / Tapas</div>
-                        <div class="text-secondary mb-2">1 tapa custa 3500 FBA Points.</div>
-                        <div class="text-secondary mb-3">Limite mensal: <?= $tapas_limite_mes ?> tapas. Restam <?= $tapas_restantes ?>.</div>
+                        <div class="evento-titulo">Badges / Tapas <?= $tapas_restantes ?>/<?= $tapas_limite_mes ?></div>
+                        <div class="text-secondary mb-3">1 tapa custa 3500 FBA Points.</div>
                         <form method="POST">
                             <input type="hidden" name="acao_loja" value="comprar_tapa">
                             <button type="submit" class="btn btn-danger w-100" <?= ($tapas_restantes <= 0 || (int)($usuario['fba_points'] ?? 0) < 3500) ? 'disabled' : '' ?>>
