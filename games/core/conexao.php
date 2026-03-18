@@ -48,10 +48,21 @@ try {
             community_cards VARCHAR(255) NOT NULL DEFAULT '',
             deck TEXT NULL,
             turno_posicao INT NULL,
-            vencedor_info VARCHAR(255) NULL
+            vencedor_info VARCHAR(255) NULL,
+            vencedor_mao VARCHAR(50) NULL
         )");
         $pdo->exec("INSERT IGNORE INTO poker_salas (id, status, stage, pote, bet_atual, community_cards, deck, turno_posicao, vencedor_info)
             VALUES (1, 'esperando', 'showdown', 0, 0, '', '', NULL, NULL)");
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
+
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM poker_salas LIKE 'vencedor_mao'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE poker_salas ADD COLUMN vencedor_mao VARCHAR(50) NULL AFTER vencedor_info");
+        }
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
     }

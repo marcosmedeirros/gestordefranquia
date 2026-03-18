@@ -57,6 +57,135 @@ function checar_fim_de_rodada($pdo, $sala_id, $bet_atual) {
     return ($res['ativos'] > 0 && $res['ativos'] == $res['igualados']);
 }
 
+function carta_valor($v) {
+    if ($v >= '2' && $v <= '9') return (int)$v;
+    if ($v === 'T') return 10;
+    if ($v === 'J') return 11;
+    if ($v === 'Q') return 12;
+    if ($v === 'K') return 13;
+    return 14;
+}
+
+function avaliar_5_cartas($cartas) {
+    $valores = [];
+    $naipes = [];
+    foreach ($cartas as $c) {
+        $valores[] = carta_valor($c[0]);
+        $naipes[] = $c[1];
+    }
+
+    rsort($valores);
+    $contagens = array_count_values($valores);
+    arsort($contagens);
+    $grupos = [];
+    foreach ($contagens as $valor => $qtd) {
+        $grupos[] = ['valor' => (int)$valor, 'qtd' => $qtd];
+    }
+
+    $is_flush = count(array_unique($naipes)) === 1;
+    $valores_unicos = array_values(array_unique($valores));
+    rsort($valores_unicos);
+    $is_straight = false;
+    $high_straight = 0;
+    if (count($valores_unicos) === 5) {
+        $max = $valores_unicos[0];
+        $min = $valores_unicos[4];
+        if ($max - $min === 4) {
+            $is_straight = true;
+            $high_straight = $max;
+        } elseif ($valores_unicos === [14, 5, 4, 3, 2]) {
+            $is_straight = true;
+            $high_straight = 5;
+        }
+    }
+
+    if ($is_flush && $is_straight) {
+        if ($high_straight === 14) {
+            return ['rank' => 9, 'tiebreak' => [14], 'nome' => 'Royal Flush'];
+        }
+        return ['rank' => 8, 'tiebreak' => [$high_straight], 'nome' => 'Straight Flush'];
+    }
+
+    if ($grupos[0]['qtd'] === 4) {
+        $quad = $grupos[0]['valor'];
+        $kicker = $grupos[1]['valor'];
+        return ['rank' => 7, 'tiebreak' => [$quad, $kicker], 'nome' => 'Quadra'];
+    }
+
+    if ($grupos[0]['qtd'] === 3 && $grupos[1]['qtd'] === 2) {
+        return ['rank' => 6, 'tiebreak' => [$grupos[0]['valor'], $grupos[1]['valor']], 'nome' => 'Full House'];
+    }
+
+    if ($is_flush) {
+        return ['rank' => 5, 'tiebreak' => $valores, 'nome' => 'Flush'];
+    }
+
+    if ($is_straight) {
+        return ['rank' => 4, 'tiebreak' => [$high_straight], 'nome' => 'Sequencia'];
+    }
+
+    if ($grupos[0]['qtd'] === 3) {
+        $trinca = $grupos[0]['valor'];
+        $kickers = [];
+        foreach ($grupos as $g) {
+            if ($g['qtd'] === 1) $kickers[] = $g['valor'];
+        }
+        rsort($kickers);
+        return ['rank' => 3, 'tiebreak' => array_merge([$trinca], $kickers), 'nome' => 'Trinca'];
+    }
+
+    if ($grupos[0]['qtd'] === 2 && $grupos[1]['qtd'] === 2) {
+        $par1 = $grupos[0]['valor'];
+        $par2 = $grupos[1]['valor'];
+        $kicker = $grupos[2]['valor'];
+        return ['rank' => 2, 'tiebreak' => [max($par1, $par2), min($par1, $par2), $kicker], 'nome' => 'Dois Pares'];
+    }
+
+    if ($grupos[0]['qtd'] === 2) {
+        $par = $grupos[0]['valor'];
+        $kickers = [];
+        foreach ($grupos as $g) {
+            if ($g['qtd'] === 1) $kickers[] = $g['valor'];
+        }
+        rsort($kickers);
+        return ['rank' => 1, 'tiebreak' => array_merge([$par], $kickers), 'nome' => 'Um Par'];
+    }
+
+    return ['rank' => 0, 'tiebreak' => $valores, 'nome' => 'Carta Alta'];
+}
+
+function comparar_maos($a, $b) {
+    if ($a['rank'] !== $b['rank']) return $a['rank'] > $b['rank'] ? 1 : -1;
+    $len = max(count($a['tiebreak']), count($b['tiebreak']));
+    for ($i = 0; $i < $len; $i++) {
+        $va = $a['tiebreak'][$i] ?? 0;
+        $vb = $b['tiebreak'][$i] ?? 0;
+        if ($va !== $vb) return $va > $vb ? 1 : -1;
+    }
+    return 0;
+}
+
+function avaliar_melhor_mao($cartas7) {
+    $melhor = null;
+    $n = count($cartas7);
+    for ($i = 0; $i < $n - 4; $i++) {
+        for ($j = $i + 1; $j < $n - 3; $j++) {
+            for ($k = $j + 1; $k < $n - 2; $k++) {
+                for ($l = $k + 1; $l < $n - 1; $l++) {
+                    for ($m = $l + 1; $m < $n; $m++) {
+                        $mao = [$cartas7[$i], $cartas7[$j], $cartas7[$k], $cartas7[$l], $cartas7[$m]];
+                        $avaliacao = avaliar_5_cartas($mao);
+                        if ($melhor === null || comparar_maos($avaliacao, $melhor) > 0) {
+                            $melhor = $avaliacao;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return $melhor;
+}
+
 function iniciar_mao($pdo, $sala_id) {
     $stmt = $pdo->prepare("SELECT * FROM poker_jogadores WHERE id_sala = :id AND aguardando = 0 ORDER BY posicao ASC");
     $stmt->execute([':id' => $sala_id]);
@@ -77,13 +206,13 @@ function iniciar_mao($pdo, $sala_id) {
 
     $primeiro_turno = $jogadores[0]['posicao'];
 
-    $pdo->prepare("UPDATE poker_salas SET status = 'jogando', stage = 'pre-flop', pote = 0, bet_atual = 0, community_cards = '', deck = :deck, turno_posicao = :turno, vencedor_info = NULL WHERE id = :id")
+    $pdo->prepare("UPDATE poker_salas SET status = 'jogando', stage = 'pre-flop', pote = 0, bet_atual = 0, community_cards = '', deck = :deck, turno_posicao = :turno, vencedor_info = NULL, vencedor_mao = NULL WHERE id = :id")
         ->execute([':deck' => implode(',', $deck), ':turno' => $primeiro_turno, ':id' => $sala_id]);
 }
 
-function finalizar_mao($pdo, $sala_id, $vencedor_info) {
-    $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info, pote = 0, bet_atual = 0, turno_posicao = NULL WHERE id = :id")
-        ->execute([':info' => $vencedor_info, ':id' => $sala_id]);
+function finalizar_mao($pdo, $sala_id, $vencedor_info, $vencedor_mao = null) {
+    $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info, vencedor_mao = :mao, pote = 0, bet_atual = 0, turno_posicao = NULL WHERE id = :id")
+        ->execute([':info' => $vencedor_info, ':mao' => $vencedor_mao, ':id' => $sala_id]);
     $pdo->prepare("UPDATE poker_jogadores SET status = 'ativo', bet_round = 0, pronto = 0, aguardando = 0 WHERE id_sala = :id")
         ->execute([':id' => $sala_id]);
 }
@@ -296,15 +425,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     $pdo->prepare("UPDATE poker_jogadores SET bet_round = 0 WHERE id_sala = :id")->execute([':id' => $sala_id]);
                     
                     if ($novo_stage == 'showdown') {
-                        // SHOWDOWN (Lógica Simplificada)
-                        // ATENÇÃO: Aqui você precisará de uma biblioteca PHP para avaliar mãos reais.
-                        // Esta simulação entrega o pote para o primeiro jogador ativo encontrado para concluir o loop.
-                        $stmtAct = $pdo->prepare("SELECT id, nome FROM poker_jogadores WHERE id_sala = :s AND status = 'ativo' LIMIT 1");
+                        $stmtAct = $pdo->prepare("SELECT id, nome, cards FROM poker_jogadores WHERE id_sala = :s AND status = 'ativo' AND aguardando = 0");
                         $stmtAct->execute([':s' => $sala_id]);
-                        $vencedor = $stmtAct->fetch(PDO::FETCH_ASSOC);
+                        $ativos = $stmtAct->fetchAll(PDO::FETCH_ASSOC);
 
-                        $pdo->prepare("UPDATE poker_jogadores SET chips = chips + :pote WHERE id = :id")->execute([':pote' => $novo_pote, ':id' => $vencedor['id']]);
-                        finalizar_mao($pdo, $sala_id, "{$vencedor['nome']} venceu no Showdown!");
+                        $melhorJogador = null;
+                        $melhorMao = null;
+                        $avaliacoes = [];
+                        foreach ($ativos as $jogador) {
+                            $cartasJogador = $jogador['cards'] ? explode(',', $jogador['cards']) : [];
+                            $cartasMesa = $board;
+                            if (count($cartasJogador) !== 2 || count($cartasMesa) !== 5) continue;
+                            $avaliacao = avaliar_melhor_mao(array_merge($cartasJogador, $cartasMesa));
+                            $avaliacoes[] = ['jogador' => $jogador, 'avaliacao' => $avaliacao];
+                            if ($melhorMao === null || comparar_maos($avaliacao, $melhorMao) > 0) {
+                                $melhorMao = $avaliacao;
+                                $melhorJogador = $jogador;
+                            }
+                        }
+
+                        if ($melhorJogador) {
+                            $vencedores = [];
+                            foreach ($avaliacoes as $item) {
+                                if (comparar_maos($item['avaliacao'], $melhorMao) === 0) {
+                                    $vencedores[] = $item['jogador'];
+                                }
+                            }
+
+                            $maoNome = $melhorMao ? $melhorMao['nome'] : 'Carta Alta';
+                            $qtdVencedores = count($vencedores);
+                            if ($qtdVencedores > 0) {
+                                $valorBase = intdiv($novo_pote, $qtdVencedores);
+                                $resto = $novo_pote % $qtdVencedores;
+                                foreach ($vencedores as $idx => $vencedor) {
+                                    $premio = $valorBase + ($idx === 0 ? $resto : 0);
+                                    $pdo->prepare("UPDATE poker_jogadores SET chips = chips + :pote WHERE id = :id")
+                                        ->execute([':pote' => $premio, ':id' => $vencedor['id']]);
+                                }
+                                $nomes = array_map(function($v) { return $v['nome']; }, $vencedores);
+                                $textoVencedor = $qtdVencedores > 1
+                                    ? 'Empate entre ' . implode(' e ', $nomes)
+                                    : $nomes[0] . ' venceu';
+                                finalizar_mao($pdo, $sala_id, $textoVencedor . " no Showdown!", $maoNome);
+                            } else {
+                                finalizar_mao($pdo, $sala_id, "Showdown encerrado.", $maoNome);
+                            }
+                        } else {
+                            finalizar_mao($pdo, $sala_id, "Showdown encerrado.", 'Carta Alta');
+                        }
                     } else {
                         // Próxima fase
                         $pdo->prepare("UPDATE poker_salas SET stage = :st, community_cards = :cc, deck = :dk, bet_atual = 0, turno_posicao = :tp WHERE id = :id")
@@ -435,6 +603,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         <div class="table-center">
             <div class="pot-display" id="mesaPot">POT: 0 moedas</div>
             <div class="text-muted" id="mesaProntos" style="font-size:0.85rem;"></div>
+            <div class="text-warning" id="mesaVencedorMao" style="font-size:0.9rem;"></div>
             <div class="community-cards" id="mesaCartas"></div>
         </div>
 
@@ -487,6 +656,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $('#vencedorAviso').text(data.sala.vencedor_info).fadeIn();
             } else {
                 $('#vencedorAviso').fadeOut();
+            }
+
+            if (data.sala.stage === 'showdown' && data.sala.vencedor_mao) {
+                $('#mesaVencedorMao').text('Mão vencedora: ' + data.sala.vencedor_mao);
+            } else {
+                $('#mesaVencedorMao').text('');
             }
 
             // Cartas Mesa
