@@ -49,6 +49,10 @@ $games_disponiveis = [
     'tigrinho' => [
         'titulo' => '🐯 Fortune Tiger',
         'arquivo' => 'tigrinho.php'
+    ],
+    'poker' => [
+        'titulo' => '🃏 Poker',
+        'arquivo' => 'poker.php'
     ]
     
 ];
