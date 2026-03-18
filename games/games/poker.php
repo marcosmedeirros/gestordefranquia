@@ -62,7 +62,7 @@ function iniciar_mao($pdo, $sala_id) {
     $stmt->execute([':id' => $sala_id]);
     $jogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (count($jogadores) < 2) throw new Exception("Mínimo de 2 jogadores para iniciar.");
+    if (count($jogadores) < 1) throw new Exception("Mínimo de 1 jogador para iniciar.");
 
     $deck = criar_baralho();
 
@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtReady->execute([':sala' => $sala_id]);
             $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
 
-            if ((int)$ready['total'] >= 2 && (int)$ready['total'] == (int)$ready['prontos']) {
+            if ((int)$ready['total'] >= 1 && (int)$ready['total'] == (int)$ready['prontos']) {
                 iniciar_mao($pdo, $sala_id);
             }
 
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtReady->execute([':sala' => $sala_id]);
             $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
 
-            if ((int)$ready['total'] < 2 || (int)$ready['total'] != (int)$ready['prontos']) {
+            if ((int)$ready['total'] < 1 || (int)$ready['total'] != (int)$ready['prontos']) {
                 throw new Exception("Aguardando todos prontos.");
             }
 
@@ -443,9 +443,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 </div>
 
 <div class="controls-area d-none" id="controlesJogo">
-    <button class="btn btn-danger btn-lg fw-bold px-5 rounded-pill shadow" onclick="acaoPoker('fold')">FOLD</button>
+    <button class="btn btn-danger btn-lg fw-bold px-5 rounded-pill shadow" id="btnFold" onclick="acaoPoker('fold')">FOLD</button>
     <button class="btn btn-warning btn-lg fw-bold px-5 rounded-pill shadow" id="btnCall" onclick="acaoPoker('call')">CALL</button>
-    <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow" onclick="abrirRaise()">RAISE</button>
+    <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow" id="btnRaise" onclick="abrirRaise()">RAISE</button>
+    <span class="text-muted" id="acoesAviso" style="font-size:0.85rem;"></span>
 </div>
 
 <script>
@@ -502,9 +503,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $('#btnSairMesa').removeClass('d-none');
 
                 let eu = data.jogadores[data.meu_lugar];
-                if (data.sala.status === 'esperando' && data.ativos >= 2 && eu.aguardando == 0) {
+                if (data.sala.status === 'esperando' && eu.aguardando == 0) {
                     $('#btnPronto').removeClass('d-none');
-                    if (eu.pronto == 1) {
+                    if (data.ativos < 1) {
+                        $('#btnPronto').addClass('disabled').text('Aguardando jogadores');
+                    } else if (eu.pronto == 1) {
                         $('#btnPronto').addClass('disabled').text('Pronto');
                     } else {
                         $('#btnPronto').removeClass('disabled').html('<i class="bi bi-check2-circle"></i> Pronto');
@@ -513,12 +516,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     $('#btnPronto').addClass('d-none');
                 }
 
+                $('#controlesJogo').removeClass('d-none');
                 if(data.sala.turno_posicao == data.meu_lugar && data.sala.status === 'jogando') {
-                    $('#controlesJogo').removeClass('d-none');
                     valorParaPagar = data.sala.bet_atual - eu.bet_round;
                     $('#btnCall').text(valorParaPagar > 0 ? 'CALL (' + valorParaPagar + ')' : 'CHECK');
+                    $('#btnFold, #btnCall, #btnRaise').removeClass('disabled');
+                    $('#acoesAviso').text('');
                 } else {
-                    $('#controlesJogo').addClass('d-none');
+                    $('#btnFold, #btnCall, #btnRaise').addClass('disabled');
+                    if (data.sala.status !== 'jogando') {
+                        $('#acoesAviso').text('Aguardando início da mão.');
+                    } else {
+                        $('#acoesAviso').text('Aguardando seu turno.');
+                    }
                 }
             } else {
                 $('#btnSairMesa').addClass('d-none');
