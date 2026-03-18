@@ -58,6 +58,7 @@ let currentSort = { field: 'role', ascending: true };
 let currentSearch = '';
 let currentRoleFilter = '';
 let editPhotoFile = null;
+let pendingWaivePlayerId = null;
 
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
@@ -89,6 +90,57 @@ function updateFreeAgencyCounters() {
   if (signingsEl) {
     signingsEl.textContent = `${currentFALimits.signingsUsed} / ${currentFALimits.signingsMax}`;
     signingsEl.classList.toggle('text-danger', currentFALimits.signingsMax && currentFALimits.signingsUsed >= currentFALimits.signingsMax);
+  }
+}
+
+function calculateCapTop8(players) {
+  return players
+    .slice()
+    .sort((a, b) => Number(b.ovr) - Number(a.ovr))
+    .slice(0, 8)
+    .reduce((sum, p) => sum + Number(p.ovr), 0);
+}
+
+function getCapAfterRemoval(playerId) {
+  const remaining = allPlayers.filter((p) => String(p.id) !== String(playerId));
+  return calculateCapTop8(remaining);
+}
+
+function getCapStatusText(newCap) {
+  const capMin = Number(window.__CAP_MIN__);
+  const capMax = Number(window.__CAP_MAX__);
+  if (Number.isFinite(capMin) && Number.isFinite(capMax)) {
+    if (newCap < capMin) return 'Voce vai ficar abaixo do cap.';
+    if (newCap > capMax) return 'Voce vai ficar acima do cap.';
+  }
+  return 'Voce vai ficar dentro do cap.';
+}
+
+function openWaiveModal(player) {
+  if (!player) return;
+  pendingWaivePlayerId = player.id;
+  const nameEl = document.getElementById('waive-player-name');
+  const capEl = document.getElementById('waive-player-cap');
+  const statusEl = document.getElementById('waive-cap-status');
+  if (nameEl) nameEl.textContent = player.name || 'jogador';
+  const newCap = getCapAfterRemoval(player.id);
+  if (capEl) capEl.textContent = newCap;
+  if (statusEl) statusEl.textContent = getCapStatusText(newCap);
+  const modalEl = document.getElementById('waivePlayerModal');
+  if (modalEl) {
+    new bootstrap.Modal(modalEl).show();
+  }
+}
+
+async function performWaivePlayer(playerId) {
+  if (!playerId) return;
+  try {
+    const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
+    alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
+    loadPlayers();
+    loadFreeAgencyLimits();
+  } catch (err) {
+    alert('Erro: ' + (err.error || 'Desconhecido'));
   }
 }
 
@@ -331,10 +383,7 @@ function renderPlayersTable(players) {
 
 function updateRosterStats() {
   const totalPlayers = allPlayers.length;
-  const topEight = [...allPlayers]
-    .sort((a, b) => Number(b.ovr) - Number(a.ovr))
-    .slice(0, 8)
-    .reduce((sum, p) => sum + Number(p.ovr), 0);
+  const topEight = calculateCapTop8(allPlayers);
   document.getElementById('total-players').textContent = totalPlayers;
   document.getElementById('cap-top8').textContent = topEight;
 }
@@ -513,17 +562,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (btn.classList.contains('btn-waive-player')) {
       const playerId = btn.dataset.id;
-      const playerName = btn.dataset.name;
-      if (confirm(`Dispensar ${playerName}?`)) {
-        try {
-          const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
-          alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
-          loadPlayers();
-          loadFreeAgencyLimits();
-        } catch (err) {
-          alert('Erro: ' + (err.error || 'Desconhecido'));
-        }
-      }
+      const player = allPlayers.find(p => p.id == playerId);
+      openWaiveModal(player);
       return;
     }
     if (btn.classList.contains('btn-retire-player')) {
@@ -583,17 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (btn.classList.contains('btn-waive-player')) {
       const playerId = btn.dataset.id;
-      const playerName = btn.dataset.name;
-      if (confirm(`Dispensar ${playerName}?`)) {
-        try {
-          const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId }) });
-          alert(res.message || 'Jogador dispensado e enviado para a Free Agency!');
-          loadPlayers();
-          loadFreeAgencyLimits();
-        } catch (err) {
-          alert('Erro: ' + (err.error || 'Desconhecido'));
-        }
-      }
+      const player = allPlayers.find(p => p.id == playerId);
+      openWaiveModal(player);
       return;
     }
     if (btn.classList.contains('btn-retire-player')) {
@@ -633,5 +664,16 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
     }
+  });
+
+  document.getElementById('btn-confirm-waive')?.addEventListener('click', async () => {
+    const modalEl = document.getElementById('waivePlayerModal');
+    const playerId = pendingWaivePlayerId;
+    pendingWaivePlayerId = null;
+    if (modalEl) {
+      const instance = bootstrap.Modal.getInstance(modalEl);
+      instance && instance.hide();
+    }
+    await performWaivePlayer(playerId);
   });
 });

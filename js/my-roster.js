@@ -52,6 +52,19 @@ const DEFAULT_FA_LIMITS = {
 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
+function calculateCapTop8(players) {
+  return players
+    .slice()
+    .sort((a, b) => Number(b.ovr) - Number(a.ovr))
+    .slice(0, 8)
+    .reduce((sum, p) => sum + Number(p.ovr), 0);
+}
+
+function getCapAfterRemoval(playerId) {
+  const remaining = allPlayers.filter((p) => p.id !== playerId);
+  return calculateCapTop8(remaining);
+}
+
 async function loadFreeAgencyLimits() {
   if (!window.__TEAM_ID__) return;
   try {
@@ -291,10 +304,7 @@ function renderPlayers(players) {
 
 function updateRosterStats() {
   const totalPlayers = allPlayers.length;
-  const topEight = allPlayers
-    .sort((a, b) => Number(b.ovr) - Number(a.ovr))
-    .slice(0, 8)
-    .reduce((sum, p) => sum + Number(p.ovr), 0);
+  const topEight = calculateCapTop8(allPlayers);
   
   document.getElementById('total-players').textContent = totalPlayers;
   document.getElementById('cap-top8').textContent = topEight;
@@ -397,8 +407,18 @@ async function updatePlayer(payload) {
   }
 }
 
-async function deletePlayer(id) {
-  if (!confirm('Deseja dispensar este jogador? Ele será enviado para a Free Agency e outros times poderão contratá-lo.')) return;
+function confirmWaivePlayer(id) {
+  const player = getRowPlayer(id);
+  if (!player) return false;
+  const newCap = getCapAfterRemoval(id);
+  const message = `Se voce dispensar ${player.name}, seu CAP Top8 vai ser ${newCap}.\n\nDeseja continuar?`;
+  return confirm(message);
+}
+
+async function deletePlayer(id, skipConfirm = false) {
+  if (!skipConfirm) {
+    if (!confirm('Deseja dispensar este jogador? Ele será enviado para a Free Agency e outros times poderão contratá-lo.')) return;
+  }
   try {
     const res = await api('players.php', {
       method: 'DELETE',
@@ -485,7 +505,11 @@ document.getElementById('players-tbody')?.addEventListener('click', (e) => {
 
   if (button.classList.contains('btn-waive-player')) {
     const id = Number(button.dataset.id);
-    if (Number.isFinite(id) && id > 0) deletePlayer(id);
+    if (Number.isFinite(id) && id > 0) {
+      if (confirmWaivePlayer(id)) {
+        deletePlayer(id, true);
+      }
+    }
     return;
   }
 
@@ -519,7 +543,11 @@ document.getElementById('players-cards-mobile')?.addEventListener('click', (e) =
   
   if (target.classList.contains('btn-waive-player')) {
     const id = Number(target.dataset.id);
-    deletePlayer(id);
+    if (Number.isFinite(id) && id > 0) {
+      if (confirmWaivePlayer(id)) {
+        deletePlayer(id, true);
+      }
+    }
   } else if (target.classList.contains('btn-retire-player')) {
     const id = Number(target.dataset.id);
     const name = target.dataset.name || 'jogador';

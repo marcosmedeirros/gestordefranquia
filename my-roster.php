@@ -12,6 +12,22 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
 $teamId = $team['id'] ?? null;
 
+$capMin = 0;
+$capMax = 999;
+if ($team && !empty($team['league'])) {
+  try {
+    $stmtCapLimits = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+    $stmtCapLimits->execute([$team['league']]);
+    $capLimits = $stmtCapLimits->fetch();
+    if ($capLimits) {
+      $capMin = (int)($capLimits['cap_min'] ?? $capMin);
+      $capMax = (int)($capLimits['cap_max'] ?? $capMax);
+    }
+  } catch (Exception $e) {
+    // Ignorar se league_settings ainda nao existir
+  }
+}
+
 // Buscar contagem de jogadores separadamente
 $playerCount = 0;
 if ($teamId) {
@@ -477,8 +493,33 @@ if ($teamId) {
     </div>
   </div>
 
+  <!-- Waive Player Modal -->
+  <div class="modal fade" id="waivePlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-bottom border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-x me-2 text-orange"></i>Dispensar Jogador</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray mb-2">
+            Se voce dispensar <strong class="text-white" id="waive-player-name">jogador</strong>,
+            seu CAP Top8 vai ser <strong class="text-orange" id="waive-player-cap">0</strong>.
+          </p>
+          <p class="text-light-gray mb-0" id="waive-cap-status">Voce vai ficar dentro do cap.</p>
+        </div>
+        <div class="modal-footer border-top border-orange">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-danger" id="btn-confirm-waive"><i class="bi bi-person-x me-1"></i>Dispensar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
+    window.__CAP_MIN__ = <?= (int)$capMin ?>;
+    window.__CAP_MAX__ = <?= (int)$capMax ?>;
     console.log('Team ID:', window.__TEAM_ID__, 'Team:', <?= json_encode($team) ?>);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
