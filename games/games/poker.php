@@ -62,7 +62,7 @@ function iniciar_mao($pdo, $sala_id) {
     $stmt->execute([':id' => $sala_id]);
     $jogadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (count($jogadores) < 1) throw new Exception("Mínimo de 1 jogador para iniciar.");
+    if (count($jogadores) < 2) throw new Exception("Mínimo de 2 jogadores para iniciar.");
 
     $deck = criar_baralho();
 
@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtReady->execute([':sala' => $sala_id]);
             $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
 
-            if ((int)$ready['total'] >= 1 && (int)$ready['total'] == (int)$ready['prontos']) {
+            if ((int)$ready['total'] >= 2 && (int)$ready['total'] == (int)$ready['prontos']) {
                 iniciar_mao($pdo, $sala_id);
             }
 
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtReady->execute([':sala' => $sala_id]);
             $ready = $stmtReady->fetch(PDO::FETCH_ASSOC);
 
-            if ((int)$ready['total'] < 1 || (int)$ready['total'] != (int)$ready['prontos']) {
+            if ((int)$ready['total'] < 2 || (int)$ready['total'] != (int)$ready['prontos']) {
                 throw new Exception("Aguardando todos prontos.");
             }
 
@@ -505,7 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 let eu = data.jogadores[data.meu_lugar];
                 if (data.sala.status === 'esperando' && eu.aguardando == 0) {
                     $('#btnPronto').removeClass('d-none');
-                    if (data.ativos < 1) {
+                    if (data.ativos < 2) {
                         $('#btnPronto').addClass('disabled').text('Aguardando jogadores');
                     } else if (eu.pronto == 1) {
                         $('#btnPronto').addClass('disabled').text('Pronto');
