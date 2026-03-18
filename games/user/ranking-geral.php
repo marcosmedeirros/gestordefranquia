@@ -469,7 +469,7 @@ $tab_labels = [
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
-                            <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> moedas</span>
+                            <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
                             <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                             <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                         </div>
@@ -508,7 +508,7 @@ $tab_labels = [
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-                                <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?> moedas</span>
+                                <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
                                 <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                                 <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
                             </div>

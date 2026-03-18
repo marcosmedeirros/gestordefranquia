@@ -24,6 +24,19 @@ try {
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
     }
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fba_shop_purchases (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            item VARCHAR(30) NOT NULL,
+            qty INT NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_item_date (user_id, item, created_at)
+        )");
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
 } catch (PDOException $e) {
     die("Erro na conexão: " . $e->getMessage());
 }

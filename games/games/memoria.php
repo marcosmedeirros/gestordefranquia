@@ -9,7 +9,7 @@ error_reporting(E_ALL);
 require '../core/conexao.php';
 
 // --- CONFIGURAÇÕES ---
-$PONTOS_VITORIA = 10;
+$PONTOS_VITORIA = 100;
 $LIMITE_MOVIMENTOS = 18; 
 
 // Garantir colunas de sequência
