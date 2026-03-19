@@ -330,26 +330,43 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
     </div>
   </div>
   <div class="btn-group flex-wrap">
-    <button class="btn btn-outline-orange btn-sm ${status === 'pending' ? 'active' : ''}" onclick="showTrades('pending')">Pendentes</button>
-    <button class="btn btn-outline-orange btn-sm ${status === 'accepted' ? 'active' : ''}" onclick="showTrades('accepted')">Aceitas</button>
-    <button class="btn btn-outline-orange btn-sm ${status === 'all' ? 'active' : ''}" onclick="showTrades('all')">Todas</button>
+    <button id="tradesTabAll" class="btn btn-outline-orange btn-sm ${status === 'all' ? 'active' : ''}" onclick="showTrades('all')">Todas (0)</button>
+    <button id="tradesTabPending" class="btn btn-outline-orange btn-sm ${status === 'pending' ? 'active' : ''}" onclick="showTrades('pending')">Pendentes (0)</button>
+    <button id="tradesTabAccepted" class="btn btn-outline-orange btn-sm ${status === 'accepted' ? 'active' : ''}" onclick="showTrades('accepted')">Aceitas (0)</button>
+    <button id="tradesTabRejected" class="btn btn-outline-orange btn-sm ${status === 'rejected' ? 'active' : ''}" onclick="showTrades('rejected')">Rejeitadas (0)</button>
   </div>
 </div>
 <div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
   
   try {
     let url = 'admin.php?action=trades';
-    if (status !== 'all') {
-      url += `&status=${status}`;
-    }
     if (leagueFilter && leagueFilter !== 'ALL') {
       url += `&league=${encodeURIComponent(leagueFilter)}`;
     }
     const data = await api(url);
     const trades = data.trades || [];
     const tc = document.getElementById('tradesListContainer');
+
+    const counts = {
+      all: trades.length,
+      pending: trades.filter(t => t.status === 'pending').length,
+      accepted: trades.filter(t => t.status === 'accepted').length,
+      rejected: trades.filter(t => t.status === 'rejected').length
+    };
+    const tabAll = document.getElementById('tradesTabAll');
+    const tabPending = document.getElementById('tradesTabPending');
+    const tabAccepted = document.getElementById('tradesTabAccepted');
+    const tabRejected = document.getElementById('tradesTabRejected');
+    if (tabAll) tabAll.textContent = `Todas (${counts.all})`;
+    if (tabPending) tabPending.textContent = `Pendentes (${counts.pending})`;
+    if (tabAccepted) tabAccepted.textContent = `Aceitas (${counts.accepted})`;
+    if (tabRejected) tabRejected.textContent = `Rejeitadas (${counts.rejected})`;
+
+    const filteredTrades = status === 'all'
+      ? trades
+      : trades.filter(t => (t.status || '').toLowerCase() === status);
     
-    if (trades.length === 0) {
+    if (filteredTrades.length === 0) {
       tc.innerHTML = '<div class="text-center py-5 text-light-gray">Nenhuma trade</div>';
       return;
     }
@@ -447,7 +464,7 @@ ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gra
 </div>`;
     };
 
-    tc.innerHTML = trades.map(tr => {
+    tc.innerHTML = filteredTrades.map(tr => {
       if (tr.is_multi) {
         return renderMultiTradeCard(tr);
       }
