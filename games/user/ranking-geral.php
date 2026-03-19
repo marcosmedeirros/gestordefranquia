@@ -420,7 +420,7 @@ $tab_labels = [
             <span class="text-secondary small">Ordenar por:</span>
             <select class="form-select form-select-sm w-auto" id="rankingSort">
                 <option value="pontos">Moedas</option>
-                <option value="gems">FBA Gems</option>
+                <option value="gems">FBA Points</option>
                 <option value="acertos">Acertos</option>
             </select>
         </div>
@@ -449,7 +449,7 @@ $tab_labels = [
                         <span>#</span>
                         <span>Time</span>
                         <span class="text-end">Moedas</span>
-                        <span class="text-end">FBA Gems</span>
+                        <span class="text-end">FBA Points</span>
                         <span class="text-end">Acertos</span>
                     </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
@@ -491,7 +491,7 @@ $tab_labels = [
                             <span>#</span>
                             <span>Time</span>
                             <span class="text-end">Moedas</span>
-                            <span class="text-end">FBA Gems</span>
+                            <span class="text-end">FBA Points</span>
                             <span class="text-end">Acertos</span>
                         </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>

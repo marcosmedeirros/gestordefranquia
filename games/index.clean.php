@@ -1312,7 +1312,7 @@ try {
                 <div class="col-12">
                     <div class="ranking-card">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (FBA Gems)</div>
+                            <div class="ranking-title"><i class="bi bi-bullseye me-2"></i>Top 5 (FBA Points)</div>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="form-check form-switch small text-secondary m-0">
                                     <input class="form-check-input" type="checkbox" id="acertosLast24hToggle">
@@ -1357,7 +1357,7 @@ try {
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
-                                                <?= number_format($jogador['fba_points'] ?? ((int)$jogador['acertos'] * 100), 0, ',', '.') ?> FBA Gems · <?= (int)$jogador['acertos'] ?> acertos
+                                                <?= number_format($jogador['fba_points'] ?? ((int)$jogador['acertos'] * 100), 0, ',', '.') ?> FBA Points · <?= (int)$jogador['acertos'] ?> acertos
                                             </span>
                                         </div>
                                     <?php endforeach; ?>
@@ -1386,7 +1386,7 @@ try {
                                                 </span>
                                             </div>
                                             <span class="ranking-value">
-                                                <?= number_format(((int)$jogador['acertos']) * 100, 0, ',', '.') ?> FBA Gems · <?= (int)$jogador['acertos'] ?> acertos
+                                                <?= number_format(((int)$jogador['acertos']) * 100, 0, ',', '.') ?> FBA Points · <?= (int)$jogador['acertos'] ?> acertos
                                             </span>
                                         </div>
                                     <?php endforeach; ?>
