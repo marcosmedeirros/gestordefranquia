@@ -213,8 +213,17 @@ function iniciar_mao($pdo, $sala_id) {
 function finalizar_mao($pdo, $sala_id, $vencedor_info, $vencedor_mao = null) {
     $pdo->prepare("UPDATE poker_salas SET status = 'esperando', stage = 'showdown', vencedor_info = :info, vencedor_mao = :mao, pote = 0, bet_atual = 0, turno_posicao = NULL WHERE id = :id")
         ->execute([':info' => $vencedor_info, ':mao' => $vencedor_mao, ':id' => $sala_id]);
-    $pdo->prepare("UPDATE poker_jogadores SET status = 'ativo', bet_round = 0, pronto = 0, aguardando = 0 WHERE id_sala = :id")
+    $pdo->prepare("UPDATE poker_jogadores SET status = 'ativo', bet_round = 0, pronto = 0, aguardando = 0, pronto_deadline = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE id_sala = :id")
         ->execute([':id' => $sala_id]);
+}
+
+function remover_prontos_expirados($pdo, $sala_id) {
+    $pdo->beginTransaction();
+    $pdo->prepare("UPDATE usuarios u JOIN poker_jogadores p ON u.id = p.id_usuario SET u.pontos = u.pontos + p.chips WHERE p.id_sala = :sala AND p.aguardando = 0 AND p.pronto = 0 AND p.pronto_deadline IS NOT NULL AND p.pronto_deadline < NOW()")
+        ->execute([':sala' => $sala_id]);
+    $pdo->prepare("DELETE FROM poker_jogadores WHERE id_sala = :sala AND aguardando = 0 AND pronto = 0 AND pronto_deadline IS NOT NULL AND pronto_deadline < NOW()")
+        ->execute([':sala' => $sala_id]);
+    $pdo->commit();
 }
 
 // --- API AJAX ---
@@ -228,6 +237,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtSala = $pdo->prepare("SELECT * FROM poker_salas WHERE id = :id");
             $stmtSala->execute([':id' => $sala_id]);
             $sala = $stmtSala->fetch(PDO::FETCH_ASSOC);
+
+            if ($sala && $sala['status'] === 'esperando') {
+                remover_prontos_expirados($pdo, $sala_id);
+            }
 
             $stmtJogadores = $pdo->prepare("SELECT * FROM poker_jogadores WHERE id_sala = :id ORDER BY posicao ASC");
             $stmtJogadores->execute([':id' => $sala_id]);
@@ -267,11 +280,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtSala->execute([':id' => $sala_id]);
             $sala = $stmtSala->fetch(PDO::FETCH_ASSOC);
             $aguardando = ($sala && $sala['status'] === 'jogando') ? 1 : 0;
+            $pronto_deadline = ($sala && $sala['status'] === 'esperando') ? date('Y-m-d H:i:s', time() + 60) : null;
 
             $pdo->beginTransaction();
             $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $buy_in, ':id' => $user_id]);
-            $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao, pronto, aguardando) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos, 0, :aguardando)")
-                ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos, ':aguardando' => $aguardando]);
+            $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao, pronto, aguardando, pronto_deadline) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos, 0, :aguardando, :deadline)")
+                ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos, ':aguardando' => $aguardando, ':deadline' => $pronto_deadline]);
             $pdo->commit();
             echo json_encode(['sucesso' => true]); exit;
         }
@@ -305,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if (!$eu) throw new Exception("Você não está sentado.");
             if ((int)$eu['aguardando'] === 1) throw new Exception("Você entra na próxima mão.");
 
-            $pdo->prepare("UPDATE poker_jogadores SET pronto = 1 WHERE id = :id")->execute([':id' => $eu['id']]);
+            $pdo->prepare("UPDATE poker_jogadores SET pronto = 1, pronto_deadline = NULL WHERE id = :id")->execute([':id' => $eu['id']]);
 
             $stmtReady = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN pronto = 1 THEN 1 ELSE 0 END) as prontos FROM poker_jogadores WHERE id_sala = :sala AND aguardando = 0");
             $stmtReady->execute([':sala' => $sala_id]);

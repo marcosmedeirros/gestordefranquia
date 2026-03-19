@@ -80,6 +80,7 @@ try {
             bet_round INT NOT NULL DEFAULT 0,
             pronto TINYINT(1) NOT NULL DEFAULT 0,
             aguardando TINYINT(1) NOT NULL DEFAULT 0,
+            pronto_deadline DATETIME NULL,
             UNIQUE KEY uniq_sala_usuario (id_sala, id_usuario),
             UNIQUE KEY uniq_sala_posicao (id_sala, posicao)
         )");
@@ -102,6 +103,16 @@ try {
         $stmt->execute();
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE poker_jogadores ADD COLUMN aguardando TINYINT(1) NOT NULL DEFAULT 0 AFTER pronto");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
+
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM poker_jogadores LIKE 'pronto_deadline'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE poker_jogadores ADD COLUMN pronto_deadline DATETIME NULL AFTER aguardando");
         }
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
