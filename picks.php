@@ -56,6 +56,17 @@ $stmtPicks = $pdo->prepare('
 $stmtPicks->execute([$team['id'], $currentSeasonYear]);
 $picks = $stmtPicks->fetchAll();
 
+// Buscar picks originalmente do time que estao com outros times
+$stmtPicksAway = $pdo->prepare('
+    SELECT p.*, current_owner.city AS current_city, current_owner.name AS current_name
+    FROM picks p
+    LEFT JOIN teams current_owner ON p.team_id = current_owner.id
+    WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year > ?
+    ORDER BY p.season_year, p.round
+');
+$stmtPicksAway->execute([$team['id'], $team['id'], $currentSeasonYear]);
+$picksAway = $stmtPicksAway->fetchAll();
+
 $picksByRound = [
     '1' => [],
     '2' => [],
@@ -339,6 +350,49 @@ foreach ($picks as $pick) {
                                                 <?php else: ?>
                                                     <span class="badge bg-secondary">Manual</span>
                                                 <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-3">
+            <div class="col-12">
+                <div class="card bg-dark border-0" style="border-radius: 15px;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #1f6feb, #4f83ff); border-radius: 15px 15px 0 0;">
+                        <h5 class="mb-0 text-white fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Picks que nao estao comigo</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-white fw-bold">Ano</th>
+                                    <th class="text-white fw-bold">Rodada</th>
+                                    <th class="text-white fw-bold">Time atual</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($picksAway)): ?>
+                                    <tr>
+                                        <td colspan="3" class="text-center text-light-gray py-4">
+                                            <i class="bi bi-check-circle fs-1 d-block mb-2 text-info"></i>
+                                            Todas as picks estao com seu time.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($picksAway as $pick): ?>
+                                        <tr>
+                                            <td class="fw-bold text-info"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
+                                            <td>
+                                                <span class="badge bg-info text-dark"><?= htmlspecialchars($pick['round']) ?>ª Rodada</span>
+                                            </td>
+                                            <td class="text-light-gray">
+                                                <?= htmlspecialchars(trim(($pick['current_city'] ?? '') . ' ' . ($pick['current_name'] ?? ''))) ?: 'Nao definido' ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
