@@ -120,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 // GET - Listar picks
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $teamId = $_GET['team_id'] ?? null;
+    $includeAway = isset($_GET['include_away']) && $_GET['include_away'] === '1';
 
     if (!$teamId) {
         echo json_encode(['success' => false, 'error' => 'Team ID não informado']);
@@ -178,7 +179,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
     
-    echo json_encode(['success' => true, 'picks' => $picks]);
+    $payload = ['success' => true, 'picks' => $picks];
+
+    if ($includeAway) {
+        $stmtAway = $pdo->prepare('
+            SELECT p.*, current_owner.city as current_team_city, current_owner.name as current_team_name
+            FROM picks p
+            LEFT JOIN teams current_owner ON p.team_id = current_owner.id
+            WHERE p.original_team_id = ? AND p.team_id <> ?
+            ORDER BY p.season_year, p.round
+        ');
+        $stmtAway->execute([$teamId, $teamId]);
+        $payload['picks_away'] = $stmtAway->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    echo json_encode($payload);
     exit;
 }
 

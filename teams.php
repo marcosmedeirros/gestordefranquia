@@ -520,6 +520,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <tbody id="picksList"></tbody>
                             </table>
                         </div>
+                        <div class="table-responsive mt-3">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead style="background: #1f6feb; color: #fff;">
+                                    <tr>
+                                        <th>Ano</th>
+                                        <th>Rodada</th>
+                                        <th>Time atual</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="picksAwayList"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -614,6 +626,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             const loadingEl = document.getElementById('picksLoading');
             const contentEl = document.getElementById('picksContent');
             const listEl = document.getElementById('picksList');
+            const awayListEl = document.getElementById('picksAwayList');
             if (!modalEl || !titleEl || !loadingEl || !contentEl || !listEl) return;
 
             titleEl.textContent = 'Picks: ' + teamName;
@@ -621,12 +634,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             loadingEl.innerHTML = '<div class="spinner-border text-orange" role="status"></div>';
             contentEl.style.display = 'none';
             listEl.innerHTML = '';
+            if (awayListEl) awayListEl.innerHTML = '';
 
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
 
             try {
-                const res = await fetch(`/api/picks.php?team_id=${teamId}`);
+                const res = await fetch(`/api/picks.php?team_id=${teamId}&include_away=1`);
                 const data = await res.json();
                 if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar picks');
 
@@ -656,6 +670,30 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <td>${status}</td>
                             </tr>`;
                     });
+                }
+
+                if (awayListEl) {
+                    let picksAway = data.picks_away || [];
+                    picksAway = picksAway.filter((pk) => Number(pk.season_year) >= baseYear);
+                    picksAway.sort((a, b) => {
+                        const yearDiff = Number(a.season_year) - Number(b.season_year);
+                        if (yearDiff !== 0) return yearDiff;
+                        return Number(a.round) - Number(b.round);
+                    });
+
+                    if (!picksAway.length) {
+                        awayListEl.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Todas as picks estao com este time.</td></tr>';
+                    } else {
+                        picksAway.forEach((pk) => {
+                            const currentTeam = `${pk.current_team_city || ''} ${pk.current_team_name || ''}`.trim() || 'Nao definido';
+                            awayListEl.innerHTML += `
+                                <tr>
+                                    <td>${pk.season_year}</td>
+                                    <td><span class="badge bg-info text-dark">R${pk.round}</span></td>
+                                    <td>${currentTeam}</td>
+                                </tr>`;
+                        });
+                    }
                 }
 
                 loadingEl.style.display = 'none';
