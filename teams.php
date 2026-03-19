@@ -507,6 +507,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div class="spinner-border text-orange" role="status"></div>
                     </div>
                     <div id="picksContent" style="display: none;">
+                        <div class="text-light-gray small mb-2">Picks com o time</div>
                         <div class="table-responsive">
                             <table class="table table-dark table-hover mb-0">
                                 <thead style="background: var(--fba-orange); color: #000;">
@@ -520,6 +521,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <tbody id="picksList"></tbody>
                             </table>
                         </div>
+                        <div class="text-light-gray small mt-3 mb-2">Picks do time que foram trocadas</div>
                         <div class="table-responsive mt-3">
                             <table class="table table-dark table-hover mb-0">
                                 <thead style="background: #1f6feb; color: #fff;">
