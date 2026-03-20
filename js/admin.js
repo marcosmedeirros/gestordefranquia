@@ -91,6 +91,17 @@ function updateBreadcrumb() {
   }
 }
 
+function escapeHtml(value) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  };
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch]);
+}
+
 async function showHome() {
   appState.view = 'home';
   updateBreadcrumb();
@@ -132,6 +143,21 @@ async function showHome() {
       </div>
     </div>
   </div>`;
+
+  container.innerHTML += `
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="card bg-dark-panel border-orange">
+        <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 text-white"><i class="bi bi-chat-left-dots me-2 text-orange"></i>Ouvidoria</h5>
+          <span class="badge bg-dark border border-warning text-warning" id="ouvidoriaTotal">0</span>
+        </div>
+        <div class="card-body" id="ouvidoriaList">
+          <div class="text-center py-3"><div class="spinner-border text-orange"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -157,6 +183,42 @@ async function showHome() {
     copyBtn.addEventListener('click', () => {
       copyLeagueRosters();
     });
+  }
+
+  loadOuvidoriaMessages();
+}
+
+async function loadOuvidoriaMessages() {
+  const list = document.getElementById('ouvidoriaList');
+  const totalEl = document.getElementById('ouvidoriaTotal');
+  if (!list) return;
+
+  list.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+
+  try {
+    const data = await api('ouvidoria.php?limit=8');
+    const messages = data.messages || [];
+    if (totalEl) {
+      totalEl.textContent = data.total ?? messages.length;
+    }
+
+    if (messages.length === 0) {
+      list.innerHTML = '<div class="text-center py-4 text-light-gray">Nenhuma mensagem ainda.</div>';
+      return;
+    }
+
+    list.innerHTML = messages.map(msg => {
+      const date = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR') : '-';
+      const content = escapeHtml(msg.message || '').replace(/\n/g, '<br>');
+      return `
+        <div class="bg-dark border border-secondary rounded p-3 mb-2">
+          <div class="text-light-gray small mb-2"><i class="bi bi-clock me-1"></i>${date}</div>
+          <div class="text-white">${content}</div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="alert alert-danger">Erro ao carregar ouvidoria.</div>';
   }
 }
 

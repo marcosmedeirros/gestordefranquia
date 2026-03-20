@@ -11,6 +11,14 @@ function runMigrations() {
     
     // Array de migrações com nome único para rastrear execução
     $migrations = [
+        'create_ouvidoria_messages' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS ouvidoria_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_ouvidoria_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
         'create_rumors' => [
             'sql' => "CREATE TABLE IF NOT EXISTS rumors (
                 id INT AUTO_INCREMENT PRIMARY KEY,
