@@ -21,6 +21,28 @@ if ($method === 'POST') {
     }
 
     $data = readJsonBody();
+    $action = (string)($data['action'] ?? '');
+
+    if ($action === 'delete_message') {
+        if (($user['user_type'] ?? 'jogador') !== 'admin') {
+            jsonErr('Acesso negado', 403);
+        }
+
+        $messageId = (int)($data['message_id'] ?? 0);
+        if (!$messageId) {
+            jsonErr('message_id obrigatorio');
+        }
+
+        try {
+            $stmt = $pdo->prepare('DELETE FROM ouvidoria_messages WHERE id = ?');
+            $stmt->execute([$messageId]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            jsonErr('Erro ao apagar mensagem: ' . $e->getMessage(), 500);
+        }
+        exit;
+    }
+
     $message = trim((string)($data['message'] ?? ''));
 
     if ($message === '') {

@@ -212,13 +212,34 @@ async function loadOuvidoriaMessages() {
       const content = escapeHtml(msg.message || '').replace(/\n/g, '<br>');
       return `
         <div class="bg-dark border border-secondary rounded p-3 mb-2">
-          <div class="text-light-gray small mb-2"><i class="bi bi-clock me-1"></i>${date}</div>
-          <div class="text-white">${content}</div>
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="text-light-gray small"><i class="bi bi-clock me-1"></i>${date}</div>
+            <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteOuvidoriaMessage(${msg.id})">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+          <div class="text-white mt-2">${content}</div>
         </div>
       `;
     }).join('');
   } catch (e) {
     list.innerHTML = '<div class="alert alert-danger">Erro ao carregar ouvidoria.</div>';
+  }
+}
+
+async function deleteOuvidoriaMessage(messageId) {
+  if (!messageId) return;
+  const confirmed = confirm('Apagar esta mensagem da ouvidoria?');
+  if (!confirmed) return;
+
+  try {
+    await api('ouvidoria.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete_message', message_id: messageId })
+    });
+    loadOuvidoriaMessages();
+  } catch (e) {
+    alert(e.error || 'Erro ao apagar mensagem.');
   }
 }
 
