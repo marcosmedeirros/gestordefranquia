@@ -145,20 +145,6 @@ async function showHome() {
     </div>
   </div>`;
 
-  container.innerHTML += `
-  <div class="row g-4 mt-1">
-    <div class="col-12">
-      <div class="card bg-dark-panel border-orange">
-        <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center">
-          <h5 class="mb-0 text-white"><i class="bi bi-chat-left-dots me-2 text-orange"></i>Ouvidoria</h5>
-          <span class="badge bg-dark border border-warning text-warning" id="ouvidoriaTotal">0</span>
-        </div>
-        <div class="card-body" id="ouvidoriaList">
-          <div class="text-center py-3"><div class="spinner-border text-orange"></div></div>
-        </div>
-      </div>
-    </div>
-  </div>`;
   
   try {
     const data = await api('admin.php?action=leagues');
@@ -187,7 +173,6 @@ async function showHome() {
   }
 
   ensureOuvidoriaModal();
-  loadOuvidoriaMessages();
 }
 
 async function loadOuvidoriaMessages() {
