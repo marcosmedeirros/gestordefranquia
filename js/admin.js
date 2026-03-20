@@ -119,7 +119,8 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anonimas</p></div></div></div>`;
   container.innerHTML += `
   <div class="row g-4 mt-1">
     <div class="col-12">
@@ -185,15 +186,20 @@ async function showHome() {
     });
   }
 
+  ensureOuvidoriaModal();
   loadOuvidoriaMessages();
 }
 
 async function loadOuvidoriaMessages() {
   const list = document.getElementById('ouvidoriaList');
+  const modalList = document.getElementById('ouvidoriaModalList');
   const totalEl = document.getElementById('ouvidoriaTotal');
-  if (!list) return;
-
-  list.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  if (list) {
+    list.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  }
+  if (modalList) {
+    modalList.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  }
 
   try {
     const data = await api('ouvidoria.php?limit=8');
@@ -202,28 +208,80 @@ async function loadOuvidoriaMessages() {
       totalEl.textContent = data.total ?? messages.length;
     }
 
-    if (messages.length === 0) {
-      list.innerHTML = '<div class="text-center py-4 text-light-gray">Nenhuma mensagem ainda.</div>';
-      return;
-    }
+    const renderHtml = () => {
+      if (messages.length === 0) {
+        return '<div class="text-center py-4 text-light-gray">Nenhuma mensagem ainda.</div>';
+      }
 
-    list.innerHTML = messages.map(msg => {
-      const date = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR') : '-';
-      const content = escapeHtml(msg.message || '').replace(/\n/g, '<br>');
-      return `
-        <div class="bg-dark border border-secondary rounded p-3 mb-2">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div class="text-light-gray small"><i class="bi bi-clock me-1"></i>${date}</div>
-            <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteOuvidoriaMessage(${msg.id})">
-              <i class="bi bi-trash"></i>
-            </button>
+      return messages.map(msg => {
+        const date = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR') : '-';
+        const content = escapeHtml(msg.message || '').replace(/\n/g, '<br>');
+        return `
+          <div class="bg-dark border border-secondary rounded p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div class="text-light-gray small"><i class="bi bi-clock me-1"></i>${date}</div>
+              <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteOuvidoriaMessage(${msg.id})">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            <div class="text-white mt-2">${content}</div>
           </div>
-          <div class="text-white mt-2">${content}</div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    };
+
+    if (list) {
+      list.innerHTML = renderHtml();
+    }
+    if (modalList) {
+      modalList.innerHTML = renderHtml();
+    }
   } catch (e) {
-    list.innerHTML = '<div class="alert alert-danger">Erro ao carregar ouvidoria.</div>';
+    if (list) {
+      list.innerHTML = '<div class="alert alert-danger">Erro ao carregar ouvidoria.</div>';
+    }
+    if (modalList) {
+      modalList.innerHTML = '<div class="alert alert-danger">Erro ao carregar ouvidoria.</div>';
+    }
+  }
+}
+
+function ensureOuvidoriaModal() {
+  if (document.getElementById('ouvidoriaModal')) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'ouvidoriaModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-chat-left-dots me-2 text-orange"></i>Ouvidoria</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="ouvidoriaModalList"><div class="text-center py-3"><div class="spinner-border text-orange"></div></div></div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" onclick="loadOuvidoriaMessages()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function showOuvidoriaModal() {
+  ensureOuvidoriaModal();
+  loadOuvidoriaMessages();
+  const modalEl = document.getElementById('ouvidoriaModal');
+  if (modalEl) {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
   }
 }
 
