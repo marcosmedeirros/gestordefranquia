@@ -68,6 +68,36 @@ $catalogo_skins = [
 // --- API AJAX (Sem Token CSRF) ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
+
+    $run_active = isset($_SESSION['pinguim_run_active']) && $_SESSION['pinguim_run_active'] === true;
+    $run_start = isset($_SESSION['pinguim_run_start']) ? (int)$_SESSION['pinguim_run_start'] : 0;
+    $last_score = isset($_SESSION['pinguim_last_score']) ? (int)$_SESSION['pinguim_last_score'] : 0;
+    $last_milestone = isset($_SESSION['pinguim_last_milestone']) ? (int)$_SESSION['pinguim_last_milestone'] : 0;
+
+    $validate_run_score = function($score) use ($run_active, $run_start, $last_score) {
+        if (!$run_active || $run_start <= 0) {
+            throw new Exception('Sessão de jogo inválida.');
+        }
+        $elapsed = max(0, time() - $run_start);
+        $max_score = (int)($elapsed * 20) + 50;
+        if ($score < $last_score) {
+            throw new Exception('Score inválido.');
+        }
+        if ($score > $max_score) {
+            throw new Exception('Score acima do permitido.');
+        }
+    };
+
+    // 0. INICIAR RUN
+    if ($_POST['acao'] == 'iniciar_run') {
+        $_SESSION['pinguim_run_active'] = true;
+        $_SESSION['pinguim_run_start'] = time();
+        $_SESSION['pinguim_last_score'] = 0;
+        $_SESSION['pinguim_last_milestone'] = 0;
+        $_SESSION['pinguim_revive_used'] = false;
+        echo json_encode(['sucesso' => true]);
+        exit;
+    }
     
     // A. COMPRAR SKIN
     if ($_POST['acao'] == 'comprar_skin') {
@@ -109,14 +139,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     
     // C. SALVAR PONTOS (Milestone dinâmico, com limite anti-abuso)
     if ($_POST['acao'] == 'salvar_milestone') {
-        $qtd = isset($_POST['qtd']) ? (int) $_POST['qtd'] : 0;
-        // Evita valores negativos ou exagerados vindo do cliente
-        $qtd = max(0, min($qtd, 10));
-        if ($qtd > 0) {
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :uid")
-                ->execute([':val' => $qtd, ':uid' => $user_id]);
+        $score_atual = isset($_POST['score']) ? (int)$_POST['score'] : 0;
+        try {
+            $validate_run_score($score_atual);
+
+            $novo_milestone = (int)floor($score_atual / 100);
+            if ($novo_milestone < $last_milestone) {
+                throw new Exception('Milestone inválido.');
+            }
+
+            $creditado = 0;
+            if ($novo_milestone > $last_milestone) {
+                for ($m = $last_milestone + 1; $m <= $novo_milestone; $m++) {
+                    $milestone_score = $m * 100;
+                    $coins_per_100 = 1 + (int)floor($milestone_score / 500);
+                    $creditado += $coins_per_100;
+                }
+
+                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :uid")
+                    ->execute([':val' => $creditado, ':uid' => $user_id]);
+
+                $_SESSION['pinguim_last_milestone'] = $novo_milestone;
+            }
+
+            $_SESSION['pinguim_last_score'] = max($last_score, $score_atual);
+
+            $stmtSaldo = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+            $stmtSaldo->execute([':id' => $user_id]);
+            $novo_saldo = (int)$stmtSaldo->fetchColumn();
+
+            echo json_encode(['sucesso' => true, 'creditado' => $creditado, 'novo_saldo' => $novo_saldo]);
+        } catch (Exception $e) {
+            echo json_encode(['erro' => $e->getMessage()]);
         }
-        echo json_encode(['sucesso' => true, 'creditado' => $qtd]);
         exit;
     }
 
@@ -124,6 +179,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     if ($_POST['acao'] == 'gastar_moedas_reviver') {
         $custo = 10;
         try {
+            if (!$run_active) throw new Exception('Sessão de jogo inválida.');
+            if (!empty($_SESSION['pinguim_revive_used'])) throw new Exception('Revive já utilizado.');
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
@@ -131,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if ($saldo < $custo) throw new Exception("Saldo insuficiente.");
             $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $custo, ':id' => $user_id]);
             $pdo->commit();
+            $_SESSION['pinguim_revive_used'] = true;
             echo json_encode(['sucesso' => true, 'novo_saldo' => $saldo - $custo]);
         } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
         exit;
@@ -140,9 +198,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     if ($_POST['acao'] == 'salvar_score') {
         $score_final = (int)$_POST['score'];
         try {
+            $validate_run_score($score_final);
             $pdo->prepare("INSERT INTO dino_historico (id_usuario, pontuacao_final, pontos_ganhos) VALUES (:uid, :score, 0)")
                 ->execute([':uid' => $user_id, ':score' => $score_final]);
         } catch (PDOException $ex) { }
+        $_SESSION['pinguim_last_score'] = $score_final;
+        $_SESSION['pinguim_run_active'] = false;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -460,9 +521,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     function startGame() {
-        startMsg.style.display = 'none';
-        resetGame();
-        animate();
+        const fd = new FormData();
+        fd.append('acao', 'iniciar_run');
+        fetch('index.php?game=pinguim', { method: 'POST', body: fd }).then(() => {
+            startMsg.style.display = 'none';
+            resetGame();
+            animate();
+        });
     }
 
     function resetGame() {
@@ -728,14 +793,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         const formData = new FormData();
         formData.append('acao', 'salvar_milestone');
-        formData.append('qtd', amount);
+        formData.append('score', Math.floor(score));
 
         fetch('index.php?game=pinguim', { method: 'POST', body: formData })
         .then(res => res.json())
         .then(data => {
-            const ganho = (data && typeof data.creditado !== 'undefined') ? parseInt(data.creditado, 10) : amount;
+            const ganho = (data && typeof data.creditado !== 'undefined') ? parseInt(data.creditado, 10) : 0;
             if(ganho > 0) {
-                currentSaldo += ganho; 
+                currentSaldo = (data && typeof data.novo_saldo !== 'undefined') ? parseInt(data.novo_saldo, 10) : (currentSaldo + ganho);
                 saldoDisplay.innerText = currentSaldo.toLocaleString('pt-BR') + " moedas";
                 saldoDisplay.style.backgroundColor = "#ffeb3b";
                 saldoDisplay.style.color = "#000";

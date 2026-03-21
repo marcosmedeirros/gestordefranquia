@@ -126,11 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $payStmt = $pdo->prepare("UPDATE usuarios SET fba_points = fba_points + ? WHERE id = ?");
 
                 while ($row = $busca->fetch(PDO::FETCH_ASSOC)) {
-                    $payStmt->execute([100, $row['id_usuario']]);
+                    $payStmt->execute([150, $row['id_usuario']]);
                     $pagos++;
                 }
                 $pdo->commit();
-                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (100 FBA Points por acerto).</div>";
+                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (150 FBA Points por acerto).</div>";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";

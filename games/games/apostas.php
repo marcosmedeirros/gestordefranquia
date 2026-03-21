@@ -557,7 +557,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
     <!-- SEÇÃO: APOSTAS DISPONÍVEIS -->
     <h6 class="section-title"><i class="bi bi-lightning-charge-fill"></i>Apostas Disponíveis</h6>
-    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>100 FBA Points</strong>.</p>
+    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>150 FBA Points</strong>.</p>
 
     <?php if(empty($eventos_disponiveis)): ?>
         <div class="empty-state">
@@ -651,7 +651,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <small class="text-info"><?= htmlspecialchars($aposta['aposta_feita']) ?></small>
                             </td>
                             <td class="fw-bold">
-                                100 FBA Points
+                                150 FBA Points
                             </td>
                             <td>
                                 <span class="badge badge-status <?= $status_badge ?> bet-status">

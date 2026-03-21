@@ -45,6 +45,34 @@ $catalogo_skins = [
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
 
+    $run_active = isset($_SESSION['flappy_run_active']) && $_SESSION['flappy_run_active'] === true;
+    $run_start = isset($_SESSION['flappy_run_start']) ? (int)$_SESSION['flappy_run_start'] : 0;
+    $last_score = isset($_SESSION['flappy_last_score']) ? (int)$_SESSION['flappy_last_score'] : 0;
+
+    $validate_run_score = function($score) use ($run_active, $run_start, $last_score) {
+        if (!$run_active || $run_start <= 0) {
+            throw new Exception('Sessão de jogo inválida.');
+        }
+        $elapsed = max(0, time() - $run_start);
+        $max_score = (int)($elapsed * 5) + 5;
+        if ($score < $last_score) {
+            throw new Exception('Score inválido.');
+        }
+        if ($score > $max_score) {
+            throw new Exception('Score acima do permitido.');
+        }
+    };
+
+    // 0. INICIAR RUN
+    if ($_POST['acao'] == 'iniciar_run') {
+        $_SESSION['flappy_run_active'] = true;
+        $_SESSION['flappy_run_start'] = time();
+        $_SESSION['flappy_last_score'] = 0;
+        $_SESSION['flappy_revive_used'] = false;
+        echo json_encode(['sucesso' => true]);
+        exit;
+    }
+
     // A. COMPRAR SKIN
     if ($_POST['acao'] == 'comprar_skin') {
         $skin = $_POST['skin'];
@@ -84,21 +112,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         exit;
     }
 
-    // C. SALVAR PONTOS (suporta valores positivos e negativos)
-    if ($_POST['acao'] == 'salvar_moedas') {
-        $moedas = (int)$_POST['qtd'];
-        if ($moedas != 0) {
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $moedas, ':id' => $user_id]);
+    // C. REVIVER (cobra 10 pontos)
+    if ($_POST['acao'] == 'reviver') {
+        try {
+            if (!$run_active) throw new Exception('Sessão de jogo inválida.');
+            if (!empty($_SESSION['flappy_revive_used'])) throw new Exception('Revive já utilizado.');
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt->execute([':id' => $user_id]);
+            $saldo = (int)$stmt->fetchColumn();
+            if ($saldo < 10) throw new Exception('Saldo insuficiente.');
+
+            $pdo->prepare("UPDATE usuarios SET pontos = pontos - 10 WHERE id = :id")->execute([':id' => $user_id]);
+            $pdo->commit();
+            $_SESSION['flappy_revive_used'] = true;
+            echo json_encode(['sucesso' => true, 'novo_saldo' => $saldo - 10]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['erro' => $e->getMessage()]);
         }
-        echo json_encode(['sucesso' => true]);
         exit;
     }
 
     // D. SALVAR SCORE
     if ($_POST['acao'] == 'salvar_score') {
         $score = (int)$_POST['score'];
-        $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")->execute([':uid' => $user_id, ':score' => $score]);
-        echo json_encode(['sucesso' => true]);
+        try {
+            $validate_run_score($score);
+
+            $milestones = intdiv(max(0, $score), 10);
+            $coins_earned = (int)($milestones * ($milestones + 3) / 2);
+
+            $pdo->beginTransaction();
+            $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
+                ->execute([':uid' => $user_id, ':score' => $score]);
+
+            if ($coins_earned > 0) {
+                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+                    ->execute([':val' => $coins_earned, ':id' => $user_id]);
+            }
+
+            $stmtSaldo = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+            $stmtSaldo->execute([':id' => $user_id]);
+            $novo_saldo = (int)$stmtSaldo->fetchColumn();
+
+            $pdo->commit();
+            $_SESSION['flappy_last_score'] = $score;
+            $_SESSION['flappy_run_active'] = false;
+            echo json_encode(['sucesso' => true, 'coins' => $coins_earned, 'novo_saldo' => $novo_saldo]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['erro' => $e->getMessage()]);
+        }
         exit;
     }
 }
@@ -381,12 +447,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     function startGame() {
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('game-over-screen').style.display = 'none';
-        document.getElementById('scoreDisplay').style.display = 'block';
-        bird.y = 150; bird.velocity = 0; pipes.reset(); score = 0; frames = 0; coinsEarned = 0;
-        hasUsedRevive = false; // Reset do revive ao iniciar novo jogo
-        currentState = 'GAME'; loop();
+        const fd = new FormData();
+        fd.append('acao', 'iniciar_run');
+        fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(() => {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('scoreDisplay').style.display = 'block';
+            bird.y = 150; bird.velocity = 0; pipes.reset(); score = 0; frames = 0; coinsEarned = 0;
+            hasUsedRevive = false; // Reset do revive ao iniciar novo jogo
+            currentState = 'GAME'; loop();
+        });
     }
 
     function gameOver() {
@@ -406,22 +476,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         
         setTimeout(() => document.getElementById('game-over-screen').style.display = 'block', 500);
         
-        const fd = new FormData(); 
-        fd.append('acao', 'salvar_score'); 
+        const fd = new FormData();
+        fd.append('acao', 'salvar_score');
         fd.append('score', score);
-        fetch('index.php?game=flappy', { method: 'POST', body: fd });
-        
-        if(coinsEarned > 0) {
-            const fdc = new FormData(); 
-            fdc.append('acao', 'salvar_moedas'); 
-            fdc.append('qtd', coinsEarned);
-            fetch('index.php?game=flappy', { method: 'POST', body: fdc }).then(r=>r.json()).then(d=>{
-                if(d.sucesso) {
-                    let cur = parseInt(saldoDisplay.innerText.replace(/\D/g,''));
-                    saldoDisplay.innerText = (cur + coinsEarned).toLocaleString('pt-BR') + ' pts';
-                }
-            });
-        }
+        fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(r=>r.json()).then(d=>{
+            if(d && d.sucesso && typeof d.novo_saldo !== 'undefined') {
+                saldoDisplay.innerText = d.novo_saldo.toLocaleString('pt-BR') + ' pts';
+            }
+        });
     }
 
     function showFloatingText(t,x,y){
@@ -433,27 +495,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     function revive() {
         // Cobra 10 pontos e retoma o jogo
         const fd = new FormData();
-        fd.append('acao', 'salvar_moedas');
-        fd.append('qtd', -10); // Desconta 10 pontos
+        fd.append('acao', 'reviver');
         fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(r=>r.json()).then(d=>{
             if(d.sucesso) {
-                let cur = parseInt(saldoDisplay.innerText.replace(/\D/g,''));
-                saldoDisplay.innerText = (cur - 10).toLocaleString('pt-BR') + ' pts';
-                
+                saldoDisplay.innerText = d.novo_saldo.toLocaleString('pt-BR') + ' pts';
+
                 hasUsedRevive = true; // Marca que já usou o revive
                 document.getElementById('game-over-screen').style.display = 'none';
                 document.getElementById('scoreDisplay').style.display = 'block';
-                
+
                 // Reposiciona o pássaro e limpa canos próximos
                 bird.y = 150;
                 bird.velocity = 0;
                 pipes.items = pipes.items.filter(p => p.x > 200); // Remove canos muito próximos
-                
+
                 showFloatingText('REVIVEU! 💚', canvas.width/2 - 50, 200);
                 currentState = 'GAME';
                 loop();
             } else {
-                alert('Erro ao processar revive');
+                alert(d.erro || 'Erro ao processar revive');
             }
         });
     }
