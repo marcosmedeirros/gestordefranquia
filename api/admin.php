@@ -327,6 +327,30 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'teams' => $teams]);
             break;
 
+        case 'search_players':
+            $league = $_GET['league'] ?? null;
+            $query = trim((string)($_GET['query'] ?? ''));
+
+            if (!$league || $query === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga e busca obrigatorias']);
+                break;
+            }
+
+            $ovrCol = playerOvrColumn($pdo);
+            $stmt = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} as ovr,
+                t.city as team_city, t.name as team_name
+                FROM players p
+                JOIN teams t ON p.team_id = t.id
+                WHERE t.league = ? AND p.name LIKE ?
+                ORDER BY p.{$ovrCol} DESC, p.name ASC
+                LIMIT 50");
+            $stmt->execute([$league, '%' . $query . '%']);
+            $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'players' => $players]);
+            break;
+
         case 'team_details':
             // Detalhes completos de um time específico
             $teamId = $_GET['team_id'] ?? null;

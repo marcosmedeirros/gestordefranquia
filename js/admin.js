@@ -367,6 +367,14 @@ async function showLeague(league) {
     const data = await api(`admin.php?action=teams&league=${league}`);
     const teams = data.teams || [];
   container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+<div class="bg-dark-panel border-orange rounded p-3 mb-4">
+  <h5 class="text-white mb-2"><i class="bi bi-search me-2 text-orange"></i>Buscar jogador</h5>
+  <div class="d-flex flex-wrap gap-2">
+    <input type="text" id="leaguePlayerSearch" class="form-control bg-dark text-white border-orange" placeholder="Digite o nome do jogador" style="min-width: 240px;">
+    <button class="btn btn-outline-orange" id="leaguePlayerSearchBtn"><i class="bi bi-search me-1"></i>Pesquisar</button>
+  </div>
+  <div id="leaguePlayerSearchResults" class="mt-3 text-light-gray">Digite ao menos 2 letras para buscar.</div>
+</div>
 <div class="row g-3">${teams.map(t => `<div class="col-md-6 col-lg-4 col-xl-3"><div class="team-card" onclick="showTeam(${t.id})">
 <div class="d-flex align-items-center"><img src="${t.photo_url || '/img/default-team.png'}" class="team-logo me-3"><div class="flex-grow-1">
 <h5 class="mb-0">${t.city}</h5><h5 class="mb-0">${t.name}</h5><small class="text-muted">${t.owner_name}</small></div></div>
@@ -374,9 +382,59 @@ async function showLeague(league) {
 <small class="text-light-gray"><i class="bi bi-people-fill text-orange me-1"></i>${t.player_count}</small>
 <small class="text-light-gray"><i class="bi bi-star-fill text-orange me-1"></i>${t.cap_top8}</small>
 <small class="text-light-gray"><i class="bi bi-hand-index-thumb text-warning me-1"></i>${parseInt(t.tapas || 0)}</small></div></div></div>`).join('')}</div>`;
+
+    setupLeaguePlayerSearch(league);
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times</div>';
   }
+}
+
+function setupLeaguePlayerSearch(league) {
+  const input = document.getElementById('leaguePlayerSearch');
+  const button = document.getElementById('leaguePlayerSearchBtn');
+  const results = document.getElementById('leaguePlayerSearchResults');
+  if (!input || !button || !results) return;
+
+  let debounceTimer = null;
+
+  const runSearch = async () => {
+    const term = (input.value || '').trim();
+    if (term.length < 2) {
+      results.textContent = 'Digite ao menos 2 letras para buscar.';
+      return;
+    }
+    results.innerHTML = '<div class="spinner-border text-orange" role="status" style="width: 1.5rem; height: 1.5rem;"></div>';
+    try {
+      const data = await api(`admin.php?action=search_players&league=${encodeURIComponent(league)}&query=${encodeURIComponent(term)}`);
+      const players = data.players || [];
+      if (!players.length) {
+        results.textContent = 'Nenhum jogador encontrado.';
+        return;
+      }
+      const html = players.map(p => {
+        const ovr = p.ovr !== null && p.ovr !== undefined ? p.ovr : '-';
+        return `<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
+  <div class="text-white"><strong>${p.name}</strong> <small class="text-light-gray">(${p.position || '-'}, OVR ${ovr})</small></div>
+  <div class="text-light-gray">${p.team_city || ''} ${p.team_name || ''}</div>
+</div>`;
+      }).join('');
+      results.innerHTML = html;
+    } catch (e) {
+      results.textContent = e.error || 'Erro ao buscar jogadores.';
+    }
+  };
+
+  input.addEventListener('input', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runSearch, 350);
+  });
+  button.addEventListener('click', runSearch);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runSearch();
+    }
+  });
 }
 
 async function showTeam(teamId) {
