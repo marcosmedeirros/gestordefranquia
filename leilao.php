@@ -364,6 +364,10 @@ if ($is_admin) {
                         <label for="notasProposta" class="form-label">O que vai dar na proposta</label>
                         <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>
                     </div>
+                    <div class="mb-3">
+                        <label for="obsProposta" class="form-label">Obs</label>
+                        <textarea id="obsProposta" class="form-control" rows="2" placeholder="Observacoes adicionais (opcional)"></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

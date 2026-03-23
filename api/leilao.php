@@ -25,12 +25,54 @@ $pdo = db();
 ensureTempPlayerColumns($pdo);
 ensureAuctionTableCompat($pdo);
 ensureProposalPicksTable($pdo);
+ensureProposalObsColumn($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
     $stmt->execute([$column]);
     return (bool) $stmt->fetch();
+}
+
+function tableColumnExists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
+function getLeagueNameById(PDO $pdo, ?int $league_id): ?string
+{
+    if (!$league_id) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare('SELECT name FROM leagues WHERE id = ? LIMIT 1');
+        $stmt->execute([$league_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row && !empty($row['name']) ? (string)$row['name'] : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function getCurrentSeasonYear(PDO $pdo, ?int $league_id): ?int
+{
+    $leagueName = getLeagueNameById($pdo, $league_id);
+    if (!$leagueName) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT year FROM seasons WHERE league = ? AND status != 'completed' ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$leagueName]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || empty($row['year'])) {
+            return null;
+        }
+        return (int)$row['year'];
+    } catch (Throwable $e) {
+        return null;
+    }
 }
 
 if (!$team_id) {
@@ -112,6 +154,15 @@ function ensureProposalPicksTable(PDO $pdo): void
     } catch (Throwable $e) { /* ignore */ }
 }
 
+function ensureProposalObsColumn(PDO $pdo): void
+{
+    try {
+        if (!tableColumnExists($pdo, 'leilao_propostas', 'obs')) {
+            $pdo->exec('ALTER TABLE leilao_propostas ADD COLUMN obs TEXT NULL');
+        }
+    } catch (Throwable $e) { /* ignore */ }
+}
+
 function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
 {
     $name = trim((string)($new_player['name'] ?? ''));
@@ -174,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             historicoLeiloes($pdo, $league_id_param);
             break;
         case 'minhas_picks':
-            minhasPicks($pdo, $team_id);
+            minhasPicks($pdo, $team_id, $league_id);
             break;
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
@@ -230,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cancelarLeilao($pdo, $body);
             break;
         case 'enviar_proposta':
-            enviarProposta($pdo, $body, $team_id);
+            enviarProposta($pdo, $body, $team_id, $league_id);
             break;
         case 'aceitar_proposta':
             aceitarProposta($pdo, $body, $team_id, $is_admin);
@@ -487,19 +538,26 @@ function historicoLeiloes($pdo, $league_id) {
 
 // ========== FUNCOES POST ==========
 
-function minhasPicks(PDO $pdo, ?int $team_id): void {
+function minhasPicks(PDO $pdo, ?int $team_id, ?int $league_id): void {
     if (!$team_id) {
         echo json_encode(['success' => true, 'picks' => []]);
         return;
+    }
+    $params = [$team_id];
+    $minSeasonYear = getCurrentSeasonYear($pdo, $league_id);
+    $seasonFilter = '';
+    if ($minSeasonYear) {
+        $seasonFilter = ' AND p.season_year >= ?';
+        $params[] = $minSeasonYear;
     }
     $sql = "SELECT p.id, p.season_year, p.round, p.notes,
                    CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
             FROM picks p
             LEFT JOIN teams t ON p.original_team_id = t.id
-            WHERE p.team_id = ?
+            WHERE p.team_id = ?{$seasonFilter}
             ORDER BY p.season_year DESC, p.round ASC";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$team_id]);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'picks' => $rows]);
 }
@@ -617,7 +675,7 @@ function cancelarLeilao($pdo, $body) {
     echo json_encode(['success' => true]);
 }
 
-function enviarProposta($pdo, $body, $team_id) {
+function enviarProposta($pdo, $body, $team_id, $league_id) {
     if (!$team_id) {
         echo json_encode(['success' => false, 'error' => 'Voce precisa ter um time para enviar propostas']);
         return;
@@ -627,6 +685,7 @@ function enviarProposta($pdo, $body, $team_id) {
     $player_ids = $body['player_ids'] ?? [];
     $pick_ids = $body['pick_ids'] ?? [];
     $notas = $body['notas'] ?? '';
+    $obs = $body['obs'] ?? '';
     
     if (!$leilao_id || (empty($player_ids) && empty($pick_ids) && trim($notas) === '')) {
         echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
@@ -683,12 +742,18 @@ function enviarProposta($pdo, $body, $team_id) {
 
     if (!empty($pick_ids)) {
         $placeholders = implode(',', array_fill(0, count($pick_ids), '?'));
-        $stmt = $pdo->prepare("SELECT id FROM picks WHERE id IN ($placeholders) AND team_id = ?");
+        $minSeasonYear = getCurrentSeasonYear($pdo, $league_id);
+        $seasonFilter = '';
         $params = array_merge($pick_ids, [$team_id]);
+        if ($minSeasonYear) {
+            $seasonFilter = ' AND season_year >= ?';
+            $params[] = $minSeasonYear;
+        }
+        $stmt = $pdo->prepare("SELECT id FROM picks WHERE id IN ($placeholders) AND team_id = ?{$seasonFilter}");
         $stmt->execute($params);
         $picks_validas = $stmt->fetchAll(PDO::FETCH_COLUMN);
         if (count($picks_validas) !== count($pick_ids)) {
-            echo json_encode(['success' => false, 'error' => 'Algumas picks nao pertencem ao seu time']);
+            echo json_encode(['success' => false, 'error' => 'Algumas picks nao pertencem ao seu time ou sao de anos anteriores']);
             return;
         }
     }
@@ -697,8 +762,8 @@ function enviarProposta($pdo, $body, $team_id) {
     
     try {
         // Criar proposta
-        $stmt = $pdo->prepare("INSERT INTO leilao_propostas (leilao_id, team_id, notas, status, created_at) VALUES (?, ?, ?, 'pendente', NOW())");
-        $stmt->execute([$leilao_id, $team_id, $notas]);
+        $stmt = $pdo->prepare("INSERT INTO leilao_propostas (leilao_id, team_id, notas, obs, status, created_at) VALUES (?, ?, ?, ?, 'pendente', NOW())");
+        $stmt->execute([$leilao_id, $team_id, $notas, $obs]);
         $proposta_id = $pdo->lastInsertId();
         
         // Adicionar jogadores da proposta

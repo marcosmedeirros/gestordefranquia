@@ -66,6 +66,7 @@ try {
                 leilao_id INT NOT NULL,
                 team_id INT NOT NULL,
                 notas TEXT NULL,
+                obs TEXT NULL,
                 status ENUM('pendente', 'aceita', 'recusada') DEFAULT 'pendente',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_proposta_status (status),

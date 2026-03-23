@@ -594,7 +594,7 @@ async function carregarMinhasPropostas() {
 
                 html += `<tr>
                     <td><strong class="text-orange">${proposta.player_name}</strong><br><small class="text-light-gray">${proposta.team_name}</small></td>
-                    <td>${proposta.jogadores_oferecidos || proposta.notas || 'N/A'}</td>
+                    <td>${proposta.jogadores_oferecidos || proposta.notas || proposta.obs || 'N/A'}</td>
                     <td>${statusBadge}</td>
                     <td>${proposta.created_at}</td>
                     <td>${resendAction || '-'}</td>
@@ -658,6 +658,8 @@ async function abrirModalProposta(leilaoId, playerName) {
     document.getElementById('leilaoIdProposta').value = leilaoId;
     document.getElementById('jogadorLeilaoNome').textContent = playerName;
     document.getElementById('notasProposta').value = '';
+    const obsInput = document.getElementById('obsProposta');
+    if (obsInput) obsInput.value = '';
     
     // Carregar meus jogadores
     const container = document.getElementById('meusJogadoresParaTroca');
@@ -736,6 +738,7 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
     }
     const leilaoId = document.getElementById('leilaoIdProposta').value;
     const notas = document.getElementById('notasProposta').value;
+    const obs = document.getElementById('obsProposta')?.value || '';
     const checkboxes = document.querySelectorAll('.player-checkbox:checked');
     const pickboxes = document.querySelectorAll('.pick-checkbox:checked');
     
@@ -756,7 +759,8 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
                 leilao_id: leilaoId,
                 player_ids: playerIds,
                 pick_ids: pickIds,
-                notas: notas
+                notas: notas,
+                obs: obs
             })
         });
         
@@ -813,6 +817,7 @@ async function verMinhasPropostasRecebidas(leilaoId) {
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
                         ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
+                        ${proposta.obs ? `<p class="text-muted"><strong>Obs:</strong> ${proposta.obs}</p>` : ''}
                         ${proposta.status === 'pendente' ? `
                         <div class="d-flex gap-2">
                             <button class="btn btn-success" onclick="aceitarProposta(${proposta.id})">
@@ -877,6 +882,7 @@ async function verPropostasEnviadas(leilaoId) {
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
                         ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
+                        ${proposta.obs ? `<p class="text-muted"><strong>Obs:</strong> ${proposta.obs}</p>` : ''}
                     </div>
                 </div>`;
             });
