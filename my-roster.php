@@ -359,6 +359,9 @@ if ($teamId) {
       <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0 text-white"><i class="bi bi-list-ul me-2 text-orange"></i>Jogadores</h5>
         <div class="d-flex gap-2 align-items-center">
+          <button id="btn-ai-analysis" class="btn btn-info text-white fw-bold btn-sm" style="background-color: #0dcaf0; border-color: #0dcaf0;">
+            <i class="bi bi-robot"></i> Ver melhorias
+          </button>
           <select id="sort-select" class="form-select form-select-sm bg-dark text-white border-orange" style="width: auto;">
             <option value="role">Ordenar: Função</option>
             <option value="name">Ordenar: Nome</option>
@@ -511,6 +514,35 @@ if ($teamId) {
         <div class="modal-footer border-top border-orange">
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-danger" id="btn-confirm-waive"><i class="bi bi-person-x me-1"></i>Dispensar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="aiAnalysisModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-info" style="background-color: #1e1e1e;">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title"><i class="bi bi-robot"></i> Relatorio do Assistente Tecnico</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="ai-loading" class="text-center py-5">
+            <div class="spinner-border text-info mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="text-white">A IA esta analisando seu elenco...</h5>
+            <p class="text-light-gray small">Avaliando idades, OVR e equilibrio tatico das posicoes...</p>
+          </div>
+
+          <div id="ai-results" style="display: none;">
+            <h6 class="text-success fw-bold"><i class="bi bi-arrow-up-circle"></i> Pontos Fortes</h6>
+            <ul id="ai-strengths" class="mb-4 text-white"></ul>
+
+            <h6 class="text-danger fw-bold"><i class="bi bi-arrow-down-circle"></i> Pontos de Atencao</h6>
+            <ul id="ai-weaknesses" class="text-white"></ul>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
         </div>
       </div>
     </div>
