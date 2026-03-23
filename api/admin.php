@@ -60,6 +60,19 @@ function playerOvrColumn(PDO $pdo): string {
     return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
 }
 
+function ensureTradeInGameColumn(PDO $pdo): void
+{
+    try {
+        if (!columnExists($pdo, 'trades', 'is_in_game')) {
+            $pdo->exec('ALTER TABLE trades ADD COLUMN is_in_game TINYINT(1) NOT NULL DEFAULT 0');
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
+ensureTradeInGameColumn($pdo);
+
 function handleFreeAgentCreation(PDO $pdo, array $validLeagues, array $data): void
 {
     $name = trim($data['name'] ?? '');
@@ -1156,6 +1169,22 @@ if ($method === 'PUT') {
             $stmt->execute([$tradeId]);
 
             echo json_encode(['success' => true, 'message' => 'Trade cancelada']);
+            break;
+
+        case 'trade_in_game':
+            $tradeId = $data['trade_id'] ?? null;
+            $isInGame = isset($data['is_in_game']) ? (int)$data['is_in_game'] : null;
+
+            if (!$tradeId || $isInGame === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Trade ID e status obrigatorios']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?');
+            $stmt->execute([$isInGame ? 1 : 0, $tradeId]);
+
+            echo json_encode(['success' => true]);
             break;
 
         case 'revert_trade':

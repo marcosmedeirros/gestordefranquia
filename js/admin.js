@@ -601,8 +601,7 @@ ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gra
         cancelled: 'bg-secondary',
         countered: 'bg-info'
       }[tr.status] || 'bg-secondary';
-      const acceptedKey = `admin_trade_accept_${tr.id}`;
-      const isAccepted = localStorage.getItem(acceptedKey) === '1';
+      const isAccepted = Number(tr.is_in_game || 0) === 1;
       return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
 <div><h5 class="text-white mb-1">${tr.from_city} ${tr.from_name} <i class="bi bi-arrow-right text-orange mx-2"></i> ${tr.to_city} ${tr.to_name}</h5>
 <small class="text-light-gray">${new Date(tr.created_at).toLocaleString('pt-BR')} | <span class="badge bg-gradient-orange">${tr.from_league}</span></small></div>
@@ -840,16 +839,21 @@ async function deleteHallOfFameEntry(id) {
   }
 }
 
-function toggleAdminTradeAccept(tradeId, checked) {
-  const key = `admin_trade_accept_${tradeId}`;
-  if (checked) {
-    localStorage.setItem(key, '1');
-  } else {
-    localStorage.removeItem(key);
-  }
+async function toggleAdminTradeAccept(tradeId, checked) {
   const card = document.querySelector(`[data-trade-id="${tradeId}"]`);
   if (card) {
     card.classList.toggle('is-accepted', checked);
+  }
+  try {
+    await api('admin.php?action=trade_in_game', {
+      method: 'PUT',
+      body: JSON.stringify({ trade_id: tradeId, is_in_game: checked ? 1 : 0 })
+    });
+  } catch (e) {
+    if (card) {
+      card.classList.toggle('is-accepted', !checked);
+    }
+    alert(e.error || 'Erro ao atualizar status da trade.');
   }
 }
 
