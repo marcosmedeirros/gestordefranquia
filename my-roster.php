@@ -360,7 +360,7 @@ if ($teamId) {
         <h5 class="mb-0 text-white"><i class="bi bi-list-ul me-2 text-orange"></i>Jogadores</h5>
         <div class="d-flex gap-2 align-items-center">
           <button id="btn-ai-analysis" class="btn btn-info text-white fw-bold btn-sm" style="background-color: #0dcaf0; border-color: #0dcaf0;">
-            <i class="bi bi-robot"></i> Ver melhorias
+            <i class="bi bi-robot"></i> Sugestao da IA
           </button>
           <select id="sort-select" class="form-select form-select-sm bg-dark text-white border-orange" style="width: auto;">
             <option value="role">Ordenar: Função</option>
