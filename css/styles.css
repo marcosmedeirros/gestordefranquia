@@ -571,6 +571,11 @@ a:hover{ color: var(--fba-brand); }
 	margin-bottom: .5rem;
 }
 
+:root[data-theme="light"] .form-label,
+:root[data-theme="light"] .form-check-label{
+	color: var(--fba-text-muted) !important;
+}
+
 	.form-control, .form-select{
 	background-color: var(--fba-panel) !important;
 	border: 1px solid var(--fba-border) !important;
@@ -595,6 +600,10 @@ a:hover{ color: var(--fba-brand); }
 }
 
 .form-control::placeholder{ color: rgba(255,255,255,.50); }
+
+:root[data-theme="light"] .form-control::placeholder{
+	color: var(--fba-text-muted) !important;
+}
 
 .form-control:disabled, .form-select:disabled{
 	opacity: 1;
@@ -1283,6 +1292,14 @@ img.broken-image {
 
 :root[data-theme="light"] .btn-link.text-white{
 	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .trade-list-panel .text-white{
+	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .trade-list-panel .text-light-gray{
+	color: var(--fba-text-muted) !important;
 }
 
 :root[data-theme="light"] .modal-content .btn-close{
