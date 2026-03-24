@@ -616,6 +616,38 @@ a:hover{ color: var(--fba-brand); }
 	color: var(--fba-text) !important;
 }
 
+:root[data-theme="light"] .form-control.bg-dark,
+:root[data-theme="light"] .form-select.bg-dark,
+:root[data-theme="light"] .input-group-text.bg-dark{
+	background-color: var(--fba-panel) !important;
+	color: var(--fba-text) !important;
+	border-color: var(--fba-border) !important;
+}
+
+:root[data-theme="light"] .border-secondary{
+	border-color: var(--fba-border) !important;
+}
+
+:root[data-theme="light"] .text-muted{
+	color: var(--fba-text-muted) !important;
+}
+
+:root[data-theme="light"] .badge.bg-dark{
+	background-color: var(--fba-panel-2) !important;
+	color: var(--fba-text) !important;
+	border-color: var(--fba-border) !important;
+}
+
+:root[data-theme="light"] .alert.bg-dark{
+	background-color: var(--fba-panel-2) !important;
+	color: var(--fba-text) !important;
+	border-color: var(--fba-border) !important;
+}
+
+:root[data-theme="light"] .btn-close-white{
+	filter: none;
+}
+
 :root[data-theme="light"] .table-dark{
 	--bs-table-bg: var(--fba-panel);
 	--bs-table-striped-bg: #f2f4f8;
@@ -628,6 +660,12 @@ a:hover{ color: var(--fba-brand); }
 :root[data-theme="light"] .table-dark th{
 	background: var(--fba-panel-2) !important;
 	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .list-group-item{
+	background: var(--fba-panel);
+	color: var(--fba-text);
+	border-color: var(--fba-border);
 }
 
 /* ---------- Code blocks ---------- */
@@ -965,8 +1003,8 @@ img.broken-image {
 
 /* Stats cards */
 .stat-card{
-	background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
-	border: 1px solid rgba(255,255,255,.08);
+	background: linear-gradient(180deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
+	border: 1px solid var(--fba-border);
 	border-radius: var(--radius);
 	padding: 20px;
 	box-shadow: var(--shadow-1);
@@ -1001,7 +1039,7 @@ img.broken-image {
 }
 
 .stat-label{
-	color: rgba(255,255,255,.72);
+	color: var(--fba-text-muted);
 	font-size: .85rem;
 	text-transform: uppercase;
 	letter-spacing: 1px;
@@ -1021,10 +1059,10 @@ img.broken-image {
 .accordion-item{ background-color: var(--fba-panel) !important; }
 
 .nav-tabs{
-	border-bottom: 2px solid rgba(255,255,255,.10);
+	border-bottom: 2px solid var(--fba-border);
 }
 .nav-tabs .nav-link{
-	color: rgba(255,255,255,.75);
+	color: var(--fba-text-muted);
 	border: none;
 	background: transparent;
 	padding: .75rem 1.5rem;
@@ -1047,13 +1085,13 @@ img.broken-image {
 
 .modal-content{
 	border: 2px solid var(--fba-brand);
-	background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(14,14,14,1) 100%);
+	background: linear-gradient(180deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
 	box-shadow: var(--shadow-2);
 }
 
 .modal-header, .modal-footer{
-	background: rgba(0,0,0,.35);
-	border-color: rgba(255,255,255,.08) !important;
+	background: var(--fba-panel-2);
+	border-color: var(--fba-border) !important;
 }
 
 .table thead th{
@@ -1062,7 +1100,7 @@ img.broken-image {
 	text-transform: uppercase;
 	font-size: .82rem;
 	letter-spacing: .6px;
-	color: rgba(255,255,255,.88);
+	color: var(--fba-text);
 }
 
 .table tbody tr{
@@ -1075,15 +1113,15 @@ img.broken-image {
 	background: var(--fba-panel);
 	padding: .75rem 1rem;
 	border-radius: 12px;
-	border: 1px solid rgba(255,255,255,.08);
+	border: 1px solid var(--fba-border);
 	margin-bottom: 1.5rem;
 	box-shadow: var(--shadow-0);
 }
 .breadcrumb-admin .breadcrumb{ margin-bottom: 0; background: transparent; }
-.breadcrumb-admin .breadcrumb-item{ color: rgba(255,255,255,.70); }
+.breadcrumb-admin .breadcrumb-item{ color: var(--fba-text-muted); }
 .breadcrumb-admin .breadcrumb-item.active{ color: var(--fba-brand); font-weight: 950; }
 .breadcrumb-admin .breadcrumb-item a{
-	color: rgba(255,255,255,.86);
+	color: var(--fba-text);
 	text-decoration: none;
 	transition: color var(--t) var(--ease);
 }
@@ -1091,8 +1129,8 @@ img.broken-image {
 
 /* ---------- League / Team / Player cards ---------- */
 .league-card{
-	background: linear-gradient(135deg, rgba(20,20,20,1) 0%, rgba(27,27,27,1) 100%);
-	border: 1px solid rgba(255,255,255,.10);
+	background: linear-gradient(135deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
+	border: 1px solid var(--fba-border);
 	border-radius: var(--radius);
 	padding: 1.5rem;
 	cursor: pointer;
@@ -1138,8 +1176,8 @@ img.broken-image {
 }
 
 .team-card{
-	background: linear-gradient(180deg, rgba(20,20,20,1) 0%, rgba(16,16,16,1) 100%);
-	border: 1px solid rgba(255,255,255,.10);
+	background: linear-gradient(180deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
+	border: 1px solid var(--fba-border);
 	border-radius: var(--radius-sm);
 	padding: 1rem;
 	cursor: pointer;
@@ -1157,7 +1195,7 @@ img.broken-image {
 	width: 60px;
 	height: 60px;
 	border-radius: 50%;
-	border: 1px solid rgba(255,255,255,.12);
+	border: 1px solid var(--fba-border);
 	object-fit: cover;
 	box-shadow: var(--shadow-0);
 }
@@ -1170,8 +1208,8 @@ img.broken-image {
 }
 
 .btn-back{
-	background: rgba(255,255,255,.02);
-	border: 1px solid rgba(255,255,255,.12);
+	background: var(--fba-panel-2);
+	border: 1px solid var(--fba-border);
 	color: var(--fba-text);
 	padding: .5rem 1rem;
 	border-radius: 12px;
@@ -1188,7 +1226,7 @@ img.broken-image {
 }
 
 .action-card{
-	background: linear-gradient(135deg, var(--fba-panel) 0%, #1b1b1b 100%);
+	background: linear-gradient(135deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
 	border: 2px solid var(--fba-brand);
 	border-radius: var(--radius);
 	padding: 2rem;
@@ -1217,6 +1255,38 @@ img.broken-image {
 	font-size: 3rem;
 	color: var(--fba-brand);
 	margin-bottom: 1rem;
+}
+
+:root[data-theme="light"] .modal-content .text-white,
+:root[data-theme="light"] .modal-content .text-muted{
+	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .modal-content .text-light-gray{
+	color: var(--fba-text-muted) !important;
+}
+
+:root[data-theme="light"] .bg-dark-panel .text-white,
+:root[data-theme="light"] .bg-dark .text-white{
+	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .bg-dark-panel .text-light-gray,
+:root[data-theme="light"] .bg-dark .text-light-gray{
+	color: var(--fba-text-muted) !important;
+}
+
+:root[data-theme="light"] .bg-dark-panel .text-muted,
+:root[data-theme="light"] .bg-dark .text-muted{
+	color: var(--fba-text-muted) !important;
+}
+
+:root[data-theme="light"] .btn-link.text-white{
+	color: var(--fba-text) !important;
+}
+
+:root[data-theme="light"] .modal-content .btn-close{
+	filter: none;
 }
 
 /* ---------- White cards with black text (compat) ---------- */

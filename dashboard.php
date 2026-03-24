@@ -570,27 +570,27 @@ try {
         }
 
         .quick-action-card {
-            background: var(--card-bg);
-            border: 1px solid rgba(255, 107, 0, 0.3);
+            background: var(--fba-panel);
+            border: 1px solid var(--fba-border);
             border-radius: 12px;
             padding: 1rem;
             transition: all 0.3s ease;
         }
 
         .quick-action-card:hover {
-            border-color: var(--fba-orange);
-            box-shadow: 0 4px 12px rgba(255, 107, 0, 0.2);
+            border-color: var(--fba-brand);
+            box-shadow: 0 4px 12px rgba(252, 0, 37, 0.2);
             transform: translateY(-3px);
         }
 
         .quick-action-card.urgent {
             border-color: #dc3545;
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), transparent);
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.12), var(--fba-panel));
         }
 
         .quick-action-card.urgent:hover {
             border-color: #dc3545;
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), transparent);
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), var(--fba-panel));
             box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
         }
 
@@ -599,14 +599,14 @@ try {
         }
 
         .pick-item:hover {
-            background: rgba(255, 107, 0, 0.1) !important;
+            background: rgba(252, 0, 37, 0.1) !important;
         }
 
         .last-trade-card {
-            background: linear-gradient(135deg, rgba(255, 107, 0, 0.05), transparent);
+            background: linear-gradient(135deg, rgba(252, 0, 37, 0.06), var(--fba-panel));
             border-radius: 12px;
             padding: 1.5rem;
-            border: 1px dashed rgba(255, 107, 0, 0.3);
+            border: 1px dashed rgba(252, 0, 37, 0.3);
         }
 
         .ranking-item {
@@ -626,8 +626,8 @@ try {
         }
 
         .draft-live-card {
-            background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(0, 0, 0, 0.6));
-            border: 1px solid rgba(255, 107, 0, 0.4);
+            background: linear-gradient(135deg, rgba(252, 0, 37, 0.12), var(--fba-panel));
+            border: 1px solid rgba(252, 0, 37, 0.35);
             border-radius: 16px;
             padding: 1.5rem;
         }
@@ -637,12 +637,12 @@ try {
             height: 70px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid var(--fba-orange);
+            border: 3px solid var(--fba-brand);
         }
 
         .draft-live-card .draft-meta {
             font-size: 0.9rem;
-            color: var(--light-gray);
+            color: var(--fba-text-muted);
         }
 
         @media (max-width: 768px) {
