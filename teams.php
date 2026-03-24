@@ -224,6 +224,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         <hr style="border-color: var(--fba-border);">
 
+        <div class="text-center mb-3">
+            <button class="theme-toggle w-100" id="themeToggle" type="button">
+                <i class="bi bi-moon-stars-fill"></i>
+                <span>Tema claro</span>
+            </button>
+        </div>
+
         <div class="text-center">
             <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
                 <i class="bi bi-box-arrow-right me-2"></i>Sair
@@ -377,24 +384,23 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             ($t['owner_phone_display'] ?? '')
                         ));
                     ?>
-                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>" style="margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; background: rgba(20,20,20,1);">
-                        <div class="team-card-mobile-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;">
-                            <div class="team-card-mobile-logo-wrap" style="width: 112px; height: 70px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <div class="team-card-mobile" data-search="<?= htmlspecialchars($searchKey) ?>">
+                        <div class="team-card-mobile-header">
+                            <div class="team-card-mobile-logo-wrap">
                                   <img src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>" 
                                       alt="<?= htmlspecialchars($t['name']) ?>" 
-                                      class="team-card-mobile-logo"
-                                      style="width:60px;height:60px;max-width:60px;max-height:60px;object-fit:cover;">
+                                      class="team-card-mobile-logo">
                                   <img src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
                                       alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
-                                     style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);">
+                                     class="team-card-mobile-owner">
                                </div>
-                            <div class="team-card-mobile-title" style="color: #ffffff; flex: 1; min-width: 0; padding-left: 4px;">
-                                <div class="team-card-mobile-name" style="color: #fc0025; font-size: 1.2rem; font-weight: 800;">
+                            <div class="team-card-mobile-title">
+                                <div class="team-card-mobile-name">
                                     <?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?>
                                 </div>
                             </div>
                         </div>
-                        <ul class="team-card-mobile-info" style="color: #ffffff;">
+                        <ul class="team-card-mobile-info">
                             <li><i class="bi bi-person me-1"></i><?= htmlspecialchars($t['owner_name']) ?></li>
                             <?php if ($hasContact): ?>
                                 <li><i class="bi bi-whatsapp me-1 text-success"></i><?= htmlspecialchars($t['owner_phone_display']) ?></li>

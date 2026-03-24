@@ -1,5 +1,23 @@
 // Sidebar Toggle para Mobile
 document.addEventListener('DOMContentLoaded', function() {
+    const themeKey = 'fba-theme';
+    const root = document.documentElement;
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    const savedTheme = localStorage.getItem(themeKey);
+    const initialTheme = savedTheme || (prefersLight ? 'light' : 'dark');
+    root.dataset.theme = initialTheme;
+
+    const themeButtons = Array.from(document.querySelectorAll('#themeToggle'));
+    const setThemeButton = (button, theme) => {
+        if (!button) return;
+        const isLight = theme === 'light';
+        button.setAttribute('aria-pressed', String(isLight));
+        button.innerHTML = isLight
+            ? '<i class="bi bi-moon-stars-fill"></i><span>Tema escuro</span>'
+            : '<i class="bi bi-sun-fill"></i><span>Tema claro</span>';
+    };
+    themeButtons.forEach((button) => setThemeButton(button, initialTheme));
+
     // Criar botão hambúrguer se não existir
     if (!document.querySelector('.sidebar-toggle')) {
         const toggleBtn = document.createElement('button');
@@ -75,6 +93,15 @@ document.addEventListener('DOMContentLoaded', function() {
             overlay.classList.remove('active');
             document.body.style.overflow = '';
         }
+    });
+
+    themeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextTheme = root.dataset.theme === 'light' ? 'dark' : 'light';
+            root.dataset.theme = nextTheme;
+            localStorage.setItem(themeKey, nextTheme);
+            themeButtons.forEach((btn) => setThemeButton(btn, nextTheme));
+        });
     });
     
     // Tratar imagens quebradas - fallback para imagem padrão
