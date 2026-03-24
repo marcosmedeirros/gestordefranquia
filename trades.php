@@ -118,19 +118,19 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       margin-bottom: -2px;
     }
     .nav-tabs .nav-link:hover {
-      background: rgba(241, 117, 7, 0.1);
-      color: var(--fba-orange);
-      border-bottom-color: var(--fba-orange);
+      background: rgba(252, 0, 37, 0.12);
+      color: var(--fba-brand);
+      border-bottom-color: var(--fba-brand);
     }
     .nav-tabs .nav-link.active {
-      background: rgba(241, 117, 7, 0.15);
-      color: var(--fba-orange);
-      border-bottom-color: var(--fba-orange);
+      background: rgba(252, 0, 37, 0.16);
+      color: var(--fba-brand);
+      border-bottom-color: var(--fba-brand);
       font-weight: 600;
     }
 
     .trade-list-panel {
-      background: var(--fba-card-bg);
+      background: var(--fba-panel);
       border: 1px solid var(--fba-border);
       border-radius: 10px;
       padding: 20px;
@@ -139,19 +139,19 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
 
     .trade-list-search .form-control,
     .trade-list-search .form-select {
-      background: var(--fba-dark-bg);
+      background: var(--fba-panel-2);
       color: var(--fba-text);
       border: 1px solid var(--fba-border);
     }
 
     .trade-list-search .form-control:focus,
     .trade-list-search .form-select:focus {
-      border-color: var(--fba-orange);
-      box-shadow: 0 0 0 0.25rem rgba(241, 117, 7, 0.25);
+      border-color: var(--fba-brand);
+      box-shadow: 0 0 0 0.25rem rgba(252, 0, 37, 0.25);
     }
 
     .player-card {
-      background: var(--fba-dark-bg);
+      background: var(--fba-panel-2);
       border: 1px solid var(--fba-border);
       border-radius: 10px;
       padding: 16px;

@@ -188,15 +188,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
         .fa-new-card .form-control,
         .fa-new-card .form-select {
-            background: var(--fba-dark-bg);
+            background: var(--fba-panel-2);
             color: var(--fba-text);
             border-color: var(--fba-border);
         }
 
         .fa-new-card .form-control:focus,
         .fa-new-card .form-select:focus {
-            border-color: var(--fba-orange);
-            box-shadow: 0 0 0 0.25rem rgba(241, 117, 7, 0.25);
+            border-color: var(--fba-brand);
+            box-shadow: 0 0 0 0.25rem rgba(252, 0, 37, 0.25);
         }
 
         .fa-section-title {

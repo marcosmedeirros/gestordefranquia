@@ -51,27 +51,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             min-width: 100px;
         }
 
-        /* Forçar texto branco nos cards mobile */
-        .player-card,
-        .player-card * {
+        /* Cards de jogadores: respeitar tema */
+        :root[data-theme="dark"] .player-card,
+        :root[data-theme="dark"] .player-card * {
             color: #ffffff !important;
         }
 
-        .player-card strong {
-            color: #ffffff !important;
-            font-weight: 600;
-        }
-
-        .player-card .text-light-gray {
+        :root[data-theme="dark"] .player-card .text-light-gray {
             color: #cfcfcf !important;
+        }
+
+        :root[data-theme="light"] .player-card,
+        :root[data-theme="light"] .player-card * {
+            color: var(--fba-text) !important;
+        }
+
+        :root[data-theme="light"] .player-card .text-light-gray {
+            color: var(--fba-text-muted) !important;
         }
 
         .player-card-stat strong {
             color: #fc0025 !important;
-        }
-
-        .player-card .badge {
-            color: #fff !important;
         }
 
         .player-card .bg-warning {
