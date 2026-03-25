@@ -307,8 +307,10 @@ if ($method === 'PUT') {
 
     $name = isset($body['name']) ? trim($body['name']) : $player['name'];
     $age = isset($body['age']) ? (int)$body['age'] : (int)$player['age'];
-    $position = isset($body['position']) ? trim($body['position']) : $player['position'];
-    $secondaryPosition = isset($body['secondary_position']) ? trim($body['secondary_position']) : ($player['secondary_position'] ?? '');
+    $position = array_key_exists('position', $body) ? trim((string)$body['position']) : $player['position'];
+    $secondaryPosition = array_key_exists('secondary_position', $body)
+        ? trim((string)$body['secondary_position'])
+        : ($player['secondary_position'] ?? '');
     $seasonsInLeague = isset($body['seasons_in_league']) ? (int)$body['seasons_in_league'] : (int)($player['seasons_in_league'] ?? 0);
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
