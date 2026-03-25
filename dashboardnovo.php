@@ -74,6 +74,33 @@ if ($teamCap < $capMin || $teamCap > $capMax) {
 	$capColor = '#ff4444';
 }
 
+$averageCapTop8 = 0;
+$leagueAvgOvr = 0;
+try {
+	$stmtLeagueTeams = $pdo->prepare('SELECT id FROM teams WHERE league = ?');
+	$stmtLeagueTeams->execute([$team['league']]);
+	$leagueTeams = $stmtLeagueTeams->fetchAll(PDO::FETCH_COLUMN);
+
+	$leagueCapTotal = 0;
+	$leagueTeamsCount = 0;
+	foreach ($leagueTeams as $leagueTeamId) {
+		$stmtCapTeam = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top8');
+		$stmtCapTeam->execute([(int)$leagueTeamId]);
+		$capRow = $stmtCapTeam->fetch(PDO::FETCH_ASSOC);
+		$leagueCapTotal += (int)($capRow['cap'] ?? 0);
+		$leagueTeamsCount++;
+	}
+	$averageCapTop8 = $leagueTeamsCount > 0 ? round($leagueCapTotal / $leagueTeamsCount, 1) : 0;
+
+	$stmtLeagueOvr = $pdo->prepare('SELECT AVG(p.ovr) as avg_ovr FROM players p INNER JOIN teams t ON t.id = p.team_id WHERE t.league = ?');
+	$stmtLeagueOvr->execute([$team['league']]);
+	$leagueOvrRow = $stmtLeagueOvr->fetch(PDO::FETCH_ASSOC) ?: [];
+	$leagueAvgOvr = (float)($leagueOvrRow['avg_ovr'] ?? 0);
+} catch (Exception $e) {
+	$averageCapTop8 = 0;
+	$leagueAvgOvr = 0;
+}
+
 $editalData = null;
 $hasEdital = false;
 try {
@@ -329,6 +356,12 @@ if ($currentDraftPick && $initDraftTeamsPerRound > 0) {
 if ($nextDraftPick && $initDraftTeamsPerRound > 0) {
 	$nextDraftOverallNumber = (($nextDraftPick['round'] - 1) * $initDraftTeamsPerRound) + $nextDraftPick['pick_position'];
 }
+
+$capDelta = $teamCap - $averageCapTop8;
+$ovrDelta = $avgOvr - $leagueAvgOvr;
+$capDeltaClass = $capDelta > 0 ? 'up' : ($capDelta < 0 ? 'down' : 'neutral');
+$ovrDeltaClass = $ovrDelta > 0 ? 'up' : ($ovrDelta < 0 ? 'down' : 'neutral');
+$playerStatus = $playersOutOfRange ? 'Fora da faixa' : 'Dentro da faixa';
 
 $topRanking = [];
 try {
@@ -640,18 +673,45 @@ try {
 			font-weight: 600;
 		}
 
-		.stat-grid {
-			display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 24px;
+		.kpi-grid {
+			display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px; margin-bottom: 20px;
 		}
-		.stat-card {
+		.kpi-card {
 			background: var(--panel);
 			border: 1px solid var(--border);
-			border-radius: var(--radius-sm);
-			padding: 16px 18px;
-			display: flex; justify-content: space-between; align-items: center; gap: 12px;
+			border-radius: 12px;
+			padding: 14px 16px;
+			display: flex; flex-direction: column; gap: 6px;
+			min-height: 96px;
 		}
-		.stat-label { color: var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
-		.stat-value { font-family: var(--font-display); font-weight: 700; font-size: 20px; }
+		.kpi-label {
+			color: var(--text-2);
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: .14em;
+		}
+		.kpi-value {
+			font-family: var(--font-display);
+			font-weight: 700;
+			font-size: 22px;
+		}
+		.kpi-meta { color: var(--text-3); font-size: 12px; }
+
+		.compare-grid {
+			display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 20px;
+		}
+		.compare-item {
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			padding: 14px 16px;
+		}
+		.compare-title { font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+		.compare-value { font-weight: 700; font-size: 16px; }
+		.delta { font-size: 12px; font-weight: 600; }
+		.delta.up { color: #25c677; }
+		.delta.down { color: #ff6b6b; }
+		.delta.neutral { color: var(--text-2); }
 
 		.panel {
 			background: var(--panel);
@@ -714,10 +774,12 @@ try {
 		.sidebar-overlay.active { opacity: 1; pointer-events: all; }
 
 		@media (max-width: 1100px) {
-			.stat-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+			.kpi-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+			.compare-grid { grid-template-columns: 1fr; }
 			.grid-3 { grid-template-columns: 1fr; }
 		}
 		@media (max-width: 900px) {
+			.kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 			.action-grid { grid-template-columns: 1fr; }
 			.grid-2 { grid-template-columns: 1fr; }
 		}
@@ -791,7 +853,7 @@ try {
 		<div class="page-top">
 			<div>
 				<h1 class="page-title">Dashboard</h1>
-				<p class="page-sub">Bem-vindo ao painel do <?= htmlspecialchars($team['name']) ?></p>
+				<p class="page-sub">Bem-vindo ao painel do <?= htmlspecialchars($team['name']) ?><?php if ($currentSeason): ?> - Temporada <?= (int)$seasonDisplayYear ?><?php endif; ?></p>
 			</div>
 			<div class="page-actions">
 				<button class="btn-ghost" id="copyTeamBtn"><i class="bi bi-clipboard-check me-1"></i>Copiar time</button>
@@ -805,49 +867,61 @@ try {
 			</div>
 		</div>
 
-		<div class="stat-grid">
+		<div class="kpi-grid">
 			<a href="/my-roster.php" class="text-decoration-none" style="color: inherit;">
-				<div class="stat-card">
-					<div>
-						<div class="stat-label">Jogadores</div>
-						<div class="stat-value" style="color: <?= $playersColor ?>;">
-							<?= $totalPlayers ?>
-						</div>
-						<div style="font-size: 12px; color: <?= $playersColor ?>;">Min <?= $minPlayers ?> - Max <?= $maxPlayers ?></div>
-					</div>
-					<i class="bi bi-people-fill" style="font-size: 26px; color: var(--red);"></i>
+				<div class="kpi-card">
+					<div class="kpi-label">Jogadores</div>
+					<div class="kpi-value" style="color: <?= $playersColor ?>;"><?= $totalPlayers ?></div>
+					<div class="kpi-meta" style="color: <?= $playersColor ?>;">Min <?= $minPlayers ?> - Max <?= $maxPlayers ?></div>
 				</div>
 			</a>
-			<div class="stat-card">
-				<div>
-					<div class="stat-label">CAP Top8</div>
-					<div class="stat-value" style="color: <?= $capColor ?>;">
-						<?= (int)$teamCap ?>
-					</div>
-					<div style="font-size: 12px; color: <?= $capColor ?>;">Min <?= $capMin ?> - Max <?= $capMax ?></div>
-				</div>
-				<i class="bi bi-cash-stack" style="font-size: 26px; color: <?= $capColor ?>;"></i>
+			<div class="kpi-card">
+				<div class="kpi-label">CAP Top8</div>
+				<div class="kpi-value" style="color: <?= $capColor ?>;"><?= (int)$teamCap ?></div>
+				<div class="kpi-meta" style="color: <?= $capColor ?>;">Min <?= $capMin ?> - Max <?= $capMax ?></div>
 			</div>
-			<a href="/picks.php" class="text-decoration-none" style="color: inherit;">
-				<div class="stat-card">
-					<div>
-						<div class="stat-label">Picks</div>
-						<div class="stat-value"><?= count($teamPicks) ?></div>
-						<div style="font-size: 12px; color: var(--text-2);">Proximas escolhas</div>
-					</div>
-					<i class="bi bi-calendar-check-fill" style="font-size: 26px; color: #25c677;"></i>
-				</div>
-			</a>
 			<a href="/trades.php" class="text-decoration-none" style="color: inherit;">
-				<div class="stat-card">
-					<div>
-						<div class="stat-label">Trades</div>
-						<div class="stat-value"><?= (int)$tradesCount ?>/<?= (int)$maxTrades ?></div>
-						<div style="font-size: 12px; color: var(--text-2);">Realizadas</div>
-					</div>
-					<i class="bi bi-arrow-left-right" style="font-size: 26px; color: #3da0ff;"></i>
+				<div class="kpi-card">
+					<div class="kpi-label">Trades</div>
+					<div class="kpi-value"><?= (int)$tradesCount ?>/<?= (int)$maxTrades ?></div>
+					<div class="kpi-meta">Realizadas</div>
 				</div>
 			</a>
+			<a href="/picks.php" class="text-decoration-none" style="color: inherit;">
+				<div class="kpi-card">
+					<div class="kpi-label">Picks</div>
+					<div class="kpi-value"><?= count($teamPicks) ?></div>
+					<div class="kpi-meta">Proximas escolhas</div>
+				</div>
+			</a>
+			<div class="kpi-card">
+				<div class="kpi-label">OVR medio</div>
+				<div class="kpi-value"><?= number_format($avgOvr, 1, ',', '.') ?></div>
+				<div class="kpi-meta">Seu elenco</div>
+			</div>
+			<div class="kpi-card">
+				<div class="kpi-label">Ranking</div>
+				<div class="kpi-value"><?= (int)($team['ranking_points'] ?? 0) ?></div>
+				<div class="kpi-meta">Pontos</div>
+			</div>
+		</div>
+
+		<div class="compare-grid">
+			<div class="compare-item">
+				<div class="compare-title">CAP vs media da liga</div>
+				<div class="compare-value">Media: <?= number_format($averageCapTop8, 1, ',', '.') ?></div>
+				<div class="delta <?= $capDeltaClass ?>"><?= ($capDelta >= 0 ? '+' : '') . number_format($capDelta, 1, ',', '.') ?></div>
+			</div>
+			<div class="compare-item">
+				<div class="compare-title">OVR medio vs liga</div>
+				<div class="compare-value">Media: <?= number_format($leagueAvgOvr, 1, ',', '.') ?></div>
+				<div class="delta <?= $ovrDeltaClass ?>"><?= ($ovrDelta >= 0 ? '+' : '') . number_format($ovrDelta, 1, ',', '.') ?></div>
+			</div>
+			<div class="compare-item">
+				<div class="compare-title">Elenco</div>
+				<div class="compare-value">Faixa: <?= $minPlayers ?> - <?= $maxPlayers ?></div>
+				<div class="delta <?= $playersOutOfRange ? 'down' : 'up' ?>"><?= $playerStatus ?></div>
+			</div>
 		</div>
 
 		<?php if ($activeDirectiveDeadline): ?>
