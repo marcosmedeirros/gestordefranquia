@@ -182,6 +182,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             flex-direction: column;
             z-index: 200;
             transition: transform var(--t) var(--ease);
+            padding-bottom: 12px;
         }
 
         .sidebar-brand {
@@ -311,12 +312,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             gap: 10px;
         }
         .sidebar-theme-toggle {
-            width: 100%;
+            width: calc(100% - 28px);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin: 0 14px 10px;
+            margin: 0 14px 12px;
             padding: 8px 10px;
             border-radius: 10px;
             border: 1px solid var(--border);
