@@ -1041,16 +1041,16 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <a href="/punishments"><i class="bi bi-exclamation-triangle"></i> Punições</a>
         </nav>
 
-        <button class="sidebar-theme-toggle" id="themeToggle" type="button">
-            <i class="bi bi-moon-stars-fill"></i>
-            <span>Tema claro</span>
-        </button>
-
         <div class="sidebar-footer">
             <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sidebar-user-avatar">
             <span class="sidebar-user-name"><?= htmlspecialchars($user['name']) ?></span>
             <a href="/logout" class="sidebar-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
         </div>
+
+        <button class="sidebar-theme-toggle" id="themeToggle" type="button">
+            <i class="bi bi-moon-stars-fill"></i>
+            <span>Tema claro</span>
+        </button>
     </aside>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
