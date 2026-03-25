@@ -48,7 +48,6 @@ $leagueTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $playersTotal = 0;
 $playersAvgOvr = 0;
-$freeAgents = 0;
 
 try {
 	$stmtPlayers = $pdo->prepare('
@@ -66,13 +65,6 @@ try {
 	$playersAvgOvr = 0;
 }
 
-try {
-	$stmtFree = $pdo->prepare('SELECT COUNT(*) as total FROM players WHERE team_id IS NULL OR team_id = 0');
-	$stmtFree->execute();
-	$freeAgents = (int)($stmtFree->fetchColumn() ?? 0);
-} catch (Exception $e) {
-	$freeAgents = 0;
-}
 
 $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
 ?>
@@ -508,13 +500,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div>
 					<div class="stat-pill-val"><?= number_format($playersAvgOvr, 1, ',', '.') ?></div>
 					<div class="stat-pill-label">OVR médio</div>
-				</div>
-			</div>
-			<div class="stat-pill">
-				<div class="stat-pill-icon"><i class="bi bi-person-x"></i></div>
-				<div>
-					<div class="stat-pill-val"><?= number_format($freeAgents, 0, ',', '.') ?></div>
-					<div class="stat-pill-label">Agentes livres</div>
 				</div>
 			</div>
 		</div>
