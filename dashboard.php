@@ -761,13 +761,6 @@ try {
 
         <hr style="border-color: var(--fba-border);">
 
-        <div class="text-center mb-3">
-            <button class="theme-toggle w-100" id="themeToggle" type="button">
-                <i class="bi bi-moon-stars-fill"></i>
-                <span>Tema claro</span>
-            </button>
-        </div>
-
         <div class="text-center">
             <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
                 <i class="bi bi-box-arrow-right me-2"></i>Sair
@@ -1462,6 +1455,12 @@ try {
             </div>
         </div>
 
+        <div class="mt-4 d-flex justify-content-end">
+            <button class="theme-toggle" id="themeToggle" type="button">
+                <i class="bi bi-moon-stars-fill"></i>
+                <span>Tema claro</span>
+            </button>
+        </div>
     </div>
 
     <?php if (($user['user_type'] ?? '') === 'admin'): ?>
