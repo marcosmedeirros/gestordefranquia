@@ -196,8 +196,8 @@ try {
 $tab_labels = [
     'geral' => 'Geral',
     'ELITE' => 'Elite',
-    'RISE' => 'Rise',
     'NEXT' => 'Next',
+    'RISE' => 'Rise',
     'ROOKIE' => 'Rookie'
 ];
 ?>
@@ -460,7 +460,7 @@ $tab_labels = [
             </div>
         </div>
 
-        <?php foreach (['ELITE', 'RISE', 'NEXT', 'ROOKIE'] as $liga): ?>
+        <?php foreach (['ELITE', 'NEXT', 'RISE', 'ROOKIE'] as $liga): ?>
             <div class="tab-pane fade" id="pane-<?= $liga ?>" role="tabpanel">
                 <div class="ranking-card">
                     <?php if (empty($ranking_por_liga[$liga])): ?>
