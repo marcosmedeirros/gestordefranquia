@@ -74,16 +74,7 @@ try {
     } else {
         $stmt = $pdo->query("        
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
-                (
-                    SELECT COUNT(*)
-                    FROM palpites p
-                    JOIN opcoes o ON p.opcao_id = o.id
-                    JOIN eventos e ON o.evento_id = e.id
-                    WHERE p.id_usuario = u.id
-                      AND e.status = 'encerrada'
-                      AND e.vencedor_opcao_id IS NOT NULL
-                      AND e.vencedor_opcao_id = p.opcao_id
-                ) as acertos
+               COALESCE(u.acertos_eventos, 0) as acertos
             FROM usuarios u
             ORDER BY u.pontos DESC
         ");
@@ -129,16 +120,7 @@ try {
     } else {
         $stmtLiga = $pdo->prepare("        
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
-                (
-                    SELECT COUNT(*)
-                    FROM palpites p
-                    JOIN opcoes o ON p.opcao_id = o.id
-                    JOIN eventos e ON o.evento_id = e.id
-                    WHERE p.id_usuario = u.id
-                      AND e.status = 'encerrada'
-                      AND e.vencedor_opcao_id IS NOT NULL
-                      AND e.vencedor_opcao_id = p.opcao_id
-                ) as acertos
+               COALESCE(u.acertos_eventos, 0) as acertos
             FROM usuarios u
             WHERE u.league = :league
             ORDER BY u.pontos DESC

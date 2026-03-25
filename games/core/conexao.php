@@ -26,6 +26,30 @@ try {
     }
 
     try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM usuarios LIKE 'acertos_eventos'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE usuarios ADD COLUMN acertos_eventos INT NOT NULL DEFAULT 0 AFTER fba_points");
+            $pdo->exec("
+                UPDATE usuarios u
+                LEFT JOIN (
+                    SELECT p.id_usuario AS user_id, COUNT(*) AS acertos
+                    FROM palpites p
+                    JOIN opcoes o ON p.opcao_id = o.id
+                    JOIN eventos e ON o.evento_id = e.id
+                    WHERE e.status = 'encerrada'
+                      AND e.vencedor_opcao_id IS NOT NULL
+                      AND e.vencedor_opcao_id = p.opcao_id
+                    GROUP BY p.id_usuario
+                ) t ON t.user_id = u.id
+                SET u.acertos_eventos = COALESCE(t.acertos, 0)
+            ");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
+
+    try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS fba_shop_purchases (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,

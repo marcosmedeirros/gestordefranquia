@@ -172,16 +172,14 @@ try {
             u.league,
             NULL AS team_name,
             COALESCE(u.fba_points, 0) AS fba_points,
-            COUNT(*) AS acertos,
-            COUNT(p.id) AS total_apostas
-        FROM palpites p
-        JOIN opcoes o ON p.opcao_id = o.id
-        JOIN eventos e ON o.evento_id = e.id
-        JOIN usuarios u ON p.id_usuario = u.id
-        WHERE e.status = 'encerrada'
-          AND e.vencedor_opcao_id IS NOT NULL
-          AND e.vencedor_opcao_id = p.opcao_id
-        GROUP BY u.id, u.nome, u.league
+            COALESCE(u.acertos_eventos, 0) AS acertos,
+            COALESCE(p.total_apostas, 0) AS total_apostas
+        FROM usuarios u
+        LEFT JOIN (
+            SELECT id_usuario, COUNT(*) AS total_apostas
+            FROM palpites
+            GROUP BY id_usuario
+        ) p ON p.id_usuario = u.id
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
@@ -226,17 +224,15 @@ try {
             u.league,
             NULL AS team_name,
             COALESCE(u.fba_points, 0) AS fba_points,
-            COUNT(*) AS acertos,
-            COUNT(p.id) AS total_apostas
-        FROM palpites p
-        JOIN opcoes o ON p.opcao_id = o.id
-        JOIN eventos e ON o.evento_id = e.id
-        JOIN usuarios u ON p.id_usuario = u.id
-        WHERE e.status = 'encerrada'
-          AND e.vencedor_opcao_id IS NOT NULL
-          AND e.vencedor_opcao_id = p.opcao_id
-          AND u.league = :league
-        GROUP BY u.id, u.nome, u.league
+            COALESCE(u.acertos_eventos, 0) AS acertos,
+            COALESCE(p.total_apostas, 0) AS total_apostas
+        FROM usuarios u
+        LEFT JOIN (
+            SELECT id_usuario, COUNT(*) AS total_apostas
+            FROM palpites
+            GROUP BY id_usuario
+        ) p ON p.id_usuario = u.id
+        WHERE u.league = :league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
@@ -307,17 +303,8 @@ try {
             u.league,
             NULL AS team_name,
             COALESCE(u.fba_points, 0) AS fba_points,
-            COALESCE(SUM(
-                CASE
-                    WHEN e.status = 'encerrada' AND e.vencedor_opcao_id IS NOT NULL AND e.vencedor_opcao_id = p.opcao_id
-                        THEN 1 ELSE 0
-                END
-            ), 0) AS acertos
+            COALESCE(u.acertos_eventos, 0) AS acertos
         FROM usuarios u
-        LEFT JOIN palpites p ON p.id_usuario = u.id
-        LEFT JOIN opcoes o ON p.opcao_id = o.id
-        LEFT JOIN eventos e ON o.evento_id = e.id
-        GROUP BY u.id, u.nome, u.league
         ORDER BY fba_points DESC, acertos DESC, u.nome ASC
         LIMIT 50
     ");

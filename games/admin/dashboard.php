@@ -118,17 +118,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                 // 2. Busca palpites vencedores usando a ODD REGISTRADA NO MOMENTO DA APOSTA
                 // Nota: 'odd_registrada' é a coluna nova que você criou. Se não tiver, usa 'odd' da tabela opcoes como fallback inseguro.
-                $sqlPagamento = "SELECT id_usuario FROM palpites WHERE opcao_id = ?";
-                $busca = $pdo->prepare($sqlPagamento);
-                $busca->execute([$vencedor_opcao_id]);
-                
-                $pagos = 0;
-                $payStmt = $pdo->prepare("UPDATE usuarios SET fba_points = fba_points + ? WHERE id = ?");
-
-                while ($row = $busca->fetch(PDO::FETCH_ASSOC)) {
-                    $payStmt->execute([150, $row['id_usuario']]);
-                    $pagos++;
-                }
+                $payStmt = $pdo->prepare("
+                    UPDATE usuarios u
+                    JOIN (
+                        SELECT DISTINCT id_usuario
+                        FROM palpites
+                        WHERE opcao_id = ?
+                    ) p ON p.id_usuario = u.id
+                    SET u.fba_points = u.fba_points + 150,
+                        u.acertos_eventos = u.acertos_eventos + 1
+                ");
+                $payStmt->execute([$vencedor_opcao_id]);
+                $pagos = $payStmt->rowCount();
                 $pdo->commit();
                 $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (150 FBA Points por acerto).</div>";
             } catch (Exception $e) {
