@@ -142,6 +142,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             --t: 200ms;
         }
 
+        :root[data-theme="light"] {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --panel-2: #f2f4f8;
+            --panel-3: #e9edf4;
+            --border: #e3e6ee;
+            --border-strong: #d7dbe6;
+            --text: #111217;
+            --text-2: #5b6270;
+            --text-3: #8b93a5;
+        }
+
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html, body {
@@ -297,6 +309,26 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+        .sidebar-theme-toggle {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 0 14px 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all var(--t) var(--ease);
+        }
+        .sidebar-theme-toggle:hover {
+            border-color: var(--red);
+            color: var(--red);
         }
         .sidebar-user-avatar {
             width: 32px; height: 32px;
@@ -1009,6 +1041,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <a href="/punishments"><i class="bi bi-exclamation-triangle"></i> Punições</a>
         </nav>
 
+        <button class="sidebar-theme-toggle" id="themeToggle" type="button">
+            <i class="bi bi-moon-stars-fill"></i>
+            <span>Tema claro</span>
+        </button>
+
         <div class="sidebar-footer">
             <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sidebar-user-avatar">
             <span class="sidebar-user-name"><?= htmlspecialchars($user['name']) ?></span>
@@ -1126,7 +1163,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php if ($capMax > 0): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">CAP: — <?= $capMin ?> / <?= $capMax ?></span>
+                            <span class="cap-label">CAP — <?= $capMin ?> / <?= $capMax ?></span>
                             <span class="cap-value"><?= $capPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1318,6 +1355,29 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
+    const themeKey = 'fba-theme';
+    const root = document.documentElement;
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    const savedTheme = localStorage.getItem(themeKey);
+    const initialTheme = savedTheme || (prefersLight ? 'light' : 'dark');
+    root.dataset.theme = initialTheme;
+
+    const themeToggle = document.getElementById('themeToggle');
+    const updateThemeToggle = (theme) => {
+        if (!themeToggle) return;
+        const isLight = theme === 'light';
+        themeToggle.innerHTML = isLight
+            ? '<i class="bi bi-moon-stars-fill"></i><span>Tema escuro</span>'
+            : '<i class="bi bi-sun-fill"></i><span>Tema claro</span>';
+    };
+    updateThemeToggle(initialTheme);
+    themeToggle?.addEventListener('click', () => {
+        const nextTheme = root.dataset.theme === 'light' ? 'dark' : 'light';
+        root.dataset.theme = nextTheme;
+        localStorage.setItem(themeKey, nextTheme);
+        updateThemeToggle(nextTheme);
+    });
+
     const leagueCapMin    = <?= (int)$capMin ?>;
     const leagueCapMax    = <?= (int)$capMax ?>;
     const leagueMaxTrades = <?= (int)$maxTrades ?>;
