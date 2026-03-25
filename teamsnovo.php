@@ -542,9 +542,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             flex: 1;
         }
 
-        /* Grid view */
+        /* Grid view - Agora oculto por padrão */
         .teams-grid {
-            display: grid;
+            display: none; 
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 14px;
         }
@@ -752,7 +752,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         }
 
         /* ── List View ─────────────────────────────────── */
-        .teams-list { display: none; }
+        /* List View - Agora visível por padrão */
+        .teams-list { display: block; }
 
         .list-header {
             display: grid;
@@ -1065,8 +1066,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 <i class="bi bi-sort-down"></i> CAP <span id="capSortLabel">↓</span>
             </button>
             <div class="view-toggle">
-                <button class="view-btn active" id="btnGrid" title="Grade"><i class="bi bi-grid-3x3-gap"></i></button>
-                <button class="view-btn" id="btnList" title="Lista"><i class="bi bi-list-ul"></i></button>
+                <button class="view-btn" id="btnGrid" title="Grade"><i class="bi bi-grid-3x3-gap"></i></button>
+                <button class="view-btn active" id="btnList" title="Lista"><i class="bi bi-list-ul"></i></button>
             </div>
         </div>
 
@@ -1125,7 +1126,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php if ($capMax > 0): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">CAP Top 8 — <?= $capMin ?> / <?= $capMax ?></span>
+                            <span class="cap-label">CAP: — <?= $capMin ?> / <?= $capMax ?></span>
                             <span class="cap-value"><?= $capPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1344,16 +1345,16 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     const list     = document.getElementById('teamsList');
     const btnGrid  = document.getElementById('btnGrid');
     const btnList  = document.getElementById('btnList');
-    let   isGrid   = true;
 
+    // Botão de Grade muda o display pra "grid" e não pra "vazio" pra não herdar o CSS novo
     btnGrid.addEventListener('click', () => {
-        isGrid = true;
-        grid.style.display = ''; list.style.display = 'none';
+        grid.style.display = 'grid'; list.style.display = 'none';
         btnGrid.classList.add('active'); btnList.classList.remove('active');
     });
+    
+    // Botão de Lista muda o display pra "block"
     btnList.addEventListener('click', () => {
-        isGrid = false;
-        grid.style.display = 'none'; list.style.display = '';
+        grid.style.display = 'none'; list.style.display = 'block';
         btnList.classList.add('active'); btnGrid.classList.remove('active');
     });
 
