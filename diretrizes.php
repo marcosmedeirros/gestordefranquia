@@ -306,7 +306,7 @@ try {
                                 <option value="shoot_at_will">Shoot at Will</option>
                             </select>
                         </div>
-                        <?php if (($team['league'] ?? '') === 'ELITE'): ?>
+                        <?php if (in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true)): ?>
                         <div class="col-md-6">
                             <label class="form-label text-white">Modelo técnico</label>
                             <select class="form-select bg-dark text-white border-orange" name="technical_model">
@@ -330,8 +330,8 @@ try {
                 </div>
             </div>
 
-            <?php if (($team['league'] ?? '') === 'ELITE'): ?>
-            <!-- Playbook (Elite) -->
+            <?php if (in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true)): ?>
+            <!-- Playbook (Elite/NEXT) -->
             <div class="card bg-dark-panel border-orange mb-4">
                 <div class="card-header bg-transparent border-orange">
                     <h5 class="text-white mb-0"><i class="bi bi-journal-text me-2"></i>Playbook</h5>
