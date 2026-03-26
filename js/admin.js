@@ -1866,6 +1866,10 @@ async function viewDirectives(deadlineId, league) {
               }).filter(Boolean);
               const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
               
+              const isEliteLeague = ['ELITE', 'NEXT'].includes(String(league || '').toUpperCase());
+              const technicalModelLabel = escapeHtml(d.technical_model || 'Nao informado');
+              const playbookLabel = escapeHtml(d.playbook || 'Nao informado');
+
               return `
               <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1923,12 +1927,12 @@ async function viewDirectives(deadlineId, league) {
                         <div class="col-md-3">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
                       </div>
                     </div>
-                    ${(d.technical_model || d.playbook) ? `<div class="col-12 mt-3">
+                    ${isEliteLeague ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Elite</h6>
                       <div class="row text-light-gray small">
-                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${d.technical_model}</span>` : d.technical_model}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>` : ''}
+                        <div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${technicalModelLabel}</span>` : technicalModelLabel}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>
                       </div>
-                      ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${d.playbook}</span>` : d.playbook}</div>` : ''}
+                      <div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${playbookLabel}</span>` : playbookLabel}</div>
                     </div>` : ''}
                     ${isManualRotation ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Rotação e Foco</h6>
