@@ -1945,7 +1945,7 @@ async function viewDirectives(deadlineId, league) {
                       </div>
                     </div>
                     ${isEliteLeague ? `<div class="col-12 mt-3">
-                      <h6 class="text-orange">Elite</h6>
+                      <h6 class="text-orange">Tecnicas</h6>
                       <div class="row text-light-gray small">
                         <div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${technicalModelLabel}</span>` : technicalModelLabel}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>
                       </div>
