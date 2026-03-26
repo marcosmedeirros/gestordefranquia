@@ -568,7 +568,7 @@ if ($method === 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                $isElite = strtoupper($team['league'] ?? '') === 'ELITE';
+                $isElite = in_array(strtoupper($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                 $technicalModel = $isElite ? ($data['technical_model'] ?? null) : null;
                 $playbook = $isElite ? ($data['playbook'] ?? null) : null;
 
