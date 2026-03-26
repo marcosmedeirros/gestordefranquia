@@ -1867,8 +1867,25 @@ async function viewDirectives(deadlineId, league) {
               const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
               
               const isEliteLeague = ['ELITE', 'NEXT'].includes(String(league || '').toUpperCase());
-              const technicalModelLabel = escapeHtml(d.technical_model || 'Nao informado');
-              const playbookLabel = escapeHtml(d.playbook || 'Nao informado');
+              let technicalModelValue = d.technical_model || null;
+              let playbookValue = d.playbook || null;
+              if ((!technicalModelValue || !playbookValue) && d.directive_profile) {
+                try {
+                  const profile = typeof d.directive_profile === 'string'
+                    ? JSON.parse(d.directive_profile)
+                    : d.directive_profile;
+                  if (profile && !technicalModelValue && profile.technical_model) {
+                    technicalModelValue = profile.technical_model;
+                  }
+                  if (profile && !playbookValue && profile.playbook) {
+                    playbookValue = profile.playbook;
+                  }
+                } catch (e) {
+                  // ignore JSON parse errors
+                }
+              }
+              const technicalModelLabel = escapeHtml(technicalModelValue || 'Nao informado');
+              const playbookLabel = escapeHtml(playbookValue || 'Nao informado');
 
               return `
               <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">

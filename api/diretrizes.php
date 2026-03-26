@@ -240,7 +240,8 @@ if ($method === 'GET') {
             }
             if ($all && $league) {
                 $stmt = $pdo->prepare("
-                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                          SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                              t.directive_profile as directive_profile,
                            s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
                            s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
                            s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
@@ -270,7 +271,8 @@ if ($method === 'GET') {
                 $stmt->execute([$league]);
             } else {
                 $stmt = $pdo->prepare("
-                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                          SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                              t.directive_profile as directive_profile,
                            s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
                            s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
                            s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
@@ -312,7 +314,8 @@ if ($method === 'GET') {
             if (!$strict && !$directives && $league) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
-                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                          SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                              t.directive_profile as directive_profile,
                            s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
                            s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
                            s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
@@ -346,7 +349,8 @@ if ($method === 'GET') {
             if (!$strict && !$directives) {
                 $fallback = true;
                 $stmt = $pdo->prepare("
-                    SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                          SELECT td.*, COALESCE(t.city, 'Time') as city, COALESCE(t.name, 'Desconhecido') as team_name,
+                              t.directive_profile as directive_profile,
                            s1.name as starter_1_name, s1.position as starter_1_pos, s1.ovr as starter_1_ovr, s1.age as starter_1_age,
                            s2.name as starter_2_name, s2.position as starter_2_pos, s2.ovr as starter_2_ovr, s2.age as starter_2_age,
                            s3.name as starter_3_name, s3.position as starter_3_pos, s3.ovr as starter_3_ovr, s3.age as starter_3_age,
