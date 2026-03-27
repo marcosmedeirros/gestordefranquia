@@ -437,6 +437,7 @@ if ($method === 'GET') {
             $status = $_GET['status'] ?? 'all'; // all, pending, accepted, rejected, cancelled
             $league = $_GET['league'] ?? null;
             $seasonYear = $_GET['season_year'] ?? null;
+            $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
             
             $conditions = [];
             $params = [];
@@ -449,6 +450,12 @@ if ($method === 'GET') {
             if ($league) {
                 $conditions[] = "from_team.league = ?";
                 $params[] = $league;
+            }
+
+            if ($teamId > 0) {
+                $conditions[] = '(t.from_team_id = ? OR t.to_team_id = ?)';
+                $params[] = $teamId;
+                $params[] = $teamId;
             }
 
             if ($seasonYear) {
@@ -542,6 +549,11 @@ if ($method === 'GET') {
                 if ($league) {
                     $multiConditions[] = 'COALESCE(mt.league, creator.league) = ?';
                     $multiParams[] = $league;
+                }
+
+                if ($teamId > 0) {
+                    $multiConditions[] = 'EXISTS (SELECT 1 FROM multi_trade_teams mtt WHERE mtt.trade_id = mt.id AND mtt.team_id = ?)';
+                    $multiParams[] = $teamId;
                 }
 
                 if ($seasonYear) {
