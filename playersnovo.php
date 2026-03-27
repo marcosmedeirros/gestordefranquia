@@ -247,6 +247,95 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			font-weight: 600; font-size: 13px;
 		}
 
+		.sb-brand {
+			padding: 22px 18px 18px;
+			border-bottom: 1px solid var(--border);
+			display: flex; align-items: center; gap: 12px;
+			flex-shrink: 0;
+		}
+		.sb-logo {
+			width: 34px; height: 34px; border-radius: 9px;
+			background: var(--red);
+			display: flex; align-items: center; justify-content: center;
+			font-weight: 800; font-size: 13px; color: #fff;
+			flex-shrink: 0;
+		}
+		.sb-brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; }
+		.sb-brand-text span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
+		.sb-team {
+			margin: 14px 14px 0;
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			padding: 14px;
+			display: flex; align-items: center; gap: 10px;
+			flex-shrink: 0;
+		}
+		.sb-team img {
+			width: 40px; height: 40px; border-radius: 9px;
+			object-fit: cover; border: 1px solid var(--border-strong);
+			flex-shrink: 0;
+		}
+		.sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+		.sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+		.sb-season {
+			margin: 10px 14px 0;
+			background: var(--red-soft);
+			border: 1px solid rgba(252,0,37,.25);
+			border-radius: 8px;
+			padding: 8px 12px;
+			display: flex; align-items: center; justify-content: space-between;
+			flex-shrink: 0;
+		}
+		.sb-season-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); }
+		.sb-season-val { font-size: 14px; font-weight: 700; color: var(--red); }
+		.sb-nav { flex: 1; padding: 12px 10px 8px; }
+		.sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
+		.sb-nav a {
+			display: flex; align-items: center; gap: 10px;
+			padding: 9px 10px; border-radius: var(--radius-sm);
+			color: var(--text-2); font-size: 13px; font-weight: 500;
+			text-decoration: none; margin-bottom: 2px;
+			transition: all var(--t) var(--ease);
+		}
+		.sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+		.sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+		.sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+		.sb-nav a.active i { color: var(--red); }
+		.sb-footer {
+			padding: 12px 14px;
+			border-top: 1px solid var(--border);
+			display: flex; align-items: center; gap: 10px;
+			flex-shrink: 0;
+		}
+		.sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-strong); flex-shrink: 0; }
+		.sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+		.sb-logout {
+			width: 26px; height: 26px; border-radius: 7px;
+			background: transparent; border: 1px solid var(--border);
+			color: var(--text-2); display: flex; align-items: center; justify-content: center;
+			font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease);
+			text-decoration: none; flex-shrink: 0;
+		}
+		.sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+		.sb-theme-toggle {
+			width: calc(100% - 28px);
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			margin: 0 14px 12px;
+			padding: 8px 10px;
+			border-radius: 10px;
+			border: 1px solid var(--border);
+			background: var(--panel-2);
+			color: var(--text);
+			font-size: 12px;
+			cursor: pointer;
+			transition: all var(--t) var(--ease);
+		}
+		.sb-theme-toggle:hover { border-color: var(--red); color: var(--red); }
+
 		/* ── Topbar ───────────────────────────────────── */
 		.topbar {
 			position: fixed; left: var(--sidebar-w); right: 0; top: 0;
@@ -257,12 +346,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			display: none; align-items: center; padding: env(safe-area-inset-top) 20px 0; gap: 12px;
 		}
 		:root[data-theme="light"] .topbar { background: rgba(246,247,251,.92); }
-		.topbar-menu-btn {
-			width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border);
-			background: var(--panel-2); color: var(--text); display: inline-flex; align-items: center; justify-content: center;
+		.menu-btn {
+			width: 34px; height: 34px; border-radius: 9px;
+			background: var(--panel-2); border: 1px solid var(--border);
+			color: var(--text); display: flex; align-items: center; justify-content: center;
+			cursor: pointer; font-size: 17px;
 		}
-		.topbar-brand { font-family: var(--font-display); font-weight: 700; letter-spacing: .3px; }
-		.topbar-brand em { color: var(--red); font-style: normal; }
+		.topbar-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; flex: 1; }
+		.topbar-title em { color: var(--red); font-style: normal; }
 
 		/* ── Main ─────────────────────────────────────── */
 		.main {
@@ -419,70 +510,92 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			.filters-grid { grid-template-columns: 1fr; }
 		}
 
-		.sidebar-overlay {
-			position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 110; opacity: 0; pointer-events: none; transition: opacity var(--t) var(--ease);
+		.sb-overlay {
+			display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199;
 		}
-		.sidebar-overlay.active { opacity: 1; pointer-events: all; }
+		.sb-overlay.show { display: block; }
 	</style>
 </head>
 <body>
-<div class="app-shell">
+<div class="app">
 
 	<aside class="sidebar" id="sidebar">
-		<div class="sidebar-brand">
-			<div class="sidebar-logo">FBA</div>
-			<div class="sidebar-brand-text">
+		<div class="sb-brand">
+			<div class="sb-logo">FBA</div>
+			<div class="sb-brand-text">
 				FBA Manager
-				<span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span>
+				<span>Painel do GM</span>
 			</div>
 		</div>
 
 		<?php if ($team): ?>
-		<div class="sidebar-myteam">
-			<img src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null)) ?>" alt="Meu Time">
-			<div class="sidebar-myteam-info">
-				<div class="sidebar-myteam-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-				<div class="sidebar-myteam-sub"><?= (int)$team['player_count'] ?> jogadores</div>
+		<div class="sb-team">
+			<img src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($team['name']) ?>" onerror="this.src='/img/default-team.png'">
+			<div>
+				<div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
+				<div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
 			</div>
 		</div>
 		<?php endif; ?>
 
-		<nav class="sidebar-nav">
-			<div class="sidebar-nav-label">Principal</div>
-			<a href="/dashboard.php"><i class="bi bi-house"></i> Home</a>
-			<a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-			<a href="/players.php" class="active"><i class="bi bi-person-badge"></i> Jogadores</a>
-			<a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trocas</a>
-			<a href="/picks.php"><i class="bi bi-calendar2-event"></i> Picks</a>
-
-			<div class="sidebar-nav-label">Liga</div>
-			<a href="/rankings.php"><i class="bi bi-trophy"></i> Classificacao</a>
-			<a href="/free-agency.php"><i class="bi bi-person-plus"></i> Mercado Livre</a>
-			<a href="/leilao.php"><i class="bi bi-hammer"></i> Leilao</a>
-			<a href="/trades.php#rumores"><i class="bi bi-chat-dots"></i> Rumores</a>
-
-			<div class="sidebar-nav-label">Admin</div>
-			<a href="/admin.php"><i class="bi bi-gear"></i> Administracao</a>
-			<a href="/punicoes.php"><i class="bi bi-exclamation-triangle"></i> Punicoes</a>
-		</nav>
-
-		<div class="sidebar-footer">
-			<img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sidebar-user-avatar">
-			<span class="sidebar-user-name"><?= htmlspecialchars($user['name']) ?></span>
-			<a href="/logout" class="sidebar-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+		<div class="sb-season">
+			<div>
+				<div class="sb-season-label">Temporada</div>
+				<div class="sb-season-val"><?= (int)$currentSeasonYear ?></div>
+			</div>
+			<div style="text-align:right">
+				<div class="sb-season-label">Liga</div>
+				<div class="sb-season-val"><?= htmlspecialchars($user['league']) ?></div>
+			</div>
 		</div>
 
-		<button class="sidebar-theme-toggle" id="themeToggle" type="button">
+		<nav class="sb-nav">
+			<div class="sb-section">Principal</div>
+			<a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+			<a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
+			<a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+			<a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+			<a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+			<a href="/players.php" class="active"><i class="bi bi-person-badge"></i> Jogadores</a>
+			<a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+			<a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
+			<a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+
+			<div class="sb-section">Liga</div>
+			<a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+			<a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+			<a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+			<a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+			<a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+
+			<?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+			<div class="sb-section">Admin</div>
+			<a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+			<a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+			<?php endif; ?>
+
+			<div class="sb-section">Conta</div>
+			<a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
+		</nav>
+
+		<div class="sb-footer">
+			<img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sb-avatar" onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
+			<span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
+			<a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+		</div>
+
+		<button class="sb-theme-toggle" id="themeToggle" type="button">
 			<i class="bi bi-moon-stars-fill"></i>
 			<span>Tema claro</span>
 		</button>
 	</aside>
 
-	<div class="sidebar-overlay" id="sidebarOverlay"></div>
+	<div class="sb-overlay" id="sbOverlay"></div>
 
 	<header class="topbar">
-		<button class="topbar-menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
-		<div class="topbar-brand">FBA <em>Manager</em></div>
+		<button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+		<div class="topbar-title">FBA <em>Manager</em></div>
+		<span style="font-size:11px;font-weight:700;color:var(--red)"><?= (int)$currentSeasonYear ?></span>
 	</header>
 
 	<main class="main">
@@ -636,15 +749,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	});
 
 	const sidebar  = document.getElementById('sidebar');
-	const overlay  = document.getElementById('sidebarOverlay');
+	const overlay  = document.getElementById('sbOverlay');
 	const menuBtn  = document.getElementById('menuBtn');
 	menuBtn?.addEventListener('click', () => {
 		sidebar.classList.toggle('open');
-		overlay.classList.toggle('active');
+		overlay.classList.toggle('show');
 	});
 	overlay.addEventListener('click', () => {
 		sidebar.classList.remove('open');
-		overlay.classList.remove('active');
+		overlay.classList.remove('show');
 	});
 
 	const defaultMessage = '<?= $whatsappDefaultMessage ?>';
