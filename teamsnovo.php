@@ -170,7 +170,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         a, button { -webkit-tap-highlight-color: transparent; }
 
         /* ── Layout Shell ──────────────────────────────── */
-        .app-shell {
+        .app {
             display: flex;
             min-height: 100vh;
         }
@@ -189,7 +189,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             transition: transform var(--t) var(--ease);
         }
 
-        .sidebar-brand {
+        .sidebar-brand, .sb-brand {
             padding: 24px 20px 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
@@ -197,7 +197,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             gap: 12px;
         }
 
-        .sidebar-logo {
+        .sidebar-logo, .sb-logo {
             width: 36px; height: 36px;
             border-radius: 10px;
             background: var(--red);
@@ -210,14 +210,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             flex-shrink: 0;
         }
 
-        .sidebar-brand-text {
+        .sidebar-brand-text, .sb-brand-text {
             font-family: var(--font-display);
             font-weight: 800;
             font-size: 16px;
             color: var(--text);
             line-height: 1.1;
         }
-        .sidebar-brand-text span {
+        .sidebar-brand-text span, .sb-brand-text span {
             display: block;
             font-size: 11px;
             font-weight: 400;
@@ -226,7 +226,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         }
 
         /* My Team card in sidebar */
-        .sidebar-myteam {
+        .sidebar-myteam, .sb-team {
             margin: 16px 14px;
             background: var(--panel-2);
             border: 1px solid var(--border);
@@ -236,18 +236,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             align-items: center;
             gap: 10px;
         }
-        .sidebar-myteam img {
+        .sidebar-myteam img, .sb-team img {
             width: 38px; height: 38px;
             border-radius: 8px;
             object-fit: cover;
             border: 1px solid var(--border-strong);
             flex-shrink: 0;
         }
-        .sidebar-myteam-info {
+        .sidebar-myteam-info, .sb-team-info {
             flex: 1;
             min-width: 0;
         }
-        .sidebar-myteam-name {
+        .sidebar-myteam-name, .sb-team-name {
             font-weight: 600;
             font-size: 13px;
             color: var(--text);
@@ -255,21 +255,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sidebar-myteam-sub {
+        .sidebar-myteam-sub, .sb-team-league {
             font-size: 11px;
             color: var(--text-2);
         }
 
         /* Nav */
-        .sidebar-nav {
+        .sidebar-nav, .sb-nav {
             flex: 1;
             overflow-y: auto;
             padding: 8px 10px;
             scrollbar-width: none;
         }
-        .sidebar-nav::-webkit-scrollbar { display: none; }
+        .sidebar-nav::-webkit-scrollbar, .sb-nav::-webkit-scrollbar { display: none; }
 
-        .sidebar-nav-label {
+        .sidebar-nav-label, .sb-section {
             font-size: 10px;
             font-weight: 600;
             letter-spacing: 1.2px;
@@ -278,7 +278,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             padding: 12px 10px 6px;
         }
 
-        .sidebar-nav a {
+        .sidebar-nav a, .sb-nav a {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -291,31 +291,31 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             transition: all var(--t) var(--ease);
             margin-bottom: 2px;
         }
-        .sidebar-nav a i {
+        .sidebar-nav a i, .sb-nav a i {
             font-size: 16px;
             width: 20px;
             text-align: center;
             flex-shrink: 0;
         }
-        .sidebar-nav a:hover {
+        .sidebar-nav a:hover, .sb-nav a:hover {
             background: var(--panel-2);
             color: var(--text);
         }
-        .sidebar-nav a.active {
+        .sidebar-nav a.active, .sb-nav a.active {
             background: var(--red-soft);
             color: var(--red);
             font-weight: 600;
         }
-        .sidebar-nav a.active i { color: var(--red); }
+        .sidebar-nav a.active i, .sb-nav a.active i { color: var(--red); }
 
-        .sidebar-footer {
+        .sidebar-footer, .sb-footer {
             padding: 14px;
             border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .sidebar-theme-toggle {
+        .sidebar-theme-toggle, .sb-theme-toggle {
             margin: 0 14px 12px;
             padding: 8px 10px;
             border-radius: 10px;
@@ -327,18 +327,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             cursor: pointer;
             transition: all var(--t) var(--ease);
         }
-        .sidebar-theme-toggle:hover {
+        .sidebar-theme-toggle:hover, .sb-theme-toggle:hover {
             border-color: var(--border-red);
             color: var(--red);
         }
-        .sidebar-user-avatar {
+        .sidebar-user-avatar, .sb-avatar {
             width: 32px; height: 32px;
             border-radius: 50%;
             object-fit: cover;
             border: 1px solid var(--border-strong);
             flex-shrink: 0;
         }
-        .sidebar-user-name {
+        .sidebar-user-name, .sb-username {
             font-size: 13px;
             font-weight: 500;
             color: var(--text);
@@ -348,7 +348,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sidebar-logout {
+        .sidebar-logout, .sb-logout {
             width: 28px; height: 28px;
             border-radius: 8px;
             background: transparent;
@@ -361,7 +361,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             text-decoration: none;
             flex-shrink: 0;
         }
-        .sidebar-logout:hover {
+        .sidebar-logout:hover, .sb-logout:hover {
             background: var(--red-soft);
             border-color: var(--red);
             color: var(--red);
@@ -380,15 +380,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             gap: 12px;
             z-index: 199;
         }
-        .topbar-brand {
+        .topbar-brand, .topbar-title {
             font-family: var(--font-display);
             font-weight: 800;
             font-size: 16px;
             color: var(--text);
             flex: 1;
         }
-        .topbar-brand em { color: var(--red); font-style: normal; }
-        .topbar-menu-btn {
+        .topbar-brand em, .topbar-title em { color: var(--red); font-style: normal; }
+        .topbar-menu-btn, .menu-btn {
             width: 36px; height: 36px;
             border-radius: 10px;
             background: var(--panel-2);
@@ -400,7 +400,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         }
 
         /* Overlay */
-        .sidebar-overlay {
+        .sidebar-overlay, .sb-overlay {
             display: none;
             position: fixed;
             inset: 0;
@@ -408,7 +408,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             backdrop-filter: blur(4px);
             z-index: 199;
         }
-        .sidebar-overlay.active { display: block; }
+        .sidebar-overlay.active, .sb-overlay.show { display: block; }
 
         /* ── Main content ──────────────────────────────── */
         .main {
@@ -1000,66 +1000,90 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     </style>
 </head>
 <body>
-<div class="app-shell">
+<div class="app">
 
     <!-- ═══ SIDEBAR ═══════════════════════════════════════════ -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-            <div class="sidebar-logo">FBA</div>
-            <div class="sidebar-brand-text">
+        <div class="sb-brand">
+            <div class="sb-logo">FBA</div>
+            <div class="sb-brand-text">
                 FBA Manager
-                <span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span>
+                <span>Painel do GM</span>
             </div>
         </div>
 
         <?php if ($team): ?>
-        <div class="sidebar-myteam">
+        <div class="sb-team">
             <img src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null)) ?>" alt="Meu Time">
-            <div class="sidebar-myteam-info">
-                <div class="sidebar-myteam-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sidebar-myteam-sub"><?= (int)$team['player_count'] ?> jogadores</div>
+            <div>
+                <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
+                <div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
             </div>
         </div>
         <?php endif; ?>
 
-        <nav class="sidebar-nav">
-            <div class="sidebar-nav-label">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house"></i> Home</a>
+        <?php if (!empty($currentSeasonYear)): ?>
+        <div class="sb-season">
+            <div>
+                <div class="sb-season-label">Temporada</div>
+                <div class="sb-season-val"><?= (int)$currentSeasonYear ?></div>
+            </div>
+            <div style="text-align:right">
+                <div class="sb-season-label">Liga</div>
+                <div class="sb-season-val"><?= htmlspecialchars($user['league'] ?? '') ?></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <nav class="sb-nav">
+            <div class="sb-section">Principal</div>
+            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
             <a href="/teams.php" class="active"><i class="bi bi-people-fill"></i> Times</a>
             <a href="/players.php"><i class="bi bi-person-badge"></i> Jogadores</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trocas</a>
-            <a href="/picks.php"><i class="bi bi-calendar2-event"></i> Picks</a>
+            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilao</a>
+            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
 
-            <div class="sidebar-nav-label">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-trophy"></i> Classificação</a>
-            <a href="/free-agency.php"><i class="bi bi-person-plus"></i> Mercado Livre</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/trades.php#rumores"><i class="bi bi-chat-dots"></i> Rumores</a>
+            <div class="sb-section">Liga</div>
+            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+            <a href="/history.php"><i class="bi bi-clock-history"></i> Historico</a>
+            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
 
-            <div class="sidebar-nav-label">Admin</div>
-            <a href="/admin.php"><i class="bi bi-gear"></i> Administração</a>
-            <a href="/punicoes.php"><i class="bi bi-exclamation-triangle"></i> Punições</a>
+            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <div class="sb-section">Admin</div>
+            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+            <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+            <?php endif; ?>
+
+            <div class="sb-section">Conta</div>
+            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configuracoes</a>
         </nav>
 
-        <button class="sidebar-theme-toggle" id="themeToggle" type="button">
+        <button class="sb-theme-toggle" id="themeToggle" type="button">
             <i class="bi bi-moon-stars-fill"></i>
             <span>Tema claro</span>
         </button>
 
-        <div class="sidebar-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sidebar-user-avatar">
-            <span class="sidebar-user-name"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sidebar-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+        <div class="sb-footer">
+            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sb-avatar">
+            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
+            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
         </div>
     </aside>
 
     <!-- Overlay mobile -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="sb-overlay" id="sbOverlay"></div>
 
     <!-- ═══ TOPBAR (mobile) ═══════════════════════════════════ -->
     <header class="topbar">
-        <button class="topbar-menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
-        <div class="topbar-brand">FBA <em>Manager</em></div>
+        <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+        <div class="topbar-title">FBA <em>Manager</em></div>
+        <span style="font-size:11px;font-weight:700;color:var(--red)"><?= (int)$currentSeasonYear ?></span>
     </header>
 
     <!-- ═══ MAIN ═══════════════════════════════════════════════ -->
@@ -1171,7 +1195,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php if ($capMax > 0): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">CAP Top 8 — <?= $capMin ?> / <?= $capMax ?></span>
+                            <span class="cap-label">CAP — <?= $capMin ?> / <?= $capMax ?></span>
                             <span class="cap-value"><?= $capPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1401,15 +1425,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
     /* ── Sidebar mobile ─────────────────────────────── */
     const sidebar  = document.getElementById('sidebar');
-    const overlay  = document.getElementById('sidebarOverlay');
+    const overlay  = document.getElementById('sbOverlay');
     const menuBtn  = document.getElementById('menuBtn');
     menuBtn?.addEventListener('click', () => {
         sidebar.classList.toggle('open');
-        overlay.classList.toggle('active');
+        overlay.classList.toggle('show');
     });
     overlay.addEventListener('click', () => {
         sidebar.classList.remove('open');
-        overlay.classList.remove('active');
+        overlay.classList.remove('show');
     });
 
     /* ── View toggle ────────────────────────────────── */
@@ -1468,6 +1492,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     document.getElementById('capSortBtn').addEventListener('click', () => {
         capDir = capDir === 'asc' ? 'desc' : 'asc';
         sortByCap();
+    });
+    document.getElementById('listCapSort')?.addEventListener('click', () => {
+        document.getElementById('capSortBtn').click();
     });
     sortByCap(); // default sort on load
 

@@ -256,6 +256,19 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             --t:          200ms;
         }
 
+        :root[data-theme="light"] {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --panel-2: #f2f4f8;
+            --panel-3: #e9edf4;
+            --border: #e3e6ee;
+            --border-md: #d7dbe6;
+            --border-red: rgba(252,0,37,.18);
+            --text: #111217;
+            --text-2: #5b6270;
+            --text-3: #8b93a5;
+        }
+
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; }
         body {
@@ -339,6 +352,20 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
         .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
         .sb-nav a.active i { color: var(--red); }
+
+        .sb-theme-toggle {
+            margin: 0 14px 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--text);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            font-size: 12px; font-weight: 600;
+            cursor: pointer;
+            transition: all var(--t) var(--ease);
+        }
+        .sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
 
         /* Footer */
         .sb-footer {
@@ -745,6 +772,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             <div class="sb-section">Conta</div>
             <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
         </nav>
+
+            <button class="sb-theme-toggle" type="button" id="themeToggle">
+                <i class="bi bi-moon"></i>
+                <span>Modo escuro</span>
+            </button>
 
         <div class="sb-footer">
             <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
@@ -1254,9 +1286,38 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 <script src="/js/pwa.js"></script>
 <script>
     /* ── Sidebar mobile ──────────────────────────── */
-    const sidebar  = document.getElementById('sidebar');
-    const sbOverlay = document.getElementById('sbOverlay');
-    const menuBtn  = document.getElementById('menuBtn');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeKey = 'fba-theme';
+
+        const applyTheme = (theme) => {
+            if (theme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+                if (themeToggle) {
+                    themeToggle.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>';
+                }
+                return;
+            }
+            document.documentElement.removeAttribute('data-theme');
+            if (themeToggle) {
+                themeToggle.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
+            }
+        };
+
+        const savedTheme = localStorage.getItem(themeKey);
+        applyTheme(savedTheme || 'dark');
+
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+                const next = current === 'light' ? 'dark' : 'light';
+                localStorage.setItem(themeKey, next);
+                applyTheme(next);
+            });
+        }
+
+        const sidebar = document.getElementById('sidebar');
+        const menuBtn = document.getElementById('menuBtn');
+        const sbOverlay = document.getElementById('sbOverlay');
     menuBtn?.addEventListener('click', () => { sidebar.classList.toggle('open'); sbOverlay.classList.toggle('show'); });
     sbOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sbOverlay.classList.remove('show'); });
 
