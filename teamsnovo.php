@@ -1233,7 +1233,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <div class="teams-list" id="teamsList">
                 <div class="list-header">
                     <div class="list-header-cell">Time</div>
-                    <div class="list-header-cell sortable list-col-cap" id="listCapSort" style="justify-content:center;">CAP <i class="bi bi-chevron-expand" style="font-size:10px"></i></div>
+                    <div class="list-header-cell sortable list-col-cap" id="listCapSort" style="justify-content:center;">CAP <span id="listCapSortLabel">↓</span></div>
                     <div class="list-header-cell" style="justify-content:center;">Jog.</div>
                     <div class="list-header-cell list-col-tapas" style="justify-content:center;">Tapas</div>
                     <div class="list-header-cell list-col-punicoes" style="justify-content:center;">Pun.</div>
@@ -1476,6 +1476,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
     /* ── Sort by CAP ────────────────────────────────── */
     let capDir = 'desc';
+    function updateCapSortIndicators() {
+        const label = capDir === 'asc' ? '↑' : '↓';
+        const gridLabel = document.getElementById('capSortLabel');
+        const listLabel = document.getElementById('listCapSortLabel');
+        if (gridLabel) gridLabel.textContent = label;
+        if (listLabel) listLabel.textContent = label;
+    }
     function sortByCap() {
         ['#teamsGrid .team-card', '#teamsList .list-row'].forEach(sel => {
             const parent = document.querySelector(sel.split(' ')[0]);
@@ -1487,14 +1494,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             });
             items.forEach(el => parent.appendChild(el));
         });
-        document.getElementById('capSortLabel').textContent = capDir === 'asc' ? '↑' : '↓';
+        updateCapSortIndicators();
     }
     document.getElementById('capSortBtn').addEventListener('click', () => {
         capDir = capDir === 'asc' ? 'desc' : 'asc';
         sortByCap();
     });
     document.getElementById('listCapSort')?.addEventListener('click', () => {
-        document.getElementById('capSortBtn').click();
+        capDir = capDir === 'asc' ? 'desc' : 'asc';
+        sortByCap();
     });
     sortByCap(); // default sort on load
 
