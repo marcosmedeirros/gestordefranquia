@@ -26,12 +26,17 @@ let appState = {
   currentTeam: null,
   teamDetails: null,
   currentFAleague: 'ELITE',
-  tradeFilters: { league: 'ALL', status: 'all' }
+  tradeFilters: { league: 'ALL', status: 'all', teamId: '' }
 };
 let adminFreeAgents = [];
 const freeAgencyTeamsCache = {};
 
 function updateTradeFilter(nextFilters = {}) {
+  if (Object.prototype.hasOwnProperty.call(nextFilters, 'league')
+    && nextFilters.league !== appState.tradeFilters.league) {
+    nextFilters.teamId = '';
+  }
+
   appState.tradeFilters = {
     ...appState.tradeFilters,
     ...nextFilters
@@ -494,6 +499,7 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
   
   const container = document.getElementById('mainContainer');
   const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
+  const teamFilter = appState.tradeFilters.teamId || '';
 
   const leagueOptions = [
     { value: 'ALL', label: 'Todas as ligas' },
@@ -511,6 +517,9 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
       <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 180px;" onchange="updateTradeFilter({ league: this.value })">
         ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
+      <select class="form-select form-select-sm bg-dark text-white border-orange" id="adminTradeTeamFilter" style="min-width: 220px;" onchange="updateTradeFilter({ teamId: this.value })">
+        <option value="">Todos os times</option>
+      </select>
     </div>
   </div>
   <div class="btn-group flex-wrap">
@@ -523,9 +532,40 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
 <div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
   
   try {
+    const teamUrl = leagueFilter && leagueFilter !== 'ALL'
+      ? `admin.php?action=teams&league=${encodeURIComponent(leagueFilter)}`
+      : 'admin.php?action=teams';
+    const teamsData = await api(teamUrl);
+    const teams = teamsData.teams || [];
+
+    const teamSelect = document.getElementById('adminTradeTeamFilter');
+    if (teamSelect) {
+      const previous = teamFilter;
+      teamSelect.innerHTML = '<option value="">Todos os times</option>';
+      const sortedTeams = [...teams].sort((a, b) => {
+        const aLabel = `${a.league || ''} ${a.city || ''} ${a.name || ''}`.trim();
+        const bLabel = `${b.league || ''} ${b.city || ''} ${b.name || ''}`.trim();
+        return aLabel.localeCompare(bLabel);
+      });
+      sortedTeams.forEach((team) => {
+        const option = document.createElement('option');
+        option.value = String(team.id);
+        option.textContent = leagueFilter === 'ALL'
+          ? `${team.league || '-'} - ${team.city} ${team.name}`
+          : `${team.city} ${team.name}`;
+        teamSelect.appendChild(option);
+      });
+      if (previous && sortedTeams.some((team) => String(team.id) === String(previous))) {
+        teamSelect.value = String(previous);
+      }
+    }
+
     let url = 'admin.php?action=trades';
     if (leagueFilter && leagueFilter !== 'ALL') {
       url += `&league=${encodeURIComponent(leagueFilter)}`;
+    }
+    if (teamFilter) {
+      url += `&team_id=${encodeURIComponent(teamFilter)}`;
     }
     const data = await api(url);
     const trades = data.trades || [];
@@ -1866,6 +1906,27 @@ async function viewDirectives(deadlineId, league) {
               }).filter(Boolean);
               const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
               
+              const isEliteLeague = ['ELITE', 'NEXT'].includes(String(league || '').toUpperCase());
+              let technicalModelValue = d.technical_model || null;
+              let playbookValue = d.playbook || null;
+              if ((!technicalModelValue || !playbookValue) && d.directive_profile) {
+                try {
+                  const profile = typeof d.directive_profile === 'string'
+                    ? JSON.parse(d.directive_profile)
+                    : d.directive_profile;
+                  if (profile && !technicalModelValue && profile.technical_model) {
+                    technicalModelValue = profile.technical_model;
+                  }
+                  if (profile && !playbookValue && profile.playbook) {
+                    playbookValue = profile.playbook;
+                  }
+                } catch (e) {
+                  // ignore JSON parse errors
+                }
+              }
+              const technicalModelLabel = escapeHtml(technicalModelValue || 'Nao informado');
+              const playbookLabel = escapeHtml(playbookValue || 'Nao informado');
+
               return `
               <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1923,12 +1984,12 @@ async function viewDirectives(deadlineId, league) {
                         <div class="col-md-3">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
                       </div>
                     </div>
-                    ${(d.technical_model || d.playbook) ? `<div class="col-12 mt-3">
-                      <h6 class="text-orange">Elite</h6>
+                    ${isEliteLeague ? `<div class="col-12 mt-3">
+                      <h6 class="text-orange">Tecnicas</h6>
                       <div class="row text-light-gray small">
-                        ${d.technical_model ? `<div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${d.technical_model}</span>` : d.technical_model}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>` : ''}
+                        <div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${technicalModelLabel}</span>` : technicalModelLabel}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>
                       </div>
-                      ${d.playbook ? `<div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${d.playbook}</span>` : d.playbook}</div>` : ''}
+                      <div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${playbookLabel}</span>` : playbookLabel}</div>
                     </div>` : ''}
                     ${isManualRotation ? `<div class="col-12 mt-3">
                       <h6 class="text-orange">Rotação e Foco</h6>
