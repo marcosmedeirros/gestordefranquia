@@ -322,6 +322,7 @@ try {
                                 <option value="Rick Carlisle">Rick Carlisle</option>
                                 <option value="Erik Spoelstra">Erik Spoelstra</option>
                                 <option value="Mike D'Antoni">Mike D'Antoni</option>
+                                <option value="Nick Nurse">Nick Nurse</option>
                             </select>
                             <small class="text-light-gray d-block mt-1" id="technical-model-remaining"></small>
                         </div>
