@@ -565,9 +565,16 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
             </div>
             <span class="badge bg-secondary" id="leagueTradesCount">0 trocas</span>
           </div>
-          <!-- Busca de jogador nas trocas -->
-          <div class="mb-3">
-            <input type="text" class="form-control" id="leagueTradesSearch" placeholder="🔍 Buscar jogador nas trocas...">
+          <!-- Busca e filtros das trades gerais -->
+          <div class="row g-2 mb-3">
+            <div class="col-12 col-md-7">
+              <input type="text" class="form-control" id="leagueTradesSearch" placeholder="🔍 Buscar jogador nas trocas...">
+            </div>
+            <div class="col-12 col-md-5">
+              <select class="form-select" id="leagueTradesTeamFilter">
+                <option value="">Todos os times</option>
+              </select>
+            </div>
           </div>
           <div id="leagueTradesList"></div>
         </div>

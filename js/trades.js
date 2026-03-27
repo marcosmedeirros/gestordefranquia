@@ -838,6 +838,34 @@ function clearCounterProposalState() {
   }
 }
 
+function populateLeagueTradesTeamFilter() {
+  const select = document.getElementById('leagueTradesTeamFilter');
+  if (!select) return;
+
+  const myLeagueNormalized = (myLeague ?? '').toString().trim().toUpperCase();
+  const leagueTeams = allTeams
+    .filter((team) => {
+      const teamLeague = (team.league ?? '').toString().trim().toUpperCase();
+      if (!myLeagueNormalized) return true;
+      return teamLeague === myLeagueNormalized;
+    })
+    .sort((a, b) => getTeamLabel(a).localeCompare(getTeamLabel(b)));
+
+  const previousValue = select.value;
+  select.innerHTML = '<option value="">Todos os times</option>';
+
+  leagueTeams.forEach((team) => {
+    const option = document.createElement('option');
+    option.value = String(team.id);
+    option.textContent = getTeamLabel(team);
+    select.appendChild(option);
+  });
+
+  if (previousValue && leagueTeams.some((team) => String(team.id) === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
 async function init() {
   if (!myTeamId) return;
   
@@ -874,6 +902,13 @@ async function init() {
   if (leagueTradesSearch) {
     leagueTradesSearch.addEventListener('input', (e) => {
       filterLeagueTrades(e.target.value);
+    });
+  }
+
+  const leagueTradesTeamFilter = document.getElementById('leagueTradesTeamFilter');
+  if (leagueTradesTeamFilter) {
+    leagueTradesTeamFilter.addEventListener('change', () => {
+      filterLeagueTrades(leagueTradesSearch ? leagueTradesSearch.value : '');
     });
   }
 
@@ -940,6 +975,7 @@ async function loadTeams() {
   try {
     const data = await api('teams.php');
     allTeams = data.teams || [];
+    populateLeagueTradesTeamFilter();
     
     console.log('Times carregados:', allTeams.length, 'Meu time:', myTeamId, 'Minha liga:', myLeague);
     
@@ -1091,44 +1127,53 @@ async function submitTrade() {
 function filterLeagueTrades(searchTerm) {
   const container = document.getElementById('leagueTradesList');
   const badge = document.getElementById('leagueTradesCount');
-  
-  if (!searchTerm || searchTerm.trim() === '') {
-    // Mostrar todas as trades
-    container.innerHTML = '';
-    allLeagueTrades.forEach(trade => {
-      const card = createTradeCard(trade, 'league');
-      container.appendChild(card);
-    });
-    badge.textContent = `${allLeagueTrades.length} ${allLeagueTrades.length === 1 ? 'trade' : 'trocas'}`;
-    return;
-  }
-  
-  const term = searchTerm.toLowerCase().trim();
-  
-  // Filtrar trades que contenham o jogador
-  const filtered = allLeagueTrades.filter(trade => {
+  const teamFilter = document.getElementById('leagueTradesTeamFilter');
+  const selectedTeamId = Number(teamFilter?.value || 0);
+  const term = (searchTerm || '').toLowerCase().trim();
+
+  const filtered = allLeagueTrades.filter((trade) => {
+    const matchesTeam = !selectedTeamId || (trade.is_multi
+      ? (trade.teams || []).some((team) => Number(team.id) === selectedTeamId)
+      : Number(trade.from_team_id) === selectedTeamId || Number(trade.to_team_id) === selectedTeamId);
+
+    if (!matchesTeam) {
+      return false;
+    }
+
+    if (!term) {
+      return true;
+    }
+
     if (trade.is_multi) {
       return (trade.items || []).some((item) => {
         return item.player_name && item.player_name.toLowerCase().includes(term);
       });
     }
-    // Buscar em offer_players
-    const hasInOffer = trade.offer_players.some(p => 
+
+    const hasInOffer = (trade.offer_players || []).some((p) =>
       p.name && p.name.toLowerCase().includes(term)
     );
-    
-    // Buscar em request_players
-    const hasInRequest = trade.request_players.some(p => 
+
+    const hasInRequest = (trade.request_players || []).some((p) =>
       p.name && p.name.toLowerCase().includes(term)
     );
-    
+
     return hasInOffer || hasInRequest;
   });
   
   // Renderizar resultados
   container.innerHTML = '';
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada com "${searchTerm}"</div>`;
+    const selectedTeamName = teamFilter?.selectedOptions?.[0]?.textContent || 'time selecionado';
+    if (term && selectedTeamId) {
+      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada para ${selectedTeamName} com "${searchTerm}"</div>`;
+    } else if (selectedTeamId) {
+      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada para ${selectedTeamName}</div>`;
+    } else if (term) {
+      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada com "${searchTerm}"</div>`;
+    } else {
+      container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
+    }
     badge.textContent = '0 trocas';
     return;
   }
@@ -1163,27 +1208,22 @@ async function loadTrades(type) {
       allLeagueTrades = combined;
     }
     
-    if (combined.length === 0) {
-      container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
-      if (type === 'league') {
-        const badge = document.getElementById('leagueTradesCount');
-        if (badge) badge.textContent = '0 trocas';
-      }
+    if (type === 'league') {
+      const searchInput = document.getElementById('leagueTradesSearch');
+      filterLeagueTrades(searchInput ? searchInput.value : '');
       return;
     }
-    
+
+    if (combined.length === 0) {
+      container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
+      return;
+    }
+
     container.innerHTML = '';
     combined.forEach(trade => {
       const card = createTradeCard(trade, type);
       container.appendChild(card);
     });
-
-    if (type === 'league') {
-      const badge = document.getElementById('leagueTradesCount');
-      if (badge) {
-        badge.textContent = `${combined.length} ${combined.length === 1 ? 'trade' : 'trocas'}`;
-      }
-    }
   } catch (err) {
     container.innerHTML = '<div class="text-center text-danger py-4">Erro ao carregar trades</div>';
   }
