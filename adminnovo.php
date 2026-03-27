@@ -221,7 +221,55 @@ $team = $stmtTeam->fetch();
     .page-header h1 { font-size: 24px; font-weight: 800; }
     .page-header .text-orange { color: var(--red); }
 
+    .admin-hero {
+      padding: 6px 28px 0;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .admin-eyebrow {
+      font-size: 11px; font-weight: 600; letter-spacing: 1.4px;
+      text-transform: uppercase; color: var(--red);
+      margin-bottom: 4px;
+    }
+    .admin-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
+    .admin-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+    .admin-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+    .admin-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border-md);
+      background: var(--panel);
+    }
+    .admin-badge.red { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
+    .admin-badge.blue { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.25); color: #93c5fd; }
+
+    .admin-actions {
+      padding: 12px 28px 0;
+      display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px;
+    }
+    .admin-action {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      text-decoration: none; color: var(--text);
+      display: flex; align-items: center; gap: 10px;
+      transition: transform var(--t) var(--ease), border-color var(--t) var(--ease);
+    }
+    .admin-action:hover { transform: translateY(-2px); border-color: var(--border-md); color: var(--text); }
+    .admin-action i { font-size: 18px; color: var(--red); }
+    .admin-action span { font-size: 12px; font-weight: 600; }
+
     .admin-content { padding: 16px 28px 40px; }
+    .admin-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      min-height: 220px;
+    }
 
     .admin-check-card { border: 2px solid var(--red) !important; }
     .admin-check-card.is-accepted { border-color: var(--green) !important; }
@@ -232,8 +280,12 @@ $team = $stmtTeam->fetch();
       .sidebar.open { transform: translateX(0); }
       .main { margin-left: 0; width: 100%; padding-top: 54px; }
       .topbar { display: flex; }
-      .breadcrumb-admin, .page-header, .admin-content { padding-left: 16px; padding-right: 16px; }
+      .breadcrumb-admin, .page-header, .admin-hero, .admin-actions, .admin-content { padding-left: 16px; padding-right: 16px; }
       .breadcrumb-admin { margin-left: 16px; margin-right: 16px; }
+      .admin-actions { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 520px) {
+      .admin-actions { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -335,8 +387,41 @@ $team = $stmtTeam->fetch();
       </h1>
     </div>
 
+    <div class="admin-hero">
+      <div>
+        <div class="admin-eyebrow">Central de Controle</div>
+        <h2 class="admin-title">Admin da Liga</h2>
+        <p class="admin-sub">Gerencie aprovacoes, punicoes e temporadas com rapidez.</p>
+      </div>
+      <div class="admin-badges">
+        <span class="admin-badge red"><i class="bi bi-shield-check"></i> Perfil admin</span>
+        <span class="admin-badge blue"><i class="bi bi-flag"></i> Liga <?= htmlspecialchars($team['league'] ?? 'FBA') ?></span>
+      </div>
+    </div>
+
+    <div class="admin-actions">
+      <a class="admin-action" href="/admin.php">
+        <i class="bi bi-shield-lock"></i>
+        <span>Modulo admin</span>
+      </a>
+      <a class="admin-action" href="/pending-approval.php">
+        <i class="bi bi-person-check"></i>
+        <span>Aprovacoes</span>
+      </a>
+      <a class="admin-action" href="/punicoes.php">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Punicoes</span>
+      </a>
+      <a class="admin-action" href="/temporadas.php">
+        <i class="bi bi-calendar3"></i>
+        <span>Temporadas</span>
+      </a>
+    </div>
+
     <div class="admin-content" id="mainContainer">
-      <!-- Conteudo sera carregado dinamicamente aqui -->
+      <div class="admin-panel">
+        <!-- Conteudo sera carregado dinamicamente aqui -->
+      </div>
     </div>
   </main>
 </div>

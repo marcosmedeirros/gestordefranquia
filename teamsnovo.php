@@ -1450,7 +1450,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     });
     btnList.addEventListener('click', () => {
         isGrid = false;
-        grid.style.display = 'none'; list.style.display = '';
+        grid.style.display = 'none'; list.style.display = 'block';
         btnList.classList.add('active'); btnGrid.classList.remove('active');
     });
 
