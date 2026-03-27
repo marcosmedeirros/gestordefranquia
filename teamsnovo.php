@@ -113,7 +113,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
 
     <style>
@@ -136,8 +136,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             --radius-sm: 10px;
             --radius-xs: 6px;
             --sidebar-w: 260px;
-            --font-display: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
+            --font-display: 'Poppins', sans-serif;
+            --font-body: 'Poppins', sans-serif;
             --ease: cubic-bezier(.2,.8,.2,1);
             --t: 200ms;
         }
@@ -156,6 +156,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        html {
+            -webkit-text-size-adjust: 100%;
+        }
+
         html, body {
             height: 100%;
             background: var(--bg);
@@ -163,6 +167,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             font-family: var(--font-body);
             -webkit-font-smoothing: antialiased;
         }
+
+        body { overflow-x: hidden; }
+        a, button { -webkit-tap-highlight-color: transparent; }
 
         /* ── Layout Shell ──────────────────────────────── */
         .app-shell {
@@ -183,6 +190,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             z-index: 200;
             transition: transform var(--t) var(--ease);
             padding-bottom: 12px;
+            padding-top: env(safe-area-inset-top);
         }
 
         .sidebar-brand {
@@ -372,11 +380,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0;
-            height: 56px;
+            height: calc(56px + env(safe-area-inset-top));
             background: var(--panel);
             border-bottom: 1px solid var(--border);
             align-items: center;
-            padding: 0 16px;
+            padding: env(safe-area-inset-top) 16px 0;
             gap: 12px;
             z-index: 199;
         }
@@ -417,6 +425,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             display: flex;
             flex-direction: column;
             width: calc(100% - var(--sidebar-w));
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
         /* ── Page Header ───────────────────────────────── */
@@ -973,7 +982,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             :root { --sidebar-w: 0px; }
             .sidebar { transform: translateX(-260px); }
             .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; width: 100%; padding-top: 56px; }
+            .main { margin-left: 0; width: 100%; padding-top: calc(56px + env(safe-area-inset-top)); }
             .topbar { display: flex; }
             .page-top, .stats-strip, .controls, .content-area { padding-left: 16px; padding-right: 16px; }
             .footer-strip { margin: 0 16px 24px; }
@@ -1025,21 +1034,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         <nav class="sidebar-nav">
             <div class="sidebar-nav-label">Principal</div>
-            <a href="/dashboard"><i class="bi bi-house"></i> Home</a>
-            <a href="/teams" class="active"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/players"><i class="bi bi-person-badge"></i> Jogadores</a>
-            <a href="/trades"><i class="bi bi-arrow-left-right"></i> Trocas</a>
-            <a href="/picks"><i class="bi bi-calendar2-event"></i> Picks</a>
+            <a href="/dashboard.php"><i class="bi bi-house"></i> Home</a>
+            <a href="/teams.php" class="active"><i class="bi bi-people-fill"></i> Times</a>
+            <a href="/players.php"><i class="bi bi-person-badge"></i> Jogadores</a>
+            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trocas</a>
+            <a href="/picks.php"><i class="bi bi-calendar2-event"></i> Picks</a>
 
             <div class="sidebar-nav-label">Liga</div>
-            <a href="/standings"><i class="bi bi-trophy"></i> Classificação</a>
-            <a href="/free-agency"><i class="bi bi-person-plus"></i> Mercado Livre</a>
-            <a href="/auction"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/rumors"><i class="bi bi-chat-dots"></i> Rumores</a>
+            <a href="/rankings.php"><i class="bi bi-trophy"></i> Classificação</a>
+            <a href="/free-agency.php"><i class="bi bi-person-plus"></i> Mercado Livre</a>
+            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
+            <a href="/trades.php#rumores"><i class="bi bi-chat-dots"></i> Rumores</a>
 
             <div class="sidebar-nav-label">Admin</div>
-            <a href="/admin"><i class="bi bi-gear"></i> Administração</a>
-            <a href="/punishments"><i class="bi bi-exclamation-triangle"></i> Punições</a>
+            <a href="/admin.php"><i class="bi bi-gear"></i> Administração</a>
+            <a href="/punicoes.php"><i class="bi bi-exclamation-triangle"></i> Punições</a>
         </nav>
 
         <div class="sidebar-footer">
