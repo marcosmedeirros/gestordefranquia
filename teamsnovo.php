@@ -15,9 +15,10 @@ $capMax = (int)($leagueSettings['cap_max'] ?? 0);
 $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 
 $currentSeasonYear = null;
+$currentSprintNumber = null;
 try {
     $stmtSeason = $pdo->prepare('
-        SELECT s.season_number, s.year, sp.start_year
+        SELECT s.season_number, s.year, sp.start_year, sp.sprint_number
         FROM seasons s
         INNER JOIN sprints sp ON s.sprint_id = sp.id
         WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
@@ -31,6 +32,9 @@ try {
             $currentSeasonYear = (int)$season['start_year'] + (int)$season['season_number'] - 1;
         } elseif (isset($season['year'])) {
             $currentSeasonYear = (int)$season['year'];
+        }
+        if (isset($season['sprint_number'])) {
+            $currentSprintNumber = (int)$season['sprint_number'];
         }
     }
 } catch (Exception $e) {
@@ -185,10 +189,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            z-index: 200;
+            z-index: 300;
             transition: transform var(--t) var(--ease);
         }
-
+            z-index: 240;
         .sidebar-brand, .sb-brand {
             padding: 24px 20px 20px;
             border-bottom: 1px solid var(--border);
@@ -406,7 +410,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             inset: 0;
             background: rgba(0,0,0,.65);
             backdrop-filter: blur(4px);
-            z-index: 199;
+            z-index: 250;
         }
         .sidebar-overlay.active, .sb-overlay.show { display: block; }
 
@@ -1029,8 +1033,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 <div class="sb-season-val"><?= (int)$currentSeasonYear ?></div>
             </div>
             <div style="text-align:right">
-                <div class="sb-season-label">Liga</div>
-                <div class="sb-season-val"><?= htmlspecialchars($user['league'] ?? '') ?></div>
+                <div class="sb-season-label">Sprint</div>
+                <div class="sb-season-val"><?= $currentSprintNumber !== null ? (int)$currentSprintNumber : '--' ?></div>
             </div>
         </div>
         <?php endif; ?>
@@ -1427,14 +1431,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     const sidebar  = document.getElementById('sidebar');
     const overlay  = document.getElementById('sbOverlay');
     const menuBtn  = document.getElementById('menuBtn');
-    menuBtn?.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-        overlay.classList.toggle('show');
-    });
-    overlay.addEventListener('click', () => {
+    const closeSidebar = () => {
         sidebar.classList.remove('open');
         overlay.classList.remove('show');
+    };
+    menuBtn?.addEventListener('click', () => {
+        const willOpen = !sidebar.classList.contains('open');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show', willOpen);
     });
+    overlay?.addEventListener('click', closeSidebar);
+    if (window.innerWidth <= 900) {
+        document.querySelectorAll('.sb-nav a').forEach((link) => {
+            link.addEventListener('click', closeSidebar);
+        });
+    }
 
     /* ── View toggle ────────────────────────────────── */
     const grid     = document.getElementById('teamsGrid');

@@ -186,7 +186,7 @@ $team = $stmtTeam->fetch();
       display: none; position: fixed; top: 0; left: 0; right: 0;
       height: 54px; background: var(--panel);
       border-bottom: 1px solid var(--border);
-      align-items: center; padding: 0 16px; gap: 12px; z-index: 199;
+      align-items: center; padding: 0 16px; gap: 12px; z-index: 240;
     }
     .topbar-title { font-weight: 700; font-size: 15px; flex: 1; }
     .topbar-title em { color: var(--red); font-style: normal; }
@@ -197,7 +197,7 @@ $team = $stmtTeam->fetch();
       color: var(--text); display: flex; align-items: center; justify-content: center;
       cursor: pointer; font-size: 17px;
     }
-    .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199; }
+    .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 250; }
     .sb-overlay.show { display: block; }
 
     .main {
@@ -470,8 +470,9 @@ $team = $stmtTeam->fetch();
 
     if (menuBtn) {
       menuBtn.addEventListener('click', () => {
+        const willOpen = !sidebar.classList.contains('open');
         sidebar.classList.toggle('open');
-        sbOverlay.classList.toggle('show');
+        sbOverlay.classList.toggle('show', willOpen);
       });
     }
 

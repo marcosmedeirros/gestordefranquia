@@ -390,7 +390,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             display: none; position: fixed; top: 0; left: 0; right: 0;
             height: 54px; background: var(--panel);
             border-bottom: 1px solid var(--border);
-            align-items: center; padding: 0 16px; gap: 12px; z-index: 199;
+            align-items: center; padding: 0 16px; gap: 12px; z-index: 240;
         }
         .topbar-title { font-weight: 700; font-size: 15px; flex: 1; }
         .topbar-title em { color: var(--red); font-style: normal; }
@@ -400,7 +400,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             color: var(--text); display: flex; align-items: center; justify-content: center;
             cursor: pointer; font-size: 17px;
         }
-        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199; }
+        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 250; }
         .sb-overlay.show { display: block; }
 
         /* ── Main ────────────────────────────────────── */
@@ -1318,8 +1318,21 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const sidebar = document.getElementById('sidebar');
         const menuBtn = document.getElementById('menuBtn');
         const sbOverlay = document.getElementById('sbOverlay');
-    menuBtn?.addEventListener('click', () => { sidebar.classList.toggle('open'); sbOverlay.classList.toggle('show'); });
-    sbOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sbOverlay.classList.remove('show'); });
+    const closeSidebar = () => {
+        sidebar.classList.remove('open');
+        sbOverlay.classList.remove('show');
+    };
+    menuBtn?.addEventListener('click', () => {
+        const willOpen = !sidebar.classList.contains('open');
+        sidebar.classList.toggle('open');
+        sbOverlay.classList.toggle('show', willOpen);
+    });
+    sbOverlay?.addEventListener('click', closeSidebar);
+    if (window.innerWidth <= 860) {
+        document.querySelectorAll('.sb-nav a').forEach((link) => {
+            link.addEventListener('click', closeSidebar);
+        });
+    }
 
     /* ── Stagger animation delays ────────────────── */
     document.querySelectorAll('.stat-c').forEach((el, i) => el.style.animationDelay = (i * 0.05 + 0.05) + 's');
