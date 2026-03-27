@@ -843,13 +843,17 @@ function populateLeagueTradesTeamFilter() {
   if (!select) return;
 
   const myLeagueNormalized = (myLeague ?? '').toString().trim().toUpperCase();
-  const leagueTeams = allTeams
+  let leagueTeams = allTeams
     .filter((team) => {
       const teamLeague = (team.league ?? '').toString().trim().toUpperCase();
       if (!myLeagueNormalized) return true;
       return teamLeague === myLeagueNormalized;
     })
     .sort((a, b) => getTeamLabel(a).localeCompare(getTeamLabel(b)));
+
+  if (leagueTeams.length === 0 && allTeams.length > 0) {
+    leagueTeams = [...allTeams].sort((a, b) => getTeamLabel(a).localeCompare(getTeamLabel(b)));
+  }
 
   const previousValue = select.value;
   select.innerHTML = '<option value="">Todos os times</option>';
