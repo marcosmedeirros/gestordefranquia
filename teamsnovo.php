@@ -988,9 +988,55 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         }
 
         @media (max-width: 500px) {
+
             .team-stats { grid-template-columns: repeat(2, 1fr); }
             .team-stat:nth-child(2) { border-right: none; }
             .team-stat:nth-child(3) { border-top: 1px solid var(--border); }
+        }
+
+        /* Ajuste para listagem de times no mobile */
+        @media (max-width: 600px) {
+            .list-row {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 12px 8px;
+                gap: 6px;
+            }
+            .list-header {
+                font-size: 13px;
+            }
+            .list-header-cell {
+                font-size: 12px;
+                padding: 6px 4px;
+            }
+            .list-team-cell {
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+                min-width: 0;
+            }
+            .list-team-logo {
+                width: 32px;
+                height: 32px;
+            }
+            .list-team-name {
+                font-size: 15px;
+                font-weight: 600;
+                word-break: break-word;
+                max-width: 140px;
+            }
+            .list-team-owner {
+                font-size: 12px;
+                color: var(--text-2);
+                margin-top: 2px;
+            }
+            .list-cell {
+                font-size: 13px;
+                padding: 4px 2px;
+            }
+            .list-actions {
+                gap: 4px;
+            }
         }
 
         /* Stagger animation */
