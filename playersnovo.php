@@ -85,7 +85,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-	<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="/css/styles.css?v=20260225-2">
 
 	<style>
@@ -93,23 +93,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		:root {
 			--red: #fc0025;
 			--red-2: #ff2a44;
-			--red-soft: rgba(252,0,37,.12);
-			--red-glow: rgba(252,0,37,.22);
-			--bg: #08080a;
-			--panel: #111113;
-			--panel-2: #18181b;
-			--panel-3: #1f1f23;
-			--border: rgba(255,255,255,.07);
-			--border-strong: rgba(255,255,255,.12);
-			--text: #f2f2f4;
-			--text-2: #8a8a96;
-			--text-3: #55555f;
-			--radius: 16px;
+			--red-soft: rgba(252,0,37,.10);
+			--red-glow: rgba(252,0,37,.18);
+			--bg: #07070a;
+			--panel: #101013;
+			--panel-2: #16161a;
+			--panel-3: #1c1c21;
+			--border: rgba(255,255,255,.06);
+			--border-md: rgba(255,255,255,.10);
+			--border-red: rgba(252,0,37,.22);
+			--text: #f0f0f3;
+			--text-2: #868690;
+			--text-3: #48484f;
+			--sidebar-w: 260px;
+			--font-display: 'Poppins', sans-serif;
+			--font-body: 'Poppins', sans-serif;
+			--radius: 14px;
 			--radius-sm: 10px;
 			--radius-xs: 6px;
-			--sidebar-w: 260px;
-			--font-display: 'Syne', sans-serif;
-			--font-body: 'DM Sans', sans-serif;
 			--ease: cubic-bezier(.2,.8,.2,1);
 			--t: 200ms;
 		}
@@ -120,13 +121,18 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			--panel-2: #f2f4f8;
 			--panel-3: #e9edf4;
 			--border: #e3e6ee;
-			--border-strong: #d7dbe6;
+			--border-md: #d7dbe6;
+			--border-red: rgba(252,0,37,.18);
 			--text: #111217;
 			--text-2: #5b6270;
 			--text-3: #8b93a5;
 		}
 
 		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+		html {
+			-webkit-text-size-adjust: 100%;
+		}
 
 		html, body {
 			height: 100%;
@@ -136,8 +142,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			-webkit-font-smoothing: antialiased;
 		}
 
+		body { overflow-x: hidden; }
+		a, button { -webkit-tap-highlight-color: transparent; }
+
 		/* ── Layout Shell ──────────────────────────────── */
-		.app-shell { display: flex; min-height: 100vh; }
+		.app { display: flex; min-height: 100vh; }
 
 		/* ── Sidebar ───────────────────────────────────── */
 		.sidebar {
@@ -149,112 +158,117 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			border-right: 1px solid var(--border);
 			display: flex;
 			flex-direction: column;
-			z-index: 200;
+			z-index: 300;
 			transition: transform var(--t) var(--ease);
-			padding-bottom: 12px;
-		}
-
-		.sidebar-brand {
-			padding: 24px 20px 20px;
-			border-bottom: 1px solid var(--border);
-			display: flex;
-			align-items: center;
-			gap: 12px;
-		}
-
-		.sidebar-logo {
-			width: 36px; height: 36px;
-			border-radius: 10px;
-			background: var(--red);
-			display: flex; align-items: center; justify-content: center;
-			color: #fff; font-family: var(--font-display); font-weight: 700;
-			letter-spacing: .5px;
-		}
-
-		.sidebar-brand-text { font-weight: 700; font-family: var(--font-display); line-height: 1.1; }
-		.sidebar-brand-text span { display: block; font-size: 12px; color: var(--text-2); font-weight: 500; }
-
-		.sidebar-myteam {
-			margin: 16px 18px 8px;
-			padding: 14px;
-			border-radius: var(--radius-sm);
-			background: var(--panel-2);
-			display: flex;
-			align-items: center;
-			gap: 12px;
-			border: 1px solid var(--border);
-		}
-
-		.sidebar-myteam img {
-			width: 44px; height: 44px; border-radius: 12px; object-fit: cover; border: 1px solid var(--border);
-		}
-
-		.sidebar-myteam-name { font-weight: 600; font-size: 14px; }
-		.sidebar-myteam-sub { font-size: 12px; color: var(--text-2); }
-
-		.sidebar-nav {
-			overflow: auto;
-			padding: 8px 10px 0;
-			flex: 1;
-			-ms-overflow-style: none;
+			overflow-y: auto;
 			scrollbar-width: none;
 		}
-		.sidebar-nav::-webkit-scrollbar { display: none; }
-		.sidebar-nav-label {
-			font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
-			color: var(--text-3); padding: 10px 12px 6px;
-		}
-		.sidebar-nav a {
-			display: flex; align-items: center; gap: 10px;
-			padding: 10px 12px; margin: 2px 4px;
-			border-radius: 10px; color: var(--text-2); text-decoration: none;
-			transition: background var(--t) var(--ease), color var(--t) var(--ease);
-			font-size: 14px; font-weight: 500;
-		}
-		.sidebar-nav a i { font-size: 16px; }
-		.sidebar-nav a:hover { background: var(--panel-2); color: var(--text); }
-		.sidebar-nav a.active { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
-		.sidebar-nav a.active i { color: var(--red); }
+		.sidebar::-webkit-scrollbar { display: none; }
 
-		.sidebar-footer {
-			margin: 8px 16px 10px;
-			padding: 10px 12px;
+		.sb-brand {
+			padding: 22px 18px 18px;
+			border-bottom: 1px solid var(--border);
+			display: flex; align-items: center; gap: 12px;
+			flex-shrink: 0;
+		}
+		.sb-logo {
+			width: 34px; height: 34px; border-radius: 9px;
+			background: var(--red);
+			display: flex; align-items: center; justify-content: center;
+			font-weight: 800; font-size: 13px; color: #fff;
+			flex-shrink: 0;
+		}
+		.sb-brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; }
+		.sb-brand-text span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
+
+		.sb-team {
+			margin: 14px 14px 0;
 			background: var(--panel-2);
-			border-radius: var(--radius-sm);
-			display: flex; align-items: center; gap: 10px;
 			border: 1px solid var(--border);
-		}
-		.sidebar-user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
-		.sidebar-user-name { flex: 1; font-weight: 600; font-size: 14px; }
-		.sidebar-logout { color: var(--text-2); text-decoration: none; }
-
-		.sidebar-theme-toggle {
-			margin: 0 16px 10px;
-			padding: 10px 12px;
 			border-radius: var(--radius-sm);
+			padding: 14px;
+			display: flex; align-items: center; gap: 10px;
+			flex-shrink: 0;
+		}
+		.sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+		.sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+		.sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+
+		.sb-season {
+			margin: 10px 14px 0;
+			background: var(--red-soft);
+			border: 1px solid var(--border-red);
+			border-radius: 8px;
+			padding: 8px 12px;
+			display: flex; align-items: center; justify-content: space-between;
+			flex-shrink: 0;
+		}
+		.sb-season-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); }
+		.sb-season-val { font-size: 14px; font-weight: 700; color: var(--red); }
+
+		.sb-nav { flex: 1; padding: 12px 10px 8px; }
+		.sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
+		.sb-nav a {
+			display: flex; align-items: center; gap: 10px;
+			padding: 9px 10px; border-radius: var(--radius-sm);
+			color: var(--text-2); font-size: 13px; font-weight: 500;
+			text-decoration: none; margin-bottom: 2px;
+			transition: all var(--t) var(--ease);
+		}
+		.sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+		.sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+		.sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+		.sb-nav a.active i { color: var(--red); }
+
+		.sb-theme-toggle {
+			margin: 0 14px 12px;
+			padding: 8px 10px;
+			border-radius: 10px;
 			border: 1px solid var(--border);
 			background: var(--panel-2);
 			color: var(--text);
-			display: flex; align-items: center; gap: 8px;
-			font-weight: 600; font-size: 13px;
+			display: flex; align-items: center; justify-content: center; gap: 8px;
+			font-size: 12px; font-weight: 600;
+			cursor: pointer;
+			transition: all var(--t) var(--ease);
 		}
+		.sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
+
+		.sb-footer {
+			padding: 12px 14px;
+			border-top: 1px solid var(--border);
+			display: flex; align-items: center; gap: 10px;
+			flex-shrink: 0;
+		}
+		.sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+		.sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+		.sb-logout {
+			width: 26px; height: 26px; border-radius: 7px;
+			background: transparent; border: 1px solid var(--border);
+			color: var(--text-2); display: flex; align-items: center; justify-content: center;
+			font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease);
+			text-decoration: none; flex-shrink: 0;
+		}
+		.sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
 		/* ── Topbar ───────────────────────────────────── */
 		.topbar {
-			position: fixed; left: var(--sidebar-w); right: 0; top: 0;
-			height: 64px; z-index: 120;
-			background: rgba(8,8,10,.9);
-			backdrop-filter: blur(14px);
+			display: none; position: fixed; top: 0; left: 0; right: 0;
+			height: 54px; background: var(--panel);
 			border-bottom: 1px solid var(--border);
-			display: none; align-items: center; padding: 0 20px; gap: 12px;
+			align-items: center; padding: 0 16px; gap: 12px; z-index: 240;
 		}
-		:root[data-theme="light"] .topbar { background: rgba(246,247,251,.92); }
-		.topbar-menu-btn {
-			width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border);
-			background: var(--panel-2); color: var(--text); display: inline-flex; align-items: center; justify-content: center;
+		.topbar-title { font-weight: 700; font-size: 15px; flex: 1; }
+		.topbar-title em { color: var(--red); font-style: normal; }
+		.menu-btn {
+			width: 34px; height: 34px; border-radius: 9px;
+			background: var(--panel-2); border: 1px solid var(--border);
+			color: var(--text); display: flex; align-items: center; justify-content: center;
+			cursor: pointer; font-size: 17px;
 		}
-		.topbar-brand { font-family: var(--font-display); font-weight: 700; letter-spacing: .3px; }
-		.topbar-brand em { color: var(--red); font-style: normal; }
+		.sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199; }
+		.sb-overlay { z-index: 250; }
+		.sb-overlay.show { display: block; }
 
 		/* ── Main ─────────────────────────────────────── */
 		.main {
@@ -411,70 +425,93 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			.filters-grid { grid-template-columns: 1fr; }
 		}
 
-		.sidebar-overlay {
-			position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 110; opacity: 0; pointer-events: none; transition: opacity var(--t) var(--ease);
+		.sb-overlay {
+			position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+			z-index: 250; display: none;
 		}
-		.sidebar-overlay.active { opacity: 1; pointer-events: all; }
+		.sb-overlay.show { display: block; }
 	</style>
 </head>
 <body>
-<div class="app-shell">
+<div class="app">
 
 	<aside class="sidebar" id="sidebar">
-		<div class="sidebar-brand">
-			<div class="sidebar-logo">FBA</div>
-			<div class="sidebar-brand-text">
+		<div class="sb-brand">
+			<div class="sb-logo">FBA</div>
+			<div class="sb-brand-text">
 				FBA Manager
-				<span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span>
+				<span>Painel do GM</span>
 			</div>
 		</div>
 
-		<?php if ($team): ?>
-		<div class="sidebar-myteam">
+		<div class="sb-team">
 			<img src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null)) ?>" alt="Meu Time">
-			<div class="sidebar-myteam-info">
-				<div class="sidebar-myteam-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-				<div class="sidebar-myteam-sub"><?= (int)$team['player_count'] ?> jogadores</div>
+			<div>
+				<div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
+				<div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
+			</div>
+		</div>
+
+		<?php if (!empty($currentSeasonYear)): ?>
+		<div class="sb-season">
+			<div>
+				<div class="sb-season-label">Temporada</div>
+				<div class="sb-season-val"><?= (int)$currentSeasonYear ?></div>
+			</div>
+			<div style="text-align:right">
+				<div class="sb-season-label">Liga</div>
+				<div class="sb-season-val"><?= htmlspecialchars($user['league'] ?? '') ?></div>
 			</div>
 		</div>
 		<?php endif; ?>
 
-		<nav class="sidebar-nav">
-			<div class="sidebar-nav-label">Principal</div>
-			<a href="/dashboard"><i class="bi bi-house"></i> Home</a>
-			<a href="/teams"><i class="bi bi-people-fill"></i> Times</a>
-			<a href="/players" class="active"><i class="bi bi-person-badge"></i> Jogadores</a>
-			<a href="/trades"><i class="bi bi-arrow-left-right"></i> Trocas</a>
-			<a href="/picks"><i class="bi bi-calendar2-event"></i> Picks</a>
+		<nav class="sb-nav">
+			<div class="sb-section">Principal</div>
+			<a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+			<a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
+			<a href="/players.php" class="active"><i class="bi bi-person-badge"></i> Jogadores</a>
+			<a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+			<a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+			<a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+			<a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+			<a href="/leilao.php"><i class="bi bi-hammer"></i> Leilao</a>
+			<a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
 
-			<div class="sidebar-nav-label">Liga</div>
-			<a href="/standings"><i class="bi bi-trophy"></i> Classificacao</a>
-			<a href="/free-agency"><i class="bi bi-person-plus"></i> Mercado Livre</a>
-			<a href="/auction"><i class="bi bi-hammer"></i> Leilao</a>
-			<a href="/rumors"><i class="bi bi-chat-dots"></i> Rumores</a>
+			<div class="sb-section">Liga</div>
+			<a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+			<a href="/history.php"><i class="bi bi-clock-history"></i> Historico</a>
+			<a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+			<a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+			<a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
 
-			<div class="sidebar-nav-label">Admin</div>
-			<a href="/admin"><i class="bi bi-gear"></i> Administracao</a>
-			<a href="/punishments"><i class="bi bi-exclamation-triangle"></i> Punicoes</a>
+			<?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+			<div class="sb-section">Admin</div>
+			<a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+			<a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+			<?php endif; ?>
+
+			<div class="sb-section">Conta</div>
+			<a href="/settings.php"><i class="bi bi-gear-fill"></i> Configuracoes</a>
 		</nav>
 
-		<div class="sidebar-footer">
-			<img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sidebar-user-avatar">
-			<span class="sidebar-user-name"><?= htmlspecialchars($user['name']) ?></span>
-			<a href="/logout" class="sidebar-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-		</div>
-
-		<button class="sidebar-theme-toggle" id="themeToggle" type="button">
+		<button class="sb-theme-toggle" id="themeToggle" type="button">
 			<i class="bi bi-moon-stars-fill"></i>
 			<span>Tema claro</span>
 		</button>
+
+		<div class="sb-footer">
+			<img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sb-avatar">
+			<span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
+			<a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+		</div>
 	</aside>
 
-	<div class="sidebar-overlay" id="sidebarOverlay"></div>
+	<div class="sb-overlay" id="sbOverlay"></div>
 
 	<header class="topbar">
-		<button class="topbar-menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
-		<div class="topbar-brand">FBA <em>Manager</em></div>
+		<button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+		<div class="topbar-title">FBA <em>Manager</em></div>
+		<span style="font-size:11px;font-weight:700;color:var(--red)"><?= (int)$currentSeasonYear ?></span>
 	</header>
 
 	<main class="main">
@@ -628,15 +665,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	});
 
 	const sidebar  = document.getElementById('sidebar');
-	const overlay  = document.getElementById('sidebarOverlay');
+	const sbOverlay  = document.getElementById('sbOverlay');
 	const menuBtn  = document.getElementById('menuBtn');
 	menuBtn?.addEventListener('click', () => {
 		sidebar.classList.toggle('open');
-		overlay.classList.toggle('active');
+		sbOverlay.classList.toggle('show');
 	});
-	overlay.addEventListener('click', () => {
+	sbOverlay.addEventListener('click', () => {
 		sidebar.classList.remove('open');
-		overlay.classList.remove('active');
+		sbOverlay.classList.remove('show');
 	});
 
 	const defaultMessage = '<?= $whatsappDefaultMessage ?>';
