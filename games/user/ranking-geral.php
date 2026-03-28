@@ -433,6 +433,7 @@ $tab_labels = [
                         <span class="text-end">Moedas</span>
                         <span class="text-end">FBA Points</span>
                         <span class="text-end">Acertos</span>
+                        <span class="text-end">Tapas</span>
                     </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
                         <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
@@ -454,6 +455,7 @@ $tab_labels = [
                             <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
                             <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                             <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                            <span class="ranking-value" title="Tapas comprados"><?= (int)($jogador['numero_tapas'] ?? 0) ?></span>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -475,6 +477,7 @@ $tab_labels = [
                             <span class="text-end">Moedas</span>
                             <span class="text-end">FBA Points</span>
                             <span class="text-end">Acertos</span>
+                            <span class="text-end">Tapas</span>
                         </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
                             <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
@@ -493,6 +496,7 @@ $tab_labels = [
                                 <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
                                 <span class="ranking-value"><?= number_format(((int)($jogador['acertos'] ?? 0)) * 100, 0, ',', '.') ?></span>
                                 <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                                <span class="ranking-value" title="Tapas comprados"><?= (int)($jogador['numero_tapas'] ?? 0) ?></span>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
