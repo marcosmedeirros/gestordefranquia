@@ -128,10 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     SET u.fba_points = u.fba_points + 150,
                         u.acertos_eventos = u.acertos_eventos + 1
                 ");
-                $payStmt->execute([$vencedor_opcao_id]);
-                $pagos = $payStmt->rowCount();
-                $pdo->commit();
-                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (150 FBA Points por acerto).</div>";
+                    $payStmt->execute([$vencedor_opcao_id]);
+                    $pagos = $payStmt->rowCount();
+                    $pdo->commit();
+                    $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (25 FBA Points por acerto).</div>";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
