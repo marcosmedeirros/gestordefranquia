@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
                 throw new Exception('FBA Points insuficientes para comprar o tapa.');
             }
 
-            $pdo->prepare("UPDATE usuarios SET fba_points = fba_points - :cost WHERE id = :id")
+            $pdo->prepare("UPDATE usuarios SET fba_points = fba_points - :cost, numero_tapas = COALESCE(numero_tapas,0) + 1 WHERE id = :id")
                 ->execute([':cost' => $custo_fba, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'tapa', 1)")
                 ->execute([':uid' => $user_id]);
@@ -94,6 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $usuario['fba_points'] = (int)$saldo['fba_points'] - $custo_fba;
             $tapas_compradas_mes += 1;
             $tapas_restantes = max(0, $tapas_limite_mes - $tapas_compradas_mes);
+            // Atualiza numero_tapas localmente se já existir
+            if (isset($usuario['numero_tapas'])) {
+                $usuario['numero_tapas']++;
+            }
             $loja_msg = 'Tapa comprado com sucesso.';
         }
     } catch (Exception $e) {
