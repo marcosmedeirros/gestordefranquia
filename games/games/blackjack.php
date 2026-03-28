@@ -63,11 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     // A. INICIAR APOSTA (DEAL)
     if ($acao == 'apostar') {
         $valor = (int)$_POST['valor'];
-        $maxAposta = 15;
+        $maxAposta = 50;
         
         // VALIDAÇÃO DE LIMITE
         if ($valor <= 0) die(json_encode(['erro' => 'Valor inválido']));
-        if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 15 pontos!']));
+        if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 50 pontos!']));
         
         try {
             // TRANSAÇÃO REAL: Desconta aposta inicial
@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         // Cobra aposta adicional para a nova mão
         $valorSplit = $maoAtiva['aposta'];
         if (($valorSplit * 2) > 15) {
-            echo json_encode(['erro' => 'Aposta máxima permitida: 15 pontos!']);
+            echo json_encode(['erro' => 'Aposta máxima permitida: 50 pontos!']);
             exit;
         }
         try {
@@ -471,12 +471,12 @@ function retornarEstado($game) {
 
     <!-- CONTROLES -->
     <div class="controls-area" id="bet-controls">
-        <h5 class="text-white-50 mb-3">FAÇA SUA APOSTA (MÁX 15)</h5>
+        <h5 class="text-white-50 mb-3">FAÇA SUA APOSTA (MÁX 50)</h5>
         <div class="d-flex justify-content-center">
             <div class="chip-btn chip-1" onclick="apostar(1)">1</div>
             <div class="chip-btn chip-5" onclick="apostar(5)">5</div>
             <div class="chip-btn chip-10" onclick="apostar(10)">10</div>
-            <div class="chip-btn chip-15" onclick="apostar(15)">15</div>
+            <div class="chip-btn chip-50" onclick="apostar(50)">50</div>
         </div>
     </div>
 

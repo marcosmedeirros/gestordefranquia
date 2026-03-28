@@ -41,10 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         // 1. Validação de Aposta
         $totalApostado = 0;
         foreach ($apostas as $a) $totalApostado += $a['montante'];
-        $maxAposta = 15;
+        $maxAposta = 50;
         
         if ($totalApostado <= 0) die(json_encode(['erro' => 'Faça uma aposta!']));
-        if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta maxima permitida: 15 pontos!']));
+        if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta maxima permitida: 50 pontos!']));
 
         try {
             $pdo->beginTransaction();
@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             🎡 ROLETA
             <i class="bi bi-info-circle cursor-pointer text-info" onclick="togglePayouts()" style="font-size: 1.2em; opacity: 0.8;"></i>
         </h1>
-        <p class="text-muted">Apostas (max 15 pts por rodada)</p>
+        <p class="text-muted">Apostas (max 50 pts por rodada)</p>
     </div>
     
     <!-- Modal de Payouts -->
