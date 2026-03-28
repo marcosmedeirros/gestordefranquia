@@ -1,6 +1,6 @@
 ﻿<?php
 // pinguim.php - CORRIDA DO PINGUIM RADICAL (DARK MODE 🐧🛹)
-// VERSÃO: SEM TRAVAS DE SEGURANÇA (Modo Desenvolvimento)
+// VERSÃO: PROTEGIDA CONTRA CONSOLE DEVTOOLS
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
@@ -11,7 +11,7 @@ require_once '../core/mobile-helpers.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
-// --- AUTOMATIZAÃ‡ÃƒO DO BANCO DE DADOS PARA SKINS ---
+// --- AUTOMATIZAÇÃO DO BANCO DE DADOS PARA SKINS ---
 try {
     // Tabela de compras
     $pdo->exec("CREATE TABLE IF NOT EXISTS compras_skins (
@@ -65,7 +65,7 @@ $catalogo_skins = [
     'morcego' => ['nome' => 'Morcego', 'emoji' => '🦇', 'preco' => 50]
 ];
 
-// --- API AJAX (Sem Token CSRF) ---
+// --- API AJAX ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
 
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         exit;
     }
     
-    // C. SALVAR PONTOS (Milestone dinâmico, com limite anti-abuso)
+    // C. SALVAR PONTOS (Milestone dinâmico)
     if ($_POST['acao'] == 'salvar_milestone') {
         $score_atual = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
@@ -223,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         
         .navbar-custom { background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%); border-bottom: 1px solid #333; padding: 15px; }
-    .saldo-badge { background-color: #FC082B; color: #000; padding: 8px 15px; border-radius: 20px; font-weight: 800; font-size: 1.1em; box-shadow: 0 0 10px rgba(252, 8, 43, 0.3); transition: background-color 0.3s; }
+        .saldo-badge { background-color: #FC082B; color: #000; padding: 8px 15px; border-radius: 20px; font-weight: 800; font-size: 1.1em; box-shadow: 0 0 10px rgba(252, 8, 43, 0.3); transition: background-color 0.3s; }
         .admin-btn { background-color: #ff6d00; color: white; padding: 5px 15px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; }
 
         #game-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; }
@@ -277,7 +277,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 <body>
 <?php render_mobile_orientation_guard(true); ?>
 
-<!-- Header -->
 <div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top">
     <div class="d-flex align-items-center gap-3">
         <span class="fs-5">Olá, <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong></span>
@@ -301,15 +300,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     <div id="game-container-inner">
         <canvas id="gameCanvas" class="responsive-canvas" width="800" height="300"></canvas>
         
-        <!-- LOJA DE SKINS -->
         <div id="shop-modal">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="m-0 text-white"><i class="bi bi-shop"></i> Loja de Skins</h4>
-                <button class="btn btn-sm btn-outline-secondary" onclick="toggleShop()"><i class="bi bi-x-lg"></i></button>
+                <button class="btn btn-sm btn-outline-secondary" id="btnCloseShop"><i class="bi bi-x-lg"></i></button>
             </div>
             
             <div class="overflow-auto" style="max-height: 300px;">
-                <!-- Padrão -->
                 <div class="skin-card">
                     <div class="d-flex align-items-center">
                         <span class="skin-emoji">🐧</span>
@@ -321,11 +318,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     <?php if($meu_perfil['skin_equipada'] == 'default'): ?>
                         <button class="btn btn-sm btn-secondary" disabled>Equipado</button>
                     <?php else: ?>
-                        <button class="btn btn-sm btn-primary" onclick="equiparSkin('default')">Equipar</button>
+                        <button class="btn btn-sm btn-primary btn-equip-skin" data-skin="default">Equipar</button>
                     <?php endif; ?>
                 </div>
 
-                <!-- Skins do Catálogo -->
                 <?php foreach($catalogo_skins as $key => $data): 
                     $tenho = in_array($key, $minhas_skins);
                     $equipado = ($meu_perfil['skin_equipada'] == $key);
@@ -346,9 +342,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                         <?php if($equipado): ?>
                             <button class="btn btn-sm btn-secondary" disabled>Equipado</button>
                         <?php elseif($tenho): ?>
-                            <button class="btn btn-sm btn-primary" onclick="equiparSkin('<?= $key ?>')">Equipar</button>
+                            <button class="btn btn-sm btn-primary btn-equip-skin" data-skin="<?= $key ?>">Equipar</button>
                         <?php else: ?>
-                            <button class="btn btn-sm btn-success" onclick="comprarSkin('<?= $key ?>', <?= $data['preco'] ?>)">Comprar</button>
+                            <button class="btn btn-sm btn-success btn-buy-skin" data-skin="<?= $key ?>" data-price="<?= $data['preco'] ?>">Comprar</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -356,7 +352,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             </div>
         </div>
 
-        <!-- TELA INICIAL / GAME OVER -->
         <div id="start-msg">
             <div id="start-content">
                 <h1 class="text-white mb-0 display-4" id="logoEmoji">🐧🛹</h1>
@@ -364,13 +359,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 <p class="text-secondary mb-3" id="msgSubtitle">Pule os bugs e cafés!</p>
                 
                 <div id="actionButtons">
-                    <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3" onclick="startGame()">
+                    <button id="btnStartGameMain" class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3">
                         <i class="bi bi-play-fill"></i> JOGAR
                     </button>
                 </div>
                 
                 <div id="shopBtnContainer">
-                    <button class="btn btn-warning fw-bold mb-3 w-100 rounded-pill" onclick="toggleShop()">
+                    <button id="btnOpenShopMain" class="btn btn-warning fw-bold mb-3 w-100 rounded-pill">
                         <i class="bi bi-cart-fill"></i> LOJA DE SKINS
                     </button>
                 </div>
@@ -396,6 +391,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 </div>
 
 <script>
+// =========================================================================
+// IIFE (Immediately Invoked Function Expression)
+// Blinda as variáveis globais do console DevTools
+// =========================================================================
+(() => {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const startMsg = document.getElementById('start-msg');
@@ -413,14 +413,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     const shopBtnContainer = document.getElementById('shopBtnContainer');
 
     // --- CONFIGURAÇÃO ---
-    // Adicionamos as CORES DO CORPO aqui no JavaScript
     const catalogoJS = {
         'default': { emoji: '🐧', bodyColor: '#000000', bellyColor: '#FFFFFF' },
-        'porco':   { emoji: '🐷', bodyColor: '#f48fb1', bellyColor: '#f8bbd0' }, // Rosa
-        'peixe':   { emoji: '🐟', bodyColor: '#039be5', bellyColor: '#4fc3f7' }, // Azul
-        'galinha': { emoji: '🐔', bodyColor: '#eeeeee', bellyColor: '#ffffff' }, // Branco
-        'boi':     { emoji: '🐂', bodyColor: '#5d4037', bellyColor: '#8d6e63' }, // Marrom
-        'morcego': { emoji: '🦇', bodyColor: '#212121', bellyColor: '#424242' }  // Cinza Escuro
+        'porco':   { emoji: '🐷', bodyColor: '#f48fb1', bellyColor: '#f8bbd0' },
+        'peixe':   { emoji: '🐟', bodyColor: '#039be5', bellyColor: '#4fc3f7' },
+        'galinha': { emoji: '🐔', bodyColor: '#eeeeee', bellyColor: '#ffffff' },
+        'boi':     { emoji: '🐂', bodyColor: '#5d4037', bellyColor: '#8d6e63' },
+        'morcego': { emoji: '🦇', bodyColor: '#212121', bellyColor: '#424242' }
     };
     
     let currentSkin = '<?= $meu_perfil['skin_equipada'] ?>'; 
@@ -438,7 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     let highScore = localStorage.getItem('dinoHighScore') || 0;
     let isGameOver = false;
     let animationId;
-    let nextRewardAt = 100; // controle de pagamento a cada 100m
+    let nextRewardAt = 100;
     let currentBiomeIndex = 0;
     let backgroundX = 0;
     let hasRevived = false;
@@ -451,7 +450,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     highScoreEl.innerText = Math.floor(highScore);
 
-    // --- FUNÃ‡Ã•ES DA LOJA ---
+    // --- ASSOCIAÇÃO DE EVENTOS (Substituindo os onclicks) ---
+    document.getElementById('btnStartGameMain')?.addEventListener('click', startGame);
+    document.getElementById('btnOpenShopMain')?.addEventListener('click', toggleShop);
+    document.getElementById('btnCloseShop')?.addEventListener('click', toggleShop);
+
+    document.querySelectorAll('.btn-buy-skin').forEach(btn => {
+        btn.addEventListener('click', (e) => comprarSkin(e.target.dataset.skin, e.target.dataset.price));
+    });
+    
+    document.querySelectorAll('.btn-equip-skin').forEach(btn => {
+        btn.addEventListener('click', (e) => equiparSkin(e.target.dataset.skin));
+    });
+
+    document.addEventListener('keydown', handleInput);
+    canvas.addEventListener('touchstart', handleInput, {passive: false});
+    canvas.addEventListener('mousedown', handleInput);
+
+    // --- FUNÇÕES DA LOJA ---
     function toggleShop() {
         if(shopModal.style.display === 'block') {
             shopModal.style.display = 'none';
@@ -476,9 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if(data.sucesso) {
                 alert('Compra realizada com sucesso!');
                 location.reload(); 
-            } else {
-                alert(data.erro);
-            }
+            } else { alert(data.erro); }
         });
     }
 
@@ -494,24 +508,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 currentSkin = skinKey;
                 alert('Skin equipada!');
                 location.reload();
-            } else {
-                alert(data.erro);
-            }
+            } else { alert(data.erro); }
         });
     }
 
     // --- GAME ENGINE ---
-
     function handleInput(e) {
         if((e.code === 'Space' || e.code === 'ArrowUp' || e.type === 'touchstart' || e.type === 'mousedown') && !isGameOver) {
             e.preventDefault();
             jump();
         }
     }
-
-    document.addEventListener('keydown', handleInput);
-    canvas.addEventListener('touchstart', handleInput);
-    canvas.addEventListener('mousedown', handleInput);
 
     function jump() {
         if (dino.grounded) {
@@ -555,61 +562,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     function drawPenguin(x, y, w, h) {
         ctx.save();
         ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 5;
-
-        // Recupera configuração da skin atual (ou usa default)
         const skinConfig = catalogoJS[currentSkin] || catalogoJS['default'];
 
-        // 1. DESENHA O SKATE (Igual para todos)
+        // Skate
         ctx.fillStyle = "#8d6e63"; 
         ctx.beginPath(); ctx.ellipse(x + w/2, y + h + 5, w/1.2, 5, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#ffeb3b";
         ctx.beginPath(); ctx.arc(x + 10, y + h + 8, 4, 0, Math.PI * 2); ctx.arc(x + w - 10, y + h + 8, 4, 0, Math.PI * 2); ctx.fill();
 
-        // 2. DESENHA O CORPO (Cor personalizada por Skin)
-        
         // Corpo Principal
         ctx.fillStyle = skinConfig.bodyColor; 
         ctx.beginPath(); 
         ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2); 
         ctx.fill();
         
-        // Barriga (Se for galinha ou outro muito claro, talvez não contraste bem, mas ok)
+        // Barriga
         ctx.fillStyle = skinConfig.bellyColor; 
         ctx.beginPath(); 
         ctx.ellipse(x + w/2 + 2, y + h/2 + 5, w/3, h/2.5, 0, 0, Math.PI * 2); 
         ctx.fill();
 
-        // Asa/Braço (Mesma cor do corpo)
+        // Asa
         ctx.fillStyle = skinConfig.bodyColor; 
         ctx.beginPath(); ctx.ellipse(x + 10, y + h/2 + 5, 5, 12, 0.5, 0, Math.PI * 2); ctx.fill();
-        // Sombra da asa para destacar
         ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
 
         if (currentSkin === 'default') {
-            // CABEÃ‡A PADRÃƒO (Pinguim Original)
-            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(x + w/2 + 5, y + 10, 6, 0, Math.PI * 2); ctx.fill(); // Olho
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(x + w/2 + 7, y + 10, 2, 0, Math.PI * 2); ctx.fill(); // Pupila
-            ctx.fillStyle = "#FF9800"; ctx.beginPath(); ctx.moveTo(x + w - 5, y + 15); ctx.lineTo(x + w + 5, y + 18); ctx.lineTo(x + w - 5, y + 21); ctx.fill(); // Bico
+            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(x + w/2 + 5, y + 10, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(x + w/2 + 7, y + 10, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#FF9800"; ctx.beginPath(); ctx.moveTo(x + w - 5, y + 15); ctx.lineTo(x + w + 5, y + 18); ctx.lineTo(x + w - 5, y + 21); ctx.fill();
         } else {
-            // CABEÃ‡A SKIN (Emoji Invertido)
             let emoji = skinConfig.emoji;
-            
             ctx.save();
             ctx.font = "30px Arial";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            
-            // Ponto central da cabeça
             let headX = x + w/2 + 5; 
             let headY = y + 10;
-            
             ctx.translate(headX, headY);
-            ctx.scale(-1, 1); // Espelha horizontalmente
-            
+            ctx.scale(-1, 1); 
             ctx.fillText(emoji, 0, 0); 
             ctx.restore();
         }
-
         ctx.restore();
     }
 
@@ -702,7 +696,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         gameSpeed += 0.003; 
 
         while (currentIntScore >= nextRewardAt) {
-            const coinsPer100 = 1 + Math.floor(currentIntScore / 500); // 0-499:1 | 500-999:2 | 1000+:3...
+            const coinsPer100 = 1 + Math.floor(currentIntScore / 500);
             creditMilestoneCoins(coinsPer100);
             nextRewardAt += 100;
         }
@@ -726,14 +720,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             msgTitle.innerText = "BATIDA FEIA! 🤕";
             msgSubtitle.innerHTML = `Putz, bateu! O que deseja fazer?`;
             
+            // Substitui o innerHTML criandos botões com IDs para injetar os Listeners
             actionButtons.innerHTML = `
-                <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3 w-100" onclick="finishGame(${finalScore})">
+                <button id="btnFinishGame" class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3 w-100">
                     <i class="bi bi-arrow-clockwise"></i> JOGAR DO ZERO
                 </button>
-                <button class="btn btn-outline-warning fw-bold w-100 rounded-pill" onclick="reviveGame()">
+                <button id="btnReviveGame" class="btn btn-outline-warning fw-bold w-100 rounded-pill">
                     <i class="bi bi-heart-pulse-fill"></i> REVIVER POR 10 MOEDAS
                 </button>
             `;
+            
+            // Adiciona os Event Listeners dinamicamente aos botões recém-criados
+            document.getElementById('btnFinishGame').addEventListener('click', () => finishGame(finalScore));
+            document.getElementById('btnReviveGame').addEventListener('click', reviveGame);
+            
         } else {
             finishGame(finalScore);
         }
@@ -776,10 +776,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         msgSubtitle.innerHTML = `Você correu <strong class="text-white">${finalScore}m</strong>`;
         
         actionButtons.innerHTML = `
-            <button class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3" onclick="startGame()">
+            <button id="btnRestartGame" class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow mb-3">
                 <i class="bi bi-play-fill"></i> JOGAR NOVAMENTE
             </button>
         `;
+        document.getElementById('btnRestartGame').addEventListener('click', startGame);
         
         rankingBox.style.display = 'block'; 
         startMsg.style.display = 'block';
@@ -826,6 +827,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         gameContainer.appendChild(el);
         setTimeout(() => { el.remove(); }, 1000);
     }
+})(); // Fechamento da IIFE
 </script>
 
 </body>
