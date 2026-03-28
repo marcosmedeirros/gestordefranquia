@@ -18,6 +18,37 @@ try {
     die("Erro ao carregar perfil: " . $e->getMessage());
 }
 
+// =========================================================================
+// ENDPOINTS AJAX MOVIDOS PARA O TOPO (Evita renderizar HTML na resposta)
+// =========================================================================
+if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_GET['ajax_tapas'])) {
+    $stmtTapas = $pdo->query("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 ORDER BY numero_tapas DESC, nome ASC");
+    $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
+    $stmtAllUsers = $pdo->query("SELECT id, nome FROM usuarios ORDER BY nome ASC");
+    $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
+    header('Content-Type: application/json');
+    echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);
+    exit;
+}
+
+if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
+    $msg = '';
+    if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
+        $id = (int)$_POST['remover_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa removido!';
+    }
+    if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
+        $id = (int)$_POST['adicionar_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa adicionado!';
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['msg' => $msg]);
+    exit;
+}
+// =========================================================================
+
 $ranking_geral = [];
 $ranking_por_liga = [
     'ELITE' => [],
@@ -327,7 +358,7 @@ $tab_labels = [
         .best-game-batalha-naval { background: #1976d2; color: #fff; }
         .best-game-pinguim { background: #7b1fa2; color: #fff; }
 
-    .ranking-value { font-weight: 700; color: #fff; text-align: right; }
+        .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
         .nav-tabs .nav-link {
             color: #ccc;
@@ -663,30 +694,3 @@ fetchTapasAdmin();
 </script>
 <?php endif; ?>
 </html>
-<?php
-// AJAX para card admin tapas
-if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_GET['ajax_tapas'])) {
-    $stmtTapas = $pdo->query("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 ORDER BY numero_tapas DESC, nome ASC");
-    $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
-    $stmtAllUsers = $pdo->query("SELECT id, nome FROM usuarios ORDER BY nome ASC");
-    $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
-    header('Content-Type: application/json');
-    echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);
-    exit;
-}
-if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
-    $msg = '';
-    if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
-        $id = (int)$_POST['remover_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
-        $msg = 'Tapa removido!';
-    }
-    if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
-        $id = (int)$_POST['adicionar_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
-        $msg = 'Tapa adicionado!';
-    }
-    header('Content-Type: application/json');
-    echo json_encode(['msg' => $msg]);
-    exit;
-}
