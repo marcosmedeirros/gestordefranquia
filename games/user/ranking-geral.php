@@ -590,68 +590,19 @@ $tab_labels = [
         applyRankingSort();
     </script>
 </body>
+
 <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
-<?php
-// Busca todos os usuários com pelo menos 1 tapa
-$stmtTapas = $pdo->query("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 ORDER BY numero_tapas DESC, nome ASC");
-$usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
-// Busca todos os usuários para o dropdown
-$stmtAllUsers = $pdo->query("SELECT id, nome FROM usuarios ORDER BY nome ASC");
-$todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
-// Mensagem de feedback
-$tapa_msg = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_tapa_action'])) {
-        if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
-                $id = (int)$_POST['remover_id'];
-                $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
-                $tapa_msg = 'Tapa removido!';
-                header("Location: ranking-geral.php?tapa_msg=".urlencode($tapa_msg)); exit;
-        }
-        if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
-                $id = (int)$_POST['adicionar_id'];
-                $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
-                $tapa_msg = 'Tapa adicionado!';
-                header("Location: ranking-geral.php?tapa_msg=".urlencode($tapa_msg)); exit;
-        }
-}
-if (isset($_GET['tapa_msg'])) {
-        $tapa_msg = htmlspecialchars($_GET['tapa_msg']);
-}
-?>
 <div class="container my-5">
-    <div class="card border-danger shadow-lg">
+    <div class="card border-danger shadow-lg" id="admin-tapas-card">
         <div class="card-header bg-danger text-white fw-bold"><i class="bi bi-hand-index-thumb"></i> Administração de Tapas</div>
         <div class="card-body">
-            <?php if ($tapa_msg): ?>
-                <div class="alert alert-success py-2"> <?= $tapa_msg ?> </div>
-            <?php endif; ?>
+            <div id="tapa-msg"></div>
             <h6 class="mb-3">Usuários com pelo menos 1 tapa:</h6>
-            <ul class="list-group mb-4">
-                <?php if (empty($usuarios_tapas)): ?>
-                    <li class="list-group-item text-muted">Nenhum usuário com tapas.</li>
-                <?php else: ?>
-                    <?php foreach ($usuarios_tapas as $u): ?>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span><?= htmlspecialchars($u['nome']) ?> <span class="badge bg-info text-dark ms-2">Tapas: <?= (int)$u['numero_tapas'] ?></span></span>
-                            <form method="post" class="m-0 p-0">
-                                <input type="hidden" name="admin_tapa_action" value="remover">
-                                <input type="hidden" name="remover_id" value="<?= $u['id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-dash"></i> Remover</button>
-                            </form>
-                        </li>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </ul>
+            <ul class="list-group mb-4" id="lista-tapas"></ul>
             <h6 class="mb-2">Adicionar tapa para um usuário:</h6>
-            <form method="post" class="row g-2 align-items-center">
-                <input type="hidden" name="admin_tapa_action" value="adicionar">
+            <form id="form-add-tapa" class="row g-2 align-items-center">
                 <div class="col-auto">
-                    <select name="adicionar_id" class="form-select" required>
-                        <option value="">Selecione o usuário</option>
-                        <?php foreach ($todos_usuarios as $u): ?>
-                            <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['nome']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <select name="adicionar_id" id="adicionar_id" class="form-select" required></select>
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-success"><i class="bi bi-plus"></i> Adicionar</button>
@@ -660,5 +611,82 @@ if (isset($_GET['tapa_msg'])) {
         </div>
     </div>
 </div>
+<script>
+async function fetchTapasAdmin() {
+    const res = await fetch('ranking-geral.php?ajax_tapas=1');
+    const data = await res.json();
+    // Lista tapas
+    const lista = document.getElementById('lista-tapas');
+    lista.innerHTML = '';
+    if (data.usuarios_tapas.length === 0) {
+        lista.innerHTML = '<li class="list-group-item text-muted">Nenhum usuário com tapas.</li>';
+    } else {
+        data.usuarios_tapas.forEach(u => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `<span>${u.nome} <span class='badge bg-info text-dark ms-2'>Tapas: ${u.numero_tapas}</span></span>` +
+                `<button class='btn btn-sm btn-danger' onclick='removerTapa(${u.id})'><i class="bi bi-dash"></i> Remover</button>`;
+            lista.appendChild(li);
+        });
+    }
+    // Dropdown
+    const sel = document.getElementById('adicionar_id');
+    sel.innerHTML = '<option value="">Selecione o usuário</option>';
+    data.todos_usuarios.forEach(u => {
+        sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`;
+    });
+}
+async function removerTapa(id) {
+    const res = await fetch('ranking-geral.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `admin_tapa_action=remover&remover_id=${id}&ajax=1`
+    });
+    const data = await res.json();
+    document.getElementById('tapa-msg').innerHTML = `<div class='alert alert-success py-2'>${data.msg}</div>`;
+    fetchTapasAdmin();
+}
+document.getElementById('form-add-tapa').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('adicionar_id').value;
+    if (!id) return;
+    const res = await fetch('ranking-geral.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `admin_tapa_action=adicionar&adicionar_id=${id}&ajax=1`
+    });
+    const data = await res.json();
+    document.getElementById('tapa-msg').innerHTML = `<div class='alert alert-success py-2'>${data.msg}</div>`;
+    fetchTapasAdmin();
+});
+fetchTapasAdmin();
+</script>
 <?php endif; ?>
 </html>
+<?php
+// AJAX para card admin tapas
+if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_GET['ajax_tapas'])) {
+    $stmtTapas = $pdo->query("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 ORDER BY numero_tapas DESC, nome ASC");
+    $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
+    $stmtAllUsers = $pdo->query("SELECT id, nome FROM usuarios ORDER BY nome ASC");
+    $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
+    header('Content-Type: application/json');
+    echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);
+    exit;
+}
+if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
+    $msg = '';
+    if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
+        $id = (int)$_POST['remover_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa removido!';
+    }
+    if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
+        $id = (int)$_POST['adicionar_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa adicionado!';
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['msg' => $msg]);
+    exit;
+}
