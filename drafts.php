@@ -1104,26 +1104,39 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     // Visualizar draft histórico
     async function viewDraftHistory(seasonId, draftStatus, draftSessionId) {
-      currentSeasonIdView = seasonId;
-      currentDraftStatusView = draftStatus;
-      currentDraftSessionForFill = draftSessionId;
-      
+  currentSeasonIdView = seasonId;
+  currentDraftStatusView = draftStatus;
+  currentDraftSessionForFill = draftSessionId;
+  
+  try {
+    // 1. Busca os metadados da temporada (league, ano, etc) na rota de histórico
+    const data = await api(`draft.php?action=draft_history&season_id=${seasonId}`);
+    let order = data.draft_order || [];
+    const season = data.season;
+    
+    // 2. O PULO DO GATO: Se existe uma sessão de draft, buscamos a ordem real e atualizada!
+    if (draftSessionId) {
       try {
-        const data = await api(`draft.php?action=draft_history&season_id=${seasonId}`);
-        const order = data.draft_order || [];
-        const season = data.season;
-        
-        if (order.length === 0) {
-          alert('Nenhuma ordem de draft encontrada para esta temporada');
-          return;
+        const orderData = await api(`draft.php?action=draft_order&draft_session_id=${draftSessionId}`);
+        if (orderData && orderData.order && orderData.order.length > 0) {
+          order = orderData.order; // Sobrescreve a ordem estática pela real
         }
-
-        renderHistoricalDraft(season, order, draftStatus, draftSessionId);
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar draft: ' + (e.error || 'Desconhecido'));
+      } catch (err) {
+        console.warn('Fallback: Não foi possível carregar a ordem em tempo real.', err);
       }
     }
+
+    if (order.length === 0) {
+      alert('Nenhuma ordem de draft encontrada para esta temporada');
+      return;
+    }
+
+    renderHistoricalDraft(season, order, draftStatus, draftSessionId);
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao carregar draft: ' + (e.error || 'Desconhecido'));
+  }
+}
 
     function renderHistoricalDraft(season, picks, draftStatus, draftSessionId) {
       const round1Picks = picks.filter(p => p.round == 1);
@@ -1201,47 +1214,58 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
     }
 
     function renderHistoricalPickCard(pick, draftStatus, draftSessionId) {
-      const isCompleted = pick.picked_player_id !== null;
-      let cardClass = 'pick-card';
-      if (isCompleted) cardClass += ' completed';
+  const isCompleted = pick.picked_player_id !== null;
+  let cardClass = 'pick-card';
+  if (isCompleted) cardClass += ' completed';
 
-      // Admin pode preencher qualquer pick vazia no histórico (completed ou in_progress)
-      const canEdit = isAdmin && !isCompleted;
+  // Admin pode preencher qualquer pick vazia no histórico (completed ou in_progress)
+  const canEdit = isAdmin && !isCompleted;
 
-      return `
-        <div class="col-md-4 col-lg-3">
-          <div class="card bg-dark border-secondary ${cardClass}" 
-               style="border-radius: 10px; ${canEdit ? 'cursor: pointer;' : ''}"
-               ${canEdit ? `onclick="openFillPastPickModal(${pick.id}, '${pick.team_city} ${pick.team_name}', ${draftSessionId})"` : ''}>
-            <div class="card-body p-2">
-              <div class="d-flex justify-content-between align-items-start mb-1">
-                <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'}">
-                  #${pick.pick_position}
+  // Escapando aspas simples para não quebrar a string do onclick
+  const teamFullName = (pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'");
+
+  return `
+    <div class="col-md-4 col-lg-3">
+      <div class="card bg-dark border-secondary ${cardClass}" 
+           style="border-radius: 10px; ${canEdit ? 'cursor: pointer;' : ''}"
+           ${canEdit ? `onclick="openFillPastPickModal(${pick.id}, '${teamFullName}', ${draftSessionId})"` : ''}>
+        <div class="card-body p-2">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="badge ${isCompleted ? 'bg-success' : 'bg-secondary'}">
+              #${pick.pick_position}
+            </span>
+          </div>
+          <div class="text-center">
+            <strong class="text-white" style="font-size: 0.85rem;">
+              ${pick.team_city} ${pick.team_name}
+            </strong>
+            
+            ${pick.traded_from_team_id ? `
+              <div class="mt-1">
+                <span class="badge bg-warning text-dark traded-badge">
+                  via ${pick.traded_from_city || ''} ${pick.traded_from_name || ''}
                 </span>
-                
               </div>
-              <div class="text-center">
-                <strong class="text-white" style="font-size: 0.85rem;">
-                  ${pick.team_city} ${pick.team_name}
-                </strong>
-                ${isCompleted ? `
-                  <div class="mt-2 p-2 bg-success bg-opacity-25 rounded">
-                    <small class="text-success d-block fw-bold">${pick.player_name || 'Jogador Desconhecido'}</small>
-                    ${pick.player_position ? `<span class="badge bg-orange" style="font-size: 0.65rem;">${pick.player_position}</span>` : ''}
-                    ${pick.player_ovr ? `<span class="badge bg-secondary" style="font-size: 0.65rem;">OVR ${pick.player_ovr}</span>` : ''}
-                  </div>
-                ` : `
-                  <div class="mt-2 p-2 bg-secondary bg-opacity-25 rounded">
-                    <small class="text-light-gray">${canEdit ? 'Clique para preencher' : 'Aguardando'}</small>
-                    ${canEdit ? '<i class="bi bi-pencil text-orange d-block mt-1"></i>' : ''}
-                  </div>
-                `}
+            ` : ''}
+
+            ${isCompleted ? `
+              <div class="mt-2 p-2 bg-success bg-opacity-25 rounded">
+                <small class="text-success d-block fw-bold">${pick.player_name || 'Jogador Desconhecido'}</small>
+                ${pick.player_position ? `<span class="badge bg-orange" style="font-size: 0.65rem;">${pick.player_position}</span>` : ''}
+                ${pick.player_ovr ? `<span class="badge bg-secondary" style="font-size: 0.65rem;">OVR ${pick.player_ovr}</span>` : ''}
               </div>
-            </div>
+            ` : `
+              <div class="mt-2 p-2 bg-secondary bg-opacity-25 rounded">
+                <small class="text-light-gray">${canEdit ? 'Clique para preencher' : 'Aguardando'}</small>
+                ${canEdit ? '<i class="bi bi-pencil text-orange d-block mt-1"></i>' : ''}
+              </div>
+            `}
           </div>
         </div>
-      `;
-    }
+      </div>
+    </div>
+  `;
+}
 
     // Abrir modal para preencher pick de draft passado
     async function openFillPastPickModal(pickId, teamName, draftSessionId) {
