@@ -1,6 +1,6 @@
 ﻿<?php
 // flappy.php - O CLÁSSICO VICIANTE (FBA games EDITION 🐦)
-// VERSÃO: SEM TRAVAS DE SEGURANÇA (Modo Desenvolvimento)
+// VERSÃO: PROTEGIDA CONTRA CONSOLE DEVTOOLS
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
@@ -41,7 +41,7 @@ $catalogo_skins = [
     'robo' => ['nome' => 'Robô-X', 'cor' => '#bdbdbd', 'preco' => 30, 'desc' => 'Blindado']
 ];
 
-// --- API AJAX (Sem Token CSRF) ---
+// --- API AJAX ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
 
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             throw new Exception('Score inválido.');
         }
         if ($score > $max_score) {
-            throw new Exception('Score acima do permitido.');
+            throw new Exception('Score acima do permitido pela física do jogo.');
         }
     };
 
@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         .navbar-custom { background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%); border-bottom: 1px solid #333; padding: 15px; }
-    .saldo-badge { background-color: #FC082B; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: 800; }
+        .saldo-badge { background-color: #FC082B; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: 800; }
         #game-wrapper { position: relative; width: 100%; height: 85vh; display: flex; justify-content: center; align-items: center; background: #222; }
         canvas { background: #111; border: 2px solid #444; border-radius: 10px; box-shadow: 0 0 30px rgba(0,0,0,0.5); max-width: 100%; max-height: 100%; }
         .overlay-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20, 20, 20, 0.95); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #555; backdrop-filter: blur(5px); z-index: 10; min-width: 320px; }
@@ -215,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         <h1 class="display-1 mb-0">🐦</h1>
         <h3 class="text-white mb-2">FLAPPY BIRD</h3>
         <p class="text-white-50 mb-3">Recorde: <strong class="text-warning"><?= $recorde ?></strong></p>
-        <button class="btn btn-warning w-100 fw-bold rounded-pill mb-3" onclick="toggleShop()"><i class="bi bi-cart-fill"></i> LOJA DE SKINS</button>
+        <button id="btnOpenShop" class="btn btn-warning w-100 fw-bold rounded-pill mb-3"><i class="bi bi-cart-fill"></i> LOJA DE SKINS</button>
         <?php if(!empty($ranking_flappy)): ?>
         <div class="text-start bg-dark p-3 rounded border border-secondary mb-3">
             <h6 class="text-warning border-bottom border-secondary pb-2 mb-2"><i class="bi bi-trophy-fill"></i> Top Voadores</h6>
@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             </ul>
         </div>
         <?php endif; ?>
-        <button class="btn btn-success btn-lg w-100 fw-bold rounded-pill shadow" onclick="startGame()"><i class="bi bi-play-fill"></i> JOGAR</button>
+        <button id="btnStartGame" class="btn btn-success btn-lg w-100 fw-bold rounded-pill shadow"><i class="bi bi-play-fill"></i> JOGAR</button>
     </div>
 
     <div id="shop-screen" class="overlay-screen" style="display: none;">
@@ -240,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 <?php if($meu_perfil['flappy_skin_equipada'] == 'default'): ?>
                     <button class="btn btn-sm btn-secondary" disabled>Equipado</button>
                 <?php else: ?>
-                    <button class="btn btn-sm btn-primary" onclick="equipSkin('default')">Usar</button>
+                    <button class="btn btn-sm btn-primary btn-equip-skin" data-skin="default">Usar</button>
                 <?php endif; ?>
             </div>
             <?php foreach($catalogo_skins as $key => $skin): 
@@ -251,14 +251,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 <div><span class="skin-preview" style="background: <?= $skin['cor'] ?>;"></span><div><strong class="d-block text-white" style="line-height: 1;"><?= $skin['nome'] ?></strong><small class="text-white-50" style="font-size: 0.7em;"><?= $skin['desc'] ?></small></div></div>
                 <div>
                     <?php if($equipado): ?><button class="btn btn-sm btn-secondary" disabled>Equipado</button>
-                    <?php elseif($tem): ?><button class="btn btn-sm btn-primary" onclick="equipSkin('<?= $key ?>')">Usar</button>
-                    <?php else: ?><button class="btn btn-sm btn-success" onclick="buySkin('<?= $key ?>', <?= $skin['preco'] ?>)">$<?= $skin['preco'] ?></button>
+                    <?php elseif($tem): ?><button class="btn btn-sm btn-primary btn-equip-skin" data-skin="<?= $key ?>">Usar</button>
+                    <?php else: ?><button class="btn btn-sm btn-success btn-buy-skin" data-skin="<?= $key ?>" data-price="<?= $skin['preco'] ?>">$<?= $skin['preco'] ?></button>
                     <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
         </div>
-        <button class="btn btn-outline-light w-100 rounded-pill" onclick="toggleShop()">Fechar Loja</button>
+        <button id="btnCloseShop" class="btn btn-outline-light w-100 rounded-pill">Fechar Loja</button>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display: none;">
@@ -267,24 +267,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             <div class="d-flex justify-content-between mb-2"><span class="text-white-50">Placar</span><strong class="text-white" id="finalScore">0</strong></div>
             <div class="d-flex justify-content-between"><span class="text-white-50">Melhor</span><strong class="text-warning" id="bestScore"><?= $recorde ?></strong></div>
         </div>
-        <button id="reviveBtn" class="btn btn-warning w-100 fw-bold rounded-pill mb-2" onclick="revive()" style="display: none;"><i class="bi bi-heart-fill"></i> CONTINUAR (10 pts)</button>
-        <button class="btn btn-primary w-100 fw-bold rounded-pill mb-2" onclick="startGame()"><i class="bi bi-arrow-clockwise"></i> TENTAR DE NOVO</button>
-        <button class="btn btn-outline-light w-100 rounded-pill" onclick="location.href='../index.php'">Menu Principal</button>
+        <button id="reviveBtn" class="btn btn-warning w-100 fw-bold rounded-pill mb-2" style="display: none;"><i class="bi bi-heart-fill"></i> CONTINUAR (10 pts)</button>
+        <button id="btnRestartGame" class="btn btn-primary w-100 fw-bold rounded-pill mb-2"><i class="bi bi-arrow-clockwise"></i> TENTAR DE NOVO</button>
+        <button id="btnMenu" class="btn btn-outline-light w-100 rounded-pill">Menu Principal</button>
     </div>
 </div>
 
 <script>
+// =========================================================================
+// IIFE (Immediately Invoked Function Expression)
+// Isso blinda todas as variáveis e funções, tirando elas do window (console)
+// =========================================================================
+(() => {
     const canvas = document.getElementById('flappyCanvas');
     const ctx = canvas.getContext('2d');
     const saldoDisplay = document.getElementById('saldoDisplay');
     
-    // CONFIGURAÃ‡Ã•ES DE CENÃRIOS (NOVO - A cada 15)
+    // CONFIGURAÇÕES DE CENÁRIOS
     const scenarios = [
-        { bg: '#1a1a1a', name: 'NOITE ESCURA' },     // 0-14
-        { bg: '#4FC3F7', name: 'DIA CLARO' },        // 15-29
-        { bg: '#FF9800', name: 'POR DO SOL' },       // 30-44
-        { bg: '#4A148C', name: 'NEON CITY' },        // 45-59
-        { bg: '#263238', name: 'CAVERNA PROFUNDA' }  // 60+
+        { bg: '#1a1a1a', name: 'NOITE ESCURA' },
+        { bg: '#4FC3F7', name: 'DIA CLARO' },
+        { bg: '#FF9800', name: 'POR DO SOL' },
+        { bg: '#4A148C', name: 'NEON CITY' },
+        { bg: '#263238', name: 'CAVERNA PROFUNDA' }
     ];
 
     let currentSkin = '<?= $meu_perfil['flappy_skin_equipada'] ?>';
@@ -297,9 +302,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         'robo':    { body: '#bdbdbd', wing: '#757575' }
     };
 
-    // Variáveis Jogo
+    // Variáveis Jogo (Agoram estão protegidas do console)
     let frames = 0, score = 0, highScore = <?= $recorde ?>, currentState = 'START', coinsEarned = 0;
-    let hasUsedRevive = false; // Controla se já usou o revive
+    let hasUsedRevive = false;
     
     // Entidades
     const bird = {
@@ -311,15 +316,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             
             let colors = skinConfig[currentSkin] || skinConfig['default'];
             
-            // Corpo
             ctx.fillStyle = colors.body; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
-            // Olho
             ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(6, -6, 5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = (currentSkin == 'robo') ? '#f00' : '#000'; // Olho vermelho pro robÃ´
+            ctx.fillStyle = (currentSkin == 'robo') ? '#f00' : '#000';
             ctx.beginPath(); ctx.arc(8, -6, 2, 0, Math.PI*2); ctx.fill();
-            // Bico
             ctx.fillStyle = '#ff9800'; ctx.beginPath(); ctx.moveTo(8, 2); ctx.lineTo(16, 6); ctx.lineTo(8, 10); ctx.fill();
-            // Asa
             ctx.fillStyle = colors.wing; ctx.beginPath(); ctx.ellipse(-4, 4, 8, 5, -0.2, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         },
@@ -331,10 +332,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         flap: function() { this.velocity = -this.jump; }
     };
     
-    // Background Atualizado (15 pts)
     const bg = { 
         draw: function() { 
-            // Calcula qual cenário usar (agora a cada 15 pontos)
             let idx = Math.floor(score / 15) % scenarios.length;
             ctx.fillStyle = scenarios[idx].bg; 
             ctx.fillRect(0, 0, canvas.width, canvas.height); 
@@ -367,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             }
         },
         update: function() {
-            this.dx = 2 + Math.floor(score / 10) * 0.5; // Dificuldade progressiva
+            this.dx = 2 + Math.floor(score / 10) * 0.5;
             let spawnRate = Math.floor(240 / this.dx);
             
             if(frames % spawnRate == 0) {
@@ -385,16 +384,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 if(p.x + this.w < bird.x && !p.passed) {
                     score++; p.passed = true;
                     
-                    // LÃ“GICA DE CENÃRIO (Atualizado para 15)
                     if(score % 15 === 0) {
                         let idx = Math.floor(score / 15) % scenarios.length;
-                        showFloatingText("NOVO CENÃRIO: " + scenarios[idx].name, canvas.width/2 - 100, 150);
-                        // Flash na tela
+                        showFloatingText("NOVO CENÁRIO: " + scenarios[idx].name, canvas.width/2 - 100, 150);
                         ctx.fillStyle = '#FFF'; ctx.fillRect(0,0,canvas.width,canvas.height);
                     }
 
                     if(score % 10 === 0) {
-                        const reward = 1 + (score / 10); // 10 túneis=2, 20=3, 30=4...
+                        const reward = 1 + (score / 10);
                         coinsEarned += reward;
                         showFloatingText(`+${reward} MOEDAS`, bird.x, bird.y - 30);
                     }
@@ -405,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         reset: function() { this.items = []; this.dx = 2; }
     };
 
-    // --- CONTROLES E LOJA ---
+    // --- FUNÇÕES INTERNAS ---
     function toggleShop() {
         let shop = document.getElementById('shop-screen');
         let start = document.getElementById('start-screen');
@@ -434,10 +431,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         });
     }
 
-    document.addEventListener('keydown', function(e) { if(e.code === 'Space' || e.code === 'ArrowUp') action(); });
-    canvas.addEventListener('touchstart', function(e) { e.preventDefault(); action(); }, {passive: false});
-    canvas.addEventListener('click', action);
-
     function action() { if(currentState === 'GAME') bird.flap(); }
 
     function loop() {
@@ -454,7 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             document.getElementById('game-over-screen').style.display = 'none';
             document.getElementById('scoreDisplay').style.display = 'block';
             bird.y = 150; bird.velocity = 0; pipes.reset(); score = 0; frames = 0; coinsEarned = 0;
-            hasUsedRevive = false; // Reset do revive ao iniciar novo jogo
+            hasUsedRevive = false;
             currentState = 'GAME'; loop();
         });
     }
@@ -466,7 +459,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         document.getElementById('bestScore').innerText = highScore;
         document.getElementById('scoreDisplay').style.display = 'none';
         
-        // Mostra botão de revive apenas na primeira morte e se tiver pontos suficientes
         let currentPoints = parseInt(saldoDisplay.innerText.replace(/\D/g,''));
         if(!hasUsedRevive && currentPoints >= 10) {
             document.getElementById('reviveBtn').style.display = 'block';
@@ -493,32 +485,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     function revive() {
-        // Cobra 10 pontos e retoma o jogo
         const fd = new FormData();
         fd.append('acao', 'reviver');
         fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(r=>r.json()).then(d=>{
             if(d.sucesso) {
                 saldoDisplay.innerText = d.novo_saldo.toLocaleString('pt-BR') + ' pts';
-
-                hasUsedRevive = true; // Marca que já usou o revive
+                hasUsedRevive = true;
                 document.getElementById('game-over-screen').style.display = 'none';
                 document.getElementById('scoreDisplay').style.display = 'block';
-
-                // Reposiciona o pássaro e limpa canos próximos
-                bird.y = 150;
-                bird.velocity = 0;
-                pipes.items = pipes.items.filter(p => p.x > 200); // Remove canos muito próximos
-
+                bird.y = 150; bird.velocity = 0;
+                pipes.items = pipes.items.filter(p => p.x > 200);
                 showFloatingText('REVIVEU! 💚', canvas.width/2 - 50, 200);
-                currentState = 'GAME';
-                loop();
-            } else {
-                alert(d.erro || 'Erro ao processar revive');
-            }
+                currentState = 'GAME'; loop();
+            } else { alert(d.erro || 'Erro ao processar revive'); }
         });
     }
 
+    // --- ASSOCIAÇÃO DE EVENTOS (Substitui os onclicks do HTML) ---
+    document.getElementById('btnOpenShop')?.addEventListener('click', toggleShop);
+    document.getElementById('btnCloseShop')?.addEventListener('click', toggleShop);
+    document.getElementById('btnStartGame')?.addEventListener('click', startGame);
+    document.getElementById('btnRestartGame')?.addEventListener('click', startGame);
+    document.getElementById('reviveBtn')?.addEventListener('click', revive);
+    document.getElementById('btnMenu')?.addEventListener('click', () => location.href='../index.php');
+
+    document.querySelectorAll('.btn-buy-skin').forEach(btn => {
+        btn.addEventListener('click', (e) => buySkin(e.target.dataset.skin, e.target.dataset.price));
+    });
+    
+    document.querySelectorAll('.btn-equip-skin').forEach(btn => {
+        btn.addEventListener('click', (e) => equipSkin(e.target.dataset.skin));
+    });
+
+    document.addEventListener('keydown', function(e) { if(e.code === 'Space' || e.code === 'ArrowUp') action(); });
+    canvas.addEventListener('touchstart', function(e) { e.preventDefault(); action(); }, {passive: false});
+    canvas.addEventListener('click', action);
+
+    // Render inicial
     bg.draw(); fg.draw(); bird.draw();
+
+})(); // Fim da IIFE
 </script>
 </body>
 </html>
