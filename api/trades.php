@@ -951,6 +951,23 @@ function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $to
             return;
         }
 
+        // Só atualiza draft_order se a pick for do draft atual (ano/temporada igual ao draft ativo)
+        $isSameSeason = false;
+        if (!empty($pick['season_id']) && !empty($draftSession['season_id']) && (int)$pick['season_id'] === (int)$draftSession['season_id']) {
+            $isSameSeason = true;
+        } elseif (!empty($pick['season_year']) && !empty($draftSession['season_id'])) {
+            // Buscar ano da season do draft ativo
+            $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
+            $stmtSeason->execute([(int)$draftSession['season_id']]);
+            $draftSessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
+            if ((int)$pick['season_year'] === $draftSessionYear) {
+                $isSameSeason = true;
+            }
+        }
+        if (!$isSameSeason) {
+            return; // Não atualiza draft_order se não for do draft atual
+        }
+
         $round = (int)($pick['round'] ?? 0);
         $originalTeamId = (int)($pick['original_team_id'] ?? 0);
         if ($round <= 0 || $originalTeamId <= 0) {
