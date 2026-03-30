@@ -142,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $validate_run_score($score);
 
             $milestones = intdiv(max(0, $score), 10);
-            $coins_earned = (int)($milestones * ($milestones + 3) / 2);
+            // Dobro de moedas: multiplica a fórmula base por 2
+            $coins_earned = (int)($milestones * ($milestones + 3) / 2) * 2;
 
             $pdo->beginTransaction();
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
@@ -391,7 +392,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     }
 
                     if(score % 10 === 0) {
-                        const reward = 1 + (score / 10);
+                        // Dobro de moedas a cada 10 pontos
+                        const reward = (1 + (score / 10)) * 2;
                         coinsEarned += reward;
                         showFloatingText(`+${reward} MOEDAS`, bird.x, bird.y - 30);
                     }
