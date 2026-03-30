@@ -1275,11 +1275,11 @@ try {
                 <div class="col-12 col-md-4">
                     <div class="card-evento">
                         <div class="evento-titulo">Trocar moedas por FBA Points</div>
-                        <div class="text-secondary mb-3">500 moedas por 100 FBA Points.</div>
+                        <div class="text-secondary mb-3">1000 moedas por 100 FBA Points.</div>
                         <form method="POST">
                             <input type="hidden" name="acao_loja" value="trocar_moedas">
-                            <button type="submit" class="btn btn-success w-100" <?= ((int)($usuario['pontos'] ?? 0) < 500) ? 'disabled' : '' ?>>
-                                Trocar 500 moedas
+                            <button type="submit" class="btn btn-success w-100" <?= ((int)($usuario['pontos'] ?? 0) < 1000) ? 'disabled' : '' ?>>
+                                Trocar 1000 moedas
                             </button>
                         </form>
                     </div>
