@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
     $acao_loja = $_POST['acao_loja'];
     try {
         if ($acao_loja === 'trocar_moedas') {
-            $custo_moedas = 500;
+            $custo_moedas = 1000;
             $ganho_fba = 100;
 
             $pdo->beginTransaction();
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $pdo->commit();
             $usuario['pontos'] = (int)$saldo['pontos'] - $custo_moedas;
             $usuario['fba_points'] = (int)$saldo['fba_points'] + $ganho_fba;
-            $loja_msg = 'Troca realizada: 500 moedas por 100 FBA Points.';
+            $loja_msg = 'Troca realizada: 1000 moedas por 100 FBA Points.';
         }
 
         if ($acao_loja === 'comprar_tapa') {
