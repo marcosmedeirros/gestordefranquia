@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
     $acao_loja = $_POST['acao_loja'];
     try {
         if ($acao_loja === 'trocar_moedas') {
-            $custo_moedas = 1000;
+            $custo_moedas = 500;
             $ganho_fba = 100;
 
             $pdo->beginTransaction();
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $pdo->commit();
             $usuario['pontos'] = (int)$saldo['pontos'] - $custo_moedas;
             $usuario['fba_points'] = (int)$saldo['fba_points'] + $ganho_fba;
-            $loja_msg = 'Troca realizada: 1000 moedas por 100 FBA Points.';
+            $loja_msg = 'Troca realizada: 500 moedas por 100 FBA Points.';
         }
 
         if ($acao_loja === 'comprar_tapa') {
@@ -1275,11 +1275,11 @@ try {
                 <div class="col-12 col-md-4">
                     <div class="card-evento">
                         <div class="evento-titulo">Trocar moedas por FBA Points</div>
-                        <div class="text-secondary mb-3">1000 moedas por 100 FBA Points.</div>
+                        <div class="text-secondary mb-3">500 moedas por 100 FBA Points.</div>
                         <form method="POST">
                             <input type="hidden" name="acao_loja" value="trocar_moedas">
-                            <button type="submit" class="btn btn-success w-100" <?= ((int)($usuario['pontos'] ?? 0) < 1000) ? 'disabled' : '' ?>>
-                                Trocar 1000 moedas
+                            <button type="submit" class="btn btn-success w-100" <?= ((int)($usuario['pontos'] ?? 0) < 500) ? 'disabled' : '' ?>>
+                                Trocar 500 moedas
                             </button>
                         </form>
                     </div>
