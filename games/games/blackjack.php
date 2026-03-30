@@ -63,11 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     // A. INICIAR APOSTA (DEAL)
     if ($acao == 'apostar') {
         $valor = (int)$_POST['valor'];
-        $maxAposta = 50;
+        $maxAposta = 250;
         
         // VALIDAÇÃO DE LIMITE
         if ($valor <= 0) die(json_encode(['erro' => 'Valor inválido']));
-        if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 50 pontos!']));
+        if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']));
         
         try {
             // TRANSAÇÃO REAL: Desconta aposta inicial

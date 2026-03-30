@@ -41,10 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         // 1. Validação de Aposta
         $totalApostado = 0;
         foreach ($apostas as $a) $totalApostado += $a['montante'];
-        $maxAposta = 50;
+        $maxAposta = 250;
         
         if ($totalApostado <= 0) die(json_encode(['erro' => 'Faça uma aposta!']));
-        if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta maxima permitida: 50 pontos!']));
+        if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']));
 
         try {
             $pdo->beginTransaction();
@@ -451,7 +451,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         if (isSpinning) return;
 
         let total = bets.reduce((sum, b) => sum + b.montante, 0);
-        // Sem limite de apostas
+        // Limite de apostas: máximo 250 pontos por rodada
+        const MAX_BET = 250;
+        if ((total + currentChip) > MAX_BET) {
+            alert(`Aposta máxima permitida: ${MAX_BET} pontos por rodada.`);
+            return;
+        }
 
         let existing = bets.find(b => b.tipo === tipo && b.valor === valor);
         if (existing) {

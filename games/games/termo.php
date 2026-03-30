@@ -9,7 +9,7 @@ error_reporting(E_ALL);
 require '../core/conexao.php';
 
 // --- CONFIGURAÇÕES ---
-$PONTOS_VITORIA = 100;
+$PONTOS_VITORIA = 200;
 $MAX_TENTATIVAS = 6;
 
 // Garantir colunas de sequência
