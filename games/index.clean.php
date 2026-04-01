@@ -33,6 +33,7 @@ $loja_erro = null;
 
 $tapas_limite_mes = 2;
 $tapas_disponiveis = (int)($usuario['tapas_disponiveis'] ?? $tapas_limite_mes);
+$tapas_disponiveis = max(0, min($tapas_limite_mes, $tapas_disponiveis));
 $tapas_compradas_mes = max(0, $tapas_limite_mes - $tapas_disponiveis);
 $tapas_restantes = max(0, $tapas_disponiveis);
 
@@ -1589,7 +1590,7 @@ try {
 </div>
 
 <div style="background-color: var(--secondary-dark); border-top: 1px solid var(--border-dark); padding: 20px; text-align: center; color: #666; margin-top: 60px;">
-    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2025 | Jogue Responsavelmente</small>
+    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2026 | Jogue Responsavelmente</small>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

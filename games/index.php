@@ -857,7 +857,7 @@ try {
 
 <!-- Footer -->
 <div style="background-color: var(--secondary-dark); border-top: 1px solid var(--border-dark); padding: 20px; text-align: center; color: #666; margin-top: 60px;">
-    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2025 | Jogue Responsavelmente</small>
+    <small><i class="bi bi-heart-fill" style="color: #ff6b6b;"></i> FBA games © 2026 | Jogue Responsavelmente</small>
 </div>
 
 </body>

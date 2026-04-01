@@ -36,6 +36,7 @@ $loja_erro = null;
 
 $tapas_limite_mes = 2;
 $tapas_disponiveis = (int)($usuario['tapas_disponiveis'] ?? $tapas_limite_mes);
+$tapas_disponiveis = max(0, min($tapas_limite_mes, $tapas_disponiveis));
 $tapas_compradas_mes = max(0, $tapas_limite_mes - $tapas_disponiveis);
 $tapas_restantes = max(0, $tapas_disponiveis);
 
