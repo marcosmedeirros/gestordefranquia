@@ -45,7 +45,7 @@ try {
     $tapas_compradas_mes = 0;
 }
 
-$tapas_limite_mes = 3;
+$tapas_limite_mes = 2;
 $tapas_restantes = max(0, $tapas_limite_mes - $tapas_compradas_mes);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
@@ -557,7 +557,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 
     <!-- SEÇÃO: APOSTAS DISPONÍVEIS -->
     <h6 class="section-title"><i class="bi bi-lightning-charge-fill"></i>Apostas Disponíveis</h6>
-    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>150 FBA Points</strong>.</p>
+    <p class="text-secondary mb-4">Selecione o vencedor. Se acertar, você ganha <strong>75 FBA Points</strong>.</p>
 
     <?php if(empty($eventos_disponiveis)): ?>
         <div class="empty-state">
@@ -651,7 +651,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
                                 <small class="text-info"><?= htmlspecialchars($aposta['aposta_feita']) ?></small>
                             </td>
                             <td class="fw-bold">
-                                150 FBA Points
+                                75 FBA Points
                             </td>
                             <td>
                                 <span class="badge badge-status <?= $status_badge ?> bet-status">
