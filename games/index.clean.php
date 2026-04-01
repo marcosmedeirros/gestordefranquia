@@ -1278,7 +1278,7 @@ try {
                 </div>
                 <div class="col-12 col-md-4">
                     <div class="card-evento">
-                        <div class="evento-titulo">Badges / Tapas <?= $tapas_compradas_mes ?>/<?= $tapas_limite_mes ?></div>
+                        <div class="evento-titulo">Badges / Tapas <?= $tapas_restantes ?>/<?= $tapas_limite_mes ?> disponiveis</div>
                         <div class="text-secondary mb-3">1 tapa custa 3500 FBA Points.</div>
                         <form method="POST">
                             <input type="hidden" name="acao_loja" value="comprar_tapa">
