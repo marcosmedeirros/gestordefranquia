@@ -152,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if ($novo_milestone > $last_milestone) {
                 for ($m = $last_milestone + 1; $m <= $novo_milestone; $m++) {
                     $milestone_score = $m * 100;
-                    // Dobro de moedas por milestone
-                    $coins_per_100 = (1 + (int)floor($milestone_score / 500)) * 2;
+                    // Moedas por milestone
+                    $coins_per_100 = (1 + (int)floor($milestone_score / 500));
                     $creditado += $coins_per_100;
                 }
 
@@ -697,8 +697,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         gameSpeed += 0.003; 
 
         while (currentIntScore >= nextRewardAt) {
-            // Dobro de moedas por marco de 100m
-            const coinsPer100 = (1 + Math.floor(currentIntScore / 500)) * 2;
+            // Moedas por marco de 100m
+            const coinsPer100 = (1 + Math.floor(currentIntScore / 500));
             creditMilestoneCoins(coinsPer100);
             nextRewardAt += 100;
         }
