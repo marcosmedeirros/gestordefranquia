@@ -193,12 +193,16 @@ if ($method === 'GET') {
             }
             $changesUsed = (int)($team['technical_model_changes_used'] ?? 0);
             $changesLimit = 3;
+            $currentModel = $team['technical_model_current'] ?? null;
+            if (!$currentModel && !empty($profile['technical_model'])) {
+                $currentModel = $profile['technical_model'];
+            }
             $changesRemaining = max(0, $changesLimit - $changesUsed);
             echo json_encode([
                 'success' => true,
                 'profile' => $profile,
                 'profile_updated_at' => $team['directive_profile_updated_at'] ?? null,
-                'technical_model_current' => $team['technical_model_current'] ?? null,
+                'technical_model_current' => $currentModel,
                 'technical_model_changes_used' => $changesUsed,
                 'technical_model_changes_limit' => $changesLimit,
                 'technical_model_changes_remaining' => $changesRemaining
@@ -579,6 +583,12 @@ if ($method === 'POST') {
                 $changesUsed = (int)($team['technical_model_changes_used'] ?? 0);
                 $changesLimit = 3;
                 $currentModel = $team['technical_model_current'] ?? null;
+                if (!$currentModel && !empty($team['directive_profile'])) {
+                    $decodedProfile = json_decode($team['directive_profile'], true);
+                    if (is_array($decodedProfile) && !empty($decodedProfile['technical_model'])) {
+                        $currentModel = $decodedProfile['technical_model'];
+                    }
+                }
                 $isModelChoice = $technicalModel && $technicalModel !== 'FBA 14';
                 $modelChanged = $isModelChoice && $technicalModel !== $currentModel;
                 if ($isElite && $modelChanged && $changesUsed >= $changesLimit) {
