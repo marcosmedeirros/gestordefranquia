@@ -10,6 +10,7 @@ require_once '../core/mobile-helpers.php';
 // 1. Segurança Básica
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
+$hiddenRankingEmailLower = 'medeirros99@gmail.com';
 
 // --- AUTOMATIZAÇÃO DO BANCO DE DADOS PARA SKINS ---
 try {
@@ -41,14 +42,16 @@ try {
     $stmtSkins->execute([':id' => $user_id]);
     $minhas_skins = $stmtSkins->fetchAll(PDO::FETCH_COLUMN);
 
-    $stmtRank = $pdo->query("
+    $stmtRank = $pdo->prepare("
         SELECT u.nome, MAX(d.pontuacao_final) as recorde 
         FROM dino_historico d 
         JOIN usuarios u ON d.id_usuario = u.id 
+        WHERE LOWER(u.email) <> :hidden_email
         GROUP BY d.id_usuario 
         ORDER BY recorde DESC 
         LIMIT 5
     ");
+    $stmtRank->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_dino = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {

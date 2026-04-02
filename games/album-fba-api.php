@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = (int)$_SESSION['user_id'];
+$hiddenRankingEmailLower = 'medeirros99@gmail.com';
 
 function out(array $data, int $status = 200): void
 {
@@ -102,6 +103,7 @@ function team(PDO $pdo, int $uid): array
 
 function ranking(PDO $pdo): array
 {
+    global $hiddenRankingEmailLower;
     $sql = "SELECT u.id user_id, u.nome, COALESCE(c1.ovr,0)+COALESCE(c2.ovr,0)+COALESCE(c3.ovr,0)+COALESCE(c4.ovr,0)+COALESCE(c5.ovr,0) total_ovr
         FROM usuarios u
         LEFT JOIN fba_user_team uq ON uq.user_id=u.id
@@ -110,8 +112,10 @@ function ranking(PDO $pdo): array
         LEFT JOIN fba_cards c3 ON c3.id=uq.slot_sf
         LEFT JOIN fba_cards c4 ON c4.id=uq.slot_pf
         LEFT JOIN fba_cards c5 ON c5.id=uq.slot_c
+        WHERE LOWER(u.email) <> :hidden_email
         ORDER BY total_ovr DESC, u.nome ASC LIMIT 50";
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     return array_map(static fn($r) => ['user_id' => (int)$r['user_id'], 'name' => $r['nome'], 'ovr' => (int)$r['total_ovr']], $stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 

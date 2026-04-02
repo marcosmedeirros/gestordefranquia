@@ -13,6 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
+$hiddenRankingEmailLower = 'medeirros99@gmail.com';
 
 // 2. Busca dados do usuário logado
 try {
@@ -99,10 +100,12 @@ try {
         u.pontos,
         (u.pontos - 50) as lucro_liquido
     FROM usuarios u 
+    WHERE LOWER(u.email) <> :hidden_email
     ORDER BY lucro_liquido DESC
     ";
     
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {

@@ -9,6 +9,7 @@ require '../core/conexao.php';
 // 1. Segurança Básica (Apenas Login)
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
+$hiddenRankingEmailLower = 'medeirros99@gmail.com';
 
 // 2. Configuração de Banco de Dados e Skins
 try {
@@ -28,7 +29,8 @@ try {
     $stmtRecorde->execute([':id' => $user_id]);
     $recorde = $stmtRecorde->fetchColumn() ?: 0;
 
-    $stmtRank = $pdo->query("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN usuarios u ON h.id_usuario = u.id GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
+    $stmtRank = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN usuarios u ON h.id_usuario = u.id WHERE LOWER(u.email) <> :hidden_email GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
+    $stmtRank->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_flappy = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { die("Erro DB: " . $e->getMessage()); }
 

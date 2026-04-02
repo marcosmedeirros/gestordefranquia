@@ -19,6 +19,8 @@ $erro = isset($_GET['erro']) ? htmlspecialchars($_GET['erro']) : "";
 $nowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
 $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 $yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');
+$hiddenRankingEmail = 'medeirros99@gmail.com';
+$hiddenRankingEmailLower = strtolower($hiddenRankingEmail);
 
 try {
     $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis FROM usuarios WHERE id = :id");
@@ -111,7 +113,7 @@ $ranking_leagues = [
 $ranking_points = ['GERAL' => []];
 
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -119,9 +121,11 @@ try {
             u.league,
             NULL AS team_name
         FROM usuarios u
+        WHERE LOWER(u.email) <> :hidden_email
         ORDER BY pontos DESC
         LIMIT 5
     ");
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_points['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_points['GERAL'] = [];
@@ -136,7 +140,8 @@ try {
             u.league,
             NULL AS team_name
         FROM usuarios u
-        WHERE league = :league
+                WHERE league = :league
+                    AND LOWER(u.email) <> :hidden_email
         ORDER BY pontos DESC
         LIMIT 5
     ");
@@ -144,7 +149,7 @@ try {
         if ($leagueKey === 'GERAL') {
             continue;
         }
-        $stmtLeaguePoints->execute([':league' => $leagueKey]);
+        $stmtLeaguePoints->execute([':league' => $leagueKey, ':hidden_email' => $hiddenRankingEmailLower]);
         $ranking_points[$leagueKey] = $stmtLeaguePoints->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 } catch (PDOException $e) {
@@ -162,7 +167,7 @@ $ranking_geral_games = [];
 $ranking_geral_apostas = [];
 
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -177,9 +182,11 @@ try {
             FROM palpites
             GROUP BY id_usuario
         ) p ON p.id_usuario = u.id
+        WHERE LOWER(u.email) <> :hidden_email
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_acertos['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos['GERAL'] = [];
@@ -199,15 +206,16 @@ try {
         JOIN opcoes o ON p.opcao_id = o.id
         JOIN eventos e ON o.evento_id = e.id
         JOIN usuarios u ON p.id_usuario = u.id
-        WHERE e.status = 'encerrada'
+                WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
           AND e.data_limite >= :yesterday_brt
+                    AND LOWER(u.email) <> :hidden_email
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
-    $stmt->execute([':yesterday_brt' => $yesterdayBrtStr]);
+        $stmt->execute([':yesterday_brt' => $yesterdayBrtStr, ':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_acertos_24h['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $ranking_acertos_24h['GERAL'] = [];
@@ -229,7 +237,8 @@ try {
             FROM palpites
             GROUP BY id_usuario
         ) p ON p.id_usuario = u.id
-        WHERE u.league = :league
+                WHERE u.league = :league
+                    AND LOWER(u.email) <> :hidden_email
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
     ");
@@ -246,11 +255,12 @@ try {
         JOIN opcoes o ON p.opcao_id = o.id
         JOIN eventos e ON o.evento_id = e.id
         JOIN usuarios u ON p.id_usuario = u.id
-        WHERE e.status = 'encerrada'
+                WHERE e.status = 'encerrada'
           AND e.vencedor_opcao_id IS NOT NULL
           AND e.vencedor_opcao_id = p.opcao_id
           AND e.data_limite >= :yesterday_brt
           AND u.league = :league
+                    AND LOWER(u.email) <> :hidden_email
         GROUP BY u.id, u.nome, u.league
         ORDER BY acertos DESC, total_apostas DESC, u.nome ASC
         LIMIT 5
@@ -259,9 +269,9 @@ try {
         if ($leagueKey === 'GERAL') {
             continue;
         }
-        $stmtLeagueAcertos->execute([':league' => $leagueKey]);
+        $stmtLeagueAcertos->execute([':league' => $leagueKey, ':hidden_email' => $hiddenRankingEmailLower]);
         $ranking_acertos[$leagueKey] = $stmtLeagueAcertos->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $stmtLeagueAcertos24h->execute([':league' => $leagueKey, ':yesterday_brt' => $yesterdayBrtStr]);
+        $stmtLeagueAcertos24h->execute([':league' => $leagueKey, ':yesterday_brt' => $yesterdayBrtStr, ':hidden_email' => $hiddenRankingEmailLower]);
         $ranking_acertos_24h[$leagueKey] = $stmtLeagueAcertos24h->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 } catch (PDOException $e) {
@@ -275,7 +285,7 @@ try {
 
 // Ranking geral completo (games - pontos)
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -283,9 +293,11 @@ try {
             u.league,
             NULL AS team_name
         FROM usuarios u
+        WHERE LOWER(u.email) <> :hidden_email
         ORDER BY u.pontos DESC, u.nome ASC
         LIMIT 50
     ");
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_geral_games = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (PDOException $e) {
     $ranking_geral_games = [];
@@ -293,7 +305,7 @@ try {
 
 // Ranking geral completo (apostas - fba points)
 try {
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT
             u.id,
             u.nome,
@@ -302,9 +314,11 @@ try {
             COALESCE(u.fba_points, 0) AS fba_points,
             COALESCE(u.acertos_eventos, 0) AS acertos
         FROM usuarios u
+        WHERE LOWER(u.email) <> :hidden_email
         ORDER BY fba_points DESC, acertos DESC, u.nome ASC
         LIMIT 50
     ");
+    $stmt->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_geral_apostas = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (PDOException $e) {
     $ranking_geral_apostas = [];
