@@ -389,6 +389,9 @@ foreach ($eventos as $key => $evt) {
                                             <i class="bi bi-check-circle-fill text-success"></i>
                                         <?php endif; ?>
                                     </div>
+                                    <span class="text-secondary small">
+                                        <i class="bi bi-people-fill me-1"></i><?= (int)$op['total_palpites'] ?> apostas
+                                    </span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
