@@ -347,6 +347,11 @@ function showRevealModal(cards, bonusPoints = 0) {
                         : 'Cartas adicionadas ao Álbum!';
                     b.classList.remove('hidden');
                     if (reopen) {
+                        const cfg = lastPackType ? state.packTypes?.[lastPackType] : null;
+                        const price = cfg ? Number(cfg.price || 0) : 0;
+                        reopen.textContent = price > 0
+                            ? `Abrir novamente (${price} moedas)`
+                            : 'Abrir novamente';
                         reopen.classList.remove('hidden');
                         reopen.disabled = !lastPackType;
                     }
