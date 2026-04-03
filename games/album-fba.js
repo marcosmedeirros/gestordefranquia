@@ -13,6 +13,7 @@ let state = {
     }
 };
 let currentSlot = null;
+let lastPackType = null;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
@@ -548,6 +549,7 @@ async function openPack(type) {
         alert('Moedas insuficientes');
         return;
     }
+    lastPackType = type;
     const p = document.getElementById(`pack-${type}`);
     p.classList.add('shaking');
     setTimeout(async () => {
@@ -569,9 +571,11 @@ function showRevealModal(cards, bonusPoints = 0) {
     const m = document.getElementById('reveal-modal');
     const c = document.getElementById('revealed-cards-container');
     const b = document.getElementById('btn-close-modal');
+    const reopen = document.getElementById('btn-open-again');
     const t = document.getElementById('reveal-title');
     c.innerHTML = '';
     b.classList.add('hidden');
+    reopen?.classList.add('hidden');
     t.innerText = 'Toque nas cartas para revelar!';
     m.classList.remove('hidden');
     m.classList.add('flex');
@@ -589,6 +593,10 @@ function showRevealModal(cards, bonusPoints = 0) {
                         ? `Cartas adicionadas ao Ãlbum! Bônus de repetidas: +${bonusPoints} pontos`
                         : 'Cartas adicionadas ao Ãlbum!';
                     b.classList.remove('hidden');
+                    if (reopen) {
+                        reopen.classList.remove('hidden');
+                        reopen.disabled = !lastPackType;
+                    }
                 }, 600);
             }
         };
@@ -601,9 +609,15 @@ function closeRevealModal() {
     const m = document.getElementById('reveal-modal');
     m.classList.add('hidden');
     m.classList.remove('flex');
-    switchTab('album');
 }
 window.closeRevealModal = closeRevealModal;
+
+function openPackAgain() {
+    if (!lastPackType) return;
+    closeRevealModal();
+    openPack(lastPackType);
+}
+window.openPackAgain = openPackAgain;
 
 function renderAdminCards() {
     const list = document.getElementById('admin-cards-list');

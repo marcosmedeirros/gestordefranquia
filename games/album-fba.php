@@ -318,7 +318,10 @@ $teams = [
     <div id="reveal-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
         <h2 class="text-4xl fba-title text-white mb-10 animate-pulse" id="reveal-title">Revelando...</h2>
         <div id="revealed-cards-container" class="flex flex-wrap justify-center gap-6 max-w-5xl px-4"></div>
-        <button id="btn-close-modal" class="mt-12 px-8 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-bold fba-title hidden" onclick="closeRevealModal()">Ir para o Álbum</button>
+        <div class="mt-12 flex flex-wrap justify-center gap-3">
+            <button id="btn-close-modal" class="px-8 py-3 bg-zinc-700 hover:bg-zinc-600 rounded-lg font-bold fba-title hidden" onclick="closeRevealModal()">Fechar</button>
+            <button id="btn-open-again" class="px-8 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-bold fba-title hidden" onclick="openPackAgain()">Abrir novamente</button>
+        </div>
     </div>
 
     <div id="select-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center">
