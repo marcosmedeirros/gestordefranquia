@@ -517,7 +517,7 @@ $tab_labels = [
                         <span class="text-end">Acertos</span>
                     </div>
                     <?php foreach ($ranking_geral as $idx => $jogador): ?>
-                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
+                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= (int)($jogador['fba_points'] ?? 0) ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                             <span class="ranking-position"><?= $idx + 1 ?></span>
                             <div class="ranking-name">
                                 <?= htmlspecialchars($jogador['nome']) ?>
@@ -564,7 +564,7 @@ $tab_labels = [
                             <span class="text-end">Acertos</span>
                         </div>
                         <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= ((int)($jogador['acertos'] ?? 0)) * 100 ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
+                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= (int)($jogador['fba_points'] ?? 0) ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
                                 <span class="ranking-position"><?= $idx + 1 ?></span>
                                 <div class="ranking-name">
                                     <?= htmlspecialchars($jogador['nome']) ?>
