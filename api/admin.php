@@ -1481,6 +1481,27 @@ if ($method === 'POST') {
                 exit;
             }
 
+            $name = trim((string)$name);
+            if ($name === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Nome do jogador obrigatório']);
+                exit;
+            }
+
+            try {
+                $stmtCheck = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
+                $stmtCheck->execute([$teamId, $name]);
+                if ($stmtCheck->fetch()) {
+                    http_response_code(409);
+                    echo json_encode(['success' => false, 'error' => 'Jogador já existe nesse time.']);
+                    exit;
+                }
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao validar jogador: ' . $e->getMessage()]);
+                exit;
+            }
+
             $columns = ['team_id', 'name', 'age', 'position', 'role', 'ovr'];
             $values = [$teamId, $name, $age, $position, $role, $ovr];
 
