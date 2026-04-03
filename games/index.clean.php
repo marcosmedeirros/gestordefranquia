@@ -1050,8 +1050,9 @@ try {
             display: block;
             line-height: 1.25;
             white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
+            overflow-wrap: break-word;
+            word-break: normal;
+            hyphens: auto;
         }
 
         .ranking-meta {

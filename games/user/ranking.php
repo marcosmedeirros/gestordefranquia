@@ -234,6 +234,16 @@ try {
         .tag-xadrez { background-color: #ffc107; color: #000; box-shadow: 0 0 5px rgba(255, 193, 7, 0.4); }
         .tag-pinguim { background-color: #0dcaf0; color: #000; box-shadow: 0 0 5px rgba(13, 202, 240, 0.4); }
         .tag-flappy { background-color: #ff9800; color: #fff; box-shadow: 0 0 5px rgba(255, 152, 0, 0.4); }
+
+        .user-main { min-width: 0; }
+        .player-name { display: inline-block; min-width: 0; }
+
+        @media (max-width: 768px) {
+            .user-row { flex-wrap: wrap; align-items: flex-start; gap: 6px; }
+            .user-main { flex: 1 1 100%; }
+            .player-name { white-space: normal; overflow: visible; text-overflow: clip; }
+            .user-money { flex: 1 1 50%; text-align: left; }
+        }
     </style>
 </head>
 <body>
@@ -302,10 +312,10 @@ try {
                         ?>
                             <div class="<?= $classe_linha ?>">
                                 <!-- Coluna Jogador -->
-                                <div class="d-flex align-items-center flex-grow-1 overflow-hidden" style="gap:10px;">
+                                <div class="user-main d-flex align-items-center flex-grow-1" style="gap:10px;">
                                     <?= $icone ?>
                                     <?php $avatar_jogador = obterCustomizacaoAvatar($pdo, $user['id']); echo avatarHTML($avatar_jogador, 'mini'); ?>
-                                    <span class="fs-6 text-white text-truncate">
+                                    <span class="player-name fs-6 text-white text-truncate">
                                         <?= htmlspecialchars($user['nome']) ?>
                                         
                                         <!-- TAGS ESPECIAIS -->
@@ -350,14 +360,14 @@ try {
                                 </div>
                                 
                                 <!-- Coluna Saldo Atual (Carteira) -->
-                                <div style="width: 120px; text-align: right;">
+                                <div class="user-money" style="width: 120px; text-align: right;">
                                     <span class="col-saldo text-white-50">
                                         $ <?= number_format($user['pontos'], 0, ',', '.') ?>
                                     </span>
                                 </div>
 
                                 <!-- Coluna Lucro Geral (Desempenho) -->
-                                <div style="width: 120px; text-align: right;">
+                                <div class="user-money" style="width: 120px; text-align: right;">
                                     <span class="col-ganhos <?= $cor_lucro ?>">
                                         <?= $sinal . number_format($lucro, 0, ',', '.') ?>
                                     </span>
