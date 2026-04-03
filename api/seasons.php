@@ -716,25 +716,50 @@ try {
             
             $data = json_decode(file_get_contents('php://input'), true);
             
-            $stmt = $pdo->prepare("
-                INSERT INTO draft_pool (season_id, name, position, secondary_position, age, ovr, photo_url, bio, strengths, weaknesses)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-                $stmt->execute([
-                    $data['season_id'],
-                    $data['name'],
-                    $data['position'],
-                    $data['secondary_position'] ?? null,
-                    $data['age'],
-                    $data['ovr'],
-                    $data['photo_url'] ?? null,
-                    $data['bio'] ?? null,
-                    $data['strengths'] ?? null,
-            $data['weaknesses'] ?? null
-        ]);
+            $seasonId = isset($data['season_id']) ? (int)$data['season_id'] : 0;
+            $name = trim((string)($data['name'] ?? ''));
+            $position = trim((string)($data['position'] ?? ''));
+            $age = isset($data['age']) ? (int)$data['age'] : 0;
+            $ovr = isset($data['ovr']) ? (int)$data['ovr'] : 0;
+
+            if ($seasonId <= 0 || $name === '' || $position === '' || $age <= 0 || $ovr <= 0) {
+                throw new Exception('season_id, name, position, age e ovr são obrigatórios');
+            }
+
+            $columns = ['season_id', 'name', 'position', 'age', 'ovr'];
+            $values = [$seasonId, $name, $position, $age, $ovr];
+
+            if (columnExists($pdo, 'draft_pool', 'secondary_position')) {
+                $columns[] = 'secondary_position';
+                $secondary = trim((string)($data['secondary_position'] ?? ''));
+                $values[] = $secondary !== '' ? $secondary : null;
+            }
+            if (columnExists($pdo, 'draft_pool', 'photo_url')) {
+                $columns[] = 'photo_url';
+                $photoUrl = trim((string)($data['photo_url'] ?? ''));
+                $values[] = $photoUrl !== '' ? $photoUrl : null;
+            }
+            if (columnExists($pdo, 'draft_pool', 'bio')) {
+                $columns[] = 'bio';
+                $values[] = $data['bio'] ?? null;
+            }
+            if (columnExists($pdo, 'draft_pool', 'strengths')) {
+                $columns[] = 'strengths';
+                $values[] = $data['strengths'] ?? null;
+            }
+            if (columnExists($pdo, 'draft_pool', 'weaknesses')) {
+                $columns[] = 'weaknesses';
+                $values[] = $data['weaknesses'] ?? null;
+            }
+
+            $columnList = implode(', ', array_map(static fn($col) => "`{$col}`", $columns));
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+
+            $stmt = $pdo->prepare("INSERT INTO draft_pool ({$columnList}) VALUES ({$placeholders})");
+            $stmt->execute($values);
             
-                echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
-                break;
+            echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+            break;
 
             // ========== ATRIBUIR JOGADOR DRAFTADO A UM TIME (ADMIN) ==========
             case 'assign_draft_pick':
