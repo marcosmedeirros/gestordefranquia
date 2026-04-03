@@ -59,6 +59,13 @@ function schema(PDO $pdo): void
         INDEX idx_market_card (card_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_collection_rewards (
+        user_id INT NOT NULL,
+        collection_name VARCHAR(120) NOT NULL,
+        redeemed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, collection_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $col = $pdo->query("SHOW COLUMNS FROM fba_cards LIKE 'collection_name'");
     if (!$col || $col->rowCount() === 0) {
         $pdo->exec("ALTER TABLE fba_cards ADD COLUMN collection_name VARCHAR(120) NOT NULL DEFAULT 'Geral' AFTER team_id");
@@ -90,6 +97,13 @@ function collection(PDO $pdo, int $uid): array
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int)$r['card_id']] = (int)$r['quantidade'];
     return $out;
+}
+
+function redeemedCollections(PDO $pdo, int $uid): array
+{
+    $stmt = $pdo->prepare("SELECT collection_name FROM fba_collection_rewards WHERE user_id = :u");
+    $stmt->execute([':u' => $uid]);
+    return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
 }
 
 function team(PDO $pdo, int $uid): array
@@ -469,6 +483,60 @@ if ($action === 'buy_pack') {
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao abrir pacote'], 500);
+    }
+}
+
+if ($action === 'redeem_collection') {
+    $b = body();
+    $collectionName = trim((string)($b['collection'] ?? ''));
+    if ($collectionName === '') {
+        out(['ok' => false, 'message' => 'ColeÃ§Ã£o invÃ¡lida'], 400);
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM fba_cards WHERE ativo = 1 AND COALESCE(collection_name, 'Geral') = :c");
+        $totalStmt->execute([':c' => $collectionName]);
+        $total = (int)$totalStmt->fetchColumn();
+        if ($total <= 0) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'ColeÃ§Ã£o sem cartas'], 400);
+        }
+
+        $ownedStmt = $pdo->prepare("SELECT COUNT(DISTINCT c.id)
+            FROM fba_cards c
+            INNER JOIN fba_user_collection uc ON uc.card_id = c.id AND uc.user_id = :u
+            WHERE c.ativo = 1 AND COALESCE(c.collection_name, 'Geral') = :c");
+        $ownedStmt->execute([':u' => $user_id, ':c' => $collectionName]);
+        $owned = (int)$ownedStmt->fetchColumn();
+        if ($owned < $total) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'ColeÃ§Ã£o ainda nÃ£o estÃ¡ completa'], 400);
+        }
+
+        $checkStmt = $pdo->prepare("SELECT 1 FROM fba_collection_rewards WHERE user_id = :u AND collection_name = :c");
+        $checkStmt->execute([':u' => $user_id, ':c' => $collectionName]);
+        if ($checkStmt->fetchColumn()) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Resgate jÃ¡ realizado para esta coleÃ§Ã£o'], 400);
+        }
+
+        $ins = $pdo->prepare("INSERT INTO fba_collection_rewards (user_id, collection_name) VALUES (:u, :c)");
+        $ins->execute([':u' => $user_id, ':c' => $collectionName]);
+
+        $pdo->prepare("UPDATE usuarios SET fba_points = COALESCE(fba_points, 0) + 500 WHERE id = :id")
+            ->execute([':id' => $user_id]);
+
+        $fp = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id = :id");
+        $fp->execute([':id' => $user_id]);
+        $fbaPoints = (int)$fp->fetchColumn();
+
+        $pdo->commit();
+        out(['ok' => true, 'fba_points' => $fbaPoints, 'reward' => 500]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao resgatar coleÃ§Ã£o'], 500);
     }
 }
 

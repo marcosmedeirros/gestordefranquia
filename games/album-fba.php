@@ -154,6 +154,13 @@ $teams = [
         <section id="section-album" class="block">
             <h2 class="text-2xl font-bold fba-title">Plantel FBA 2026</h2>
             <p class="text-zinc-400" id="album-progress">Progresso: 0 figurinhas</p>
+            <div class="mt-4">
+                <div class="flex items-center justify-between gap-3 mb-2">
+                    <h3 class="fba-title text-lg text-red-400">Resgate de Colecoes</h3>
+                    <span class="text-xs text-zinc-400">Completo = 500 FBA Points</span>
+                </div>
+                <div id="collection-rewards" class="flex gap-3 overflow-x-auto pb-2"></div>
+            </div>
             <div class="mt-4 max-w-md">
                 <input id="album-collection-filter" type="text" placeholder="Pesquisar por coleção..." class="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2">
             </div>

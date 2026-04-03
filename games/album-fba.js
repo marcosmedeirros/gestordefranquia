@@ -6,6 +6,7 @@ let state = {
     myTeam: [null, null, null, null, null],
     ranking: [],
     packTypes: {},
+    redeemedCollections: [],
     market: {
         listings: [],
         myListings: [],
@@ -82,6 +83,7 @@ async function bootstrap() {
     state.myTeam = Array.isArray(res.my_team) ? res.my_team : [null, null, null, null, null];
     state.ranking = Array.isArray(res.ranking) ? res.ranking : [];
     state.packTypes = res.pack_types || {};
+    state.redeemedCollections = Array.isArray(res.redeemed_collections) ? res.redeemed_collections : [];
 
     document.getElementById('coin-count').innerText = state.user.coins || 0;
     if (state.user.is_admin) document.getElementById('tab-admin')?.classList.remove('hidden');
@@ -178,6 +180,86 @@ function renderAlbum() {
     }
     document.getElementById('album-progress').innerText = `Progresso: ${totalCollected} / ${state.master.length} figurinhas`;
     document.getElementById('coin-count').innerText = state.user.coins || 0;
+    renderCollectionRewards();
+}
+
+function collectionProgressData() {
+    const totals = {};
+    const owned = {};
+    state.master.forEach((card) => {
+        const name = card.collection || 'Geral';
+        totals[name] = (totals[name] || 0) + 1;
+        if (hasCard(card.id)) {
+            owned[name] = (owned[name] || 0) + 1;
+        }
+    });
+    return Object.keys(totals).map((name) => {
+        const total = totals[name] || 0;
+        const have = owned[name] || 0;
+        const percent = total > 0 ? Math.round((have / total) * 100) : 0;
+        const redeemed = state.redeemedCollections.includes(name);
+        return { name, owned: have, total, percent, redeemed };
+    }).sort((a, b) => {
+        if (a.percent !== b.percent) return b.percent - a.percent;
+        return a.name.localeCompare(b.name);
+    });
+}
+
+async function redeemCollectionReward(collectionName) {
+    const res = await post('redeem_collection', { collection: collectionName });
+    if (!res.ok) {
+        alert(res.message || 'Erro ao resgatar coleÃ§Ã£o');
+        return;
+    }
+    if (!state.redeemedCollections.includes(collectionName)) {
+        state.redeemedCollections.push(collectionName);
+    }
+    if (typeof res.fba_points === 'number') {
+        state.user.fba_points = res.fba_points;
+    }
+    renderCollectionRewards();
+    alert('Resgate realizado! +500 FBA Points');
+}
+window.redeemCollectionReward = redeemCollectionReward;
+
+function renderCollectionRewards() {
+    const wrap = document.getElementById('collection-rewards');
+    if (!wrap) return;
+    const data = collectionProgressData();
+    if (!data.length) {
+        wrap.innerHTML = '<div class="text-zinc-500 text-sm">Nenhuma colecao encontrada.</div>';
+        return;
+    }
+    wrap.innerHTML = '';
+    data.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'min-w-[230px] bg-zinc-900/80 border border-zinc-700 rounded-xl p-4 flex flex-col gap-3';
+        const isComplete = item.total > 0 && item.owned >= item.total;
+        const status = item.redeemed
+            ? '<span class="text-xs bg-zinc-700 text-zinc-200 px-2 py-1 rounded-full">Resgatado</span>'
+            : isComplete
+                ? '<span class="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Completo</span>'
+                : '<span class="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-full">Em progresso</span>';
+        card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+                <div class="font-bold text-red-300">${item.name}</div>
+                ${status}
+            </div>
+            <div class="text-sm text-zinc-300">${item.owned}/${item.total} figurinhas</div>
+            <div class="w-full bg-zinc-800 rounded-full h-2">
+                <div class="h-2 rounded-full bg-red-600" style="width:${item.percent}%"></div>
+            </div>
+            <div class="text-xs text-zinc-400">${item.percent}% completo</div>
+        `;
+        if (isComplete && !item.redeemed) {
+            const btn = document.createElement('button');
+            btn.className = 'mt-1 bg-red-700 hover:bg-red-600 rounded-lg px-3 py-2 text-sm font-bold';
+            btn.textContent = 'Resgatar 500 FBA Points';
+            btn.onclick = () => redeemCollectionReward(item.name);
+            card.appendChild(btn);
+        }
+        wrap.appendChild(card);
+    });
 }
 
 function teamOVR() {
@@ -562,6 +644,7 @@ async function openPack(type) {
         state.user.coins = Number(res.coins || state.user.coins);
         state.collection = res.collection || state.collection;
         document.getElementById('coin-count').innerText = state.user.coins;
+        renderCollectionRewards();
         showRevealModal(Array.isArray(res.cards) ? res.cards : [], Number(res.bonus_points || 0));
     }, 1000);
 }
