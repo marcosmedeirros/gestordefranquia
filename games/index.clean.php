@@ -1115,6 +1115,14 @@ try {
                 font-size: 0.7rem;
             }
             .ranking-value { align-self: flex-start; }
+            .ranking-item { flex-wrap: wrap; }
+            .ranking-info { flex: 1 1 100%; }
+            .ranking-value {
+                flex: 1 1 100%;
+                text-align: left;
+                margin-left: 0;
+                margin-top: 4px;
+            }
         }
 </style>
 </head>

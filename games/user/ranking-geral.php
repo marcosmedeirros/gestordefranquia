@@ -368,6 +368,8 @@ $tab_labels = [
 
         .ranking-value { font-weight: 700; color: #fff; text-align: right; }
 
+        .ranking-values { display: contents; }
+
         .nav-tabs .nav-link {
             color: #ccc;
             border: none;
@@ -398,6 +400,45 @@ $tab_labels = [
         .empty-text {
             color: #666;
             font-size: 1.1rem;
+        }
+
+        @media (max-width: 768px) {
+            .ranking-item {
+                grid-template-columns: 28px 1fr;
+                align-items: start;
+            }
+
+            .ranking-item.header-row {
+                display: none;
+            }
+
+            .ranking-name {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+            }
+
+            .ranking-values {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                padding-left: 28px;
+            }
+
+            .ranking-value {
+                text-align: left;
+                font-size: 0.9rem;
+            }
+
+            .ranking-value::before {
+                content: attr(data-label) " ";
+                display: block;
+                color: #999;
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
         }
     </style>
 </head>
@@ -495,9 +536,11 @@ $tab_labels = [
                                     <i class="bi bi-hand-index-thumb"></i> Tapas: <strong><?= (int)($jogador['numero_tapas'] ?? 0) ?></strong>
                                 </div>
                             </div>
-                            <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
-                            <span class="ranking-value"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
-                            <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                            <div class="ranking-values">
+                                <span class="ranking-value" data-label="Moedas"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
+                                <span class="ranking-value" data-label="FBA Points"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
+                                <span class="ranking-value" data-label="Acertos"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -537,9 +580,11 @@ $tab_labels = [
                                         <i class="bi bi-hand-index-thumb"></i> Tapas: <strong><?= (int)($jogador['numero_tapas'] ?? 0) ?></strong>
                                     </div>
                                 </div>
-                                <span class="ranking-value"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
-                                <span class="ranking-value"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
-                                <span class="ranking-value"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                                <div class="ranking-values">
+                                    <span class="ranking-value" data-label="Moedas"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
+                                    <span class="ranking-value" data-label="FBA Points"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
+                                    <span class="ranking-value" data-label="Acertos"><?= (int)($jogador['acertos'] ?? 0) ?></span>
+                                </div>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>

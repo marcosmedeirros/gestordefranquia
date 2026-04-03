@@ -1481,26 +1481,37 @@ if ($method === 'POST') {
                 exit;
             }
 
-            // Verificar se a coluna secondary_position existe
-            try {
-                $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
-                $hasSecondaryPosition = $checkCol->rowCount() > 0;
-            } catch (Exception $e) {
-                $hasSecondaryPosition = false;
+            $columns = ['team_id', 'name', 'age', 'position', 'role', 'ovr'];
+            $values = [$teamId, $name, $age, $position, $role, $ovr];
+
+            if (columnExists($pdo, 'players', 'secondary_position')) {
+                $secondary = trim((string)$secondaryPosition);
+                if ($secondary !== '') {
+                    $columns[] = 'secondary_position';
+                    $values[] = $secondary;
+                }
             }
 
-            if ($hasSecondaryPosition) {
-                $stmt = $pdo->prepare('
-                    INSERT INTO players (team_id, name, age, position, secondary_position, role, ovr)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ');
-                $stmt->execute([$teamId, $name, $age, $position, $secondaryPosition, $role, $ovr]);
-            } else {
-                $stmt = $pdo->prepare('
-                    INSERT INTO players (team_id, name, age, position, role, ovr)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ');
-                $stmt->execute([$teamId, $name, $age, $position, $role, $ovr]);
+            if (columnExists($pdo, 'players', 'seasons_in_league')) {
+                $columns[] = 'seasons_in_league';
+                $values[] = 0;
+            }
+
+            if (columnExists($pdo, 'players', 'available_for_trade')) {
+                $columns[] = 'available_for_trade';
+                $values[] = 0;
+            }
+
+            $columnList = implode(', ', array_map(static fn($col) => "`{$col}`", $columns));
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+
+            try {
+                $stmt = $pdo->prepare("INSERT INTO players ({$columnList}) VALUES ({$placeholders})");
+                $stmt->execute($values);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao adicionar jogador: ' . $e->getMessage()]);
+                exit;
             }
             
             $newPlayerId = $pdo->lastInsertId();
