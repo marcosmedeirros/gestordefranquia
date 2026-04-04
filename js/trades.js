@@ -51,6 +51,7 @@ const formatTradePickDisplay = (pick) => {
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
   const hasYearRound = year !== '?' && round !== '?';
+  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
   
   // Mostrar de quem é a pick (time original)
   const originalTeam = pick.original_team_city && pick.original_team_name 
@@ -60,6 +61,10 @@ const formatTradePickDisplay = (pick) => {
   let display = pickNumber
     ? `Pick ${pickNumber} (${originalTeam})${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round} (${originalTeam})`;
+
+  if (isCurrentDraft) {
+    display += ' - Draft atual';
+  }
   
   // Se a pick foi trocada (team_id != original_team_id), mostrar "via"
   if (pick.team_id && pick.original_team_id && pick.team_id != pick.original_team_id) {
@@ -464,18 +469,33 @@ const buildPickSummary = (pick) => {
   const year = pick.season_year || '?';
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
+  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
   const origin = pick.original_team_city && pick.original_team_name
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || 'Time');
   const via = pick.last_owner_city && pick.last_owner_name
     ? `via ${pick.last_owner_city} ${pick.last_owner_name}`
     : '';
+  const metaParts = [];
+  if (pickNumber) {
+    metaParts.push(`${year} R${round}`);
+  }
+  if (isCurrentDraft) {
+    metaParts.push('Draft atual');
+  }
   return {
     title: pickNumber ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
     via,
-    meta: pickNumber ? `${year} R${round}` : ''
+    meta: metaParts.join(' - ')
   };
+};
+
+const isCurrentDraftPick = (pick) => {
+  if (!pick) return false;
+  const year = Number(pick.season_year || 0);
+  const pickNumber = Number(pick.draft_pick_number || 0);
+  return year === currentSeasonYear && pickNumber > 0 && Number(pick.draft_session_id || 0) > 0;
 };
 
 function setupPickSelectorHandlers() {
@@ -542,6 +562,18 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
     if (!Number.isFinite(year) || year <= 0) return false;
     if (year > currentSeasonYear) return true;
     return year === currentSeasonYear && Number.isFinite(Number(pick.draft_pick_number || 0)) && Number(pick.draft_pick_number) > 0;
+  }).sort((a, b) => {
+    const aCurrent = isCurrentDraftPick(a);
+    const bCurrent = isCurrentDraftPick(b);
+    if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
+    if (aCurrent && bCurrent) {
+      return Number(a.draft_pick_number || 0) - Number(b.draft_pick_number || 0);
+    }
+    const yearDiff = Number(a.season_year || 0) - Number(b.season_year || 0);
+    if (yearDiff !== 0) return yearDiff;
+    const roundDiff = Number(a.round || 0) - Number(b.round || 0);
+    if (roundDiff !== 0) return roundDiff;
+    return Number(a.id || 0) - Number(b.id || 0);
   });
   if (resetSelected) {
     pickState[side].selected = [];
