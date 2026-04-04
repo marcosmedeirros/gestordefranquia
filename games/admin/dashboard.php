@@ -138,6 +138,76 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
+
+    // E. ALTERAR VENCEDOR (EVENTO ENCERRADO)
+    if (isset($_POST['acao']) && $_POST['acao'] == 'alterar_vencedor') {
+        $id_evento = $_POST['id_evento'];
+        $novo_vencedor_opcao_id = $_POST['vencedor_opcao_id'];
+
+        if (empty($novo_vencedor_opcao_id)) {
+            $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'>Selecione o novo vencedor!</div>";
+        } else {
+            try {
+                $pdo->beginTransaction();
+
+                $stmtEvento = $pdo->prepare("SELECT status, vencedor_opcao_id FROM eventos WHERE id = ? FOR UPDATE");
+                $stmtEvento->execute([$id_evento]);
+                $eventoAtual = $stmtEvento->fetch(PDO::FETCH_ASSOC);
+
+                if (!$eventoAtual) {
+                    throw new Exception('Evento não encontrado.');
+                }
+                if ($eventoAtual['status'] != 'encerrada') {
+                    throw new Exception('Este evento ainda não está encerrado.');
+                }
+
+                $vencedor_antigo = $eventoAtual['vencedor_opcao_id'];
+
+                if ((int)$vencedor_antigo === (int)$novo_vencedor_opcao_id) {
+                    $pdo->commit();
+                    $mensagem = "<div class='alert alert-info bg-info bg-opacity-10 border-info text-info'>Nenhuma alteração: vencedor já estava correto.</div>";
+                } else {
+                    $revertidos = 0;
+                    if (!empty($vencedor_antigo)) {
+                        $stmtRevert = $pdo->prepare("
+                            UPDATE usuarios u
+                            JOIN (
+                                SELECT DISTINCT id_usuario
+                                FROM palpites
+                                WHERE opcao_id = ?
+                            ) p ON p.id_usuario = u.id
+                            SET u.fba_points = u.fba_points - 75,
+                                u.acertos_eventos = GREATEST(u.acertos_eventos - 1, 0)
+                        ");
+                        $stmtRevert->execute([$vencedor_antigo]);
+                        $revertidos = $stmtRevert->rowCount();
+                    }
+
+                    $stmtPay = $pdo->prepare("
+                        UPDATE usuarios u
+                        JOIN (
+                            SELECT DISTINCT id_usuario
+                            FROM palpites
+                            WHERE opcao_id = ?
+                        ) p ON p.id_usuario = u.id
+                        SET u.fba_points = u.fba_points + 75,
+                            u.acertos_eventos = u.acertos_eventos + 1
+                    ");
+                    $stmtPay->execute([$novo_vencedor_opcao_id]);
+                    $pagos = $stmtPay->rowCount();
+
+                    $pdo->prepare("UPDATE eventos SET vencedor_opcao_id = ? WHERE id = ?")
+                        ->execute([$novo_vencedor_opcao_id, $id_evento]);
+
+                    $pdo->commit();
+                    $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-check-circle me-2'></i>Vencedor alterado! $revertidos acertos revertidos e $pagos pagos corretamente (75 FBA Points).</div>";
+                }
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
+            }
+        }
+    }
 }
 
 // --- 3. BUSCAR DADOS ---
@@ -396,7 +466,7 @@ foreach ($eventos as $key => $evt) {
                             <?php endforeach; ?>
                         </div>
 
-                        <!-- Botão Encerrar -->
+                        <!-- Botão Encerrar / Alterar Vencedor -->
                         <?php if($evt['status'] == 'aberta'): ?>
                             <div class="bg-dark bg-opacity-50 p-3 rounded border border-secondary">
                                 <form method="POST" class="d-flex gap-2 align-items-center" onsubmit="return confirm('Tem certeza? Isso vai pagar os usuários.');">
@@ -413,6 +483,27 @@ foreach ($eventos as $key => $evt) {
                                     </div>
                                     <button type="submit" class="btn btn-danger btn-sm fw-bold px-3">
                                         <i class="bi bi-flag-fill me-1"></i>Encerrar
+                                    </button>
+                                </form>
+                            </div>
+                        <?php else: ?>
+                            <div class="bg-dark bg-opacity-50 p-3 rounded border border-secondary">
+                                <form method="POST" class="d-flex gap-2 align-items-center" onsubmit="return confirm('Alterar vencedor irá corrigir pontos já pagos. Continuar?');">
+                                    <input type="hidden" name="acao" value="alterar_vencedor">
+                                    <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+
+                                    <div class="flex-grow-1">
+                                        <select name="vencedor_opcao_id" class="form-select form-select-sm bg-dark text-white border-secondary" required>
+                                            <option value="">Alterar vencedor...</option>
+                                            <?php foreach($evt['opcoes'] as $op): ?>
+                                                <option value="<?= $op['id'] ?>" <?= ($evt['vencedor_opcao_id'] == $op['id']) ? 'selected' : '' ?>>
+                                                    <?= $op['descricao'] ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-outline-warning btn-sm fw-bold px-3">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Alterar
                                     </button>
                                 </form>
                             </div>
