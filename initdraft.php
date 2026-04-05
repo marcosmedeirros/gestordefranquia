@@ -744,6 +744,7 @@ if (!$token) {
         lotteryQueue: [],
         lotteryIndex: 0,
         orderMode: 'manual',
+        canEditOrder: false,
     };
 
     const elements = {
@@ -835,6 +836,7 @@ if (!$token) {
             state.order = stateRes.order || [];
             state.teams = stateRes.teams || [];
             state.pool = poolRes.success ? poolRes.players : [];
+            state.canEditOrder = !!stateRes.can_edit_order;
             state.manualOrder = getRoundOneOrder();
             if (state.order.length) {
                 state.lotteryDrawn = true;
@@ -858,12 +860,12 @@ if (!$token) {
     }
 
     function updateOrderEditVisibility() {
-        const canEdit = !state.lotteryDrawn;
+        const canEdit = state.canEditOrder;
         elements.orderEditButton?.classList.toggle('d-none', !canEdit);
         if (elements.orderEditHint) {
             elements.orderEditHint.textContent = canEdit
                 ? 'Edite manualmente ou utilize o sorteio animado.'
-                : 'Ordem definida (não editável).';
+                : 'Ordem bloqueada após a primeira pick.';
         }
     }
 
@@ -980,7 +982,7 @@ if (!$token) {
 
         const buttons = [];
 
-        if (!state.lotteryDrawn) {
+        if (state.canEditOrder) {
             buttons.push(`<button class="btn btn-outline-light btn-sm" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
         }
 
@@ -1040,7 +1042,7 @@ if (!$token) {
         }
 
         const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
-        const allowEdit = !state.lotteryDrawn;
+        const allowEdit = state.canEditOrder;
         elements.orderList.innerHTML = state.manualOrder
             .map((teamId, index) => {
                 const team = teamsById[teamId] || {};
@@ -1119,28 +1121,34 @@ if (!$token) {
         state.lotteryIndex = 0;
     }
 
-        function buildBallTeams(teams = []) {
-            if (!teams.length) {
-                return Array.from({ length: LOTTERY_BALL_COUNT }, () => ({ photo_url: '/img/default-team.png' }));
-            }
-            const filled = [];
-            for (let i = 0; i < LOTTERY_BALL_COUNT; i += 1) {
-                filled.push(teams[i % teams.length]);
-            }
-            return filled;
+    function buildBallTeams(teams = []) {
+        if (!teams.length) {
+            return Array.from({ length: LOTTERY_BALL_COUNT }, () => ({ photo_url: '/img/default-team.png' }));
+        }
+        const filled = [];
+        for (let i = 0; i < LOTTERY_BALL_COUNT; i += 1) {
+            filled.push(teams[i % teams.length]);
+        }
+        return filled;
+    }
+
+    function updateLotteryButton() {
+        if (!elements.lotteryButton) return;
+        if (!state.canEditOrder) {
+            elements.lotteryButton.disabled = true;
+            elements.lotteryButton.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Ordem bloqueada';
+            return;
         }
 
-        function updateLotteryButton() {
-            if (!elements.lotteryButton) return;
-            elements.lotteryButton.disabled = state.lotteryDrawn;
-            if (state.lotteryDrawn) {
-                elements.lotteryButton.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído';
-                return;
-            }
-            elements.lotteryButton.innerHTML = state.lotteryQueue.length
-                ? '<i class="bi bi-shuffle me-1"></i>Sortear próximo'
-                : '<i class="bi bi-shuffle me-1"></i>Iniciar sorteio';
+        elements.lotteryButton.disabled = state.lotteryDrawn;
+        if (state.lotteryDrawn) {
+            elements.lotteryButton.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Sorteio concluído';
+            return;
         }
+        elements.lotteryButton.innerHTML = state.lotteryQueue.length
+            ? '<i class="bi bi-shuffle me-1"></i>Sortear próximo'
+            : '<i class="bi bi-shuffle me-1"></i>Iniciar sorteio';
+    }
 
     function startLottery(orderDetails = []) {
         if (!elements.lotteryTrack || !elements.lotteryResults) return;
@@ -1457,6 +1465,10 @@ if (!$token) {
     }
 
     function openOrderModal() {
+        if (!state.canEditOrder) {
+            showMessage('A ordem não pode mais ser alterada após a primeira pick.', 'warning');
+            return;
+        }
         renderManualOrderList();
         resetLotteryView();
         setOrderMode('select');
@@ -1464,6 +1476,10 @@ if (!$token) {
     }
 
     async function randomizeOrder() {
+        if (!state.canEditOrder) {
+            showMessage('A ordem não pode mais ser alterada após a primeira pick.', 'warning');
+            return;
+        }
         if (state.lotteryDrawn) {
             showMessage('O sorteio já foi realizado. Você pode ajustar a ordem manualmente.', 'warning');
             return;
@@ -1502,6 +1518,10 @@ if (!$token) {
 
     async function submitManualOrder() {
         try {
+            if (!state.canEditOrder) {
+                showMessage('A ordem não pode mais ser alterada após a primeira pick.', 'warning');
+                return;
+            }
             // 1. Extrair ordem da loteria ou manual
             if (state.orderMode === 'lottery' && state.lotteryQueue.length) {
                 state.manualOrder = state.lotteryQueue.map((team) => team.id).filter(Boolean);

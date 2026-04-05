@@ -95,6 +95,12 @@ function ensureEmojiBinaryCollation(PDO $pdo): void {
     }
 }
 
+function hasAnyPickMade(PDO $pdo, int $sessionId): bool {
+    $stmt = $pdo->prepare('SELECT 1 FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NOT NULL LIMIT 1');
+    $stmt->execute([$sessionId]);
+    return (bool)$stmt->fetchColumn();
+}
+
 function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void {
     $roundOneOrder = array_values(array_map('intval', $roundOneOrder));
     $sessionId = (int)$session['id'];
@@ -501,7 +507,17 @@ if ($method === 'GET') {
                 $stmtTeams->execute([$session['league']]);
                 $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 
-                echo json_encode(['success' => true, 'session' => $session, 'order' => $order, 'teams' => $teams]);
+                $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
+                $canEditOrder = !$hasPicks && ($session['status'] ?? 'setup') !== 'completed';
+
+                echo json_encode([
+                    'success' => true,
+                    'session' => $session,
+                    'order' => $order,
+                    'teams' => $teams,
+                    'can_edit_order' => $canEditOrder,
+                    'has_picks' => $hasPicks,
+                ]);
                 break;
             }
 
@@ -746,7 +762,10 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível randomizar durante setup');
+                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+
+                $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
+                if ($hasPicks) throw new Exception('Não é possível alterar a ordem após a primeira pick');
 
                 // Buscar times da liga
                 $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.name ASC');
@@ -781,7 +800,10 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível definir a ordem durante setup');
+                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+
+                $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
+                if ($hasPicks) throw new Exception('Não é possível alterar a ordem após a primeira pick');
 
                 $teamIds = $data['team_ids'] ?? [];
                 if (!is_array($teamIds) || count($teamIds) === 0) throw new Exception('Informe a ordem completa dos times');
@@ -816,7 +838,10 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível ajustar rodadas durante setup');
+                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+
+                $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
+                if ($hasPicks) throw new Exception('Não é possível alterar rodadas após a primeira pick');
 
                 $totalRounds = (int)($data['total_rounds'] ?? 0);
                 if ($totalRounds < 1 || $totalRounds > 10) {
