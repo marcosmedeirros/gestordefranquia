@@ -1405,14 +1405,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Picks com o time</p>
                     <div class="table-responsive">
                         <table class="table table-dark mb-0">
-                            <thead><tr><th>Ano</th><th>Rodada</th><th>Origem</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Ano</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
                             <tbody id="picksList"></tbody>
                         </table>
                     </div>
                     <p style="font-size:12px;color:var(--text-2);margin:20px 0 8px">Picks trocadas</p>
                     <div class="table-responsive">
                         <table class="table table-dark mb-0">
-                            <thead><tr><th>Ano</th><th>Rodada</th><th>Time atual</th></tr></thead>
+                            <thead><tr><th>Ano</th><th>1a rodada</th><th>2a rodada</th></tr></thead>
                             <tbody id="picksAwayList"></tbody>
                         </table>
                     </div>
@@ -1630,15 +1630,41 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             let picks = (data.picks || []).filter(pk => Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
+            const groupByYear = (items, renderItem) => {
+                const grouped = new Map();
+                items.forEach((pk) => {
+                    const year = String(pk.season_year);
+                    if (!grouped.has(year)) grouped.set(year, { r1: [], r2: [] });
+                    const bucket = Number(pk.round) === 1 ? 'r1' : 'r2';
+                    grouped.get(year)[bucket].push(renderItem(pk));
+                });
+                return grouped;
+            };
+
+            const renderPickWithTeam = (pk) => {
+                const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
+                if (isOwn) {
+                    return '<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span></div>';
+                }
+                const origin = `Via ${pk.original_team_city} ${pk.original_team_name}`.trim();
+                return `
+                    <div class="mb-1" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <span class="badge-pill yellow">Recebida</span>
+                        <small style="color:var(--text-2)">${origin}</small>
+                    </div>
+                `;
+            };
+
             if (!picks.length) {
-                listEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-2)">Nenhuma pick futura</td></tr>';
+                listEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-2)">Nenhuma pick futura</td></tr>';
             } else {
-                picks.forEach(pk => {
-                    const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                    const origin = isOwn ? 'Própria' : `Via ${pk.original_team_city} ${pk.original_team_name}`.trim();
-                    const badge  = isOwn ? '<span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span>'
-                                         : '<span class="badge-pill yellow">Recebida</span>';
-                    listEl.innerHTML += `<tr><td>${pk.season_year}</td><td><span class="badge-pill gray">R${pk.round}</span></td><td>${origin}</td><td>${badge}</td></tr>`;
+                const grouped = groupByYear(picks, renderPickWithTeam);
+                const years = Array.from(grouped.keys()).sort((a, b) => Number(a) - Number(b));
+                years.forEach((year) => {
+                    const entry = grouped.get(year);
+                    const round1 = entry.r1.length ? entry.r1.join('') : '<span style="color:var(--text-2)">-</span>';
+                    const round2 = entry.r2.length ? entry.r2.join('') : '<span style="color:var(--text-2)">-</span>';
+                    listEl.innerHTML += `<tr><td>${year}</td><td>${round1}</td><td>${round2}</td></tr>`;
                 });
             }
 
@@ -1647,9 +1673,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             if (!picksAway.length) {
                 awayListEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-2)">Todas as picks estão com este time</td></tr>';
             } else {
-                picksAway.forEach(pk => {
+                const renderPickAway = (pk) => {
                     const cur = `${pk.current_team_city||''} ${pk.current_team_name||''}`.trim() || 'Não definido';
-                    awayListEl.innerHTML += `<tr><td>${pk.season_year}</td><td><span class="badge-pill gray">R${pk.round}</span></td><td>${cur}</td></tr>`;
+                    return `<div class="mb-1" style="color:var(--text-2)">${cur}</div>`;
+                };
+                const groupedAway = groupByYear(picksAway, renderPickAway);
+                const yearsAway = Array.from(groupedAway.keys()).sort((a, b) => Number(a) - Number(b));
+                yearsAway.forEach((year) => {
+                    const entry = groupedAway.get(year);
+                    const round1 = entry.r1.length ? entry.r1.join('') : '<span style="color:var(--text-2)">-</span>';
+                    const round2 = entry.r2.length ? entry.r2.join('') : '<span style="color:var(--text-2)">-</span>';
+                    awayListEl.innerHTML += `<tr><td>${year}</td><td>${round1}</td><td>${round2}</td></tr>`;
                 });
             }
 

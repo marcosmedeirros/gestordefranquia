@@ -404,9 +404,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <thead style="background: var(--fba-orange); color: #000;">
                                     <tr>
                                         <th>Ano</th>
-                                        <th>Rodada</th>
-                                        <th>Origem</th>
-                                        <th>Status</th>
+                                        <th>1a rodada</th>
+                                        <th>2a rodada</th>
                                     </tr>
                                 </thead>
                                 <tbody id="picksList"></tbody>
@@ -418,8 +417,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <thead style="background: #1f6feb; color: #fff;">
                                     <tr>
                                         <th>Ano</th>
-                                        <th>Rodada</th>
-                                        <th>Time atual</th>
+                                        <th>1a rodada</th>
+                                        <th>2a rodada</th>
                                     </tr>
                                 </thead>
                                 <tbody id="picksAwayList"></tbody>
@@ -546,21 +545,45 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     return Number(a.round) - Number(b.round);
                 });
 
-                if (!picks.length) {
-                    listEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhuma pick futura.</td></tr>';
-                } else {
-                    picks.forEach((pk) => {
-                        const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                        const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
-                        const origin = isOwn ? 'Propria' : `Via ${originalOwner}`;
-                        const status = isOwn ? '<span class="badge bg-success">Propria</span>' : '<span class="badge bg-warning text-dark">Recebida</span>';
+                const groupByYear = (items, renderItem) => {
+                    const grouped = new Map();
+                    items.forEach((pk) => {
+                        const year = String(pk.season_year);
+                        if (!grouped.has(year)) grouped.set(year, { r1: [], r2: [] });
+                        const bucket = Number(pk.round) === 1 ? 'r1' : 'r2';
+                        grouped.get(year)[bucket].push(renderItem(pk));
+                    });
+                    return grouped;
+                };
 
+                const renderPickWithTeam = (pk) => {
+                    const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
+                    const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
+                    if (isOwn) {
+                        return '<div class="d-flex align-items-center gap-2 mb-1"><span class="badge bg-success">Propria</span></div>';
+                    }
+                    return `
+                        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                            <span class="badge bg-warning text-dark">Recebida</span>
+                            <small class="text-light-gray">Via ${originalOwner}</small>
+                        </div>
+                    `;
+                };
+
+                if (!picks.length) {
+                    listEl.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Nenhuma pick futura.</td></tr>';
+                } else {
+                    const grouped = groupByYear(picks, renderPickWithTeam);
+                    const years = Array.from(grouped.keys()).sort((a, b) => Number(a) - Number(b));
+                    years.forEach((year) => {
+                        const entry = grouped.get(year);
+                        const round1 = entry.r1.length ? entry.r1.join('') : '<span class="text-muted">-</span>';
+                        const round2 = entry.r2.length ? entry.r2.join('') : '<span class="text-muted">-</span>';
                         listEl.innerHTML += `
                             <tr>
-                                <td>${pk.season_year}</td>
-                                <td><span class="badge bg-secondary">R${pk.round}</span></td>
-                                <td>${origin}</td>
-                                <td>${status}</td>
+                                <td>${year}</td>
+                                <td>${round1}</td>
+                                <td>${round2}</td>
                             </tr>`;
                     });
                 }
@@ -577,13 +600,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     if (!picksAway.length) {
                         awayListEl.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Todas as picks estao com este time.</td></tr>';
                     } else {
-                        picksAway.forEach((pk) => {
+                        const renderPickAway = (pk) => {
                             const currentTeam = `${pk.current_team_city || ''} ${pk.current_team_name || ''}`.trim() || 'Nao definido';
+                            return `<div class="mb-1 text-light-gray">${currentTeam}</div>`;
+                        };
+                        const groupedAway = groupByYear(picksAway, renderPickAway);
+                        const yearsAway = Array.from(groupedAway.keys()).sort((a, b) => Number(a) - Number(b));
+                        yearsAway.forEach((year) => {
+                            const entry = groupedAway.get(year);
+                            const round1 = entry.r1.length ? entry.r1.join('') : '<span class="text-muted">-</span>';
+                            const round2 = entry.r2.length ? entry.r2.join('') : '<span class="text-muted">-</span>';
                             awayListEl.innerHTML += `
                                 <tr>
-                                    <td>${pk.season_year}</td>
-                                    <td><span class="badge bg-info text-dark">R${pk.round}</span></td>
-                                    <td>${currentTeam}</td>
+                                    <td>${year}</td>
+                                    <td>${round1}</td>
+                                    <td>${round2}</td>
                                 </tr>`;
                         });
                     }
