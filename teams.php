@@ -536,7 +536,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 const data = await res.json();
                 if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar picks');
 
-                const baseYear = Number(currentSeasonYear) || 0;
+                const baseYear = (Number(currentSeasonYear) || 0) + 1;
                 let picks = data.picks || [];
                 picks = picks.filter((pk) => Number(pk.season_year) >= baseYear);
                 picks.sort((a, b) => {

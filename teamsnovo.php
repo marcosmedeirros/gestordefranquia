@@ -1626,7 +1626,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             const data = await fetch(`/api/picks.php?team_id=${teamId}&include_away=1`).then(r => r.json());
             if (data.error) throw new Error(data.error);
 
-            const baseYear = Number(currentSeasonYear) || 0;
+            const baseYear = (Number(currentSeasonYear) || 0) + 1;
             let picks = (data.picks || []).filter(pk => Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
