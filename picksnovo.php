@@ -65,6 +65,22 @@ foreach ($picks as $pick) {
     else $picksByRound['other'][] = $pick;
 }
 
+function extractSwapTags(?string $notes): array
+{
+    $notes = (string)($notes ?? '');
+    $tags = [];
+    if (preg_match('/\bSB\b/i', $notes)) {
+        $tags[] = 'SB';
+    }
+    if (preg_match('/\bSW\b/i', $notes)) {
+        $tags[] = 'SW';
+    }
+    if (preg_match('/swap/i', $notes) && empty($tags)) {
+        $tags = ['SB', 'SW'];
+    }
+    return $tags;
+}
+
 $totalPicks   = count($picks);
 $ownPicks     = count(array_filter($picks, fn($p) => (int)$p['original_team_id'] === (int)$team['id']));
 $tradedIn     = $totalPicks - $ownPicks;
@@ -386,6 +402,7 @@ $tradedAway   = count($picksAway);
                     <?php foreach ($picksByRound['1'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $isAuto = !empty($pick['auto_generated']);
+                        $swapTags = extractSwapTags($pick['notes'] ?? '');
                     ?>
                     <div class="pick-row">
                         <div class="pick-year"><?= (int)$pick['season_year'] ?></div>
@@ -396,6 +413,11 @@ $tradedAway   = count($picksAway);
                                     <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:11px;margin-right:3px"></i>Própria
                                 <?php else: ?>
                                     <i class="bi bi-arrow-down-circle-fill" style="color:var(--blue);font-size:11px;margin-right:3px"></i>via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?>
+                                <?php endif; ?>
+                                <?php if (!empty($swapTags)): ?>
+                                    <?php foreach ($swapTags as $tag): ?>
+                                        <span class="tag gray" style="margin-left:6px"><?= htmlspecialchars($tag) ?></span>
+                                    <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -427,6 +449,7 @@ $tradedAway   = count($picksAway);
                     <?php foreach ($picksByRound['2'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $isAuto = !empty($pick['auto_generated']);
+                        $swapTags = extractSwapTags($pick['notes'] ?? '');
                     ?>
                     <div class="pick-row">
                         <div class="pick-year blue"><?= (int)$pick['season_year'] ?></div>
@@ -437,6 +460,11 @@ $tradedAway   = count($picksAway);
                                     <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:11px;margin-right:3px"></i>Própria
                                 <?php else: ?>
                                     <i class="bi bi-arrow-down-circle-fill" style="color:var(--blue);font-size:11px;margin-right:3px"></i>via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?>
+                                <?php endif; ?>
+                                <?php if (!empty($swapTags)): ?>
+                                    <?php foreach ($swapTags as $tag): ?>
+                                        <span class="tag gray" style="margin-left:6px"><?= htmlspecialchars($tag) ?></span>
+                                    <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -501,11 +529,19 @@ $tradedAway   = count($picksAway);
                 </div>
                 <?php else: ?>
                 <?php foreach ($picksAway as $pick): ?>
+                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
                 <div class="away-row">
                     <div class="away-year"><?= (int)$pick['season_year'] ?></div>
                     <div class="away-mid">
                         <div class="away-team"><?= htmlspecialchars(trim(($pick['current_city'] ?? '') . ' ' . ($pick['current_name'] ?? ''))) ?: 'Não definido' ?></div>
-                        <div class="away-round"><?= (int)$pick['round'] ?>ª Rodada · cedida via trade</div>
+                        <div class="away-round">
+                            <?= (int)$pick['round'] ?>ª Rodada · cedida via trade
+                            <?php if (!empty($swapTags)): ?>
+                                <?php foreach ($swapTags as $tag): ?>
+                                    <span class="tag gray" style="margin-left:6px"><?= htmlspecialchars($tag) ?></span>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <span class="tag amber"><i class="bi bi-arrow-up-circle" style="font-size:9px"></i> Cedida</span>
                 </div>

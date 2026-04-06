@@ -557,16 +557,28 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     return grouped;
                 };
 
+                const getSwapTags = (notes) => {
+                    const text = String(notes || '');
+                    const tags = [];
+                    if (/\bSB\b/i.test(text)) tags.push('SB');
+                    if (/\bSW\b/i.test(text)) tags.push('SW');
+                    if (/swap/i.test(text) && tags.length === 0) tags.push('SB', 'SW');
+                    if (!tags.length) return '';
+                    return tags.map(tag => `<span class="badge bg-secondary ms-1">${tag}</span>`).join('');
+                };
+
                 const renderPickWithTeam = (pk) => {
                     const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
                     const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
+                    const swapTags = getSwapTags(pk.notes);
                     if (isOwn) {
-                        return '<div class="d-flex align-items-center gap-2 mb-1"><span class="badge bg-success">Propria</span></div>';
+                        return `<div class="d-flex align-items-center gap-2 mb-1"><span class="badge bg-success">Propria</span>${swapTags}</div>`;
                     }
                     return `
                         <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
                             <span class="badge bg-warning text-dark">Recebida</span>
                             <small class="text-light-gray">Via ${originalOwner}</small>
+                            ${swapTags}
                         </div>
                     `;
                 };
@@ -603,7 +615,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     } else {
                         const renderPickAway = (pk) => {
                             const currentTeam = `${pk.current_team_city || ''} ${pk.current_team_name || ''}`.trim() || 'Nao definido';
-                            return `<div class="mb-1 text-light-gray">${currentTeam}</div>`;
+                            const swapTags = getSwapTags(pk.notes);
+                            return `<div class="mb-1 text-light-gray">${currentTeam}${swapTags}</div>`;
                         };
                         const groupedAway = groupByYear(picksAway, renderPickAway);
                         const yearsAway = Array.from(groupedAway.keys()).sort((a, b) => Number(a) - Number(b));

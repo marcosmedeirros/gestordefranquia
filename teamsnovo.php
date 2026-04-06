@@ -1642,16 +1642,28 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 return grouped;
             };
 
+            const getSwapTags = (notes) => {
+                const text = String(notes || '');
+                const tags = [];
+                if (/\bSB\b/i.test(text)) tags.push('SB');
+                if (/\bSW\b/i.test(text)) tags.push('SW');
+                if (/swap/i.test(text) && tags.length === 0) tags.push('SB', 'SW');
+                if (!tags.length) return '';
+                return tags.map(tag => `<span class="badge-pill gray" style="margin-left:6px">${tag}</span>`).join('');
+            };
+
             const renderPickWithTeam = (pk) => {
                 const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
+                const swapTags = getSwapTags(pk.notes);
                 if (isOwn) {
-                    return '<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span></div>';
+                    return `<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span>${swapTags}</div>`;
                 }
                 const origin = `Via ${pk.original_team_city} ${pk.original_team_name}`.trim();
                 return `
                     <div class="mb-1" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                         <span class="badge-pill yellow">Recebida</span>
                         <small style="color:var(--text-2)">${origin}</small>
+                        ${swapTags}
                     </div>
                 `;
             };
@@ -1676,7 +1688,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             } else {
                 const renderPickAway = (pk) => {
                     const cur = `${pk.current_team_city||''} ${pk.current_team_name||''}`.trim() || 'Não definido';
-                    return `<div class="mb-1" style="color:var(--text-2)">${cur}</div>`;
+                    const swapTags = getSwapTags(pk.notes);
+                    return `<div class="mb-1" style="color:var(--text-2)">${cur}${swapTags}</div>`;
                 };
                 const groupedAway = groupByYear(picksAway, renderPickAway);
                 const yearsAway = Array.from(groupedAway.keys()).sort((a, b) => Number(a) - Number(b));

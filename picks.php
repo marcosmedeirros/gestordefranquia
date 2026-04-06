@@ -73,6 +73,22 @@ $picksByRound = [
     'other' => []
 ];
 
+function extractSwapTags(?string $notes): array
+{
+    $notes = (string)($notes ?? '');
+    $tags = [];
+    if (preg_match('/\bSB\b/i', $notes)) {
+        $tags[] = 'SB';
+    }
+    if (preg_match('/\bSW\b/i', $notes)) {
+        $tags[] = 'SW';
+    }
+    if (preg_match('/swap/i', $notes) && empty($tags)) {
+        $tags = ['SB', 'SW'];
+    }
+    return $tags;
+}
+
 foreach ($picks as $pick) {
     $roundKey = (string)(int)($pick['round'] ?? 0);
     if ($roundKey === '1') {
@@ -264,6 +280,7 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksByRound['1'] as $pick): ?>
+                                                                                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
                                         <tr 
                                           data-pick-id="<?= (int)$pick['id'] ?>" 
                                           data-year="<?= (int)$pick['season_year'] ?>" 
@@ -280,6 +297,11 @@ foreach ($picks as $pick) {
                                                     <span class="badge bg-success">Própria</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($swapTags)): ?>
+                                                    <?php foreach ($swapTags as $tag): ?>
+                                                        <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tag) ?></span>
+                                                    <?php endforeach; ?>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-end">
@@ -324,6 +346,7 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksByRound['2'] as $pick): ?>
+                                                                                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
                                         <tr 
                                           data-pick-id="<?= (int)$pick['id'] ?>" 
                                           data-year="<?= (int)$pick['season_year'] ?>" 
@@ -340,6 +363,11 @@ foreach ($picks as $pick) {
                                                     <span class="badge bg-success">Própria</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-info">via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($swapTags)): ?>
+                                                    <?php foreach ($swapTags as $tag): ?>
+                                                        <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tag) ?></span>
+                                                    <?php endforeach; ?>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-end">
@@ -386,10 +414,16 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksAway as $pick): ?>
+                                        <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
                                         <tr>
                                             <td class="fw-bold text-info"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
                                             <td>
                                                 <span class="badge bg-info text-dark"><?= htmlspecialchars($pick['round']) ?>ª Rodada</span>
+                                                <?php if (!empty($swapTags)): ?>
+                                                    <?php foreach ($swapTags as $tag): ?>
+                                                        <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tag) ?></span>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="text-light-gray">
                                                 <?= htmlspecialchars(trim(($pick['current_city'] ?? '') . ' ' . ($pick['current_name'] ?? ''))) ?: 'Nao definido' ?>
