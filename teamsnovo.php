@@ -1635,7 +1635,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 items.forEach((pk) => {
                     const year = String(pk.season_year);
                     if (!grouped.has(year)) grouped.set(year, { r1: [], r2: [] });
-                    const bucket = Number(pk.round) === 1 ? 'r1' : 'r2';
+                    const roundNumber = parseInt(String(pk.round ?? ''), 10);
+                    const bucket = roundNumber === 2 ? 'r2' : 'r1';
                     grouped.get(year)[bucket].push(renderItem(pk));
                 });
                 return grouped;
