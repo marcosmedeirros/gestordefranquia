@@ -184,6 +184,7 @@ async function loadOuvidoriaMessages() {
   const list = document.getElementById('ouvidoriaList');
   const modalList = document.getElementById('ouvidoriaModalList');
   const totalEl = document.getElementById('ouvidoriaTotal');
+  const subjectFilter = document.getElementById('ouvidoriaSubjectFilter')?.value || '';
   if (list) {
     list.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
   }
@@ -192,7 +193,11 @@ async function loadOuvidoriaMessages() {
   }
 
   try {
-    const data = await api('ouvidoria.php?limit=8');
+    const params = new URLSearchParams({ limit: 8 });
+    if (subjectFilter) {
+      params.set('subject', subjectFilter);
+    }
+    const data = await api(`ouvidoria.php?${params.toString()}`);
     const messages = data.messages || [];
     if (totalEl) {
       totalEl.textContent = data.total ?? messages.length;
@@ -205,11 +210,15 @@ async function loadOuvidoriaMessages() {
 
       return messages.map(msg => {
         const date = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR') : '-';
+        const subject = escapeHtml(msg.subject || 'Reclamação');
         const content = escapeHtml(msg.message || '').replace(/\n/g, '<br>');
         return `
           <div class="bg-dark border border-secondary rounded p-3 mb-2">
             <div class="d-flex justify-content-between align-items-start gap-2">
-              <div class="text-light-gray small"><i class="bi bi-clock me-1"></i>${date}</div>
+              <div>
+                <div class="text-light-gray small"><i class="bi bi-clock me-1"></i>${date}</div>
+                <div class="mt-1"><span class="badge bg-secondary">${subject}</span></div>
+              </div>
               <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteOuvidoriaMessage(${msg.id})">
                 <i class="bi bi-trash"></i>
               </button>
@@ -251,6 +260,15 @@ function ensureOuvidoriaModal() {
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <label class="text-light-gray" for="ouvidoriaSubjectFilter">Assunto</label>
+            <select id="ouvidoriaSubjectFilter" class="form-select form-select-sm" style="max-width: 220px;">
+              <option value="">Todos</option>
+              <option value="Reclamação">Reclamação</option>
+              <option value="Sugestão">Sugestão</option>
+              <option value="Erro de Gameplay">Erro de Gameplay</option>
+            </select>
+          </div>
           <div id="ouvidoriaModalList"><div class="text-center py-3"><div class="spinner-border text-orange"></div></div></div>
         </div>
         <div class="modal-footer border-orange">
@@ -263,6 +281,11 @@ function ensureOuvidoriaModal() {
     </div>
   `;
   document.body.appendChild(modal);
+
+  const filter = modal.querySelector('#ouvidoriaSubjectFilter');
+  if (filter) {
+    filter.addEventListener('change', () => loadOuvidoriaMessages());
+  }
 }
 
 function showOuvidoriaModal() {

@@ -56,6 +56,15 @@ $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
                     <div id="ouvidoriaAlert" class="alert d-none" role="alert"></div>
                     <form id="ouvidoriaForm">
                         <div class="mb-3">
+                            <label for="ouvidoriaSubject" class="form-label">Assunto</label>
+                            <select id="ouvidoriaSubject" class="form-select" required>
+                                <option value="">Selecione um assunto</option>
+                                <option value="Reclamação">Reclamação</option>
+                                <option value="Sugestão">Sugestão</option>
+                                <option value="Erro de Gameplay">Erro de Gameplay</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label for="ouvidoriaMessage" class="form-label">Mensagem</label>
                             <textarea id="ouvidoriaMessage" class="form-control" rows="5" maxlength="1000" placeholder="Digite sua mensagem..."></textarea>
                             <div class="d-flex justify-content-between mt-2">
@@ -77,6 +86,7 @@ $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
     <script src="/js/pwa.js"></script>
     <script>
         const form = document.getElementById('ouvidoriaForm');
+        const subjectInput = document.getElementById('ouvidoriaSubject');
         const messageInput = document.getElementById('ouvidoriaMessage');
         const submitBtn = document.getElementById('ouvidoriaSubmit');
         const alertBox = document.getElementById('ouvidoriaAlert');
@@ -98,7 +108,12 @@ $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
+            const subject = subjectInput.value.trim();
             const message = messageInput.value.trim();
+            if (!subject) {
+                showAlert('Selecione um assunto antes de enviar.', 'warning');
+                return;
+            }
             if (!message) {
                 showAlert('Digite uma mensagem antes de enviar.', 'warning');
                 return;
@@ -112,7 +127,7 @@ $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ message, subject })
                 });
                 const data = await res.json();
                 if (!res.ok || data.success === false) {

@@ -522,6 +522,16 @@ function runMigrations() {
     }
 
     try {
+        $hasSubject = $pdo->query("SHOW COLUMNS FROM ouvidoria_messages LIKE 'subject'")->fetch();
+        if (!$hasSubject) {
+            $pdo->exec("ALTER TABLE ouvidoria_messages ADD COLUMN subject VARCHAR(40) NOT NULL DEFAULT 'Reclamação' AFTER message");
+            $pdo->exec("ALTER TABLE ouvidoria_messages ADD INDEX idx_ouvidoria_subject (subject)");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_ouvidoria_subject: " . $e->getMessage();
+    }
+
+    try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS season_awards (
             id INT AUTO_INCREMENT PRIMARY KEY,
             season_id INT NOT NULL,

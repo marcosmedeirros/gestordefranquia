@@ -9,6 +9,8 @@ $pdo = db();
 $user = getUserSession();
 $method = $_SERVER['REQUEST_METHOD'];
 
+$allowedSubjects = ['Reclamação', 'Sugestão', 'Erro de Gameplay'];
+
 function jsonErr(string $msg, int $code = 400): void {
     http_response_code($code);
     echo json_encode(['success' => false, 'error' => $msg]);
@@ -43,7 +45,15 @@ if ($method === 'POST') {
         exit;
     }
 
+    $subject = trim((string)($data['subject'] ?? ''));
     $message = trim((string)($data['message'] ?? ''));
+
+    if ($subject === '') {
+        $subject = 'Reclamação';
+    }
+    if (!in_array($subject, $allowedSubjects, true)) {
+        jsonErr('Assunto invalido');
+    }
 
     if ($message === '') {
         jsonErr('Mensagem obrigatoria');
@@ -53,8 +63,8 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $pdo->prepare('INSERT INTO ouvidoria_messages (message) VALUES (?)');
-        $stmt->execute([$message]);
+        $stmt = $pdo->prepare('INSERT INTO ouvidoria_messages (subject, message) VALUES (?, ?)');
+        $stmt->execute([$subject, $message]);
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
         jsonErr('Erro ao salvar mensagem: ' . $e->getMessage(), 500);
@@ -75,14 +85,35 @@ if ($method === 'GET') {
         $limit = 200;
     }
 
+    $subjectFilter = trim((string)($_GET['subject'] ?? ''));
+    if ($subjectFilter !== '' && !in_array($subjectFilter, $allowedSubjects, true)) {
+        jsonErr('Assunto invalido');
+    }
+
     try {
-        $stmt = $pdo->prepare('SELECT id, message, created_at FROM ouvidoria_messages ORDER BY created_at DESC LIMIT ?');
-        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $sql = 'SELECT id, subject, message, created_at FROM ouvidoria_messages';
+        $params = [];
+        if ($subjectFilter !== '') {
+            $sql .= ' WHERE subject = ?';
+            $params[] = $subjectFilter;
+        }
+        $sql .= ' ORDER BY created_at DESC LIMIT ?';
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $idx => $value) {
+            $stmt->bindValue($idx + 1, $value);
+        }
+        $stmt->bindValue(count($params) + 1, $limit, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtCount = $pdo->query('SELECT COUNT(*) FROM ouvidoria_messages');
-        $total = (int)$stmtCount->fetchColumn();
+        if ($subjectFilter !== '') {
+            $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM ouvidoria_messages WHERE subject = ?');
+            $stmtCount->execute([$subjectFilter]);
+            $total = (int)$stmtCount->fetchColumn();
+        } else {
+            $stmtCount = $pdo->query('SELECT COUNT(*) FROM ouvidoria_messages');
+            $total = (int)$stmtCount->fetchColumn();
+        }
 
         echo json_encode(['success' => true, 'messages' => $rows, 'total' => $total]);
     } catch (Exception $e) {
