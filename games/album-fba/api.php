@@ -65,6 +65,14 @@ function ensureAlbumTables(PDO $pdo): void
         INDEX idx_album_market_seller_status (seller_user_id, status),
         INDEX idx_album_market_buyer (buyer_user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS album_fba_pack_collections (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        collection_name VARCHAR(120) NOT NULL,
+        in_pack TINYINT(1) NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_album_pack_collection (collection_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 function stickerCatalog(): array
@@ -86,6 +94,56 @@ function stickerCatalog(): array
         ['id' => '044', 'name' => 'Técnico Estratégico', 'category' => 'Staff', 'rarity' => 'comum', 'image' => 'img/044.png', 'blurb' => 'Planos de jogo afiados.'],
         ['id' => '050', 'name' => 'Mascote Oficial', 'category' => 'Extras', 'rarity' => 'comum', 'image' => 'img/050.png', 'blurb' => 'Carisma na quadra.'],
     ];
+}
+
+function uniqueCollections(array $catalog): array
+{
+    $set = [];
+    foreach ($catalog as $sticker) {
+        $name = trim((string)($sticker['category'] ?? ''));
+        if ($name === '') {
+            $name = 'Geral';
+        }
+        $set[$name] = true;
+    }
+    $collections = array_keys($set);
+    sort($collections);
+    return $collections;
+}
+
+function ensurePackCollections(PDO $pdo, array $collections): void
+{
+    if (empty($collections)) {
+        return;
+    }
+    $stmt = $pdo->prepare('INSERT IGNORE INTO album_fba_pack_collections (collection_name, in_pack) VALUES (?, 1)');
+    foreach ($collections as $collection) {
+        $stmt->execute([$collection]);
+    }
+}
+
+function fetchPackCollections(PDO $pdo, array $collections): array
+{
+    ensurePackCollections($pdo, $collections);
+    if (empty($collections)) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($collections), '?'));
+    $stmt = $pdo->prepare("SELECT collection_name, in_pack FROM album_fba_pack_collections WHERE collection_name IN ($in) ORDER BY collection_name");
+    $stmt->execute($collections);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+function enabledPackCollections(PDO $pdo, array $collections): array
+{
+    $rows = fetchPackCollections($pdo, $collections);
+    $enabled = [];
+    foreach ($rows as $row) {
+        if ((int)($row['in_pack'] ?? 0) === 1) {
+            $enabled[] = $row['collection_name'];
+        }
+    }
+    return $enabled;
 }
 
 function rarityWeights(): array
@@ -209,6 +267,34 @@ if ($method === 'GET' && $action === 'market_state') {
         'my_listings' => $myListings,
         'price_caps' => rarityPriceCapsAlbum(),
     ]);
+}
+
+if ($method === 'GET' && $action === 'pack_collections') {
+    if (!$isAdmin) {
+        jsonErrorAlbum('Somente admin.', 403);
+    }
+    $catalog = stickerCatalog();
+    $collections = uniqueCollections($catalog);
+    $rows = fetchPackCollections($pdo, $collections);
+    jsonSuccessAlbum(['collections' => $rows]);
+}
+
+if ($method === 'POST' && $action === 'pack_collections') {
+    if (!$isAdmin) {
+        jsonErrorAlbum('Somente admin.', 403);
+    }
+    $body = readJsonBody();
+    $collection = trim((string)($body['collection'] ?? ''));
+    $enabled = isset($body['enabled']) ? (int)$body['enabled'] : null;
+    if ($collection === '' || $enabled === null) {
+        jsonErrorAlbum('Dados invalidos.');
+    }
+    $catalog = stickerCatalog();
+    $collections = uniqueCollections($catalog);
+    ensurePackCollections($pdo, $collections);
+    $stmt = $pdo->prepare('UPDATE album_fba_pack_collections SET in_pack = ? WHERE collection_name = ?');
+    $stmt->execute([$enabled ? 1 : 0, $collection]);
+    jsonSuccessAlbum(['collection' => $collection, 'enabled' => $enabled ? 1 : 0]);
 }
 
 if ($method === 'POST' && $action === 'create_listing') {
@@ -427,6 +513,23 @@ if ($method === 'POST' && $action === 'open_pack') {
     }
 
     $catalog = stickerCatalog();
+    $collections = uniqueCollections($catalog);
+    $enabledCollections = enabledPackCollections($pdo, $collections);
+    if (!empty($collections) && empty($enabledCollections)) {
+        jsonErrorAlbum('Nenhuma colecao ativa para pacotinhos.', 400);
+    }
+    if (!empty($enabledCollections)) {
+        $catalog = array_values(array_filter($catalog, static function (array $sticker) use ($enabledCollections): bool {
+            $collection = trim((string)($sticker['category'] ?? ''));
+            if ($collection === '') {
+                $collection = 'Geral';
+            }
+            return in_array($collection, $enabledCollections, true);
+        }));
+    }
+    if (empty($catalog)) {
+        jsonErrorAlbum('Nenhuma cartinha disponivel para pacotinhos.', 400);
+    }
     $weights = rarityWeights();
     $byRarity = [];
     foreach ($catalog as $sticker) {

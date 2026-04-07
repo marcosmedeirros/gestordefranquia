@@ -2041,6 +2041,13 @@ if ($method === 'PUT') {
         echo json_encode(['success' => false, 'error' => 'Só quem recebeu pode aceitar/rejeitar']);
         exit;
     }
+
+    $currentStatus = (string)($trade['status'] ?? '');
+    if ($currentStatus !== 'pending') {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'Trade ja foi processada. Atualize a pagina.']);
+        exit;
+    }
     
     if ($action === 'accepted') {
         $tradeLeague = $trade['league'] ?? null;

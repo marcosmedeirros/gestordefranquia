@@ -693,6 +693,11 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
                     <button class="btn" id="addStickerBtn" style="background: linear-gradient(120deg, #4e7bff, #7c3aed);">Adicionar cartinha</button>
                 </div>
+                <div style="margin-top: 18px;">
+                    <div style="font-weight:700; margin-bottom:6px;">Coleções nos pacotinhos</div>
+                    <div class="muted" style="margin-bottom:10px;">Ative para permitir que a coleção apareça nos pacotes. Desative para remover a chance.</div>
+                    <div id="adminPackCollections" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+                </div>
             </div>
             <?php endif; ?>
         </div>
@@ -734,6 +739,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
         ];
 
         const currentUserId = <?= (int)($sessionUser['id'] ?? 0) ?>;
+        const isAdminUser = <?= $is_admin ? 'true' : 'false' ?>;
         const stickersById = {};
         stickers.forEach((sticker) => {
             stickersById[sticker.id] = sticker;
@@ -1007,6 +1013,71 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             } finally {
                 isOpening = false;
                 setButtonsDisabled(false);
+            }
+        }
+
+        let packCollections = [];
+
+        function renderPackCollections() {
+            const container = document.getElementById('adminPackCollections');
+            if (!container) {
+                return;
+            }
+            if (!packCollections.length) {
+                container.innerHTML = '<div class="muted">Nenhuma coleção encontrada.</div>';
+                return;
+            }
+            container.innerHTML = '';
+            packCollections.forEach((item) => {
+                const wrapper = document.createElement('label');
+                wrapper.style.display = 'inline-flex';
+                wrapper.style.alignItems = 'center';
+                wrapper.style.gap = '8px';
+                wrapper.style.padding = '6px 10px';
+                wrapper.style.border = '1px solid rgba(255,255,255,0.12)';
+                wrapper.style.borderRadius = '999px';
+                wrapper.style.background = 'rgba(0,0,0,0.35)';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = Number(item.in_pack || 0) === 1;
+                checkbox.addEventListener('change', async () => {
+                    checkbox.disabled = true;
+                    try {
+                        await apiRequest('pack_collections', 'POST', {
+                            collection: item.collection_name,
+                            enabled: checkbox.checked ? 1 : 0,
+                        });
+                    } catch (err) {
+                        checkbox.checked = !checkbox.checked;
+                        alert(err.message || 'Erro ao atualizar coleção.');
+                    } finally {
+                        checkbox.disabled = false;
+                    }
+                });
+
+                const text = document.createElement('span');
+                text.textContent = item.collection_name;
+
+                wrapper.appendChild(checkbox);
+                wrapper.appendChild(text);
+                container.appendChild(wrapper);
+            });
+        }
+
+        async function loadPackCollections() {
+            if (!isAdminUser) {
+                return;
+            }
+            try {
+                const data = await apiRequest('pack_collections', 'GET');
+                packCollections = Array.isArray(data.collections) ? data.collections : [];
+                renderPackCollections();
+            } catch (err) {
+                const container = document.getElementById('adminPackCollections');
+                if (container) {
+                    container.innerHTML = `<div class="muted">${err.message || 'Erro ao carregar coleções.'}</div>`;
+                }
             }
         }
 
@@ -1299,6 +1370,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             try {
                 await loadCollectionFromDb();
                 await loadMarketFromDb();
+                await loadPackCollections();
             } catch (err) {
                 const area = document.getElementById('packArea');
                 area.innerHTML = `<div class="muted empty">${err.message || 'Erro ao carregar album.'}</div>`;
