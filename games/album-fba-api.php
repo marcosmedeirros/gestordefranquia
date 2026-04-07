@@ -98,7 +98,12 @@ function syncPackCollections(PDO $pdo): void
 function fetchPackCollections(PDO $pdo): array
 {
     syncPackCollections($pdo);
-    $stmt = $pdo->query('SELECT collection_name, in_pack FROM fba_pack_collections ORDER BY collection_name');
+    $stmt = $pdo->query("SELECT pc.collection_name, pc.in_pack
+        FROM fba_pack_collections pc
+        JOIN (SELECT DISTINCT COALESCE(collection_name, 'Geral') AS collection_name
+              FROM fba_cards WHERE ativo = 1) c
+          ON c.collection_name = pc.collection_name
+        ORDER BY pc.collection_name");
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 function packs(): array
