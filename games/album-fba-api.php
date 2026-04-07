@@ -389,9 +389,9 @@ if ($action === 'market_create_listing') {
         out(['ok' => false, 'message' => 'Carta invalida'], 400);
     }
     $caps = marketPriceCaps();
-    $max = (int)($caps[$card['rarity']] ?? 0);
-    if ($max <= 0 || $price > $max) {
-        out(['ok' => false, 'message' => 'Preco acima do limite da raridade'], 400);
+    $min = (int)($caps[$card['rarity']] ?? 0);
+    if ($min <= 0 || $price < $min) {
+        out(['ok' => false, 'message' => 'Preco abaixo do minimo da raridade'], 400);
     }
 
     try {

@@ -482,18 +482,19 @@ function updateMarketSellHint() {
     const card = marketCardById(Number(sellSelect.value || 0));
     if (!card) {
         hint.textContent = 'Voce precisa ter cartas duplicadas para anunciar.';
-        priceInput.max = '1';
+        priceInput.min = '1';
+        priceInput.removeAttribute('max');
         priceInput.value = '1';
         return;
     }
-    const max = Number(state.market.priceCaps[card.rarity] || 1);
+    const min = Number(state.market.priceCaps[card.rarity] || 1);
     const rarity = rarityLabel(card.rarity);
-    priceInput.max = String(max);
+    priceInput.min = String(min);
+    priceInput.removeAttribute('max');
     let current = Number(priceInput.value || 1);
-    if (current < 1) current = 1;
-    if (current > max) current = max;
+    if (current < min) current = min;
     priceInput.value = String(current);
-    hint.textContent = `Maximo para ${rarity}: ${max} pontos.`;
+    hint.textContent = `Minimo para ${rarity}: ${min} pontos.`;
 }
 
 function renderMarketMine() {
@@ -945,6 +946,12 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
     const fb = document.getElementById('market-feedback');
     if (!cardId || !price) {
         if (fb) fb.textContent = 'Selecione uma carta e informe o preco.';
+        return;
+    }
+    const card = marketCardById(cardId);
+    const min = Number(state.market.priceCaps[card?.rarity] || 1);
+    if (price < min) {
+        if (fb) fb.textContent = `Preco abaixo do minimo (${min} pts).`;
         return;
     }
     try {
