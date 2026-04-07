@@ -310,12 +310,9 @@ if ($method === 'POST' && $action === 'create_listing') {
 
     $rarity = (string)$sticker['rarity'];
     $priceCaps = rarityPriceCapsAlbum();
-    $maxAllowed = (int)($priceCaps[$rarity] ?? 0);
-    if ($maxAllowed <= 0) {
-        jsonErrorAlbum('Raridade invalida');
-    }
-    if ($pricePoints < 1 || $pricePoints > $maxAllowed) {
-        jsonErrorAlbum('Preco invalido para a raridade da cartinha');
+    $minAllowed = (int)($priceCaps[$rarity] ?? 1);
+    if ($pricePoints < $minAllowed) {
+        jsonErrorAlbum('Preco abaixo do minimo para a raridade da cartinha');
     }
 
     try {

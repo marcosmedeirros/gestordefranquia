@@ -1092,21 +1092,16 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             if (!sticker) {
                 hint.textContent = 'Voce precisa ter duplicadas para anunciar.';
                 input.value = 1;
-                input.max = 1;
+                input.removeAttribute('max');
                 return;
             }
-            const cap = Number(state.market.priceCaps[sticker.rarity] || 1);
-            input.max = cap;
             let current = Number(input.value || 1);
             if (current < 1) {
                 current = 1;
             }
-            if (current > cap) {
-                current = cap;
-            }
             input.value = current;
-            const rarityLabel = (rarityConfig[sticker.rarity] || {}).label || sticker.rarity;
-            hint.textContent = `Maximo para ${rarityLabel}: ${cap} pontos.`;
+            const minPrice = Number(state.market.priceCaps[sticker.rarity] || 1);
+            hint.textContent = `Minimo para ${sticker.rarity}: ${minPrice} pontos.`;
         }
 
         function updateMarketStickerSelect() {
@@ -1251,10 +1246,10 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 setMarketMessage('Cartinha invalida.', true);
                 return;
             }
-            const cap = Number(state.market.priceCaps[sticker.rarity] || 1);
+            const minPrice = Number(state.market.priceCaps[sticker.rarity] || 1);
             const price = Number(input.value || 0);
-            if (!Number.isInteger(price) || price < 1 || price > cap) {
-                setMarketMessage(`Preco invalido. Limite desta raridade: ${cap}.`, true);
+            if (!Number.isInteger(price) || price < minPrice) {
+                setMarketMessage(`Preco invalido. Minimo desta raridade: ${minPrice}.`, true);
                 return;
             }
             const button = document.getElementById('createListingBtn');

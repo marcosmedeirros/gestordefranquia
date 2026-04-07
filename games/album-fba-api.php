@@ -66,11 +66,39 @@ function schema(PDO $pdo): void
         PRIMARY KEY (user_id, collection_name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_pack_collections (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        collection_name VARCHAR(120) NOT NULL,
+        in_pack TINYINT(1) NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_pack_collection (collection_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $col = $pdo->query("SHOW COLUMNS FROM fba_cards LIKE 'collection_name'");
     if (!$col || $col->rowCount() === 0) {
         $pdo->exec("ALTER TABLE fba_cards ADD COLUMN collection_name VARCHAR(120) NOT NULL DEFAULT 'Geral' AFTER team_id");
         $pdo->exec("ALTER TABLE fba_cards ADD INDEX idx_collection (collection_name)");
     }
+}
+
+function syncPackCollections(PDO $pdo): void
+{
+    $stmt = $pdo->query("SELECT DISTINCT COALESCE(collection_name, 'Geral') AS collection_name FROM fba_cards WHERE ativo = 1");
+    $collections = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    if (!$collections) {
+        return;
+    }
+    $insert = $pdo->prepare('INSERT IGNORE INTO fba_pack_collections (collection_name, in_pack) VALUES (:name, 1)');
+    foreach ($collections as $name) {
+        $insert->execute([':name' => (string)$name]);
+    }
+}
+
+function fetchPackCollections(PDO $pdo): array
+{
+    syncPackCollections($pdo);
+    $stmt = $pdo->query('SELECT collection_name, in_pack FROM fba_pack_collections ORDER BY collection_name');
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 function packs(): array
 {
@@ -168,6 +196,13 @@ function rankingTeam(PDO $pdo, int $targetUserId): array
                 'id' => (int)$card['id'],
                 'collection' => $card['colecao'],
                 'team' => $card['team'],
+                $pdo->exec("CREATE TABLE IF NOT EXISTS fba_pack_collections (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    collection_name VARCHAR(120) NOT NULL,
+                    in_pack TINYINT(1) NOT NULL DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_pack_collection (collection_name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 'name' => $card['nome'],
                 'position' => strtoupper((string)$card['posicao']),
                 'rarity' => $card['raridade'],
@@ -209,14 +244,44 @@ function draw(PDO $pdo, array $rates): ?array
 {
     $rar = roll($rates);
     $excludedCollection = 'Rookie Stars';
+
+    $packCollections = fetchPackCollections($pdo);
+    $enabledCollections = [];
+    foreach ($packCollections as $row) {
+        if ((int)($row['in_pack'] ?? 0) === 1) {
+            $enabledCollections[] = (string)$row['collection_name'];
+        }
+    }
+    if ($packCollections && !$enabledCollections) {
+        return null;
+    }
+
+    $conditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?", 'c.raridade = ?'];
+    $params = [$excludedCollection, $rar];
+
+    if ($enabledCollections) {
+        $in = implode(',', array_fill(0, count($enabledCollections), '?'));
+        $conditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
+        $params = array_merge($params, $enabledCollections);
+    }
+
+    $where = implode(' AND ', $conditions);
     $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
-        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND c.raridade=:r AND COALESCE(c.collection_name, 'Geral') <> :exclude ORDER BY RAND() LIMIT 1");
-    $stmt->execute([':r' => $rar, ':exclude' => $excludedCollection]);
+        FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE $where ORDER BY RAND() LIMIT 1");
+    $stmt->execute($params);
     $c = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$c) {
+        $fallbackConditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?"];
+        $fallbackParams = [$excludedCollection];
+        if ($enabledCollections) {
+            $in = implode(',', array_fill(0, count($enabledCollections), '?'));
+            $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
+            $fallbackParams = array_merge($fallbackParams, $enabledCollections);
+        }
+        $fallbackWhere = implode(' AND ', $fallbackConditions);
         $stmt2 = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
-            FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE c.ativo=1 AND COALESCE(c.collection_name, 'Geral') <> :exclude ORDER BY RAND() LIMIT 1");
-        $stmt2->execute([':exclude' => $excludedCollection]);
+            FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE $fallbackWhere ORDER BY RAND() LIMIT 1");
+        $stmt2->execute($fallbackParams);
         $c = $stmt2->fetch(PDO::FETCH_ASSOC);
     }
     if (!$c) return null;
@@ -262,6 +327,23 @@ if ($action === 'ranking_team') {
         out(['ok' => false, 'message' => 'Usuário inválido'], 400);
     }
     out(['ok' => true, 'team' => rankingTeam($pdo, $targetUserId)]);
+}
+
+if ($action === 'admin_pack_collections') {
+    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissao'], 403);
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        out(['ok' => true, 'collections' => fetchPackCollections($pdo)]);
+    }
+    $b = body();
+    $collection = trim((string)($b['collection'] ?? ''));
+    $enabled = isset($b['enabled']) ? (int)$b['enabled'] : null;
+    if ($collection === '' || $enabled === null) {
+        out(['ok' => false, 'message' => 'Dados invalidos'], 400);
+    }
+    syncPackCollections($pdo);
+    $stmt = $pdo->prepare('UPDATE fba_pack_collections SET in_pack = :in_pack WHERE collection_name = :name');
+    $stmt->execute([':in_pack' => $enabled ? 1 : 0, ':name' => $collection]);
+    out(['ok' => true, 'collection' => $collection, 'enabled' => $enabled ? 1 : 0]);
 }
 
 if ($action === 'market_state') {

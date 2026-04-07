@@ -268,6 +268,11 @@ $teams = [
         <section id="section-admin" class="hidden">
             <h2 class="text-3xl font-bold fba-title mb-2">Admin de Cartas</h2>
             <p class="text-zinc-400 mb-6">Cadastrar por coleção, time, posição, raridade e upload de imagem.</p>
+            <div class="bg-black border border-red-700 rounded-xl p-5 mb-6">
+                <h3 class="fba-title text-xl mb-2">Colecoes nos pacotinhos</h3>
+                <p class="text-zinc-400 mb-4">Ative para permitir que a colecao apareca nos pacotes. Desative para remover a chance.</p>
+                <div id="admin-pack-collections" class="flex flex-wrap gap-2"></div>
+            </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-black border border-red-700 rounded-xl p-5">
                     <form id="admin-card-form" class="space-y-3">

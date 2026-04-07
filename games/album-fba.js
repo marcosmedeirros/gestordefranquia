@@ -11,7 +11,8 @@ let state = {
         listings: [],
         myListings: [],
         priceCaps: { comum: 20, rara: 40, epico: 60, lendario: 100 }
-    }
+    },
+    adminPackCollections: []
 };
 let currentSlot = null;
 let lastPackType = null;
@@ -91,7 +92,10 @@ async function bootstrap() {
     renderAlbum();
     renderCourt();
     renderMarket();
-    if (state.user.is_admin) renderAdminCards();
+    if (state.user.is_admin) {
+        renderAdminCards();
+        await loadAdminPackCollections();
+    }
     switchTab('album');
 }
 
@@ -753,6 +757,66 @@ function renderAdminCards() {
             </div>
         `).join('')
         : '<p class="text-zinc-400">Nenhuma carta encontrada com os filtros.</p>';
+}
+
+async function loadAdminPackCollections() {
+    const container = document.getElementById('admin-pack-collections');
+    if (!container || !state.user?.is_admin) return;
+    container.innerHTML = '<span class="text-zinc-400">Carregando...</span>';
+    try {
+        const res = await get('admin_pack_collections');
+        if (!res.ok) {
+            container.innerHTML = '<span class="text-zinc-400">Falha ao carregar colecoes.</span>';
+            return;
+        }
+        state.adminPackCollections = Array.isArray(res.collections) ? res.collections : [];
+        renderAdminPackCollections();
+    } catch (err) {
+        container.innerHTML = '<span class="text-zinc-400">Erro ao carregar colecoes.</span>';
+    }
+}
+
+function renderAdminPackCollections() {
+    const container = document.getElementById('admin-pack-collections');
+    if (!container || !state.user?.is_admin) return;
+    if (!state.adminPackCollections.length) {
+        container.innerHTML = '<span class="text-zinc-400">Nenhuma colecao encontrada.</span>';
+        return;
+    }
+    container.innerHTML = '';
+    state.adminPackCollections.forEach((item) => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 px-3 py-2 rounded-full border border-zinc-700 bg-zinc-900';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = Number(item.in_pack || 0) === 1;
+        checkbox.addEventListener('change', async () => {
+            checkbox.disabled = true;
+            try {
+                const res = await post('admin_pack_collections', {
+                    collection: item.collection_name,
+                    enabled: checkbox.checked ? 1 : 0
+                });
+                if (!res.ok) {
+                    checkbox.checked = !checkbox.checked;
+                    alert(res.message || 'Erro ao atualizar colecao.');
+                }
+            } catch (err) {
+                checkbox.checked = !checkbox.checked;
+                alert(err.message || 'Erro ao atualizar colecao.');
+            } finally {
+                checkbox.disabled = false;
+            }
+        });
+
+        const text = document.createElement('span');
+        text.textContent = item.collection_name;
+
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        container.appendChild(label);
+    });
 }
 
 function resetAdminForm() {
