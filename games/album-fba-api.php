@@ -81,6 +81,7 @@ function schema(PDO $pdo): void
     }
 }
 
+
 function syncPackCollections(PDO $pdo): void
 {
     $stmt = $pdo->query("SELECT DISTINCT COALESCE(collection_name, 'Geral') AS collection_name FROM fba_cards WHERE ativo = 1");
@@ -196,13 +197,6 @@ function rankingTeam(PDO $pdo, int $targetUserId): array
                 'id' => (int)$card['id'],
                 'collection' => $card['colecao'],
                 'team' => $card['team'],
-                $pdo->exec("CREATE TABLE IF NOT EXISTS fba_pack_collections (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    collection_name VARCHAR(120) NOT NULL,
-                    in_pack TINYINT(1) NOT NULL DEFAULT 1,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY uniq_pack_collection (collection_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 'name' => $card['nome'],
                 'position' => strtoupper((string)$card['posicao']),
                 'rarity' => $card['raridade'],
