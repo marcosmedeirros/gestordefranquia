@@ -529,6 +529,14 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             margin-bottom: 10px;
         }
 
+        .market-filter-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
         .market-filters input {
             background: var(--panel-2);
             border: 1px solid var(--stroke);
@@ -685,6 +693,10 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                             <option value="lendaria">Lendaria</option>
                         </select>
                     </div>
+                    <label class="market-filter-toggle">
+                        <input type="checkbox" id="marketFilterMissing">
+                        Ainda nao tenho
+                    </label>
                     <div id="activeListings"></div>
                 </div>
 
@@ -1181,16 +1193,19 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             const nameFilter = ((document.getElementById('marketFilterName')?.value) || '').trim().toLowerCase();
             const categoryFilter = (document.getElementById('marketFilterCategory')?.value) || 'all';
             const rarityFilter = (document.getElementById('marketFilterRarity')?.value) || 'all';
+            const missingOnly = document.getElementById('marketFilterMissing')?.checked || false;
 
             const activeListings = (state.market.activeListings || []).filter((listing) => {
                 const sticker = stickersById[listing.sticker_id] || null;
                 const stickerName = ((sticker && sticker.name) ? sticker.name : '').toLowerCase();
                 const category = (sticker && sticker.category) ? sticker.category : '';
                 const rarity = (listing.rarity || (sticker ? sticker.rarity : '') || '').toLowerCase();
+                const owned = sticker ? getStickerQty(sticker.id) > 0 : false;
                 const matchesName = !nameFilter || stickerName.includes(nameFilter);
                 const matchesCategory = categoryFilter === 'all' || category === categoryFilter;
                 const matchesRarity = rarityFilter === 'all' || rarity === rarityFilter;
-                return matchesName && matchesCategory && matchesRarity;
+                const matchesMissing = !missingOnly || !owned;
+                return matchesName && matchesCategory && matchesRarity && matchesMissing;
             });
 
             if (!activeListings.length) {
@@ -1348,7 +1363,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 });
             }
 
-            ['marketFilterName', 'marketFilterCategory', 'marketFilterRarity'].forEach((id) => {
+            ['marketFilterName', 'marketFilterCategory', 'marketFilterRarity', 'marketFilterMissing'].forEach((id) => {
                 const node = document.getElementById(id);
                 if (!node) {
                     return;
