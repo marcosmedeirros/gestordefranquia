@@ -479,7 +479,6 @@ if ($method === 'GET') {
                 JOIN teams to_team ON t.to_team_id = to_team.id
                 $whereClause
                 ORDER BY t.created_at DESC
-                LIMIT 100
             ";
             
             $stmt = $pdo->prepare($query);
@@ -574,7 +573,6 @@ if ($method === 'GET') {
                     JOIN teams creator ON mt.created_by_team_id = creator.id
                     {$multiWhere}
                     ORDER BY mt.created_at DESC
-                    LIMIT 100
                 ";
 
                 $stmtMulti = $pdo->prepare($multiQuery);
