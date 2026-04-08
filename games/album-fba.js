@@ -94,6 +94,7 @@ async function bootstrap() {
     renderCourt();
     renderMarket();
     renderTrades();
+    loadDailyPackStatus();
     if (state.user.is_admin) {
         renderAdminCards();
         await loadAdminPackCollections();
@@ -129,6 +130,7 @@ function switchTab(tab) {
     if (tab === 'ranking') renderRanking();
     if (tab === 'market') renderMarket();
     if (tab === 'trades') renderTrades();
+    if (tab === 'store') loadDailyPackStatus();
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -819,6 +821,78 @@ async function openPack(type) {
     }, 1000);
 }
 window.openPack = openPack;
+
+async function loadDailyPackStatus() {
+    const btn = document.getElementById('pack-daily-btn');
+    const hint = document.getElementById('pack-daily-hint');
+    const card = document.getElementById('pack-daily');
+    if (!btn || !hint) return;
+    try {
+        const res = await get('daily_pack_status');
+        if (!res.ok) {
+            hint.textContent = res.message || 'Erro ao carregar status.';
+            btn.disabled = true;
+            if (card) {
+                card.classList.add('opacity-50', 'pointer-events-none');
+            }
+            return;
+        }
+        if (res.can_claim) {
+            btn.disabled = false;
+            btn.textContent = 'Resgatar';
+            hint.textContent = 'Disponivel agora.';
+            if (card) {
+                card.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        } else {
+            btn.disabled = true;
+            const seconds = Number(res.remaining_seconds || 0);
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            hint.textContent = `Disponivel em ${hours}h ${minutes}m.`;
+            btn.textContent = 'Aguarde';
+            if (card) {
+                card.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+    } catch (err) {
+        hint.textContent = err.message || 'Erro ao carregar status.';
+        btn.disabled = true;
+        if (card) {
+            card.classList.add('opacity-50', 'pointer-events-none');
+        }
+    }
+}
+
+async function claimDailyPack() {
+    const btn = document.getElementById('pack-daily-btn');
+    const hint = document.getElementById('pack-daily-hint');
+    const card = document.getElementById('pack-daily');
+    if (btn) btn.disabled = true;
+    try {
+        const res = await post('claim_daily_pack');
+        if (!res.ok) {
+            if (hint) hint.textContent = res.message || 'Erro ao resgatar pacote.';
+            await loadDailyPackStatus();
+            return;
+        }
+        state.user.coins = Number(res.coins || state.user.coins || 0);
+        state.collection = res.collection || state.collection;
+        document.getElementById('coin-count').innerText = state.user.coins;
+        renderAlbum();
+        await renderMarket();
+        const cards = Array.isArray(res.cards) ? res.cards : [];
+        showRevealModal(cards, Number(res.bonus_points || 0), false);
+        if (card) {
+            card.classList.add('opacity-50', 'pointer-events-none');
+        }
+        await loadDailyPackStatus();
+    } catch (err) {
+        if (hint) hint.textContent = err.message || 'Erro ao resgatar pacote.';
+        await loadDailyPackStatus();
+    }
+}
+window.claimDailyPack = claimDailyPack;
 
 function showRevealModal(cards, bonusPoints = 0, allowReopen = true) {
     const m = document.getElementById('reveal-modal');
