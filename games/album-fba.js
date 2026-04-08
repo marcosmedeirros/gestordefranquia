@@ -658,6 +658,9 @@ function renderTradeSelect(selectId, usageCounts) {
     const options = cards.filter((card) => {
         const owned = Number(state.collection[card.id] || 0);
         const used = Number(adjustedCounts[String(card.id)] || 0);
+        if (String(card.id) === prev) {
+            return true;
+        }
         return used < owned;
     });
     select.innerHTML = '<option value="">Selecione uma carta</option>' + options.map((card) => {
