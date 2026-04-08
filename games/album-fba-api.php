@@ -318,7 +318,7 @@ $is_admin = ((int)($me['is_admin'] ?? 0) === 1);
 
 $action = $_GET['action'] ?? '';
 
-if ($action === 'bootstrap') out(['ok' => true, 'user' => ['id' => $user_id, 'name' => $me['nome'], 'coins' => (int)$me['pontos'], 'is_admin' => $is_admin], 'master_data' => master($pdo), 'collection' => collection($pdo, $user_id), 'my_team' => team($pdo, $user_id), 'ranking' => ranking($pdo), 'pack_types' => packs()]);
+if ($action === 'bootstrap') out(['ok' => true, 'user' => ['id' => $user_id, 'name' => $me['nome'], 'coins' => (int)$me['pontos'], 'is_admin' => $is_admin], 'master_data' => master($pdo), 'collection' => collection($pdo, $user_id), 'my_team' => team($pdo, $user_id), 'ranking' => ranking($pdo), 'pack_types' => packs(), 'redeemed_collections' => redeemedCollections($pdo, $user_id)]);
 if ($action === 'ranking') out(['ok' => true, 'ranking' => ranking($pdo)]);
 if ($action === 'ranking_team') {
     $targetUserId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
