@@ -636,7 +636,7 @@ async function renderMarket() {
 
 function tradeOwnedCards() {
     return state.master
-        .filter((card) => Number(state.collection[card.id] || 0) > 0)
+    .filter((card) => Number(state.collection[card.id] || 0) > 1)
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
@@ -679,9 +679,9 @@ function validateTradeSelection(cardIds, requiredCount) {
     cardIds.forEach((id) => {
         counts[id] = (counts[id] || 0) + 1;
     });
-    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) < counts[id]);
+    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) <= counts[id]);
     if (invalid) {
-        return 'Quantidade insuficiente da figurinha selecionada.';
+        return 'Somente figurinhas duplicadas podem ser usadas na troca.';
     }
     return '';
 }

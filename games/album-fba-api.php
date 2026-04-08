@@ -328,11 +328,11 @@ function consumeUserCards(PDO $pdo, int $userId, array $cardCounts): void
         $stmt = $pdo->prepare("SELECT quantidade FROM fba_user_collection WHERE user_id = :u AND card_id = :c FOR UPDATE");
         $stmt->execute([':u' => $userId, ':c' => $cardId]);
         $qty = (int)$stmt->fetchColumn();
-        if ($qty < $needed) {
+        if ($qty <= $needed) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            out(['ok' => false, 'message' => 'Quantidade insuficiente de cartas selecionadas'], 400);
+            out(['ok' => false, 'message' => 'Somente figurinhas duplicadas podem ser usadas na troca'], 400);
         }
     }
 
