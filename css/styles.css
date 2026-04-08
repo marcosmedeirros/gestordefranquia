@@ -778,12 +778,28 @@ pre{
 	left: 0;
 	height: 100vh;
 	width: 280px;
-	background: var(--fba-panel);
+	background: color-mix(in srgb, var(--fba-panel) 94%, transparent);
 	border-right: 1px solid var(--fba-border);
-	padding: 20px;
+	padding: 18px;
 	overflow-y: auto;
 	z-index: 1000;
-	box-shadow: 12px 0 36px rgba(0,0,0,.18);
+	box-shadow: 16px 0 36px rgba(0,0,0,.18);
+	-webkit-backdrop-filter: blur(10px);
+	backdrop-filter: blur(10px);
+}
+
+.sidebar-branding{
+	padding: 8px 10px 12px;
+	border: 1px solid var(--fba-border);
+	border-radius: 16px;
+	background: linear-gradient(160deg, color-mix(in srgb, var(--fba-brand-soft) 52%, transparent), transparent 55%);
+}
+
+.sidebar-user-name{
+	margin-top: 8px;
+	font-size: .85rem;
+	font-weight: 500;
+	color: var(--fba-text-muted);
 }
 
 .dashboard-sidebar::-webkit-scrollbar{ width: 8px; }
@@ -825,7 +841,7 @@ img.broken-image {
 .sidebar-menu{
 	list-style: none;
 	padding: 0;
-	margin: 30px 0 0 0;
+	margin: 22px 0 0 0;
 }
 
 .sidebar-menu li{ margin-bottom: 10px; }
@@ -833,10 +849,10 @@ img.broken-image {
 .sidebar-menu a{
 	display: flex;
 	align-items: center;
-	padding: 12px 15px;
+	padding: 10px 12px;
 	color: var(--fba-text);
 	text-decoration: none;
-	border-radius: 12px;
+	border-radius: 11px;
 	background: transparent;
 	border: 1px solid transparent;
 	transition:
@@ -847,7 +863,7 @@ img.broken-image {
 }
 
 .sidebar-menu a:hover{
-	background: var(--fba-panel-2);
+	background: color-mix(in srgb, var(--fba-panel-2) 90%, transparent);
 	color: var(--fba-text);
 	transform: translateX(2px);
 	border-color: var(--fba-border);
@@ -857,19 +873,19 @@ img.broken-image {
 	background: var(--fba-brand-soft);
 	color: var(--fba-text);
 	border-color: rgba(252,0,37,.28);
-	box-shadow: 0 8px 18px rgba(252,0,37,.12);
+	box-shadow: 0 8px 20px rgba(252,0,37,.14);
 }
 
 .sidebar-menu i{
 	margin-right: 10px;
-	font-size: 1.2rem;
+	font-size: 1.05rem;
 }
 
 .theme-toggle{
-	background: var(--fba-panel-2);
+	background: color-mix(in srgb, var(--fba-panel-2) 92%, transparent);
 	border: 1px solid var(--fba-border);
 	color: var(--fba-text);
-	font-weight: 700;
+	font-weight: 600;
 	padding: .55rem .9rem;
 	border-radius: 12px;
 	gap: 8px;
@@ -883,6 +899,14 @@ img.broken-image {
 	transform: translateY(-1px);
 	box-shadow: 0 10px 24px rgba(0,0,0,.16);
 	border-color: rgba(252,0,37,.35);
+}
+
+:root[data-theme="light"] .dashboard-sidebar{
+	box-shadow: 12px 0 32px rgba(20, 26, 40, .08);
+}
+
+:root[data-theme="light"] .sidebar-branding{
+	background: linear-gradient(160deg, rgba(252,0,37,.08), rgba(255,255,255,.7));
 }
 
 /* ---------- Onboarding steps ---------- */

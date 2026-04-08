@@ -39,11 +39,12 @@ if (!isset($user) || !isset($team)) {
 $currentPage = basename($_SERVER['PHP_SELF']);
 ?>
 <div class="dashboard-sidebar">
-    <div class="text-center mb-4">
-        <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" 
+    <div class="sidebar-branding text-center mb-4">
+        <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
              alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
-        <h5 class="text-white mb-1"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?></h5>
+        <h5 class="text-white mb-1"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></h5>
         <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league'] ?? 'ELITE') ?></span>
+        <p class="sidebar-user-name mb-0"><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></p>
     </div>
 
     <hr style="border-color: var(--fba-border);">

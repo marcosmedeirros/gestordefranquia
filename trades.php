@@ -83,6 +83,7 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 
 // Contador de trades (mostrar exatamente o campo trades_used do time logado)
 $tradeCount = (int)($team['trades_used'] ?? 0);
+$remainingTrades = max(0, (int)$maxTrades - $tradeCount);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -351,123 +352,176 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       color: var(--fba-text-muted);
       font-size: 0.9rem;
     }
+
+    .trades-page .dashboard-content {
+      padding: 30px 32px;
+    }
+
+    .trades-shell {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .trades-header {
+      background: linear-gradient(135deg, rgba(252, 0, 37, 0.13), rgba(255, 255, 255, 0.03));
+      border: 1px solid var(--fba-border);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 16px;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+    }
+
+    .trades-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .trade-stat-card {
+      border: 1px solid var(--fba-border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: var(--fba-panel);
+    }
+
+    .trade-stat-label {
+      color: var(--fba-text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .trade-stat-value {
+      color: var(--fba-text);
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .trade-stat-value.is-ok {
+      color: #1ea65b;
+    }
+
+    .trade-stat-value.is-alert {
+      color: #f17507;
+    }
+
+    .trades-page .nav-tabs {
+      border-bottom: 1px solid var(--fba-border);
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    .trades-page .nav-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .trades-page .nav-tabs .nav-link {
+      border: 1px solid var(--fba-border);
+      background: var(--fba-panel);
+      border-radius: 999px;
+      margin: 0;
+      white-space: nowrap;
+      font-size: 0.9rem;
+      padding: 10px 16px;
+    }
+
+    .trades-page .nav-tabs .nav-link.active {
+      background: var(--fba-brand-soft);
+      border-color: rgba(252, 0, 37, 0.35);
+    }
+
+    .trades-page .tab-content {
+      border: 1px solid var(--fba-border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, var(--fba-panel) 0%, var(--fba-panel-2) 100%);
+      padding: 16px;
+    }
+
+    .trades-page .trade-list-panel {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+
+    .trades-page .modal-content {
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
+      border-width: 1px;
+    }
+
+    .trades-page .modal.fade .modal-dialog {
+      transform: translateY(18px) scale(0.985);
+      transition: transform .25s ease;
+    }
+
+    .trades-page .modal.show .modal-dialog {
+      transform: translateY(0) scale(1);
+    }
+
+    .trades-page .pick-selector {
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--fba-panel-2) 75%, transparent);
+    }
+
+    .trades-page .page-actions .btn {
+      min-height: 42px;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 991px) {
+      .trades-page .dashboard-content {
+        padding: 72px 14px 26px;
+      }
+
+      .trades-shell {
+        max-width: 100%;
+      }
+
+      .trades-stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trades-page .tab-content {
+        padding: 12px;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="trades-page">
   <!-- Sidebar -->
-  <div class="dashboard-sidebar">
-    <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
-           alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
-      <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
-    </div>
-
-    <hr style="border-color: var(--fba-border);">
-
-    <ul class="sidebar-menu">
-      <li>
-        <a href="/dashboard.php">
-          <i class="bi bi-house-door-fill"></i>
-          Dashboard
-        </a>
-      </li>
-      <li>
-        <a href="/teams.php">
-          <i class="bi bi-people-fill"></i>
-          Times
-        </a>
-      </li>
-      <li>
-        <a href="/my-roster.php">
-          <i class="bi bi-person-badge-fill"></i>
-          Meu Elenco
-        </a>
-      </li>
-      <li>
-        <a href="/picks.php">
-          <i class="bi bi-trophy-fill"></i>
-          Picks
-        </a>
-      </li>
-      <li>
-        <a href="/trades.php" class="active">
-          <i class="bi bi-arrow-left-right"></i>
-          Trades
-        </a>
-      </li>
-      <li>
-        <a href="/free-agency.php">
-          <i class="bi bi-coin"></i>
-          Free Agency
-        </a>
-      </li>
-      <li>
-        <a href="/leilao.php">
-          <i class="bi bi-hammer"></i>
-          Leilão
-        </a>
-      </li>
-      <li>
-        <a href="/drafts.php">
-          <i class="bi bi-trophy"></i>
-          Draft
-        </a>
-      </li>
-      <li>
-        <a href="/rankings.php">
-          <i class="bi bi-bar-chart-fill"></i>
-          Rankings
-        </a>
-      </li>
-      <li>
-        <a href="/history.php">
-          <i class="bi bi-clock-history"></i>
-          Histórico
-        </a>
-      </li>
-      <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-      <li>
-        <a href="/admin.php">
-          <i class="bi bi-shield-lock-fill"></i>
-          Admin
-        </a>
-      </li>
-      <li>
-        <a href="/temporadas.php">
-          <i class="bi bi-calendar3"></i>
-          Temporadas
-        </a>
-      </li>
-      <?php endif; ?>
-      <li>
-        <a href="/settings.php">
-          <i class="bi bi-gear-fill"></i>
-          Configurações
-        </a>
-      </li>
-    </ul>
-
-    <hr style="border-color: var(--fba-border);">
-
-    <div class="text-center">
-      <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
-        <i class="bi bi-box-arrow-right me-2"></i>Sair
-      </a>
-    </div>
-
-    <div class="text-center mt-3">
-      <small class="text-light-gray">
-        <i class="bi bi-person-circle me-1"></i>
-        <?= htmlspecialchars($user['name']) ?>
-      </small>
-    </div>
-  </div>
+  <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
   <!-- Main Content -->
   <div class="dashboard-content">
-    <div class="mb-4">
-      <div class="page-header">
+    <div class="trades-shell">
+      <div class="trades-header">
+        <div class="trades-stats-grid">
+          <div class="trade-stat-card">
+            <div class="trade-stat-label">Trades Usadas</div>
+            <div class="trade-stat-value"><?= htmlspecialchars((string)$tradeCount) ?></div>
+          </div>
+          <div class="trade-stat-card">
+            <div class="trade-stat-label">Trades Restantes</div>
+            <div class="trade-stat-value <?= $remainingTrades > 0 ? 'is-ok' : 'is-alert' ?>"><?= htmlspecialchars((string)$remainingTrades) ?></div>
+          </div>
+          <div class="trade-stat-card">
+            <div class="trade-stat-label">Limite da Liga</div>
+            <div class="trade-stat-value"><?= htmlspecialchars((string)$maxTrades) ?></div>
+          </div>
+        </div>
+
+        <div class="page-header">
         <div class="d-flex align-items-center gap-3">
           <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
           <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
@@ -483,22 +537,22 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
           <?php endif; ?>
         </div>
         <div class="page-actions">
-          <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
+          <span class="badge bg-secondary me-2" data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="bottom" data-bs-content="Contador atualizado com base no seu ciclo atual.">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
               <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
             </button>
           <?php else: ?>
-            <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+            <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" data-popin="true" data-bs-trigger="hover focus" data-bs-placement="bottom" title="Nova trade" data-bs-content="Monte uma proposta com jogadores e picks." <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
               <i class="bi bi-plus-circle me-1"></i>Nova Trade
             </button>
-            <button class="btn btn-outline-orange" data-bs-toggle="modal" data-bs-target="#multiTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+            <button class="btn btn-outline-orange" data-bs-toggle="modal" data-bs-target="#multiTradeModal" data-popin="true" data-bs-trigger="hover focus" data-bs-placement="bottom" title="Trade múltipla" data-bs-content="Negociação entre vários times, com até 7 participantes." <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
               <i class="bi bi-people-fill me-1"></i>Trade Múltipla
             </button>
           <?php endif; ?>
         </div>
       </div>
-    </div>
+      </div>
 
     <?php if (!$teamId): ?>
       <div class="alert alert-warning">Você ainda não possui um time.</div>
@@ -647,6 +701,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     </div>
 
     <?php endif; ?>
+    </div>
   </div>
 
   <!-- Modal: Propor Trade -->
@@ -818,6 +873,15 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </div>
 
   <script>
+    (function () {
+      const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"], [data-popin="true"]');
+      popoverTriggerList.forEach((el) => {
+        if (!el.disabled) {
+          new bootstrap.Popover(el);
+        }
+      });
+    })();
+
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
     window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
