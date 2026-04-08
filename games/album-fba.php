@@ -244,7 +244,7 @@ $teams = [
                 </div>
                 <label class="inline-flex items-center gap-2 text-sm text-zinc-300 mb-3">
                     <input id="market-filter-missing" type="checkbox" class="accent-red-500">
-                    Ainda nao tenho
+                    Ainda não tenho
                 </label>
                 <div id="market-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
             </div>
