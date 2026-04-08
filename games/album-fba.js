@@ -16,6 +16,7 @@ let state = {
 };
 let currentSlot = null;
 let lastPackType = null;
+let tradeReloadPending = false;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
@@ -640,7 +641,7 @@ function tradeOwnedCards() {
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-function renderTradeSelect(selectId, excludedIds = new Set()) {
+function renderTradeSelect(selectId) {
     const select = document.getElementById(selectId);
     if (!select) return;
     const cards = tradeOwnedCards();
@@ -650,17 +651,11 @@ function renderTradeSelect(selectId, excludedIds = new Set()) {
         return;
     }
     const prev = String(select.value || '');
-    const options = cards.filter((card) => {
-        if (String(card.id) === prev) {
-            return true;
-        }
-        return !excludedIds.has(String(card.id));
-    });
-    select.innerHTML = '<option value="">Selecione uma carta</option>' + options.map((card) => {
+    select.innerHTML = '<option value="">Selecione uma carta</option>' + cards.map((card) => {
         const qty = Number(state.collection[card.id] || 0);
         return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${qty}x)</option>`;
     }).join('');
-    if (options.some((c) => String(c.id) === prev)) {
+    if (cards.some((c) => String(c.id) === prev)) {
         select.value = prev;
     } else {
         select.value = '';
@@ -672,19 +667,7 @@ function renderTrades() {
     const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
     const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
     const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
-    [premiumIds, ultraIds, missingIds].forEach((group) => {
-        const selected = new Set(group.map((id) => String(document.getElementById(id)?.value || '')).filter(Boolean));
-        group.forEach((id) => renderTradeSelect(id, selected));
-    });
-}
-
-function setupTradeSelects() {
-    const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
-    const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
-    const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
-    premiumIds.concat(ultraIds, missingIds).forEach((id) => {
-        document.getElementById(id)?.addEventListener('change', renderTrades);
-    });
+    premiumIds.concat(ultraIds, missingIds).forEach(renderTradeSelect);
 }
 
 function collectTradeSelection(selectIds) {
@@ -699,9 +682,9 @@ function validateTradeSelection(cardIds, requiredCount) {
     cardIds.forEach((id) => {
         counts[id] = (counts[id] || 0) + 1;
     });
-    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) <= counts[id]);
+    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) < counts[id]);
     if (invalid) {
-        return 'Somente figurinhas duplicadas podem ser usadas na troca.';
+        return 'Quantidade insuficiente da figurinha selecionada.';
     }
     return '';
 }
@@ -722,6 +705,7 @@ async function performTrade(action, payload) {
         renderTrades();
         const cards = Array.isArray(res.cards) ? res.cards : [];
         showRevealModal(cards, Number(res.bonus_points || 0));
+        tradeReloadPending = true;
         if (fb) fb.textContent = '';
     } catch (err) {
         if (fb) fb.textContent = err.message || 'Erro ao trocar figurinhas.';
@@ -801,6 +785,10 @@ function closeRevealModal() {
     const m = document.getElementById('reveal-modal');
     m.classList.add('hidden');
     m.classList.remove('flex');
+    if (tradeReloadPending) {
+        tradeReloadPending = false;
+        window.location.reload();
+    }
 }
 window.closeRevealModal = closeRevealModal;
 
@@ -1068,7 +1056,6 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
     }
 });
 
-setupTradeSelects();
 
 document.getElementById('trade-premium-btn')?.addEventListener('click', async () => {
     const ids = collectTradeSelection(['trade-premium-1', 'trade-premium-2', 'trade-premium-3']);
