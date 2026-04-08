@@ -683,7 +683,28 @@ function renderTrades() {
             if (!value) return;
             usageCounts[value] = (usageCounts[value] || 0) + 1;
         });
-        group.forEach((id) => renderTradeSelect(id, usageCounts));
+
+        group.forEach((id) => {
+            const select = document.getElementById(id);
+            if (!select) return;
+            const value = String(select.value || '');
+            if (!value) return;
+            const owned = Number(state.collection[value] || 0);
+            const used = Number(usageCounts[value] || 0);
+            if (owned > 0 && used > owned) {
+                usageCounts[value] = used - 1;
+                select.value = '';
+            }
+        });
+
+        const adjustedCounts = {};
+        group.forEach((id) => {
+            const value = String(document.getElementById(id)?.value || '');
+            if (!value) return;
+            adjustedCounts[value] = (adjustedCounts[value] || 0) + 1;
+        });
+
+        group.forEach((id) => renderTradeSelect(id, adjustedCounts));
     });
 }
 
