@@ -498,6 +498,11 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
             gap: 8px;
         }
 
+        .market-item.missing {
+            border-color: #ff5a6f;
+            box-shadow: 0 0 0 1px rgba(255, 90, 111, 0.25);
+        }
+
         .market-item-head {
             display: flex;
             justify-content: space-between;
@@ -1194,12 +1199,14 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
                 activeNode.innerHTML = `<div class="market-grid">${activeListings.map((listing) => {
                     const sticker = stickersById[listing.sticker_id] || null;
                     const name = sticker ? sticker.name : `Cartinha #${listing.sticker_id}`;
+                    const owned = sticker ? getStickerQty(sticker.id) > 0 : false;
                     const isMine = Number(listing.seller_user_id) === Number(currentUserId);
+                    const cardClass = owned ? '' : ' missing';
                     const buttonHtml = isMine
                         ? '<span class="status-chip">Seu anuncio</span>'
                         : `<button class="btn btn-secondary" data-buy-listing="${listing.id}" type="button">Comprar</button>`;
                     return `
-                        <div class="market-item">
+                        <div class="market-item${cardClass}">
                             <div class="market-item-head">
                                 <div>
                                     <div style="font-weight:700;">${name}</div>
