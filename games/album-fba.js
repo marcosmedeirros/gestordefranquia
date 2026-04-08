@@ -704,7 +704,7 @@ async function performTrade(action, payload) {
         await renderMarket();
         renderTrades();
         const cards = Array.isArray(res.cards) ? res.cards : [];
-        showRevealModal(cards, Number(res.bonus_points || 0));
+        showRevealModal(cards, Number(res.bonus_points || 0), false);
         tradeReloadPending = true;
         if (fb) fb.textContent = '';
     } catch (err) {
@@ -738,7 +738,7 @@ async function openPack(type) {
 }
 window.openPack = openPack;
 
-function showRevealModal(cards, bonusPoints = 0) {
+function showRevealModal(cards, bonusPoints = 0, allowReopen = true) {
     const m = document.getElementById('reveal-modal');
     const c = document.getElementById('revealed-cards-container');
     const b = document.getElementById('btn-close-modal');
@@ -764,7 +764,7 @@ function showRevealModal(cards, bonusPoints = 0) {
                         ? `Cartas adicionadas ao Ãlbum! Bônus de repetidas: +${bonusPoints} pontos`
                         : 'Cartas adicionadas ao Ãlbum!';
                     b.classList.remove('hidden');
-                    if (reopen) {
+                    if (reopen && allowReopen) {
                         const cfg = lastPackType ? state.packTypes?.[lastPackType] : null;
                         const price = cfg ? Number(cfg.price || 0) : 0;
                         reopen.textContent = price > 0
