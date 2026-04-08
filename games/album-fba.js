@@ -526,11 +526,14 @@ function filteredMarketListings() {
     const nameQuery = String(document.getElementById('market-filter-name')?.value || '').trim().toLowerCase();
     const collectionFilter = String(document.getElementById('market-filter-collection')?.value || '');
     const rarityFilter = String(document.getElementById('market-filter-rarity')?.value || '');
+    const missingOnly = Boolean(document.getElementById('market-filter-missing')?.checked);
     return (Array.isArray(state.market.listings) ? state.market.listings : []).filter((item) => {
         const nameOk = !nameQuery || String(item.card_name || '').toLowerCase().includes(nameQuery);
         const collectionOk = !collectionFilter || String(item.card_collection || '') === collectionFilter;
         const rarityOk = !rarityFilter || String(item.card_rarity || '') === rarityFilter;
-        return nameOk && collectionOk && rarityOk;
+        const owned = Number(state.collection[item.card_id] || 0) > 0;
+        const missingOk = !missingOnly || !owned;
+        return nameOk && collectionOk && rarityOk && missingOk;
     });
 }
 
@@ -932,6 +935,7 @@ document.getElementById('market-sell-card')?.addEventListener('change', updateMa
 document.getElementById('market-filter-name')?.addEventListener('input', renderMarketListings);
 document.getElementById('market-filter-collection')?.addEventListener('change', renderMarketListings);
 document.getElementById('market-filter-rarity')?.addEventListener('change', renderMarketListings);
+document.getElementById('market-filter-missing')?.addEventListener('change', renderMarketListings);
 document.getElementById('market-toggle-mine')?.addEventListener('click', () => {
     const wrap = document.getElementById('market-mine-wrap');
     const btn = document.getElementById('market-toggle-mine');

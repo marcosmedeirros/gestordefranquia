@@ -204,7 +204,7 @@ $teams = [
         </section>
 
         <section id="section-market" class="hidden">
-            <h2 class="text-3xl font-bold fba-title mb-2">Mercado de Cartasss</h2>
+            <h2 class="text-3xl font-bold fba-title mb-2">Mercado de Cartas</h2>
             <p class="text-zinc-400 mb-4">Venda duplicadas e compre cartas de outros usuarios com pontos.</p>
 
             <div class="bg-black border border-red-700 rounded-xl p-4 mb-4">
@@ -242,6 +242,10 @@ $teams = [
                         <option value="lendario">Lendaria</option>
                     </select>
                 </div>
+                <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
+                    <input id="market-filter-missing" type="checkbox" class="accent-red-500">
+                    Ainda nao tenho
+                </label>
                 <div id="market-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
             </div>
             <p id="market-feedback" class="text-sm text-zinc-300 mt-3"></p>
