@@ -111,7 +111,7 @@ function packs(): array
     return [
         'basico' => ['price' => 30, 'cards' => 1, 'rates' => ['lendario' => 1, 'epico' => 4, 'rara' => 20, 'comum' => 75]],
         'premium' => ['price' => 60, 'cards' => 1, 'rates' => ['lendario' => 5, 'epico' => 15, 'rara' => 30, 'comum' => 50]],
-        'ultra' => ['price' => 100, 'cards' => 2, 'rates' => ['lendario' => 10, 'epico' => 25, 'rara' => 40, 'comum' => 25]],
+        'ultra' => ['price' => 100, 'cards' => 2, 'rates' => ['lendario' => 5, 'epico' => 25, 'rara' => 40, 'comum' => 30]],
     ];
 }
 function master(PDO $pdo): array

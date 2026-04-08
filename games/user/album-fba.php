@@ -34,7 +34,7 @@ if (!isset($_SESSION['user_id'])) {
     <button onclick="switchTab('album')" id="tab-album" class="px-4 md:px-6 py-2 rounded-t-lg bg-blue-600 font-bold fba-title">Meu Álbum</button>
     <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Meu Time</button>
     <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Ranking</button>
-    <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Abrir Pacotes</button>
+    <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700">Pacotes</button>
     <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700 hidden">Admin</button>
 </div>
 <main class="container mx-auto px-4 py-8 flex-grow">
