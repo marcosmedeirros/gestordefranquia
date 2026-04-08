@@ -708,6 +708,37 @@ function renderTrades() {
     });
 }
 
+function setupTradeSelects() {
+    const groups = [
+        ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'],
+        ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'],
+        ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10']
+    ];
+
+    groups.forEach((group) => {
+        group.forEach((id) => {
+            const select = document.getElementById(id);
+            if (!select) return;
+            select.addEventListener('change', (event) => {
+                const value = String(event.target.value || '');
+                if (!value) {
+                    renderTrades();
+                    return;
+                }
+                const count = group.reduce((acc, key) => {
+                    const v = String(document.getElementById(key)?.value || '');
+                    return acc + (v === value ? 1 : 0);
+                }, 0);
+                const owned = Number(state.collection[value] || 0);
+                if (owned > 0 && count > owned) {
+                    event.target.value = '';
+                }
+                renderTrades();
+            });
+        });
+    });
+}
+
 function collectTradeSelection(selectIds) {
     return selectIds.map((id) => Number(document.getElementById(id)?.value || 0)).filter((id) => id > 0);
 }
@@ -1093,6 +1124,8 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
         if (fb) fb.textContent = err.message || 'Erro ao criar anuncio.';
     }
 });
+
+setupTradeSelects();
 
 
 document.getElementById('trade-premium-btn')?.addEventListener('click', async () => {
