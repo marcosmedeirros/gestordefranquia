@@ -641,7 +641,7 @@ function tradeOwnedCards() {
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-function renderTradeSelect(selectId) {
+function renderTradeSelect(selectId, usageCounts) {
     const select = document.getElementById(selectId);
     if (!select) return;
     const cards = tradeOwnedCards();
@@ -651,11 +651,20 @@ function renderTradeSelect(selectId) {
         return;
     }
     const prev = String(select.value || '');
-    select.innerHTML = '<option value="">Selecione uma carta</option>' + cards.map((card) => {
+    const adjustedCounts = { ...usageCounts };
+    if (prev) {
+        adjustedCounts[prev] = Math.max(0, (adjustedCounts[prev] || 0) - 1);
+    }
+    const options = cards.filter((card) => {
+        const owned = Number(state.collection[card.id] || 0);
+        const used = Number(adjustedCounts[String(card.id)] || 0);
+        return used < owned;
+    });
+    select.innerHTML = '<option value="">Selecione uma carta</option>' + options.map((card) => {
         const qty = Number(state.collection[card.id] || 0);
         return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${qty}x)</option>`;
     }).join('');
-    if (cards.some((c) => String(c.id) === prev)) {
+    if (options.some((c) => String(c.id) === prev)) {
         select.value = prev;
     } else {
         select.value = '';
@@ -667,7 +676,15 @@ function renderTrades() {
     const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
     const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
     const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
-    premiumIds.concat(ultraIds, missingIds).forEach(renderTradeSelect);
+    [premiumIds, ultraIds, missingIds].forEach((group) => {
+        const usageCounts = {};
+        group.forEach((id) => {
+            const value = String(document.getElementById(id)?.value || '');
+            if (!value) return;
+            usageCounts[value] = (usageCounts[value] || 0) + 1;
+        });
+        group.forEach((id) => renderTradeSelect(id, usageCounts));
+    });
 }
 
 function collectTradeSelection(selectIds) {
