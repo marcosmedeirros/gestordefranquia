@@ -515,9 +515,9 @@ ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="t
   }
 }
 
-async function showTrades(status = appState.tradeFilters.status || 'all') {
+async function showTrades() {
   appState.view = 'trades';
-  appState.tradeFilters.status = status;
+  appState.tradeFilters.status = 'accepted';
   updateBreadcrumb();
   
   const container = document.getElementById('mainContainer');
@@ -546,10 +546,7 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
     </div>
   </div>
   <div class="btn-group flex-wrap">
-    <button id="tradesTabAll" class="btn btn-outline-orange btn-sm ${status === 'all' ? 'active' : ''}" onclick="showTrades('all')">Todas (0)</button>
-    <button id="tradesTabPending" class="btn btn-outline-orange btn-sm ${status === 'pending' ? 'active' : ''}" onclick="showTrades('pending')">Pendentes (0)</button>
-    <button id="tradesTabAccepted" class="btn btn-outline-orange btn-sm ${status === 'accepted' ? 'active' : ''}" onclick="showTrades('accepted')">Aceitas (0)</button>
-    <button id="tradesTabRejected" class="btn btn-outline-orange btn-sm ${status === 'rejected' ? 'active' : ''}" onclick="showTrades('rejected')">Rejeitadas (0)</button>
+    <button id="tradesTabAccepted" class="btn btn-outline-orange btn-sm active" type="button">Aceitas (0)</button>
   </div>
 </div>
 <div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
@@ -583,7 +580,7 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
       }
     }
 
-    let url = 'admin.php?action=trades';
+    let url = 'admin.php?action=trades&status=accepted';
     if (leagueFilter && leagueFilter !== 'ALL') {
       url += `&league=${encodeURIComponent(leagueFilter)}`;
     }
@@ -594,24 +591,10 @@ async function showTrades(status = appState.tradeFilters.status || 'all') {
     const trades = data.trades || [];
     const tc = document.getElementById('tradesListContainer');
 
-    const counts = {
-      all: trades.length,
-      pending: trades.filter(t => t.status === 'pending').length,
-      accepted: trades.filter(t => t.status === 'accepted').length,
-      rejected: trades.filter(t => t.status === 'rejected').length
-    };
-    const tabAll = document.getElementById('tradesTabAll');
-    const tabPending = document.getElementById('tradesTabPending');
     const tabAccepted = document.getElementById('tradesTabAccepted');
-    const tabRejected = document.getElementById('tradesTabRejected');
-    if (tabAll) tabAll.textContent = `Todas (${counts.all})`;
-    if (tabPending) tabPending.textContent = `Pendentes (${counts.pending})`;
-    if (tabAccepted) tabAccepted.textContent = `Aceitas (${counts.accepted})`;
-    if (tabRejected) tabRejected.textContent = `Rejeitadas (${counts.rejected})`;
+    if (tabAccepted) tabAccepted.textContent = `Aceitas (${trades.length})`;
 
-    const filteredTrades = status === 'all'
-      ? trades
-      : trades.filter(t => (t.status || '').toLowerCase() === status);
+    const filteredTrades = trades;
     
     if (filteredTrades.length === 0) {
       tc.innerHTML = '<div class="text-center py-5 text-light-gray">Nenhuma trade</div>';
