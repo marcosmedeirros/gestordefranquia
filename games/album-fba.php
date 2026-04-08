@@ -146,7 +146,7 @@ $teams = [
         <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Meu Time</button>
         <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Ranking</button>
         <button onclick="switchTab('market')" id="tab-market" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Mercado</button>
-        <button onclick="switchTab('trades')" id="tab-trades" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">TrocasSS</button>
+        <button onclick="switchTab('trades')" id="tab-trades" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Trocas</button>
         <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Pacotes</button>
         <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800 hidden">Admin</button>
     </div>
