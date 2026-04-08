@@ -308,6 +308,39 @@ function cardById(PDO $pdo, int $cardId): ?array
         'active' => (int)$row['ativo'] === 1
     ];
 }
+
+function normalizeCardCounts(array $cardIds): array
+{
+    $counts = [];
+    foreach ($cardIds as $cardId) {
+        $id = (int)$cardId;
+        if ($id <= 0) {
+            continue;
+        }
+        $counts[$id] = ($counts[$id] ?? 0) + 1;
+    }
+    return $counts;
+}
+
+function consumeUserCards(PDO $pdo, int $userId, array $cardCounts): void
+{
+    foreach ($cardCounts as $cardId => $needed) {
+        $stmt = $pdo->prepare("SELECT quantidade FROM fba_user_collection WHERE user_id = :u AND card_id = :c FOR UPDATE");
+        $stmt->execute([':u' => $userId, ':c' => $cardId]);
+        $qty = (int)$stmt->fetchColumn();
+        if ($qty < $needed) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            out(['ok' => false, 'message' => 'Quantidade insuficiente de cartas selecionadas'], 400);
+        }
+    }
+
+    foreach ($cardCounts as $cardId => $needed) {
+        $dec = $pdo->prepare("UPDATE fba_user_collection SET quantidade = quantidade - :n WHERE user_id = :u AND card_id = :c");
+        $dec->execute([':n' => (int)$needed, ':u' => $userId, ':c' => (int)$cardId]);
+    }
+}
 schema($pdo);
 
 $meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
@@ -513,6 +546,125 @@ if ($action === 'market_buy_listing') {
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao comprar carta'], 500);
+    }
+}
+
+if ($action === 'trade_pack') {
+    $b = body();
+    $packType = (string)($b['packType'] ?? '');
+    $cards = is_array($b['cards'] ?? null) ? $b['cards'] : [];
+    $packCfg = packs();
+    if (!isset($packCfg[$packType]) || !in_array($packType, ['premium', 'ultra'], true)) {
+        out(['ok' => false, 'message' => 'Pacote invalido'], 400);
+    }
+    $required = $packType === 'ultra' ? 5 : 3;
+    if (count($cards) !== $required) {
+        out(['ok' => false, 'message' => 'Quantidade invalida de cartas'], 400);
+    }
+    $cardCounts = normalizeCardCounts($cards);
+
+    try {
+        $pdo->beginTransaction();
+        consumeUserCards($pdo, $user_id, $cardCounts);
+
+        $coll = collection($pdo, $user_id);
+        $pulled = [];
+        $bonusPoints = 0;
+        $cardsToDraw = max(1, (int)($packCfg[$packType]['cards'] ?? 1));
+        for ($i = 0; $i < $cardsToDraw; $i++) {
+            $card = draw($pdo, $packCfg[$packType]['rates']);
+            if (!$card) {
+                $pdo->rollBack();
+                out(['ok' => false, 'message' => 'Sem cartas cadastradas'], 400);
+            }
+            $ins = $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u,:c,1) ON DUPLICATE KEY UPDATE quantidade=quantidade+1");
+            $ins->execute([':u' => $user_id, ':c' => $card['id']]);
+            $coll[$card['id']] = ($coll[$card['id']] ?? 0) + 1;
+            if ($coll[$card['id']] >= 5) {
+                $bonusPoints += 3;
+            }
+            $pulled[] = $card;
+        }
+
+        if ($bonusPoints > 0) {
+            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
+        }
+
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt->execute([':id' => $user_id]);
+        $coins = (int)$coinsStmt->fetchColumn();
+
+        $pdo->commit();
+        out(['ok' => true, 'coins' => $coins, 'cards' => $pulled, 'collection' => $coll, 'bonus_points' => $bonusPoints]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao trocar cartas'], 500);
+    }
+}
+
+if ($action === 'trade_missing') {
+    $b = body();
+    $cards = is_array($b['cards'] ?? null) ? $b['cards'] : [];
+    if (count($cards) !== 10) {
+        out(['ok' => false, 'message' => 'Quantidade invalida de cartas'], 400);
+    }
+    $cardCounts = normalizeCardCounts($cards);
+
+    try {
+        $pdo->beginTransaction();
+        consumeUserCards($pdo, $user_id, $cardCounts);
+
+        $excludedCollection = 'Rookie Stars';
+        $packCollections = fetchPackCollections($pdo);
+        $enabledCollections = [];
+        foreach ($packCollections as $row) {
+            if ((int)($row['in_pack'] ?? 0) === 1) {
+                $enabledCollections[] = (string)$row['collection_name'];
+            }
+        }
+        if ($packCollections && !$enabledCollections) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Nenhuma colecao ativa para pacotes'], 400);
+        }
+
+        $conditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?", 'uc.card_id IS NULL'];
+        $params = [$excludedCollection];
+        if ($enabledCollections) {
+            $in = implode(',', array_fill(0, count($enabledCollections), '?'));
+            $conditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
+            $params = array_merge($params, $enabledCollections);
+        }
+        $where = implode(' AND ', $conditions);
+
+        $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+            FROM fba_cards c
+            INNER JOIN fba_card_teams t ON t.id = c.team_id
+            LEFT JOIN fba_user_collection uc ON uc.card_id = c.id AND uc.user_id = ?
+            WHERE $where
+            ORDER BY RAND()
+            LIMIT 1");
+        $stmt->execute(array_merge([$user_id], $params));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Nenhuma carta nova disponivel'], 400);
+        }
+
+        $newCard = ['id' => (int)$row['id'], 'collection' => $row['colecao'], 'team' => $row['team'], 'name' => $row['nome'], 'position' => strtoupper($row['posicao']), 'rarity' => $row['raridade'], 'ovr' => (int)$row['ovr'], 'img' => $row['img_url']];
+        $ins = $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u,:c,1) ON DUPLICATE KEY UPDATE quantidade=quantidade+1");
+        $ins->execute([':u' => $user_id, ':c' => $newCard['id']]);
+
+        $coll = collection($pdo, $user_id);
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt->execute([':id' => $user_id]);
+        $coins = (int)$coinsStmt->fetchColumn();
+
+        $pdo->commit();
+        out(['ok' => true, 'coins' => $coins, 'cards' => [$newCard], 'collection' => $coll, 'bonus_points' => 0]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao trocar cartas'], 500);
     }
 }
 

@@ -146,6 +146,7 @@ $teams = [
         <button onclick="switchTab('team')" id="tab-team" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Meu Time</button>
         <button onclick="switchTab('ranking')" id="tab-ranking" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Ranking</button>
         <button onclick="switchTab('market')" id="tab-market" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Mercado</button>
+        <button onclick="switchTab('trades')" id="tab-trades" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Trocas</button>
         <button onclick="switchTab('store')" id="tab-store" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800">Pacotes</button>
         <button onclick="switchTab('admin')" id="tab-admin" class="px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800 hidden">Admin</button>
     </div>
@@ -249,6 +250,54 @@ $teams = [
                 <div id="market-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
             </div>
             <p id="market-feedback" class="text-sm text-zinc-300 mt-3"></p>
+        </section>
+
+        <section id="section-trades" class="hidden">
+            <h2 class="text-3xl font-bold fba-title mb-2">Trocas</h2>
+            <p class="text-zinc-400 mb-4">Selecione figurinhas do seu album e troque por pacotes especiais.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="bg-black border border-red-700 rounded-xl p-4">
+                    <h3 class="fba-title text-xl mb-3">3 figurinhas = Pacote Premium</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <select id="trade-premium-1" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-premium-2" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-premium-3" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <button id="trade-premium-btn" class="bg-red-700 hover:bg-red-600 rounded px-4 py-2 font-bold">Trocar por Premium</button>
+                    </div>
+                </div>
+
+                <div class="bg-black border border-red-700 rounded-xl p-4">
+                    <h3 class="fba-title text-xl mb-3">5 figurinhas = Pacote Ultra</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <select id="trade-ultra-1" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-ultra-2" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-ultra-3" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-ultra-4" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-ultra-5" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <button id="trade-ultra-btn" class="bg-red-700 hover:bg-red-600 rounded px-4 py-2 font-bold">Trocar por Ultra</button>
+                    </div>
+                </div>
+
+                <div class="bg-black border border-red-700 rounded-xl p-4">
+                    <h3 class="fba-title text-xl mb-3">10 figurinhas = 1 nova</h3>
+                    <p class="text-zinc-400 text-sm mb-3">Recebe uma figurinha que voce ainda nao tem.</p>
+                    <div class="grid grid-cols-1 gap-2">
+                        <select id="trade-missing-1" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-2" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-3" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-4" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-5" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-6" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-7" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-8" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-9" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <select id="trade-missing-10" class="bg-zinc-900 border border-zinc-600 rounded px-3 py-2"></select>
+                        <button id="trade-missing-btn" class="bg-red-700 hover:bg-red-600 rounded px-4 py-2 font-bold">Trocar por nova</button>
+                    </div>
+                </div>
+            </div>
+            <p id="trade-feedback" class="text-sm text-zinc-300 mt-3"></p>
         </section>
 
         <section id="section-store" class="hidden text-center">

@@ -92,6 +92,7 @@ async function bootstrap() {
     renderAlbum();
     renderCourt();
     renderMarket();
+    renderTrades();
     if (state.user.is_admin) {
         renderAdminCards();
         await loadAdminPackCollections();
@@ -100,7 +101,7 @@ async function bootstrap() {
 }
 
 function switchTab(tab) {
-    const all = ['album', 'team', 'ranking', 'market', 'store'];
+    const all = ['album', 'team', 'ranking', 'market', 'trades', 'store'];
     if (state.user?.is_admin) all.push('admin');
     all.forEach((t) => {
         const section = document.getElementById('section-' + t);
@@ -126,6 +127,7 @@ function switchTab(tab) {
     if (tab === 'team') renderCourt();
     if (tab === 'ranking') renderRanking();
     if (tab === 'market') renderMarket();
+    if (tab === 'trades') renderTrades();
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -632,6 +634,80 @@ async function renderMarket() {
     }
 }
 
+function tradeOwnedCards() {
+    return state.master
+        .filter((card) => Number(state.collection[card.id] || 0) > 0)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+function renderTradeSelect(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const cards = tradeOwnedCards();
+    if (!cards.length) {
+        select.innerHTML = '<option value="">Sem cartas disponiveis</option>';
+        select.disabled = true;
+        return;
+    }
+    const prev = String(select.value || '');
+    select.innerHTML = '<option value="">Selecione uma carta</option>' + cards.map((card) => {
+        const qty = Number(state.collection[card.id] || 0);
+        return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${qty}x)</option>`;
+    }).join('');
+    if (cards.some((c) => String(c.id) === prev)) {
+        select.value = prev;
+    }
+    select.disabled = false;
+}
+
+function renderTrades() {
+    const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
+    const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
+    const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
+    premiumIds.concat(ultraIds, missingIds).forEach(renderTradeSelect);
+}
+
+function collectTradeSelection(selectIds) {
+    return selectIds.map((id) => Number(document.getElementById(id)?.value || 0)).filter((id) => id > 0);
+}
+
+function validateTradeSelection(cardIds, requiredCount) {
+    if (cardIds.length !== requiredCount) {
+        return `Selecione ${requiredCount} figurinhas.`;
+    }
+    const counts = {};
+    cardIds.forEach((id) => {
+        counts[id] = (counts[id] || 0) + 1;
+    });
+    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) < counts[id]);
+    if (invalid) {
+        return 'Quantidade insuficiente da figurinha selecionada.';
+    }
+    return '';
+}
+
+async function performTrade(action, payload) {
+    const fb = document.getElementById('trade-feedback');
+    try {
+        const res = await post(action, payload);
+        if (!res.ok) {
+            if (fb) fb.textContent = res.message || 'Erro ao trocar figurinhas.';
+            return;
+        }
+        state.collection = res.collection || state.collection;
+        state.user.coins = Number(res.coins || state.user.coins || 0);
+        document.getElementById('coin-count').innerText = state.user.coins;
+        renderAlbum();
+        await renderMarket();
+        renderTrades();
+        const cards = Array.isArray(res.cards) ? res.cards : [];
+        showRevealModal(cards, Number(res.bonus_points || 0));
+        if (fb) fb.textContent = '';
+    } catch (err) {
+        if (fb) fb.textContent = err.message || 'Erro ao trocar figurinhas.';
+    }
+}
+
 async function openPack(type) {
     const cfg = state.packTypes[type];
     if (!cfg) return;
@@ -970,6 +1046,39 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
     } catch (err) {
         if (fb) fb.textContent = err.message || 'Erro ao criar anuncio.';
     }
+});
+
+document.getElementById('trade-premium-btn')?.addEventListener('click', async () => {
+    const ids = collectTradeSelection(['trade-premium-1', 'trade-premium-2', 'trade-premium-3']);
+    const error = validateTradeSelection(ids, 3);
+    const fb = document.getElementById('trade-feedback');
+    if (error) {
+        if (fb) fb.textContent = error;
+        return;
+    }
+    await performTrade('trade_pack', { packType: 'premium', cards: ids });
+});
+
+document.getElementById('trade-ultra-btn')?.addEventListener('click', async () => {
+    const ids = collectTradeSelection(['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5']);
+    const error = validateTradeSelection(ids, 5);
+    const fb = document.getElementById('trade-feedback');
+    if (error) {
+        if (fb) fb.textContent = error;
+        return;
+    }
+    await performTrade('trade_pack', { packType: 'ultra', cards: ids });
+});
+
+document.getElementById('trade-missing-btn')?.addEventListener('click', async () => {
+    const ids = collectTradeSelection(['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10']);
+    const error = validateTradeSelection(ids, 10);
+    const fb = document.getElementById('trade-feedback');
+    if (error) {
+        if (fb) fb.textContent = error;
+        return;
+    }
+    await performTrade('trade_missing', { cards: ids });
 });
 
 document.getElementById('market-list')?.addEventListener('click', async (event) => {
