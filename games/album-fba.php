@@ -204,7 +204,7 @@ $teams = [
         </section>
 
         <section id="section-market" class="hidden">
-            <h2 class="text-3xl font-bold fba-title mb-2">Mercado de Cartas</h2>
+            <h2 class="text-3xl font-bold fba-title mb-2">Mercado de Cartasss</h2>
             <p class="text-zinc-400 mb-4">Venda duplicadas e compre cartas de outros usuarios com pontos.</p>
 
             <div class="bg-black border border-red-700 rounded-xl p-4 mb-4">
