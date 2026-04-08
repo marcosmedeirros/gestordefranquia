@@ -640,7 +640,7 @@ function tradeOwnedCards() {
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-function renderTradeSelect(selectId) {
+function renderTradeSelect(selectId, excludedIds = new Set()) {
     const select = document.getElementById(selectId);
     if (!select) return;
     const cards = tradeOwnedCards();
@@ -650,12 +650,20 @@ function renderTradeSelect(selectId) {
         return;
     }
     const prev = String(select.value || '');
-    select.innerHTML = '<option value="">Selecione uma carta</option>' + cards.map((card) => {
+    const options = cards.filter((card) => {
+        if (String(card.id) === prev) {
+            return true;
+        }
+        return !excludedIds.has(String(card.id));
+    });
+    select.innerHTML = '<option value="">Selecione uma carta</option>' + options.map((card) => {
         const qty = Number(state.collection[card.id] || 0);
         return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${qty}x)</option>`;
     }).join('');
-    if (cards.some((c) => String(c.id) === prev)) {
+    if (options.some((c) => String(c.id) === prev)) {
         select.value = prev;
+    } else {
+        select.value = '';
     }
     select.disabled = false;
 }
@@ -664,7 +672,19 @@ function renderTrades() {
     const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
     const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
     const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
-    premiumIds.concat(ultraIds, missingIds).forEach(renderTradeSelect);
+    [premiumIds, ultraIds, missingIds].forEach((group) => {
+        const selected = new Set(group.map((id) => String(document.getElementById(id)?.value || '')).filter(Boolean));
+        group.forEach((id) => renderTradeSelect(id, selected));
+    });
+}
+
+function setupTradeSelects() {
+    const premiumIds = ['trade-premium-1', 'trade-premium-2', 'trade-premium-3'];
+    const ultraIds = ['trade-ultra-1', 'trade-ultra-2', 'trade-ultra-3', 'trade-ultra-4', 'trade-ultra-5'];
+    const missingIds = ['trade-missing-1', 'trade-missing-2', 'trade-missing-3', 'trade-missing-4', 'trade-missing-5', 'trade-missing-6', 'trade-missing-7', 'trade-missing-8', 'trade-missing-9', 'trade-missing-10'];
+    premiumIds.concat(ultraIds, missingIds).forEach((id) => {
+        document.getElementById(id)?.addEventListener('change', renderTrades);
+    });
 }
 
 function collectTradeSelection(selectIds) {
@@ -1047,6 +1067,8 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
         if (fb) fb.textContent = err.message || 'Erro ao criar anuncio.';
     }
 });
+
+setupTradeSelects();
 
 document.getElementById('trade-premium-btn')?.addEventListener('click', async () => {
     const ids = collectTradeSelection(['trade-premium-1', 'trade-premium-2', 'trade-premium-3']);
