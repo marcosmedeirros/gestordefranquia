@@ -242,7 +242,7 @@ $teams = [
                         <option value="lendario">Lendaria</option>
                     </select>
                 </div>
-                <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
+                <label class="inline-flex items-center gap-2 text-sm text-zinc-300 mb-3">
                     <input id="market-filter-missing" type="checkbox" class="accent-red-500">
                     Ainda nao tenho
                 </label>
