@@ -304,6 +304,14 @@ $teams = [
             <h2 class="text-3xl font-bold fba-title mb-2">Loja de Pacotes</h2>
             <div class="flex flex-wrap justify-center gap-8 mt-10">
                 <div class="flex flex-col items-center">
+                    <div id="pack-daily" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#1f2937,#0f172a)">
+                        <h3 class="text-3xl font-black italic">DIARIO</h3>
+                        <div class="text-sm text-zinc-200 mt-2">1x por dia</div>
+                    </div>
+                    <button id="pack-daily-btn" class="mt-4 bg-zinc-800 hover:bg-zinc-700 px-6 py-2 rounded-full font-bold border border-red-700">Resgatar</button>
+                    <div id="pack-daily-hint" class="text-xs text-zinc-400 mt-2"></div>
+                </div>
+                <div class="flex flex-col items-center">
                     <div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#2e2e2e,#111111)" onclick="openPack('basico')"><button type="button" class="pack-info-btn" onclick="event.stopPropagation(); showPackOdds('basico')">!</button><h3 class="text-3xl font-black italic">BÁSICO</h3></div>
                     <button class="mt-4 bg-zinc-800 hover:bg-zinc-700 px-6 py-2 rounded-full font-bold border border-red-700" onclick="openPack('basico')">30</button>
                 </div>

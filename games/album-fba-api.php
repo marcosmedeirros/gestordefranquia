@@ -74,6 +74,12 @@ function schema(PDO $pdo): void
         UNIQUE KEY uniq_pack_collection (collection_name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_daily_pack_claims (
+        user_id INT NOT NULL,
+        last_claim_at TIMESTAMP NULL DEFAULT NULL,
+        PRIMARY KEY (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $col = $pdo->query("SHOW COLUMNS FROM fba_cards LIKE 'collection_name'");
     if (!$col || $col->rowCount() === 0) {
         $pdo->exec("ALTER TABLE fba_cards ADD COLUMN collection_name VARCHAR(120) NOT NULL DEFAULT 'Geral' AFTER team_id");
@@ -546,6 +552,78 @@ if ($action === 'market_buy_listing') {
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao comprar carta'], 500);
+    }
+}
+
+if ($action === 'daily_pack_status') {
+    $stmt = $pdo->prepare("SELECT last_claim_at FROM fba_daily_pack_claims WHERE user_id = :u");
+    $stmt->execute([':u' => $user_id]);
+    $last = $stmt->fetchColumn();
+    $now = time();
+    $lastTs = $last ? strtotime((string)$last) : 0;
+    $elapsed = $lastTs ? max(0, $now - $lastTs) : 999999;
+    $remaining = max(0, 86400 - $elapsed);
+    out([
+        'ok' => true,
+        'can_claim' => $remaining === 0,
+        'remaining_seconds' => $remaining,
+        'next_at' => $remaining === 0 ? null : date('c', $now + $remaining)
+    ]);
+}
+
+if ($action === 'claim_daily_pack') {
+    $stmt = $pdo->prepare("SELECT last_claim_at FROM fba_daily_pack_claims WHERE user_id = :u FOR UPDATE");
+    try {
+        $pdo->beginTransaction();
+        $stmt->execute([':u' => $user_id]);
+        $last = $stmt->fetchColumn();
+        $now = time();
+        $lastTs = $last ? strtotime((string)$last) : 0;
+        $elapsed = $lastTs ? max(0, $now - $lastTs) : 999999;
+        $remaining = max(0, 86400 - $elapsed);
+        if ($remaining > 0) {
+            $pdo->rollBack();
+            out(['ok' => false, 'message' => 'Pacote diario ainda indisponivel.'], 400);
+        }
+
+        $up = $pdo->prepare("INSERT INTO fba_daily_pack_claims (user_id, last_claim_at) VALUES (:u, NOW())
+            ON DUPLICATE KEY UPDATE last_claim_at = NOW()");
+        $up->execute([':u' => $user_id]);
+
+        $cfg = packs();
+        $packCfg = $cfg['basico'];
+        $coll = collection($pdo, $user_id);
+        $pulled = [];
+        $bonusPoints = 0;
+        $cardsToDraw = max(1, (int)($packCfg['cards'] ?? 1));
+        for ($i = 0; $i < $cardsToDraw; $i++) {
+            $card = draw($pdo, $packCfg['rates']);
+            if (!$card) {
+                $pdo->rollBack();
+                out(['ok' => false, 'message' => 'Sem cartas cadastradas'], 400);
+            }
+            $ins = $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u,:c,1) ON DUPLICATE KEY UPDATE quantidade=quantidade+1");
+            $ins->execute([':u' => $user_id, ':c' => $card['id']]);
+            $coll[$card['id']] = ($coll[$card['id']] ?? 0) + 1;
+            if ($coll[$card['id']] >= 5) {
+                $bonusPoints += 3;
+            }
+            $pulled[] = $card;
+        }
+        if ($bonusPoints > 0) {
+            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
+        }
+
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt->execute([':id' => $user_id]);
+        $coins = (int)$coinsStmt->fetchColumn();
+
+        $pdo->commit();
+        out(['ok' => true, 'coins' => $coins, 'cards' => $pulled, 'collection' => $coll, 'bonus_points' => $bonusPoints]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        out(['ok' => false, 'message' => 'Erro ao resgatar pacote diario'], 500);
     }
 }
 

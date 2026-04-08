@@ -1138,6 +1138,10 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
     }
 });
 
+document.getElementById('pack-daily-btn')?.addEventListener('click', () => {
+    claimDailyPack();
+});
+
 setupTradeSelects();
 
 
