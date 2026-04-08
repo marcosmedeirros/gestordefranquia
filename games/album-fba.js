@@ -657,15 +657,19 @@ function renderTradeSelect(selectId, usageCounts) {
     }
     const options = cards.filter((card) => {
         const owned = Number(state.collection[card.id] || 0);
+        const limit = Math.max(owned - 1, 0);
         const used = Number(adjustedCounts[String(card.id)] || 0);
         if (String(card.id) === prev) {
-            return true;
+            return limit > 0;
         }
-        return used < owned;
+        return used < limit;
     });
     select.innerHTML = '<option value="">Selecione uma carta</option>' + options.map((card) => {
-        const qty = Number(state.collection[card.id] || 0);
-        return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${qty}x)</option>`;
+        const owned = Number(state.collection[card.id] || 0);
+        const limit = Math.max(owned - 1, 0);
+        const used = Number(adjustedCounts[String(card.id)] || 0);
+        const remaining = Math.max(limit - used, 0);
+        return `<option value="${card.id}">${card.name} (${card.collection || 'Geral'} • ${remaining}x)</option>`;
     }).join('');
     if (options.some((c) => String(c.id) === prev)) {
         select.value = prev;
@@ -693,8 +697,9 @@ function renderTrades() {
             const value = String(select.value || '');
             if (!value) return;
             const owned = Number(state.collection[value] || 0);
+            const limit = Math.max(owned - 1, 0);
             const used = Number(usageCounts[value] || 0);
-            if (owned > 0 && used > owned) {
+            if (limit > 0 && used > limit) {
                 usageCounts[value] = used - 1;
                 select.value = '';
             }
@@ -733,7 +738,8 @@ function setupTradeSelects() {
                     return acc + (v === value ? 1 : 0);
                 }, 0);
                 const owned = Number(state.collection[value] || 0);
-                if (owned > 0 && count > owned) {
+                const limit = Math.max(owned - 1, 0);
+                if (limit > 0 && count > limit) {
                     event.target.value = '';
                 }
                 renderTrades();
@@ -754,9 +760,13 @@ function validateTradeSelection(cardIds, requiredCount) {
     cardIds.forEach((id) => {
         counts[id] = (counts[id] || 0) + 1;
     });
-    const invalid = Object.keys(counts).find((id) => Number(state.collection[id] || 0) < counts[id]);
+    const invalid = Object.keys(counts).find((id) => {
+        const owned = Number(state.collection[id] || 0);
+        const limit = Math.max(owned - 1, 0);
+        return counts[id] > limit;
+    });
     if (invalid) {
-        return 'Quantidade insuficiente da figurinha selecionada.';
+        return 'Somente figurinhas duplicadas podem ser usadas na troca.';
     }
     return '';
 }
