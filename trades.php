@@ -83,6 +83,7 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 
 // Contador de trades (mostrar exatamente o campo trades_used do time logado)
 $tradeCount = (int)($team['trades_used'] ?? 0);
+$remainingTrades = max(0, (int)$maxTrades - $tradeCount);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -351,189 +352,680 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       color: var(--fba-text-muted);
       font-size: 0.9rem;
     }
+
+    /* === PROFESSIONAL TRADES REDESIGN === */
+    .trades-page .dashboard-content {
+      padding: 32px;
+    }
+
+    .trades-shell {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Header Section */
+    .trades-header {
+      background: linear-gradient(135deg, rgba(20, 20, 30, 0.8) 0%, rgba(30, 20, 50, 0.4) 100%);
+      border: 1px solid rgba(252, 0, 37, 0.15);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 28px;
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .trades-header .page-header {
+      margin-bottom: 24px;
+    }
+
+    .trades-header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 0;
+    }
+
+    .trades-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .trade-stat-card {
+      background: color-mix(in srgb, var(--fba-panel) 85%, transparent);
+      border: 1px solid rgba(252, 0, 37, 0.1);
+      border-radius: 16px;
+      padding: 16px;
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .trade-stat-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 100% 0%, rgba(252, 0, 37, 0.1), transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .trade-stat-card:hover {
+      border-color: rgba(252, 0, 37, 0.25);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(252, 0, 37, 0.1);
+    }
+
+    .trade-stat-card:hover::before {
+      opacity: 1;
+    }
+
+    .trade-stat-label {
+      color: var(--fba-text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .trade-stat-value {
+      color: var(--fba-text);
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .trade-stat-value.is-ok {
+      color: #10b981;
+    }
+
+    .trade-stat-value.is-alert {
+      color: #f97316;
+    }
+
+    /* Tabs */
+    .trades-page .nav-tabs {
+      border-bottom: 2px solid var(--fba-border);
+      gap: 12px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 0;
+      margin-bottom: 28px;
+      scrollbar-width: none;
+    }
+
+    .trades-page .nav-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .trades-page .nav-tabs .nav-item {
+      margin-bottom: 0;
+    }
+
+    .trades-page .nav-tabs .nav-link {
+      border: none;
+      background: transparent;
+      color: var(--fba-text-muted);
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      white-space: nowrap;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 12px 16px;
+      margin: 0;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .trades-page .nav-tabs .nav-link:hover {
+      color: var(--fba-text);
+      border-bottom-color: rgba(252, 0, 37, 0.4);
+    }
+
+    .trades-page .nav-tabs .nav-link.active {
+      color: var(--fba-brand);
+      border-bottom-color: var(--fba-brand);
+    }
+
+    /* Tab Content */
+    .trades-page .tab-content {
+      animation: fadeInUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Light theme refinements */
+    :root[data-theme="light"] .trades-header {
+      background: linear-gradient(135deg, rgba(252, 0, 37, 0.04), rgba(255, 255, 255, 0.2));
+      border-color: rgba(227, 230, 238, 0.8);
+    }
+
+    :root[data-theme="light"] .trade-stat-card {
+      background: rgba(255, 255, 255, 0.7);
+      border-color: rgba(227, 230, 238, 0.9);
+    }
+
+    :root[data-theme="light"] .trade-stat-card:hover {
+      border-color: rgba(252, 0, 37, 0.3);
+      box-shadow: 0 8px 24px rgba(20, 20, 30, 0.08);
+    }
+
+    :root[data-theme="light"] .trade-card {
+      background: rgba(255, 255, 255, 0.85);
+      border-color: rgba(227, 230, 238, 0.9);
+    }
+
+    :root[data-theme="light"] .trade-card:hover {
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    :root[data-theme="light"] .player-trade-card {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(227, 230, 238, 0.9);
+    }
+
+    :root[data-theme="light"] .player-trade-card:hover {
+      background: rgba(255, 255, 255, 0.98);
+    }
+
+    :root[data-theme="light"] .trade-team-badge {
+      background: rgba(252, 0, 37, 0.06);
+      border-color: rgba(252, 0, 37, 0.2);
+    }
+
+    :root[data-theme="light"] .trade-side {
+      background: rgba(20, 20, 30, 0.04);
+    }
+
+    :root[data-theme="light"] .trades-page .nav-tabs {
+      border-bottom-color: rgba(227, 230, 238, 0.9);
+    }
+
+    :root[data-theme="light"] .trades-page .nav-tabs .nav-link {
+      color: rgba(91, 98, 112, 0.8);
+    }
+
+    :root[data-theme="light"] .trades-page .nav-tabs .nav-link:hover {
+      border-bottom-color: rgba(252, 0, 37, 0.3);
+    }
+
+    :root[data-theme="light"] .trades-page .nav-tabs .nav-link.active {
+      color: var(--fba-brand);
+    }
+
+    .trades-page .tab-pane {
+      animation: fadeInUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .trades-page .trade-list-panel {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+
+    /* Trade Cards Grid */
+    .trades-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .trade-card {
+      background: color-mix(in srgb, var(--fba-panel) 90%, transparent);
+      border: 1px solid var(--fba-border);
+      border-radius: 14px;
+      padding: 16px;
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .trade-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(252, 0, 37, 0.05), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .trade-card:hover {
+      border-color: rgba(252, 0, 37, 0.3);
+      box-shadow: 0 16px 40px rgba(252, 0, 37, 0.12);
+      transform: translateY(-2px);
+    }
+
+    .trade-card:hover::before {
+      left: 100%;
+    }
+
+    .trade-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .trade-card-teams {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .trade-team-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(252, 0, 37, 0.08);
+      border: 1px solid rgba(252, 0, 37, 0.15);
+      border-radius: 12px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--fba-text);
+    }
+
+    .trade-team-arrow {
+      color: var(--fba-brand);
+      font-size: 1rem;
+    }
+
+    .trade-card-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .trade-status-pending {
+      background: rgba(251, 146, 60, 0.1);
+      color: #ea580c;
+    }
+
+    .trade-status-accepted {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+    }
+
+    .trade-status-rejected {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+
+    .trade-card-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .trade-side {
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+
+    .trade-side-title {
+      font-size: 0.8rem;
+      color: var(--fba-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .trade-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .trade-item {
+      font-size: 0.9rem;
+      color: var(--fba-text);
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .trade-item:last-child {
+      border-bottom: none;
+    }
+
+    .trade-item-name {
+      font-weight: 600;
+      color: var(--fba-text);
+    }
+
+    .trade-item-meta {
+      font-size: 0.8rem;
+      color: var(--fba-text-muted);
+      display: block;
+    }
+
+    .trade-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.85rem;
+      color: var(--fba-text-muted);
+    }
+
+    /* Players Trade List Grid */
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .player-trade-card {
+      background: color-mix(in srgb, var(--fba-panel) 92%, transparent);
+      border: 1px solid var(--fba-border);
+      border-radius: 12px;
+      padding: 12px;
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .player-trade-card:hover {
+      border-color: var(--fba-brand);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(252, 0, 37, 0.15);
+      background: color-mix(in srgb, var(--fba-panel) 95%, transparent);
+    }
+
+    .player-trade-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .player-trade-name {
+      font-weight: 700;
+      color: var(--fba-text);
+      font-size: 0.95rem;
+      flex: 1;
+    }
+
+    .player-trade-ovr {
+      background: rgba(252, 0, 37, 0.15);
+      color: var(--fba-brand);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .player-trade-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--fba-text-muted);
+    }
+
+    .player-trade-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .player-trade-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.8;
+    }
+
+    .player-trade-value {
+      font-weight: 600;
+      color: var(--fba-text);
+    }
+
+    .player-trade-team {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.8rem;
+      color: var(--fba-text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Modal Refinements */
+    .trades-page .modal-content {
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(252, 0, 37, 0.15);
+    }
+
+    .trades-page .modal.fade .modal-dialog {
+      transform: translateY(30px) scale(0.95);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .trades-page .modal.show .modal-dialog {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    .trades-page .pick-selector {
+      border-radius: 12px;
+      background: transparent;
+      border: 1px solid var(--fba-border);
+    }
+
+    .trades-page .page-actions .btn {
+      min-height: 44px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    /* Responsividade */
+    @media (max-width: 1024px) {
+      .trades-header {
+        padding: 20px;
+      }
+
+      .trades-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .players-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .trades-page .dashboard-content {
+        padding: 16px;
+      }
+
+      .trades-header {
+        padding: 16px;
+        margin-bottom: 16px;
+        border-radius: 16px;
+      }
+
+      .trades-header h1 {
+        font-size: 1.5rem;
+      }
+
+      .trades-stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trade-stat-value {
+        font-size: 1.75rem;
+      }
+
+      .trades-page .nav-tabs {
+        margin-bottom: 16px;
+        gap: 8px;
+      }
+
+      .trades-page .nav-tabs .nav-link {
+        font-size: 0.85rem;
+        padding: 10px 12px;
+      }
+
+      .trade-card-body {
+        grid-template-columns: 1fr;
+      }
+
+      .players-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+
+      .modal-dialog {
+        margin: 10px !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .trades-stats-grid {
+        gap: 12px;
+      }
+
+      .trade-stat-value {
+        font-size: 1.5rem;
+      }
+
+      .players-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .page-actions {
+        flex-direction: column;
+      }
+
+      .page-actions .btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="trades-page">
   <!-- Sidebar -->
-  <div class="dashboard-sidebar">
-    <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars(($team['photo_url'] ?? '/img/default-team.png')) ?>" 
-           alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
-      <h5 class="text-white mb-1"><?= isset($team['name']) ? htmlspecialchars(($team['city'] . ' ' . $team['name'])) : 'Sem time' ?></h5>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league']) ?></span>
-    </div>
-
-    <hr style="border-color: var(--fba-border);">
-
-    <ul class="sidebar-menu">
-      <li>
-        <a href="/dashboard.php">
-          <i class="bi bi-house-door-fill"></i>
-          Dashboard
-        </a>
-      </li>
-      <li>
-        <a href="/teams.php">
-          <i class="bi bi-people-fill"></i>
-          Times
-        </a>
-      </li>
-      <li>
-        <a href="/my-roster.php">
-          <i class="bi bi-person-badge-fill"></i>
-          Meu Elenco
-        </a>
-      </li>
-      <li>
-        <a href="/picks.php">
-          <i class="bi bi-trophy-fill"></i>
-          Picks
-        </a>
-      </li>
-      <li>
-        <a href="/trades.php" class="active">
-          <i class="bi bi-arrow-left-right"></i>
-          Trades
-        </a>
-      </li>
-      <li>
-        <a href="/free-agency.php">
-          <i class="bi bi-coin"></i>
-          Free Agency
-        </a>
-      </li>
-      <li>
-        <a href="/leilao.php">
-          <i class="bi bi-hammer"></i>
-          Leilão
-        </a>
-      </li>
-      <li>
-        <a href="/drafts.php">
-          <i class="bi bi-trophy"></i>
-          Draft
-        </a>
-      </li>
-      <li>
-        <a href="/rankings.php">
-          <i class="bi bi-bar-chart-fill"></i>
-          Rankings
-        </a>
-      </li>
-      <li>
-        <a href="/history.php">
-          <i class="bi bi-clock-history"></i>
-          Histórico
-        </a>
-      </li>
-      <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-      <li>
-        <a href="/admin.php">
-          <i class="bi bi-shield-lock-fill"></i>
-          Admin
-        </a>
-      </li>
-      <li>
-        <a href="/temporadas.php">
-          <i class="bi bi-calendar3"></i>
-          Temporadas
-        </a>
-      </li>
-      <?php endif; ?>
-      <li>
-        <a href="/settings.php">
-          <i class="bi bi-gear-fill"></i>
-          Configurações
-        </a>
-      </li>
-    </ul>
-
-    <hr style="border-color: var(--fba-border);">
-
-    <div class="text-center">
-      <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
-        <i class="bi bi-box-arrow-right me-2"></i>Sair
-      </a>
-    </div>
-
-    <div class="text-center mt-3">
-      <small class="text-light-gray">
-        <i class="bi bi-person-circle me-1"></i>
-        <?= htmlspecialchars($user['name']) ?>
-      </small>
-    </div>
-  </div>
+  <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
   <!-- Main Content -->
   <div class="dashboard-content">
-    <div class="mb-4">
-      <div class="page-header">
-        <div class="d-flex align-items-center gap-3">
-          <h1 class="text-white fw-bold mb-0"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trades</h1>
-          <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-            <div class="d-flex align-items-center gap-2">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="tradesStatusToggle" <?= ($tradesEnabled ?? 1) == 1 ? 'checked' : '' ?>>
-                <label class="form-check-label text-light-gray" for="tradesStatusToggle">Ativar trocas</label>
+    <div class="trades-shell">
+      <div class="trades-header">
+        <div class="page-header" style="margin-bottom: 0;">
+          <div style="flex: 1;">
+            <h1 class="text-white mb-2">
+              <i class="bi bi-arrow-left-right me-2 text-orange" style="font-size: 1.8rem;"></i>Negociações
+            </h1>
+            <p class="text-muted mb-0" style="font-size: 0.9rem;">Gerencie todas as suas trocas de jogadores e picks</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2" style="align-items: flex-start;">
+            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+              <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch" style="margin: 0;">
+                  <input class="form-check-input" type="checkbox" role="switch" id="tradesStatusToggle" <?= ($tradesEnabled ?? 1) == 1 ? 'checked' : '' ?>>
+                  <label class="form-check-label text-muted" for="tradesStatusToggle" style="font-size: 0.85rem;">Ativar</label>
+                </div>
+                <span id="tradesStatusBadge" class="badge" style="<?= ($tradesEnabled ?? 1) == 1 ? 'background-color: #10b981;' : 'background-color: #ef4444;' ?> font-size: 0.8rem;">
+                  <?= ($tradesEnabled ?? 1) == 1 ? 'Ativas' : 'Bloqueadas' ?>
+                </span>
               </div>
-              <span id="tradesStatusBadge" class="badge <?= ($tradesEnabled ?? 1) == 1 ? 'bg-success' : 'bg-danger' ?>" style="font-size:0.8rem;">
-                <?= ($tradesEnabled ?? 1) == 1 ? 'Trocas abertas' : 'Trocas bloqueadas' ?>
-              </span>
-            </div>
-          <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($tradesEnabled == 0): ?>
+              <button class="btn btn-sm" style="background: rgba(100, 100, 120, 0.3); color: var(--fba-text-muted); border-radius: 10px; padding: 6px 12px;" disabled>
+                <i class="bi bi-lock-fill me-1"></i>Bloqueadas
+              </button>
+            <?php else: ?>
+              <button class="btn btn-sm btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" style="border-radius: 10px; min-width: 120px;" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+                <i class="bi bi-plus-circle me-1"></i>Nova
+              </button>
+              <button class="btn btn-sm btn-outline-orange" data-bs-toggle="modal" data-bs-target="#multiTradeModal" style="border-radius: 10px; min-width: 120px;" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+                <i class="bi bi-people-fill me-1"></i>Múltipla
+              </button>
+            <?php endif; ?>
+          </div>
         </div>
-        <div class="page-actions">
-          <span class="badge bg-secondary me-2">Número de trocas feitas: <?= htmlspecialchars((string)$tradeCount) ?></span>
-          <?php if ($tradesEnabled == 0): ?>
-            <button class="btn btn-secondary" disabled title="Trades desativadas pelo administrador">
-              <i class="bi bi-lock-fill me-1"></i>Trades Bloqueadas
-            </button>
-          <?php else: ?>
-            <button class="btn btn-orange" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
-              <i class="bi bi-plus-circle me-1"></i>Nova Trade
-            </button>
-            <button class="btn btn-outline-orange" data-bs-toggle="modal" data-bs-target="#multiTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
-              <i class="bi bi-people-fill me-1"></i>Trade Múltipla
-            </button>
-          <?php endif; ?>
+
+        <div class="trades-stats-grid" style="margin-top: 24px;">
+          <div class="trade-stat-card">
+            <span class="trade-stat-label">Usadas</span>
+            <div class="trade-stat-value"><?= htmlspecialchars((string)$tradeCount) ?></div>
+          </div>
+          <div class="trade-stat-card">
+            <span class="trade-stat-label">Restantes</span>
+            <div class="trade-stat-value <?= $remainingTrades > 0 ? 'is-ok' : 'is-alert' ?>"><?= htmlspecialchars((string)$remainingTrades) ?></div>
+          </div>
+          <div class="trade-stat-card">
+            <span class="trade-stat-label">Limite</span>
+            <div class="trade-stat-value"><?= htmlspecialchars((string)$maxTrades) ?></div>
+          </div>
         </div>
       </div>
-    </div>
 
     <?php if (!$teamId): ?>
       <div class="alert alert-warning">Você ainda não possui um time.</div>
     <?php else: ?>
 
     <!-- Tabs -->
-    <ul class="nav nav-tabs nav-tabs-scroll mb-4" id="tradesTabs" role="tablist">
+    <ul class="nav nav-tabs" id="tradesTabs" role="tablist" style="margin-bottom: 24px;">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="received-tab" data-bs-toggle="tab" data-bs-target="#received" type="button">
-          <i class="bi bi-inbox-fill me-1"></i>Recebidas
+          <i class="bi bi-inbox-fill me-2"></i>Recebidas
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="sent-tab" data-bs-toggle="tab" data-bs-target="#sent" type="button">
-          <i class="bi bi-send-fill me-1"></i>Enviadas
+          <i class="bi bi-send-fill me-2"></i>Enviadas
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button">
-          <i class="bi bi-clock-history me-1"></i>Histórico
+          <i class="bi bi-clock-history me-2"></i>Histórico
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="league-tab" data-bs-toggle="tab" data-bs-target="#league" type="button">
-          <i class="bi bi-trophy me-1"></i>Trocas Gerais
+          <i class="bi bi-trophy me-2"></i>Liga
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="rumors-tab" data-bs-toggle="tab" data-bs-target="#rumors" type="button">
-          <i class="bi bi-megaphone me-1"></i>Rumores
+          <i class="bi bi-megaphone me-2"></i>Rumores
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="trade-list-tab" data-bs-toggle="tab" data-bs-target="#trade-list" type="button">
-          <i class="bi bi-list-stars me-1"></i>Trade List
+          <i class="bi bi-list-stars me-2"></i>Disponíveis
         </button>
       </li>
     </ul>
@@ -542,72 +1034,77 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     <div class="tab-content" id="tradesTabContent">
       <!-- Trades Recebidas -->
       <div class="tab-pane fade show active" id="received" role="tabpanel">
-        <div id="receivedTradesList"></div>
+        <div id="receivedTradesList" class="trades-grid"></div>
       </div>
 
       <!-- Trades Enviadas -->
       <div class="tab-pane fade" id="sent" role="tabpanel">
-        <div id="sentTradesList"></div>
+        <div id="sentTradesList" class="trades-grid"></div>
       </div>
 
       <!-- Histórico -->
       <div class="tab-pane fade" id="history" role="tabpanel">
-        <div id="historyTradesList"></div>
+        <div id="historyTradesList" class="trades-grid"></div>
       </div>
 
       <!-- Todas as trades da liga -->
       <div class="tab-pane fade" id="league" role="tabpanel">
-        <div class="trade-list-panel">
-          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
             <div>
-              <h5 class="text-white mb-1"><i class="bi bi-trophy me-2 text-orange"></i>Todas as trocas desta liga</h5>
-              <p class="text-light-gray mb-0 small">Histórico completo de negociações aceitas na sua liga.</p>
+              <h5 class="text-white mb-0" style="font-weight: 700; font-size: 1.2rem;">
+                <i class="bi bi-trophy me-2 text-orange"></i>Trocas da Liga
+              </h5>
+              <p class="text-muted mb-0 mt-2" style="font-size: 0.85rem;">Histórico completo de negociações aceitas</p>
             </div>
-            <span class="badge bg-secondary" id="leagueTradesCount">0 trocas</span>
+            <span class="badge bg-secondary" id="leagueTradesCount" style="font-size: 0.9rem; padding: 8px 12px;">0</span>
           </div>
-          <!-- Busca e filtros das trades gerais -->
-          <div class="row g-2 mb-3">
-            <div class="col-12 col-md-7">
-              <input type="text" class="form-control" id="leagueTradesSearch" placeholder="🔍 Buscar jogador nas trocas...">
-            </div>
-            <div class="col-12 col-md-5">
-              <select class="form-select" id="leagueTradesTeamFilter">
-                <option value="">Todos os times</option>
-              </select>
-            </div>
+          <div class="d-flex flex-column flex-md-row gap-2 mb-4">
+            <input type="text" class="form-control" id="leagueTradesSearch" placeholder="Buscar jogador..." style="flex: 1;">
+            <select class="form-select" id="leagueTradesTeamFilter" style="flex: 0 0 auto; min-width: 180px;">
+              <option value="">Todos os times</option>
+            </select>
           </div>
-          <div id="leagueTradesList"></div>
+          <div id="leagueTradesList" class="trades-grid"></div>
         </div>
       </div>
 
       <!-- Rumores (GMs e comentários do Admin) -->
       <div class="tab-pane fade" id="rumors" role="tabpanel">
-        <div class="trade-list-panel">
-          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
             <div>
-              <h5 class="text-white mb-1"><i class="bi bi-megaphone me-2 text-orange"></i>Rumores da Liga</h5>
-              <p class="text-light-gray mb-0 small">Compartilhe o que está procurando ou quais jogadores quer negociar.</p>
+              <h5 class="text-white mb-0" style="font-weight: 700; font-size: 1.2rem;">
+                <i class="bi bi-megaphone me-2 text-orange"></i>Conversas da Liga
+              </h5>
+              <p class="text-muted mb-0 mt-2" style="font-size: 0.85rem;">Comentários e rumores sobre possíveis negociações</p>
             </div>
-            <span class="badge bg-secondary" id="rumorsCount">0 rumores</span>
+            <span class="badge bg-secondary" id="rumorsCount" style="font-size: 0.9rem; padding: 8px 12px;">0</span>
           </div>
 
           <!-- Comentários do Admin -->
           <div class="mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="text-white mb-0"><i class="bi bi-pin-angle-fill me-2 text-orange"></i>Comentários do Admin</h6>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="text-white mb-0" style="font-weight: 600;">
+                <i class="bi bi-pin-angle-fill me-2 text-orange"></i>Avisos da Administração
+              </h6>
               <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-              <button class="btn btn-sm btn-outline-orange" id="addAdminCommentBtn"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+              <button class="btn btn-sm btn-outline-orange" id="addAdminCommentBtn" style="border-radius: 10px;">
+                <i class="bi bi-plus-lg me-1"></i>Adicionar
+              </button>
               <?php endif; ?>
             </div>
-            <div id="adminCommentsList" class="list-group"></div>
+            <div id="adminCommentsList" class="m-0"></div>
           </div>
 
-          <!-- Formulário de novo rumor (GM) -->
-          <div class="mb-3">
-            <label class="form-label text-white">Seu rumor</label>
-            <textarea class="form-control bg-dark text-white border-orange" id="rumorContent" rows="2" placeholder="Ex.: Procuro SG com OVR 80+ ou vendo PF"></textarea>
+          <!-- Nova publicação -->
+          <div style="background: rgba(20, 20, 30, 0.5); border: 1px solid var(--fba-border); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+            <label class="form-label text-white" style="font-weight: 600; margin-bottom: 8px;">Seu comentário</label>
+            <textarea class="form-control" id="rumorContent" rows="2" placeholder="Procuro SG com OVR 80+ ou vendo PF..." style="border-radius: 10px;"></textarea>
             <div class="d-flex justify-content-end mt-2">
-              <button class="btn btn-orange" id="submitRumorBtn"><i class="bi bi-megaphone-fill me-1"></i>Publicar</button>
+              <button class="btn btn-orange" id="submitRumorBtn" style="border-radius: 10px; min-width: 140px;">
+                <i class="bi bi-megaphone-fill me-1"></i>Publicar
+              </button>
             </div>
           </div>
 
@@ -618,35 +1115,38 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
 
       <!-- Trade List (Disponíveis para troca na sua liga) -->
       <div class="tab-pane fade" id="trade-list" role="tabpanel">
-        <div class="trade-list-panel">
-          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
             <div>
-              <h5 class="text-white mb-1"><i class="bi bi-list-stars me-2 text-orange"></i>Jogadores disponíveis para troca</h5>
-              <p class="text-light-gray mb-0 small">Somente atletas marcados como disponíveis na sua liga atual.</p>
+              <h5 class="text-white mb-0" style="font-weight: 700; font-size: 1.2rem;">
+                <i class="bi bi-list-stars me-2 text-orange"></i>Jogadores para Troca
+              </h5>
+              <p class="text-muted mb-0 mt-2" style="font-size: 0.85rem;">Todos os atletas marcados como disponíveis na sua liga</p>
             </div>
-            <span class="badge bg-secondary" id="countBadge">0 jogadores</span>
+            <span class="badge bg-secondary" id="countBadge" style="font-size: 0.9rem; padding: 8px 12px;">0 jogadores</span>
           </div>
-          <div class="trade-list-search d-flex flex-column flex-md-row gap-2 mb-3">
-            <input type="text" class="form-control" id="searchInput" placeholder="Procurar por nome...">
-            <select class="form-select" id="sortSelect">
+          <div class="d-flex flex-column flex-md-row gap-2 mb-4">
+            <input type="text" class="form-control" id="searchInput" placeholder="Procurar por nome..." style="flex: 1;">
+            <select class="form-select" id="sortSelect" style="flex: 0 0 auto; min-width: 180px;">
               <option value="ovr_desc">OVR (Maior primeiro)</option>
               <option value="ovr_asc">OVR (Menor primeiro)</option>
               <option value="name_asc">Nome (A-Z)</option>
               <option value="name_desc">Nome (Z-A)</option>
-              <option value="age_asc">Idade (Menor primeiro)</option>
-              <option value="age_desc">Idade (Maior primeiro)</option>
+              <option value="age_asc">Idade (Menor)</option>
+              <option value="age_desc">Idade (Maior)</option>
               <option value="position_asc">Posição (A-Z)</option>
               <option value="position_desc">Posição (Z-A)</option>
               <option value="team_asc">Time (A-Z)</option>
               <option value="team_desc">Time (Z-A)</option>
             </select>
           </div>
-          <div id="playersList"></div>
+          <div id="playersList" class="players-grid"></div>
         </div>
       </div>
     </div>
 
     <?php endif; ?>
+    </div>
   </div>
 
   <!-- Modal: Propor Trade -->
@@ -818,6 +1318,50 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
   </div>
 
   <script>
+    (function () {
+      // Inicializar popovers
+      const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"], [data-popin="true"]');
+      popoverTriggerList.forEach((el) => {
+        if (!el.disabled) {
+          new bootstrap.Popover(el);
+        }
+      });
+
+      // Melhorar renderização de cards
+      let renderCount = 0;
+      const enhanceCards = () => {
+        const observer = new MutationObserver(() => {
+          // Aplicar classes ao trade-card quando renderizado
+          document.querySelectorAll('#receivedTradesList > div, #sentTradesList > div, #historyTradesList > div').forEach((card) => {
+            if (!card.classList.contains('trade-card')) {
+              card.classList.add('trade-card');
+            }
+          });
+
+          // Aplicar classes ao player-card
+          document.querySelectorAll('#playersList > div').forEach((card) => {
+            if (!card.classList.contains('player-trade-card')) {
+              card.classList.add('player-trade-card');
+            }
+          });
+
+          // Aplicar classes aos league trades
+          document.querySelectorAll('#leagueTradesList > div').forEach((card) => {
+            if (!card.classList.contains('trade-card')) {
+              card.classList.add('trade-card');
+            }
+          });
+
+          renderCount++;
+          if (renderCount > 50) observer.disconnect();
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+      };
+
+      enhanceCards();
+    })();
+
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
     window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
