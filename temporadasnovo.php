@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once 'backend/auth.php';
 require_once 'backend/db.php';
@@ -7,7 +7,6 @@ require_once 'backend/helpers.php';
 requireAuth();
 $user = getUserSession();
 
-// Verificar se é admin
 if (($user['user_type'] ?? 'jogador') !== 'admin') {
     header('Location: /dashboard.php');
     exit;
@@ -50,8 +49,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FBA Manager">
   <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
-  
   <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -84,60 +83,142 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   </style>
 </head>
 <body>
-  <button class="sidebar-toggle" id="sidebarToggle">
-    <i class="bi bi-list fs-4"></i>
-  </button>
-  
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <div class="dashboard-sidebar" id="sidebar">
-    <div class="text-center mb-4">
-      <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="<?= htmlspecialchars($team['name']) ?>" class="team-avatar">
-      <h5 class="text-white mb-1"><?= htmlspecialchars($team['city']) ?></h5>
-      <h6 class="text-white mb-1"><?= htmlspecialchars($team['name']) ?></h6>
-      <span class="badge bg-gradient-orange"><?= htmlspecialchars($team['league']) ?></span>
-    </div>
-    <hr style="border-color: var(--fba-border);">
-    <ul class="sidebar-menu">
-      <li><a href="/dashboard.php"><i class="bi bi-house-door-fill"></i>Dashboard</a></li>
-      <li><a href="/teams.php"><i class="bi bi-people-fill"></i>Times</a></li>
-      <li><a href="/my-roster.php"><i class="bi bi-person-fill"></i>Meu Elenco</a></li>
-      <li><a href="/picks.php"><i class="bi bi-calendar-check-fill"></i>Picks</a></li>
-      <li><a href="/trades.php"><i class="bi bi-arrow-left-right"></i>Trades</a></li>
-      <li><a href="/free-agency.php"><i class="bi bi-coin"></i>Free Agency</a></li>
-  <li><a href="/leilao.php"><i class="bi bi-hammer"></i>Leilão</a></li>
-      <li><a href="/drafts.php"><i class="bi bi-trophy"></i>Draft</a></li>
-      <li><a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i>Rankings</a></li>
-      <li><a href="/history.php"><i class="bi bi-clock-history"></i>Histórico</a></li>
-      <li><a href="/admin.php"><i class="bi bi-shield-lock-fill"></i>Admin</a></li>
-  <li><a href="/punicoes.php"><i class="bi bi-exclamation-triangle-fill"></i>Punições</a></li>
-      <li><a href="/temporadas.php" class="active"><i class="bi bi-calendar3"></i>Temporadas</a></li>
-      <li><a href="/settings.php"><i class="bi bi-gear-fill"></i>Configurações</a></li>
-    </ul>
-    <hr style="border-color: var(--fba-border);">
-    <div class="text-center">
-      <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-box-arrow-right me-2"></i>Sair</a>
-    </div>
-  </div>
-
-  <div class="dashboard-content">
-    <div class="page-header mb-4">
-      <h1 class="text-white fw-bold mb-0">
-        <i class="bi bi-calendar3 me-2 text-orange"></i>
-        Gerenciar Temporadas
-      </h1>
-    </div>
-
-    <div id="mainContainer">
-      <div class="text-center py-5">
-        <div class="spinner-border text-orange"></div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sb-brand">
+        <div class="sb-logo">FBA</div>
+        <div class="sb-brand-text">
+          FBA Manager
+          <span>Painel do GM</span>
+        </div>
       </div>
-    </div>
+
+      <div class="sb-team">
+        <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="<?= htmlspecialchars($team['name']) ?>" onerror="this.src='/img/default-team.png'">
+        <div>
+          <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
+          <div class="sb-team-league"><?= htmlspecialchars($team['league'] ?? $user['league'] ?? '-') ?></div>
+        </div>
+      </div>
+
+      <?php if ($currentSeason): ?>
+      <div class="sb-season">
+        <div>
+          <div class="sb-season-label">Temporada</div>
+          <div class="sb-season-val"><?= htmlspecialchars((string)$seasonDisplayYear) ?></div>
+        </div>
+        <div style="text-align:right">
+          <div class="sb-season-label">Sprint</div>
+          <div class="sb-season-val"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <nav class="sb-nav">
+        <div class="sb-section">Principal</div>
+        <a href="/dashboardnovo.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+        <a href="/teamsnovo.php"><i class="bi bi-people-fill"></i> Times</a>
+        <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+        <a href="/picksnovo.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+        <a href="/tradesnovo.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+        <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+        <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilao</a>
+        <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+
+        <div class="sb-section">Liga</div>
+        <a href="/rankingnovo.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+        <a href="/history.php"><i class="bi bi-clock-history"></i> Historico</a>
+        <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+        <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+        <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+
+        <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+        <div class="sb-section">Admin</div>
+        <a href="/adminnovo.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+        <a href="/temporadasnovo.php" class="active"><i class="bi bi-calendar3"></i> Temporadas</a>
+        <?php endif; ?>
+
+        <div class="sb-section">Conta</div>
+        <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configuracoes</a>
+      </nav>
+
+      <button class="sb-theme-toggle" type="button" id="themeToggle">
+        <i class="bi bi-moon"></i>
+        <span>Modo escuro</span>
+      </button>
+
+      <div class="sb-footer">
+        <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sb-avatar" onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
+        <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
+        <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+      </div>
+    </aside>
+
+    <div class="sb-overlay" id="sbOverlay"></div>
+
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+      <div class="topbar-title">FBA <em>Manager</em></div>
+      <?php if ($currentSeason): ?>
+      <span style="font-size:11px;font-weight:700;color:var(--red)"><?= htmlspecialchars((string)$seasonDisplayYear) ?></span>
+      <?php endif; ?>
+    </header>
+
+    <main class="main">
+      <div class="page-shell">
+        <div class="page-head">
+          <div>
+            <div class="page-kicker">Admin · <?= htmlspecialchars($team['league']) ?></div>
+            <h1 class="page-title"><i class="bi bi-calendar3 text-orange me-2"></i>Gerenciar Temporadas</h1>
+            <p class="page-sub">Fluxo unificado de sprint, draft inicial, playoffs e reset de times por liga.</p>
+          </div>
+        </div>
+        <div id="mainContainer">
+          <div class="text-center py-5">
+            <div class="spinner-border text-orange"></div>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/sidebar.js"></script>
   <script>
+    const themeToggle = document.getElementById('themeToggle');
+    const themeKey = 'fba-theme';
+    const applyTheme = (theme) => {
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        if (themeToggle) themeToggle.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>';
+        return;
+      }
+      document.documentElement.removeAttribute('data-theme');
+      if (themeToggle) themeToggle.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
+    };
+    applyTheme(localStorage.getItem(themeKey) || 'dark');
+    themeToggle?.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      localStorage.setItem(themeKey, next);
+      applyTheme(next);
+    });
+
+    const sidebar = document.getElementById('sidebar');
+    const menuBtn = document.getElementById('menuBtn');
+    const sbOverlay = document.getElementById('sbOverlay');
+    const closeSidebar = () => {
+      sidebar.classList.remove('open');
+      sbOverlay.classList.remove('show');
+    };
+    menuBtn?.addEventListener('click', () => {
+      const willOpen = !sidebar.classList.contains('open');
+      sidebar.classList.toggle('open');
+      sbOverlay.classList.toggle('show', willOpen);
+    });
+    sbOverlay?.addEventListener('click', closeSidebar);
+    if (window.innerWidth <= 860) {
+      document.querySelectorAll('.sb-nav a').forEach((link) => link.addEventListener('click', closeSidebar));
+    }
+  </script>  <script>
     // API helper
     const api = async (path, options = {}) => {
       const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -212,7 +293,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         const container = document.getElementById('mainContainer');
         
         if (!currentSeasonData) {
-          // Nenhuma temporada ativa - mostrar botão para iniciar
+          // Nenhuma temporada ativa - mostrar botÃ£o para iniciar
           container.innerHTML = `
             <button class="btn btn-back mb-4" onclick="showLeaguesOverview()">
               <i class="bi bi-arrow-left me-2"></i>Voltar
@@ -228,7 +309,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             </div>
           `;
         } else {
-          // Temporada ativa - mostrar contador e opções
+          // Temporada ativa - mostrar contador e opÃ§Ãµes
           await renderActiveSeasonView(league, currentSeasonData);
         }
       } catch (e) {
@@ -241,7 +322,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   async function renderActiveSeasonView(league, season) {
       const container = document.getElementById('mainContainer');
       const sprintStartYear = resolveSprintStartYearFromSeason(season);
-      // Corrigir exibição do ano: usar fórmula start_year + season_number - 1 quando possível
+      // Corrigir exibiÃ§Ã£o do ano: usar fÃ³rmula start_year + season_number - 1 quando possÃ­vel
       const displayedYear = (sprintStartYear && season?.season_number)
         ? (Number(sprintStartYear) + Number(season.season_number) - 1)
         : Number(season.year);
@@ -250,7 +331,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const maxSeasons = getMaxSeasonsForLeague(league);
       const sprintCompleted = season.season_number >= maxSeasons;
       
-      // Decidir ação principal da temporada (primeiro ano: configurar draft inicial)
+      // Decidir aÃ§Ã£o principal da temporada (primeiro ano: configurar draft inicial)
       let primaryActionHTML = '';
       if (!sprintCompleted) {
         if (Number(season.season_number) === 1) {
@@ -273,22 +354,22 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             } else {
               primaryActionHTML = `
                 <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
-                  <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+                  <i class="bi bi-skip-forward me-2"></i>AvanÃ§ar para PrÃ³xima Temporada
                 </button>
               `;
             }
           } catch (e) {
-            // Em caso de erro, mostrar ação padrão
+            // Em caso de erro, mostrar aÃ§Ã£o padrÃ£o
             primaryActionHTML = `
               <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
-                <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+                <i class="bi bi-skip-forward me-2"></i>AvanÃ§ar para PrÃ³xima Temporada
               </button>
             `;
           }
         } else {
           primaryActionHTML = `
             <button class="btn btn-outline-orange w-100" onclick="advanceToNextSeason('${league}')">
-              <i class="bi bi-skip-forward me-2"></i>Avançar para Próxima Temporada
+              <i class="bi bi-skip-forward me-2"></i>AvanÃ§ar para PrÃ³xima Temporada
             </button>
           `;
         }
@@ -323,12 +404,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                   <div class="alert alert-success mb-4" style="border-radius: 15px; background: rgba(25, 135, 84, 0.2); border: 1px solid rgba(25, 135, 84, 0.5);">
                     <i class="bi bi-check-circle me-2 text-success"></i>
                     <strong class="text-white">Sprint Completo!</strong> 
-                    <span class="text-light-gray">Todas as ${maxSeasons} temporadas foram concluídas.</span>
+                    <span class="text-light-gray">Todas as ${maxSeasons} temporadas foram concluÃ­das.</span>
                   </div>
                   <div class="alert alert-warning mb-4" style="border-radius: 15px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.5);">
                     <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
-                    <strong class="text-white">Atenção!</strong> 
-                    <span class="text-light-gray">Antes de iniciar um novo sprint, você precisa resetar os times. Isso irá limpar jogadores, picks, trades e histórico, mantendo apenas os pontos do ranking.</span>
+                    <strong class="text-white">AtenÃ§Ã£o!</strong> 
+                    <span class="text-light-gray">Antes de iniciar um novo sprint, vocÃª precisa resetar os times. Isso irÃ¡ limpar jogadores, picks, trades e histÃ³rico, mantendo apenas os pontos do ranking.</span>
                   </div>
                   <button class="btn btn-danger btn-lg w-100 mb-3" onclick="confirmResetTeams('${league}')">
                     <i class="bi bi-trash3 me-2"></i>Resetar Times
@@ -380,30 +461,30 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               </div>
               <div class="col-md-4">
                 <button class="btn btn-outline-orange w-100" onclick="showDraftSessionManagement(${season.id}, '${league}')">
-                  <i class="bi bi-list-ol me-2"></i>Configurar Sessão
+                  <i class="bi bi-list-ol me-2"></i>Configurar SessÃ£o
                 </button>
               </div>
               <div class="col-md-4">
                 <button class="btn btn-success w-100" onclick="showDraftHistory('${league}')">
-                  <i class="bi bi-clock-history me-2"></i>Histórico
+                  <i class="bi bi-clock-history me-2"></i>HistÃ³rico
                 </button>
               </div>
             </div>
           </div>
         </div>
         
-        <!-- CADASTRO DE HISTÓRICO -->
+        <!-- CADASTRO DE HISTÃ“RICO -->
         <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
           <div class="card-body">
             <h4 class="text-white mb-3">
               <i class="bi bi-award text-orange me-2"></i>
-              Cadastro de Histórico
+              Cadastro de HistÃ³rico
             </h4>
             <p class="text-light-gray mb-3">
               Registre os resultados da temporada ${String(season.season_number).padStart(2, '0')}
             </p>
             <button class="btn btn-orange" onclick="showHistoryForm(${season.id}, '${league}')">
-              <i class="bi bi-pencil me-2"></i>Cadastrar Histórico da Temporada
+              <i class="bi bi-pencil me-2"></i>Cadastrar HistÃ³rico da Temporada
             </button>
           </div>
         </div>
@@ -416,7 +497,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                 Gerenciar Moedas da Temporada
               </h4>
               <p class="text-light-gray mb-3">
-                Defina quantas moedas cada time terá nesta temporada. O valor pode ser editado a qualquer momento.
+                Defina quantas moedas cada time terÃ¡ nesta temporada. O valor pode ser editado a qualquer momento.
               </p>
               <button class="btn btn-outline-success" onclick="showSeasonCoinsForm(${season.id}, '${league}')">
                 <i class="bi bi-pencil-square me-2"></i>Editar Moedas
@@ -558,7 +639,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (input === null) return null;
       const parsed = parseInt(input, 10);
       if (!parsed || parsed < 1900) {
-        alert('Ano inválido. Informe um número como 2016.');
+        alert('Ano invÃ¡lido. Informe um nÃºmero como 2016.');
         return null;
       }
       return parsed;
@@ -570,7 +651,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const startYear = promptForStartYear(fallbackStart);
       if (!startYear) return;
       const seasonYear = startYear;
-      if (!confirm(`Iniciar uma nova temporada para a liga ${league} com sprint começando em ${startYear}?`)) return;
+      if (!confirm(`Iniciar uma nova temporada para a liga ${league} com sprint comeÃ§ando em ${startYear}?`)) return;
 
       try {
         const resp = await api('seasons.php?action=create_season', {
@@ -579,7 +660,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         });
 
         alert('Nova temporada iniciada com sucesso!');
-        // Buscar temporada atual para verificar se é a 1ª do sprint
+        // Buscar temporada atual para verificar se Ã© a 1Âª do sprint
         const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
         const season = seasonData.season;
         // Se for a primeira temporada do sprint, iniciar fluxo do Draft Inicial automaticamente
@@ -592,7 +673,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             const url = `/initdraft.php?token=${initResp.token}`;
             window.open(url, '_blank');
           } catch (e) {
-            console.warn('Falha ao criar sessão do Draft Inicial automaticamente:', e);
+            console.warn('Falha ao criar sessÃ£o do Draft Inicial automaticamente:', e);
           }
         }
         showLeagueManagement(league);
@@ -601,7 +682,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       }
     }
 
-    // ========== AVANÇAR PARA PRÓXIMA TEMPORADA ==========
+    // ========== AVANÃ‡AR PARA PRÃ“XIMA TEMPORADA ==========
     async function advanceToNextSeason(league) {
       if (!currentSeasonData) {
         return startNewSeason(league);
@@ -615,7 +696,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
       const nextSeasonNumber = Number(currentSeasonData.season_number || 0) + 1;
       const seasonYear = sprintStart + nextSeasonNumber - 1;
-      if (!confirm(`Avançar para a próxima temporada da liga ${league} (Temporada ${String(nextSeasonNumber).padStart(2, '0')} - ano ${seasonYear})?`)) return;
+      if (!confirm(`AvanÃ§ar para a prÃ³xima temporada da liga ${league} (Temporada ${String(nextSeasonNumber).padStart(2, '0')} - ano ${seasonYear})?`)) return;
 
       try {
         const resp = await api('seasons.php?action=create_season', {
@@ -623,8 +704,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           body: JSON.stringify({ league, season_year: seasonYear, start_year: sprintStart })
         });
 
-        alert('Avançado para próxima temporada!');
-        // Buscar temporada atual para decidir se é a 1ª do sprint (caso novo sprint tenha sido criado)
+        alert('AvanÃ§ado para prÃ³xima temporada!');
+        // Buscar temporada atual para decidir se Ã© a 1Âª do sprint (caso novo sprint tenha sido criado)
         const seasonData = await api(`seasons.php?action=current_season&league=${league}`);
         const season = seasonData.season;
         if (season && Number(season.season_number) === 1) {
@@ -636,20 +717,20 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             const url = `/initdraft.php?token=${initResp.token}`;
             window.open(url, '_blank');
           } catch (e) {
-            console.warn('Falha ao criar sessão do Draft Inicial automaticamente (novo sprint):', e);
+            console.warn('Falha ao criar sessÃ£o do Draft Inicial automaticamente (novo sprint):', e);
           }
         }
         showLeagueManagement(league);
       } catch (e) {
-        alert('Erro ao avançar: ' + (e.error || 'Desconhecido'));
+        alert('Erro ao avanÃ§ar: ' + (e.error || 'Desconhecido'));
       }
     }
 
     // ========== RESETAR SPRINT (NOVO CICLO) ==========
     // ========== RESETAR TIMES (MANTER PONTOS) ==========
     async function confirmResetTeams(league) {
-      if (!confirm(`ATENÇÃO! Isso irá LIMPAR todos os jogadores, picks, trades e histórico da liga ${league}.\n\nAPENAS os pontos do ranking serão mantidos.\n\nConfirma?`)) return;
-      if (!confirm('Tem CERTEZA ABSOLUTA? Esta ação não pode ser desfeita!')) return;
+      if (!confirm(`ATENÃ‡ÃƒO! Isso irÃ¡ LIMPAR todos os jogadores, picks, trades e histÃ³rico da liga ${league}.\n\nAPENAS os pontos do ranking serÃ£o mantidos.\n\nConfirma?`)) return;
+      if (!confirm('Tem CERTEZA ABSOLUTA? Esta aÃ§Ã£o nÃ£o pode ser desfeita!')) return;
       
       try {
         await api('seasons.php?action=reset_teams', {
@@ -723,14 +804,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             <div class="card-header bg-transparent border-orange">
               <h5 class="text-white mb-0">
                 <i class="bi bi-people-fill me-2 text-orange"></i>
-                Jogadores Disponíveis para Draft (${available.length})
+                Jogadores DisponÃ­veis para Draft (${available.length})
               </h5>
             </div>
             <div class="card-body p-0">
               ${available.length === 0 ? `
                 <div class="text-center text-light-gray py-5">
                   <i class="bi bi-inbox display-1"></i>
-                  <p class="mt-3">Nenhum jogador disponível</p>
+                  <p class="mt-3">Nenhum jogador disponÃ­vel</p>
                 </div>
               ` : `
                 <div class="table-responsive">
@@ -743,7 +824,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                         <th class="d-none d-lg-table-cell" style="width: 80px;">Idade</th>
                         <th style="width: 80px;">OVR</th>
                         <th class="d-none d-xl-table-cell" style="width: 250px;">Draftar para Time</th>
-                        <th style="width: 150px;">Ações</th>
+                        <th style="width: 150px;">AÃ§Ãµes</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -790,7 +871,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               <div class="card-header bg-transparent border-success">
                 <h5 class="text-white mb-0">
                   <i class="bi bi-check-circle-fill me-2 text-success"></i>
-                  Jogadores Já Draftados (${drafted.length})
+                  Jogadores JÃ¡ Draftados (${drafted.length})
                 </h5>
               </div>
               <div class="card-body p-0">
@@ -800,7 +881,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                       <tr>
                         <th>Pick</th>
                         <th>Nome</th>
-                        <th>Posição</th>
+                        <th>PosiÃ§Ã£o</th>
                         <th>OVR</th>
                         <th>Time</th>
                       </tr>
@@ -854,25 +935,25 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                     <input type="number" class="form-control bg-dark text-white border-orange" name="age" min="18" max="40" required>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label text-white">Posição</label>
+                    <label class="form-label text-white">PosiÃ§Ã£o</label>
                     <select class="form-select bg-dark text-white border-orange" name="position" required>
                       <option value="">Selecione...</option>
                       <option value="PG">PG - Armador</option>
                       <option value="SG">SG - Ala-Armador</option>
                       <option value="SF">SF - Ala</option>
-                      <option value="PF">PF - Ala-Pivô</option>
-                      <option value="C">C - Pivô</option>
+                      <option value="PF">PF - Ala-PivÃ´</option>
+                      <option value="C">C - PivÃ´</option>
                     </select>
                   </div>
                     <div class="mb-3">
-                      <label class="form-label text-white">Posição Secundária</label>
+                      <label class="form-label text-white">PosiÃ§Ã£o SecundÃ¡ria</label>
                       <select class="form-select bg-dark text-white border-orange" name="secondary_position">
                         <option value="">Nenhuma</option>
                         <option value="PG">PG - Armador</option>
                         <option value="SG">SG - Ala-Armador</option>
                         <option value="SF">SF - Ala</option>
-                        <option value="PF">PF - Ala-Pivô</option>
-                        <option value="C">C - Pivô</option>
+                        <option value="PF">PF - Ala-PivÃ´</option>
+                        <option value="C">C - PivÃ´</option>
                       </select>
                     </div>
                   <div class="mb-3">
@@ -1030,7 +1111,7 @@ Stephen Curry,PG,35,95</code>
           resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>Erro: ${errorMsg}</div>`;
         }
       } catch (e) {
-        console.error('Erro na importação:', e);
+        console.error('Erro na importaÃ§Ã£o:', e);
         resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>Erro: ${e.message || 'Desconhecido'}</div>`;
       }
     }
@@ -1152,7 +1233,7 @@ Stephen Curry,PG,35,95</code>
       }
     }
 
-    // ========== CADASTRO DE HISTÓRICO ==========
+    // ========== CADASTRO DE HISTÃ“RICO ==========
     // Estado global do sistema de playoffs
     let playoffState = {
       step: 1,
@@ -1176,11 +1257,11 @@ Stephen Curry,PG,35,95</code>
         const teamsData = await api(`admin.php?action=teams&league=${league}`);
         playoffState.teams = teamsData.teams || [];
         
-        // Separar por conferência
+        // Separar por conferÃªncia
         const teamsLeste = playoffState.teams.filter(t => t.conference === 'LESTE');
         const teamsOeste = playoffState.teams.filter(t => t.conference === 'OESTE');
         
-        // Verificar se há bracket existente
+        // Verificar se hÃ¡ bracket existente
         let existingBracket = null;
         try {
           const bracketData = await fetch(`/api/playoffs.php?action=bracket&season_id=${seasonId}&league=${league}`);
@@ -1191,13 +1272,13 @@ Stephen Curry,PG,35,95</code>
         } catch (e) {}
         
         if (existingBracket) {
-          // Já existe bracket - ir para etapa de jogos
+          // JÃ¡ existe bracket - ir para etapa de jogos
           playoffState.bracket.LESTE = existingBracket.filter(b => b.conference === 'LESTE');
           playoffState.bracket.OESTE = existingBracket.filter(b => b.conference === 'OESTE');
           playoffState.step = 2;
           renderPlayoffStep2();
         } else {
-          // Não existe - mostrar seleção de classificação
+          // NÃ£o existe - mostrar seleÃ§Ã£o de classificaÃ§Ã£o
           renderPlayoffStep1(teamsLeste, teamsOeste);
         }
       } catch (e) {
@@ -1205,7 +1286,7 @@ Stephen Curry,PG,35,95</code>
       }
     }
 
-    // PASSO 1: Definir classificação da temporada regular (1-8 por conferência)
+    // PASSO 1: Definir classificaÃ§Ã£o da temporada regular (1-8 por conferÃªncia)
     function renderPlayoffStep1(teamsLeste, teamsOeste) {
       const container = document.getElementById('mainContainer');
       
@@ -1222,22 +1303,22 @@ Stephen Curry,PG,35,95</code>
             </h3>
             <p class="text-light-gray mb-0">
               <span class="badge bg-orange me-2">Passo 1 de 4</span>
-              Defina a classificação da temporada regular para cada conferência (1º ao 8º lugar)
+              Defina a classificaÃ§Ã£o da temporada regular para cada conferÃªncia (1Âº ao 8Âº lugar)
             </p>
           </div>
         </div>
 
         <div class="alert alert-info mb-4">
           <i class="bi bi-info-circle me-2"></i>
-          <strong>Pontos por Classificação:</strong> 1º lugar +4pts | 2º ao 4º +3pts | 5º ao 8º +2pts
+          <strong>Pontos por ClassificaÃ§Ã£o:</strong> 1Âº lugar +4pts | 2Âº ao 4Âº +3pts | 5Âº ao 8Âº +2pts
         </div>
         
         <div class="row">
-          <!-- CONFERÊNCIA LESTE -->
+          <!-- CONFERÃŠNCIA LESTE -->
           <div class="col-lg-6 mb-4">
             <div class="card bg-dark border-danger" style="border-radius: 15px;">
               <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Conferência LESTE</h5>
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>ConferÃªncia LESTE</h5>
               </div>
               <div class="card-body">
                 ${renderStandingsSelectors('LESTE', teamsLeste)}
@@ -1245,11 +1326,11 @@ Stephen Curry,PG,35,95</code>
             </div>
           </div>
           
-          <!-- CONFERÊNCIA OESTE -->
+          <!-- CONFERÃŠNCIA OESTE -->
           <div class="col-lg-6 mb-4">
             <div class="card bg-dark border-primary" style="border-radius: 15px;">
               <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Conferência OESTE</h5>
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>ConferÃªncia OESTE</h5>
               </div>
               <div class="card-body">
                 ${renderStandingsSelectors('OESTE', teamsOeste)}
@@ -1274,9 +1355,9 @@ Stephen Curry,PG,35,95</code>
         
         html += `
           <div class="d-flex align-items-center mb-2">
-            <span class="badge ${badgeClass} me-2" style="width: 30px;">${i}º</span>
+            <span class="badge ${badgeClass} me-2" style="width: 30px;">${i}Âº</span>
             <select class="form-select form-select-sm bg-dark text-white" id="standing_${conference}_${i}" onchange="updateStandingSelectors('${conference}')">
-              <option value="">Selecione o ${i}º lugar</option>
+              <option value="">Selecione o ${i}Âº lugar</option>
               ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
             </select>
             <span class="badge bg-orange ms-2" style="font-size: 0.7rem;">${pointsLabel}</span>
@@ -1295,7 +1376,7 @@ Stephen Curry,PG,35,95</code>
         }
       }
       
-      // Desabilitar opções já selecionadas em outros selects
+      // Desabilitar opÃ§Ãµes jÃ¡ selecionadas em outros selects
       for (let i = 1; i <= 8; i++) {
         const select = document.getElementById(`standing_${conference}_${i}`);
         if (select) {
@@ -1310,14 +1391,14 @@ Stephen Curry,PG,35,95</code>
     }
 
     async function submitStandings() {
-      // Validar seleções
+      // Validar seleÃ§Ãµes
       const standings = { LESTE: [], OESTE: [] };
       
       for (const conf of ['LESTE', 'OESTE']) {
         for (let i = 1; i <= 8; i++) {
           const select = document.getElementById(`standing_${conf}_${i}`);
           if (!select || !select.value) {
-            alert(`Por favor, selecione todos os 8 times da conferência ${conf}`);
+            alert(`Por favor, selecione todos os 8 times da conferÃªncia ${conf}`);
             return;
           }
           standings[conf].push({
@@ -1394,11 +1475,11 @@ Stephen Curry,PG,35,95</code>
         <div class="alert alert-info mb-4">
           <i class="bi bi-info-circle me-2"></i>
           <strong>Pontos Playoffs:</strong> 
-          1ª Rodada +1pt | 2ª Rodada +2pts | Final Conferência +3pts | Vice +2pts | Campeão +5pts
+          1Âª Rodada +1pt | 2Âª Rodada +2pts | Final ConferÃªncia +3pts | Vice +2pts | CampeÃ£o +5pts
         </div>
         
         <div class="row">
-          <!-- CONFERÊNCIA LESTE -->
+          <!-- CONFERÃŠNCIA LESTE -->
           <div class="col-lg-6 mb-4">
             <div class="card bg-dark border-danger" style="border-radius: 15px;">
               <div class="card-header bg-danger text-white">
@@ -1410,7 +1491,7 @@ Stephen Curry,PG,35,95</code>
             </div>
           </div>
           
-          <!-- CONFERÊNCIA OESTE -->
+          <!-- CONFERÃŠNCIA OESTE -->
           <div class="col-lg-6 mb-4">
             <div class="card bg-dark border-primary" style="border-radius: 15px;">
               <div class="card-header bg-primary text-white">
@@ -1435,7 +1516,7 @@ Stephen Curry,PG,35,95</code>
         
         <div class="d-grid">
           <button class="btn btn-orange btn-lg" onclick="goToStep3()" id="btnStep3" disabled>
-            <i class="bi bi-arrow-right me-2"></i>Prosseguir para Prêmios Individuais
+            <i class="bi bi-arrow-right me-2"></i>Prosseguir para PrÃªmios Individuais
           </button>
         </div>
       `;
@@ -1446,7 +1527,7 @@ Stephen Curry,PG,35,95</code>
     function renderBracket(conference) {
       const bracket = playoffState.bracket[conference];
       if (!bracket || bracket.length === 0) {
-        return '<p class="text-muted">Bracket não configurado</p>';
+        return '<p class="text-muted">Bracket nÃ£o configurado</p>';
       }
       
       // Organizar por seed
@@ -1466,7 +1547,7 @@ Stephen Curry,PG,35,95</code>
       let html = `<div class="bracket-container">`;
       
       // PRIMEIRA RODADA
-      html += `<div class="mb-4"><h6 class="text-warning mb-3">1ª Rodada (+1pt)</h6>`;
+      html += `<div class="mb-4"><h6 class="text-warning mb-3">1Âª Rodada (+1pt)</h6>`;
       firstRoundMatchups.forEach(m => {
         const team1 = teamsBySeed[m.seeds[0]];
         const team2 = teamsBySeed[m.seeds[1]];
@@ -1481,8 +1562,8 @@ Stephen Curry,PG,35,95</code>
       html += renderMatchup(conference, 'semifinals', 2, null, null, getMatch(conference, 'semifinals', 2)?.winner_id, 'Vencedor 3v6', 'Vencedor 2v7');
       html += `</div>`;
       
-      // FINAL DA CONFERÊNCIA
-      html += `<div class="mb-4"><h6 class="text-success mb-3">Final da Conferência (+3pts)</h6>`;
+      // FINAL DA CONFERÃŠNCIA
+      html += `<div class="mb-4"><h6 class="text-success mb-3">Final da ConferÃªncia (+3pts)</h6>`;
       html += renderMatchup(conference, 'conference_finals', 1, null, null, getMatch(conference, 'conference_finals', 1)?.winner_id, 'Vencedor Semi 1', 'Vencedor Semi 2');
       html += `</div>`;
       
@@ -1509,7 +1590,7 @@ Stephen Curry,PG,35,95</code>
       const t1Id = team1 ? team1.team_id : null;
       const t2Id = team2 ? team2.team_id : null;
       
-      // Para rodadas avançadas, buscar vencedores anteriores
+      // Para rodadas avanÃ§adas, buscar vencedores anteriores
       let actualT1Id = t1Id, actualT2Id = t2Id;
       let actualT1Name = t1Name, actualT2Name = t2Name;
       
@@ -1560,8 +1641,8 @@ Stephen Curry,PG,35,95</code>
       const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
       const finalsMatch = getMatch('FINALS', 'finals', 1);
       
-      const lesteTeam = lesteChamp?.winner_id ? getTeamInfo(lesteChamp.winner_id) : 'Campeão LESTE';
-      const oesteTeam = oesteChamp?.winner_id ? getTeamInfo(oesteChamp.winner_id) : 'Campeão OESTE';
+      const lesteTeam = lesteChamp?.winner_id ? getTeamInfo(lesteChamp.winner_id) : 'CampeÃ£o LESTE';
+      const oesteTeam = oesteChamp?.winner_id ? getTeamInfo(oesteChamp.winner_id) : 'CampeÃ£o OESTE';
       
       const canSelect = lesteChamp?.winner_id && oesteChamp?.winner_id;
       const lesteClass = finalsMatch?.winner_id == lesteChamp?.winner_id ? 'btn-warning' : 'btn-outline-danger';
@@ -1585,7 +1666,7 @@ Stephen Curry,PG,35,95</code>
           ${finalsMatch?.winner_id ? `
             <div class="mt-3">
               <span class="badge bg-warning text-dark fs-5 p-2">
-                <i class="bi bi-trophy-fill me-2"></i>CAMPEÃO: ${getTeamInfo(finalsMatch.winner_id)}
+                <i class="bi bi-trophy-fill me-2"></i>CAMPEÃƒO: ${getTeamInfo(finalsMatch.winner_id)}
               </span>
             </div>
           ` : ''}
@@ -1675,7 +1756,7 @@ Stephen Curry,PG,35,95</code>
         
         renderPlayoffStep2();
       } catch (e) {
-        alert('Erro ao registrar campeão: ' + (e.message || 'Desconhecido'));
+        alert('Erro ao registrar campeÃ£o: ' + (e.message || 'Desconhecido'));
       }
     }
 
@@ -1692,7 +1773,7 @@ Stephen Curry,PG,35,95</code>
       renderPlayoffStep3();
     }
 
-    // PASSO 3: Prêmios Individuais
+    // PASSO 3: PrÃªmios Individuais
     function renderPlayoffStep3() {
       const container = document.getElementById('mainContainer');
       const teams = playoffState.teams;
@@ -1706,11 +1787,11 @@ Stephen Curry,PG,35,95</code>
           <div class="card-body">
             <h3 class="text-white mb-2">
               <i class="bi bi-award text-orange me-2"></i>
-              Prêmios Individuais - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+              PrÃªmios Individuais - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
             </h3>
             <p class="text-light-gray mb-0">
               <span class="badge bg-orange me-2">Passo 3 de 4</span>
-              Registre os prêmios individuais da temporada (+1 ponto cada para o time)
+              Registre os prÃªmios individuais da temporada (+1 ponto cada para o time)
             </p>
           </div>
         </div>
@@ -1769,16 +1850,16 @@ Stephen Curry,PG,35,95</code>
                 </div>
               </div>
               
-              <!-- 6º Homem -->
+              <!-- 6Âº Homem -->
               <div class="row mb-4">
                 <div class="col-md-6">
                   <label class="form-label text-white">
-                    <i class="bi bi-person-plus text-primary me-2"></i>6º Homem (+1pt para o time)
+                    <i class="bi bi-person-plus text-primary me-2"></i>6Âº Homem (+1pt para o time)
                   </label>
                   <input type="text" class="form-control bg-dark text-white" name="sixth_man_player" placeholder="Nome do jogador">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label text-white">Time do 6º Homem</label>
+                  <label class="form-label text-white">Time do 6Âº Homem</label>
                   <select class="form-select bg-dark text-white" name="sixth_man_team_id">
                     <option value="">Selecione o time</option>
                     ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
@@ -1815,7 +1896,7 @@ Stephen Curry,PG,35,95</code>
     }
 
     function goToStep4() {
-      // Salvar dados do formulário
+      // Salvar dados do formulÃ¡rio
       const form = document.getElementById('awardsForm');
       const formData = new FormData(form);
       
@@ -1836,7 +1917,7 @@ Stephen Curry,PG,35,95</code>
       renderPlayoffStep4();
     }
 
-    // PASSO 4: Revisão e Finalização
+    // PASSO 4: RevisÃ£o e FinalizaÃ§Ã£o
     async function renderPlayoffStep4() {
       const container = document.getElementById('mainContainer');
       const finalsMatch = getMatch('FINALS', 'finals', 1);
@@ -1848,14 +1929,14 @@ Stephen Curry,PG,35,95</code>
       
       container.innerHTML = `
         <button class="btn btn-back mb-4" onclick="renderPlayoffStep3()">
-          <i class="bi bi-arrow-left me-2"></i>Voltar aos Prêmios
+          <i class="bi bi-arrow-left me-2"></i>Voltar aos PrÃªmios
         </button>
         
         <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
           <div class="card-body">
             <h3 class="text-white mb-2">
               <i class="bi bi-check-circle text-orange me-2"></i>
-              Revisão Final - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
+              RevisÃ£o Final - Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
             </h3>
             <p class="text-light-gray mb-0">
               <span class="badge bg-orange me-2">Passo 4 de 4</span>
@@ -1872,8 +1953,8 @@ Stephen Curry,PG,35,95</code>
                 <h5 class="mb-0"><i class="bi bi-trophy-fill me-2"></i>Resultado dos Playoffs</h5>
               </div>
               <div class="card-body">
-                <p class="mb-2"><strong class="text-warning">Campeão (+5pts):</strong> <span class="text-white">${champion ? getTeamInfo(champion) : 'N/A'}</span></p>
-                <p class="mb-2"><strong class="text-secondary">Vice-Campeão (+2pts):</strong> <span class="text-white">${runnerUp ? getTeamInfo(runnerUp) : 'N/A'}</span></p>
+                <p class="mb-2"><strong class="text-warning">CampeÃ£o (+5pts):</strong> <span class="text-white">${champion ? getTeamInfo(champion) : 'N/A'}</span></p>
+                <p class="mb-2"><strong class="text-secondary">Vice-CampeÃ£o (+2pts):</strong> <span class="text-white">${runnerUp ? getTeamInfo(runnerUp) : 'N/A'}</span></p>
                 <p class="mb-2"><strong class="text-success">Finalista LESTE (+3pts):</strong> <span class="text-white">${lesteChamp?.winner_id ? getTeamInfo(lesteChamp.winner_id) : 'N/A'}</span></p>
                 <p class="mb-0"><strong class="text-primary">Finalista OESTE (+3pts):</strong> <span class="text-white">${oesteChamp?.winner_id ? getTeamInfo(oesteChamp.winner_id) : 'N/A'}</span></p>
               </div>
@@ -1883,15 +1964,15 @@ Stephen Curry,PG,35,95</code>
           <div class="col-md-6">
             <div class="card bg-dark border-info h-100">
               <div class="card-header bg-info text-dark">
-                <h5 class="mb-0"><i class="bi bi-award me-2"></i>Prêmios Individuais</h5>
+                <h5 class="mb-0"><i class="bi bi-award me-2"></i>PrÃªmios Individuais</h5>
               </div>
               <div class="card-body">
                 ${playoffState.awards.mvp_player ? `<p class="mb-2"><strong class="text-warning">MVP:</strong> <span class="text-white">${playoffState.awards.mvp_player}</span></p>` : ''}
                 ${playoffState.awards.dpoy_player ? `<p class="mb-2"><strong class="text-info">DPOY:</strong> <span class="text-white">${playoffState.awards.dpoy_player}</span></p>` : ''}
                 ${playoffState.awards.mip_player ? `<p class="mb-2"><strong class="text-success">MIP:</strong> <span class="text-white">${playoffState.awards.mip_player}</span></p>` : ''}
-                ${playoffState.awards.sixth_man_player ? `<p class="mb-0"><strong class="text-primary">6º Homem:</strong> <span class="text-white">${playoffState.awards.sixth_man_player}</span></p>` : ''}
+                ${playoffState.awards.sixth_man_player ? `<p class="mb-0"><strong class="text-primary">6Âº Homem:</strong> <span class="text-white">${playoffState.awards.sixth_man_player}</span></p>` : ''}
                 ${playoffState.awards.roy_player ? `<p class="mb-0"><strong class="text-warning">ROY:</strong> <span class="text-white">${playoffState.awards.roy_player}</span></p>` : ''}
-                ${!playoffState.awards.mvp_player && !playoffState.awards.dpoy_player && !playoffState.awards.mip_player && !playoffState.awards.sixth_man_player && !playoffState.awards.roy_player ? '<p class="text-muted mb-0">Nenhum prêmio registrado</p>' : ''}
+                ${!playoffState.awards.mvp_player && !playoffState.awards.dpoy_player && !playoffState.awards.mip_player && !playoffState.awards.sixth_man_player && !playoffState.awards.roy_player ? '<p class="text-muted mb-0">Nenhum prÃªmio registrado</p>' : ''}
               </div>
             </div>
           </div>
@@ -1900,36 +1981,36 @@ Stephen Curry,PG,35,95</code>
         <!-- Resumo de Pontos -->
         <div class="card bg-dark border-success mb-4">
           <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Sistema de Pontuação</h5>
+            <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Sistema de PontuaÃ§Ã£o</h5>
           </div>
           <div class="card-body">
             <div class="row">
               <div class="col-md-4">
                 <h6 class="text-warning">Playoffs</h6>
                 <ul class="list-unstyled text-light-gray small">
-                  <li>• Campeão: +5 pts</li>
-                  <li>• Vice-Campeão: +2 pts</li>
-                  <li>• Finalista Conferência: +3 pts</li>
-                  <li>• Semifinalista: +2 pts</li>
-                  <li>• 1ª Rodada: +1 pt</li>
+                  <li>â€¢ CampeÃ£o: +5 pts</li>
+                  <li>â€¢ Vice-CampeÃ£o: +2 pts</li>
+                  <li>â€¢ Finalista ConferÃªncia: +3 pts</li>
+                  <li>â€¢ Semifinalista: +2 pts</li>
+                  <li>â€¢ 1Âª Rodada: +1 pt</li>
                 </ul>
               </div>
               <div class="col-md-4">
                 <h6 class="text-info">Temporada Regular</h6>
                 <ul class="list-unstyled text-light-gray small">
-                  <li>• 1º Lugar: +4 pts</li>
-                  <li>• 2º ao 4º Lugar: +3 pts</li>
-                  <li>• 5º ao 8º Lugar: +2 pts</li>
+                  <li>â€¢ 1Âº Lugar: +4 pts</li>
+                  <li>â€¢ 2Âº ao 4Âº Lugar: +3 pts</li>
+                  <li>â€¢ 5Âº ao 8Âº Lugar: +2 pts</li>
                 </ul>
               </div>
               <div class="col-md-4">
-                <h6 class="text-success">Prêmios Individuais</h6>
+                <h6 class="text-success">PrÃªmios Individuais</h6>
                 <ul class="list-unstyled text-light-gray small">
-                  <li>• MVP: +1 pt</li>
-                  <li>• DPOY: +1 pt</li>
-                  <li>• MIP: +1 pt</li>
-                  <li>• 6º Homem: +1 pt</li>
-                  <li>• ROY: +1 pt</li>
+                  <li>â€¢ MVP: +1 pt</li>
+                  <li>â€¢ DPOY: +1 pt</li>
+                  <li>â€¢ MIP: +1 pt</li>
+                  <li>â€¢ 6Âº Homem: +1 pt</li>
+                  <li>â€¢ ROY: +1 pt</li>
                 </ul>
               </div>
             </div>
@@ -1950,7 +2031,7 @@ Stephen Curry,PG,35,95</code>
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
       
       try {
-        // 1. Salvar prêmios individuais
+        // 1. Salvar prÃªmios individuais
         await fetch('/api/playoffs.php?action=save_awards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2015,7 +2096,7 @@ Stephen Curry,PG,35,95</code>
                       <tr>
                         <th>Time</th>
                         <th style="width: 120px;">Pontos</th>
-                        <th class="d-none d-md-table-cell">Observação (opcional)</th>
+                        <th class="d-none d-md-table-cell">ObservaÃ§Ã£o (opcional)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2031,7 +2112,7 @@ Stephen Curry,PG,35,95</code>
                             <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="${Number(t.current_points || 0)}" min="0" />
                           </td>
                           <td class="d-none d-md-table-cell">
-                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" />
+                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bÃ´nus" />
                           </td>
                         </tr>
                       `).join('')}
@@ -2088,8 +2169,8 @@ Stephen Curry,PG,35,95</code>
       }
     }
 
-    // ========== SALVAR HISTÓRICO ==========
-    // ========== GERENCIAR SESSÃO DE DRAFT ==========
+    // ========== SALVAR HISTÃ“RICO ==========
+    // ========== GERENCIAR SESSÃƒO DE DRAFT ==========
     async function showDraftSessionManagement(seasonId, league) {
       currentSeasonId = seasonId;
       currentLeague = league;
@@ -2098,12 +2179,12 @@ Stephen Curry,PG,35,95</code>
       container.innerHTML = `
         <div class="text-center py-5">
           <div class="spinner-border text-orange"></div>
-          <p class="text-light-gray mt-2">Carregando sessão de draft...</p>
+          <p class="text-light-gray mt-2">Carregando sessÃ£o de draft...</p>
         </div>
       `;
       
       try {
-        // Verificar se já existe uma sessão de draft para esta temporada
+        // Verificar se jÃ¡ existe uma sessÃ£o de draft para esta temporada
         const draftData = await api(`draft.php?action=active_draft&league=${league}`);
         const session = draftData.draft;
         
@@ -2112,10 +2193,10 @@ Stephen Curry,PG,35,95</code>
         const teams = teamsData.teams || [];
         
         if (session && session.season_id == seasonId) {
-          // Já existe sessão - mostrar configuração
+          // JÃ¡ existe sessÃ£o - mostrar configuraÃ§Ã£o
           await renderDraftSessionConfig(session, teams, league);
         } else {
-          // Não existe sessão - mostrar botão para criar
+          // NÃ£o existe sessÃ£o - mostrar botÃ£o para criar
           renderCreateDraftSession(seasonId, league, teams);
         }
       } catch (e) {
@@ -2139,13 +2220,13 @@ Stephen Curry,PG,35,95</code>
         <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
           <div class="card-body text-center py-5">
             <i class="bi bi-trophy text-orange display-1 mb-4"></i>
-            <h3 class="text-white mb-3">Criar Sessão de Draft</h3>
+            <h3 class="text-white mb-3">Criar SessÃ£o de Draft</h3>
             <p class="text-light-gray mb-4">
-              Crie uma nova sessão de draft para a temporada atual.<br>
-              O draft terá 2 rodadas com ordem snake (a ordem inverte na 2ª rodada).
+              Crie uma nova sessÃ£o de draft para a temporada atual.<br>
+              O draft terÃ¡ 2 rodadas com ordem snake (a ordem inverte na 2Âª rodada).
             </p>
             <button class="btn btn-orange btn-lg" onclick="createDraftSession(${seasonId}, '${league}')">
-              <i class="bi bi-plus-circle me-2"></i>Criar Sessão de Draft
+              <i class="bi bi-plus-circle me-2"></i>Criar SessÃ£o de Draft
             </button>
           </div>
         </div>
@@ -2162,10 +2243,10 @@ Stephen Curry,PG,35,95</code>
           })
         });
         
-        alert('Sessão de draft criada com sucesso!');
+        alert('SessÃ£o de draft criada com sucesso!');
         showDraftSessionManagement(seasonId, league);
       } catch (e) {
-        alert('Erro ao criar sessão: ' + (e.error || 'Desconhecido'));
+        alert('Erro ao criar sessÃ£o: ' + (e.error || 'Desconhecido'));
       }
     }
     
@@ -2185,7 +2266,7 @@ Stephen Curry,PG,35,95</code>
       const statusBadge = {
         'setup': '<span class="badge bg-warning">Configurando</span>',
         'in_progress': '<span class="badge bg-success">Em Andamento</span>',
-        'completed': '<span class="badge bg-secondary">Concluído</span>'
+        'completed': '<span class="badge bg-secondary">ConcluÃ­do</span>'
       };
       
       container.innerHTML = `
@@ -2193,13 +2274,13 @@ Stephen Curry,PG,35,95</code>
           <i class="bi bi-arrow-left me-2"></i>Voltar
         </button>
         
-        <!-- Status da Sessão -->
+        <!-- Status da SessÃ£o -->
         <div class="card bg-dark-panel border-orange mb-4" style="border-radius: 15px;">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h4 class="text-white mb-0">
                 <i class="bi bi-trophy text-orange me-2"></i>
-                Sessão de Draft #${session.id}
+                SessÃ£o de Draft #${session.id}
               </h4>
               ${statusBadge[session.status]}
             </div>
@@ -2230,7 +2311,7 @@ Stephen Curry,PG,35,95</code>
                   <i class="bi bi-play-fill me-2"></i>Iniciar Draft
                 </button>
                 <button class="btn btn-danger" onclick="deleteDraftSession(${session.id}, '${league}')">
-                  <i class="bi bi-trash me-2"></i>Excluir Sessão
+                  <i class="bi bi-trash me-2"></i>Excluir SessÃ£o
                 </button>
               </div>
               ${round1Picks.length === 0 ? `
@@ -2263,7 +2344,7 @@ Stephen Curry,PG,35,95</code>
             </div>
             <div class="card-body">
               <p class="text-light-gray mb-3">
-                Arraste os times para definir a ordem da 1ª rodada. A 2ª rodada terá ordem invertida (snake).
+                Arraste os times para definir a ordem da 1Âª rodada. A 2Âª rodada terÃ¡ ordem invertida (snake).
               </p>
               <div class="mb-3">
                 <label class="text-white mb-2">Selecione os times na ordem do draft:</label>
@@ -2287,7 +2368,7 @@ Stephen Curry,PG,35,95</code>
               </div>
               
               <div class="mb-3">
-                <label class="text-white mb-2">Adicionar time à ordem:</label>
+                <label class="text-white mb-2">Adicionar time Ã  ordem:</label>
                 <div class="form-check form-switch mb-2">
                   <input class="form-check-input" type="checkbox" id="allowDraftRepeat">
                   <label class="form-check-label text-light-gray" for="allowDraftRepeat">Permitir repetir time na ordem</label>
@@ -2304,7 +2385,7 @@ Stephen Curry,PG,35,95</code>
               </div>
               
               <button class="btn btn-outline-success" onclick="autoGenerateDraftOrder(${session.id}, '${league}', ${JSON.stringify(teams).replace(/"/g, '&quot;')})">
-                <i class="bi bi-magic me-2"></i>Gerar Ordem Automática (${teams.length} times)
+                <i class="bi bi-magic me-2"></i>Gerar Ordem AutomÃ¡tica (${teams.length} times)
               </button>
             </div>
           </div>
@@ -2318,7 +2399,7 @@ Stephen Curry,PG,35,95</code>
                 <div class="card-header bg-transparent border-orange">
                   <h5 class="text-white mb-0">
                     <i class="bi bi-1-circle-fill text-orange me-2"></i>
-                    1ª Rodada
+                    1Âª Rodada
                   </h5>
                 </div>
                 <div class="card-body p-0">
@@ -2342,7 +2423,7 @@ Stephen Curry,PG,35,95</code>
                 <div class="card-header bg-transparent border-orange">
                   <h5 class="text-white mb-0">
                     <i class="bi bi-2-circle-fill text-orange me-2"></i>
-                    2ª Rodada (Snake)
+                    2Âª Rodada (Snake)
                   </h5>
                 </div>
                 <div class="card-body p-0">
@@ -2384,7 +2465,7 @@ Stephen Curry,PG,35,95</code>
         }
       }
 
-      // Buscar jogadores disponíveis
+      // Buscar jogadores disponÃ­veis
       const playersData = await api(`draft.php?action=available_players&season_id=${seasonId}`);
       const players = playersData.players || [];
 
@@ -2417,7 +2498,7 @@ Stephen Curry,PG,35,95</code>
             `}
 
             <div class="mb-3">
-              <input type="text" id="adminPickSearch" class="form-control bg-dark text-white border-warning" placeholder="Buscar jogador por nome ou posição..." oninput="filterAdminPickList()" />
+              <input type="text" id="adminPickSearch" class="form-control bg-dark text-white border-warning" placeholder="Buscar jogador por nome ou posiÃ§Ã£o..." oninput="filterAdminPickList()" />
             </div>
 
             <div class="table-responsive">
@@ -2472,7 +2553,7 @@ Stephen Curry,PG,35,95</code>
           })
         });
         alert(res.message || 'Jogador escolhido com sucesso');
-        // Voltar para a gestão da sessão
+        // Voltar para a gestÃ£o da sessÃ£o
         showDraftSessionManagement(currentSeasonId, currentLeague);
       } catch (e) {
         alert('Erro ao escolher jogador: ' + (e.error || 'Desconhecido'));
@@ -2492,7 +2573,7 @@ Stephen Curry,PG,35,95</code>
       if (!allowRepeat) {
         const existing = document.querySelector(`#draftOrderList [data-team-id="${teamId}"]`);
         if (existing) {
-          alert('Este time já está na ordem. Ative "Permitir repetir" para adicionar novamente.');
+          alert('Este time jÃ¡ estÃ¡ na ordem. Ative "Permitir repetir" para adicionar novamente.');
           return;
         }
       }
@@ -2533,7 +2614,7 @@ Stephen Curry,PG,35,95</code>
     }
     
     async function autoGenerateDraftOrder(sessionId, league, teams) {
-      if (!confirm(`Gerar ordem automática com ${teams.length} times? Isso substituirá a ordem atual.`)) return;
+      if (!confirm(`Gerar ordem automÃ¡tica com ${teams.length} times? Isso substituirÃ¡ a ordem atual.`)) return;
       
       try {
         // Primeiro limpar a ordem existente
@@ -2565,7 +2646,7 @@ Stephen Curry,PG,35,95</code>
     }
     
     async function startDraftSession(sessionId, league) {
-      if (!confirm('Iniciar o draft? Os usuários poderão fazer suas picks.')) return;
+      if (!confirm('Iniciar o draft? Os usuÃ¡rios poderÃ£o fazer suas picks.')) return;
       
       try {
         await api('draft.php', {
@@ -2584,7 +2665,7 @@ Stephen Curry,PG,35,95</code>
     }
     
     async function deleteDraftSession(sessionId, league) {
-      if (!confirm('Tem certeza que deseja excluir esta sessão de draft?')) return;
+      if (!confirm('Tem certeza que deseja excluir esta sessÃ£o de draft?')) return;
       
       try {
         await api('draft.php', {
@@ -2595,14 +2676,14 @@ Stephen Curry,PG,35,95</code>
           })
         });
         
-        alert('Sessão excluída!');
+        alert('SessÃ£o excluÃ­da!');
         showDraftSessionManagement(currentSeasonId, league);
       } catch (e) {
         alert('Erro: ' + (e.error || 'Desconhecido'));
       }
     }
 
-    // ========== HISTÓRICO DE DRAFTS ==========
+    // ========== HISTÃ“RICO DE DRAFTS ==========
     async function showDraftHistory(league) {
       currentLeague = league;
       const container = document.getElementById('mainContainer');
@@ -2622,7 +2703,7 @@ Stephen Curry,PG,35,95</code>
             <div class="card-body">
               <h4 class="text-white mb-0">
                 <i class="bi bi-clock-history text-orange me-2"></i>
-                Histórico de Drafts - ${league}
+                HistÃ³rico de Drafts - ${league}
               </h4>
             </div>
           </div>
@@ -2630,7 +2711,7 @@ Stephen Curry,PG,35,95</code>
           ${seasons.length === 0 ? `
             <div class="alert alert-info bg-dark border-orange text-white">
               <i class="bi bi-info-circle me-2"></i>
-              Nenhuma temporada encontrada com histórico de draft.
+              Nenhuma temporada encontrada com histÃ³rico de draft.
             </div>
           ` : `
             <div class="accordion" id="draftHistoryAccordion">
@@ -2667,7 +2748,7 @@ Stephen Curry,PG,35,95</code>
           <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
             <i class="bi bi-arrow-left me-2"></i>Voltar
           </button>
-          <div class="alert alert-danger">Erro ao carregar histórico: ${e.error || 'Desconhecido'}</div>
+          <div class="alert alert-danger">Erro ao carregar histÃ³rico: ${e.error || 'Desconhecido'}</div>
         `;
       }
     }
@@ -2675,7 +2756,7 @@ Stephen Curry,PG,35,95</code>
     async function loadDraftSeasonDetails(seasonId) {
       const container = document.getElementById(`draftDetails${seasonId}`);
       
-      // Se já tem conteúdo carregado (não é o spinner), não recarregar
+      // Se jÃ¡ tem conteÃºdo carregado (nÃ£o Ã© o spinner), nÃ£o recarregar
       if (!container.innerHTML.includes('spinner-border')) return;
       
       try {
@@ -2780,3 +2861,4 @@ Stephen Curry,PG,35,95</code>
   </script>
 </body>
 </html>
+
