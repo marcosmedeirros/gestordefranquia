@@ -1,4 +1,7 @@
-const API = 'album-fba-api.php';
+const API = (() => {
+    const path = window.location.pathname.replace(/\/$/, '').replace(/\/[^/]*$/, '');
+    return `${window.location.origin}${path}/album-fba-api.php`;
+})();
 let state = {
     user: null,
     master: [],
@@ -52,24 +55,25 @@ async function post(action, payload = {}) {
     const response = await fetch(`${API}?action=${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        credentials: 'same-origin'
     });
     return parseApiResponse(response);
 }
 
 async function postForm(action, formData) {
-    const response = await fetch(`${API}?action=${action}`, { method: 'POST', body: formData });
+    const response = await fetch(`${API}?action=${action}`, { method: 'POST', body: formData, credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
 async function get(action) {
-    const response = await fetch(`${API}?action=${action}`);
+    const response = await fetch(`${API}?action=${action}`, { cache: 'no-store', credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
 async function getWithParams(action, params = {}) {
     const query = new URLSearchParams({ action, ...params }).toString();
-    const response = await fetch(`${API}?${query}`);
+    const response = await fetch(`${API}?${query}`, { cache: 'no-store', credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
@@ -94,7 +98,7 @@ async function bootstrap() {
     renderCourt();
     renderMarket();
     renderTrades();
-    loadDailyPackStatus();
+    // Daily pack status polling removed to avoid extra overhead.
     if (state.user.is_admin) {
         renderAdminCards();
         await loadAdminPackCollections();
@@ -130,7 +134,7 @@ function switchTab(tab) {
     if (tab === 'ranking') renderRanking();
     if (tab === 'market') renderMarket();
     if (tab === 'trades') renderTrades();
-    if (tab === 'store') loadDailyPackStatus();
+    // Daily pack status polling removed to avoid extra overhead.
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -825,43 +829,8 @@ window.openPack = openPack;
 async function loadDailyPackStatus() {
     const btn = document.getElementById('pack-daily-btn');
     const hint = document.getElementById('pack-daily-hint');
-    const card = document.getElementById('pack-daily');
-    if (!btn || !hint) return;
-    try {
-        const res = await get('daily_pack_status');
-        if (!res.ok) {
-            hint.textContent = res.message || 'Erro ao carregar status.';
-            btn.disabled = true;
-            if (card) {
-                card.classList.add('opacity-50', 'pointer-events-none');
-            }
-            return;
-        }
-        if (res.can_claim) {
-            btn.disabled = false;
-            btn.textContent = 'Resgatar';
-            hint.textContent = 'Disponivel agora.';
-            if (card) {
-                card.classList.remove('opacity-50', 'pointer-events-none');
-            }
-        } else {
-            btn.disabled = true;
-            const seconds = Number(res.remaining_seconds || 0);
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            hint.textContent = `Disponivel em ${hours}h ${minutes}m.`;
-            btn.textContent = 'Aguarde';
-            if (card) {
-                card.classList.add('opacity-50', 'pointer-events-none');
-            }
-        }
-    } catch (err) {
-        hint.textContent = err.message || 'Erro ao carregar status.';
-        btn.disabled = true;
-        if (card) {
-            card.classList.add('opacity-50', 'pointer-events-none');
-        }
-    }
+    if (hint) hint.textContent = '';
+    if (btn) btn.disabled = false;
 }
 
 async function claimDailyPack() {
@@ -873,7 +842,6 @@ async function claimDailyPack() {
         const res = await post('claim_daily_pack');
         if (!res.ok) {
             if (hint) hint.textContent = res.message || 'Erro ao resgatar pacote.';
-            await loadDailyPackStatus();
             return;
         }
         state.user.coins = Number(res.coins || state.user.coins || 0);
@@ -886,10 +854,8 @@ async function claimDailyPack() {
         if (card) {
             card.classList.add('opacity-50', 'pointer-events-none');
         }
-        await loadDailyPackStatus();
     } catch (err) {
         if (hint) hint.textContent = err.message || 'Erro ao resgatar pacote.';
-        await loadDailyPackStatus();
     }
 }
 window.claimDailyPack = claimDailyPack;
