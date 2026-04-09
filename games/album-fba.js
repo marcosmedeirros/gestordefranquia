@@ -838,10 +838,12 @@ async function claimDailyPack() {
     const hint = document.getElementById('pack-daily-hint');
     const card = document.getElementById('pack-daily');
     if (btn) btn.disabled = true;
+    if (hint) hint.textContent = '';
     try {
         const res = await post('claim_daily_pack');
         if (!res.ok) {
             if (hint) hint.textContent = res.message || 'Erro ao resgatar pacote.';
+            if (btn) btn.disabled = false;
             return;
         }
         state.user.coins = Number(res.coins || state.user.coins || 0);
@@ -856,6 +858,7 @@ async function claimDailyPack() {
         }
     } catch (err) {
         if (hint) hint.textContent = err.message || 'Erro ao resgatar pacote.';
+        if (btn) btn.disabled = false;
     }
 }
 window.claimDailyPack = claimDailyPack;
