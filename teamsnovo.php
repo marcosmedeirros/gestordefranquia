@@ -16,6 +16,8 @@ $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 
 $currentSeasonYear = null;
 $currentSprintNumber = null;
+$currentSeason = null;
+$seasonDisplayYear = null;
 try {
     $stmtSeason = $pdo->prepare('
         SELECT s.season_number, s.year, sp.start_year, sp.sprint_number
@@ -36,11 +38,13 @@ try {
         if (isset($season['sprint_number'])) {
             $currentSprintNumber = (int)$season['sprint_number'];
         }
+        $currentSeason = $season;
     }
 } catch (Exception $e) {
     $currentSeasonYear = null;
 }
 $currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
+$seasonDisplayYear = (string)$currentSeasonYear;
 
 $stmtTeam = $pdo->prepare('
     SELECT t.*, COUNT(p.id) as player_count
@@ -413,6 +417,30 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             z-index: 250;
         }
         .sidebar-overlay.active, .sb-overlay.show { display: block; }
+
+        .sb-season {
+            margin: 0 14px 8px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .sb-season-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-3);
+            font-weight: 600;
+        }
+        .sb-season-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
 
         /* ── Main content ──────────────────────────────── */
         .main {
