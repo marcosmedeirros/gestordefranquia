@@ -120,6 +120,32 @@ function packs(): array
         'ultra' => ['price' => 100, 'cards' => 2, 'rates' => ['lendario' => 5, 'epico' => 25, 'rara' => 40, 'comum' => 30]],
     ];
 }
+
+function dailyPackTimezone(): DateTimeZone
+{
+    try {
+        return new DateTimeZone('America/Sao_Paulo');
+    } catch (Throwable $e) {
+        return new DateTimeZone(date_default_timezone_get());
+    }
+}
+
+function dailyPackWindow(?string $lastClaimAt): array
+{
+    $tz = dailyPackTimezone();
+    $now = new DateTime('now', $tz);
+    $todayRelease = (clone $now)->setTime(14, 0, 0);
+    $windowStart = $now < $todayRelease ? (clone $todayRelease)->modify('-1 day') : $todayRelease;
+    $lastClaim = $lastClaimAt ? new DateTime($lastClaimAt, $tz) : null;
+    $claimedThisWindow = $lastClaim && $lastClaim >= $windowStart;
+    $nextAt = $claimedThisWindow ? (clone $windowStart)->modify('+1 day') : null;
+    return [
+        'now' => $now,
+        'window_start' => $windowStart,
+        'can_claim' => !$claimedThisWindow,
+        'next_at' => $nextAt
+    ];
+}
 function master(PDO $pdo): array
 {
     $stmt = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url, c.created_at
@@ -559,15 +585,18 @@ if ($action === 'daily_pack_status') {
     $stmt = $pdo->prepare("SELECT last_claim_at FROM fba_daily_pack_claims WHERE user_id = :u");
     $stmt->execute([':u' => $user_id]);
     $last = $stmt->fetchColumn();
-    $now = time();
-    $lastTs = $last ? strtotime((string)$last) : 0;
-    $elapsed = $lastTs ? max(0, $now - $lastTs) : 999999;
-    $remaining = max(0, 86400 - $elapsed);
+    $window = dailyPackWindow($last ? (string)$last : null);
+    $canClaim = (bool)$window['can_claim'];
+    $remaining = 0;
+    $nextAt = $window['next_at'];
+    if (!$canClaim && $nextAt instanceof DateTimeInterface) {
+        $remaining = max(0, $nextAt->getTimestamp() - $window['now']->getTimestamp());
+    }
     out([
         'ok' => true,
-        'can_claim' => $remaining === 0,
+        'can_claim' => $canClaim,
         'remaining_seconds' => $remaining,
-        'next_at' => $remaining === 0 ? null : date('c', $now + $remaining)
+        'next_at' => !$canClaim && $nextAt instanceof DateTimeInterface ? $nextAt->format(DateTimeInterface::ATOM) : null
     ]);
 }
 
@@ -577,13 +606,15 @@ if ($action === 'claim_daily_pack') {
         $pdo->beginTransaction();
         $stmt->execute([':u' => $user_id]);
         $last = $stmt->fetchColumn();
-        $now = time();
-        $lastTs = $last ? strtotime((string)$last) : 0;
-        $elapsed = $lastTs ? max(0, $now - $lastTs) : 999999;
-        $remaining = max(0, 86400 - $elapsed);
-        if ($remaining > 0) {
+        $window = dailyPackWindow($last ? (string)$last : null);
+        if (!$window['can_claim']) {
+            $nextAt = $window['next_at'];
             $pdo->rollBack();
-            out(['ok' => false, 'message' => 'Pacote diario ainda indisponivel.'], 400);
+            out([
+                'ok' => false,
+                'message' => 'Pacote diario ainda indisponivel.',
+                'next_at' => $nextAt instanceof DateTimeInterface ? $nextAt->format(DateTimeInterface::ATOM) : null
+            ], 400);
         }
 
         $up = $pdo->prepare("INSERT INTO fba_daily_pack_claims (user_id, last_claim_at) VALUES (:u, NOW())
@@ -706,23 +737,15 @@ if ($action === 'trade_missing') {
             out(['ok' => false, 'message' => 'Nenhuma colecao ativa para pacotes'], 400);
         }
 
-        $conditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?", 'uc.card_id IS NULL'];
-        $params = [$excludedCollection];
-        if ($enabledCollections) {
-            $in = implode(',', array_fill(0, count($enabledCollections), '?'));
-            $conditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
-            $params = array_merge($params, $enabledCollections);
-        }
-        $where = implode(' AND ', $conditions);
-
         $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
             FROM fba_cards c
             INNER JOIN fba_card_teams t ON t.id = c.team_id
+            INNER JOIN fba_pack_collections pc ON pc.collection_name = COALESCE(c.collection_name, 'Geral') AND pc.in_pack = 1
             LEFT JOIN fba_user_collection uc ON uc.card_id = c.id AND uc.user_id = ?
-            WHERE $where
+            WHERE c.ativo=1 AND COALESCE(c.collection_name, 'Geral') <> ? AND uc.card_id IS NULL
             ORDER BY RAND()
             LIMIT 1");
-        $stmt->execute(array_merge([$user_id], $params));
+        $stmt->execute([$user_id, $excludedCollection]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             $pdo->rollBack();
