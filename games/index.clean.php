@@ -1461,18 +1461,17 @@ try {
                         <div class="stat-value"><?= $memoria_streak ?></div>
                     </div>
                 </div>
-            </div>
-            <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
-            <div class="row g-3 mb-5">
                 <?php if (!empty($usuario['is_admin'])): ?>
-                <div class="col-6 col-md-4 col-lg-3">
-                    <a href="admin/controlegames.php" class="game-card" style="--accent: #f6c343;">
-                        <span class="game-icon">⚙️</span>
-                        <div class="game-title">Controle Games</div>
-                        <div class="game-subtitle">Dobro de moedas</div>
+                <div class="col-12 col-md-4">
+                    <a href="admin/controlegames.php" class="stat-card text-decoration-none">
+                        <div class="stat-label"><i class="bi bi-gear-fill me-2"></i>Controle Games</div>
+                        <div class="stat-value">Abrir</div>
                     </a>
                 </div>
                 <?php endif; ?>
+            </div>
+            <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
+            <div class="row g-3 mb-5">
                 <div class="col-6 col-md-4 col-lg-3">
                     <a href="games/index.php?game=flappy" class="game-card" style="--accent: #ff9800;">
                         <span class="game-icon">🐦</span>
