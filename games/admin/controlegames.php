@@ -79,7 +79,7 @@ $labelMap = [
         <span class="fs-5 text-white">Controle de Jogos</span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <a href="/games/admin/dashboard.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
+        <a href="https://games.fbabrasil.com.br/index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
         <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?> moedas</span>
     </div>
 </div>
