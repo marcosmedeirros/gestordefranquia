@@ -1677,8 +1677,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 return grouped;
             };
 
-            const getSwapTags = (notes) => {
-                const text = String(notes || '');
+            const getSwapTags = (pick) => {
+                const swapType = String(pick?.swap_type || '').toUpperCase().trim();
+                if (swapType === 'SB' || swapType === 'SW') {
+                    return `<span class="badge-pill gray" style="margin-left:6px">${swapType}</span>`;
+                }
+                const text = String(pick?.notes || '');
                 const tags = [];
                 if (/\bSB\b/i.test(text)) tags.push('SB');
                 if (/\bSW\b/i.test(text)) tags.push('SW');
@@ -1689,7 +1693,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
             const renderPickWithTeam = (pk) => {
                 const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                const swapTags = getSwapTags(pk.notes);
+                const swapTags = getSwapTags(pk);
                 if (isOwn) {
                     return `<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span>${swapTags}</div>`;
                 }
@@ -1723,7 +1727,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             } else {
                 const renderPickAway = (pk) => {
                     const cur = `${pk.current_team_city||''} ${pk.current_team_name||''}`.trim() || 'Não definido';
-                    const swapTags = getSwapTags(pk.notes);
+                    const swapTags = getSwapTags(pk);
                     return `<div class="mb-1" style="color:var(--text-2)">${cur}${swapTags}</div>`;
                 };
                 const groupedAway = groupByYear(picksAway, renderPickAway);

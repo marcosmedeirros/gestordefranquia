@@ -73,9 +73,14 @@ $picksByRound = [
     'other' => []
 ];
 
-function extractSwapTags(?string $notes): array
+function extractSwapTags(array $pick): array
 {
-    $notes = (string)($notes ?? '');
+    $swapType = strtoupper(trim((string)($pick['swap_type'] ?? '')));
+    if ($swapType === 'SB' || $swapType === 'SW') {
+        return [$swapType];
+    }
+
+    $notes = (string)($pick['notes'] ?? '');
     $tags = [];
     if (preg_match('/\bSB\b/i', $notes)) {
         $tags[] = 'SB';
@@ -280,7 +285,7 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksByRound['1'] as $pick): ?>
-                                                                                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
+                                                                                <?php $swapTags = extractSwapTags($pick); ?>
                                         <tr 
                                           data-pick-id="<?= (int)$pick['id'] ?>" 
                                           data-year="<?= (int)$pick['season_year'] ?>" 
@@ -346,7 +351,7 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksByRound['2'] as $pick): ?>
-                                                                                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
+                                                                                <?php $swapTags = extractSwapTags($pick); ?>
                                         <tr 
                                           data-pick-id="<?= (int)$pick['id'] ?>" 
                                           data-year="<?= (int)$pick['season_year'] ?>" 
@@ -414,7 +419,7 @@ foreach ($picks as $pick) {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($picksAway as $pick): ?>
-                                        <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
+                                        <?php $swapTags = extractSwapTags($pick); ?>
                                         <tr>
                                             <td class="fw-bold text-info"><?= htmlspecialchars((string)(int)$pick['season_year']) ?></td>
                                             <td>

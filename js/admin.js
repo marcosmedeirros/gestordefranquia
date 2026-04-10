@@ -506,7 +506,7 @@ async function showTeam(teamId) {
 <button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
 </div>
 ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
-<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td>
+<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª${p.swap_type ? ` <span class="badge bg-secondary ms-1">${p.swap_type}</span>` : ''}</td><td>${p.city} ${p.team_name}</td>
 <td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
 <button class="btn btn-sm btn-outline-danger" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>` : '<div class="text-center py-5 text-light-gray">Nenhum pick</div>'}
 </div></div>`;
@@ -617,7 +617,8 @@ async function showTrades() {
         const roundLabel = Number.isNaN(roundNumber) ? `${pk.round}ª rodada` : `${roundNumber}ª rodada`;
         const seasonLabel = pk.season_year ? `${pk.season_year}` : 'Temporada indefinida';
         const originalTeam = `${pk.city} ${pk.team_name}`;
-        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}</li>`;
+        const swapTag = pk.swap_type ? ` <span class="badge bg-secondary ms-1">${pk.swap_type}</span>` : '';
+        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}${swapTag}</li>`;
       }).join('');
       const content = playerItems + pickItems;
       return content ? `<ul class="list-unstyled mb-0">${content}</ul>` : '<p class="text-light-gray">Nada</p>';

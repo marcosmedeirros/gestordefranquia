@@ -62,6 +62,10 @@ const formatTradePickDisplay = (pick) => {
     ? `Pick ${pickNumber} (${originalTeam})${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round} (${originalTeam})`;
 
+  if (pick.swap_type) {
+    display += ` <span class="badge bg-secondary ms-1">${pick.swap_type}</span>`;
+  }
+
   if (isCurrentDraft) {
     display += ' - Draft atual';
   }
@@ -278,7 +282,10 @@ const loadMultiAssets = async (teamId, type) => {
   }
   const endpoint = type === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}`;
   const data = await api(endpoint);
-  const list = type === 'players' ? (data.players || []) : (data.picks || []);
+  let list = type === 'players' ? (data.players || []) : (data.picks || []);
+  if (type === 'picks') {
+    list = list.filter((pick) => Number(pick.swap_locked || 0) !== 1 && !pick.swap_type);
+  }
   multiTradeState.assets[type][teamId] = list;
   return list;
 };
@@ -483,12 +490,122 @@ const buildPickSummary = (pick) => {
   if (isCurrentDraft) {
     metaParts.push('Draft atual');
   }
+  if (pick.swap_type) {
+    metaParts.push(pick.swap_type);
+  }
   return {
     title: pickNumber ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
     via,
     meta: metaParts.join(' - ')
   };
+};
+
+const findSelectedPickById = (pickId) => {
+  const id = Number(pickId);
+  return pickState.offer.selected.find(p => Number(p.id) === id)
+    || pickState.request.selected.find(p => Number(p.id) === id)
+    || null;
+};
+
+const getSwapKey = (pick) => `${pick.season_year || ''}-${pick.round || ''}`;
+
+const getSwapCandidateMap = () => {
+  const byKey = (list) => list.reduce((acc, pick) => {
+    const key = getSwapKey(pick);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(pick);
+    return acc;
+  }, {});
+
+  const offerByKey = byKey(pickState.offer.selected);
+  const requestByKey = byKey(pickState.request.selected);
+  const map = {};
+
+  Object.keys(offerByKey).forEach((key) => {
+    if (!requestByKey[key]) return;
+    if (offerByKey[key].length !== 1 || requestByKey[key].length !== 1) return;
+    const offerPick = offerByKey[key][0];
+    const requestPick = requestByKey[key][0];
+    map[Number(offerPick.id)] = Number(requestPick.id);
+    map[Number(requestPick.id)] = Number(offerPick.id);
+  });
+
+  return map;
+};
+
+const getOppositeSwapRole = (role) => role === 'SB' ? 'SW' : 'SB';
+
+const syncSwapRoles = () => {
+  const candidateMap = getSwapCandidateMap();
+  ['offer', 'request'].forEach((side) => {
+    pickState[side].selected.forEach((pick) => {
+      const pairId = candidateMap[Number(pick.id)];
+      if (!pairId && pick.swapRole) {
+        delete pick.swapRole;
+      }
+      if (pairId && pick.swapRole) {
+        const pairPick = findSelectedPickById(pairId);
+        if (pairPick && !pairPick.swapRole) {
+          pairPick.swapRole = getOppositeSwapRole(pick.swapRole);
+        }
+      }
+    });
+  });
+};
+
+const setSwapRole = (pickId, role) => {
+  const candidateMap = getSwapCandidateMap();
+  const pairId = candidateMap[Number(pickId)];
+  if (!pairId) return;
+  const pick = findSelectedPickById(pickId);
+  const pairPick = findSelectedPickById(pairId);
+  if (!pick || !pairPick) return;
+  pick.swapRole = role;
+  pairPick.swapRole = getOppositeSwapRole(role);
+};
+
+const clearSwapRole = (pickId) => {
+  const candidateMap = getSwapCandidateMap();
+  const pairId = candidateMap[Number(pickId)];
+  const pick = findSelectedPickById(pickId);
+  if (pick) delete pick.swapRole;
+  if (pairId) {
+    const pairPick = findSelectedPickById(pairId);
+    if (pairPick) delete pairPick.swapRole;
+  }
+};
+
+const buildSwapPairsPayload = () => {
+  const candidateMap = getSwapCandidateMap();
+  const pairs = [];
+  const used = new Set();
+  let invalid = false;
+
+  pickState.offer.selected.forEach((pick) => {
+    if (!pick.swapRole) return;
+    const pairId = candidateMap[Number(pick.id)];
+    if (!pairId) {
+      invalid = true;
+      return;
+    }
+    if (used.has(Number(pick.id)) || used.has(Number(pairId))) return;
+    const pairPick = findSelectedPickById(pairId);
+    if (!pairPick || !pairPick.swapRole) {
+      invalid = true;
+      return;
+    }
+    pairs.push({
+      offer_pick_id: Number(pick.id),
+      request_pick_id: Number(pairId),
+      offer_role: pick.swapRole,
+      request_role: pairPick.swapRole
+    });
+    used.add(Number(pick.id));
+    used.add(Number(pairId));
+  });
+
+  return { pairs, invalid };
 };
 
 const isCurrentDraftPick = (pick) => {
@@ -516,6 +633,30 @@ function setupPickSelectorHandlers() {
         const removeBtn = event.target.closest('[data-action="remove-pick"]');
         if (!removeBtn) return;
         removePickFromSelection(side, Number(removeBtn.dataset.pickId));
+      });
+
+      selectedEl.addEventListener('change', (event) => {
+        const toggle = event.target.closest('[data-action="toggle-swap"]');
+        if (toggle) {
+          const pickId = Number(toggle.dataset.pickId);
+          if (toggle.checked) {
+            setSwapRole(pickId, 'SB');
+          } else {
+            clearSwapRole(pickId);
+          }
+          renderSelectedPicks('offer');
+          renderSelectedPicks('request');
+          return;
+        }
+
+        const roleSelect = event.target.closest('[data-action="swap-role"]');
+        if (roleSelect) {
+          const pickId = Number(roleSelect.dataset.pickId);
+          const role = roleSelect.value;
+          setSwapRole(pickId, role);
+          renderSelectedPicks('offer');
+          renderSelectedPicks('request');
+        }
       });
 
     }
@@ -558,6 +699,8 @@ function setupPlayerSelectorHandlers() {
 function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   const raw = Array.isArray(picks) ? picks : [];
   pickState[side].available = raw.filter((pick) => {
+    if (Number(pick.swap_locked || 0) === 1) return false;
+    if (pick.swap_type) return false;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
     if (year > currentSeasonYear) return true;
@@ -652,6 +795,9 @@ function renderSelectedPicks(side) {
   const container = document.getElementById(`${side}PicksSelected`);
   if (!container) return;
 
+  syncSwapRoles();
+  const candidateMap = getSwapCandidateMap();
+
   const selected = pickState[side].selected;
   if (!selected || selected.length === 0) {
     container.innerHTML = '<div class="pick-empty-state">Nenhuma pick selecionada.</div>';
@@ -660,6 +806,21 @@ function renderSelectedPicks(side) {
 
   container.innerHTML = selected.map((pick) => {
     const summary = buildPickSummary(pick);
+    const pairId = candidateMap[Number(pick.id)];
+    const hasPair = Boolean(pairId);
+    const swapChecked = Boolean(pick.swapRole);
+    const swapControls = hasPair ? `
+        <div class="d-flex align-items-center gap-2">
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" data-action="toggle-swap" data-pick-id="${pick.id}" ${swapChecked ? 'checked' : ''}>
+            <label class="form-check-label text-light-gray" style="font-size:12px">Swap</label>
+          </div>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" data-action="swap-role" data-pick-id="${pick.id}" ${swapChecked ? '' : 'disabled'}>
+            <option value="SB" ${pick.swapRole === 'SB' ? 'selected' : ''}>SB</option>
+            <option value="SW" ${pick.swapRole === 'SW' ? 'selected' : ''}>SW</option>
+          </select>
+        </div>
+      ` : '';
     return `
       <div class="selected-pick-card" data-pick-id="${pick.id}">
         <div class="selected-pick-info">
@@ -667,6 +828,7 @@ function renderSelectedPicks(side) {
           <div class="pick-meta">${summary.meta ? `${summary.meta} • ` : ''}${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
         </div>
         <div class="selected-pick-actions">
+          ${swapControls}
           <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-pick" data-pick-id="${pick.id}">
             <i class="bi bi-x-lg"></i>
           </button>
@@ -801,7 +963,8 @@ function addPickToSelection(side, pickId, fallbackPick = null, shouldRender = tr
   state.selected.push({ ...pick });
   if (shouldRender) {
     renderPickOptions(side);
-    renderSelectedPicks(side);
+    renderSelectedPicks('offer');
+    renderSelectedPicks('request');
   }
 }
 
@@ -810,14 +973,16 @@ function removePickFromSelection(side, pickId) {
   if (!state) return;
   state.selected = state.selected.filter((p) => Number(p.id) !== Number(pickId));
   renderPickOptions(side);
-  renderSelectedPicks(side);
+  renderSelectedPicks('offer');
+  renderSelectedPicks('request');
 }
 
 function resetPickSelection(side) {
   if (!pickState[side]) return;
   pickState[side].selected = [];
   renderPickOptions(side);
-  renderSelectedPicks(side);
+  renderSelectedPicks('offer');
+  renderSelectedPicks('request');
 }
 
 function getPickPayload(side) {
@@ -1116,6 +1281,7 @@ async function submitTrade() {
   const notes = document.getElementById('tradeNotes').value;
   const modalEl = document.getElementById('proposeTradeModal');
   const counterTo = modalEl && modalEl.dataset.counterTo ? parseInt(modalEl.dataset.counterTo, 10) : null;
+  const swapPayload = buildSwapPairsPayload();
   
   if (!targetTeam) {
     return alert('Selecione um time.');
@@ -1128,6 +1294,10 @@ async function submitTrade() {
   if (requestPlayers.length === 0 && requestPickPayload.length === 0) {
     return alert('Você precisa pedir algo em troca (jogadores ou picks).');
   }
+
+  if (swapPayload.invalid) {
+    return alert('Revise o swap: selecione SB/SW para as duas picks do mesmo ano e rodada.');
+  }
   
   try {
     const payload = {
@@ -1136,7 +1306,8 @@ async function submitTrade() {
       offer_picks: offerPickPayload,
       request_players: requestPlayers,
       request_picks: requestPickPayload,
-      notes
+      notes,
+      swap_pairs: swapPayload.pairs
     };
     if (counterTo) {
       payload.counter_to_trade_id = counterTo;

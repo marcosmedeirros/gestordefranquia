@@ -934,6 +934,16 @@ function runMigrations() {
             if (!$idxTradeItems) {
                 $pdo->exec("CREATE INDEX idx_trade_items_trade ON trade_items(trade_id)");
             }
+
+            $hasSwapRole = $pdo->query("SHOW COLUMNS FROM trade_items LIKE 'pick_swap_role'")->fetch();
+            if (!$hasSwapRole) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN pick_swap_role VARCHAR(2) NULL AFTER pick_id");
+            }
+
+            $hasSwapPair = $pdo->query("SHOW COLUMNS FROM trade_items LIKE 'pick_swap_pair_id'")->fetch();
+            if (!$hasSwapPair) {
+                $pdo->exec("ALTER TABLE trade_items ADD COLUMN pick_swap_pair_id INT NULL AFTER pick_swap_role");
+            }
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_trades: " . $e->getMessage();
@@ -964,6 +974,26 @@ function runMigrations() {
         $hasPickIndex = $pdo->query("SHOW INDEX FROM picks WHERE Key_name = 'uniq_pick'")->fetch();
         if ($hasPickIndex) {
             $pdo->exec("ALTER TABLE picks DROP INDEX uniq_pick");
+        }
+
+        $hasSwapType = $pdo->query("SHOW COLUMNS FROM picks LIKE 'swap_type'")->fetch();
+        if (!$hasSwapType) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_type VARCHAR(2) NULL AFTER notes");
+        }
+
+        $hasSwapPair = $pdo->query("SHOW COLUMNS FROM picks LIKE 'swap_pair_pick_id'")->fetch();
+        if (!$hasSwapPair) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_pair_pick_id INT NULL AFTER swap_type");
+        }
+
+        $hasSwapLocked = $pdo->query("SHOW COLUMNS FROM picks LIKE 'swap_locked'")->fetch();
+        if (!$hasSwapLocked) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_locked TINYINT(1) NOT NULL DEFAULT 0 AFTER swap_pair_pick_id");
+        }
+
+        $hasSwapIndex = $pdo->query("SHOW INDEX FROM picks WHERE Key_name = 'idx_pick_swap_pair'")->fetch();
+        if (!$hasSwapIndex) {
+            $pdo->exec("CREATE INDEX idx_pick_swap_pair ON picks(swap_pair_pick_id)");
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_drop_uniq_pick: " . $e->getMessage();
