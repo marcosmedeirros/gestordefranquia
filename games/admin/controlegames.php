@@ -134,12 +134,6 @@ $labelMap = [
                         </div>
                     </div>
 
-                    <div class="col-md-6">
-                        <select class="form-select" id="aiDoubleSelect" name="double[ai]">
-                            <option value="0" <?= $config['ai'] ? '' : 'selected' ?>>Normal</option>
-                            <option value="1" <?= $config['ai'] ? 'selected' : '' ?>>Duplo</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div class="mt-4">
