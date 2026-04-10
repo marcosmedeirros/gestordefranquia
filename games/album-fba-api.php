@@ -273,12 +273,7 @@ function roll(array $rates): string
 
 function draw(PDO $pdo, array $rates): ?array
 {
-    $rar = roll($rates);
     $rookieCollection = 'Rookie Stars';
-    $allowRookieLegendary = false;
-    if ($rar === 'lendario') {
-        $allowRookieLegendary = mt_rand(1, 100) <= 2;
-    }
 
     $packCollections = fetchPackCollections($pdo);
     $enabledCollections = [];
@@ -291,17 +286,29 @@ function draw(PDO $pdo, array $rates): ?array
         return null;
     }
 
-    if ($allowRookieLegendary && $enabledCollections && !in_array($rookieCollection, $enabledCollections, true)) {
-        $allowRookieLegendary = false;
+    $rookieEnabled = $enabledCollections && in_array($rookieCollection, $enabledCollections, true);
+    if ($rookieEnabled && mt_rand(1, 100) <= 2) {
+        $conditions = ["c.ativo=1", 'c.raridade = ?', "COALESCE(c.collection_name, 'Geral') = ?"];
+        $params = ['lendario', $rookieCollection];
+        if ($enabledCollections) {
+            $in = implode(',', array_fill(0, count($enabledCollections), '?'));
+            $conditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
+            $params = array_merge($params, $enabledCollections);
+        }
+        $where = implode(' AND ', $conditions);
+        $stmt = $pdo->prepare("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team, c.nome, c.posicao, c.raridade, c.ovr, c.img_url
+            FROM fba_cards c INNER JOIN fba_card_teams t ON t.id=c.team_id WHERE $where ORDER BY RAND() LIMIT 1");
+        $stmt->execute($params);
+        $c = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($c) {
+            return ['id' => (int)$c['id'], 'collection' => $c['colecao'], 'team' => $c['team'], 'name' => $c['nome'], 'position' => strtoupper($c['posicao']), 'rarity' => $c['raridade'], 'ovr' => (int)$c['ovr'], 'img' => $c['img_url']];
+        }
     }
 
+    $rar = roll($rates);
     $conditions = ["c.ativo=1", 'c.raridade = ?'];
     $params = [$rar];
-
-    if ($allowRookieLegendary) {
-        $conditions[] = "COALESCE(c.collection_name, 'Geral') = ?";
-        $params[] = $rookieCollection;
-    } else {
+    if (!$rookieEnabled) {
         $conditions[] = "COALESCE(c.collection_name, 'Geral') <> ?";
         $params[] = $rookieCollection;
     }
@@ -320,10 +327,7 @@ function draw(PDO $pdo, array $rates): ?array
     if (!$c) {
         $fallbackConditions = ["c.ativo=1"];
         $fallbackParams = [];
-        if ($allowRookieLegendary) {
-            $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') = ?";
-            $fallbackParams[] = $rookieCollection;
-        } else {
+        if (!$rookieEnabled) {
             $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') <> ?";
             $fallbackParams[] = $rookieCollection;
         }
