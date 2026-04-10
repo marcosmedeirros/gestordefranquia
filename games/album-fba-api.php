@@ -274,7 +274,11 @@ function roll(array $rates): string
 function draw(PDO $pdo, array $rates): ?array
 {
     $rar = roll($rates);
-    $excludedCollection = 'Rookie Stars';
+    $rookieCollection = 'Rookie Stars';
+    $allowRookieLegendary = false;
+    if ($rar === 'lendario') {
+        $allowRookieLegendary = mt_rand(1, 100) <= 2;
+    }
 
     $packCollections = fetchPackCollections($pdo);
     $enabledCollections = [];
@@ -287,8 +291,20 @@ function draw(PDO $pdo, array $rates): ?array
         return null;
     }
 
-    $conditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?", 'c.raridade = ?'];
-    $params = [$excludedCollection, $rar];
+    if ($allowRookieLegendary && $enabledCollections && !in_array($rookieCollection, $enabledCollections, true)) {
+        $allowRookieLegendary = false;
+    }
+
+    $conditions = ["c.ativo=1", 'c.raridade = ?'];
+    $params = [$rar];
+
+    if ($allowRookieLegendary) {
+        $conditions[] = "COALESCE(c.collection_name, 'Geral') = ?";
+        $params[] = $rookieCollection;
+    } else {
+        $conditions[] = "COALESCE(c.collection_name, 'Geral') <> ?";
+        $params[] = $rookieCollection;
+    }
 
     if ($enabledCollections) {
         $in = implode(',', array_fill(0, count($enabledCollections), '?'));
@@ -302,8 +318,15 @@ function draw(PDO $pdo, array $rates): ?array
     $stmt->execute($params);
     $c = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$c) {
-        $fallbackConditions = ["c.ativo=1", "COALESCE(c.collection_name, 'Geral') <> ?"];
-        $fallbackParams = [$excludedCollection];
+        $fallbackConditions = ["c.ativo=1"];
+        $fallbackParams = [];
+        if ($allowRookieLegendary) {
+            $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') = ?";
+            $fallbackParams[] = $rookieCollection;
+        } else {
+            $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') <> ?";
+            $fallbackParams[] = $rookieCollection;
+        }
         if ($enabledCollections) {
             $in = implode(',', array_fill(0, count($enabledCollections), '?'));
             $fallbackConditions[] = "COALESCE(c.collection_name, 'Geral') IN ($in)";
