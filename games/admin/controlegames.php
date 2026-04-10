@@ -52,8 +52,7 @@ $labelMap = [
     'memoria' => 'Memoria (vitoria = 200)',
     'termo' => 'Termo (vitoria = 200)',
     'flappy' => 'Flappy (dobrar moedas)',
-    'pinguim' => 'Pinguim (dobrar moedas)',
-    'ai' => 'AI (select Duplo/Normal)'
+    'pinguim' => 'Pinguim (dobrar moedas)'
 ];
 ?>
 <!DOCTYPE html>
@@ -136,7 +135,6 @@ $labelMap = [
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label" for="aiDoubleSelect"><?= htmlspecialchars($labelMap['ai']) ?></label>
                         <select class="form-select" id="aiDoubleSelect" name="double[ai]">
                             <option value="0" <?= $config['ai'] ? '' : 'selected' ?>>Normal</option>
                             <option value="1" <?= $config['ai'] ? 'selected' : '' ?>>Duplo</option>

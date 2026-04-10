@@ -1411,13 +1411,6 @@ try {
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
-            <?php if (!empty($usuario['is_admin'])): ?>
-            <div class="d-flex justify-content-end mb-3">
-                <a href="admin/controlegames.php" class="btn btn-outline-warning">
-                    <i class="bi bi-gear-fill me-2"></i>Controle Games
-                </a>
-            </div>
-            <?php endif; ?>
             <h6 class="section-title"><i class="bi bi-speedometer2"></i>Dashboard de Games</h6>
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
@@ -1471,6 +1464,15 @@ try {
             </div>
             <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
             <div class="row g-3 mb-5">
+                <?php if (!empty($usuario['is_admin'])): ?>
+                <div class="col-6 col-md-4 col-lg-3">
+                    <a href="admin/controlegames.php" class="game-card" style="--accent: #f6c343;">
+                        <span class="game-icon">⚙️</span>
+                        <div class="game-title">Controle Games</div>
+                        <div class="game-subtitle">Dobro de moedas</div>
+                    </a>
+                </div>
+                <?php endif; ?>
                 <div class="col-6 col-md-4 col-lg-3">
                     <a href="games/index.php?game=flappy" class="game-card" style="--accent: #ff9800;">
                         <span class="game-icon">🐦</span>
