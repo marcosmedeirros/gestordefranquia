@@ -152,7 +152,43 @@ try {
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
     }
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS fba_game_controls (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            game_key VARCHAR(40) NOT NULL UNIQUE,
+            is_double TINYINT(1) NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )");
+        $pdo->exec("INSERT IGNORE INTO fba_game_controls (game_key, is_double) VALUES
+            ('memoria', 0),
+            ('termo', 0),
+            ('flappy', 0),
+            ('pinguim', 0),
+            ('ai', 0)
+        ");
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
 } catch (PDOException $e) {
     die("Erro na conexão: " . $e->getMessage());
+}
+
+if (!function_exists('getGameDoubleSetting')) {
+    function getGameDoubleSetting(PDO $pdo, string $gameKey): bool {
+        try {
+            $stmt = $pdo->prepare('SELECT is_double FROM fba_game_controls WHERE game_key = :k LIMIT 1');
+            $stmt->execute([':k' => $gameKey]);
+            return (int)$stmt->fetchColumn() === 1;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('getGamePointsMultiplier')) {
+    function getGamePointsMultiplier(PDO $pdo, string $gameKey): int {
+        return getGameDoubleSetting($pdo, $gameKey) ? 2 : 1;
+    }
 }
 ?>

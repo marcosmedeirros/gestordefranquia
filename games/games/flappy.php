@@ -10,6 +10,7 @@ require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
+$pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 
 // 2. Configuração de Banco de Dados e Skins
 try {
@@ -145,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
             $milestones = intdiv(max(0, $score), 10);
             // Moedas base por milestones
-            $coins_earned = (int)($milestones * ($milestones + 3) / 2);
+            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
 
             $pdo->beginTransaction();
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
@@ -306,6 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     };
 
     // Variáveis Jogo (Agoram estão protegidas do console)
+    const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
     let frames = 0, score = 0, highScore = <?= $recorde ?>, currentState = 'START', coinsEarned = 0;
     let hasUsedRevive = false;
     
@@ -395,7 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
                     if(score % 10 === 0) {
                         // Moedas a cada 10 pontos
-                        const reward = (1 + (score / 10));
+                        const reward = (1 + (score / 10)) * rewardMultiplier;
                         coinsEarned += reward;
                         showFloatingText(`+${reward} MOEDAS`, bird.x, bird.y - 30);
                     }

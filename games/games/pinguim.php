@@ -11,6 +11,7 @@ require_once '../core/mobile-helpers.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
+$pointsMultiplier = getGamePointsMultiplier($pdo, 'pinguim');
 
 // --- AUTOMATIZAÇÃO DO BANCO DE DADOS PARA SKINS ---
 try {
@@ -156,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 for ($m = $last_milestone + 1; $m <= $novo_milestone; $m++) {
                     $milestone_score = $m * 100;
                     // Moedas por milestone
-                    $coins_per_100 = (1 + (int)floor($milestone_score / 500));
+                    $coins_per_100 = (1 + (int)floor($milestone_score / 500)) * $pointsMultiplier;
                     $creditado += $coins_per_100;
                 }
 
@@ -437,6 +438,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     ];
 
     let gameSpeed = 8; 
+    const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
     let score = 0;
     let highScore = localStorage.getItem('dinoHighScore') || 0;
     let isGameOver = false;
@@ -701,7 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         while (currentIntScore >= nextRewardAt) {
             // Moedas por marco de 100m
-            const coinsPer100 = (1 + Math.floor(currentIntScore / 500));
+            const coinsPer100 = (1 + Math.floor(currentIntScore / 500)) * rewardMultiplier;
             creditMilestoneCoins(coinsPer100);
             nextRewardAt += 100;
         }

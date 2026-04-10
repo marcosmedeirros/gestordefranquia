@@ -1411,6 +1411,13 @@ try {
         </div>
 
         <div class="tab-pane fade" id="tab-games-pane" role="tabpanel" aria-labelledby="tab-games">
+            <?php if (!empty($usuario['is_admin'])): ?>
+            <div class="d-flex justify-content-end mb-3">
+                <a href="admin/controlegames.php" class="btn btn-outline-warning">
+                    <i class="bi bi-gear-fill me-2"></i>Controle Games
+                </a>
+            </div>
+            <?php endif; ?>
             <h6 class="section-title"><i class="bi bi-speedometer2"></i>Dashboard de Games</h6>
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-4">
