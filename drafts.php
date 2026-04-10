@@ -658,8 +658,8 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
       `;
     }
 
-    function openTradePickModal(pickId, round, pickPosition, currentTeamId, currentTeamName) {
-      if (!currentDraftSession || !currentDraftPicks.length) return;
+    async function openTradePickModal(pickId, round, pickPosition, currentTeamId, currentTeamName) {
+      if (!currentDraftSession) return;
 
       currentPickForTrade = {
         pickId: Number(pickId),
@@ -675,13 +675,23 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 
       const select = document.getElementById('tradePickTeamSelect');
       if (select) {
+        select.innerHTML = '<option value="">Carregando...</option>';
+
         const teamsById = new Map();
-        currentDraftPicks.forEach((p) => {
-          teamsById.set(Number(p.team_id), `${p.team_city} ${p.team_name}`);
-          if (p.original_team_id) {
-            teamsById.set(Number(p.original_team_id), `${p.original_city} ${p.original_name}`);
-          }
-        });
+        const league = currentDraftSession.league || userLeague;
+        try {
+          const data = await api(`draft.php?action=league_teams&league=${encodeURIComponent(league)}`);
+          (data.teams || []).forEach((t) => {
+            teamsById.set(Number(t.id), `${t.city} ${t.name}`);
+          });
+        } catch (e) {
+          currentDraftPicks.forEach((p) => {
+            teamsById.set(Number(p.team_id), `${p.team_city} ${p.team_name}`);
+            if (p.original_team_id) {
+              teamsById.set(Number(p.original_team_id), `${p.original_city} ${p.original_name}`);
+            }
+          });
+        }
 
         select.innerHTML = '<option value="">Selecione o time...</option>';
         Array.from(teamsById.entries())
