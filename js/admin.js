@@ -681,6 +681,7 @@ async function showTrades() {
   <div class="d-flex align-items-center gap-2">
     ${acceptanceBadge}
     <span class="badge ${badge}">${tr.status}</span>
+    ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
   </div>
 </div>
 <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-light-gray">Times</span>'}</div>
@@ -716,6 +717,7 @@ ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gra
 </div>
 ${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
 ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
+    ${tr.notes ? `<div class="mb-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
 <div class="row"><div class="col-md-6"><h6 class="text-orange mb-2">${tr.from_city} ${tr.from_name} oferece:</h6>
 ${renderTradeAssets(tr.offer_players || [], tr.offer_picks || [])}</div>
 <div class="col-md-6"><h6 class="text-orange mb-2">${tr.to_city} ${tr.to_name} oferece:</h6>
@@ -1210,6 +1212,15 @@ async function revertTrade(tradeId) {
   if (!confirm('REVERTER trade? Jogadores voltarão aos times originais.')) return;
   try {
     await api('admin.php?action=revert_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
+    await showTrades();
+    alert('Revertida!');
+  } catch (e) { alert('Erro'); }
+}
+
+async function revertMultiTrade(tradeId) {
+  if (!confirm('REVERTER trade múltipla? Itens voltarão aos times originais.')) return;
+  try {
+    await api('admin.php?action=revert_multi_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
     await showTrades();
     alert('Revertida!');
   } catch (e) { alert('Erro'); }

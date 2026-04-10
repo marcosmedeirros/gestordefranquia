@@ -98,7 +98,7 @@ async function bootstrap() {
     renderCourt();
     renderMarket();
     renderTrades();
-    // Daily pack status polling removed to avoid extra overhead.
+    loadDailyPackStatus();
     if (state.user.is_admin) {
         renderAdminCards();
         await loadAdminPackCollections();
@@ -134,7 +134,7 @@ function switchTab(tab) {
     if (tab === 'ranking') renderRanking();
     if (tab === 'market') renderMarket();
     if (tab === 'trades') renderTrades();
-    // Daily pack status polling removed to avoid extra overhead.
+    if (tab === 'store') loadDailyPackStatus();
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -829,8 +829,32 @@ window.openPack = openPack;
 async function loadDailyPackStatus() {
     const btn = document.getElementById('pack-daily-btn');
     const hint = document.getElementById('pack-daily-hint');
+    const card = document.getElementById('pack-daily');
     if (hint) hint.textContent = '';
-    if (btn) btn.disabled = false;
+    if (!btn || !card) return;
+    btn.disabled = true;
+    card.classList.add('opacity-50', 'pointer-events-none');
+    try {
+        const res = await get('daily_pack_status');
+        if (!res.ok) {
+            if (hint) hint.textContent = res.message || 'Erro ao consultar pacote diario.';
+            return;
+        }
+        if (res.can_claim) {
+            btn.disabled = false;
+            card.classList.remove('opacity-50', 'pointer-events-none');
+            if (hint) hint.textContent = 'Disponivel agora!';
+            return;
+        }
+        if (res.next_at) {
+            const next = new Date(res.next_at);
+            if (!Number.isNaN(next.getTime())) {
+                hint.textContent = `Disponivel em ${next.toLocaleString()}`;
+            }
+        }
+    } catch (err) {
+        if (hint) hint.textContent = err.message || 'Erro ao consultar pacote diario.';
+    }
 }
 
 async function claimDailyPack() {
@@ -856,6 +880,7 @@ async function claimDailyPack() {
         if (card) {
             card.classList.add('opacity-50', 'pointer-events-none');
         }
+        loadDailyPackStatus();
     } catch (err) {
         if (hint) hint.textContent = err.message || 'Erro ao resgatar pacote.';
         if (btn) btn.disabled = false;
