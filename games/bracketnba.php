@@ -681,7 +681,6 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
         <div class="rank-num <?= $cls ?>"><?= $medal ?></div>
         <div style="flex:1;">
             <div style="font-weight:700;"><?= htmlspecialchars($r['nome']) ?></div>
-            <div style="font-size:.75rem;color:var(--muted);">Entrou em <?= date('d/m/Y', strtotime($r['created_at'])) ?></div>
         </div>
         <div style="font-size:1.25rem;font-weight:900;color:var(--gold);"><?= $r['pontos'] ?> pts</div>
     </div>

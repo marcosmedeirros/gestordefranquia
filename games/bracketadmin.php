@@ -34,16 +34,19 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_apostadores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nome VARCHAR(120) NOT NULL,
     telefone VARCHAR(30) NOT NULL,
-    status_pagamento ENUM('pendente','confirmado') NOT NULL DEFAULT 'pendente',
+    status_pagamento ENUM('pendente','confirmado','rejeitado') NOT NULL DEFAULT 'pendente',
     picks JSON NULL,
     pontos INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_status (status_pagamento)
 )");
 
+// Garante compatibilidade para bases antigas que ainda nao possuem o status "rejeitado"
+$pdo->exec("ALTER TABLE nba_bracket_apostadores MODIFY status_pagamento ENUM('pendente','confirmado','rejeitado') NOT NULL DEFAULT 'pendente'");
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_status_id'], $_POST['admin_status'])) {
     $id = (int)$_POST['admin_status_id'];
-    $novoStatus = $_POST['admin_status'] === 'confirmado' ? 'confirmado' : 'pendente';
+    $novoStatus = in_array($_POST['admin_status'], ['confirmado', 'pendente', 'rejeitado'], true) ? $_POST['admin_status'] : 'pendente';
 
     $stmt = $pdo->prepare('UPDATE nba_bracket_apostadores SET status_pagamento = ? WHERE id = ?');
     $stmt->execute([$novoStatus, $id]);
@@ -52,19 +55,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_status_id'], $_
     exit;
 }
 
-$apostadores = $pdo->query("SELECT id, nome, telefone, status_pagamento, pontos, picks, created_at
+$statusFilter = $_GET['status'] ?? 'todos';
+if (!in_array($statusFilter, ['todos', 'pendente', 'confirmado', 'rejeitado'], true)) {
+    $statusFilter = 'todos';
+}
+
+$where = '';
+$params = [];
+if ($statusFilter !== 'todos') {
+    $where = 'WHERE status_pagamento = ?';
+    $params[] = $statusFilter;
+}
+
+$stmtList = $pdo->prepare("SELECT id, nome, telefone, status_pagamento, pontos, created_at
     FROM nba_bracket_apostadores
+    $where
     ORDER BY
-        CASE WHEN status_pagamento='pendente' THEN 0 ELSE 1 END ASC,
+        CASE WHEN status_pagamento='pendente' THEN 0 WHEN status_pagamento='confirmado' THEN 1 ELSE 2 END ASC,
         CASE WHEN status_pagamento='pendente' THEN created_at END DESC,
         CASE WHEN status_pagamento='confirmado' THEN pontos END DESC,
         created_at DESC
-")->fetchAll(PDO::FETCH_ASSOC);
-
-function formatPickLabel($key) {
-    $label = str_replace('_', ' ', $key);
-    return strtoupper($label);
-}
+");
+$stmtList->execute($params);
+$apostadores = $stmtList->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -105,6 +118,10 @@ body {
     box-shadow: 0 0 0 0 rgba(255, 179, 71, .28);
     animation: pendingPulse 1.9s ease-in-out infinite;
 }
+.admin-card.rejected {
+    border-color: #7d2a31;
+    background: linear-gradient(180deg, rgba(180, 45, 56, .14), var(--panel));
+}
 @keyframes pendingPulse {
     0% { box-shadow: 0 0 0 0 rgba(255, 179, 71, .28); }
     70% { box-shadow: 0 0 0 9px rgba(255, 179, 71, 0); }
@@ -119,20 +136,7 @@ body {
 }
 .status-pill.pending { background: rgba(255, 152, 0, .16); color: #ffca6a; }
 .status-pill.confirmed { background: rgba(76, 175, 80, .16); color: #87df8d; }
-.pick-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: .45rem;
-    margin-top: .65rem;
-}
-.pick-item {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: .4rem .55rem;
-    font-size: .72rem;
-}
-.pick-item strong { color: #fff; }
+.status-pill.rejected { background: rgba(180, 45, 56, .2); color: #ff9ea6; }
 .admin-btn {
     width: 32px;
     height: 32px;
@@ -149,6 +153,27 @@ body {
     font-size: .78rem;
     color: var(--muted);
 }
+
+.filter-bar {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-bottom: .9rem;
+}
+.filter-link {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 999px;
+    padding: .35rem .75rem;
+    font-size: .8rem;
+    font-weight: 700;
+}
+.filter-link.active {
+    border-color: #4a4f67;
+    background: #272b38;
+}
 </style>
 </head>
 <body>
@@ -164,6 +189,16 @@ body {
     <?php if (isset($_GET['ok']) && $_GET['ok'] === 'pendente'): ?>
         <div class="alert alert-warning py-2">Pagamento marcado como pendente.</div>
     <?php endif; ?>
+    <?php if (isset($_GET['ok']) && $_GET['ok'] === 'rejeitado'): ?>
+        <div class="alert alert-danger py-2">Pagamento marcado como rejeitado.</div>
+    <?php endif; ?>
+
+    <div class="filter-bar">
+        <a class="filter-link <?= $statusFilter === 'todos' ? 'active' : '' ?>" href="bracketadmin.php?status=todos">Todos</a>
+        <a class="filter-link <?= $statusFilter === 'pendente' ? 'active' : '' ?>" href="bracketadmin.php?status=pendente">Pendentes</a>
+        <a class="filter-link <?= $statusFilter === 'confirmado' ? 'active' : '' ?>" href="bracketadmin.php?status=confirmado">Confirmados</a>
+        <a class="filter-link <?= $statusFilter === 'rejeitado' ? 'active' : '' ?>" href="bracketadmin.php?status=rejeitado">Rejeitados</a>
+    </div>
 
     <?php if (empty($apostadores)): ?>
         <div class="admin-card">Nenhum palpite encontrado.</div>
@@ -171,38 +206,30 @@ body {
         <div class="d-grid gap-2">
             <?php foreach ($apostadores as $a):
                 $isConfirmado = $a['status_pagamento'] === 'confirmado';
-                $picks = json_decode($a['picks'] ?? '{}', true) ?: [];
+                $isPendente = $a['status_pagamento'] === 'pendente';
+                $isRejeitado = $a['status_pagamento'] === 'rejeitado';
             ?>
-            <div class="admin-card <?= $isConfirmado ? '' : 'pending' ?>">
+            <div class="admin-card <?= $isPendente ? 'pending' : '' ?> <?= $isRejeitado ? 'rejected' : '' ?>">
                 <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                     <div>
                         <div class="fw-bold"><?= htmlspecialchars($a['nome']) ?></div>
                         <div class="meta"><?= htmlspecialchars($a['telefone']) ?> | #<?= (int)$a['id'] ?> | <?= date('d/m/Y H:i', strtotime($a['created_at'])) ?></div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="status-pill <?= $isConfirmado ? 'confirmed' : 'pending' ?>"><?= $isConfirmado ? 'confirmado' : 'pendente' ?></span>
+                        <span class="status-pill <?= $isConfirmado ? 'confirmed' : ($isRejeitado ? 'rejected' : 'pending') ?>"><?= $isConfirmado ? 'confirmado' : ($isRejeitado ? 'rejeitado' : 'pendente') ?></span>
                         <span class="fw-bold" style="min-width:72px;text-align:right;"><?= (int)$a['pontos'] ?> pts</span>
-                        <form method="POST" action="bracketadmin.php?admin=<?= urlencode($adminKey) ?>" class="m-0">
+                        <form method="POST" action="bracketadmin.php" class="m-0">
                             <input type="hidden" name="admin_status_id" value="<?= (int)$a['id'] ?>">
                             <input type="hidden" name="admin_status" value="confirmado">
                             <button type="submit" class="admin-btn approve" title="Confirmar pagamento"><i class="bi bi-check-lg"></i></button>
                         </form>
-                        <form method="POST" action="bracketadmin.php?admin=<?= urlencode($adminKey) ?>" class="m-0">
+                        <form method="POST" action="bracketadmin.php" class="m-0">
                             <input type="hidden" name="admin_status_id" value="<?= (int)$a['id'] ?>">
-                            <input type="hidden" name="admin_status" value="pendente">
-                            <button type="submit" class="admin-btn reject" title="Marcar pendente"><i class="bi bi-x-lg"></i></button>
+                            <input type="hidden" name="admin_status" value="rejeitado">
+                            <button type="submit" class="admin-btn reject" title="Marcar rejeitado"><i class="bi bi-x-lg"></i></button>
                         </form>
                     </div>
                 </div>
-                <?php if (empty($picks)): ?>
-                    <div class="meta mt-2">Sem palpites salvos.</div>
-                <?php else: ?>
-                    <div class="pick-grid">
-                        <?php foreach ($picks as $k => $v): ?>
-                            <div class="pick-item"><strong><?= htmlspecialchars(formatPickLabel($k)) ?>:</strong> <?= htmlspecialchars((string)$v) ?></div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         </div>
