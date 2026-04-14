@@ -60,16 +60,6 @@ $firstRound = [
     'E1' => ['DET','E8'], 'E2' => ['CLE','TOR'], 'E3' => ['NYK','ATL'], 'E4' => ['BOS','E7'],
 ];
 
-// --- ADMIN: confirmar pagamento ---
-$isAdmin = isset($_GET['admin']) && $_GET['admin'] === 'nba2026admin';
-if ($isAdmin && isset($_POST['admin_status_id'], $_POST['admin_status'])) {
-    $id = (int)$_POST['admin_status_id'];
-    $novoStatus = $_POST['admin_status'] === 'confirmado' ? 'confirmado' : 'pendente';
-    $pdo->prepare("UPDATE nba_bracket_apostadores SET status_pagamento=? WHERE id=?")->execute([$novoStatus, $id]);
-    header("Location: bracketnba.php?admin=nba2026admin&ok=" . ($novoStatus === 'confirmado' ? 'confirmado' : 'pendente'));
-    exit;
-}
-
 // --- SALVAR APOSTAS ---
 $erro = ''; $sucesso = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apostar') {
@@ -113,21 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // --- CARREGAR RANKING ---
 $ranking = $pdo->query("SELECT nome, pontos, status_pagamento, created_at FROM nba_bracket_apostadores WHERE status_pagamento='confirmado' ORDER BY pontos DESC, created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
-
-// Lista de ranking para admin: pendentes no topo para facilitar aprovacao
-$rankingAdmin = [];
-if ($isAdmin) {
-    $rankingAdmin = $pdo->query("SELECT id, nome, telefone, pontos, status_pagamento, created_at FROM nba_bracket_apostadores ORDER BY CASE WHEN status_pagamento='pendente' THEN 0 ELSE 1 END ASC, CASE WHEN status_pagamento='pendente' THEN created_at END DESC, CASE WHEN status_pagamento='confirmado' THEN pontos END DESC, created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// Ranking visivel apenas para admin ou para usuario com pagamento confirmado
-$canSeeRanking = $isAdmin;
-if (!$canSeeRanking && !empty($_SESSION['bracket_id'])) {
-    $stmtStatus = $pdo->prepare("SELECT status_pagamento FROM nba_bracket_apostadores WHERE id = ? LIMIT 1");
-    $stmtStatus->execute([(int)$_SESSION['bracket_id']]);
-    $statusUsuario = $stmtStatus->fetchColumn();
-    $canSeeRanking = ($statusUsuario === 'confirmado');
-}
 
 $pixKey = '2ad96ba4-aeaa-49be-a43a-d9f0e463a6b2';
 ?>
@@ -691,63 +666,10 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 <div style="max-width:600px;margin:3rem auto 1rem;">
     <h5 style="font-weight:800;text-align:center;margin-bottom:1.5rem;">
         <i class="bi bi-bar-chart-fill" style="color:var(--gold);"></i>
-        <?= $isAdmin ? 'Ranking/Admin — Aprovar Pagamentos' : 'Ranking — Participantes Confirmados' ?>
+        Ranking — Participantes Confirmados
     </h5>
 
-    <?php if ($isAdmin && isset($_GET['ok']) && $_GET['ok'] === 'confirmado'): ?>
-    <div class="alert-dark alert-success-dark mb-3">Pagamento confirmado com sucesso.</div>
-    <?php endif; ?>
-    <?php if ($isAdmin && isset($_GET['ok']) && $_GET['ok'] === 'pendente'): ?>
-    <div class="alert-dark alert-danger-dark mb-3">Pagamento marcado como pendente.</div>
-    <?php endif; ?>
-
-    <?php if ($isAdmin): ?>
-    <?php if (empty($rankingAdmin)): ?>
-    <div style="text-align:center;color:var(--muted);padding:2rem;">Nenhum apostador cadastrado ainda.</div>
-    <?php else: ?>
-    <?php $posConfirmados = 0; ?>
-    <?php foreach ($rankingAdmin as $r):
-        $isConfirmado = $r['status_pagamento'] === 'confirmado';
-        if ($isConfirmado) { $posConfirmados++; }
-        $cls = $isConfirmado && $posConfirmados === 1 ? 'gold' : ($isConfirmado && $posConfirmados === 2 ? 'silver' : ($isConfirmado && $posConfirmados === 3 ? 'bronze' : ''));
-        $medal = !$isConfirmado ? '⏳' : ($posConfirmados === 1 ? '🥇' : ($posConfirmados === 2 ? '🥈' : ($posConfirmados === 3 ? '🥉' : '#'.$posConfirmados)));
-    ?>
-    <div class="rank-card mb-2 <?= !$isConfirmado ? 'pending-review' : '' ?>">
-        <div class="rank-num <?= $cls ?>"><?= $medal ?></div>
-        <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;"><?= htmlspecialchars($r['nome']) ?></div>
-            <div style="font-size:.75rem;color:var(--muted);">
-                <?= htmlspecialchars($r['telefone']) ?> &bull; Entrou em <?= date('d/m/Y H:i', strtotime($r['created_at'])) ?>
-            </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:.6rem;">
-            <span class="status-pill <?= $isConfirmado ? 'confirmed' : 'pending' ?>"><?= $isConfirmado ? 'confirmado' : 'pendente' ?></span>
-            <div style="font-size:1.1rem;font-weight:900;color:var(--gold);min-width:74px;text-align:right;"><?= (int)$r['pontos'] ?> pts</div>
-            <div class="admin-actions">
-                <form method="POST" action="bracketnba.php?admin=nba2026admin">
-                    <input type="hidden" name="admin_status_id" value="<?= (int)$r['id'] ?>">
-                    <input type="hidden" name="admin_status" value="confirmado">
-                    <button type="submit" class="admin-btn approve" title="Confirmar pagamento" aria-label="Confirmar pagamento">
-                        <i class="bi bi-check-lg"></i>
-                    </button>
-                </form>
-                <form method="POST" action="bracketnba.php?admin=nba2026admin">
-                    <input type="hidden" name="admin_status_id" value="<?= (int)$r['id'] ?>">
-                    <input type="hidden" name="admin_status" value="pendente">
-                    <button type="submit" class="admin-btn reject" title="Marcar como pendente" aria-label="Marcar como pendente">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-    <?php endforeach; ?>
-    <?php endif; ?>
-    <?php elseif (!$canSeeRanking): ?>
-    <div style="text-align:center;color:var(--muted);padding:1rem 1rem 2rem;">
-        O ranking sera liberado apos a confirmacao do seu pagamento.
-    </div>
-    <?php elseif (empty($ranking)): ?>
+    <?php if (empty($ranking)): ?>
     <div style="text-align:center;color:var(--muted);padding:2rem;">Nenhum apostador confirmado ainda. Seja o primeiro!</div>
     <?php else: ?>
     <?php foreach ($ranking as $i => $r):
