@@ -26,28 +26,38 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_apostadores (
 $teams = [
     // WEST
     'OKC'  => ['name'=>'Thunder',      'seed'=>1,  'conf'=>'W', 'color'=>'#007AC1', 'abbr'=>'OKC'],
-    'MEM'  => ['name'=>'Grizzlies',    'seed'=>8,  'conf'=>'W', 'color'=>'#5D76A9', 'abbr'=>'MEM'],
-    'DEN'  => ['name'=>'Nuggets',      'seed'=>4,  'conf'=>'W', 'color'=>'#FEC524', 'abbr'=>'DEN'],
-    'LAC'  => ['name'=>'Clippers',     'seed'=>5,  'conf'=>'W', 'color'=>'#C8102E', 'abbr'=>'LAC'],
-    'LAL'  => ['name'=>'Lakers',       'seed'=>3,  'conf'=>'W', 'color'=>'#552583', 'abbr'=>'LAL'],
+    'LAL'  => ['name'=>'Lakers',       'seed'=>4,  'conf'=>'W', 'color'=>'#552583', 'abbr'=>'LAL'],
+    'HOU'  => ['name'=>'Rockets',      'seed'=>5,  'conf'=>'W', 'color'=>'#CE1141', 'abbr'=>'HOU'],
+    'DEN'  => ['name'=>'Nuggets',      'seed'=>3,  'conf'=>'W', 'color'=>'#0E2240', 'abbr'=>'DEN'],
     'MIN'  => ['name'=>'Timberwolves', 'seed'=>6,  'conf'=>'W', 'color'=>'#0C2340', 'abbr'=>'MIN'],
-    'HOU'  => ['name'=>'Rockets',      'seed'=>2,  'conf'=>'W', 'color'=>'#CE1141', 'abbr'=>'HOU'],
-    'GSW'  => ['name'=>'Warriors',     'seed'=>7,  'conf'=>'W', 'color'=>'#1D428A', 'abbr'=>'GSW'],
+    'SAS'  => ['name'=>'Spurs',        'seed'=>2,  'conf'=>'W', 'color'=>'#C4CED4', 'abbr'=>'SAS'],
+    // Play-in West
+    'PHX'  => ['name'=>'Suns',         'seed'=>7,  'conf'=>'W', 'color'=>'#1D1160', 'abbr'=>'PHX'],
+    'POR'  => ['name'=>'Trail Blazers','seed'=>8,  'conf'=>'W', 'color'=>'#E03A3E', 'abbr'=>'POR'],
+    'LAC'  => ['name'=>'Clippers',     'seed'=>9,  'conf'=>'W', 'color'=>'#C8102E', 'abbr'=>'LAC'],
+    'GSW'  => ['name'=>'Warriors',     'seed'=>10, 'conf'=>'W', 'color'=>'#1D428A', 'abbr'=>'GSW'],
+    'W8'   => ['name'=>'8 Seed',       'seed'=>8,  'conf'=>'W', 'color'=>'#5D6269', 'abbr'=>'W8'],
+    'W7'   => ['name'=>'7 Seed',       'seed'=>7,  'conf'=>'W', 'color'=>'#5D6269', 'abbr'=>'W7'],
     // EAST
-    'CLE'  => ['name'=>'Cavaliers',    'seed'=>1,  'conf'=>'E', 'color'=>'#860038', 'abbr'=>'CLE'],
-    'MIA'  => ['name'=>'Heat',         'seed'=>8,  'conf'=>'E', 'color'=>'#98002E', 'abbr'=>'MIA'],
-    'IND'  => ['name'=>'Pacers',       'seed'=>4,  'conf'=>'E', 'color'=>'#002D62', 'abbr'=>'IND'],
-    'MIL'  => ['name'=>'Bucks',        'seed'=>5,  'conf'=>'E', 'color'=>'#00471B', 'abbr'=>'MIL'],
+    'DET'  => ['name'=>'Pistons',      'seed'=>1,  'conf'=>'E', 'color'=>'#C8102E', 'abbr'=>'DET'],
+    'CLE'  => ['name'=>'Cavaliers',    'seed'=>4,  'conf'=>'E', 'color'=>'#860038', 'abbr'=>'CLE'],
+    'TOR'  => ['name'=>'Raptors',      'seed'=>5,  'conf'=>'E', 'color'=>'#CE1141', 'abbr'=>'TOR'],
     'NYK'  => ['name'=>'Knicks',       'seed'=>3,  'conf'=>'E', 'color'=>'#006BB6', 'abbr'=>'NYK'],
-    'DET'  => ['name'=>'Pistons',      'seed'=>6,  'conf'=>'E', 'color'=>'#C8102E', 'abbr'=>'DET'],
+    'ATL'  => ['name'=>'Hawks',        'seed'=>6,  'conf'=>'E', 'color'=>'#E03A3E', 'abbr'=>'ATL'],
     'BOS'  => ['name'=>'Celtics',      'seed'=>2,  'conf'=>'E', 'color'=>'#007A33', 'abbr'=>'BOS'],
-    'ORL'  => ['name'=>'Magic',        'seed'=>7,  'conf'=>'E', 'color'=>'#0077C0', 'abbr'=>'ORL'],
+    // Play-in East
+    'PHI'  => ['name'=>'76ers',        'seed'=>7,  'conf'=>'E', 'color'=>'#006BB6', 'abbr'=>'PHI'],
+    'ORL'  => ['name'=>'Magic',        'seed'=>8,  'conf'=>'E', 'color'=>'#0077C0', 'abbr'=>'ORL'],
+    'CHA'  => ['name'=>'Hornets',      'seed'=>9,  'conf'=>'E', 'color'=>'#1D1160', 'abbr'=>'CHA'],
+    'MIA'  => ['name'=>'Heat',         'seed'=>10, 'conf'=>'E', 'color'=>'#98002E', 'abbr'=>'MIA'],
+    'E8'   => ['name'=>'8 Seed',       'seed'=>8,  'conf'=>'E', 'color'=>'#5D6269', 'abbr'=>'E8'],
+    'E7'   => ['name'=>'7 Seed',       'seed'=>7,  'conf'=>'E', 'color'=>'#5D6269', 'abbr'=>'E7'],
 ];
 
 // Estrutura dos confrontos: [higher_seed, lower_seed]
 $firstRound = [
-    'W1' => ['OKC','MEM'], 'W2' => ['DEN','LAC'], 'W3' => ['LAL','MIN'], 'W4' => ['HOU','GSW'],
-    'E1' => ['CLE','MIA'], 'E2' => ['IND','MIL'], 'E3' => ['NYK','DET'], 'E4' => ['BOS','ORL'],
+    'W1' => ['OKC','W8'], 'W2' => ['LAL','HOU'], 'W3' => ['DEN','MIN'], 'W4' => ['SAS','W7'],
+    'E1' => ['DET','E8'], 'E2' => ['CLE','TOR'], 'E3' => ['NYK','ATL'], 'E4' => ['BOS','E7'],
 ];
 
 // --- ADMIN: confirmar pagamento ---
@@ -80,6 +90,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // --- CARREGAR RANKING ---
 $ranking = $pdo->query("SELECT nome, pontos, status_pagamento, created_at FROM nba_bracket_apostadores WHERE status_pagamento='confirmado' ORDER BY pontos DESC, created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+// Ranking visivel apenas para admin ou para usuario com pagamento confirmado
+$canSeeRanking = $isAdmin;
+if (!$canSeeRanking && !empty($_SESSION['bracket_id'])) {
+    $stmtStatus = $pdo->prepare("SELECT status_pagamento FROM nba_bracket_apostadores WHERE id = ? LIMIT 1");
+    $stmtStatus->execute([(int)$_SESSION['bracket_id']]);
+    $statusUsuario = $stmtStatus->fetchColumn();
+    $canSeeRanking = ($statusUsuario === 'confirmado');
+}
 
 // --- CARREGAR APOSTADORES PENDENTES (admin) ---
 $pendentes = [];
@@ -449,10 +468,10 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
 <!-- COL 1: WEST FIRST ROUND -->
 <div class="bracket-col">
     <div class="bracket-col-label">West<br>1ª Rodada</div>
-    <?php matchupCard('W1','OKC','MEM',$teams,1); ?>
-    <?php matchupCard('W2','DEN','LAC',$teams,1); ?>
-    <?php matchupCard('W3','LAL','MIN',$teams,1); ?>
-    <?php matchupCard('W4','HOU','GSW',$teams,1); ?>
+    <?php matchupCard('W1','OKC','W8',$teams,1); ?>
+    <?php matchupCard('W2','LAL','HOU',$teams,1); ?>
+    <?php matchupCard('W3','DEN','MIN',$teams,1); ?>
+    <?php matchupCard('W4','SAS','W7',$teams,1); ?>
 </div>
 
 <!-- COL 2: WEST SEMIS -->
@@ -505,10 +524,10 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
 <!-- COL 7: EAST FIRST ROUND -->
 <div class="bracket-col">
     <div class="bracket-col-label">East<br>1ª Rodada</div>
-    <?php matchupCard('E1','CLE','MIA',$teams,7); ?>
-    <?php matchupCard('E2','IND','MIL',$teams,7); ?>
-    <?php matchupCard('E3','NYK','DET',$teams,7); ?>
-    <?php matchupCard('E4','BOS','ORL',$teams,7); ?>
+    <?php matchupCard('E1','DET','E8',$teams,7); ?>
+    <?php matchupCard('E2','CLE','TOR',$teams,7); ?>
+    <?php matchupCard('E3','NYK','ATL',$teams,7); ?>
+    <?php matchupCard('E4','BOS','E7',$teams,7); ?>
 </div>
 
 </div><!-- bracket-grid -->
@@ -573,7 +592,11 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
     <h5 style="font-weight:800;text-align:center;margin-bottom:1.5rem;">
         <i class="bi bi-bar-chart-fill" style="color:var(--gold);"></i> Ranking — Participantes Confirmados
     </h5>
-    <?php if (empty($ranking)): ?>
+    <?php if (!$canSeeRanking): ?>
+    <div style="text-align:center;color:var(--muted);padding:1rem 1rem 2rem;">
+        O ranking sera liberado apos a confirmacao do seu pagamento.
+    </div>
+    <?php elseif (empty($ranking)): ?>
     <div style="text-align:center;color:var(--muted);padding:2rem;">Nenhum apostador confirmado ainda. Seja o primeiro!</div>
     <?php else: ?>
     <?php foreach ($ranking as $i => $r):
@@ -634,9 +657,9 @@ const feedsInto = {
 
 // Dynamic team tracking (changes as bracket progresses)
 const matchupTeams = {
-    'W1': ['OKC','MEM'], 'W2': ['DEN','LAC'], 'W3': ['LAL','MIN'], 'W4': ['HOU','GSW'],
+    'W1': ['OKC','W8'], 'W2': ['LAL','HOU'], 'W3': ['DEN','MIN'], 'W4': ['SAS','W7'],
     'WS1': [null,null], 'WS2': [null,null], 'WF': [null,null],
-    'E1': ['CLE','MIA'], 'E2': ['IND','MIL'], 'E3': ['NYK','DET'], 'E4': ['BOS','ORL'],
+    'E1': ['DET','E8'], 'E2': ['CLE','TOR'], 'E3': ['NYK','ATL'], 'E4': ['BOS','E7'],
     'ES1': [null,null], 'ES2': [null,null], 'EF': [null,null],
     'FINAL': [null,null],
 };
