@@ -3,12 +3,16 @@ session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
 $adminKey = 'nba2026admin';
-$isAdmin = isset($_GET['admin']) && $_GET['admin'] === $adminKey;
+if (isset($_GET['admin']) && $_GET['admin'] === $adminKey) {
+    $_SESSION['bracket_admin_ok'] = true;
+}
+$isAdmin = !empty($_SESSION['bracket_admin_ok']);
 
 if (!$isAdmin) {
     http_response_code(403);
     echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso negado</title></head><body style="font-family:Arial,sans-serif;background:#0a0b0f;color:#fff;padding:24px;">';
     echo '<h2>Acesso negado</h2><p>Use o link de admin para acessar esta pagina.</p>';
+    echo '<p><a style="color:#7cc3ff;" href="bracketadmin.php?admin=' . urlencode($adminKey) . '">Abrir com chave de admin</a></p>';
     echo '</body></html>';
     exit;
 }
@@ -44,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_status_id'], $_
     $stmt = $pdo->prepare('UPDATE nba_bracket_apostadores SET status_pagamento = ? WHERE id = ?');
     $stmt->execute([$novoStatus, $id]);
 
-    header('Location: bracketadmin.php?admin=' . urlencode($adminKey) . '&ok=' . $novoStatus);
+    header('Location: bracketadmin.php?ok=' . $novoStatus);
     exit;
 }
 
