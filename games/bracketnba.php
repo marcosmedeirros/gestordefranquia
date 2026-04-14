@@ -76,9 +76,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $telefone = trim(strip_tags($_POST['telefone'] ?? ''));
     $picks = $_POST['picks'] ?? [];
 
+    $requiredWinnerMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL','W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
+    $requiredGamesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
+
+    $winnersOk = true;
+    foreach ($requiredWinnerMatchups as $matchupId) {
+        $winnerKey = 'winner_'.$matchupId;
+        if (empty($picks[$winnerKey])) {
+            $winnersOk = false;
+            break;
+        }
+    }
+
+    $gamesOk = true;
+    foreach ($requiredGamesMatchups as $matchupId) {
+        $gamesKey = 'games_'.$matchupId;
+        $gamesVal = isset($picks[$gamesKey]) ? (int)$picks[$gamesKey] : 0;
+        if ($gamesVal < 4 || $gamesVal > 7) {
+            $gamesOk = false;
+            break;
+        }
+    }
+
     if (strlen($nome) < 2) { $erro = 'Digite seu nome.'; }
     elseif (strlen($telefone) < 8) { $erro = 'Digite seu WhatsApp.'; }
-    elseif (count($picks) < 15) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
+    elseif (!$winnersOk || !$gamesOk) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
     else {
         $stmt = $pdo->prepare("INSERT INTO nba_bracket_apostadores (nome, telefone, picks) VALUES (?,?,?)");
         $stmt->execute([$nome, $telefone, json_encode($picks)]);
@@ -159,9 +181,9 @@ body {
 }
 .bracket-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 140px 1fr 1fr 1fr;
+    grid-template-columns: 0.9fr 1fr 1fr 1fr 140px 1fr 1fr 1fr 0.9fr;
     gap: 0;
-    min-width: 900px;
+    min-width: 1240px;
 }
 .bracket-col {
     display: flex;
@@ -419,7 +441,7 @@ body {
 <div id="progressWrap" style="max-width:600px;margin:0 auto 2rem;">
     <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);">
         <span>Palpites preenchidos</span>
-        <span id="progressLabel">0 / 15</span>
+        <span id="progressLabel">0 / 21</span>
     </div>
     <div class="progress-bar-custom"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 </div>
@@ -433,11 +455,9 @@ body {
 
 <?php
 // Helper: render a matchup card
-function matchupCard($id, $t1key, $t2key, $teams, $col) {
+function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
     $t1 = $teams[$t1key] ?? ['name'=>$t1key,'seed'=>'?','color'=>'#555','abbr'=>$t1key];
     $t2 = $teams[$t2key] ?? ['name'=>$t2key,'seed'=>'?','color'=>'#777','abbr'=>$t2key];
-    $maxGames = ($id === 'champion') ? 7 : 7;
-    // Determine possible game counts based on col (round)
     $gameCounts = [4,5,6,7];
     echo '<div class="matchup" id="matchup-'.$id.'" data-id="'.$id.'" data-col="'.$col.'">';
     echo '<div class="team-row" data-team="'.$t1key.'" onclick="selectTeam(\''.$id.'\',\''.$t1key.'\',this)">';
@@ -452,18 +472,33 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
     echo '<span class="team-name">'.$t2['name'].'</span>';
     echo '<i class="bi bi-check-circle-fill check-icon"></i>';
     echo '</div>';
-    echo '<div class="games-selector">';
-    echo '<span>Jogos:</span>';
-    foreach ($gameCounts as $g) {
-        echo '<button type="button" class="games-btn" data-matchup="'.$id.'" data-games="'.$g.'" onclick="selectGames(\''.$id.'\','.$g.',this)">'.$g.'</button>';
+    if (!$singleGame) {
+        echo '<div class="games-selector">';
+        echo '<span>Jogos:</span>';
+        foreach ($gameCounts as $g) {
+            echo '<button type="button" class="games-btn" data-matchup="'.$id.'" data-games="'.$g.'" onclick="selectGames(\''.$id.'\','.$g.',this)">'.$g.'</button>';
+        }
+        echo '</div>';
     }
-    echo '</div>';
     // Hidden inputs
     echo '<input type="hidden" name="picks[winner_'.$id.']" id="pick-winner-'.$id.'" value="">';
-    echo '<input type="hidden" name="picks[games_'.$id.']" id="pick-games-'.$id.'" value="">';
+    if (!$singleGame) {
+        echo '<input type="hidden" name="picks[games_'.$id.']" id="pick-games-'.$id.'" value="">';
+    }
     echo '</div>';
 }
 ?>
+
+<!-- COL 0: WEST PLAY-IN -->
+<div class="bracket-col">
+    <div class="bracket-col-label">West<br>Play-In</div>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">9 x 10</div>
+    <?php matchupCard('WP_TOP','LAC','GSW',$teams,0,true); ?>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">7 x 8</div>
+    <?php matchupCard('WP_BOTTOM','PHX','POR',$teams,0,true); ?>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">Winner 9/10 x Loser 7/8</div>
+    <?php matchupCard('WP_FINAL','WP_TOP_winner','WP_BOTTOM_loser',$teams,0,true); ?>
+</div>
 
 <!-- COL 1: WEST FIRST ROUND -->
 <div class="bracket-col">
@@ -528,6 +563,17 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
     <?php matchupCard('E2','CLE','TOR',$teams,7); ?>
     <?php matchupCard('E3','NYK','ATL',$teams,7); ?>
     <?php matchupCard('E4','BOS','E7',$teams,7); ?>
+</div>
+
+<!-- COL 8: EAST PLAY-IN -->
+<div class="bracket-col">
+    <div class="bracket-col-label">East<br>Play-In</div>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">9 x 10</div>
+    <?php matchupCard('EP_TOP','CHA','MIA',$teams,8,true); ?>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">7 x 8</div>
+    <?php matchupCard('EP_BOTTOM','PHI','ORL',$teams,8,true); ?>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">Winner 9/10 x Loser 7/8</div>
+    <?php matchupCard('EP_FINAL','EP_TOP_winner','EP_BOTTOM_loser',$teams,8,true); ?>
 </div>
 
 </div><!-- bracket-grid -->
@@ -641,91 +687,152 @@ function matchupCard($id, $t1key, $t2key, $teams, $col) {
 // === STATE ===
 const teams = <?= json_encode($teams) ?>;
 const picks = {}; // { matchupId: { winner: 'ABB', games: N } }
-const totalPicks = 15; // 8 first round + 4 semis + 2 conf finals + 1 final
 
-// Bracket dependency map: which matchups feed into which
-const feedsInto = {
-    'W1': {target:'WS1', slot:'t1'}, 'W2': {target:'WS1', slot:'t2'},
-    'W3': {target:'WS2', slot:'t1'}, 'W4': {target:'WS2', slot:'t2'},
-    'WS1': {target:'WF', slot:'t1'}, 'WS2': {target:'WF', slot:'t2'},
-    'WF': {target:'FINAL', slot:'t1'},
-    'E1': {target:'ES1', slot:'t1'}, 'E2': {target:'ES1', slot:'t2'},
-    'E3': {target:'ES2', slot:'t1'}, 'E4': {target:'ES2', slot:'t2'},
-    'ES1': {target:'EF', slot:'t1'}, 'ES2': {target:'EF', slot:'t2'},
-    'EF': {target:'FINAL', slot:'t2'},
-};
+const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
+const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
+const totalPicks = playInMatchups.length + seriesMatchups.length;
 
-// Dynamic team tracking (changes as bracket progresses)
-const matchupTeams = {
-    'W1': ['OKC','W8'], 'W2': ['LAL','HOU'], 'W3': ['DEN','MIN'], 'W4': ['SAS','W7'],
-    'WS1': [null,null], 'WS2': [null,null], 'WF': [null,null],
-    'E1': ['DET','E8'], 'E2': ['CLE','TOR'], 'E3': ['NYK','ATL'], 'E4': ['BOS','E7'],
-    'ES1': [null,null], 'ES2': [null,null], 'EF': [null,null],
+const baseMatchupTeams = {
+    'WP_TOP': ['LAC','GSW'],
+    'WP_BOTTOM': ['PHX','POR'],
+    'WP_FINAL': [null,null],
+    'W1': ['OKC',null],
+    'W2': ['LAL','HOU'],
+    'W3': ['DEN','MIN'],
+    'W4': ['SAS',null],
+    'WS1': [null,null],
+    'WS2': [null,null],
+    'WF': [null,null],
+    'EP_TOP': ['CHA','MIA'],
+    'EP_BOTTOM': ['PHI','ORL'],
+    'EP_FINAL': [null,null],
+    'E1': ['DET',null],
+    'E2': ['CLE','TOR'],
+    'E3': ['NYK','ATL'],
+    'E4': ['BOS',null],
+    'ES1': [null,null],
+    'ES2': [null,null],
+    'EF': [null,null],
     'FINAL': [null,null],
 };
+
+let matchupTeams = JSON.parse(JSON.stringify(baseMatchupTeams));
+
+function clearPick(matchupId) {
+    if (picks[matchupId]) {
+        delete picks[matchupId];
+    }
+    const winnerInput = document.getElementById('pick-winner-' + matchupId);
+    if (winnerInput) winnerInput.value = '';
+    const gamesInput = document.getElementById('pick-games-' + matchupId);
+    if (gamesInput) gamesInput.value = '';
+    document.querySelectorAll('[data-matchup="'+matchupId+'"]').forEach(b => b.classList.remove('active'));
+}
+
+function getLoser(matchupId, winnerKey) {
+    const teamsInMatchup = matchupTeams[matchupId] || [];
+    if (!winnerKey || teamsInMatchup.length < 2) return null;
+    if (teamsInMatchup[0] === winnerKey) return teamsInMatchup[1] || null;
+    if (teamsInMatchup[1] === winnerKey) return teamsInMatchup[0] || null;
+    return null;
+}
+
+function getValidWinner(matchupId) {
+    const winner = picks[matchupId]?.winner || null;
+    if (!winner) return null;
+    const teamsInMatchup = matchupTeams[matchupId] || [];
+    if (!teamsInMatchup.includes(winner)) {
+        clearPick(matchupId);
+        return null;
+    }
+    return winner;
+}
+
+function applySeriesWinnerFeed(sourceId, targetId, slotIndex) {
+    const winner = getValidWinner(sourceId);
+    matchupTeams[targetId][slotIndex] = winner;
+}
+
+function recomputeBracket() {
+    matchupTeams = JSON.parse(JSON.stringify(baseMatchupTeams));
+
+    // WEST PLAY-IN
+    const wpTopWinner = getValidWinner('WP_TOP');
+    const wpBottomWinner = getValidWinner('WP_BOTTOM');
+    const wpBottomLoser = getLoser('WP_BOTTOM', wpBottomWinner);
+    matchupTeams['WP_FINAL'] = [wpTopWinner, wpBottomLoser];
+    const wpFinalWinner = getValidWinner('WP_FINAL');
+    matchupTeams['W4'][1] = wpBottomWinner;
+    matchupTeams['W1'][1] = wpFinalWinner;
+
+    // EAST PLAY-IN
+    const epTopWinner = getValidWinner('EP_TOP');
+    const epBottomWinner = getValidWinner('EP_BOTTOM');
+    const epBottomLoser = getLoser('EP_BOTTOM', epBottomWinner);
+    matchupTeams['EP_FINAL'] = [epTopWinner, epBottomLoser];
+    const epFinalWinner = getValidWinner('EP_FINAL');
+    matchupTeams['E4'][1] = epBottomWinner;
+    matchupTeams['E1'][1] = epFinalWinner;
+
+    // Bracket principal
+    applySeriesWinnerFeed('W1', 'WS1', 0);
+    applySeriesWinnerFeed('W2', 'WS1', 1);
+    applySeriesWinnerFeed('W3', 'WS2', 0);
+    applySeriesWinnerFeed('W4', 'WS2', 1);
+    applySeriesWinnerFeed('WS1', 'WF', 0);
+    applySeriesWinnerFeed('WS2', 'WF', 1);
+    applySeriesWinnerFeed('E1', 'ES1', 0);
+    applySeriesWinnerFeed('E2', 'ES1', 1);
+    applySeriesWinnerFeed('E3', 'ES2', 0);
+    applySeriesWinnerFeed('E4', 'ES2', 1);
+    applySeriesWinnerFeed('ES1', 'EF', 0);
+    applySeriesWinnerFeed('ES2', 'EF', 1);
+    applySeriesWinnerFeed('WF', 'FINAL', 0);
+    applySeriesWinnerFeed('EF', 'FINAL', 1);
+
+    // Limpa jogos invalidos em series se necessario
+    seriesMatchups.forEach(id => {
+        const p = picks[id];
+        if (!p) return;
+        if (!p.winner || !matchupTeams[id].includes(p.winner)) {
+            clearPick(id);
+            return;
+        }
+        if (p.games) {
+            const g = parseInt(p.games, 10);
+            if (g < 4 || g > 7) {
+                p.games = null;
+                const gamesInput = document.getElementById('pick-games-' + id);
+                if (gamesInput) gamesInput.value = '';
+                document.querySelectorAll('[data-matchup="'+id+'"]').forEach(b => b.classList.remove('active'));
+            }
+        }
+    });
+
+    Object.keys(baseMatchupTeams).forEach(renderMatchupTeams);
+
+    const finalWinner = getValidWinner('FINAL');
+    updateChampion(finalWinner);
+}
 
 function selectTeam(matchupId, teamKey, rowEl) {
     const matchup = document.getElementById('matchup-' + matchupId);
     if (!matchup) return;
+    if (matchup.classList.contains('locked')) return;
+
     // Check team is in this matchup
     const rows = matchup.querySelectorAll('.team-row');
     let validTeam = false;
     rows.forEach(r => { if (r.dataset.team === teamKey) validTeam = true; });
     if (!validTeam) return;
 
-    // Deselect others
-    rows.forEach(r => r.classList.remove('selected'));
-    rowEl.classList.add('selected');
-
     picks[matchupId] = picks[matchupId] || {};
     picks[matchupId].winner = teamKey;
     document.getElementById('pick-winner-' + matchupId).value = teamKey;
 
-    // Propagate winner to next round
-    propagateWinner(matchupId, teamKey);
+    recomputeBracket();
     updateProgress();
     updateSummary();
-}
-
-function propagateWinner(matchupId, winnerKey) {
-    const dep = feedsInto[matchupId];
-    if (!dep) {
-        // It's the final — update champion
-        updateChampion(winnerKey);
-        return;
-    }
-    const {target, slot} = dep;
-    const idx = slot === 't1' ? 0 : 1;
-    matchupTeams[target][idx] = winnerKey;
-
-    // Clear picks for target matchup and beyond if winner changed
-    clearFromMatchup(target);
-
-    // Re-render target matchup rows
-    renderMatchupTeams(target);
-}
-
-function clearFromMatchup(matchupId) {
-    if (picks[matchupId]) {
-        delete picks[matchupId];
-        document.getElementById('pick-winner-' + matchupId).value = '';
-        document.getElementById('pick-games-' + matchupId).value = '';
-        // clear games buttons
-        document.querySelectorAll('[data-matchup="'+matchupId+'"]').forEach(b => b.classList.remove('active'));
-        // unselect rows
-        const matchup = document.getElementById('matchup-' + matchupId);
-        if (matchup) matchup.querySelectorAll('.team-row').forEach(r => r.classList.remove('selected'));
-    }
-    // Propagate clear downstream
-    const dep = feedsInto[matchupId];
-    if (dep) {
-        const {target, slot} = dep;
-        const idx = slot === 't1' ? 0 : 1;
-        matchupTeams[target][idx] = null;
-        clearFromMatchup(target);
-    } else {
-        updateChampion(null);
-    }
 }
 
 function renderMatchupTeams(matchupId) {
@@ -755,6 +862,15 @@ function renderMatchupTeams(matchupId) {
     updateRow(rows[0], t1);
     updateRow(rows[1], t2);
 
+    // Restore selection
+    rows.forEach(r => r.classList.remove('selected'));
+    const winner = picks[matchupId]?.winner;
+    if (winner) {
+        rows.forEach(r => {
+            if (r.dataset.team === winner) r.classList.add('selected');
+        });
+    }
+
     // Lock if no teams yet
     const hasTeams = t1 && t2;
     matchup.classList.toggle('locked', !hasTeams);
@@ -763,7 +879,9 @@ function renderMatchupTeams(matchupId) {
 function selectGames(matchupId, games, btn) {
     picks[matchupId] = picks[matchupId] || {};
     picks[matchupId].games = games;
-    document.getElementById('pick-games-' + matchupId).value = games;
+    const gamesInput = document.getElementById('pick-games-' + matchupId);
+    if (!gamesInput) return;
+    gamesInput.value = games;
     document.querySelectorAll('[data-matchup="'+matchupId+'"]').forEach(b => {
         b.classList.toggle('active', parseInt(b.dataset.games) === games);
     });
@@ -786,10 +904,13 @@ function updateChampion(teamKey) {
 
 function countDone() {
     let done = 0;
-    const all = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
-    all.forEach(id => {
+    playInMatchups.forEach(id => {
         const p = picks[id];
-        if (p && p.winner && p.games) done++;
+        if (p && p.winner) done++;
+    });
+    seriesMatchups.forEach(id => {
+        const p = picks[id];
+        if (p && p.winner && p.games && parseInt(p.games, 10) >= 4 && parseInt(p.games, 10) <= 7) done++;
     });
     return done;
 }
@@ -809,16 +930,22 @@ function updateSummary() {
     }
     const champion = picks['FINAL'] ? picks['FINAL'].winner : null;
     const champName = champion ? (teams[champion]?.name || champion) : '???';
+    const playInDone = playInMatchups.filter(id => picks[id] && picks[id].winner).length;
+    const seriesDone = seriesMatchups.filter(id => {
+        const p = picks[id];
+        return p && p.winner && p.games && parseInt(p.games, 10) >= 4 && parseInt(p.games, 10) <= 7;
+    }).length;
     document.getElementById('pickSummary').innerHTML =
         `<strong style="color:#fff;">Resumo:</strong> ${done}/${totalPicks} palpites &bull; ` +
+        `Play-in: <strong style="color:#fff;">${playInDone}/6</strong> &bull; ` +
+        `Series: <strong style="color:#fff;">${seriesDone}/15</strong> &bull; ` +
         `Campeão: <strong style="color:var(--gold);">${champName}</strong>`;
 }
 
-// Init locked state
-['WS1','WS2','WF','ES1','ES2','EF','FINAL'].forEach(id => {
-    const el = document.getElementById('matchup-' + id);
-    if (el) el.classList.add('locked');
-});
+// Init dynamic state
+recomputeBracket();
+updateProgress();
+updateSummary();
 
 function copyPix() {
     const key = document.getElementById('pixKeyText').textContent;
