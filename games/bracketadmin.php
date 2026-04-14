@@ -67,14 +67,19 @@ if ($statusFilter !== 'todos') {
     $params[] = $statusFilter;
 }
 
-$stmtList = $pdo->prepare("SELECT id, nome, telefone, status_pagamento, pontos, created_at
-    FROM nba_bracket_apostadores
+$stmtList = $pdo->prepare("SELECT a.id, a.nome, a.telefone, a.status_pagamento, a.pontos, a.created_at
+    FROM nba_bracket_apostadores a
+    INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM nba_bracket_apostadores
+        GROUP BY nome, telefone, MD5(COALESCE(CAST(picks AS CHAR(10000)), ''))
+    ) d ON d.id = a.id
     $where
     ORDER BY
-        CASE WHEN status_pagamento='pendente' THEN 0 WHEN status_pagamento='confirmado' THEN 1 ELSE 2 END ASC,
-        CASE WHEN status_pagamento='pendente' THEN created_at END DESC,
-        CASE WHEN status_pagamento='confirmado' THEN pontos END DESC,
-        created_at DESC
+        CASE WHEN a.status_pagamento='pendente' THEN 0 WHEN a.status_pagamento='confirmado' THEN 1 ELSE 2 END ASC,
+        CASE WHEN a.status_pagamento='pendente' THEN a.created_at END DESC,
+        CASE WHEN a.status_pagamento='confirmado' THEN a.pontos END DESC,
+        a.created_at DESC
 ");
 $stmtList->execute($params);
 $apostadores = $stmtList->fetchAll(PDO::FETCH_ASSOC);

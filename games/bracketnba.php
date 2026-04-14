@@ -137,7 +137,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // --- CARREGAR RANKING ---
-$ranking = $pdo->query("SELECT nome, pontos, status_pagamento, created_at FROM nba_bracket_apostadores WHERE status_pagamento='confirmado' ORDER BY pontos DESC, created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
+$ranking = $pdo->query("SELECT a.nome, a.pontos, a.status_pagamento, a.created_at
+    FROM nba_bracket_apostadores a
+    INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM nba_bracket_apostadores
+        WHERE status_pagamento='confirmado'
+        GROUP BY nome, telefone, MD5(COALESCE(CAST(picks AS CHAR(10000)), ''))
+    ) d ON d.id = a.id
+    WHERE a.status_pagamento='confirmado'
+    ORDER BY a.pontos DESC, a.created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 $pixKey = '2ad96ba4-aeaa-49be-a43a-d9f0e463a6b2';
 ?>
