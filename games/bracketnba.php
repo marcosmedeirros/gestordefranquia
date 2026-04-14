@@ -62,10 +62,11 @@ $firstRound = [
 
 // --- ADMIN: confirmar pagamento ---
 $isAdmin = isset($_GET['admin']) && $_GET['admin'] === 'nba2026admin';
-if ($isAdmin && isset($_POST['confirmar_id'])) {
-    $id = (int)$_POST['confirmar_id'];
-    $pdo->prepare("UPDATE nba_bracket_apostadores SET status_pagamento='confirmado' WHERE id=?")->execute([$id]);
-    header("Location: bracketnba.php?admin=nba2026admin&ok=1");
+if ($isAdmin && isset($_POST['admin_status_id'], $_POST['admin_status'])) {
+    $id = (int)$_POST['admin_status_id'];
+    $novoStatus = $_POST['admin_status'] === 'confirmado' ? 'confirmado' : 'pendente';
+    $pdo->prepare("UPDATE nba_bracket_apostadores SET status_pagamento=? WHERE id=?")->execute([$novoStatus, $id]);
+    header("Location: bracketnba.php?admin=nba2026admin&ok=" . ($novoStatus === 'confirmado' ? 'confirmado' : 'pendente'));
     exit;
 }
 
@@ -113,6 +114,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // --- CARREGAR RANKING ---
 $ranking = $pdo->query("SELECT nome, pontos, status_pagamento, created_at FROM nba_bracket_apostadores WHERE status_pagamento='confirmado' ORDER BY pontos DESC, created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+// Lista de ranking para admin: pendentes no topo para facilitar aprovacao
+$rankingAdmin = [];
+if ($isAdmin) {
+    $rankingAdmin = $pdo->query("SELECT id, nome, telefone, pontos, status_pagamento, created_at FROM nba_bracket_apostadores ORDER BY CASE WHEN status_pagamento='pendente' THEN 0 ELSE 1 END ASC, CASE WHEN status_pagamento='pendente' THEN created_at END DESC, CASE WHEN status_pagamento='confirmado' THEN pontos END DESC, created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Ranking visivel apenas para admin ou para usuario com pagamento confirmado
 $canSeeRanking = $isAdmin;
 if (!$canSeeRanking && !empty($_SESSION['bracket_id'])) {
@@ -120,12 +127,6 @@ if (!$canSeeRanking && !empty($_SESSION['bracket_id'])) {
     $stmtStatus->execute([(int)$_SESSION['bracket_id']]);
     $statusUsuario = $stmtStatus->fetchColumn();
     $canSeeRanking = ($statusUsuario === 'confirmado');
-}
-
-// --- CARREGAR APOSTADORES PENDENTES (admin) ---
-$pendentes = [];
-if ($isAdmin) {
-    $pendentes = $pdo->query("SELECT * FROM nba_bracket_apostadores ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 }
 
 $pixKey = '2ad96ba4-aeaa-49be-a43a-d9f0e463a6b2';
@@ -373,6 +374,66 @@ body {
 .rank-num.silver { color: var(--silver); }
 .rank-num.bronze { color: var(--bronze); }
 
+.rank-card.pending-review {
+    border-color: #8a6b2a;
+    background: linear-gradient(180deg, rgba(255, 152, 0, .12), var(--panel));
+    box-shadow: 0 0 0 0 rgba(255, 179, 71, .28);
+    animation: pendingPulse 1.9s ease-in-out infinite;
+}
+
+@keyframes pendingPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 179, 71, .28);
+    }
+    70% {
+        box-shadow: 0 0 0 9px rgba(255, 179, 71, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 179, 71, 0);
+    }
+}
+
+.status-pill {
+    font-size: .7rem;
+    font-weight: 800;
+    padding: .2rem .5rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.status-pill.pending {
+    color: #ffca6a;
+    border-color: rgba(255, 202, 106, .45);
+    background: rgba(255, 152, 0, .15);
+}
+.status-pill.confirmed {
+    color: #87df8d;
+    border-color: rgba(135, 223, 141, .45);
+    background: rgba(76, 175, 80, .15);
+}
+.admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.admin-actions form { margin: 0; }
+.admin-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .95rem;
+    cursor: pointer;
+    color: #fff;
+}
+.admin-btn.approve { background: #2f9f49; border-color: #2f9f49; }
+.admin-btn.reject  { background: #7d2a31; border-color: #7d2a31; }
+.admin-btn:hover { opacity: .9; }
+
 /* FORM */
 .form-control-dark {
     background: var(--panel2);
@@ -424,40 +485,6 @@ body {
 </div>
 
 <div class="container-fluid py-4" style="max-width:1400px;">
-
-<?php if ($isAdmin): ?>
-<!-- ADMIN PANEL -->
-<div class="mb-5">
-    <h4 class="mb-3" style="color:var(--gold);">Painel Admin — Apostadores</h4>
-    <?php if (isset($_GET['ok'])): ?><div class="alert-dark alert-success-dark mb-3">Pagamento confirmado!</div><?php endif; ?>
-    <?php foreach ($pendentes as $p):
-        $picks = json_decode($p['picks'] ?? '{}', true) ?: [];
-    ?>
-    <div class="rank-card mb-2" style="flex-wrap:wrap;gap:.5rem;">
-        <div style="flex:1;min-width:200px;">
-            <div style="font-weight:700;"><?= htmlspecialchars($p['nome']) ?></div>
-            <div style="font-size:.8rem;color:var(--muted);"><?= htmlspecialchars($p['telefone']) ?> &bull; <?= $p['created_at'] ?></div>
-            <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">
-                <?php foreach ($picks as $k => $v): ?>
-                    <span style="margin-right:6px;"><?= htmlspecialchars($k) ?>:<?= htmlspecialchars($v) ?></span>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-            <?php if ($p['status_pagamento'] === 'confirmado'): ?>
-                <span style="color:#4CAF50;font-weight:700;">CONFIRMADO</span>
-            <?php else: ?>
-                <span style="color:#ff9800;font-weight:700;">PENDENTE</span>
-                <form method="POST" style="display:inline;">
-                    <input type="hidden" name="confirmar_id" value="<?= $p['id'] ?>">
-                    <button type="submit" style="background:#4CAF50;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;">Confirmar</button>
-                </form>
-            <?php endif; ?>
-        </div>
-    </div>
-    <?php endforeach; ?>
-</div>
-<?php endif; ?>
 
 <!-- PROGRESS BAR -->
 <div id="progressWrap" style="max-width:600px;margin:0 auto 2rem;">
@@ -628,8 +655,13 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
             <button type="button" class="btn-copy" onclick="copyPix()" style="width:100%;margin-bottom:.75rem;">
                 <i class="bi bi-clipboard"></i> Copiar chave PIX
             </button>
+            <a href="https://api.whatsapp.com/send/?phone=5511976137741&text=Enviando%20o%20comprovante%20bracket%20nba%202026&type=phone_number&app_absent=0"
+               target="_blank" rel="noopener noreferrer"
+               style="display:block;width:100%;margin-bottom:.75rem;text-align:center;background:#1fa855;color:#fff;border-radius:8px;padding:.55rem 1rem;font-weight:700;text-decoration:none;">
+                <i class="bi bi-whatsapp"></i> Enviar comprovante no WhatsApp
+            </a>
             <div style="background:var(--panel2);border-radius:8px;padding:.75rem;font-size:.8rem;color:var(--muted);text-align:center;">
-                Envie o comprovante para o WhatsApp do organizador.<br>
+                Envie o comprovante para o WhatsApp: <strong style="color:var(--text);">(11) 97613-7741</strong><br>
                 Identificação: <strong style="color:var(--text);"><?= isset($_SESSION['bracket_id']) ? 'Bracket #'.$_SESSION['bracket_id'] : '' ?></strong>
             </div>
         </div>
@@ -658,9 +690,60 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 <!-- RANKING -->
 <div style="max-width:600px;margin:3rem auto 1rem;">
     <h5 style="font-weight:800;text-align:center;margin-bottom:1.5rem;">
-        <i class="bi bi-bar-chart-fill" style="color:var(--gold);"></i> Ranking — Participantes Confirmados
+        <i class="bi bi-bar-chart-fill" style="color:var(--gold);"></i>
+        <?= $isAdmin ? 'Ranking/Admin — Aprovar Pagamentos' : 'Ranking — Participantes Confirmados' ?>
     </h5>
-    <?php if (!$canSeeRanking): ?>
+
+    <?php if ($isAdmin && isset($_GET['ok']) && $_GET['ok'] === 'confirmado'): ?>
+    <div class="alert-dark alert-success-dark mb-3">Pagamento confirmado com sucesso.</div>
+    <?php endif; ?>
+    <?php if ($isAdmin && isset($_GET['ok']) && $_GET['ok'] === 'pendente'): ?>
+    <div class="alert-dark alert-danger-dark mb-3">Pagamento marcado como pendente.</div>
+    <?php endif; ?>
+
+    <?php if ($isAdmin): ?>
+    <?php if (empty($rankingAdmin)): ?>
+    <div style="text-align:center;color:var(--muted);padding:2rem;">Nenhum apostador cadastrado ainda.</div>
+    <?php else: ?>
+    <?php $posConfirmados = 0; ?>
+    <?php foreach ($rankingAdmin as $r):
+        $isConfirmado = $r['status_pagamento'] === 'confirmado';
+        if ($isConfirmado) { $posConfirmados++; }
+        $cls = $isConfirmado && $posConfirmados === 1 ? 'gold' : ($isConfirmado && $posConfirmados === 2 ? 'silver' : ($isConfirmado && $posConfirmados === 3 ? 'bronze' : ''));
+        $medal = !$isConfirmado ? '⏳' : ($posConfirmados === 1 ? '🥇' : ($posConfirmados === 2 ? '🥈' : ($posConfirmados === 3 ? '🥉' : '#'.$posConfirmados)));
+    ?>
+    <div class="rank-card mb-2 <?= !$isConfirmado ? 'pending-review' : '' ?>">
+        <div class="rank-num <?= $cls ?>"><?= $medal ?></div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;"><?= htmlspecialchars($r['nome']) ?></div>
+            <div style="font-size:.75rem;color:var(--muted);">
+                <?= htmlspecialchars($r['telefone']) ?> &bull; Entrou em <?= date('d/m/Y H:i', strtotime($r['created_at'])) ?>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.6rem;">
+            <span class="status-pill <?= $isConfirmado ? 'confirmed' : 'pending' ?>"><?= $isConfirmado ? 'confirmado' : 'pendente' ?></span>
+            <div style="font-size:1.1rem;font-weight:900;color:var(--gold);min-width:74px;text-align:right;"><?= (int)$r['pontos'] ?> pts</div>
+            <div class="admin-actions">
+                <form method="POST" action="bracketnba.php?admin=nba2026admin">
+                    <input type="hidden" name="admin_status_id" value="<?= (int)$r['id'] ?>">
+                    <input type="hidden" name="admin_status" value="confirmado">
+                    <button type="submit" class="admin-btn approve" title="Confirmar pagamento" aria-label="Confirmar pagamento">
+                        <i class="bi bi-check-lg"></i>
+                    </button>
+                </form>
+                <form method="POST" action="bracketnba.php?admin=nba2026admin">
+                    <input type="hidden" name="admin_status_id" value="<?= (int)$r['id'] ?>">
+                    <input type="hidden" name="admin_status" value="pendente">
+                    <button type="submit" class="admin-btn reject" title="Marcar como pendente" aria-label="Marcar como pendente">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+    <?php endif; ?>
+    <?php elseif (!$canSeeRanking): ?>
     <div style="text-align:center;color:var(--muted);padding:1rem 1rem 2rem;">
         O ranking sera liberado apos a confirmacao do seu pagamento.
     </div>
