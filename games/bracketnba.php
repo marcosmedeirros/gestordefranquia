@@ -189,6 +189,9 @@ body {
 .mobile-bracket-tip {
     display: none;
 }
+.mobile-phase-nav {
+    display: none;
+}
 .bracket-col-label {
     text-align: center;
     font-size: .7rem;
@@ -467,6 +470,50 @@ body {
         color: var(--muted);
         text-align: center;
     }
+    .mobile-phase-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .6rem;
+        position: sticky;
+        top: 8px;
+        z-index: 9;
+        margin: 0 .25rem .7rem;
+        background: rgba(19, 20, 26, .94);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: .45rem .55rem;
+        backdrop-filter: blur(4px);
+    }
+    .mobile-phase-nav button {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        color: var(--text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .mobile-phase-nav button:disabled {
+        opacity: .35;
+    }
+    .phase-meta {
+        flex: 1;
+        text-align: center;
+        line-height: 1.1;
+    }
+    .phase-name {
+        font-size: .8rem;
+        font-weight: 800;
+        color: #fff;
+    }
+    .phase-step {
+        margin-top: 2px;
+        font-size: .72rem;
+        color: var(--muted);
+    }
     .bracket-wrap {
         padding: .4rem 0 1rem;
         scroll-snap-type: x mandatory;
@@ -567,6 +614,15 @@ body {
     Arraste para o lado para navegar entre as fases do bracket e toque nos times para marcar seus palpites.
 </div>
 
+<div class="mobile-phase-nav" id="mobilePhaseNav">
+    <button type="button" id="phasePrevBtn" aria-label="Fase anterior"><i class="bi bi-chevron-left"></i></button>
+    <div class="phase-meta">
+        <div class="phase-name" id="phaseName">West Play-In</div>
+        <div class="phase-step" id="phaseStep">Fase 1 de 9</div>
+    </div>
+    <button type="button" id="phaseNextBtn" aria-label="Proxima fase"><i class="bi bi-chevron-right"></i></button>
+</div>
+
 <div class="bracket-wrap">
 <div class="bracket-grid">
 
@@ -607,7 +663,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 ?>
 
 <!-- COL 0: WEST PLAY-IN -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="West Play-In">
     <div class="bracket-col-label">West<br>Play-In</div>
     <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">9 x 10</div>
     <?php matchupCard('WP_TOP','LAC','GSW',$teams,0,true); ?>
@@ -618,7 +674,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 1: WEST FIRST ROUND -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="West 1a Rodada">
     <div class="bracket-col-label">West<br>1ª Rodada</div>
     <?php matchupCard('W1','OKC','W8',$teams,1); ?>
     <?php matchupCard('W2','LAL','HOU',$teams,1); ?>
@@ -627,7 +683,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 2: WEST SEMIS -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="West Semis">
     <div class="bracket-col-label">West<br>Semis</div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:60px;">
     <?php matchupCard('WS1','W1_winner','W2_winner',$teams,2); ?>
@@ -636,7 +692,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 3: WEST FINALS -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="West Finals">
     <div class="bracket-col-label">West<br>Finals</div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
     <?php matchupCard('WF','WS1_winner','WS2_winner',$teams,3); ?>
@@ -644,7 +700,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL CENTER: NBA FINALS -->
-<div class="finals-col">
+<div class="finals-col phase-col" data-phase-label="NBA Finals">
     <div class="finals-logo">
         <div class="trophy">🏆</div>
         <div class="finals-title">NBA Finals</div>
@@ -657,7 +713,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 5: EAST FINALS -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="East Finals">
     <div class="bracket-col-label">East<br>Finals</div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
     <?php matchupCard('EF','ES1_winner','ES2_winner',$teams,5); ?>
@@ -665,7 +721,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 6: EAST SEMIS -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="East Semis">
     <div class="bracket-col-label">East<br>Semis</div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:60px;">
     <?php matchupCard('ES1','E1_winner','E2_winner',$teams,6); ?>
@@ -674,7 +730,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 7: EAST FIRST ROUND -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="East 1a Rodada">
     <div class="bracket-col-label">East<br>1ª Rodada</div>
     <?php matchupCard('E1','DET','E8',$teams,7); ?>
     <?php matchupCard('E2','CLE','TOR',$teams,7); ?>
@@ -683,7 +739,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <!-- COL 8: EAST PLAY-IN -->
-<div class="bracket-col">
+<div class="bracket-col phase-col" data-phase-label="East Play-In">
     <div class="bracket-col-label">East<br>Play-In</div>
     <div style="font-size:.72rem;color:var(--muted);font-weight:700;text-align:center;">9 x 10</div>
     <?php matchupCard('EP_TOP','CHA','MIA',$teams,8,true); ?>
@@ -810,6 +866,22 @@ const picks = {}; // { matchupId: { winner: 'ABB', games: N } }
 const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
 const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
 const totalPicks = playInMatchups.length + seriesMatchups.length;
+const phaseMatchups = [
+    ['WP_TOP','WP_BOTTOM','WP_FINAL'],
+    ['W1','W2','W3','W4'],
+    ['WS1','WS2'],
+    ['WF'],
+    ['FINAL'],
+    ['EF'],
+    ['ES1','ES2'],
+    ['E1','E2','E3','E4'],
+    ['EP_TOP','EP_BOTTOM','EP_FINAL'],
+];
+
+let phaseCols = [];
+let phaseIndex = 0;
+const mobilePhaseMedia = window.matchMedia('(max-width: 700px)');
+let phaseScrollTimer = null;
 
 const baseMatchupTeams = {
     'WP_TOP': ['LAC','GSW'],
@@ -1039,6 +1111,7 @@ function updateProgress() {
     document.getElementById('progressLabel').textContent = done + ' / ' + totalPicks;
     document.getElementById('progressFill').style.width = (done/totalPicks*100) + '%';
     document.getElementById('submitBtn').disabled = done < totalPicks;
+    maybeAutoAdvancePhase();
 }
 
 function updateSummary() {
@@ -1061,10 +1134,113 @@ function updateSummary() {
         `Campeão: <strong style="color:var(--gold);">${champName}</strong>`;
 }
 
+function isMatchupComplete(matchupId) {
+    const p = picks[matchupId];
+    if (!p || !p.winner) return false;
+    if (playInMatchups.includes(matchupId)) return true;
+    const g = parseInt(p.games, 10);
+    return g >= 4 && g <= 7;
+}
+
+function isPhaseComplete(idx) {
+    const phase = phaseMatchups[idx] || [];
+    return phase.every(isMatchupComplete);
+}
+
+function updatePhaseNavUI() {
+    if (!phaseCols.length) return;
+    const nameEl = document.getElementById('phaseName');
+    const stepEl = document.getElementById('phaseStep');
+    const prevBtn = document.getElementById('phasePrevBtn');
+    const nextBtn = document.getElementById('phaseNextBtn');
+    if (!nameEl || !stepEl || !prevBtn || !nextBtn) return;
+
+    const activeCol = phaseCols[phaseIndex];
+    const label = activeCol ? (activeCol.dataset.phaseLabel || `Fase ${phaseIndex + 1}`) : `Fase ${phaseIndex + 1}`;
+    nameEl.textContent = label;
+    stepEl.textContent = `Fase ${phaseIndex + 1} de ${phaseCols.length}`;
+    prevBtn.disabled = phaseIndex <= 0;
+    nextBtn.disabled = phaseIndex >= phaseCols.length - 1;
+}
+
+function scrollToPhase(newIndex, smooth = true) {
+    if (!phaseCols.length) return;
+    const bounded = Math.max(0, Math.min(newIndex, phaseCols.length - 1));
+    phaseIndex = bounded;
+    const targetCol = phaseCols[bounded];
+    if (targetCol) {
+        targetCol.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'nearest', inline: 'start' });
+    }
+    updatePhaseNavUI();
+}
+
+function syncPhaseByScrollPosition() {
+    if (!mobilePhaseMedia.matches || !phaseCols.length) return;
+    const wrap = document.querySelector('.bracket-wrap');
+    if (!wrap) return;
+    const baseLeft = wrap.scrollLeft;
+    let closestIndex = 0;
+    let minDistance = Number.MAX_SAFE_INTEGER;
+    phaseCols.forEach((col, idx) => {
+        const distance = Math.abs(col.offsetLeft - baseLeft - 8);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = idx;
+        }
+    });
+    if (closestIndex !== phaseIndex) {
+        phaseIndex = closestIndex;
+        updatePhaseNavUI();
+    }
+}
+
+function maybeAutoAdvancePhase() {
+    if (!mobilePhaseMedia.matches || !phaseCols.length) return;
+    if (!isPhaseComplete(phaseIndex)) return;
+
+    for (let i = phaseIndex + 1; i < phaseCols.length; i++) {
+        if (!isPhaseComplete(i)) {
+            scrollToPhase(i, true);
+            return;
+        }
+    }
+}
+
+function initMobilePhaseUI() {
+    phaseCols = Array.from(document.querySelectorAll('.phase-col'));
+    if (!phaseCols.length) return;
+
+    const prevBtn = document.getElementById('phasePrevBtn');
+    const nextBtn = document.getElementById('phaseNextBtn');
+    const wrap = document.querySelector('.bracket-wrap');
+
+    if (prevBtn && !prevBtn.dataset.bound) {
+        prevBtn.addEventListener('click', () => scrollToPhase(phaseIndex - 1, true));
+        prevBtn.dataset.bound = '1';
+    }
+    if (nextBtn && !nextBtn.dataset.bound) {
+        nextBtn.addEventListener('click', () => scrollToPhase(phaseIndex + 1, true));
+        nextBtn.dataset.bound = '1';
+    }
+    if (wrap && !wrap.dataset.boundPhase) {
+        wrap.addEventListener('scroll', () => {
+            if (phaseScrollTimer) clearTimeout(phaseScrollTimer);
+            phaseScrollTimer = setTimeout(syncPhaseByScrollPosition, 40);
+        });
+        wrap.dataset.boundPhase = '1';
+    }
+
+    phaseIndex = Math.max(0, Math.min(phaseIndex, phaseCols.length - 1));
+    updatePhaseNavUI();
+}
+
 // Init dynamic state
 recomputeBracket();
+initMobilePhaseUI();
 updateProgress();
 updateSummary();
+
+window.addEventListener('resize', initMobilePhaseUI);
 
 function copyPix() {
     const key = document.getElementById('pixKeyText').textContent;
