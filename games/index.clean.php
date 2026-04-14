@@ -1461,6 +1461,14 @@ try {
                         <div class="stat-value"><?= $memoria_streak ?></div>
                     </div>
                 </div>
+                <?php if (!empty($usuario['is_admin'])): ?>
+                <div class="col-12 col-md-4">
+                    <a href="admin/controlegames.php" class="stat-card text-decoration-none">
+                        <div class="stat-label"><i class="bi bi-gear-fill me-2"></i>Controle Games</div>
+                        <div class="stat-value">Abrir</div>
+                    </a>
+                </div>
+                <?php endif; ?>
             </div>
             <h6 class="section-title"><i class="bi bi-joystick"></i>Escolha um Jogo</h6>
             <div class="row g-3 mb-5">

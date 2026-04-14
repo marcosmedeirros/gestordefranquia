@@ -506,7 +506,7 @@ async function showTeam(teamId) {
 <button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
 </div>
 ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
-<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª</td><td>${p.city} ${p.team_name}</td>
+<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª${p.swap_type ? ` <span class="badge bg-secondary ms-1">${p.swap_type}</span>` : ''}</td><td>${p.city} ${p.team_name}</td>
 <td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
 <button class="btn btn-sm btn-outline-danger" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>` : '<div class="text-center py-5 text-light-gray">Nenhum pick</div>'}
 </div></div>`;
@@ -617,7 +617,8 @@ async function showTrades() {
         const roundLabel = Number.isNaN(roundNumber) ? `${pk.round}ª rodada` : `${roundNumber}ª rodada`;
         const seasonLabel = pk.season_year ? `${pk.season_year}` : 'Temporada indefinida';
         const originalTeam = `${pk.city} ${pk.team_name}`;
-        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}</li>`;
+        const swapTag = pk.swap_type ? ` <span class="badge bg-secondary ms-1">${pk.swap_type}</span>` : '';
+        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}${swapTag}</li>`;
       }).join('');
       const content = playerItems + pickItems;
       return content ? `<ul class="list-unstyled mb-0">${content}</ul>` : '<p class="text-light-gray">Nada</p>';
@@ -681,6 +682,7 @@ async function showTrades() {
   <div class="d-flex align-items-center gap-2">
     ${acceptanceBadge}
     <span class="badge ${badge}">${tr.status}</span>
+    ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
   </div>
 </div>
 <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-light-gray">Times</span>'}</div>
@@ -716,6 +718,7 @@ ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gra
 </div>
 ${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
 ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
+    ${tr.notes ? `<div class="mb-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
 <div class="row"><div class="col-md-6"><h6 class="text-orange mb-2">${tr.from_city} ${tr.from_name} oferece:</h6>
 ${renderTradeAssets(tr.offer_players || [], tr.offer_picks || [])}</div>
 <div class="col-md-6"><h6 class="text-orange mb-2">${tr.to_city} ${tr.to_name} oferece:</h6>
@@ -1210,6 +1213,15 @@ async function revertTrade(tradeId) {
   if (!confirm('REVERTER trade? Jogadores voltarão aos times originais.')) return;
   try {
     await api('admin.php?action=revert_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
+    await showTrades();
+    alert('Revertida!');
+  } catch (e) { alert('Erro'); }
+}
+
+async function revertMultiTrade(tradeId) {
+  if (!confirm('REVERTER trade múltipla? Itens voltarão aos times originais.')) return;
+  try {
+    await api('admin.php?action=revert_multi_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
     await showTrades();
     alert('Revertida!');
   } catch (e) { alert('Erro'); }

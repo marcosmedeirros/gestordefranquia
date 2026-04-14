@@ -1345,6 +1345,115 @@ if ($method === 'PUT') {
             }
             break;
 
+        case 'revert_multi_trade':
+            // Reverter trade múltipla aceita
+            $tradeId = $data['trade_id'] ?? null;
+
+            if (!$tradeId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Trade ID obrigatório']);
+                exit;
+            }
+
+            if (!tableExists($pdo, 'multi_trades') || !tableExists($pdo, 'multi_trade_items')) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Multi-trades não habilitadas']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                $stmtTrade = $pdo->prepare("SELECT * FROM multi_trades WHERE id = ? AND status = 'accepted' FOR UPDATE");
+                $stmtTrade->execute([$tradeId]);
+                $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+
+                if (!$trade) {
+                    throw new Exception('Trade não encontrada ou não foi aceita');
+                }
+
+                $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
+                $stmtItems->execute([$tradeId]);
+                $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+                $playersReverted = [];
+                $picksReverted = [];
+                $errors = [];
+
+                $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
+                $stmtMovePlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                $stmtCheckPick = $pdo->prepare('SELECT team_id, season_year, round FROM picks WHERE id = ?');
+                $stmtMovePick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
+
+                foreach ($items as $item) {
+                    if (!empty($item['player_id'])) {
+                        $stmtCheckPlayer->execute([(int)$item['player_id']]);
+                        $player = $stmtCheckPlayer->fetch(PDO::FETCH_ASSOC);
+
+                        if (!$player) {
+                            $errors[] = "Jogador ID {$item['player_id']} não encontrado";
+                        } elseif ((int)$player['team_id'] === (int)$item['to_team_id']) {
+                            $stmtMovePlayer->execute([(int)$item['from_team_id'], (int)$item['player_id']]);
+                            $playersReverted[] = $player['name'];
+                        } elseif ((int)$player['team_id'] === (int)$item['from_team_id']) {
+                            $playersReverted[] = $player['name'] . ' (já estava no time)';
+                        } else {
+                            $errors[] = "Jogador {$player['name']} não está no time esperado";
+                        }
+                    }
+
+                    if (!empty($item['pick_id'])) {
+                        $stmtCheckPick->execute([(int)$item['pick_id']]);
+                        $pick = $stmtCheckPick->fetch(PDO::FETCH_ASSOC);
+
+                        if (!$pick) {
+                            $errors[] = "Pick ID {$item['pick_id']} não encontrada";
+                        } elseif ((int)$pick['team_id'] === (int)$item['to_team_id']) {
+                            $stmtMovePick->execute([(int)$item['from_team_id'], (int)$item['to_team_id'], (int)$item['pick_id']]);
+                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
+                        } elseif ((int)$pick['team_id'] === (int)$item['from_team_id']) {
+                            $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
+                        } else {
+                            $errors[] = "Pick {$item['pick_id']} não está no time esperado";
+                        }
+                    }
+                }
+
+                $revertLog = "[Admin] Trade múltipla revertida em " . date('Y-m-d H:i:s');
+                if (!empty($playersReverted)) {
+                    $revertLog .= "\nJogadores revertidos: " . implode(', ', $playersReverted);
+                }
+                if (!empty($picksReverted)) {
+                    $revertLog .= "\nPicks revertidas: " . implode(', ', $picksReverted);
+                }
+                if (!empty($errors)) {
+                    $revertLog .= "\nAvisos: " . implode('; ', $errors);
+                }
+
+                $stmtUpdate = $pdo->prepare("UPDATE multi_trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
+                $stmtUpdate->execute([$revertLog, $tradeId]);
+
+                $pdo->commit();
+
+                $response = [
+                    'success' => true,
+                    'message' => 'Trade múltipla revertida com sucesso',
+                    'players_reverted' => count($playersReverted),
+                    'picks_reverted' => count($picksReverted)
+                ];
+
+                if (!empty($errors)) {
+                    $response['warnings'] = $errors;
+                }
+
+                echo json_encode($response);
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            break;
+
         case 'pick':
             // Atualizar ou adicionar pick
             $pickId = $data['pick_id'] ?? null;

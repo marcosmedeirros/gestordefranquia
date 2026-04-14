@@ -8,8 +8,10 @@ error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
 
-// --- CONFIGURAÇÕES ---
-$PONTOS_VITORIA = 100;
+// --- CONFIGURACOES ---
+$BASE_PONTOS_VITORIA = 100;
+$pointsMultiplier = getGamePointsMultiplier($pdo, 'termo');
+$PONTOS_VITORIA = $BASE_PONTOS_VITORIA * $pointsMultiplier;
 $MAX_TENTATIVAS = 6;
 
 // Garantir colunas de sequência

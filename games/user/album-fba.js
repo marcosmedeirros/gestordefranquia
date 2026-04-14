@@ -1,4 +1,7 @@
-const API = 'album-fba-api.php';
+const API = (() => {
+    const path = window.location.pathname.replace(/\/$/, '').replace(/\/[^/]*$/, '');
+    return `${window.location.origin}${path}/album-fba-api.php`;
+})();
 let state = { user: null, master: [], collection: {}, myTeam: [null, null, null, null, null], ranking: [], packTypes: {} };
 state.redeemedCollections = [];
 let currentSlot = null;
@@ -8,11 +11,11 @@ const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
 const hasCard = (id) => Number(state.collection[id] || 0) > 0;
 const rarityLabel = (r) => ({ comum: 'Comum', rara: 'Rara', epico: 'Epica', lendario: 'Lendaria' }[r] || r);
-const post = (action, payload = {}) => fetch(`${API}?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then((r) => r.json());
-const get = (action) => fetch(`${API}?action=${action}`).then((r) => r.json());
+const post = (action, payload = {}) => fetch(`${API}?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'same-origin' }).then((r) => r.json());
+const get = (action) => fetch(`${API}?action=${action}`, { cache: 'no-store', credentials: 'same-origin' }).then((r) => r.json());
 const getWithParams = (action, params = {}) => {
     const query = new URLSearchParams({ action, ...params }).toString();
-    return fetch(`${API}?${query}`).then((r) => r.json());
+    return fetch(`${API}?${query}`, { cache: 'no-store', credentials: 'same-origin' }).then((r) => r.json());
 };
 
 function showPackOdds(type) {

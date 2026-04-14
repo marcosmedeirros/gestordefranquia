@@ -114,6 +114,26 @@ if ($method === 'GET') {
             ]);
             break;
 
+        case 'league_teams':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem permissão']);
+                exit;
+            }
+
+            $league = $_GET['league'] ?? ($team['league'] ?? null);
+            if (!$league) {
+                echo json_encode(['success' => false, 'error' => 'Liga não especificada']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city ASC, name ASC');
+            $stmt->execute([$league]);
+            $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'teams' => $teams]);
+            break;
+
         // Buscar jogadores disponíveis para draft
         case 'available_players':
             $seasonId = $_GET['season_id'] ?? null;

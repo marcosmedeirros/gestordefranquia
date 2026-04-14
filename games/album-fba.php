@@ -310,6 +310,7 @@ $teams = [
                     </div>
                     <button id="pack-daily-btn" type="button" class="mt-4 bg-zinc-800 hover:bg-zinc-700 px-6 py-2 rounded-full font-bold border border-red-700">Resgatar</button>
                     <div id="pack-daily-hint" class="text-xs text-zinc-400 mt-2"></div>
+                    <div class="text-xs text-zinc-500 mt-1">Disponivel todos os dias as 14hrs</div>
                 </div>
                 <div class="flex flex-col items-center">
                     <div id="pack-basico" class="pack w-64 h-80 rounded-xl relative flex flex-col justify-center items-center overflow-hidden" style="background:linear-gradient(135deg,#2e2e2e,#111111)" onclick="openPack('basico')"><button type="button" class="pack-info-btn" onclick="event.stopPropagation(); showPackOdds('basico')">!</button><h3 class="text-3xl font-black italic">BÁSICO</h3></div>

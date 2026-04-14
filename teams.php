@@ -557,8 +557,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     return grouped;
                 };
 
-                const getSwapTags = (notes) => {
-                    const text = String(notes || '');
+                const getSwapTags = (pick) => {
+                    const swapType = String(pick?.swap_type || '').toUpperCase().trim();
+                    if (swapType === 'SB' || swapType === 'SW') {
+                        return `<span class="badge bg-secondary ms-1">${swapType}</span>`;
+                    }
+                    const text = String(pick?.notes || '');
                     const tags = [];
                     if (/\bSB\b/i.test(text)) tags.push('SB');
                     if (/\bSW\b/i.test(text)) tags.push('SW');
@@ -570,7 +574,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 const renderPickWithTeam = (pk) => {
                     const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
                     const originalOwner = `${pk.original_team_city} ${pk.original_team_name}`.trim();
-                    const swapTags = getSwapTags(pk.notes);
+                    const swapTags = getSwapTags(pk);
                     if (isOwn) {
                         return `<div class="d-flex align-items-center gap-2 mb-1"><span class="badge bg-success">Propria</span>${swapTags}</div>`;
                     }
@@ -615,7 +619,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     } else {
                         const renderPickAway = (pk) => {
                             const currentTeam = `${pk.current_team_city || ''} ${pk.current_team_name || ''}`.trim() || 'Nao definido';
-                            const swapTags = getSwapTags(pk.notes);
+                            const swapTags = getSwapTags(pk);
                             return `<div class="mb-1 text-light-gray">${currentTeam}${swapTags}</div>`;
                         };
                         const groupedAway = groupByYear(picksAway, renderPickAway);

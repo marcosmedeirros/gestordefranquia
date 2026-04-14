@@ -16,6 +16,8 @@ $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 
 $currentSeasonYear = null;
 $currentSprintNumber = null;
+$currentSeason = null;
+$seasonDisplayYear = null;
 try {
     $stmtSeason = $pdo->prepare('
         SELECT s.season_number, s.year, sp.start_year, sp.sprint_number
@@ -36,11 +38,13 @@ try {
         if (isset($season['sprint_number'])) {
             $currentSprintNumber = (int)$season['sprint_number'];
         }
+        $currentSeason = $season;
     }
 } catch (Exception $e) {
     $currentSeasonYear = null;
 }
 $currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
+$seasonDisplayYear = (string)$currentSeasonYear;
 
 $stmtTeam = $pdo->prepare('
     SELECT t.*, COUNT(p.id) as player_count
@@ -413,6 +417,30 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             z-index: 250;
         }
         .sidebar-overlay.active, .sb-overlay.show { display: block; }
+
+        .sb-season {
+            margin: 0 14px 8px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .sb-season-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-3);
+            font-weight: 600;
+        }
+        .sb-season-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
 
         /* ── Main content ──────────────────────────────── */
         .main {
@@ -1052,8 +1080,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 <body>
 <div class="app">
 
-    <!-- ═══ SIDEBAR ═══════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════
+         SIDEBAR
+    ══════════════════════════════════════════════ -->
     <aside class="sidebar" id="sidebar">
+
         <div class="sb-brand">
             <div class="sb-logo">FBA</div>
             <div class="sb-brand-text">
@@ -1062,44 +1093,43 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             </div>
         </div>
 
-        <?php if ($team): ?>
         <div class="sb-team">
-            <img src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null)) ?>" alt="Meu Time">
+            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
+                 alt="<?= htmlspecialchars($team['name']) ?>"
+                 onerror="this.src='/img/default-team.png'">
             <div>
                 <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
+                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
             </div>
         </div>
-        <?php endif; ?>
 
-        <?php if (!empty($currentSeasonYear)): ?>
+        <?php if ($currentSeason): ?>
         <div class="sb-season">
             <div>
                 <div class="sb-season-label">Temporada</div>
-                <div class="sb-season-val"><?= (int)$currentSeasonYear ?></div>
+                <div class="sb-season-val"><?= $seasonDisplayYear ?></div>
             </div>
             <div style="text-align:right">
                 <div class="sb-season-label">Sprint</div>
-                <div class="sb-season-val"><?= $currentSprintNumber !== null ? (int)$currentSprintNumber : '--' ?></div>
+                <div class="sb-season-val"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></div>
             </div>
         </div>
         <?php endif; ?>
 
         <nav class="sb-nav">
             <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php" class="active"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/players.php"><i class="bi bi-person-badge"></i> Jogadores</a>
+            <a href="/dashboard.php" class="active"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
             <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
             <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
             <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilao</a>
+            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
             <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
 
             <div class="sb-section">Liga</div>
             <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Historico</a>
+            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
             <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
@@ -1111,16 +1141,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <?php endif; ?>
 
             <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configuracoes</a>
+            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
         </nav>
 
-        <button class="sb-theme-toggle" id="themeToggle" type="button">
-            <i class="bi bi-moon-stars-fill"></i>
-            <span>Tema claro</span>
-        </button>
+            <button class="sb-theme-toggle" type="button" id="themeToggle">
+                <i class="bi bi-moon"></i>
+                <span>Modo escuro</span>
+            </button>
 
         <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="<?= htmlspecialchars($user['name']) ?>" class="sb-avatar">
+            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
+                 alt="<?= htmlspecialchars($user['name']) ?>"
+                 class="sb-avatar"
+                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
             <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
             <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
         </div>
@@ -1129,11 +1162,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
 
-    <!-- ═══ TOPBAR (mobile) ═══════════════════════════════════ -->
+    <!-- Topbar mobile -->
     <header class="topbar">
         <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
         <div class="topbar-title">FBA <em>Manager</em></div>
-        <span style="font-size:11px;font-weight:700;color:var(--red)"><?= (int)$currentSeasonYear ?></span>
+        <?php if ($currentSeason): ?>
+        <span style="font-size:11px;font-weight:700;color:var(--red)"><?= $seasonDisplayYear ?></span>
+        <?php endif; ?>
     </header>
 
     <!-- ═══ MAIN ═══════════════════════════════════════════════ -->
@@ -1642,8 +1677,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 return grouped;
             };
 
-            const getSwapTags = (notes) => {
-                const text = String(notes || '');
+            const getSwapTags = (pick) => {
+                const swapType = String(pick?.swap_type || '').toUpperCase().trim();
+                if (swapType === 'SB' || swapType === 'SW') {
+                    return `<span class="badge-pill gray" style="margin-left:6px">${swapType}</span>`;
+                }
+                const text = String(pick?.notes || '');
                 const tags = [];
                 if (/\bSB\b/i.test(text)) tags.push('SB');
                 if (/\bSW\b/i.test(text)) tags.push('SW');
@@ -1654,7 +1693,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
             const renderPickWithTeam = (pk) => {
                 const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                const swapTags = getSwapTags(pk.notes);
+                const swapTags = getSwapTags(pk);
                 if (isOwn) {
                     return `<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span>${swapTags}</div>`;
                 }
@@ -1688,7 +1727,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             } else {
                 const renderPickAway = (pk) => {
                     const cur = `${pk.current_team_city||''} ${pk.current_team_name||''}`.trim() || 'Não definido';
-                    const swapTags = getSwapTags(pk.notes);
+                    const swapTags = getSwapTags(pk);
                     return `<div class="mb-1" style="color:var(--text-2)">${cur}${swapTags}</div>`;
                 };
                 const groupedAway = groupByYear(picksAway, renderPickAway);

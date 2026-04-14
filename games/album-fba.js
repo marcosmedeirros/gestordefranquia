@@ -1,4 +1,7 @@
-const API = 'album-fba-api.php';
+const API = (() => {
+    const path = window.location.pathname.replace(/\/$/, '').replace(/\/[^/]*$/, '');
+    return `${window.location.origin}${path}/album-fba-api.php`;
+})();
 let state = {
     user: null,
     master: [],
@@ -52,24 +55,25 @@ async function post(action, payload = {}) {
     const response = await fetch(`${API}?action=${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        credentials: 'same-origin'
     });
     return parseApiResponse(response);
 }
 
 async function postForm(action, formData) {
-    const response = await fetch(`${API}?action=${action}`, { method: 'POST', body: formData });
+    const response = await fetch(`${API}?action=${action}`, { method: 'POST', body: formData, credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
 async function get(action) {
-    const response = await fetch(`${API}?action=${action}`);
+    const response = await fetch(`${API}?action=${action}`, { cache: 'no-store', credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
 async function getWithParams(action, params = {}) {
     const query = new URLSearchParams({ action, ...params }).toString();
-    const response = await fetch(`${API}?${query}`);
+    const response = await fetch(`${API}?${query}`, { cache: 'no-store', credentials: 'same-origin' });
     return parseApiResponse(response);
 }
 
@@ -826,41 +830,30 @@ async function loadDailyPackStatus() {
     const btn = document.getElementById('pack-daily-btn');
     const hint = document.getElementById('pack-daily-hint');
     const card = document.getElementById('pack-daily');
-    if (!btn || !hint) return;
+    if (hint) hint.textContent = '';
+    if (!btn || !card) return;
+    btn.disabled = true;
+    card.classList.add('opacity-50', 'pointer-events-none');
     try {
         const res = await get('daily_pack_status');
         if (!res.ok) {
-            hint.textContent = res.message || 'Erro ao carregar status.';
-            btn.disabled = true;
-            if (card) {
-                card.classList.add('opacity-50', 'pointer-events-none');
-            }
+            if (hint) hint.textContent = res.message || 'Erro ao consultar pacote diario.';
             return;
         }
         if (res.can_claim) {
             btn.disabled = false;
-            btn.textContent = 'Resgatar';
-            hint.textContent = 'Disponivel agora.';
-            if (card) {
-                card.classList.remove('opacity-50', 'pointer-events-none');
-            }
-        } else {
-            btn.disabled = true;
-            const seconds = Number(res.remaining_seconds || 0);
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            hint.textContent = `Disponivel em ${hours}h ${minutes}m.`;
-            btn.textContent = 'Aguarde';
-            if (card) {
-                card.classList.add('opacity-50', 'pointer-events-none');
+            card.classList.remove('opacity-50', 'pointer-events-none');
+            if (hint) hint.textContent = 'Disponivel agora!';
+            return;
+        }
+        if (res.next_at) {
+            const next = new Date(res.next_at);
+            if (!Number.isNaN(next.getTime())) {
+                hint.textContent = `Disponivel em ${next.toLocaleString()}`;
             }
         }
     } catch (err) {
-        hint.textContent = err.message || 'Erro ao carregar status.';
-        btn.disabled = true;
-        if (card) {
-            card.classList.add('opacity-50', 'pointer-events-none');
-        }
+        if (hint) hint.textContent = err.message || 'Erro ao consultar pacote diario.';
     }
 }
 
@@ -869,11 +862,12 @@ async function claimDailyPack() {
     const hint = document.getElementById('pack-daily-hint');
     const card = document.getElementById('pack-daily');
     if (btn) btn.disabled = true;
+    if (hint) hint.textContent = '';
     try {
         const res = await post('claim_daily_pack');
         if (!res.ok) {
             if (hint) hint.textContent = res.message || 'Erro ao resgatar pacote.';
-            await loadDailyPackStatus();
+            if (btn) btn.disabled = false;
             return;
         }
         state.user.coins = Number(res.coins || state.user.coins || 0);
@@ -886,10 +880,10 @@ async function claimDailyPack() {
         if (card) {
             card.classList.add('opacity-50', 'pointer-events-none');
         }
-        await loadDailyPackStatus();
+        loadDailyPackStatus();
     } catch (err) {
         if (hint) hint.textContent = err.message || 'Erro ao resgatar pacote.';
-        await loadDailyPackStatus();
+        if (btn) btn.disabled = false;
     }
 }
 window.claimDailyPack = claimDailyPack;

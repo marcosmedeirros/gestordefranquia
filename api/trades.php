@@ -377,6 +377,44 @@ function ensureTradeItemPickProtectionColumn(PDO $pdo): void {
 
 ensureTradeItemPickProtectionColumn($pdo);
 
+function ensureTradeItemPickSwapColumns(PDO $pdo): void {
+    if (!tableExists($pdo, 'trade_items')) {
+        return;
+    }
+    try {
+        if (!columnExists($pdo, 'trade_items', 'pick_swap_role')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN pick_swap_role VARCHAR(2) NULL AFTER pick_id");
+        }
+        if (!columnExists($pdo, 'trade_items', 'pick_swap_pair_id')) {
+            $pdo->exec("ALTER TABLE trade_items ADD COLUMN pick_swap_pair_id INT NULL AFTER pick_swap_role");
+        }
+    } catch (Exception $e) {
+        // ignora caso não seja possível alterar em runtime
+    }
+}
+
+function ensurePickSwapColumns(PDO $pdo): void {
+    if (!tableExists($pdo, 'picks')) {
+        return;
+    }
+    try {
+        if (!columnExists($pdo, 'picks', 'swap_type')) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_type VARCHAR(2) NULL AFTER notes");
+        }
+        if (!columnExists($pdo, 'picks', 'swap_pair_pick_id')) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_pair_pick_id INT NULL AFTER swap_type");
+        }
+        if (!columnExists($pdo, 'picks', 'swap_locked')) {
+            $pdo->exec("ALTER TABLE picks ADD COLUMN swap_locked TINYINT(1) NOT NULL DEFAULT 0 AFTER swap_pair_pick_id");
+        }
+    } catch (Exception $e) {
+        // ignora caso não seja possível alterar em runtime
+    }
+}
+
+ensureTradeItemPickSwapColumns($pdo);
+ensurePickSwapColumns($pdo);
+
 function ensureTradeReactionsTable(PDO $pdo): void
 {
     try {
@@ -790,6 +828,72 @@ function normalizePickPayloadList($raw): array
     }
 
     return $normalized;
+}
+
+function fetchPickSwapInfo(PDO $pdo, int $pickId): array
+{
+    $stmt = $pdo->prepare('SELECT id, season_year, round, swap_type, swap_locked FROM picks WHERE id = ?');
+    $stmt->execute([$pickId]);
+    $pick = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$pick) {
+        throw new Exception('Pick ID ' . $pickId . ' não encontrada');
+    }
+    return $pick;
+}
+
+function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, array $swapPairs): array
+{
+    if (empty($swapPairs) || !is_array($swapPairs)) {
+        return [];
+    }
+
+    $offerIds = array_map(static fn($p) => (int)($p['id'] ?? 0), $offerPicks);
+    $requestIds = array_map(static fn($p) => (int)($p['id'] ?? 0), $requestPicks);
+    $offerSet = array_flip(array_filter($offerIds));
+    $requestSet = array_flip(array_filter($requestIds));
+
+    $swapMap = [];
+    $used = [];
+
+    foreach ($swapPairs as $pair) {
+        $offerPickId = (int)($pair['offer_pick_id'] ?? 0);
+        $requestPickId = (int)($pair['request_pick_id'] ?? 0);
+        $offerRole = strtoupper(trim((string)($pair['offer_role'] ?? '')));
+        $requestRole = strtoupper(trim((string)($pair['request_role'] ?? '')));
+
+        if (!$offerPickId || !$requestPickId) {
+            throw new Exception('Swap inválido: picks não informadas.');
+        }
+        if (!isset($offerSet[$offerPickId]) || !isset($requestSet[$requestPickId])) {
+            throw new Exception('Swap inválido: picks precisam estar na proposta.');
+        }
+        if ($offerRole === $requestRole || !in_array($offerRole, ['SB','SW'], true) || !in_array($requestRole, ['SB','SW'], true)) {
+            throw new Exception('Swap inválido: defina SB e SW corretamente.');
+        }
+        if (!empty($used[$offerPickId]) || !empty($used[$requestPickId])) {
+            throw new Exception('Swap inválido: pick duplicada em swaps.');
+        }
+
+        $offerPick = fetchPickSwapInfo($pdo, $offerPickId);
+        $requestPick = fetchPickSwapInfo($pdo, $requestPickId);
+
+        if ((int)$offerPick['season_year'] !== (int)$requestPick['season_year'] || (string)$offerPick['round'] !== (string)$requestPick['round']) {
+            throw new Exception('Swap inválido: picks precisam ser do mesmo ano e rodada.');
+        }
+        if (!empty($offerPick['swap_locked']) || !empty($offerPick['swap_type'])) {
+            throw new Exception('Swap inválido: pick já está travada para swap.');
+        }
+        if (!empty($requestPick['swap_locked']) || !empty($requestPick['swap_type'])) {
+            throw new Exception('Swap inválido: pick já está travada para swap.');
+        }
+
+        $swapMap[$offerPickId] = ['role' => $offerRole, 'pair_id' => $requestPickId];
+        $swapMap[$requestPickId] = ['role' => $requestRole, 'pair_id' => $offerPickId];
+        $used[$offerPickId] = true;
+        $used[$requestPickId] = true;
+    }
+
+    return $swapMap;
 }
 
 function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int $seasonYear): ?array
@@ -1491,11 +1595,15 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 if (isTeamPickTradeBanned($pdo, (int)$fromTeam)) {
                     throw new Exception('Um dos times está bloqueado de usar picks em trades.');
                 }
-                $stmtOwner = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
+                $stmtOwner = $pdo->prepare('SELECT team_id, swap_locked, swap_type FROM picks WHERE id = ?');
                 $stmtOwner->execute([$pickId]);
-                $ownerId = (int)($stmtOwner->fetchColumn() ?: 0);
+                $pickRow = $stmtOwner->fetch(PDO::FETCH_ASSOC) ?: [];
+                $ownerId = (int)($pickRow['team_id'] ?? 0);
                 if ($ownerId !== $fromTeam) {
                     throw new Exception('Pick não pertence ao time informado.');
+                }
+                if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+                    throw new Exception('Uma das picks está travada para swap e não pode ser negociada.');
                 }
             }
 
@@ -1550,6 +1658,8 @@ if ($method === 'POST') {
     $requestPlayers = $data['request_players'] ?? [];
     $requestPicks = normalizePickPayloadList($data['request_picks'] ?? []);
     $notes = $data['notes'] ?? '';
+    $swapPairs = $data['swap_pairs'] ?? [];
+    $swapMap = [];
     $counterTradeId = isset($data['counter_to_trade_id']) ? (int)$data['counter_to_trade_id'] : null;
     $counterTrade = null;
     
@@ -1648,6 +1758,14 @@ if ($method === 'POST') {
         exit;
     }
 
+    try {
+        $swapMap = normalizeSwapPairs($pdo, $offerPicks, $requestPicks, $swapPairs);
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+
     $maxTrades = getLeagueMaxTrades($pdo, $teamData['league'], 10);
 
     $tradesUsed = getTeamTradesUsed($pdo, (int)$teamId);
@@ -1659,16 +1777,22 @@ if ($method === 'POST') {
 
     // Validar posse das picks oferecidas
     if (!empty($offerPicks)) {
-        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        $stmtPickOwner = $pdo->prepare('SELECT team_id, swap_locked, swap_type FROM picks WHERE id = ? AND team_id = ?');
         foreach ($offerPicks as $pickEntry) {
             $pickId = (int)($pickEntry['id'] ?? 0);
             if ($pickId <= 0) {
                 continue;
             }
             $stmtPickOwner->execute([$pickId, $teamId]);
-            if (!$stmtPickOwner->fetchColumn()) {
+            $pickRow = $stmtPickOwner->fetch(PDO::FETCH_ASSOC);
+            if (!$pickRow) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Você só pode oferecer picks que pertencem ao seu time']);
+                exit;
+            }
+            if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Uma das picks oferecidas está travada para swap e não pode ser negociada']);
                 exit;
             }
         }
@@ -1676,16 +1800,22 @@ if ($method === 'POST') {
 
     // Validar posse das picks solicitadas
     if (!empty($requestPicks)) {
-        $stmtPickOwner = $pdo->prepare('SELECT 1 FROM picks WHERE id = ? AND team_id = ?');
+        $stmtPickOwner = $pdo->prepare('SELECT team_id, swap_locked, swap_type FROM picks WHERE id = ? AND team_id = ?');
         foreach ($requestPicks as $pickEntry) {
             $pickId = (int)($pickEntry['id'] ?? 0);
             if ($pickId <= 0) {
                 continue;
             }
             $stmtPickOwner->execute([$pickId, $toTeamId]);
-            if (!$stmtPickOwner->fetchColumn()) {
+            $pickRow = $stmtPickOwner->fetch(PDO::FETCH_ASSOC);
+            if (!$pickRow) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Só é possível pedir picks que pertencem ao time alvo']);
+                exit;
+            }
+            if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Uma das picks solicitadas está travada para swap e não pode ser negociada']);
                 exit;
             }
         }
@@ -1725,6 +1855,7 @@ if ($method === 'POST') {
         // Preparar inserção de itens com snapshot de jogador e proteção de pick, quando disponível
         $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
         $hasPickProtectionCol = columnExists($pdo, 'trade_items', 'pick_protection');
+        $hasPickSwapCols = columnExists($pdo, 'trade_items', 'pick_swap_role') && columnExists($pdo, 'trade_items', 'pick_swap_pair_id');
         $ovrCol = playerOvrColumn($pdo);
 
         $columns = ['trade_id', 'player_id', 'pick_id', 'from_team'];
@@ -1735,6 +1866,12 @@ if ($method === 'POST') {
         }
         if ($hasPickProtectionCol) {
             $columns[] = 'pick_protection';
+            $placeholders[] = '?';
+        }
+        if ($hasPickSwapCols) {
+            $columns[] = 'pick_swap_role';
+            $columns[] = 'pick_swap_pair_id';
+            $placeholders[] = '?';
             $placeholders[] = '?';
         }
 
@@ -1756,6 +1893,10 @@ if ($method === 'POST') {
             if ($hasPickProtectionCol) {
                 $params[] = null;
             }
+            if ($hasPickSwapCols) {
+                $params[] = null;
+                $params[] = null;
+            }
             $stmtItem->execute($params);
         }
         
@@ -1773,6 +1914,11 @@ if ($method === 'POST') {
             }
             if ($hasPickProtectionCol) {
                 $params[] = $pickEntry['protection'] ?? null;
+            }
+            if ($hasPickSwapCols) {
+                $swapInfo = $swapMap[$pickId] ?? null;
+                $params[] = $swapInfo['role'] ?? null;
+                $params[] = $swapInfo['pair_id'] ?? null;
             }
             $stmtItem->execute($params);
         }
@@ -1793,6 +1939,10 @@ if ($method === 'POST') {
             if ($hasPickProtectionCol) {
                 $params[] = null;
             }
+            if ($hasPickSwapCols) {
+                $params[] = null;
+                $params[] = null;
+            }
             $stmtItem->execute($params);
         }
         
@@ -1810,6 +1960,11 @@ if ($method === 'POST') {
             }
             if ($hasPickProtectionCol) {
                 $params[] = $pickEntry['protection'] ?? null;
+            }
+            if ($hasPickSwapCols) {
+                $swapInfo = $swapMap[$pickId] ?? null;
+                $params[] = $swapInfo['role'] ?? null;
+                $params[] = $swapInfo['pair_id'] ?? null;
             }
             $stmtItem->execute($params);
         }
@@ -2098,6 +2253,7 @@ if ($method === 'PUT') {
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
             $hasSnapshot = columnExists($pdo, 'trade_items', 'player_name');
+            $hasPickSwapCols = columnExists($pdo, 'trade_items', 'pick_swap_role') && columnExists($pdo, 'trade_items', 'pick_swap_pair_id');
             $ovrCol = playerOvrColumn($pdo);
             if ($hasSnapshot && !empty($items)) {
                 $stmtSnapshot = $pdo->prepare(
@@ -2127,6 +2283,7 @@ if ($method === 'PUT') {
             }
 
             $stmtUpdateTradeItemPick = $pdo->prepare('UPDATE trade_items SET pick_id = ? WHERE id = ?');
+            $stmtUpdateTradeItemPair = $hasPickSwapCols ? $pdo->prepare('UPDATE trade_items SET pick_swap_pair_id = ? WHERE id = ?') : null;
 
             foreach ($items as &$item) {
                 if (!empty($item['pick_id'])) {
@@ -2134,6 +2291,13 @@ if ($method === 'PUT') {
                     if ($normalizedId !== (int)$item['pick_id']) {
                         $stmtUpdateTradeItemPick->execute([$normalizedId, $item['id']]);
                         $item['pick_id'] = $normalizedId;
+                    }
+                }
+                if ($hasPickSwapCols && !empty($item['pick_swap_pair_id'])) {
+                    $normalizedPair = normalizePickId($pdo, (int)$item['pick_swap_pair_id']);
+                    if ($normalizedPair !== (int)$item['pick_swap_pair_id']) {
+                        $stmtUpdateTradeItemPair->execute([$normalizedPair, $item['id']]);
+                        $item['pick_swap_pair_id'] = $normalizedPair;
                     }
                 }
             }
@@ -2162,6 +2326,57 @@ if ($method === 'PUT') {
                         throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                     }
                     syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
+                }
+            }
+
+            if ($hasPickSwapCols && !empty($items)) {
+                $swapMap = [];
+                foreach ($items as $item) {
+                    if (empty($item['pick_id']) || empty($item['pick_swap_pair_id'])) {
+                        continue;
+                    }
+                    $role = strtoupper(trim((string)($item['pick_swap_role'] ?? '')));
+                    if (!in_array($role, ['SB','SW'], true)) {
+                        continue;
+                    }
+                    $swapMap[(int)$item['pick_id']] = [
+                        'pair_id' => (int)$item['pick_swap_pair_id'],
+                        'role' => $role
+                    ];
+                }
+
+                if (!empty($swapMap)) {
+                    $updateSwap = $pdo->prepare('UPDATE picks SET swap_type = ?, swap_pair_pick_id = ?, swap_locked = 1 WHERE id = ?');
+                    $checkSwap = $pdo->prepare('SELECT swap_locked, swap_type FROM picks WHERE id = ?');
+                    $processed = [];
+
+                    foreach ($swapMap as $pickId => $info) {
+                        $pairId = (int)$info['pair_id'];
+                        if ($pickId === $pairId || isset($processed[$pickId])) {
+                            continue;
+                        }
+                        if (empty($swapMap[$pairId])) {
+                            throw new Exception('Swap incompleto: pares não encontrados.');
+                        }
+                        $roleA = $info['role'];
+                        $roleB = $swapMap[$pairId]['role'];
+                        if ($roleA === $roleB) {
+                            throw new Exception('Swap inválido: SB e SW precisam ser diferentes.');
+                        }
+
+                        foreach ([$pickId, $pairId] as $pid) {
+                            $checkSwap->execute([(int)$pid]);
+                            $row = $checkSwap->fetch(PDO::FETCH_ASSOC) ?: [];
+                            if (!empty($row['swap_locked']) || !empty($row['swap_type'])) {
+                                throw new Exception('Swap inválido: pick já está travada para swap.');
+                            }
+                        }
+
+                        $updateSwap->execute([$roleA, $pairId, $pickId]);
+                        $updateSwap->execute([$roleB, $pickId, $pairId]);
+                        $processed[$pickId] = true;
+                        $processed[$pairId] = true;
+                    }
                 }
             }
 
