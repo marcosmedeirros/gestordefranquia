@@ -178,6 +178,23 @@ body {
 .bracket-wrap {
     overflow-x: auto;
     padding: 1.5rem 1rem;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3f52 var(--panel);
+}
+.bracket-wrap::-webkit-scrollbar {
+    height: 10px;
+}
+.bracket-wrap::-webkit-scrollbar-track {
+    background: var(--panel);
+    border-radius: 999px;
+}
+.bracket-wrap::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #3a3f52, #59617d);
+    border-radius: 999px;
+    border: 2px solid var(--panel);
+}
+.bracket-wrap::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #4a5170, #6a7496);
 }
 .bracket-grid {
     display: grid;
@@ -281,6 +298,8 @@ body {
     justify-content: center;
     gap: 12px;
     padding: 0 8px;
+    position: relative;
+    z-index: 2;
 }
 .finals-logo {
     text-align: center;
@@ -297,6 +316,9 @@ body {
     padding: 12px;
     text-align: center;
     min-width: 120px;
+    transform: translateY(-22px);
+    position: relative;
+    z-index: 4;
 }
 .champion-box .label { font-size: .65rem; font-weight: 800; letter-spacing: 1px; color: var(--gold); text-transform: uppercase; }
 .champion-box .team { font-size: .85rem; font-weight: 700; margin-top: 4px; }
