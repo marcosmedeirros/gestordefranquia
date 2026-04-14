@@ -63,11 +63,30 @@ $firstRound = [
 // --- SALVAR APOSTAS ---
 $erro = ''; $sucesso = '';
 
+if (empty($_SESSION['bracket_submit_token'])) {
+    $_SESSION['bracket_submit_token'] = bin2hex(random_bytes(16));
+}
+
 if (isset($_GET['saved']) && $_GET['saved'] === '1' && !empty($_SESSION['bracket_id'])) {
     $sucesso = 'Palpite salvo! Agora realize o pagamento via PIX.';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apostar') {
+    $postedToken = $_POST['submit_token'] ?? '';
+    $sessionToken = $_SESSION['bracket_submit_token'] ?? '';
+
+    // Idempotencia: o mesmo token so pode ser processado uma vez
+    if (!is_string($postedToken) || $postedToken === '' || !hash_equals($sessionToken, $postedToken)) {
+        if (!empty($_SESSION['bracket_id'])) {
+            header('Location: bracketnba.php?saved=1');
+            exit;
+        }
+        $erro = 'Envio invalido. Atualize a pagina e tente novamente.';
+    }
+
+    // Rotaciona token imediatamente para bloquear reenvio concorrente
+    $_SESSION['bracket_submit_token'] = bin2hex(random_bytes(16));
+
     $nome = trim(strip_tags($_POST['nome'] ?? ''));
     $telefone = trim(strip_tags($_POST['telefone'] ?? ''));
     $picks = $_POST['picks'] ?? [];
@@ -94,10 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-    if (strlen($nome) < 2) { $erro = 'Digite seu nome.'; }
-    elseif (strlen($telefone) < 8) { $erro = 'Digite seu WhatsApp.'; }
-    elseif (!$winnersOk || !$gamesOk) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
-    else {
+    if (!$erro && strlen($nome) < 2) { $erro = 'Digite seu nome.'; }
+    elseif (!$erro && strlen($telefone) < 8) { $erro = 'Digite seu WhatsApp.'; }
+    elseif (!$erro && (!$winnersOk || !$gamesOk)) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
+    elseif (!$erro) {
         $picksJson = json_encode($picks, JSON_UNESCAPED_UNICODE);
 
         // Evita insercao duplicada em envios seguidos do mesmo formulario
@@ -625,6 +644,7 @@ body {
 <!-- BRACKET -->
 <form method="POST" id="bracketForm" action="bracketnba.php">
 <input type="hidden" name="action" value="apostar">
+<input type="hidden" name="submit_token" value="<?= htmlspecialchars($_SESSION['bracket_submit_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
 <div class="mobile-bracket-tip">
     Arraste para o lado para navegar entre as fases do bracket e toque nos times para marcar seus palpites.
