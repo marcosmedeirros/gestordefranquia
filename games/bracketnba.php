@@ -62,6 +62,11 @@ $firstRound = [
 
 // --- SALVAR APOSTAS ---
 $erro = ''; $sucesso = '';
+
+if (isset($_GET['saved']) && $_GET['saved'] === '1' && !empty($_SESSION['bracket_id'])) {
+    $sucesso = 'Palpite salvo! Agora realize o pagamento via PIX.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apostar') {
     $nome = trim(strip_tags($_POST['nome'] ?? ''));
     $telefone = trim(strip_tags($_POST['telefone'] ?? ''));
@@ -93,11 +98,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     elseif (strlen($telefone) < 8) { $erro = 'Digite seu WhatsApp.'; }
     elseif (!$winnersOk || !$gamesOk) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
     else {
-        $stmt = $pdo->prepare("INSERT INTO nba_bracket_apostadores (nome, telefone, picks) VALUES (?,?,?)");
-        $stmt->execute([$nome, $telefone, json_encode($picks)]);
-        $apostadorId = $pdo->lastInsertId();
+        $picksJson = json_encode($picks, JSON_UNESCAPED_UNICODE);
+
+        // Evita insercao duplicada em envios seguidos do mesmo formulario
+        $stmtDup = $pdo->prepare("SELECT id FROM nba_bracket_apostadores WHERE nome = ? AND telefone = ? AND picks = ? AND created_at >= (NOW() - INTERVAL 30 MINUTE) ORDER BY id DESC LIMIT 1");
+        $stmtDup->execute([$nome, $telefone, $picksJson]);
+        $apostadorId = $stmtDup->fetchColumn();
+
+        if (!$apostadorId) {
+            $stmt = $pdo->prepare("INSERT INTO nba_bracket_apostadores (nome, telefone, picks) VALUES (?,?,?)");
+            $stmt->execute([$nome, $telefone, $picksJson]);
+            $apostadorId = $pdo->lastInsertId();
+        }
+
         $_SESSION['bracket_id'] = $apostadorId;
-        $sucesso = 'Palpite salvo! Agora realize o pagamento via PIX.';
+        header('Location: bracketnba.php?saved=1');
+        exit;
     }
 }
 
@@ -1248,6 +1264,17 @@ function copyPix() {
         const btn = document.querySelector('.btn-copy');
         btn.textContent = 'Copiado!';
         setTimeout(() => btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar chave PIX', 2000);
+    });
+}
+
+const bracketForm = document.getElementById('bracketForm');
+if (bracketForm) {
+    bracketForm.addEventListener('submit', () => {
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
+        }
     });
 }
 </script>
