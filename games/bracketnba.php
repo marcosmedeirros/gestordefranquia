@@ -156,6 +156,7 @@ body {
     padding: 1.5rem 1rem;
     scrollbar-width: thin;
     scrollbar-color: #3a3f52 var(--panel);
+    -webkit-overflow-scrolling: touch;
 }
 .bracket-wrap::-webkit-scrollbar {
     height: 10px;
@@ -184,6 +185,9 @@ body {
     justify-content: space-around;
     padding: 0 6px;
     gap: 8px;
+}
+.mobile-bracket-tip {
+    display: none;
 }
 .bracket-col-label {
     text-align: center;
@@ -445,8 +449,93 @@ body {
 .connector-left  { border-left: 2px solid var(--border); }
 
 @media (max-width: 700px) {
-    .bracket-grid { grid-template-columns: 1fr 1fr 120px 1fr 1fr; }
-    /* hide conf finals on mobile */
+    .nba-header {
+        padding: 1.4rem .9rem 2rem;
+    }
+    .nba-header h1 {
+        font-size: 1.4rem;
+        letter-spacing: 1px;
+    }
+    .mobile-bracket-tip {
+        display: block;
+        margin: 0 .25rem .75rem;
+        background: rgba(255,255,255,.04);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: .55rem .7rem;
+        font-size: .78rem;
+        color: var(--muted);
+        text-align: center;
+    }
+    .bracket-wrap {
+        padding: .4rem 0 1rem;
+        scroll-snap-type: x mandatory;
+        mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    }
+    .bracket-grid {
+        display: flex;
+        gap: 10px;
+        min-width: 0;
+        padding: 0 1rem;
+    }
+    .bracket-col,
+    .finals-col {
+        flex: 0 0 calc(88vw - 1rem);
+        max-width: 340px;
+        min-width: 270px;
+        background: rgba(19, 20, 26, .8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: .7rem;
+        gap: .55rem;
+        scroll-snap-align: start;
+    }
+    .finals-col {
+        justify-content: flex-start;
+    }
+    .bracket-col-label {
+        font-size: .66rem;
+        margin-bottom: 2px;
+        padding: 3px 0 7px;
+    }
+    .matchup {
+        border-radius: 9px;
+    }
+    .team-row {
+        padding: 9px 10px;
+    }
+    .seed-badge {
+        min-width: 20px;
+        font-size: .7rem;
+    }
+    .team-dot {
+        width: 30px;
+        height: 30px;
+        font-size: .63rem;
+    }
+    .team-name {
+        font-size: .86rem;
+    }
+    .games-selector {
+        padding: 7px 8px;
+    }
+    .games-btn {
+        width: 30px;
+        height: 30px;
+    }
+    .finals-logo .trophy {
+        font-size: 2rem;
+    }
+    .champion-box {
+        transform: translateY(-6px);
+        width: 100%;
+    }
+    #progressWrap {
+        margin-bottom: 1rem !important;
+    }
+    .pix-card {
+        padding: 1rem;
+    }
 }
 </style>
 </head>
@@ -473,6 +562,10 @@ body {
 <!-- BRACKET -->
 <form method="POST" id="bracketForm" action="bracketnba.php">
 <input type="hidden" name="action" value="apostar">
+
+<div class="mobile-bracket-tip">
+    Arraste para o lado para navegar entre as fases do bracket e toque nos times para marcar seus palpites.
+</div>
 
 <div class="bracket-wrap">
 <div class="bracket-grid">
