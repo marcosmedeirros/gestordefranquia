@@ -750,7 +750,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 
 <div style="max-width:700px;margin:1.5rem auto 0;">
     <div class="alert-dark" style="border-left:4px solid #2f9f49;text-align:center;">
-        Situação oficial dos playoffs. Este bracket é atualizado pela administração e não é editável.
+        Este bracket é atualizado pela administração e não é editável.
     </div>
 </div>
 

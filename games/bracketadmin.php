@@ -290,7 +290,6 @@ function matchupCardAdmin($id, $t1key, $t2key, $teams, $singleGame = false) {
     if (!$singleGame) {
         echo '<input type="hidden" name="results[games_'.$id.']" id="result-games-'.$id.'" value="">';
     }
-    echo '<div class="popularity-hint" id="popularity-'.$id.'"></div>';
     echo '</div>';
 }
 ?>
@@ -686,6 +685,7 @@ body {
 const teams = <?= json_encode($teams, JSON_UNESCAPED_UNICODE) ?>;
 const officialResults = <?= json_encode($officialResultsMap, JSON_UNESCAPED_UNICODE) ?>;
 const mostPickedByMatchup = <?= json_encode($mostPickedByMatchup, JSON_UNESCAPED_UNICODE) ?>;
+const matchupPopularityCounts = <?= json_encode($matchupPopularityCounts, JSON_UNESCAPED_UNICODE) ?>;
 
 const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
 const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
@@ -780,6 +780,15 @@ function selectResultGames(matchupId, games) {
     updateResultsProgress();
 }
 
+function getTeamPickPercent(matchupId, teamKey) {
+    if (!teamKey) return 0;
+    const byTeam = matchupPopularityCounts[matchupId] || {};
+    const total = Object.values(byTeam).reduce((acc, n) => acc + (parseInt(n, 10) || 0), 0);
+    if (total <= 0) return 0;
+    const count = parseInt(byTeam[teamKey] || 0, 10);
+    return Math.round((count / total) * 100);
+}
+
 function renderMatchup(matchupId) {
     const matchup = document.getElementById('matchup-' + matchupId);
     if (!matchup) return;
@@ -796,10 +805,11 @@ function renderMatchup(matchupId) {
             row.setAttribute('onclick', '');
         } else {
             const t = teams[teamKey] || {name: teamKey, seed: '?', color: '#555', abbr: teamKey};
+            const pickPct = getTeamPickPercent(matchupId, teamKey);
             row.dataset.team = teamKey;
             row.querySelector('.team-dot').style.background = t.color;
             row.querySelector('.team-dot').textContent = t.abbr;
-            row.querySelector('.team-name').textContent = t.name;
+            row.querySelector('.team-name').textContent = `${t.name} | ${pickPct}%`;
             row.querySelector('.seed-badge').textContent = t.seed;
             row.setAttribute('onclick', `selectResultTeam('${matchupId}','${teamKey}',this)`);
         }
@@ -823,23 +833,7 @@ function renderMatchup(matchupId) {
             }
         });
     }
-
-    renderPopularityHint(matchupId);
-
     matchup.classList.toggle('locked', !(t1 && t2));
-}
-
-function renderPopularityHint(matchupId) {
-    const el = document.getElementById('popularity-' + matchupId);
-    if (!el) return;
-    const info = mostPickedByMatchup[matchupId];
-    if (!info || !info.team) {
-        el.textContent = 'Mais palpitado: -';
-        return;
-    }
-
-    const teamName = teams[info.team]?.name || info.team;
-    el.innerHTML = `<i class="bi bi-graph-up-arrow me-1"></i>Mais palpitado: <strong>${teamName}</strong> (${info.pct}% | ${info.count}/${info.total})`;
 }
 
 function updateChampion(teamKey) {
