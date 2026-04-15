@@ -22,6 +22,13 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_apostadores (
     INDEX idx_status (status_pagamento)
 )");
 
+$pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_resultados (
+    matchup_id VARCHAR(20) PRIMARY KEY,
+    winner VARCHAR(20) NULL,
+    games TINYINT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)");
+
 // --- TIMES ---
 $teams = [
     // WEST
@@ -60,85 +67,15 @@ $firstRound = [
     'E1' => ['DET','E8'], 'E2' => ['CLE','TOR'], 'E3' => ['NYK','ATL'], 'E4' => ['BOS','E7'],
 ];
 
-// --- SALVAR APOSTAS ---
-$erro = ''; $sucesso = '';
-$allowNewPicks = false;
-
-if (empty($_SESSION['bracket_submit_token'])) {
-    $_SESSION['bracket_submit_token'] = bin2hex(random_bytes(16));
-}
-
-if (isset($_GET['saved']) && $_GET['saved'] === '1' && !empty($_SESSION['bracket_id'])) {
-    $sucesso = 'Palpite salvo! Agora realize o pagamento via PIX.';
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apostar') {
-    if (!$allowNewPicks) {
-        $erro = 'Novos palpites estao encerrados no momento.';
-    }
-
-    $postedToken = $_POST['submit_token'] ?? '';
-    $sessionToken = $_SESSION['bracket_submit_token'] ?? '';
-
-    // Idempotencia: o mesmo token so pode ser processado uma vez
-    if (!$erro && (!is_string($postedToken) || $postedToken === '' || !hash_equals($sessionToken, $postedToken))) {
-        if (!empty($_SESSION['bracket_id'])) {
-            header('Location: bracketnba.php?saved=1');
-            exit;
-        }
-        $erro = 'Envio invalido. Atualize a pagina e tente novamente.';
-    }
-
-    // Rotaciona token imediatamente para bloquear reenvio concorrente
-    $_SESSION['bracket_submit_token'] = bin2hex(random_bytes(16));
-
-    $nome = trim(strip_tags($_POST['nome'] ?? ''));
-    $telefone = trim(strip_tags($_POST['telefone'] ?? ''));
-    $picks = $_POST['picks'] ?? [];
-
-    $requiredWinnerMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL','W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
-    $requiredGamesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
-
-    $winnersOk = true;
-    foreach ($requiredWinnerMatchups as $matchupId) {
-        $winnerKey = 'winner_'.$matchupId;
-        if (empty($picks[$winnerKey])) {
-            $winnersOk = false;
-            break;
-        }
-    }
-
-    $gamesOk = true;
-    foreach ($requiredGamesMatchups as $matchupId) {
-        $gamesKey = 'games_'.$matchupId;
-        $gamesVal = isset($picks[$gamesKey]) ? (int)$picks[$gamesKey] : 0;
-        if ($gamesVal < 4 || $gamesVal > 7) {
-            $gamesOk = false;
-            break;
-        }
-    }
-
-    if (!$erro && strlen($nome) < 2) { $erro = 'Digite seu nome.'; }
-    elseif (!$erro && strlen($telefone) < 8) { $erro = 'Digite seu WhatsApp.'; }
-    elseif (!$erro && (!$winnersOk || !$gamesOk)) { $erro = 'Preencha todos os palpites do bracket antes de enviar.'; }
-    elseif (!$erro) {
-        $picksJson = json_encode($picks, JSON_UNESCAPED_UNICODE);
-
-        // Evita insercao duplicada em envios seguidos do mesmo formulario
-        $stmtDup = $pdo->prepare("SELECT id FROM nba_bracket_apostadores WHERE nome = ? AND telefone = ? AND picks = ? AND created_at >= (NOW() - INTERVAL 30 MINUTE) ORDER BY id DESC LIMIT 1");
-        $stmtDup->execute([$nome, $telefone, $picksJson]);
-        $apostadorId = $stmtDup->fetchColumn();
-
-        if (!$apostadorId) {
-            $stmt = $pdo->prepare("INSERT INTO nba_bracket_apostadores (nome, telefone, picks) VALUES (?,?,?)");
-            $stmt->execute([$nome, $telefone, $picksJson]);
-            $apostadorId = $pdo->lastInsertId();
-        }
-
-        $_SESSION['bracket_id'] = $apostadorId;
-        header('Location: bracketnba.php?saved=1');
-        exit;
-    }
+// --- RESULTADOS OFICIAIS ---
+$stmtResults = $pdo->query("SELECT matchup_id, winner, games FROM nba_bracket_resultados");
+$officialResultsRows = $stmtResults->fetchAll(PDO::FETCH_ASSOC);
+$officialResultsMap = [];
+foreach ($officialResultsRows as $row) {
+    $officialResultsMap[$row['matchup_id']] = [
+        'winner' => $row['winner'] !== null ? (string)$row['winner'] : null,
+        'games' => $row['games'] !== null ? (int)$row['games'] : null,
+    ];
 }
 
 // --- CARREGAR RANKING ---
@@ -159,8 +96,6 @@ foreach ($ranking as &$rk) {
     $rk['champion_name'] = $champCode !== '' ? ($teams[$champCode]['name'] ?? $champCode) : '';
 }
 unset($rk);
-
-$pixKey = '2ad96ba4-aeaa-49be-a43a-d9f0e463a6b2';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -274,18 +209,31 @@ body {
     align-items: center;
     gap: 8px;
     padding: 7px 10px;
-    cursor: pointer;
+    cursor: default;
     transition: background .15s;
     border-bottom: 1px solid var(--border);
     position: relative;
 }
 .team-row:last-child { border-bottom: none; }
-.team-row:hover { background: var(--panel2); }
+.team-row:hover { background: transparent; }
 .team-row.selected {
     background: linear-gradient(90deg, rgba(200,16,46,.18), transparent);
     border-left: 3px solid var(--accent);
 }
 .team-row.selected .team-name { color: #fff; font-weight: 700; }
+.team-row.winner-result {
+    background: linear-gradient(90deg, rgba(47,159,73,.24), transparent);
+    border-left: 3px solid #2f9f49;
+}
+.team-row.loser-result {
+    background: rgba(255,255,255,.03);
+    color: #8d94ab;
+    filter: grayscale(1);
+}
+.team-row.loser-result .team-name,
+.team-row.loser-result .seed-badge {
+    color: #8d94ab;
+}
 .seed-badge {
     font-size: .65rem;
     font-weight: 800;
@@ -656,19 +604,15 @@ body {
 <!-- PROGRESS BAR -->
 <div id="progressWrap" style="max-width:600px;margin:0 auto 2rem;">
     <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);">
-        <span>Palpites preenchidos</span>
+        <span>Resultado oficial preenchido</span>
         <span id="progressLabel">0 / 21</span>
     </div>
     <div class="progress-bar-custom"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 </div>
 
 <!-- BRACKET -->
-<form method="POST" id="bracketForm" action="bracketnba.php">
-<input type="hidden" name="action" value="apostar">
-<input type="hidden" name="submit_token" value="<?= htmlspecialchars($_SESSION['bracket_submit_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-
 <div class="mobile-bracket-tip">
-    Arraste para o lado para navegar entre as fases do bracket e toque nos times para marcar seus palpites.
+    Arraste para o lado para navegar entre as fases do bracket oficial.
 </div>
 
 <div class="mobile-phase-nav" id="mobilePhaseNav">
@@ -690,13 +634,13 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
     $t2 = $teams[$t2key] ?? ['name'=>$t2key,'seed'=>'?','color'=>'#777','abbr'=>$t2key];
     $gameCounts = [4,5,6,7];
     echo '<div class="matchup" id="matchup-'.$id.'" data-id="'.$id.'" data-col="'.$col.'">';
-    echo '<div class="team-row" data-team="'.$t1key.'" onclick="selectTeam(\''.$id.'\',\''.$t1key.'\',this)">';
+    echo '<div class="team-row" data-team="'.$t1key.'">';
     echo '<span class="seed-badge">'.$t1['seed'].'</span>';
     echo '<div class="team-dot" style="background:'.$t1['color'].';">'.$t1['abbr'].'</div>';
     echo '<span class="team-name">'.$t1['name'].'</span>';
     echo '<i class="bi bi-check-circle-fill check-icon"></i>';
     echo '</div>';
-    echo '<div class="team-row" data-team="'.$t2key.'" onclick="selectTeam(\''.$id.'\',\''.$t2key.'\',this)">';
+    echo '<div class="team-row" data-team="'.$t2key.'">';
     echo '<span class="seed-badge">'.$t2['seed'].'</span>';
     echo '<div class="team-dot" style="background:'.$t2['color'].';">'.$t2['abbr'].'</div>';
     echo '<span class="team-name">'.$t2['name'].'</span>';
@@ -706,14 +650,9 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
         echo '<div class="games-selector">';
         echo '<span>Jogos:</span>';
         foreach ($gameCounts as $g) {
-            echo '<button type="button" class="games-btn" data-matchup="'.$id.'" data-games="'.$g.'" onclick="selectGames(\''.$id.'\','.$g.',this)">'.$g.'</button>';
+            echo '<button type="button" class="games-btn" data-matchup="'.$id.'" data-games="'.$g.'" disabled>'.$g.'</button>';
         }
         echo '</div>';
-    }
-    // Hidden inputs
-    echo '<input type="hidden" name="picks[winner_'.$id.']" id="pick-winner-'.$id.'" value="">';
-    if (!$singleGame) {
-        echo '<input type="hidden" name="picks[games_'.$id.']" id="pick-games-'.$id.'" value="">';
     }
     echo '</div>';
 }
@@ -809,70 +748,11 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div><!-- bracket-grid -->
 </div><!-- bracket-wrap -->
 
-<!-- FORM APOSTAR -->
-<div style="max-width:500px;margin:2rem auto 0;">
-    <div class="pix-card">
-        <h5 style="font-weight:800;margin-bottom:1rem;text-align:center;">
-            <i class="bi bi-trophy-fill" style="color:var(--gold);"></i> <?= $allowNewPicks ? 'Enviar meu Bracket' : 'Palpites Encerrados' ?>
-        </h5>
-
-        <?php if ($erro): ?>
-        <div class="alert-dark alert-danger-dark mb-3"><?= htmlspecialchars($erro) ?></div>
-        <?php endif; ?>
-        <?php if ($sucesso): ?>
-        <div class="alert-dark alert-success-dark mb-3"><?= htmlspecialchars($sucesso) ?></div>
-        <?php endif; ?>
-
-        <div id="pixSection" style="display:<?= $sucesso ? 'block' : 'none' ?>;">
-            <div style="text-align:center;margin-bottom:1rem;">
-                <div style="font-size:2rem;">💸</div>
-                <div style="font-weight:800;font-size:1.1rem;">Pague R$ 15,00 via PIX</div>
-                <div style="font-size:.85rem;color:var(--muted);margin-top:4px;">Após o pagamento, seu bracket será confirmado em até 24h</div>
-            </div>
-            <div style="margin-bottom:.75rem;">
-                <div style="font-size:.75rem;color:var(--muted);margin-bottom:4px;">Chave PIX (Aleatória):</div>
-                <div class="pix-key" id="pixKeyText"><?= $pixKey ?></div>
-            </div>
-            <button type="button" class="btn-copy" onclick="copyPix()" style="width:100%;margin-bottom:.75rem;">
-                <i class="bi bi-clipboard"></i> Copiar chave PIX
-            </button>
-            <a href="https://api.whatsapp.com/send/?phone=5511976137741&text=Enviando%20o%20comprovante%20bracket%20nba%202026&type=phone_number&app_absent=0"
-               target="_blank" rel="noopener noreferrer"
-               style="display:block;width:100%;margin-bottom:.75rem;text-align:center;background:#1fa855;color:#fff;border-radius:8px;padding:.55rem 1rem;font-weight:700;text-decoration:none;">
-                <i class="bi bi-whatsapp"></i> Enviar comprovante no WhatsApp
-            </a>
-            <div style="background:var(--panel2);border-radius:8px;padding:.75rem;font-size:.8rem;color:var(--muted);text-align:center;">
-                Envie o comprovante para o WhatsApp: <strong style="color:var(--text);">(11) 97613-7741</strong><br>
-                Identificação: <strong style="color:var(--text);"><?= isset($_SESSION['bracket_id']) ? 'Bracket #'.$_SESSION['bracket_id'] : '' ?></strong>
-            </div>
-        </div>
-
-        <div id="formSection" style="display:<?= ($sucesso || !$allowNewPicks) ? 'none' : 'block' ?>;">
-            <div style="margin-bottom:1rem;">
-                <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px;">Seu nome completo</label>
-                <input type="text" name="nome" class="form-control-dark" placeholder="Nome do apostador" required>
-            </div>
-            <div style="margin-bottom:1.25rem;">
-                <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px;">WhatsApp</label>
-                <input type="text" name="telefone" class="form-control-dark" placeholder="(00) 00000-0000" required>
-            </div>
-            <div id="pickSummary" style="background:var(--panel2);border-radius:8px;padding:.75rem;margin-bottom:1rem;font-size:.8rem;color:var(--muted);min-height:50px;">
-                Preencha o bracket acima para ver seu resumo aqui.
-            </div>
-            <button type="submit" class="btn-apostar" id="submitBtn" disabled>
-                <i class="bi bi-send-fill"></i> Enviar Bracket &amp; Ver PIX — R$ 15,00
-            </button>
-        </div>
-
-        <?php if (!$allowNewPicks && !$sucesso): ?>
-        <div class="alert-dark" style="border-left:4px solid #f0ad4e;">
-            Novos palpites estao encerrados. Acompanhe os resultados e ranking dos participantes confirmados.
-        </div>
-        <?php endif; ?>
+<div style="max-width:700px;margin:1.5rem auto 0;">
+    <div class="alert-dark" style="border-left:4px solid #2f9f49;text-align:center;">
+        Situação oficial dos playoffs. Este bracket é atualizado pela administração e não é editável.
     </div>
 </div>
-
-</form>
 
 <!-- RANKING -->
 <div style="max-width:600px;margin:3rem auto 1rem;">
@@ -922,13 +802,12 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 </div>
 
 <script>
-// === STATE ===
-const teams = <?= json_encode($teams) ?>;
-const picks = {}; // { matchupId: { winner: 'ABB', games: N } }
+const teams = <?= json_encode($teams, JSON_UNESCAPED_UNICODE) ?>;
+const officialResults = <?= json_encode($officialResultsMap, JSON_UNESCAPED_UNICODE) ?>;
 
 const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
 const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
-const totalPicks = playInMatchups.length + seriesMatchups.length;
+const totalMatchups = playInMatchups.length + seriesMatchups.length;
 const phaseMatchups = [
     ['WP_TOP','WP_BOTTOM','WP_FINAL'],
     ['W1','W2','W3','W4'],
@@ -970,18 +849,8 @@ const baseMatchupTeams = {
     'FINAL': [null,null],
 };
 
+const picks = {};
 let matchupTeams = JSON.parse(JSON.stringify(baseMatchupTeams));
-
-function clearPick(matchupId) {
-    if (picks[matchupId]) {
-        delete picks[matchupId];
-    }
-    const winnerInput = document.getElementById('pick-winner-' + matchupId);
-    if (winnerInput) winnerInput.value = '';
-    const gamesInput = document.getElementById('pick-games-' + matchupId);
-    if (gamesInput) gamesInput.value = '';
-    document.querySelectorAll('[data-matchup="'+matchupId+'"]').forEach(b => b.classList.remove('active'));
-}
 
 function getLoser(matchupId, winnerKey) {
     const teamsInMatchup = matchupTeams[matchupId] || [];
@@ -995,40 +864,80 @@ function getValidWinner(matchupId) {
     const winner = picks[matchupId]?.winner || null;
     if (!winner) return null;
     const teamsInMatchup = matchupTeams[matchupId] || [];
-    if (!teamsInMatchup.includes(winner)) {
-        clearPick(matchupId);
-        return null;
-    }
-    return winner;
+    return teamsInMatchup.includes(winner) ? winner : null;
 }
 
 function applySeriesWinnerFeed(sourceId, targetId, slotIndex) {
-    const winner = getValidWinner(sourceId);
-    matchupTeams[targetId][slotIndex] = winner;
+    matchupTeams[targetId][slotIndex] = getValidWinner(sourceId);
+}
+
+function renderMatchupTeams(matchupId) {
+    const matchup = document.getElementById('matchup-' + matchupId);
+    if (!matchup) return;
+
+    const [t1, t2] = matchupTeams[matchupId];
+    const rows = matchup.querySelectorAll('.team-row');
+    const isSeries = seriesMatchups.includes(matchupId);
+    const pickedWinner = picks[matchupId]?.winner || null;
+    const pickedGames = parseInt(picks[matchupId]?.games, 10);
+    const loserShouldBeGray = !isSeries || (pickedGames >= 4 && pickedGames <= 7);
+
+    function updateRow(row, teamKey) {
+        if (!teamKey) {
+            row.dataset.team = '';
+            row.querySelector('.team-dot').style.background = '#333';
+            row.querySelector('.team-dot').textContent = '?';
+            row.querySelector('.team-name').textContent = '?';
+            row.querySelector('.seed-badge').textContent = '?';
+            return;
+        }
+
+        const t = teams[teamKey] || {name: teamKey, seed: '?', color: '#555', abbr: teamKey};
+        row.dataset.team = teamKey;
+        row.querySelector('.team-dot').style.background = t.color;
+        row.querySelector('.team-dot').textContent = t.abbr;
+        row.querySelector('.team-name').textContent = t.name;
+        row.querySelector('.seed-badge').textContent = t.seed;
+    }
+
+    updateRow(rows[0], t1);
+    updateRow(rows[1], t2);
+
+    rows.forEach(r => r.classList.remove('selected', 'winner-result', 'loser-result'));
+    if (pickedWinner) {
+        rows.forEach(r => {
+            if (r.dataset.team === pickedWinner) {
+                r.classList.add('selected', 'winner-result');
+            } else if (loserShouldBeGray && r.dataset.team) {
+                r.classList.add('loser-result');
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-matchup="' + matchupId + '"]').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.games, 10) === pickedGames);
+    });
+
+    matchup.classList.toggle('locked', !(t1 && t2));
 }
 
 function recomputeBracket() {
     matchupTeams = JSON.parse(JSON.stringify(baseMatchupTeams));
 
-    // WEST PLAY-IN
     const wpTopWinner = getValidWinner('WP_TOP');
     const wpBottomWinner = getValidWinner('WP_BOTTOM');
     const wpBottomLoser = getLoser('WP_BOTTOM', wpBottomWinner);
     matchupTeams['WP_FINAL'] = [wpTopWinner, wpBottomLoser];
-    const wpFinalWinner = getValidWinner('WP_FINAL');
     matchupTeams['W4'][1] = wpBottomWinner;
-    matchupTeams['W1'][1] = wpFinalWinner;
+    matchupTeams['W1'][1] = getValidWinner('WP_FINAL');
 
-    // EAST PLAY-IN
     const epTopWinner = getValidWinner('EP_TOP');
     const epBottomWinner = getValidWinner('EP_BOTTOM');
     const epBottomLoser = getLoser('EP_BOTTOM', epBottomWinner);
     matchupTeams['EP_FINAL'] = [epTopWinner, epBottomLoser];
-    const epFinalWinner = getValidWinner('EP_FINAL');
     matchupTeams['E4'][1] = epBottomWinner;
-    matchupTeams['E1'][1] = epFinalWinner;
+    matchupTeams['E1'][1] = getValidWinner('EP_FINAL');
 
-    // Bracket principal
     applySeriesWinnerFeed('W1', 'WS1', 0);
     applySeriesWinnerFeed('W2', 'WS1', 1);
     applySeriesWinnerFeed('W3', 'WS2', 0);
@@ -1044,157 +953,54 @@ function recomputeBracket() {
     applySeriesWinnerFeed('WF', 'FINAL', 0);
     applySeriesWinnerFeed('EF', 'FINAL', 1);
 
-    // Limpa jogos invalidos em series se necessario
-    seriesMatchups.forEach(id => {
-        const p = picks[id];
-        if (!p) return;
-        if (!p.winner || !matchupTeams[id].includes(p.winner)) {
-            clearPick(id);
-            return;
-        }
-        if (p.games) {
-            const g = parseInt(p.games, 10);
-            if (g < 4 || g > 7) {
-                p.games = null;
-                const gamesInput = document.getElementById('pick-games-' + id);
-                if (gamesInput) gamesInput.value = '';
-                document.querySelectorAll('[data-matchup="'+id+'"]').forEach(b => b.classList.remove('active'));
-            }
-        }
-    });
-
     Object.keys(baseMatchupTeams).forEach(renderMatchupTeams);
-
-    const finalWinner = getValidWinner('FINAL');
-    updateChampion(finalWinner);
+    updateChampion(getValidWinner('FINAL'));
 }
 
-function selectTeam(matchupId, teamKey, rowEl) {
-    const matchup = document.getElementById('matchup-' + matchupId);
-    if (!matchup) return;
-    if (matchup.classList.contains('locked')) return;
-
-    // Check team is in this matchup
-    const rows = matchup.querySelectorAll('.team-row');
-    let validTeam = false;
-    rows.forEach(r => { if (r.dataset.team === teamKey) validTeam = true; });
-    if (!validTeam) return;
-
-    picks[matchupId] = picks[matchupId] || {};
-    picks[matchupId].winner = teamKey;
-    document.getElementById('pick-winner-' + matchupId).value = teamKey;
-
-    recomputeBracket();
-    updateProgress();
-    updateSummary();
-}
-
-function renderMatchupTeams(matchupId) {
-    const matchup = document.getElementById('matchup-' + matchupId);
-    if (!matchup) return;
-    const [t1, t2] = matchupTeams[matchupId];
-    const rows = matchup.querySelectorAll('.team-row');
-
-    function updateRow(row, teamKey) {
-        if (!teamKey) {
-            row.dataset.team = '';
-            row.querySelector('.team-dot').style.background = '#333';
-            row.querySelector('.team-dot').textContent = '?';
-            row.querySelector('.team-name').textContent = '?';
-            row.querySelector('.seed-badge').textContent = '?';
-            row.setAttribute('onclick', '');
-        } else {
-            const t = teams[teamKey] || {name: teamKey, seed: '?', color:'#555', abbr: teamKey};
-            row.dataset.team = teamKey;
-            row.querySelector('.team-dot').style.background = t.color;
-            row.querySelector('.team-dot').textContent = t.abbr;
-            row.querySelector('.team-name').textContent = t.name;
-            row.querySelector('.seed-badge').textContent = t.seed;
-            row.setAttribute('onclick', `selectTeam('${matchupId}','${teamKey}',this)`);
+function hydrateOfficialResults() {
+    Object.keys(officialResults || {}).forEach(matchupId => {
+        const data = officialResults[matchupId] || {};
+        if (!data.winner && !data.games) return;
+        picks[matchupId] = {};
+        if (data.winner) {
+            picks[matchupId].winner = data.winner;
         }
-    }
-    updateRow(rows[0], t1);
-    updateRow(rows[1], t2);
-
-    // Restore selection
-    rows.forEach(r => r.classList.remove('selected'));
-    const winner = picks[matchupId]?.winner;
-    if (winner) {
-        rows.forEach(r => {
-            if (r.dataset.team === winner) r.classList.add('selected');
-        });
-    }
-
-    // Lock if no teams yet
-    const hasTeams = t1 && t2;
-    matchup.classList.toggle('locked', !hasTeams);
-}
-
-function selectGames(matchupId, games, btn) {
-    picks[matchupId] = picks[matchupId] || {};
-    picks[matchupId].games = games;
-    const gamesInput = document.getElementById('pick-games-' + matchupId);
-    if (!gamesInput) return;
-    gamesInput.value = games;
-    document.querySelectorAll('[data-matchup="'+matchupId+'"]').forEach(b => {
-        b.classList.toggle('active', parseInt(b.dataset.games) === games);
+        if (data.games) {
+            picks[matchupId].games = parseInt(data.games, 10);
+        }
     });
-    updateProgress();
-    updateSummary();
 }
 
 function updateChampion(teamKey) {
     const box = document.getElementById('championDisplay');
     const nameEl = document.getElementById('championName');
+    if (!box || !nameEl) return;
     if (!teamKey) {
         box.style.opacity = '.4';
         nameEl.textContent = '???';
-    } else {
-        const t = teams[teamKey] || {name: teamKey};
-        box.style.opacity = '1';
-        nameEl.textContent = t.name;
+        return;
     }
+    box.style.opacity = '1';
+    nameEl.textContent = teams[teamKey]?.name || teamKey;
 }
 
 function countDone() {
     let done = 0;
     playInMatchups.forEach(id => {
-        const p = picks[id];
-        if (p && p.winner) done++;
+        if (picks[id]?.winner) done++;
     });
     seriesMatchups.forEach(id => {
         const p = picks[id];
-        if (p && p.winner && p.games && parseInt(p.games, 10) >= 4 && parseInt(p.games, 10) <= 7) done++;
+        const g = parseInt(p?.games, 10);
+        if (p?.winner && g >= 4 && g <= 7) done++;
     });
     return done;
 }
 
 function updateProgress() {
     const done = countDone();
-    document.getElementById('progressLabel').textContent = done + ' / ' + totalPicks;
-    document.getElementById('progressFill').style.width = (done/totalPicks*100) + '%';
-    document.getElementById('submitBtn').disabled = done < totalPicks;
-    maybeAutoAdvancePhase();
-}
-
-function updateSummary() {
-    const done = countDone();
-    if (done === 0) {
-        document.getElementById('pickSummary').innerHTML = 'Preencha o bracket acima para ver seu resumo aqui.';
-        return;
-    }
-    const champion = picks['FINAL'] ? picks['FINAL'].winner : null;
-    const champName = champion ? (teams[champion]?.name || champion) : '???';
-    const playInDone = playInMatchups.filter(id => picks[id] && picks[id].winner).length;
-    const seriesDone = seriesMatchups.filter(id => {
-        const p = picks[id];
-        return p && p.winner && p.games && parseInt(p.games, 10) >= 4 && parseInt(p.games, 10) <= 7;
-    }).length;
-    document.getElementById('pickSummary').innerHTML =
-        `<strong style="color:#fff;">Resumo:</strong> ${done}/${totalPicks} palpites &bull; ` +
-        `Play-in: <strong style="color:#fff;">${playInDone}/6</strong> &bull; ` +
-        `Series: <strong style="color:#fff;">${seriesDone}/15</strong> &bull; ` +
-        `Campeão: <strong style="color:var(--gold);">${champName}</strong>`;
+    document.getElementById('progressLabel').textContent = done + ' / ' + totalMatchups;
+    document.getElementById('progressFill').style.width = (done / totalMatchups * 100) + '%';
 }
 
 function isMatchupComplete(matchupId) {
@@ -1258,15 +1064,7 @@ function syncPhaseByScrollPosition() {
 }
 
 function maybeAutoAdvancePhase() {
-    if (!mobilePhaseMedia.matches || !phaseCols.length) return;
-    if (!isPhaseComplete(phaseIndex)) return;
-
-    for (let i = phaseIndex + 1; i < phaseCols.length; i++) {
-        if (!isPhaseComplete(i)) {
-            scrollToPhase(i, true);
-            return;
-        }
-    }
+    return;
 }
 
 function initMobilePhaseUI() {
@@ -1298,32 +1096,12 @@ function initMobilePhaseUI() {
 }
 
 // Init dynamic state
+hydrateOfficialResults();
 recomputeBracket();
 initMobilePhaseUI();
 updateProgress();
-updateSummary();
 
 window.addEventListener('resize', initMobilePhaseUI);
-
-function copyPix() {
-    const key = document.getElementById('pixKeyText').textContent;
-    navigator.clipboard.writeText(key).then(() => {
-        const btn = document.querySelector('.btn-copy');
-        btn.textContent = 'Copiado!';
-        setTimeout(() => btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar chave PIX', 2000);
-    });
-}
-
-const bracketForm = document.getElementById('bracketForm');
-if (bracketForm) {
-    bracketForm.addEventListener('submit', () => {
-        const submitBtn = document.getElementById('submitBtn');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
-        }
-    });
-}
 </script>
 </body>
 </html>
