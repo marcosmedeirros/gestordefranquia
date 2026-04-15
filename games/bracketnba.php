@@ -67,6 +67,8 @@ $firstRound = [
     'E1' => ['DET','E8'], 'E2' => ['CLE','TOR'], 'E3' => ['NYK','ATL'], 'E4' => ['BOS','E7'],
 ];
 
+$winnerMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL','W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
+
 // --- RESULTADOS OFICIAIS ---
 $stmtResults = $pdo->query("SELECT matchup_id, winner, games FROM nba_bracket_resultados");
 $officialResultsRows = $stmtResults->fetchAll(PDO::FETCH_ASSOC);
@@ -76,6 +78,42 @@ foreach ($officialResultsRows as $row) {
         'winner' => $row['winner'] !== null ? (string)$row['winner'] : null,
         'games' => $row['games'] !== null ? (int)$row['games'] : null,
     ];
+}
+
+// --- POPULARIDADE DOS PALPITES (por confronto/time) ---
+$stmtPicksPopularity = $pdo->query("SELECT a.picks
+    FROM nba_bracket_apostadores a
+    INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM nba_bracket_apostadores
+        WHERE status_pagamento='confirmado'
+        GROUP BY nome, telefone, MD5(COALESCE(CAST(picks AS CHAR(10000)), ''))
+    ) d ON d.id = a.id
+    WHERE a.status_pagamento='confirmado'
+");
+$rowsPopularity = $stmtPicksPopularity->fetchAll(PDO::FETCH_ASSOC);
+
+$matchupPopularityCounts = [];
+foreach ($winnerMatchups as $m) {
+    $matchupPopularityCounts[$m] = [];
+}
+
+foreach ($rowsPopularity as $row) {
+    $pp = json_decode($row['picks'] ?? '{}', true);
+    if (!is_array($pp)) {
+        continue;
+    }
+    foreach ($winnerMatchups as $m) {
+        $wk = 'winner_'.$m;
+        $teamCode = $pp[$wk] ?? null;
+        if (!is_string($teamCode) || $teamCode === '') {
+            continue;
+        }
+        if (!isset($matchupPopularityCounts[$m][$teamCode])) {
+            $matchupPopularityCounts[$m][$teamCode] = 0;
+        }
+        $matchupPopularityCounts[$m][$teamCode]++;
+    }
 }
 
 // --- CARREGAR RANKING ---
@@ -804,6 +842,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 <script>
 const teams = <?= json_encode($teams, JSON_UNESCAPED_UNICODE) ?>;
 const officialResults = <?= json_encode($officialResultsMap, JSON_UNESCAPED_UNICODE) ?>;
+const matchupPopularityCounts = <?= json_encode($matchupPopularityCounts, JSON_UNESCAPED_UNICODE) ?>;
 
 const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
 const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
@@ -871,6 +910,15 @@ function applySeriesWinnerFeed(sourceId, targetId, slotIndex) {
     matchupTeams[targetId][slotIndex] = getValidWinner(sourceId);
 }
 
+function getTeamPickPercent(matchupId, teamKey) {
+    if (!teamKey) return 0;
+    const byTeam = matchupPopularityCounts[matchupId] || {};
+    const total = Object.values(byTeam).reduce((acc, n) => acc + (parseInt(n, 10) || 0), 0);
+    if (total <= 0) return 0;
+    const count = parseInt(byTeam[teamKey] || 0, 10);
+    return Math.round((count / total) * 100);
+}
+
 function renderMatchupTeams(matchupId) {
     const matchup = document.getElementById('matchup-' + matchupId);
     if (!matchup) return;
@@ -893,10 +941,11 @@ function renderMatchupTeams(matchupId) {
         }
 
         const t = teams[teamKey] || {name: teamKey, seed: '?', color: '#555', abbr: teamKey};
+        const pickPct = getTeamPickPercent(matchupId, teamKey);
         row.dataset.team = teamKey;
         row.querySelector('.team-dot').style.background = t.color;
         row.querySelector('.team-dot').textContent = t.abbr;
-        row.querySelector('.team-name').textContent = t.name;
+        row.querySelector('.team-name').textContent = `${t.name} | ${pickPct}%`;
         row.querySelector('.seed-badge').textContent = t.seed;
     }
 
