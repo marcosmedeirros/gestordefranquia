@@ -62,6 +62,7 @@ $firstRound = [
 
 // --- SALVAR APOSTAS ---
 $erro = ''; $sucesso = '';
+$allowNewPicks = false;
 
 if (empty($_SESSION['bracket_submit_token'])) {
     $_SESSION['bracket_submit_token'] = bin2hex(random_bytes(16));
@@ -72,11 +73,15 @@ if (isset($_GET['saved']) && $_GET['saved'] === '1' && !empty($_SESSION['bracket
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apostar') {
+    if (!$allowNewPicks) {
+        $erro = 'Novos palpites estao encerrados no momento.';
+    }
+
     $postedToken = $_POST['submit_token'] ?? '';
     $sessionToken = $_SESSION['bracket_submit_token'] ?? '';
 
     // Idempotencia: o mesmo token so pode ser processado uma vez
-    if (!is_string($postedToken) || $postedToken === '' || !hash_equals($sessionToken, $postedToken)) {
+    if (!$erro && (!is_string($postedToken) || $postedToken === '' || !hash_equals($sessionToken, $postedToken))) {
         if (!empty($_SESSION['bracket_id'])) {
             header('Location: bracketnba.php?saved=1');
             exit;
@@ -137,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // --- CARREGAR RANKING ---
-$ranking = $pdo->query("SELECT a.nome, a.pontos, a.status_pagamento, a.created_at
+$ranking = $pdo->query("SELECT a.nome, a.pontos, a.status_pagamento, a.created_at, a.picks
     FROM nba_bracket_apostadores a
     INNER JOIN (
         SELECT MAX(id) AS id
@@ -147,6 +152,13 @@ $ranking = $pdo->query("SELECT a.nome, a.pontos, a.status_pagamento, a.created_a
     ) d ON d.id = a.id
     WHERE a.status_pagamento='confirmado'
     ORDER BY a.pontos DESC, a.created_at ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($ranking as &$rk) {
+    $rowPicks = json_decode($rk['picks'] ?? '{}', true);
+    $champCode = (is_array($rowPicks) && !empty($rowPicks['winner_FINAL'])) ? (string)$rowPicks['winner_FINAL'] : '';
+    $rk['champion_name'] = $champCode !== '' ? ($teams[$champCode]['name'] ?? $champCode) : '';
+}
+unset($rk);
 
 $pixKey = '2ad96ba4-aeaa-49be-a43a-d9f0e463a6b2';
 ?>
@@ -801,7 +813,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
 <div style="max-width:500px;margin:2rem auto 0;">
     <div class="pix-card">
         <h5 style="font-weight:800;margin-bottom:1rem;text-align:center;">
-            <i class="bi bi-trophy-fill" style="color:var(--gold);"></i> Enviar meu Bracket
+            <i class="bi bi-trophy-fill" style="color:var(--gold);"></i> <?= $allowNewPicks ? 'Enviar meu Bracket' : 'Palpites Encerrados' ?>
         </h5>
 
         <?php if ($erro): ?>
@@ -835,7 +847,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
             </div>
         </div>
 
-        <div id="formSection" style="display:<?= $sucesso ? 'none' : 'block' ?>;">
+        <div id="formSection" style="display:<?= ($sucesso || !$allowNewPicks) ? 'none' : 'block' ?>;">
             <div style="margin-bottom:1rem;">
                 <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:4px;">Seu nome completo</label>
                 <input type="text" name="nome" class="form-control-dark" placeholder="Nome do apostador" required>
@@ -851,6 +863,12 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
                 <i class="bi bi-send-fill"></i> Enviar Bracket &amp; Ver PIX — R$ 15,00
             </button>
         </div>
+
+        <?php if (!$allowNewPicks && !$sucesso): ?>
+        <div class="alert-dark" style="border-left:4px solid #f0ad4e;">
+            Novos palpites estao encerrados. Acompanhe os resultados e ranking dos participantes confirmados.
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -874,7 +892,7 @@ function matchupCard($id, $t1key, $t2key, $teams, $col, $singleGame = false) {
     <div class="rank-card mb-2">
         <div class="rank-num <?= $cls ?>"><?= $medal ?></div>
         <div style="flex:1;">
-            <div style="font-weight:700;"><?= htmlspecialchars($r['nome']) ?></div>
+            <div style="font-weight:700;"><?= htmlspecialchars($r['nome']) ?><?= !empty($r['champion_name']) ? ' (' . htmlspecialchars($r['champion_name']) . ')' : '' ?></div>
         </div>
         <div style="font-size:1.25rem;font-weight:900;color:var(--gold);"><?= $r['pontos'] ?> pts</div>
     </div>

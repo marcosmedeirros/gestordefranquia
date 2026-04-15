@@ -154,7 +154,7 @@ if ($statusFilter !== 'todos') {
     $params[] = $statusFilter;
 }
 
-$stmtList = $pdo->prepare("SELECT a.id, a.nome, a.telefone, a.status_pagamento, a.pontos, a.created_at
+$stmtList = $pdo->prepare("SELECT a.id, a.nome, a.telefone, a.status_pagamento, a.pontos, a.created_at, a.picks
     FROM nba_bracket_apostadores a
     INNER JOIN (
         SELECT MAX(id) AS id
@@ -170,6 +170,58 @@ $stmtList = $pdo->prepare("SELECT a.id, a.nome, a.telefone, a.status_pagamento, 
 ");
 $stmtList->execute($params);
 $apostadores = $stmtList->fetchAll(PDO::FETCH_ASSOC);
+
+$stmtPicksPopularity = $pdo->query("SELECT a.picks
+    FROM nba_bracket_apostadores a
+    INNER JOIN (
+        SELECT MAX(id) AS id
+        FROM nba_bracket_apostadores
+        GROUP BY nome, telefone, MD5(COALESCE(CAST(picks AS CHAR(10000)), ''))
+    ) d ON d.id = a.id
+    WHERE a.status_pagamento <> 'rejeitado'
+");
+$rowsPopularity = $stmtPicksPopularity->fetchAll(PDO::FETCH_ASSOC);
+
+$matchupPopularityCounts = [];
+foreach ($winnerMatchups as $m) {
+    $matchupPopularityCounts[$m] = [];
+}
+
+foreach ($rowsPopularity as $row) {
+    $pp = json_decode($row['picks'] ?? '{}', true);
+    if (!is_array($pp)) {
+        continue;
+    }
+    foreach ($winnerMatchups as $m) {
+        $wk = 'winner_'.$m;
+        $teamCode = $pp[$wk] ?? null;
+        if (!is_string($teamCode) || $teamCode === '') {
+            continue;
+        }
+        if (!isset($matchupPopularityCounts[$m][$teamCode])) {
+            $matchupPopularityCounts[$m][$teamCode] = 0;
+        }
+        $matchupPopularityCounts[$m][$teamCode]++;
+    }
+}
+
+$mostPickedByMatchup = [];
+foreach ($matchupPopularityCounts as $m => $teamCounts) {
+    if (empty($teamCounts)) {
+        continue;
+    }
+    arsort($teamCounts);
+    $topTeam = array_key_first($teamCounts);
+    $topCount = (int)$teamCounts[$topTeam];
+    $totalCount = (int)array_sum($teamCounts);
+    $pct = $totalCount > 0 ? (int)round(($topCount / $totalCount) * 100) : 0;
+    $mostPickedByMatchup[$m] = [
+        'team' => $topTeam,
+        'count' => $topCount,
+        'total' => $totalCount,
+        'pct' => $pct,
+    ];
+}
 
 $stmtResults = $pdo->query("SELECT matchup_id, winner, games FROM nba_bracket_resultados");
 $officialResultsRows = $stmtResults->fetchAll(PDO::FETCH_ASSOC);
@@ -238,6 +290,7 @@ function matchupCardAdmin($id, $t1key, $t2key, $teams, $singleGame = false) {
     if (!$singleGame) {
         echo '<input type="hidden" name="results[games_'.$id.']" id="result-games-'.$id.'" value="">';
     }
+    echo '<div class="popularity-hint" id="popularity-'.$id.'"></div>';
     echo '</div>';
 }
 ?>
@@ -405,6 +458,19 @@ body {
     background: linear-gradient(90deg, rgba(47,159,73,.22), transparent);
     border-left: 3px solid #2f9f49;
 }
+.team-row.winner-result {
+    background: linear-gradient(90deg, rgba(47,159,73,.26), transparent);
+    border-left: 3px solid #2f9f49;
+}
+.team-row.loser-result {
+    background: rgba(255,255,255,.03);
+    color: #8d94ab;
+    filter: grayscale(1);
+}
+.team-row.loser-result .team-name,
+.team-row.loser-result .seed-badge {
+    color: #8d94ab;
+}
 .seed-badge {
     min-width: 16px;
     text-align: center;
@@ -448,6 +514,13 @@ body {
 .games-btn.active {
     background: #2f9f49;
     border-color: #2f9f49;
+}
+.popularity-hint {
+    border-top: 1px dashed var(--border);
+    padding: 5px 8px;
+    font-size: .67rem;
+    color: #aeb4c8;
+    min-height: 24px;
 }
 .finals-col .trophy { font-size: 2rem; text-align: center; }
 .finals-col .finals-title {
@@ -579,11 +652,14 @@ body {
                 $isConfirmado = $a['status_pagamento'] === 'confirmado';
                 $isPendente = $a['status_pagamento'] === 'pendente';
                 $isRejeitado = $a['status_pagamento'] === 'rejeitado';
+                $picksRow = json_decode($a['picks'] ?? '{}', true);
+                $champCode = (is_array($picksRow) && !empty($picksRow['winner_FINAL'])) ? (string)$picksRow['winner_FINAL'] : '';
+                $champName = $champCode !== '' ? ($teams[$champCode]['name'] ?? $champCode) : '';
             ?>
             <div class="admin-card <?= $isPendente ? 'pending' : '' ?> <?= $isRejeitado ? 'rejected' : '' ?>">
                 <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                     <div>
-                        <div class="fw-bold"><?= htmlspecialchars($a['nome']) ?></div>
+                        <div class="fw-bold"><?= htmlspecialchars($a['nome']) ?><?= $champName !== '' ? ' (' . htmlspecialchars($champName) . ')' : '' ?></div>
                         <div class="meta"><?= htmlspecialchars($a['telefone']) ?> | #<?= (int)$a['id'] ?> | <?= date('d/m/Y H:i', strtotime($a['created_at'])) ?></div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -609,6 +685,7 @@ body {
 <script>
 const teams = <?= json_encode($teams, JSON_UNESCAPED_UNICODE) ?>;
 const officialResults = <?= json_encode($officialResultsMap, JSON_UNESCAPED_UNICODE) ?>;
+const mostPickedByMatchup = <?= json_encode($mostPickedByMatchup, JSON_UNESCAPED_UNICODE) ?>;
 
 const playInMatchups = ['WP_TOP','WP_BOTTOM','WP_FINAL','EP_TOP','EP_BOTTOM','EP_FINAL'];
 const seriesMatchups = ['W1','W2','W3','W4','E1','E2','E3','E4','WS1','WS2','ES1','ES2','WF','EF','FINAL'];
@@ -731,13 +808,38 @@ function renderMatchup(matchupId) {
     updateRow(rows[0], t1);
     updateRow(rows[1], t2);
 
-    rows.forEach(r => r.classList.remove('selected'));
+    rows.forEach(r => r.classList.remove('selected', 'winner-result', 'loser-result'));
     const winner = picks[matchupId]?.winner;
+    const isSeries = seriesMatchups.includes(matchupId);
+    const games = parseInt(picks[matchupId]?.games, 10);
+    const loserShouldBeGray = !isSeries || (games >= 4 && games <= 7);
+
     if (winner) {
-        rows.forEach(r => { if (r.dataset.team === winner) r.classList.add('selected'); });
+        rows.forEach(r => {
+            if (r.dataset.team === winner) {
+                r.classList.add('selected', 'winner-result');
+            } else if (loserShouldBeGray && r.dataset.team) {
+                r.classList.add('loser-result');
+            }
+        });
     }
 
+    renderPopularityHint(matchupId);
+
     matchup.classList.toggle('locked', !(t1 && t2));
+}
+
+function renderPopularityHint(matchupId) {
+    const el = document.getElementById('popularity-' + matchupId);
+    if (!el) return;
+    const info = mostPickedByMatchup[matchupId];
+    if (!info || !info.team) {
+        el.textContent = 'Mais palpitado: -';
+        return;
+    }
+
+    const teamName = teams[info.team]?.name || info.team;
+    el.innerHTML = `<i class="bi bi-graph-up-arrow me-1"></i>Mais palpitado: <strong>${teamName}</strong> (${info.pct}% | ${info.count}/${info.total})`;
 }
 
 function updateChampion(teamKey) {
