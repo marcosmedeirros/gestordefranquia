@@ -279,7 +279,6 @@ if ($teamId) {
       <div class="alert alert-warning">Você ainda não possui um time. Crie um no onboarding.</div>
     <?php else: ?>
     
-    <?php if (in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT'], true)): ?>
     <div class="card bg-dark-panel border-orange mb-4">
       <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
@@ -353,7 +352,6 @@ if ($teamId) {
         </div>
       </div>
     </div>
-    <?php endif; ?>
 
     <div class="card bg-dark-panel border-orange">
       <div class="card-header bg-transparent border-orange d-flex justify-content-between align-items-center flex-wrap gap-2">
