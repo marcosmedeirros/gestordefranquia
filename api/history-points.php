@@ -386,8 +386,14 @@ try {
                 foreach ($teamPoints as $tp) {
                     $teamId = $tp['team_id'];
                     $points = intval($tp['points']);
+
+                    // Evita corrida em cliques/requisições duplicadas para o mesmo time
+                    // dentro da mesma liga/temporada, serializando a atualização por team_id.
+                    $stmtTeamLock = $pdo->prepare("SELECT id FROM teams WHERE id = ? FOR UPDATE");
+                    $stmtTeamLock->execute([$teamId]);
+
                     $prevPoints = 0;
-                    $stmtPrev = $pdo->prepare("SELECT points FROM team_season_points WHERE team_id = ? AND season_id = ? LIMIT 1");
+                    $stmtPrev = $pdo->prepare("SELECT points FROM team_season_points WHERE team_id = ? AND season_id = ? LIMIT 1 FOR UPDATE");
                     $stmtPrev->execute([$teamId, $seasonId]);
                     $prevRow = $stmtPrev->fetch(PDO::FETCH_ASSOC);
                     if ($prevRow) {

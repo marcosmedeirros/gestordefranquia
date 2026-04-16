@@ -1130,6 +1130,26 @@ try {
                     $stats['awards_points']
                 ]);
             }
+
+            // 4. Recalcular títulos acumulados da liga com base nos campeões já registrados.
+            // Faz recomputação total para evitar dupla contagem em reedições da mesma temporada.
+            if (!columnExists($pdo, 'teams', 'ranking_titles')) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
+            }
+
+            $stmtRebuildTitles = $pdo->prepare("\
+                UPDATE teams t
+                LEFT JOIN (
+                    SELECT pr.team_id, COUNT(*) AS total_titles
+                    FROM playoff_results pr
+                    JOIN seasons s ON s.id = pr.season_id
+                    WHERE pr.position = 'champion' AND s.league = ?
+                    GROUP BY pr.team_id
+                ) titles ON titles.team_id = t.id
+                SET t.ranking_titles = COALESCE(titles.total_titles, 0)
+                WHERE t.league = ?
+            ");
+            $stmtRebuildTitles->execute([$league, $league]);
             
             // Marcar temporada como completa
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);

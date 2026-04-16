@@ -145,8 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $validate_run_score($score);
 
             $milestones = intdiv(max(0, $score), 10);
-            // Moedas base por milestones
-            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
+            // Moedas base por milestones (ajuste: dobrar recompensa do Flappy)
+            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * 2 * $pointsMultiplier);
 
             $pdo->beginTransaction();
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
