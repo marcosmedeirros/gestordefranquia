@@ -144,9 +144,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         try {
             $validate_run_score($score);
 
-            $milestones = intdiv(max(0, $score), 10);
-            // Moedas base por milestones (ajuste: dobrar recompensa do Flappy)
-            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * 2 * $pointsMultiplier);
+            $milestones = intdiv(max(0, $score), 5);
+            // Moedas base por milestones (1 milestone a cada 5 canos)
+            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
 
             $pdo->beginTransaction();
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
@@ -395,9 +395,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                         ctx.fillStyle = '#FFF'; ctx.fillRect(0,0,canvas.width,canvas.height);
                     }
 
-                    if(score % 10 === 0) {
-                        // Moedas a cada 10 pontos
-                        const reward = (1 + (score / 10)) * rewardMultiplier;
+                    if(score % 5 === 0) {
+                        // Moedas a cada 5 canos
+                        const reward = (1 + (score / 5)) * rewardMultiplier;
                         coinsEarned += reward;
                         showFloatingText(`+${reward} MOEDAS`, bird.x, bird.y - 30);
                     }
