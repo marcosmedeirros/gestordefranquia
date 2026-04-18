@@ -669,13 +669,27 @@ try {
             $stmtSeason = $pdo->prepare("
                 SELECT s.*, sp.start_year, sp.id as sprint_id, sp.sprint_number
                 FROM seasons s
-                INNER JOIN sprints sp ON s.sprint_id = sp.id
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
                 WHERE $whereClause
                 ORDER BY s.id DESC
                 LIMIT 1
             ");
             $stmtSeason->execute($params);
             $season = $stmtSeason->fetch(PDO::FETCH_ASSOC);
+
+            // Fallback: quando season_id vier com id da sprint por engano.
+            if (!$season && $seasonId > 0) {
+                $stmtSeasonBySprint = $pdo->prepare("
+                    SELECT s.*, sp.start_year, sp.id as sprint_id, sp.sprint_number
+                    FROM seasons s
+                    LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                    WHERE s.sprint_id = ? AND s.league = ?
+                    ORDER BY s.id DESC
+                    LIMIT 1
+                ");
+                $stmtSeasonBySprint->execute([$seasonId, $league]);
+                $season = $stmtSeasonBySprint->fetch(PDO::FETCH_ASSOC);
+            }
 
             if (!$season) {
                 throw new Exception('Temporada não encontrada para ajustar picks.');
