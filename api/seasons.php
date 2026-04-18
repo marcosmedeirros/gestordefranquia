@@ -284,7 +284,7 @@ ensureLeagueSprintDefaults($pdo);
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player', 
                  'update_draft_player', 'delete_draft_player', 'assign_draft_pick', 
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
-                 'adjust_picks'];
+                 'adjust_picks', 'run_picks'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -633,10 +633,17 @@ try {
 
         // ========== AJUSTAR PICKS DO SPRINT (ADMIN) ==========
         case 'adjust_picks':
-            if ($method !== 'POST') throw new Exception('Método inválido');
+        case 'run_picks':
+            if (!in_array($method, ['POST', 'GET'], true)) throw new Exception('Método inválido');
 
-            $data = json_decode(file_get_contents('php://input'), true);
-            $league = isset($data['league']) ? strtoupper($data['league']) : null;
+            $data = [];
+            if ($method === 'POST') {
+                $data = json_decode(file_get_contents('php://input'), true) ?: [];
+            } else {
+                $data = $_GET;
+            }
+
+            $league = isset($data['league']) ? strtoupper((string)$data['league']) : null;
             $seasonId = isset($data['season_id']) ? (int)$data['season_id'] : 0;
             $requestedStartYear = isset($data['start_year']) ? (int)$data['start_year'] : 0;
 
@@ -685,6 +692,7 @@ try {
             echo json_encode([
                 'success' => true,
                 'message' => 'Picks do sprint ajustadas.',
+                'action' => $action,
                 'target_years' => $targetYears,
                 'stats' => $stats
             ]);
