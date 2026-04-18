@@ -17,5 +17,6 @@ return [
         'cap_min' => 618,
         'cap_max' => 648,
         'debug_reset_link' => getenv('FBA_DEBUG_RESET_LINK') ?: false,
+        'run_picks_token' => '597737f33985463d9441cfaa71168a60f56305e65150483a853d1f81e13b7c8d',
     ],
 ];
