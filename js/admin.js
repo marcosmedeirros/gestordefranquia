@@ -406,10 +406,13 @@ async function showLeague(league) {
 <div class="row g-3">${teams.map(t => `<div class="col-md-6 col-lg-4 col-xl-3"><div class="team-card" onclick="showTeam(${t.id})">
 <div class="d-flex align-items-center"><img src="${t.photo_url || '/img/default-team.png'}" class="team-logo me-3"><div class="flex-grow-1">
 <h5 class="mb-0">${t.city}</h5><h5 class="mb-0">${t.name}</h5><small class="text-muted">${t.owner_name}</small></div></div>
-<hr class="my-2" style="border-color:var(--fba-border);"><div class="d-flex justify-content-between">
+<hr class="my-2" style="border-color:var(--fba-border);"><div class="d-flex justify-content-between flex-wrap gap-1">
 <small class="text-light-gray"><i class="bi bi-people-fill text-orange me-1"></i>${t.player_count}</small>
 <small class="text-light-gray"><i class="bi bi-star-fill text-orange me-1"></i>${t.cap_top8}</small>
-<small class="text-light-gray"><i class="bi bi-hand-index-thumb text-warning me-1"></i>${parseInt(t.tapas || 0)}</small></div></div></div>`).join('')}</div>`;
+<small class="text-light-gray"><i class="bi bi-hand-index-thumb text-warning me-1"></i>${parseInt(t.tapas || 0)}</small>
+<small class="text-light-gray"><i class="bi bi-arrow-left-right text-info me-1"></i>${parseInt(t.trades_used || 0)}</small>
+<small class="text-light-gray"><i class="bi bi-person-dash text-success me-1"></i>${parseInt(t.waivers_used || 0)}</small>
+</div></div></div>`).join('')}</div>`;
 
     setupLeaguePlayerSearch(league);
   } catch (e) {
@@ -484,7 +487,15 @@ async function showTeam(teamId) {
 <p class="text-light-gray mb-0"><strong>Liga:</strong> <span class="badge bg-gradient-orange">${t.league}</span></p></div>
 <div class="col-md-4 text-end"><button class="btn btn-outline-orange mb-2 w-100" onclick="editTeam(${t.id})"><i class="bi bi-pencil-fill me-2"></i>Editar</button>
 <div class="bg-dark rounded p-3 mb-2"><h4 class="text-orange mb-0">${t.cap_top8}</h4><small class="text-light-gray">CAP Top 8</small></div>
-<div class="bg-dark rounded p-3"><h4 class="text-warning mb-0">${parseInt(t.tapas || 0)}</h4><small class="text-light-gray">Tapas</small></div></div></div></div>
+<div class="bg-dark rounded p-3 mb-2"><h4 class="text-warning mb-0">${parseInt(t.tapas || 0)}</h4><small class="text-light-gray">Tapas</small></div>
+<div class="bg-dark rounded p-3 mb-2 d-flex justify-content-between align-items-center">
+  <div><h4 class="text-info mb-0" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</h4><small class="text-light-gray">Trocas feitas</small></div>
+  <button class="btn btn-sm btn-outline-info" onclick="editTeamCounter(${t.id}, 'trades_used', ${parseInt(t.trades_used || 0)})"><i class="bi bi-pencil-fill"></i></button>
+</div>
+<div class="bg-dark rounded p-3 d-flex justify-content-between align-items-center">
+  <div><h4 class="text-success mb-0" id="waiversUsedDisplay">${parseInt(t.waivers_used || 0)}</h4><small class="text-light-gray">Dispensas feitas</small></div>
+  <button class="btn btn-sm btn-outline-success" onclick="editTeamCounter(${t.id}, 'waivers_used', ${parseInt(t.waivers_used || 0)})"><i class="bi bi-pencil-fill"></i></button>
+</div></div></div></div>
 <ul class="nav nav-tabs mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#roster-tab">Elenco (${t.players.length})</button></li>
 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#picks-tab">Picks (${t.picks ? t.picks.length : 0})</button></li></ul>
 <div class="tab-content">
@@ -512,6 +523,26 @@ ${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="t
 </div></div>`;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar time</div>';
+  }
+}
+
+async function editTeamCounter(teamId, field, currentValue) {
+  const labels = { trades_used: 'Trocas feitas', waivers_used: 'Dispensas feitas' };
+  const displayIds = { trades_used: 'tradesUsedDisplay', waivers_used: 'waiversUsedDisplay' };
+  const label = labels[field] || field;
+  const newVal = prompt(`Novo valor para "${label}" (atual: ${currentValue}):`, currentValue);
+  if (newVal === null) return;
+  const parsed = parseInt(newVal, 10);
+  if (isNaN(parsed) || parsed < 0) return alert('Valor inválido. Informe um número inteiro >= 0.');
+  try {
+    await api('admin.php?action=team', {
+      method: 'PUT',
+      body: JSON.stringify({ team_id: teamId, [field]: parsed })
+    });
+    const el = document.getElementById(displayIds[field]);
+    if (el) el.textContent = parsed;
+  } catch (e) {
+    alert('Erro ao atualizar: ' + (e.error || 'Desconhecido'));
   }
 }
 
@@ -1230,6 +1261,7 @@ async function revertMultiTrade(tradeId) {
 function addPlayer(teamId) {
   const modal = document.createElement('div');
   modal.className = 'modal fade';
+  modal.id = 'addPlayerModal';
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
 <h5 class="modal-title text-white">Adicionar Jogador</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
 <div class="modal-body">
@@ -1269,7 +1301,7 @@ function addPlayer(teamId) {
 </div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
-  
+
   document.body.appendChild(modal);
   new bootstrap.Modal(modal).show();
   modal.addEventListener('hidden.bs.modal', () => modal.remove());
@@ -1293,11 +1325,12 @@ async function saveNewPlayer(teamId) {
   
   try {
     await api('admin.php?action=player', { method: 'POST', body: JSON.stringify(data) });
-    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    const modalEl = document.getElementById('addPlayerModal');
+    if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
     await showTeam(teamId);
     alert('Jogador adicionado!');
-  } catch (e) { 
-    alert('Erro ao adicionar jogador: ' + (e.error || 'Desconhecido')); 
+  } catch (e) {
+    alert('Erro ao adicionar jogador: ' + (e.error || 'Desconhecido'));
   }
 }
 

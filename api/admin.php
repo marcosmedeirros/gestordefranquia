@@ -297,9 +297,11 @@ if ($method === 'GET') {
             $league = $_GET['league'] ?? null;
             
             $query = "
-                SELECT 
+                SELECT
                     t.id, t.city, t.name, t.mascot, t.league, t.conference, t.photo_url,
                     COALESCE(t.tapas, 0) as tapas,
+                    COALESCE(t.trades_used, 0) as trades_used,
+                    COALESCE(t.waivers_used, 0) as waivers_used,
                     u.name as owner_name, u.email as owner_email,
                     d.name as division_name,
                     (SELECT COUNT(*) FROM players WHERE team_id = t.id) as player_count
@@ -1115,6 +1117,14 @@ if ($method === 'PUT') {
             if ($divisionId !== null) {
                 $updates[] = 'division_id = ?';
                 $params[] = $divisionId;
+            }
+            if (isset($data['trades_used'])) {
+                $updates[] = 'trades_used = ?';
+                $params[] = max(0, (int)$data['trades_used']);
+            }
+            if (isset($data['waivers_used'])) {
+                $updates[] = 'waivers_used = ?';
+                $params[] = max(0, (int)$data['waivers_used']);
             }
 
             if (empty($updates)) {
