@@ -503,7 +503,7 @@ async function carregarLeiloesAtivos() {
                             <p class="mb-1"><i class="bi bi-star-fill text-warning"></i> OVR: ${leilao.ovr}</p>
                             <p class="mb-1"><i class="bi bi-building"></i> Time: ${teamLabel}</p>
                             <p class="mb-2"><i class="bi bi-trophy"></i> Liga: ${leilao.league_name}</p>
-                            ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}">20:00</span></p>` : ''}
+                            ${leilao.data_fim ? `<p class="mb-2"><i class="bi bi-clock"></i> <span class="auction-timer" data-end-time="${leilao.data_fim}"${leilao.data_fim_ts ? ` data-end-ts="${Number(leilao.data_fim_ts) * 1000}"` : ''}>20:00</span></p>` : ''}
                             <hr>
                             <p class="mb-2 d-flex align-items-center justify-content-between">
                                 <span><i class="bi bi-chat-dots"></i> Propostas: <span class="badge bg-info">${leilao.total_propostas || 0}</span></span>
@@ -912,19 +912,24 @@ function iniciarCronometros() {
             if (!endTime) return;
             let end = Number(timer.getAttribute('data-end-fixed') || 0);
             if (!end) {
-                const normalized = endTime.replace(' ', 'T');
-                const endLocal = new Date(normalized).getTime();
-                const endUtc = new Date(normalized + 'Z').getTime();
-                const target = 20 * 60 * 1000;
-                const diffLocal = endLocal - now;
-                const diffUtc = endUtc - now;
-                const pickLocal = Math.abs(diffLocal - target) <= Math.abs(diffUtc - target);
-                end = pickLocal ? endLocal : endUtc;
-                if (Number.isNaN(end)) {
-                    return;
-                }
-                if (end - now > target * 2) {
-                    end = now + target;
+                const endTs = Number(timer.getAttribute('data-end-ts') || 0);
+                if (endTs) {
+                    end = endTs;
+                } else {
+                    const normalized = endTime.replace(' ', 'T');
+                    const endLocal = new Date(normalized).getTime();
+                    const endUtc = new Date(normalized + 'Z').getTime();
+                    const target = 20 * 60 * 1000;
+                    const diffLocal = endLocal - now;
+                    const diffUtc = endUtc - now;
+                    const pickLocal = Math.abs(diffLocal - target) <= Math.abs(diffUtc - target);
+                    end = pickLocal ? endLocal : endUtc;
+                    if (Number.isNaN(end)) {
+                        return;
+                    }
+                    if (end - now > target * 2) {
+                        end = now + target;
+                    }
                 }
                 timer.setAttribute('data-end-fixed', String(end));
             }

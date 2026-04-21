@@ -306,7 +306,8 @@ function listarLeiloesAtivos($pdo, $league_id) {
                    COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
                    t.name as team_name,
                    lg.name as league_name,
-                   (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
+                   (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas,
+                   UNIX_TIMESTAMP(l.data_fim) as data_fim_ts
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
