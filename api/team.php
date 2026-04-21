@@ -203,6 +203,7 @@ if ($method === 'GET') {
         }
 
         $playerName = (string)($player['name'] ?? '');
+        $playerLeague = (string)($player['league'] ?? ($user['league'] ?? ''));
         $ovrColumn = playerOvrColumnForDetails($pdo);
 
         $stmtTrades = $pdo->prepare("
@@ -228,10 +229,11 @@ if ($method === 'GET') {
             JOIN teams to_team ON t.to_team_id = to_team.id
                         WHERE ti.pick_id IS NULL
                             AND t.status = 'accepted'
+                            AND t.league = ?
                             AND (ti.player_id = ? OR (ti.player_id IS NULL AND ti.player_name = ?))
             ORDER BY t.created_at DESC
         ");
-        $stmtTrades->execute([$playerId, $playerName]);
+        $stmtTrades->execute([$playerLeague, $playerId, $playerName]);
         $tradeRows = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
 
         $multiRows = [];
@@ -259,10 +261,11 @@ if ($method === 'GET') {
                 JOIN teams to_team ON to_team.id = mti.to_team_id
                                 WHERE mti.pick_id IS NULL
                                     AND mt.status = 'accepted'
+                                    AND mt.league = ?
                                     AND (mti.player_id = ? OR (mti.player_id IS NULL AND mti.player_name = ?))
                 ORDER BY mt.created_at DESC
             ");
-            $stmtMulti->execute([$playerId, $playerName]);
+            $stmtMulti->execute([$playerLeague, $playerId, $playerName]);
             $multiRows = $stmtMulti->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Exception $e) {
             $multiRows = [];
