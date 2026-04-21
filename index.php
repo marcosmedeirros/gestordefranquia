@@ -4,7 +4,7 @@ ini_set('display_errors', 1);
 
 session_start();
 
-// Não carrega nada desnecessário, apenas redireciona
+// Não carrega nada desnecessário, apenas redirecionaaa
 if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');
     exit;

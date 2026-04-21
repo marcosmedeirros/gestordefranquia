@@ -46,12 +46,19 @@ if (!$team_id) {
 }
 
 $team_name = '';
+$team_sidebar = [];
 if ($team_id) {
-    $stmt = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, city, photo_url, league FROM teams WHERE id = ?");
     $stmt->execute([$team_id]);
-    $team = $stmt->fetch();
-    $team_name = $team['name'] ?? '';
+    $team_sidebar = $stmt->fetch() ?: [];
+    $team_name = $team_sidebar['name'] ?? '';
 }
+
+// Dados do usuário para a sidebar
+$stmt = $pdo->prepare("SELECT id, name, photo_url, league, user_type FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch() ?: [];
+$user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador');
 
 $leagues = [];
 if ($is_admin) {
@@ -63,274 +70,306 @@ if ($is_admin) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leilao - FBA Brasil</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+    <meta name="theme-color" content="#fc0025">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Leilão — FBA Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
     <?php include 'includes/head-pwa.php'; ?>
     <style>
-        .leilao-page .dashboard-content,
-        .leilao-page .tab-content,
-        .leilao-page .tab-pane {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
+        :root {
+            --red: #fc0025; --red-2: #ff2a44; --red-soft: rgba(252,0,37,.10); --red-glow: rgba(252,0,37,.18);
+            --bg: #07070a; --panel: #101013; --panel-2: #16161a; --panel-3: #1c1c21;
+            --border: rgba(255,255,255,.06); --border-md: rgba(255,255,255,.10); --border-red: rgba(252,0,37,.22);
+            --text: #f0f0f3; --text-2: #868690; --text-3: #48484f;
+            --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6;
+            --sidebar-w: 260px; --font: 'Poppins', sans-serif;
+            --radius: 14px; --radius-sm: 10px; --radius-xs: 6px;
+            --ease: cubic-bezier(.2,.8,.2,1); --t: 200ms;
         }
-
-        .leilao-page .table-responsive {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: auto;
+        :root[data-theme="light"] {
+            --bg: #f6f7fb; --panel: #ffffff; --panel-2: #f2f4f8; --panel-3: #e9edf4;
+            --border: #e3e6ee; --border-md: #d7dbe6; --border-red: rgba(252,0,37,.18);
+            --text: #111217; --text-2: #5b6270; --text-3: #8b93a5;
         }
-
-        .leilao-page .table {
-            width: 100%;
-            table-layout: fixed;
-        }
-
-        .leilao-page .table th,
-        .leilao-page .table td {
-            white-space: normal;
-            word-break: break-word;
-        }
-
-        .leilao-page [style*="min-width"] {
-            min-width: 0 !important;
-            width: 100% !important;
-        }
-
-        @media (min-width: 992px) {
-            .dashboard-content {
-                width: calc(100% - 280px);
-                max-width: 1280px;
-                margin-left: 280px;
-                margin-right: auto;
-                padding-left: 32px;
-                padding-right: 32px;
-            }
-
-            .dashboard-content .nav-tabs {
-                flex-wrap: wrap;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .leilao-page .tab-pane,
-            .leilao-page .card,
-            .leilao-page .card-body {
-                max-width: 100%;
-                overflow-x: hidden;
-            }
-
-            .leilao-page .form-select[style*="min-width"],
-            .leilao-page .form-control[style*="min-width"] {
-                min-width: 0 !important;
-                width: 100% !important;
-            }
-
-            .leilao-page .table-responsive {
-                width: 100%;
-                overflow-x: auto;
-            }
-
-            .leilao-page .list-group-item {
-                white-space: normal;
-                word-break: break-word;
-            }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+        .app { display: flex; min-height: 100vh; }
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
+        .page-hero { padding: 32px 32px 0; }
+        .hero-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--red); margin-bottom: 6px; }
+        .hero-title { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+        .hero-sub { font-size: 13px; color: var(--text-2); }
+        .content { padding: 24px 32px 48px; flex: 1; }
+        /* Topbar mobile */
+        .topbar { display: none; height: 54px; background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 16px; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
+        .topbar-title { font-size: 15px; font-weight: 700; color: var(--text); }
+        .topbar-title em { color: var(--red); font-style: normal; }
+        .menu-btn { background: transparent; border: 1px solid var(--border); color: var(--text); width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; }
+        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 299; }
+        .sb-overlay.show { display: block; }
+        /* ── Sidebar ── */
+        .sidebar { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 300; transition: transform var(--t) var(--ease); overflow-y: auto; scrollbar-width: none; }
+        .sidebar::-webkit-scrollbar { display: none; }
+        .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+        .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+        .sb-nav { flex: 1; padding: 12px 10px 8px; }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
+        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+        .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+        .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+        .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+        .sb-nav a.active i { color: var(--red); }
+        .sb-theme-toggle { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--t) var(--ease); }
+        .sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
+        .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; flex-shrink: 0; }
+        .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+        /* Tabs */
+        .nav-tabs { border-bottom: 1px solid var(--border); gap: 0; }
+        .nav-tabs .nav-link { background: transparent; border: none; color: var(--text-2); font-weight: 500; font-size: 13px; padding: 10px 16px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all var(--t) var(--ease); border-radius: 0; }
+        .nav-tabs .nav-link:hover { color: var(--text); background: var(--panel-2); }
+        .nav-tabs .nav-link.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
+        /* Panel cards */
+        .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
+        .panel-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .panel-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+        .panel-card-icon { color: var(--red); font-size: 15px; }
+        .panel-card-body { padding: 20px; }
+        /* Forms */
+        .form-control, .form-select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-xs); font-size: 13px; }
+        .form-control::placeholder { color: var(--text-3); }
+        .form-control:focus, .form-select:focus { background: var(--panel-2); border-color: var(--red); color: var(--text); box-shadow: 0 0 0 3px var(--red-soft); }
+        .form-label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+        .form-check-label { color: var(--text-2); font-size: 13px; }
+        .form-check-input:checked { background-color: var(--red); border-color: var(--red); }
+        /* Buttons */
+        .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 8px 18px; transition: background var(--t); }
+        .btn-orange:hover, .btn-orange:focus { background: var(--red-2); color: #fff; }
+        .btn-orange:disabled { background: var(--panel-3); color: var(--text-3); }
+        .btn-outline-orange { background: transparent; border: 1px solid var(--red); color: var(--red); font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 8px 18px; transition: all var(--t); }
+        .btn-outline-orange:hover { background: var(--red-soft); color: var(--red); }
+        .btn-success { background: var(--green); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 8px 18px; }
+        /* Badges */
+        .badge-admin { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+        .badge-team { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+        /* Modals */
+        .modal-content { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); }
+        .modal-header { border-bottom: 1px solid var(--border); padding: 16px 20px; }
+        .modal-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .modal-footer { border-top: 1px solid var(--border); }
+        .btn-close { filter: invert(1) grayscale(1); }
+        /* list group */
+        .list-group-item { background: var(--panel-2); border-color: var(--border); color: var(--text); font-size: 13px; }
+        .list-group-item:hover { background: var(--panel-3); }
+        /* alert info */
+        .info-box { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 12px 16px; font-size: 13px; color: var(--text-2); margin-bottom: 16px; }
+        @media (max-width: 992px) {
+            :root { --sidebar-w: 0px; }
+            .sidebar { transform: translateX(-260px); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; width: 100%; padding-top: 54px; }
+            .topbar { display: flex; }
+            .page-hero { padding: 16px 16px 0; }
+            .content { padding: 16px 16px 48px; }
         }
     </style>
 </head>
-<body class="leilao-page">
-    <!-- Botão Hamburguer para Mobile -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="bi bi-list fs-4"></i>
-    </button>
-    
-    <!-- Overlay para fechar sidebar no mobile -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+<body>
+<div class="app">
 
-    <div class="d-flex">
-    <?php include __DIR__ . '/includes/sidebar.php'; ?>
-        <div class="dashboard-content">
-            <div class="mb-4">
-                <div class="d-flex flex-column flex-md-row flex-wrap justify-content-between align-items-start align-items-md-center gap-2 gap-md-3">
-                    <h1 class="text-white fw-bold mb-0" style="font-size: 1.5rem;">
-                        <i class="bi bi-hammer text-orange me-2"></i>Leilão
-                    </h1>
-                    <div class="d-flex flex-wrap gap-2">
-                        <?php if (!empty($team_name)): ?>
-                            <span class="badge bg-dark border border-warning text-warning" style="font-size: 0.75rem;">
-                                <?= htmlspecialchars($team_name) ?>
-                            </span>
-                        <?php endif; ?>
-                        <?php if ($is_admin): ?>
-                            <span class="badge bg-danger" style="font-size: 0.75rem;">Admin</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <p class="text-light-gray mb-0 mt-2" style="font-size: 0.85rem;">
-                    Participe de leilões ativos ou gerencie novas entradas como admin.
-                </p>
+    <!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sb-team">
+            <img src="<?= htmlspecialchars($team_sidebar['photo_url'] ?? '/img/default-team.png') ?>"
+                 alt="<?= htmlspecialchars(($team_sidebar['city'] ?? '') . ' ' . ($team_sidebar['name'] ?? '')) ?>"
+                 onerror="this.src='/img/default-team.png'">
+            <div>
+                <div class="sb-team-name"><?= htmlspecialchars(trim(($team_sidebar['city'] ?? '') . ' ' . ($team_sidebar['name'] ?? ''))) ?></div>
+                <div class="sb-team-league"><?= htmlspecialchars($team_sidebar['league'] ?? ($user['league'] ?? '')) ?></div>
             </div>
+        </div>
 
-            <ul class="nav nav-tabs nav-tabs-scroll mb-4" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active text-nowrap" id="auction-active-tab" data-bs-toggle="tab" data-bs-target="#auction-active" type="button" role="tab">
+        <nav class="sb-nav">
+            <div class="sb-section">Principal</div>
+            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
+            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+            <a href="/leilao.php" class="active"><i class="bi bi-hammer"></i> Leilão</a>
+            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+
+            <div class="sb-section">Liga</div>
+            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+
+            <?php if ($is_admin): ?>
+            <div class="sb-section">Admin</div>
+            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+            <a href="/punicoes.php"><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
+            <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+            <?php endif; ?>
+
+            <div class="sb-section">Conta</div>
+            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
+        </nav>
+
+        <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
+            <i class="bi bi-moon"></i>
+            <span>Modo escuro</span>
+        </button>
+
+        <div class="sb-footer">
+            <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
+                 alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
+                 class="sb-avatar"
+                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=fc0025'">
+            <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
+            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+        </div>
+    </aside>
+
+    <!-- Overlay mobile -->
+    <div class="sb-overlay" id="sbOverlay"></div>
+
+    <main class="main">
+        <!-- Topbar mobile -->
+        <header class="topbar">
+            <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+            <div class="topbar-title">FBA <em>Manager</em></div>
+        </header>
+
+        <div class="page-hero">
+            <div class="hero-eyebrow">Liga · <?= htmlspecialchars($user['league'] ?? 'ELITE') ?></div>
+            <h1 class="hero-title"><i class="bi bi-hammer" style="color:var(--red)"></i>Leilão</h1>
+            <p class="hero-sub">Lances em tempo real para free agents disponíveis na liga</p>
+        </div>
+
+        <div class="content">
+            <?php if (!empty($team_name) || $is_admin): ?>
+            <div class="d-flex align-items-center gap-2 mb-4">
+                <?php if (!empty($team_name)): ?>
+                    <span class="badge-team"><?= htmlspecialchars($team_name) ?></span>
+                <?php endif; ?>
+                <?php if ($is_admin): ?>
+                    <span class="badge-admin"><i class="bi bi-shield-lock-fill me-1"></i>Admin</span>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="auction-active-tab" data-bs-toggle="tab" data-bs-target="#auction-active" type="button" role="tab">
                         <i class="bi bi-hammer me-1"></i>Leilões ativos
                     </button>
                 </li>
                 <?php if ($is_admin): ?>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link text-nowrap" id="auction-admin-tab" data-bs-toggle="tab" data-bs-target="#auction-admin" type="button" role="tab">
-                        <i class="bi bi-shield-lock-fill me-1"></i>Admin Leilão
+                <li class="nav-item">
+                    <button class="nav-link" id="auction-admin-tab" data-bs-toggle="tab" data-bs-target="#auction-admin" type="button" role="tab">
+                        <i class="bi bi-shield-lock-fill me-1"></i>Admin
                     </button>
                 </li>
                 <?php endif; ?>
             </ul>
 
             <div class="tab-content">
+                <!-- Leilões Ativos -->
                 <div class="tab-pane fade show active" id="auction-active" role="tabpanel">
-                    <div class="card bg-dark-panel border-orange mb-4">
-                        <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilões Ativos</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="leiloesAtivosContainer">
-                                <p class="text-muted">Carregando...</p>
-                            </div>
-                        </div>
+                    <div class="panel-card">
+                        <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
+                        <div class="panel-card-body"><div id="leiloesAtivosContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
                     </div>
-
                     <?php if ($team_id): ?>
-                    <div class="card bg-dark-panel border-orange">
-                        <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-inbox text-orange me-2"></i>Propostas Recebidas</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="propostasRecebidasContainer">
-                                <p class="text-muted">Carregando...</p>
-                            </div>
-                        </div>
+                    <div class="panel-card">
+                        <div class="panel-card-header"><i class="bi bi-inbox panel-card-icon"></i><span class="panel-card-title">Propostas Recebidas</span></div>
+                        <div class="panel-card-body"><div id="propostasRecebidasContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
                     </div>
                     <?php endif; ?>
-
-                    <div class="card bg-dark-panel border-orange mt-4">
-                        <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-clock-history text-orange me-2"></i>Histórico de Leilões</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="leiloesHistoricoContainer">
-                                <p class="text-muted">Carregando...</p>
-                            </div>
-                        </div>
+                    <div class="panel-card">
+                        <div class="panel-card-header"><i class="bi bi-clock-history panel-card-icon"></i><span class="panel-card-title">Histórico de Leilões</span></div>
+                        <div class="panel-card-body"><div id="leiloesHistoricoContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
                     </div>
                 </div>
 
+                <!-- Admin -->
                 <?php if ($is_admin): ?>
                 <div class="tab-pane fade" id="auction-admin" role="tabpanel">
-                    <div class="card bg-dark-panel border-orange">
-                        <div class="card-header bg-dark border-bottom border-orange">
-                            <h5 class="mb-0 text-white"><i class="bi bi-hammer text-orange me-2"></i>Leilão admin</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-4 align-items-end stack-mobile">
-                                <div class="col-md-3">
-                                    <label for="selectLeague" class="form-label">Liga</label>
+                    <div class="panel-card">
+                        <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilão Admin</span></div>
+                        <div class="panel-card-body">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">Liga</label>
                                     <select id="selectLeague" class="form-select">
                                         <option value="">Selecione...</option>
                                         <?php foreach ($leagues as $league): ?>
-                                            <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>">
-                                                <?= htmlspecialchars($league['name']) ?>
-                                            </option>
+                                            <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>"><?= htmlspecialchars($league['name']) ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="d-flex flex-wrap gap-3 align-items-center text-white mt-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
-                                            <label class="form-check-label" for="auctionModeSearch">Buscar jogador</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
-                                            <label class="form-check-label" for="auctionModeCreate">Criar jogador</label>
-                                        </div>
+                                <div class="col-md-5 d-flex align-items-end gap-4 pb-1">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
+                                        <label class="form-check-label" for="auctionModeSearch">Buscar jogador</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
+                                        <label class="form-check-label" for="auctionModeCreate">Criar jogador</label>
                                     </div>
                                 </div>
-                                <div class="col-md-3 mt-4">
-                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled style="min-height: 44px;">
-                                        <i class="bi bi-play-fill me-1"></i>Iniciar 20min
-                                    </button>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled><i class="bi bi-play-fill me-1"></i>Iniciar 20min</button>
                                 </div>
                             </div>
-
-                            <div class="border-top border-secondary mt-3 pt-3">
+                            <div style="border-top:1px solid var(--border);padding-top:20px;">
                                 <div id="auctionSearchArea">
-                                    <div class="row g-2 align-items-end stack-mobile">
-                                        <div class="col-md-6">
-                                            <label for="auctionPlayerSearch" class="form-label">Buscar jogador</label>
-                                            <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label">Buscar jogador</label>
+                                            <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome...">
                                         </div>
-                                        <div class="col-md-2">
-                                            <button class="btn btn-outline-orange w-100" id="auctionSearchBtn">
-                                                <i class="bi bi-search"></i> Buscar
-                                            </button>
+                                        <div class="col-md-4 d-flex align-items-end">
+                                            <button class="btn btn-outline-orange w-100" id="auctionSearchBtn"><i class="bi bi-search me-1"></i>Buscar</button>
                                         </div>
                                     </div>
-                                    <div class="list-group mt-2" id="auctionPlayerResults" style="display:none;"></div>
-                                    <div class="text-light-gray mt-2" id="auctionSelectedLabel" style="display:none;"></div>
+                                    <div id="auctionPlayerResults" style="display:none;"></div>
+                                    <div id="auctionSelectedLabel" style="display:none;color:var(--text-2);font-size:13px;margin-top:8px;"></div>
                                     <input type="hidden" id="auctionSelectedPlayerId">
                                     <input type="hidden" id="auctionSelectedTeamId">
                                 </div>
-
                                 <div id="auctionCreateArea" style="display:none;">
-                                    <div class="row g-2 stack-mobile">
-                                        <div class="col-12">
-                                            <div class="text-light-gray small mb-1">O jogador será criado no leilão e não precisa selecionar time.</div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="auctionPlayerName" class="form-label">Nome</label>
-                                            <input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="auctionPlayerPosition" class="form-label">Posição</label>
-                                            <select id="auctionPlayerPosition" class="form-select">
-                                                <option value="PG">PG</option>
-                                                <option value="SG">SG</option>
-                                                <option value="SF">SF</option>
-                                                <option value="PF">PF</option>
-                                                <option value="C">C</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-1">
-                                            <label for="auctionPlayerAge" class="form-label">Idade</label>
-                                            <input type="number" id="auctionPlayerAge" class="form-control" value="25">
-                                        </div>
-                                        <div class="col-md-1">
-                                            <label for="auctionPlayerOvr" class="form-label">OVR</label>
-                                            <input type="number" id="auctionPlayerOvr" class="form-control" value="70">
-                                        </div>
-                                        <div class="col-md-2 d-flex align-items-end">
-                                            <button class="btn btn-success w-100" type="button" id="btnCriarJogadorLeilao">
-                                                <i class="bi bi-plus-circle me-1"></i>Criar jogador
-                                            </button>
-                                        </div>
+                                    <p style="color:var(--text-3);font-size:12px;margin-bottom:16px;">O jogador será criado no leilão sem time.</p>
+                                    <div class="row g-3">
+                                        <div class="col-md-4"><label class="form-label">Nome</label><input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome do jogador"></div>
+                                        <div class="col-md-2"><label class="form-label">Posição</label><select id="auctionPlayerPosition" class="form-select"><option value="PG">PG</option><option value="SG">SG</option><option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option></select></div>
+                                        <div class="col-md-2"><label class="form-label">Idade</label><input type="number" id="auctionPlayerAge" class="form-control" value="25"></div>
+                                        <div class="col-md-2"><label class="form-label">OVR</label><input type="number" id="auctionPlayerOvr" class="form-control" value="70"></div>
+                                        <div class="col-md-2 d-flex align-items-end"><button class="btn btn-orange w-100" type="button" id="btnCriarJogadorLeilao"><i class="bi bi-plus-circle me-1"></i>Criar</button></div>
                                     </div>
-                                    <div class="mt-3">
-                                        <h6 class="text-white mb-2"><i class="bi bi-person-plus text-orange me-2"></i>Jogadores criados (sem time)</h6>
-                                        <div id="auctionTempList"><p class="text-light-gray">Nenhum jogador criado.</p></div>
+                                    <div class="mt-4">
+                                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:10px;"><i class="bi bi-person-plus me-1" style="color:var(--red)"></i>Jogadores criados (sem time)</div>
+                                        <div id="auctionTempList" style="color:var(--text-3);font-size:13px;">Nenhum jogador criado.</div>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="mt-3">
-                                <div id="adminLeiloesContainer">
-                                    <p class="text-muted">Carregando...</p>
-                                </div>
+                            <div style="border-top:1px solid var(--border);padding-top:20px;margin-top:20px;">
+                                <div id="adminLeiloesContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
                             </div>
                         </div>
                     </div>
@@ -338,76 +377,93 @@ if ($is_admin) {
                 <?php endif; ?>
             </div>
         </div>
-    </div>
+    </main>
+</div>
 
-    <div class="modal fade" id="modalProposta" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-send"></i> Enviar Proposta de Troca</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Modal: Proposta de Troca -->
+<div class="modal fade" id="modalProposta" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-send" style="color:var(--red)"></i>Enviar Proposta de Troca</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="leilaoIdProposta">
+                <div class="info-box"><strong style="color:var(--text);">Jogador em leilão:</strong> <span id="jogadorLeilaoNome" style="color:var(--red);font-weight:600;"></span></div>
+                <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Selecione os jogadores que você oferece em troca:</p>
+                <div id="meusJogadoresParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Picks para oferecer (opcional):</p>
+                <div id="minhasPicksParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                <div class="mb-3">
+                    <label class="form-label">O que vai dar na proposta</label>
+                    <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" id="leilaoIdProposta">
-                    <div class="alert alert-info">
-                        <strong>Jogador em Leilao:</strong> <span id="jogadorLeilaoNome"></span>
-                    </div>
-                    <h6>Selecione os jogadores que voce oferece em troca:</h6>
-                    <div id="meusJogadoresParaTroca" class="mb-3">
-                        <p class="text-muted">Carregando...</p>
-                    </div>
-                    <h6 class="text-light-gray">Selecione picks para oferecer (opcional):</h6>
-                    <div id="minhasPicksParaTroca" class="mb-3">
-                        <p class="text-muted">Carregando...</p>
-                    </div>
-                    <div class="mb-3">
-                        <label for="notasProposta" class="form-label">O que vai dar na proposta</label>
-                        <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label for="obsProposta" class="form-label">Obs</label>
-                        <textarea id="obsProposta" class="form-control" rows="2" placeholder="Observacoes adicionais (opcional)"></textarea>
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label">Observações (opcional)</label>
+                    <textarea id="obsProposta" class="form-control" rows="2"></textarea>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="btnEnviarProposta">
-                        <i class="bi bi-send"></i> Enviar Proposta
-                    </button>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-orange" id="btnEnviarProposta"><i class="bi bi-send me-1"></i>Enviar Proposta</button>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="modal fade" id="modalVerPropostas" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-inbox"></i> Propostas Recebidas</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="leilaoIdVerPropostas">
-                    <div id="listaPropostasRecebidas">
-                        <p class="text-muted">Carregando...</p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                </div>
+<!-- Modal: Ver Propostas -->
+<div class="modal fade" id="modalVerPropostas" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-inbox" style="color:var(--red)"></i>Propostas Recebidas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="leilaoIdVerPropostas">
+                <div id="listaPropostasRecebidas"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
+</div>
 
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        const isAdmin = <?= $is_admin ? 'true' : 'false' ?>;
-        const userTeamId = <?= $team_id ? $team_id : 'null' ?>;
-        const userTeamName = '<?= addslashes($team_name) ?>';
-        const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
-    </script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/leilao.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const isAdmin = <?= $is_admin ? 'true' : 'false' ?>;
+    const userTeamId = <?= $team_id ? $team_id : 'null' ?>;
+    const userTeamName = '<?= addslashes($team_name) ?>';
+    const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
+</script>
+<script src="/js/leilao.js"></script>
+<script src="/js/pwa.js"></script>
+<script>
+    const sidebar = document.getElementById('sidebar');
+    const sbOverlay = document.getElementById('sbOverlay');
+    const menuBtn = document.getElementById('menuBtn');
+    if (menuBtn) menuBtn.addEventListener('click', () => { sidebar.classList.add('open'); sbOverlay.classList.add('show'); });
+    if (sbOverlay) sbOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sbOverlay.classList.remove('show'); });
+    // Theme
+    const themeKey = 'fba-theme';
+    const themeBtn = document.querySelector('[data-theme-toggle]');
+    const applyTheme = (theme) => {
+        if (theme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (themeBtn) { themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i><span>Tema escuro</span>'; themeBtn.setAttribute('aria-pressed','true'); }
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            if (themeBtn) { themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i><span>Tema claro</span>'; themeBtn.setAttribute('aria-pressed','false'); }
+        }
+    };
+    applyTheme(localStorage.getItem(themeKey) || 'dark');
+    if (themeBtn) themeBtn.addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        localStorage.setItem(themeKey, next);
+        applyTheme(next);
+    });
+</script>
 </body>
 </html>

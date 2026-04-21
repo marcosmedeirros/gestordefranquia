@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"\\\\${\" /c/Users/marco/IdeaProjects/gestordefranquia/js/history.js)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\n\" temporadas.php)",
+      "Bash(sed -n '752,762p' dashboard.php)",
+      "Bash(sed -n '424,434p' my-roster.php)",
+      "Bash(sed -n '331,341p' picks.php)",
+      "Bash(sed -n '496,506p' free-agency.php)",
+      "Bash(sed -n '220,230p' leilao.php)"
+    ]
+  }
+}

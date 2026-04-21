@@ -4,10 +4,10 @@ $pdo = db();
 
 echo "<h1>Sincronizador de IDs da NBA</h1>";
 
-// 1. Endpoint oficial da NBA que lista todos os jogadores
+// 1. Endpoint oficial da NBA que lista todos os jogadoress
 $nbaApiUrl = 'https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=0&LeagueID=00&Season=2023-24';
 
-// 2. Configuração avançada do cURL para burlar o Firewall (Akamai) da NBA
+// 2. Configuração avançada do cURL para burlar o Firewall (Akamai) da NBAsssss
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $nbaApiUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);

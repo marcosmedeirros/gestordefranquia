@@ -1085,6 +1085,19 @@ function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $to
     }
 }
 
+function isPickCurrentDraft(PDO $pdo, int $pickId): bool
+{
+    try {
+        $stmt = $pdo->prepare('SELECT draft_pick_number, draft_session_id FROM picks WHERE id = ?');
+        $stmt->execute([$pickId]);
+        $pick = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$pick) return false;
+        return (int)($pick['draft_pick_number'] ?? 0) > 0 && (int)($pick['draft_session_id'] ?? 0) > 0;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
 // Pegar time do usuário
 $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -2085,6 +2098,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
 
                 $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
                 $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
+                $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
                 $stmtPlayerOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
                 $stmtPickOwner = $pdo->prepare('SELECT team_id FROM picks WHERE id = ?');
 
@@ -2108,8 +2122,13 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                                 throw new Exception('Pick ID ' . $item['pick_id'] . ' não pertence ao time de origem.');
                             }
                         } else {
-                            $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
-                            syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
+                            if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
+                                // Escolha do draft atual: apenas transfere o dono
+                                $stmtTransferCurrentDraftPick->execute([(int)$item['to_team_id'], (int)$item['pick_id']]);
+                            } else {
+                                $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
+                                syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
+                            }
                         }
                     }
                 }
@@ -2305,7 +2324,8 @@ if ($method === 'PUT') {
             
             $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
             $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
-            
+            $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
+
             foreach ($items as $item) {
                 if ($item['player_id']) {
                     // Transferir jogador
@@ -2316,16 +2336,24 @@ if ($method === 'PUT') {
                         throw new Exception('Jogador ID ' . $item['player_id'] . ' não está mais disponível para transferência');
                     }
                 }
-                
+
                 if ($item['pick_id']) {
                     // Transferir pick
                     $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    $stmtTransferPick->execute([$newTeamId, $expectedOwner, $item['pick_id'], $expectedOwner]);
-                    if ($stmtTransferPick->rowCount() === 0) {
-                        throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
+                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
+                        // Escolha do draft atual: apenas transfere o dono, sem alterar outros campos
+                        $stmtTransferCurrentDraftPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
+                        if ($stmtTransferCurrentDraftPick->rowCount() === 0) {
+                            throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
+                        }
+                    } else {
+                        $stmtTransferPick->execute([$newTeamId, $expectedOwner, $item['pick_id'], $expectedOwner]);
+                        if ($stmtTransferPick->rowCount() === 0) {
+                            throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
+                        }
+                        syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
                     }
-                    syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
                 }
             }
 
@@ -2333,6 +2361,10 @@ if ($method === 'PUT') {
                 $swapMap = [];
                 foreach ($items as $item) {
                     if (empty($item['pick_id']) || empty($item['pick_swap_pair_id'])) {
+                        continue;
+                    }
+                    // Escolhas do draft atual não participam de swap
+                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
                         continue;
                     }
                     $role = strtoupper(trim((string)($item['pick_swap_role'] ?? '')));

@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/backend/config.php';
 require_once __DIR__ . '/backend/db.php';
 
-// Se o usuário não está logado, redireciona para login
+// Se o usuário não está logado, redireciona para loginnnn
 if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');
     exit;

@@ -24,408 +24,426 @@ if ($user && isset($user['id'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Draft Inicial - Seleção</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>Draft Inicial — Seleção</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        /* ── Tokens ───────────────────────────────────── */
         :root {
-            --draft-bg: #000000;
-            --draft-panel: #141414;
-            --draft-panel-alt: #1a1a1a;
-            --draft-border: #2a2a2a;
-            --draft-muted: #cfcfcf;
-            --draft-primary: #fc0025;
-            --draft-green: #38d07d;
+            --red:        #fc0025;
+            --red-soft:   rgba(252,0,37,.10);
+            --red-glow:   rgba(252,0,37,.18);
+            --bg:         #07070a;
+            --panel:      #101013;
+            --panel-2:    #16161a;
+            --panel-3:    #1c1c21;
+            --border:     rgba(255,255,255,.06);
+            --border-md:  rgba(255,255,255,.10);
+            --border-red: rgba(252,0,37,.22);
+            --text:       #f0f0f3;
+            --text-2:     #868690;
+            --text-3:     #48484f;
+            --green:      #22c55e;
+            --amber:      #f59e0b;
+            --blue:       #3b82f6;
+            --font:       'Poppins', sans-serif;
+            --radius:     14px;
+            --radius-sm:  10px;
+            --ease:       cubic-bezier(.2,.8,.2,1);
+            --t:          200ms;
         }
 
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
-            font-family: 'Poppins', system-ui, -apple-system, sans-serif;
-            background:
-                radial-gradient(circle at 20% 25%, rgba(252, 0, 37, 0.14), transparent 55%),
-                radial-gradient(circle at 85% 70%, rgba(252, 0, 37, 0.1), transparent 55%),
-                linear-gradient(135deg, #000000 0%, #0a0a0c 55%, #000000 100%);
-            color: #fff;
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
             min-height: 100vh;
         }
 
-        .draft-app {
-            max-width: 1280px;
-        }
+        /* ── Layout ───────────────────────────────────── */
+        .app-wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 48px; }
 
-        .card-dark {
-            background: var(--draft-panel);
-            border: 1px solid var(--draft-border);
-            border-radius: 18px;
+        /* ── Topbar ───────────────────────────────────── */
+        .app-topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 14px; flex-wrap: wrap;
+            padding: 14px 20px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
         }
+        .app-topbar-left { display: flex; align-items: center; gap: 12px; }
+        .app-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #fff; flex-shrink: 0; }
+        .app-title { font-size: 15px; font-weight: 700; line-height: 1.1; }
+        .app-title span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: color var(--t) var(--ease); }
+        .back-link:hover { color: var(--red); }
 
+        /* ── Hero ─────────────────────────────────────── */
         .hero {
-            background: linear-gradient(120deg, rgba(252, 0, 37, 0.25), rgba(7, 7, 13, 0.85));
-            border-radius: 24px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px 28px;
+            margin-bottom: 20px;
         }
+        .hero-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
+        .hero-title { font-size: clamp(1.4rem, 2.5vw, 1.8rem); font-weight: 800; margin-bottom: 4px; }
+        .hero-sub { font-size: 13px; color: var(--text-2); }
 
-        .stat-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 14px;
-            padding: 1rem;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--draft-muted);
-            margin-bottom: 0.4rem;
-        }
-
-        .team-chip {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .team-chip img {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-
-        .pick-card {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 16px;
-            padding: 1rem;
-        }
-
-        .pick-card-lg {
-            padding: 1.25rem;
-            border-width: 1.5px;
-            box-shadow: 0 8px 28px rgba(252, 0, 37, 0.18);
-        }
-
-        .pick-card-sm {
-            padding: 0.8rem;
-            opacity: 0.9;
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .pick-card.compact {
-            padding: 0.6rem;
-            border-radius: 12px;
-            font-size: 0.95rem;
-        }
-
-        .current-pick-highlight {
-            border-color: rgba(252, 0, 37, 0.7);
-            box-shadow: 0 0 18px rgba(252, 0, 37, 0.35);
-        }
-
-        .next-pick-highlight {
-            border-color: rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.04);
-        }
-
-        .previous-pick-card {
-            border-color: rgba(255, 255, 255, 0.15);
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .reaction-bar {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .reaction-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 6px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            background: rgba(255, 255, 255, 0.06);
-            color: #fff;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .reaction-chip.active {
-            background: rgba(252, 0, 37, 0.18);
-            border-color: rgba(252, 0, 37, 0.6);
-        }
-
-        .reaction-count {
-            color: var(--draft-muted);
-            font-size: 0.85rem;
-        }
-
-        .pick-rank {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(252, 0, 37, 0.2);
-            border: 1px solid rgba(252, 0, 37, 0.6);
+        /* ── Stat grid ────────────────────────────────── */
+        .stat-grid {
             display: grid;
-            place-items: center;
-            font-weight: 600;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 18px;
         }
-
-        .table-dark {
-            --bs-table-bg: transparent;
-            --bs-table-striped-bg: rgba(255, 255, 255, 0.04);
-            color: #fff;
+        .stat-card {
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
         }
+        .stat-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; }
 
-        .badge-available {
-            background: rgba(56, 208, 125, 0.18);
-            color: var(--draft-green);
+        /* ── Panel card ───────────────────────────────── */
+        .panel-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 100%;
         }
-
-        .badge-drafted {
-            background: rgba(255, 255, 255, 0.08);
-            color: #adb5bd;
+        .panel-card-head {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
+        .panel-card-title { font-size: 13px; font-weight: 700; }
+        .panel-card-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+        .panel-card-body { padding: 16px 18px; }
 
-        .order-highlight {
-            border: 1px solid rgba(252, 0, 37, 0.6);
-            background: rgba(252, 0, 37, 0.12);
-            border-radius: 12px;
-            padding: 0.35rem 0.5rem;
+        /* ── Pick card ────────────────────────────────── */
+        .pick-card {
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
         }
-
-        .order-next {
-            border: 1px dashed rgba(255, 255, 255, 0.25);
-            border-radius: 12px;
-            padding: 0.35rem 0.5rem;
+        .pick-card.current-pick-highlight {
+            border-color: var(--border-red);
+            background: rgba(252,0,37,.06);
         }
-
-        /* Ordenação do pool */
-        th.sortable { cursor: pointer; user-select: none; }
-        th.sortable .sort-indicator { margin-left: 6px; color: var(--draft-muted); font-size: 0.85em; }
-        th.sortable.active .sort-indicator { color: #ffffff; }
-
-        .accent-red {
-            color: #FC062A !important;
+        .pick-card.next-pick-highlight {
+            background: var(--panel-3);
+            border-color: var(--border);
         }
-
-        .accent-label {
-            color: #D50826 !important;
+        .pick-card.compact {
+            padding: 8px 12px;
+            border-radius: 8px;
         }
-
-        /* Relógio removido (sistema antigo sem timer) */
+        .pick-card-lg { padding: 16px; }
+        .pick-card-sm { padding: 10px 14px; opacity: .9; }
+        .pick-flash { animation: pickFlash 1.2s ease-in-out; }
+        @keyframes pickFlash {
+            0%   { box-shadow: 0 0 0 rgba(252,0,37,0); }
+            30%  { box-shadow: 0 0 22px rgba(252,0,37,.45); }
+            100% { box-shadow: 0 0 0 rgba(252,0,37,0); }
+        }
 
         .pick-logo {
-            width: 46px;
-            height: 46px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 40px; height: 40px; border-radius: 50%;
+            object-fit: cover; border: 1px solid var(--border-md);
+            flex-shrink: 0;
         }
 
-        .pick-flash {
-            animation: pickFlash 1.2s ease-in-out;
+        /* ── Order list ───────────────────────────────── */
+        .order-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px;
         }
-
-        @keyframes pickFlash {
-            0% { box-shadow: 0 0 0 rgba(252, 0, 37, 0); }
-            30% { box-shadow: 0 0 28px rgba(252, 0, 37, 0.6); }
-            100% { box-shadow: 0 0 0 rgba(252, 0, 37, 0); }
+        .order-item.order-highlight {
+            border-color: var(--border-red);
+            background: rgba(252,0,37,.07);
         }
-
-        .tv-mode body,
-        body.tv-mode {
-            background: #000000;
+        .order-item.order-next {
+            border-style: dashed;
+            border-color: rgba(255,255,255,.12);
         }
-
-        body.tv-mode .draft-app {
-            max-width: 1600px;
+        .order-rank {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--red-soft); border: 1px solid var(--border-red);
+            display: grid; place-items: center;
+            font-weight: 700; font-size: 12px; color: var(--red); flex-shrink: 0;
         }
+        .team-chip { display: flex; align-items: center; gap: 8px; }
+        .team-chip img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .team-chip-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+        .team-chip-gm { font-size: 11px; color: var(--text-2); }
 
-        body.tv-mode .hero {
-            padding: 2.5rem;
+        /* ── Pick summary (reaction bar) ──────────────── */
+        .pick-summary {
+            background: var(--panel-3); border: 1px solid var(--border);
+            border-radius: 8px; padding: 8px 10px; margin-top: 6px;
+            font-size: 12px;
         }
-
-        body.tv-mode h1 {
-            font-size: clamp(2.4rem, 4vw, 3.2rem);
+        .pick-summary-name { font-weight: 600; color: var(--text); }
+        .pick-summary-meta { color: var(--red); font-size: 11px; }
+        .reaction-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .reaction-chip {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 999px; font-size: 11px;
+            border: 1px solid var(--border-md);
+            background: var(--panel-2); color: var(--text);
+            cursor: pointer; user-select: none;
+            transition: all var(--t) var(--ease);
         }
+        .reaction-chip:hover { border-color: var(--border-red); background: var(--red-soft); }
+        .reaction-chip.active { background: var(--red-soft); border-color: var(--border-red); }
+        .reaction-count { color: var(--text-2); }
 
-        body.tv-mode .stat-card {
-            padding: 1.4rem;
+        /* ── Status pill ──────────────────────────────── */
+        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+        .status-pill.setup       { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.25); }
+        .status-pill.in_progress { background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.25); }
+        .status-pill.completed   { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); }
+
+        /* ── Badges ───────────────────────────────────── */
+        .badge-available { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(34,197,94,.10); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
+        .badge-drafted   { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
+
+        /* ── Buttons ──────────────────────────────────── */
+        .btn-red {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px;
+            background: var(--red); border: none; color: #fff;
+            font-family: var(--font); font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: filter var(--t) var(--ease); text-decoration: none;
         }
-
-        body.tv-mode .pick-card {
-            padding: 1.4rem;
-            font-size: 1.05rem;
+        .btn-red:hover { filter: brightness(1.12); color: #fff; }
+        .btn-ghost {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px;
+            background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
+            font-family: var(--font); font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none;
         }
+        .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
+        .btn-green {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px;
+            background: var(--green); border: none; color: #fff;
+            font-family: var(--font); font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: filter var(--t) var(--ease);
+        }
+        .btn-green:hover { filter: brightness(1.1); }
+        .btn-amber {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px;
+            background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: var(--amber);
+            font-family: var(--font); font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all var(--t) var(--ease);
+        }
+        .btn-amber:hover { background: rgba(245,158,11,.2); }
 
-        /* Pool de jogadores - layout responsivo para mobile */
+        /* ── Search/Filter inputs ─────────────────────── */
+        .search-input, .filter-select {
+            background: var(--panel-2); border: 1px solid var(--border-md);
+            border-radius: 8px; padding: 8px 12px;
+            color: var(--text); font-family: var(--font); font-size: 13px;
+            outline: none; transition: border-color var(--t) var(--ease);
+            width: 100%;
+        }
+        .search-input:focus, .filter-select:focus { border-color: var(--red); }
+        .search-input::placeholder { color: var(--text-3); }
+        .filter-select option { background: var(--panel-2); }
+        .filter-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); cursor: pointer; }
+        .filter-check input { accent-color: var(--red); }
+
+        /* ── Data table ───────────────────────────────── */
+        .data-table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th {
+            font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+            color: var(--text-3); padding: 10px 12px; border-bottom: 1px solid var(--border);
+            text-align: left; white-space: nowrap; background: var(--panel-2);
+        }
+        .data-table th.sortable { cursor: pointer; user-select: none; }
+        .data-table th.sortable:hover { color: var(--text-2); }
+        .data-table th.sortable.active { color: var(--text); }
+        .data-table th.sortable .sort-indicator { margin-left: 4px; font-size: .8em; }
+        .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: middle; }
+        .data-table td.td-name { font-weight: 600; color: var(--text); }
+        .data-table tbody tr:last-child td { border-bottom: none; }
+        .data-table tbody tr:hover td { background: var(--panel-3); }
+
+        /* ── Pagination ───────────────────────────────── */
+        .pag-wrap .pagination { margin: 0; }
+        .pag-wrap .page-link { background: var(--panel-2); border-color: var(--border); color: var(--text-2); font-family: var(--font); font-size: 12px; }
+        .pag-wrap .page-link:hover { background: var(--panel-3); color: var(--text); }
+        .pag-wrap .page-item.active .page-link { background: var(--red); border-color: var(--red); color: #fff; }
+        .pag-wrap .page-item.disabled .page-link { opacity: .4; }
+
+        /* ── Roster grid ──────────────────────────────── */
+        .roster-card {
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 14px;
+        }
+        .roster-list { list-style: none; padding: 0; margin: 0; font-size: 12px; color: var(--text-2); }
+        .roster-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+        .roster-list li:last-child { border-bottom: none; }
+        .roster-player-pos { color: var(--red); font-weight: 600; }
+
+        /* ── Empty state ──────────────────────────────── */
+        .state-empty { padding: 24px 16px; text-align: center; color: var(--text-3); font-size: 13px; }
+
+        /* ── TV mode ──────────────────────────────────── */
+        body.tv-mode .app-wrap { max-width: 1600px; }
+        body.tv-mode .hero-title { font-size: clamp(2rem, 3.5vw, 2.8rem); }
+        body.tv-mode .pick-card { padding: 18px; font-size: 1.05rem; }
+
+        /* ── Responsive ───────────────────────────────── */
+        @media (max-width: 768px) {
+            .app-wrap { padding: 16px 14px 40px; }
+            .hero { padding: 18px 20px; }
+        }
         @media (max-width: 576px) {
-            .pool-table-wrapper {
-                overflow: visible;
-            }
-            #poolTableEl thead {
-                display: none;
-            }
+            #poolTableEl thead { display: none; }
             #poolTableEl tbody tr {
-                display: flex;
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 4px;
-                padding: 0.65rem 0.75rem;
-                border-bottom: 1px solid var(--draft-border);
+                display: flex; flex-direction: column;
+                gap: 3px; padding: 10px 12px;
+                border-bottom: 1px solid var(--border);
             }
-            #poolTableEl td {
-                width: 100%;
-                padding: 0;
-                border: 0;
-            }
-            #poolTableEl td:first-child {
-                display: none;
-            }
-            #poolTableEl td[data-label]::before {
-                content: attr(data-label) ": ";
-                color: var(--draft-muted);
-                font-size: 0.85rem;
-                font-weight: 500;
-                margin-right: 4px;
-            }
-            #poolTableEl td:nth-child(2) {
-                font-weight: 600;
-                font-size: 1rem;
-            }
-            #poolTableEl td:nth-child(3),
-            #poolTableEl td:nth-child(4),
-            #poolTableEl td:nth-child(5) {
-                color: var(--draft-muted);
-                font-size: 0.9rem;
-            }
-            #poolTableEl td:nth-child(6) {
-                margin-top: 0.35rem;
-            }
-            #poolTableEl td:nth-child(6) .btn {
-                width: 100%;
-                justify-content: center;
-            }
+            #poolTableEl td { width: 100%; padding: 0; border: 0; }
+            #poolTableEl td:first-child { display: none; }
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid py-4 draft-app">
-        <div class="mb-3">
-            <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-                <i class="bi bi-arrow-left me-1"></i>Voltar ao Dashboard
-            </a>
-        </div>
-        <header class="hero">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
-                <div>
-                    <p class="text-uppercase text-warning fw-semibold mb-2">Draft Inicial</p>
-                    <h1 class="mb-2">Sala de Seleção</h1>
-                    <p class="mb-0 text-light">Acompanhe o andamento do draft, picks atuais e elencos montados.</p>
-                </div>
-                <div class="text-lg-end">
-                    <p class="text-uppercase small text-muted mb-1">Liga</p>
-                    <h4 id="leagueName" class="mb-2">-</h4>
-                    <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-                        <button class="btn btn-outline-light btn-sm" type="button" onclick="loadState()">
-                            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
-                        </button>
-                        <button class="btn btn-outline-warning btn-sm" type="button" id="toggleSoundButton">
-                            <i class="bi bi-volume-up me-1"></i>Som
-                        </button>
-                        <button class="btn btn-outline-light btn-sm" type="button" id="toggleTvButton">
-                            <i class="bi bi-fullscreen me-1"></i>Modo TV
-                        </button>
-                        <?php if ($isAdmin): ?>
-                        <button class="btn btn-danger btn-sm" type="button" id="openRoundNowButton" onclick="adminOpenNextRoundNow()">
-                            <i class="bi bi-lightning-charge me-1"></i>Iniciar próxima rodada agora
-                        </button>
-                        <?php endif; ?>
+
+<!-- Topbar -->
+<div class="app-topbar">
+    <div class="app-topbar-left">
+        <div class="app-logo">FBA</div>
+        <div class="app-title">Sala de Seleção <span>Draft Inicial</span></div>
+    </div>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span id="leagueName" style="font-size:12px;font-weight:700;color:var(--text-2)"></span>
+        <button class="btn-ghost" onclick="loadState()"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
+        <button class="btn-ghost" id="toggleSoundButton"><i class="bi bi-volume-mute"></i> Som</button>
+        <button class="btn-ghost" id="toggleTvButton"><i class="bi bi-fullscreen"></i> TV</button>
+        <?php if ($isAdmin): ?>
+        <button class="btn-amber" id="openRoundNowButton" onclick="adminOpenNextRoundNow()">
+            <i class="bi bi-lightning-charge"></i> Abrir rodada
+        </button>
+        <?php endif; ?>
+        <a href="dashboard.php" class="back-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
+    </div>
+</div>
+
+<div class="app-wrap">
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-eyebrow">Draft Inicial</div>
+        <h1 class="hero-title">Sala de Seleção</h1>
+        <p class="hero-sub">Acompanhe picks, ordem e elencos em montagem.</p>
+        <div class="stat-grid" id="statGrid"></div>
+    </section>
+
+    <!-- Main grid -->
+    <div class="row g-4">
+
+        <!-- Left column: picks + order -->
+        <div class="col-lg-4">
+            <div class="panel-card mb-4">
+                <div class="panel-card-head">
+                    <div>
+                        <div class="panel-card-title">Pick Atual</div>
+                        <div class="panel-card-sub" id="clockBanner"></div>
                     </div>
                 </div>
-            </div>
-            <div class="row g-3 mt-4" id="statGrid"></div>
-        </header>
-
-        <div class="row g-4">
-            <div class="col-lg-4">
-                <div class="card-dark p-4 mb-4">
-                    <h5 class="mb-3 accent-label">Pick Atual</h5>
-                    <div class="mb-2" id="clockBanner"></div>
+                <div class="panel-card-body">
                     <div id="currentPickCard"></div>
-                    <hr class="border-secondary my-4">
-                    <h6 class="text-uppercase accent-label">Próximo Pick</h6>
-                    <div id="nextPickCard" class="mt-3"></div>
-                </div>
-                <div class="card-dark p-4">
-                    <h5 class="mb-3">Ordem do Draft</h5>
-                    <div id="orderList" class="small"></div>
+                    <div style="margin:14px 0 10px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3)">Próximo Pick</div>
+                    <div id="nextPickCard"></div>
                 </div>
             </div>
 
-            <div class="col-lg-8">
-                <div class="card-dark p-4 mb-4">
-                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-                        <h5 class="mb-0">Jogadores do Pool</h5>
-                        <span class="text-muted" id="poolMeta"></span>
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">Ordem do Draft</div>
+                </div>
+                <div class="panel-card-body" id="orderList" style="min-height:60px">
+                    <div class="state-empty">Carregando…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right column: pool + rosters -->
+        <div class="col-lg-8">
+            <div class="panel-card mb-4">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">Jogadores do Pool</div>
+                    <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
+                </div>
+                <div class="panel-card-body">
+                    <div class="d-flex flex-column flex-md-row gap-2 mb-3">
+                        <input type="text" id="poolSearch" class="search-input" placeholder="Buscar jogador…">
+                        <select id="poolPositionFilter" class="filter-select" style="max-width:160px">
+                            <option value="">Todas as posições</option>
+                            <option value="PG">PG</option>
+                            <option value="SG">SG</option>
+                            <option value="SF">SF</option>
+                            <option value="PF">PF</option>
+                            <option value="C">C</option>
+                        </select>
+                        <label class="filter-check" style="white-space:nowrap">
+                            <input type="checkbox" id="poolOnlyAvailable" checked>
+                            Disponíveis
+                        </label>
                     </div>
-                    <div class="row g-2 align-items-center mb-3">
-                        <div class="col-md-5">
-                            <input type="text" id="poolSearch" class="form-control" placeholder="Buscar jogador" />
-                        </div>
-                        <div class="col-md-4">
-                            <select id="poolPositionFilter" class="form-select">
-                                <option value="">Todas as posições</option>
-                                <option value="PG">PG</option>
-                                <option value="SG">SG</option>
-                                <option value="SF">SF</option>
-                                <option value="PF">PF</option>
-                                <option value="C">C</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="poolOnlyAvailable" checked>
-                                <label class="form-check-label" for="poolOnlyAvailable">Apenas disponíveis</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="table-responsive pool-table-wrapper">
-                        <table class="table table-dark table-hover align-middle mb-0" id="poolTableEl">
+                    <div class="data-table-wrap">
+                        <table class="data-table" id="poolTableEl">
                             <thead>
                                 <tr>
                                     <th>#</th>
                                     <th class="sortable" data-sort="name">Jogador <span class="sort-indicator"></span></th>
-                                    <th>Posição</th>
+                                    <th>Pos</th>
                                     <th class="sortable" data-sort="ovr">OVR <span class="sort-indicator"></span></th>
                                     <th class="sortable" data-sort="age">Idade <span class="sort-indicator"></span></th>
-                                    <th class="text-end">Ação</th>
+                                    <th style="text-align:right">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="poolTable"></tbody>
                         </table>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2" id="poolPagination"></div>
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 pag-wrap" id="poolPagination"></div>
                 </div>
+            </div>
 
-                <div class="card-dark p-4">
-                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-                        <h5 class="mb-0">Elencos em Montagem</h5>
-                        <span class="text-muted" id="rosterMeta"></span>
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">Elencos em Montagem</div>
+                    <span style="font-size:11px;color:var(--text-2)" id="rosterMeta"></span>
+                </div>
+                <div class="panel-card-body">
+                    <div class="row g-3" id="rosterGrid">
+                        <div class="state-empty">Nenhum elenco montado ainda.</div>
                     </div>
-                    <div class="row g-3" id="rosterGrid"></div>
                 </div>
             </div>
         </div>
+
     </div>
+
+</div><!-- .app-wrap -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -502,45 +520,30 @@ if ($user && isset($user['id'])) {
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
             const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
 
-            const statusLabel = (session.status === 'in_progress')
-                ? 'Em andamento'
-                : (session.status === 'completed')
-                    ? 'Concluído'
-                    : (session.status === 'setup')
-                        ? 'Preparação'
-                        : (session.status || '-');
-
+            const statusLabel2 = { setup: 'Configuração', in_progress: 'Em andamento', completed: 'Concluído' }[session.status] || session.status || '—';
             elements.statGrid.innerHTML = `
-                <div class="col-sm-6 col-lg-3">
-                    <div class="stat-card">
-                        <div class="stat-label">Status</div>
-                        <div>${statusLabel}</div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-label">Status</div>
+                    <div class="status-pill ${session.status}">${statusLabel2}</div>
                 </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="stat-card">
-                        <div class="stat-label accent-label">Rodada Atual</div>
-                        <div>${session.current_round ?? '-'} de ${session.total_rounds ?? '-'}</div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-label">Rodada</div>
+                    <div class="stat-value">${session.current_round ?? '—'} / ${session.total_rounds ?? '—'}</div>
                 </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="stat-card">
-                        <div class="stat-label accent-label">Time Atual</div>
-                        <div>${currentPick ? teamLabel(currentPick) : '-'}</div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-label">Time Atual</div>
+                    <div class="stat-value" style="font-size:.95rem">${currentPick ? teamLabel(currentPick) : '—'}</div>
                 </div>
-                <div class="col-sm-6 col-lg-3">
-                    <div class="stat-card">
-                        <div class="stat-label">Progresso</div>
-                        <div>${drafted} / ${total} (${progress}%)</div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-label">Progresso</div>
+                    <div class="stat-value">${drafted} / ${total} <span style="font-size:.8rem;color:var(--text-2)">(${progress}%)</span></div>
                 </div>
             `;
         }
 
         function renderPickCard(target, pick, label, highlightClass = '') {
             if (!pick) {
-                target.innerHTML = `<div class="text-muted">Nenhuma pick disponível.</div>`;
+                target.innerHTML = `<div class="state-empty" style="padding:12px 0;font-size:12px">Nenhuma pick disponível.</div>`;
                 return;
             }
             target.innerHTML = `
@@ -549,10 +552,10 @@ if ($user && isset($user['id'])) {
                         <img class="pick-logo" src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                         <div class="pick-rank">${pick.pick_position}</div>
                         <div>
-                            <div class="small accent-label">${label}</div>
-                            <div class="fw-semibold">${teamLabel(pick)}</div>
-                            <div class="small text-white">GM: ${pick.team_owner || 'Sem GM'}</div>
-                            <div class="small accent-label">Rodada ${pick.round}</div>
+                            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--red)">${label}</div>
+                            <div style="font-weight:700;font-size:14px">${teamLabel(pick)}</div>
+                            <div style="font-size:11px;color:var(--text-2)">GM: ${pick.team_owner || 'Sem GM'}</div>
+                            <div style="font-size:11px;color:var(--red)">Rodada ${pick.round}</div>
                         </div>
                     </div>
                 </div>
@@ -561,7 +564,7 @@ if ($user && isset($user['id'])) {
 
         function renderOrderList(currentPick, nextPick) {
             if (!state.order.length) {
-                elements.orderList.innerHTML = '<div class="text-muted">Ordem ainda não definida.</div>';
+                elements.orderList.innerHTML = '<div class="state-empty">Ordem ainda não definida.</div>';
                 return;
             }
             const displayRound = Number(state.session?.current_round || 1);
@@ -584,26 +587,28 @@ if ($user && isset($user['id'])) {
                     }).join(' ');
 
                     const pickSummary = picked ? `
-                        <div class="pick-card compact mt-1">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="text-light">
-                                    ${pick.player_name}
-                                    <span class="accent-red">(${pick.player_position ?? ''} • ${pick.player_ovr ?? '-'}${pick.player_age ? '/' + pick.player_age + 'y' : ''})</span>
+                        <div class="pick-summary">
+                            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                                <div>
+                                    <span class="pick-summary-name">${pick.player_name}</span>
+                                    <span class="pick-summary-meta"> (${pick.player_position ?? ''} · ${pick.player_ovr ?? '-'}${pick.player_age ? '/' + pick.player_age + 'y' : ''})</span>
                                 </div>
                                 <div class="reaction-bar">${chips}</div>
                             </div>
                         </div>
                     ` : '';
 
+                    const isCurrentTeam = currentPick && pick.team_id === currentPick.team_id;
+                    const isNextTeam = nextPick && pick.team_id === nextPick.team_id;
                     return `
-                        <div class="d-flex flex-column gap-1 mb-2 ${currentPick && pick.team_id === currentPick.team_id ? 'order-highlight' : ''} ${nextPick && pick.team_id === nextPick.team_id ? 'order-next' : ''}">
+                        <div class="order-item ${isCurrentTeam ? 'order-highlight' : ''} ${isNextTeam && !isCurrentTeam ? 'order-next' : ''}" style="flex-direction:column;align-items:stretch">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="pick-rank" style="width:32px;height:32px;">${index + 1}</span>
+                                <div class="order-rank">${index + 1}</div>
                                 <div class="team-chip">
                                     <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                                     <div>
-                                        <strong>${teamLabel(pick)}</strong>
-                                        <div class="small accent-red">${pick.team_owner || 'Sem GM'}</div>
+                                        <div class="team-chip-name">${teamLabel(pick)}</div>
+                                        <div class="team-chip-gm">${pick.team_owner || 'Sem GM'}</div>
                                     </div>
                                 </div>
                             </div>
@@ -652,7 +657,7 @@ if ($user && isset($user['id'])) {
 
             elements.poolMeta.textContent = `${total} jogadores`;
             if (!pageItems.length) {
-                elements.poolTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum jogador disponível.</td></tr>';
+                elements.poolTable.innerHTML = '<tr><td colspan="6" class="state-empty" style="padding:20px">Nenhum jogador disponível.</td></tr>';
                 elements.poolPagination.innerHTML = '';
                 updatePoolSortIndicators();
                 return;
@@ -663,26 +668,26 @@ if ($user && isset($user['id'])) {
                 .map((player, index) => {
                     const drafted = player.draft_status === 'drafted';
                     const action = (!drafted && canPick)
-                        ? `<button class="btn btn-sm btn-success" onclick="makePick(${player.id})"><i class="bi bi-check2 me-1"></i>Escolher</button>`
-                        : '<span class="text-muted">-</span>';
+                        ? `<button class="btn-green" style="padding:4px 12px;font-size:11px" onclick="makePick(${player.id})"><i class="bi bi-check2"></i> Escolher</button>`
+                        : '<span style="color:var(--text-3)">—</span>';
                     return `
                         <tr>
-                            <td data-label="#">${startIndex + index + 1}</td>
-                            <td data-label="Jogador">${player.name}</td>
-                            <td data-label="Posição">${player.position}</td>
-                            <td data-label="OVR">${player.ovr}</td>
-                            <td data-label="Idade">${player.age || '-'}</td>
-                            <td class="text-end" data-label="Ação">${action}</td>
+                            <td>${startIndex + index + 1}</td>
+                            <td class="td-name">${player.name}</td>
+                            <td>${player.position}</td>
+                            <td style="font-weight:700;color:var(--text)">${player.ovr}</td>
+                            <td>${player.age || '—'}</td>
+                            <td style="text-align:right">${action}</td>
                         </tr>
                     `;
                 })
                 .join('');
 
             elements.poolPagination.innerHTML = `
-                <div class="text-white">Página ${uiState.poolPage} de ${totalPages}</div>
+                <span style="font-size:11px;color:var(--text-2)">Pág. ${uiState.poolPage} de ${totalPages}</span>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === 1 ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage - 1})">Anterior</button>
-                    <button class="btn btn-sm btn-outline-light" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima</button>
+                    <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${uiState.poolPage === 1 ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage - 1})">← Anterior</button>
+                    <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima →</button>
                 </div>
             `;
             updatePoolSortIndicators();
@@ -712,7 +717,7 @@ if ($user && isset($user['id'])) {
             elements.rosterMeta.textContent = `${teams.length} times com picks`;
 
             if (!teams.length) {
-                elements.rosterGrid.innerHTML = '<div class="text-light">Nenhum elenco montado ainda.</div>';
+                elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum elenco montado ainda.</div>';
                 return;
             }
 
@@ -720,22 +725,22 @@ if ($user && isset($user['id'])) {
                 .map((group) => {
                     const roster = group.players
                         .map((pick) => {
-                            const ovr = (pick.player_ovr ?? '-')
-                            const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}y` : '-';
-                            return `<li>${pick.player_name} <span class="accent-red">(${pick.player_position ?? ''} • ${ovr}/${age})</span></li>`;
+                            const ovr = (pick.player_ovr ?? '—');
+                            const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}y` : '—';
+                            return `<li>${pick.player_name} <span class="roster-player-pos">${pick.player_position ?? ''} · ${ovr}/${age}</span></li>`;
                         })
                         .join('');
                     return `
                         <div class="col-md-6 col-xl-4">
-                            <div class="card-dark p-3 h-100">
-                                <div class="team-chip mb-2">
+                            <div class="roster-card h-100">
+                                <div class="team-chip mb-3">
                                     <img src="${group.team.team_photo || '/img/default-team.png'}" alt="${group.team.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
                                     <div>
-                                        <strong>${teamLabel(group.team)}</strong>
-                                        <div class="small accent-red">${group.team.team_owner || 'Sem GM'}</div>
+                                        <div class="team-chip-name">${teamLabel(group.team)}</div>
+                                        <div class="team-chip-gm">${group.team.team_owner || 'Sem GM'}</div>
                                     </div>
                                 </div>
-                                <ul class="small ps-3 mb-0 text-light">${roster}</ul>
+                                <ul class="roster-list">${roster}</ul>
                             </div>
                         </div>
                     `;
@@ -765,7 +770,7 @@ if ($user && isset($user['id'])) {
                 renderPool(currentPick);
                 renderRosters();
             } catch (error) {
-                elements.poolTable.innerHTML = `<tr><td colspan="6" class="text-danger">${error.message}</td></tr>`;
+                elements.poolTable.innerHTML = `<tr><td colspan="6" style="color:#ef4444;padding:16px;text-align:center">${error.message}</td></tr>`;
             }
         }
 
@@ -902,10 +907,16 @@ if ($user && isset($user['id'])) {
 
         function toggleSound() {
             uiState.soundEnabled = !uiState.soundEnabled;
-            elements.toggleSoundButton?.classList.toggle('btn-warning', uiState.soundEnabled);
-            elements.toggleSoundButton?.classList.toggle('btn-outline-warning', !uiState.soundEnabled);
-            elements.toggleSoundButton?.querySelector('i')?.classList.toggle('bi-volume-mute', !uiState.soundEnabled);
-            elements.toggleSoundButton?.querySelector('i')?.classList.toggle('bi-volume-up', uiState.soundEnabled);
+            const btn = elements.toggleSoundButton;
+            if (btn) {
+                btn.style.color = uiState.soundEnabled ? 'var(--amber)' : '';
+                btn.style.borderColor = uiState.soundEnabled ? 'rgba(245,158,11,.4)' : '';
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.classList.toggle('bi-volume-mute', !uiState.soundEnabled);
+                    icon.classList.toggle('bi-volume-up', uiState.soundEnabled);
+                }
+            }
         }
 
         function toggleTvMode() {

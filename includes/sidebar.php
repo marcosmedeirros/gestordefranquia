@@ -124,6 +124,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
+            <a href="/punicoes.php" class="<?= $currentPage === 'punicoes.php' ? 'active' : '' ?>">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Punições
+            </a>
+        </li>
+        <li>
             <a href="/temporadas.php" class="<?= $currentPage === 'temporadas.php' ? 'active' : '' ?>">
                 <i class="bi bi-calendar3"></i>
                 Temporadas
