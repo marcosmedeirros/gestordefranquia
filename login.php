@@ -71,14 +71,22 @@
 		}
 
 		.brand-wrap { max-width: 560px; }
-		.brand-logo {
+		.brand-logo-wrap {
+			max-width: 400px;
 			width: 100%;
-			max-width: 420px;
+			position: relative;
+			height: 0;
+			padding-bottom: 28%;
+			overflow: hidden;
+		}
+		.brand-logo {
+			position: absolute;
+			width: 100%;
 			height: auto;
+			top: 50%;
+			left: 0;
+			transform: translateY(-50%);
 			display: block;
-			object-fit: contain;
-			image-rendering: -webkit-optimize-contrast;
-			image-rendering: high-quality;
 		}
 		.brand-kicker {
 			margin-top: 18px;
