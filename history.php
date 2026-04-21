@@ -302,8 +302,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .page-hero, .content { padding-left: 16px; padding-right: 16px; }
       .page-hero { padding-top: 18px; }
     }
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .awards-grid { grid-template-columns: 1fr; }
+      .season-head { padding: 14px 16px; }
+      .season-body { padding: 14px 16px; }
+      .season-foot { padding: 10px 16px; }
     }
     /* classes usadas pelo history.js */
     .text-orange       { color: var(--red) !important; }
