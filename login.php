@@ -72,20 +72,14 @@
 
 		.brand-wrap { max-width: 560px; }
 		.brand-logo-wrap {
-			max-width: 400px;
+			max-width: 500px;
 			width: 100%;
-			position: relative;
-			height: 0;
-			padding-bottom: 28%;
-			overflow: hidden;
 		}
 		.brand-logo {
-			position: absolute;
+			position: static;
 			width: 100%;
 			height: auto;
-			top: 50%;
-			left: 0;
-			transform: translateY(-50%);
+			object-fit: contain;
 			display: block;
 		}
 		.brand-kicker {
@@ -211,7 +205,7 @@
 			.auth-shell { grid-template-columns: 1fr; }
 			.brand-side { padding: 26px 16px 6px; }
 			.brand-wrap { text-align: center; }
-			.brand-logo-wrap { max-width: 280px; margin: 0 auto; }
+			.brand-logo-wrap { max-width: 320px; margin: 0 auto; }
 			.brand-title { font-size: 28px; }
 			.brand-points { grid-template-columns: 1fr 1fr 1fr; }
 			.form-side { padding: 12px 16px 26px; }
@@ -240,14 +234,14 @@
 		<section class="brand-side">
 			<div class="brand-wrap">
 				<div class="brand-logo-wrap">
-					<img src="/img/fba-logo.png"
+					<img src="/img/fba-logo.png?v=3"
 					     alt="FBA 2K League Brasil"
 					     class="brand-logo"
-					     width="840"
-					     height="420"
+					     width="6480"
+					     height="3240"
 					     decoding="async"
 					     loading="eager"
-					     onerror="this.onerror=null;this.src='/img/logo-fba-preta.jpg';">
+					     onerror="this.onerror=null;this.src='/img/logo-fba-preta.jpg?v=3';">
 				</div>
 				<div class="brand-kicker">Plataforma oficial</div>
 				<h1 class="brand-title">Gestao completa da sua franquia</h1>
