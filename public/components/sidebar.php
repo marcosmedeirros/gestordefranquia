@@ -4,8 +4,8 @@ $publicPage = basename($_SERVER['PHP_SELF'] ?? '');
 $links = [
     ['href' => '/dashboard.php', 'icon' => 'bi-house-door-fill', 'label' => 'Dashboard'],
     ['href' => '/teams.php', 'icon' => 'bi-people-fill', 'label' => 'Times'],
-    ['href' => '/players.php', 'icon' => 'bi-person-lines-fill', 'label' => 'Jogadores'],
     ['href' => '/my-roster.php', 'icon' => 'bi-person-fill', 'label' => 'Meu Elenco'],
+    ['href' => '/players.php', 'icon' => 'bi-person-lines-fill', 'label' => 'Jogadores'],
     ['href' => '/picks.php', 'icon' => 'bi-calendar-check-fill', 'label' => 'Picks'],
     ['href' => '/trades.php', 'icon' => 'bi-arrow-left-right', 'label' => 'Trades'],
     ['href' => '/free-agency.php', 'icon' => 'bi-coin', 'label' => 'Free Agency'],

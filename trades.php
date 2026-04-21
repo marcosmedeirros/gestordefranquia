@@ -375,6 +375,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
             <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
             <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
             <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
             <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
             <a href="/trades.php" class="active"><i class="bi bi-arrow-left-right"></i> Trades</a>
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
