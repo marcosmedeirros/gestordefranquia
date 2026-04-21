@@ -72,14 +72,18 @@
 
 		.brand-wrap { max-width: 560px; }
 		.brand-logo-wrap {
-			max-width: 500px;
+			max-width: 360px;
 			width: 100%;
+			aspect-ratio: 2.1 / 1;
+			overflow: hidden;
 		}
 		.brand-logo {
 			position: static;
 			width: 100%;
-			height: auto;
-			object-fit: contain;
+			height: 100%;
+			object-fit: cover;
+			transform: scale(1.42);
+			transform-origin: center;
 			display: block;
 		}
 		.brand-kicker {
@@ -205,7 +209,7 @@
 			.auth-shell { grid-template-columns: 1fr; }
 			.brand-side { padding: 26px 16px 6px; }
 			.brand-wrap { text-align: center; }
-			.brand-logo-wrap { max-width: 320px; margin: 0 auto; }
+			.brand-logo-wrap { max-width: 300px; margin: 0 auto; }
 			.brand-title { font-size: 28px; }
 			.brand-points { grid-template-columns: 1fr 1fr 1fr; }
 			.form-side { padding: 12px 16px 26px; }
