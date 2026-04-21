@@ -211,7 +211,7 @@
 			.auth-shell { grid-template-columns: 1fr; }
 			.brand-side { padding: 26px 16px 6px; }
 			.brand-wrap { text-align: center; }
-			.brand-logo { max-width: 280px; margin: 0 auto; }
+			.brand-logo-wrap { max-width: 280px; margin: 0 auto; }
 			.brand-title { font-size: 28px; }
 			.brand-points { grid-template-columns: 1fr 1fr 1fr; }
 			.form-side { padding: 12px 16px 26px; }
@@ -239,14 +239,16 @@
 	<div class="auth-shell">
 		<section class="brand-side">
 			<div class="brand-wrap">
-				<img src="/img/fba-logo.png"
-				     alt="FBA 2K League Brasil"
-				     class="brand-logo"
-				     width="840"
-				     height="420"
-				     decoding="async"
-				     loading="eager"
-				     onerror="this.onerror=null;this.src='/img/logo-fba-preta.jpg';">
+				<div class="brand-logo-wrap">
+					<img src="/img/fba-logo.png"
+					     alt="FBA 2K League Brasil"
+					     class="brand-logo"
+					     width="840"
+					     height="420"
+					     decoding="async"
+					     loading="eager"
+					     onerror="this.onerror=null;this.src='/img/logo-fba-preta.jpg';">
+				</div>
 				<div class="brand-kicker">Plataforma oficial</div>
 				<h1 class="brand-title">Gestao completa da sua franquia</h1>
 				<p class="brand-sub">Controle roster, trades, draft e estrategia da liga em um unico painel.</p>
