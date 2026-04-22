@@ -22,7 +22,7 @@ $hiddenRankingEmail = 'medeirros99@gmail.com';
 $hiddenRankingEmailLower = strtolower($hiddenRankingEmail);
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -553,50 +553,180 @@ try {
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .topbar { padding: 0 16px; }
-      .topbar-balances .balance-chip:last-child { display: none; }
-      .main { padding: 20px 16px 48px; }
+.main { padding: 20px 16px 48px; }
       .stats-grid { grid-template-columns: 1fr 1fr; }
       .games-grid { grid-template-columns: repeat(3, 1fr); }
       .loja-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 480px) {
       .games-grid { grid-template-columns: repeat(2, 1fr); }
-      .topbar-name { display: none; }
       .stats-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Sidebar Layout ── */
+    .page-layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; flex-shrink: 0;
+      background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+      overflow-y: auto;
+    }
+    .page-content { flex: 1; margin-left: 240px; min-width: 0; }
+    .sb-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px 14px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .sb-logo {
+      width: 30px; height: 30px; border-radius: 8px; background: var(--red);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 11px; color: #fff; flex-shrink: 0;
+    }
+    .sb-brand { font-weight: 800; font-size: 13px; color: var(--text); flex: 1; }
+    .sb-brand span { color: var(--red); }
+    .sb-close { display: none; background: none; border: none; color: var(--text-2); font-size: 18px; cursor: pointer; padding: 4px; }
+    .sb-user { padding: 14px; border-bottom: 1px solid var(--border); }
+    .sb-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--red-soft); border: 2px solid var(--border-red);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 15px; color: var(--red); margin-bottom: 8px;
+    }
+    .sb-user-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .sb-user-role { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .sb-stats { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sb-stat { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+    .sb-stat i { width: 16px; text-align: center; font-size: 12px; color: var(--red); flex-shrink: 0; }
+    .sb-stat-info { display: flex; flex-direction: column; }
+    .sb-stat-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
+    .sb-stat-label { font-size: 10px; color: var(--text-3); }
+    .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+    .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 8px 14px 4px; }
+    .sb-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 14px; text-decoration: none;
+      font-size: 12px; font-weight: 500; color: var(--text-2);
+      transition: all var(--t) var(--ease); border-left: 3px solid transparent;
+    }
+    .sb-link i { width: 16px; text-align: center; font-size: 13px; }
+    .sb-link:hover { background: var(--panel-2); color: var(--text); border-left-color: var(--border-md); }
+    .sb-link.active { background: var(--red-soft); color: var(--red); border-left-color: var(--red); font-weight: 700; }
+    .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .sb-logout {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-2); text-decoration: none;
+      font-family: var(--font); font-size: 12px; font-weight: 600;
+      transition: all var(--t) var(--ease);
+    }
+    .sb-logout:hover { background: rgba(252,0,37,.1); border-color: var(--border-red); color: var(--red); }
+    .mob-bar {
+      display: none; align-items: center; gap: 12px;
+      height: 52px; padding: 0 14px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .mob-ham {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 16px; flex-shrink: 0;
+    }
+    .mob-title { font-size: 14px; font-weight: 800; color: var(--text); flex: 1; }
+    .mob-title span { color: var(--red); }
+    .mob-back {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; text-decoration: none; transition: all var(--t) var(--ease);
+    }
+    .mob-back:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+    .sb-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      z-index: 199; backdrop-filter: blur(2px);
+    }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 280ms var(--ease); }
+      .sidebar.open { transform: translateX(0); }
+      .page-content { margin-left: 0; }
+      .mob-bar { display: flex; }
+      .sb-close { display: flex; align-items: center; justify-content: center; }
+      .sb-overlay.open { display: block; }
     }
   </style>
 </head>
 <body>
 
-<!-- ══ TOPBAR ══ -->
-<header class="topbar">
-  <a href="index.php" class="topbar-brand">
-    <div class="topbar-logo">FBA</div>
-    <div class="topbar-name">FBA <span>Games</span></div>
-  </a>
-
-  <div class="topbar-spacer"></div>
-
-  <div class="topbar-balances">
-    <div class="balance-chip">
+<div class="page-layout">
+<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">FBA</div>
+    <span class="sb-brand">FBA <span>Games</span></span>
+    <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome'] ?? 'U', 0, 1)) ?></div>
+    <div class="sb-user-name"><?= htmlspecialchars($usuario['nome'] ?? '') ?></div>
+    <div class="sb-user-role"><?= !empty($usuario['is_admin']) ? 'Admin' : 'Jogador' ?></div>
+  </div>
+  <div class="sb-stats">
+    <div class="sb-stat">
+      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
+      <div class="sb-stat-info">
+        <div class="sb-stat-val"><?= number_format($usuario['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
+        <div class="sb-stat-label">Tapas</div>
+      </div>
+    </div>
+    <div class="sb-stat">
       <i class="bi bi-coin"></i>
-      <?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?>
+      <div class="sb-stat-info">
+        <div class="sb-stat-val"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></div>
+        <div class="sb-stat-label">Moedas</div>
+      </div>
     </div>
-    <div class="balance-chip fba">
-      <i class="bi bi-gem"></i>
-      <?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?>
+    <div class="sb-stat">
+      <i class="bi bi-gem" style="color:var(--amber)"></i>
+      <div class="sb-stat-info">
+        <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></div>
+        <div class="sb-stat-label">FBA Points</div>
+      </div>
     </div>
   </div>
+  <nav class="sb-nav">
+    <div class="sb-nav-section">Menu</div>
+    <a href="index.clean.php" class="sb-link active">
+      <i class="bi bi-lightning-charge"></i>Apostas
+    </a>
+    <a href="index.clean.php" class="sb-link">
+      <i class="bi bi-joystick"></i>Games
+    </a>
+    <a href="user/ranking-geral.php" class="sb-link">
+      <i class="bi bi-trophy"></i>Ranking Geral
+    </a>
+    <?php if (!empty($usuario['is_admin'])): ?>
+    <div class="sb-nav-section">Admin</div>
+    <a href="admin/controlegames.php" class="sb-link">
+      <i class="bi bi-gear-fill"></i>Controle de Jogos
+    </a>
+    <a href="admin/dashboard.php" class="sb-link">
+      <i class="bi bi-grid-fill"></i>Dashboard
+    </a>
+    <?php endif; ?>
+  </nav>
+  <div class="sb-footer">
+    <a href="auth/logout.php" class="sb-logout">
+      <i class="bi bi-box-arrow-right"></i>Sair
+    </a>
+  </div>
+</aside>
 
-  <div class="topbar-actions">
-    <a href="user/alterar-senha.php" class="icon-btn" title="Alterar senha">
-      <i class="bi bi-shield-lock"></i>
-    </a>
-    <a href="auth/logout.php" class="icon-btn" title="Sair">
-      <i class="bi bi-box-arrow-right"></i>
-    </a>
-  </div>
-</header>
+<div class="page-content">
+<div class="mob-bar">
+  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+  <span class="mob-title">FBA <span>Games</span></span>
+  <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+</div>
 
 <!-- ══ MAIN ══ -->
 <div class="main">
@@ -912,9 +1042,21 @@ try {
 <div class="page-footer">
   <i class="bi bi-heart-fill" style="color:var(--red)"></i> FBA Games © 2026 — Jogue Responsavelmente
 </div>
+</div><!-- /page-content -->
+</div><!-- /page-layout -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sbOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sbOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+  }
   function switchTab(tab) {
     document.getElementById('pane-apostas').style.display = tab === 'apostas' ? '' : 'none';
     document.getElementById('pane-games').style.display   = tab === 'games'   ? '' : 'none';

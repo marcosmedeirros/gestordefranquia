@@ -8,7 +8,11 @@
       "Bash(sed -n '331,341p' picks.php)",
       "Bash(sed -n '496,506p' free-agency.php)",
       "Bash(sed -n '220,230p' leilao.php)",
-      "Bash(identify c:/Users/marco/IdeaProjects/gestordefranquia/img/fba-logo.png)"
+      "Bash(identify c:/Users/marco/IdeaProjects/gestordefranquia/img/fba-logo.png)",
+      "Read(//c/Users/marco/.claude/projects/c--Users-marco-IdeaProjects-gestordefranquia/memory/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\marco\\.claude\\projects\\c--Users-marco-IdeaProjects-gestordefranquia\\memory"
     ]
   }
 }
