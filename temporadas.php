@@ -451,10 +451,27 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
               <div class="league-card-name">${l.name}</div>
               <div class="league-card-sub">${l.sub}</div>
               <div class="league-card-badge"><i class="bi bi-gear-fill"></i> Gerenciar</div>
+              ${l.name === 'RISE' ? `
+                <button class="btn btn-sm btn-outline-orange w-100 mt-2" onclick="event.stopPropagation(); adjustPicksForLeague('RISE')">
+                  <i class="bi bi-wrench-adjustable me-1"></i>Ajustar picks
+                </button>
+              ` : ''}
             </div>
           `).join('')}
         </div>
       `;
+    }
+
+    async function adjustPicksForLeague(league) {
+      if (!confirm(`Ajustar picks automáticas da liga ${league}?`)) return;
+      try {
+        const data = await api(`seasons.php?action=adjust_picks&league=${league}`);
+        const stats = data.stats || {};
+        const targetYears = (data.target_years || []).join(', ') || '-';
+        alert(`Picks ajustadas para ${league}.\nAnos-alvo: ${targetYears}.\nCriadas: ${stats.created || 0}, Ajustadas: ${stats.renamed || 0}, Removidas: ${stats.deleted || 0}.`);
+      } catch (e) {
+        alert('Erro ao ajustar picks: ' + (e.error || 'Desconhecido'));
+      }
     }
 
     // ========== TELA DE GERENCIAMENTO DE UMA LIGA ==========
