@@ -6,7 +6,7 @@ require '../core/conexao.php';
 // 1. Se já estiver logado, joga pro painel direto
 if (isset($_SESSION['user_id'])) {
     if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-        header("Location: ../admin/dashboard.php");
+        header("Location: ../index.php");
     } else {
         header("Location: ../index.php");
     }
