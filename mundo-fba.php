@@ -66,6 +66,23 @@ $capStmt = null;
 try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) top8'); } catch (Exception $e) {}
 
 foreach ($leagueOrder as $league) {
+    // Temporada atual e total de temporadas da liga
+    $currentSeasonNum = null; $totalSeasons = null;
+    try {
+        $s = $pdo->prepare("SELECT season_number FROM seasons WHERE league = ? AND status NOT IN ('completed') ORDER BY created_at DESC LIMIT 1");
+        $s->execute([$league]);
+        $r = $s->fetchColumn();
+        if ($r !== false) $currentSeasonNum = (int)$r;
+    } catch (Exception $e) {}
+    try {
+        $s = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ?");
+        $s->execute([$league]);
+        $r = $s->fetchColumn();
+        if ($r !== false) $totalSeasons = (int)$r;
+    } catch (Exception $e) {}
+    // Se não houver temporada ativa, currentSeasonNum = total (última encerrada)
+    if ($currentSeasonNum === null) $currentSeasonNum = $totalSeasons;
+
     // Times
     $teams = [];
     try {
@@ -241,7 +258,7 @@ foreach ($leagueOrder as $league) {
         $ranking = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {}
 
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking');
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -345,6 +362,13 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             transition:color var(--t) var(--ease); white-space:nowrap;
         }
         .league-tab i { font-size:14px; }
+        .tab-season {
+            font-size:10px; font-weight:700; letter-spacing:.4px;
+            background:var(--panel-3); border:1px solid var(--border);
+            border-radius:20px; padding:2px 7px; color:var(--text-3);
+            transition:all var(--t) var(--ease);
+        }
+        .league-tab.active .tab-season { border-color:currentColor; color:inherit; opacity:.75; }
         .league-tab::after {
             content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px;
             background:transparent; transition:background var(--t) var(--ease);
@@ -578,6 +602,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             .stats-strip { grid-template-columns:1fr 1fr; }
             .league-tab { padding:10px 14px; font-size:12px; }
             .league-tab span { display:none; }
+            .league-tab .tab-season { display:none; }
             .team-head { padding:12px 14px; gap:10px; }
             .cap-val { font-size:14px; }
             .starters-wrap { padding:0 14px 12px; }
@@ -668,11 +693,14 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
 
         <!-- Abas das ligas -->
         <div class="league-tabs">
-            <?php foreach ($leagueOrder as $league): $meta = $leagueMeta[$league]; ?>
+            <?php foreach ($leagueOrder as $league): $meta = $leagueMeta[$league]; $ld = $leagueData[$league]; ?>
             <button class="league-tab <?= $league === $defaultTab ? 'active' : '' ?>"
                     data-league="<?= $league ?>" onclick="switchTab('<?= $league ?>')">
                 <i class="bi <?= $meta['icon'] ?>"></i>
                 <span><?= $meta['label'] ?></span>
+                <?php if ($ld['currentSeasonNum'] !== null): ?>
+                <span class="tab-season">T<?= $ld['currentSeasonNum'] ?><?= $ld['totalSeasons'] ? '/' . $ld['totalSeasons'] : '' ?></span>
+                <?php endif; ?>
             </button>
             <?php endforeach; ?>
         </div>
