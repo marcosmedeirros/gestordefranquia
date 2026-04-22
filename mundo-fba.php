@@ -174,7 +174,26 @@ foreach ($leagueOrder as $league) {
         $hof = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {}
 
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof');
+    // Player count
+    $playerCount = 0;
+    try {
+        $s = $pdo->prepare("SELECT COUNT(*) FROM players p JOIN teams t ON p.team_id = t.id WHERE t.league = ?");
+        $s->execute([$league]);
+        $playerCount = (int)$s->fetchColumn();
+    } catch (Exception $e) {}
+
+    // Trades count
+    $tradesCount = 0;
+    try {
+        $s = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE league = ? AND status = 'accepted'");
+        $s->execute([$league]);
+        $tradesCount = (int)$s->fetchColumn();
+    } catch (Exception $e) {}
+
+    // Avg CAP
+    $avgCap = count($teams) > 0 ? (int)round(array_sum(array_column($teams, 'cap_top8')) / count($teams)) : 0;
+
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -270,7 +289,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .content { padding:24px 32px 56px; flex:1; }
 
         /* ── League tabs ────────────────────────────────────── */
-        .league-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:28px; }
+        .league-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:28px; justify-content:center; }
         .league-tab {
             display:flex; align-items:center; gap:8px;
             padding:12px 24px; font-size:13px; font-weight:600; color:var(--text-2);
@@ -431,6 +450,40 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .hof-num { font-size:18px; font-weight:900; color:#f59e0b; line-height:1; }
         .hof-lbl { font-size:9px; color:var(--amber); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
 
+        /* ── Stats strip ───────────────────────────────────── */
+        .stats-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:24px; }
+        .stat-pill {
+            background:var(--panel); border:1px solid var(--border);
+            border-radius:var(--radius-sm); padding:14px 16px;
+            display:flex; flex-direction:column; align-items:center; gap:2px;
+        }
+        .stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; }
+        .stat-lbl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--text-3); }
+
+        /* ── Award chips ────────────────────────────────────── */
+        .award-chips { display:flex; flex-wrap:wrap; gap:8px; }
+        .award-chip {
+            display:flex; align-items:center; gap:8px;
+            background:var(--panel); border:1px solid var(--border);
+            border-radius:30px; padding:8px 14px;
+            min-width:0;
+        }
+        .chip-icon { font-size:16px; line-height:1; flex-shrink:0; }
+        .chip-body { min-width:0; }
+        .chip-lbl  { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-3); margin-bottom:1px; }
+        .chip-name { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px; }
+        .chip-amber { border-color:rgba(245,158,11,.30); background:rgba(245,158,11,.06); }
+        .chip-amber .chip-lbl { color:#f59e0b; }
+        .chip-blue  { border-color:rgba(59,130,246,.30); background:rgba(59,130,246,.06); }
+        .chip-blue  .chip-lbl { color:#3b82f6; }
+        .chip-green { border-color:rgba(34,197,94,.30); background:rgba(34,197,94,.06); }
+        .chip-green .chip-lbl { color:#22c55e; }
+        .chip-purple{ border-color:rgba(167,139,250,.30); background:rgba(167,139,250,.06); }
+        .chip-purple .chip-lbl { color:#a78bfa; }
+        .chip-red   { border-color:rgba(252,0,37,.25); background:rgba(252,0,37,.06); }
+        .chip-red   .chip-lbl { color:#fc6680; }
+        .chip-gray  { border-color:var(--border-md); }
+
         /* ── Empty state ────────────────────────────────────── */
         .empty-state {
             text-align:center; padding:40px 20px; color:var(--text-3);
@@ -451,6 +504,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         }
         @media (max-width: 640px) {
             .champ-grid { grid-template-columns:1fr; }
+            .stats-strip { grid-template-columns:1fr 1fr; }
             .league-tab { padding:10px 14px; font-size:12px; }
             .league-tab span { display:none; }
             .team-head { padding:12px 14px; gap:10px; }
@@ -548,7 +602,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     data-league="<?= $league ?>" onclick="switchTab('<?= $league ?>')">
                 <i class="bi <?= $meta['icon'] ?>"></i>
                 <span><?= $meta['label'] ?></span>
-                <?= $league ?>
             </button>
             <?php endforeach; ?>
         </div>
@@ -559,6 +612,26 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             $col  = $meta['color'];
         ?>
         <div class="league-pane <?= $league === $defaultTab ? 'active' : '' ?>" id="pane-<?= $league ?>">
+
+            <?php /* ── Stats strip ── */ ?>
+            <div class="stats-strip">
+                <div class="stat-pill">
+                    <span class="stat-val"><?= count($d['teams']) ?></span>
+                    <span class="stat-lbl">Times</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-val"><?= $d['playerCount'] ?></span>
+                    <span class="stat-lbl">Jogadores</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-val"><?= $d['tradesCount'] ?></span>
+                    <span class="stat-lbl">Trocas</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-val"><?= $d['avgCap'] ?></span>
+                    <span class="stat-lbl">CAP Médio</span>
+                </div>
+            </div>
 
             <?php /* ── Campeão da última temporada ── */ ?>
             <?php if ($d['champion'] || $d['runnerUp']): ?>
@@ -601,18 +674,48 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             <?php endif; ?>
 
             <?php /* ── Prêmios individuais ── */ ?>
+            <?php
+            $chipDefs = [
+                'mvp'           => ['icon'=>'⭐','label'=>'MVP',        'cls'=>'chip-amber'],
+                'dpoy'          => ['icon'=>'🛡️','label'=>'DPOY',       'cls'=>'chip-blue'],
+                'mip'           => ['icon'=>'📈','label'=>'MIP',        'cls'=>'chip-green'],
+                'smoy'          => ['icon'=>'👤','label'=>'6º Homem',   'cls'=>'chip-purple'],
+                'roy'           => ['icon'=>'🌟','label'=>'Calouro',    'cls'=>'chip-red'],
+                'fmvp'          => ['icon'=>'🏆','label'=>'MVP Finals', 'cls'=>'chip-amber'],
+                'coach_of_year' => ['icon'=>'👔','label'=>'Técnico',    'cls'=>'chip-gray'],
+            ];
+            $awardsByType = [];
+            foreach ($d['awards'] as $aw) $awardsByType[$aw['award_type']] = $aw['player_name'];
+            ?>
             <?php if (!empty($d['awards'])): ?>
             <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
                 <i class="bi bi-award-fill" style="color:<?= $col ?>"></i>
                 PRÊMIOS INDIVIDUAIS<?= $d['seasonYear'] ? ' · ' . $d['seasonYear'] : '' ?>
             </div>
-            <div class="awards-grid">
-                <?php foreach ($d['awards'] as $aw):
+            <div class="award-chips">
+                <?php foreach ($chipDefs as $type => $chip):
+                    if (!isset($awardsByType[$type])) continue;
+                ?>
+                <div class="award-chip <?= $chip['cls'] ?>">
+                    <span class="chip-icon"><?= $chip['icon'] ?></span>
+                    <div class="chip-body">
+                        <div class="chip-lbl"><?= $chip['label'] ?></div>
+                        <div class="chip-name"><?= htmlspecialchars($awardsByType[$type] ?? '—') ?></div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                <?php
+                // Show any other awards not in chipDefs
+                foreach ($d['awards'] as $aw):
+                    if (isset($chipDefs[$aw['award_type']])) continue;
                     $label = $awardLabels[$aw['award_type']] ?? ucwords(str_replace('_',' ',$aw['award_type']));
                 ?>
-                <div class="award-card">
-                    <div class="award-type"><?= htmlspecialchars($label) ?></div>
-                    <div class="award-player"><?= htmlspecialchars($aw['player_name'] ?? '—') ?></div>
+                <div class="award-chip chip-gray">
+                    <span class="chip-icon">🎖️</span>
+                    <div class="chip-body">
+                        <div class="chip-lbl"><?= htmlspecialchars($label) ?></div>
+                        <div class="chip-name"><?= htmlspecialchars($aw['player_name'] ?? '—') ?></div>
+                    </div>
                 </div>
                 <?php endforeach; ?>
             </div>
