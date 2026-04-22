@@ -76,7 +76,7 @@ if ($filterStart !== '' && $filterEnd !== '') {
 
 try {
     if ($filterActive) {
-        $stmt = $pdo->prepare("        
+        $stmt = $pdo->prepare("
             SELECT
                 u.id,
                 u.nome,
@@ -106,7 +106,7 @@ try {
         ]);
         $ranking_geral = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
-        $stmt = $pdo->prepare("        
+        $stmt = $pdo->prepare("
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                COALESCE(u.acertos_eventos, 0) as acertos,
                COALESCE(u.numero_tapas, 0) as numero_tapas
@@ -123,7 +123,7 @@ try {
 
 try {
     if ($filterActive) {
-        $stmtLiga = $pdo->prepare("        
+        $stmtLiga = $pdo->prepare("
             SELECT
                 u.id,
                 u.nome,
@@ -157,7 +157,7 @@ try {
             $ranking_por_liga[$liga] = $stmtLiga->fetchAll(PDO::FETCH_ASSOC) ?: [];
         }
     } else {
-        $stmtLiga = $pdo->prepare("        
+        $stmtLiga = $pdo->prepare("
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                COALESCE(u.acertos_eventos, 0) as acertos,
                COALESCE(u.numero_tapas, 0) as numero_tapas
@@ -243,507 +243,507 @@ $tab_labels = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="pt-br" data-bs-theme="dark">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ranking Geral - FBA games</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <style>
-        :root {
-            --primary-dark: #121212;
-            --secondary-dark: #1e1e1e;
-            --border-dark: #333;
-            --accent-green: #FC082B;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#fc0025">
+  <title>Ranking Geral - FBA Games</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red:        #fc0025;
+      --red-soft:   rgba(252,0,37,.10);
+      --red-glow:   rgba(252,0,37,.18);
+      --bg:         #07070a;
+      --panel:      #101013;
+      --panel-2:    #16161a;
+      --panel-3:    #1c1c21;
+      --border:     rgba(255,255,255,.06);
+      --border-md:  rgba(255,255,255,.10);
+      --border-red: rgba(252,0,37,.22);
+      --text:       #f0f0f3;
+      --text-2:     #868690;
+      --text-3:     #48484f;
+      --amber:      #f59e0b;
+      --font:       'Poppins', sans-serif;
+      --radius:     14px;
+      --radius-sm:  10px;
+      --ease:       cubic-bezier(.2,.8,.2,1);
+      --t:          200ms;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-        body {
-            background-color: var(--primary-dark);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #e0e0e0;
-        }
+    .topbar {
+      position: sticky; top: 0; z-index: 300;
+      height: 58px; background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 24px; gap: 16px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+    .topbar-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--red); display: flex; align-items: center;
+      justify-content: center; font-weight: 800; font-size: 12px; color: #fff;
+    }
+    .topbar-name { font-weight: 800; font-size: 15px; color: var(--text); }
+    .topbar-name span { color: var(--red); }
+    .topbar-spacer { flex: 1; }
+    .topbar-balances { display: flex; align-items: center; gap: 8px; }
+    .balance-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 5px 12px;
+      font-size: 12px; font-weight: 700; color: var(--text);
+    }
+    .balance-chip i { color: var(--red); font-size: 13px; }
+    .balance-chip.fba i { color: var(--amber); }
+    .topbar-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); display: flex; align-items: center; justify-content: center;
+      font-size: 14px; cursor: pointer; text-decoration: none;
+      transition: all var(--t) var(--ease);
+    }
+    .icon-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
-        .navbar-custom {
-            background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
-            border-bottom: 1px solid var(--border-dark);
-            padding: 15px 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-        }
+    .main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
 
-        .brand-name {
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: #fff;
-            text-decoration: none;
-        }
+    .section-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--text-3);
+      margin-bottom: 18px; margin-top: 28px;
+    }
+    .section-label i { color: var(--red); font-size: 13px; }
 
-        .saldo-badge {
-            background-color: var(--accent-green);
-            color: #000;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-weight: 800;
-            font-size: 1em;
-        }
+    /* Filter bar */
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      align-items: flex-end; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .filter-group { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-2); }
+    .fba-input {
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+      outline: none; transition: border-color var(--t) var(--ease);
+    }
+    .fba-input:focus { border-color: var(--red); }
+    .fba-select {
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+      outline: none; cursor: pointer;
+    }
+    .btn-red {
+      background: var(--red); color: #fff; border: none;
+      border-radius: var(--radius-sm); padding: 8px 16px;
+      font-family: var(--font); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity var(--t) var(--ease);
+    }
+    .btn-red:hover { opacity: .85; }
+    .btn-ghost {
+      background: transparent; border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 14px;
+      color: var(--text-2); font-family: var(--font); font-size: 13px;
+      font-weight: 600; cursor: pointer; text-decoration: none;
+      transition: all var(--t) var(--ease);
+    }
+    .btn-ghost:hover { border-color: var(--text-2); color: var(--text); }
 
-        .container-main {
-            padding: 40px 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+    /* Tab bar */
+    .tab-bar {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px;
+      margin-bottom: 20px; width: fit-content; flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 7px 18px; border-radius: 999px; border: none;
+      background: transparent; color: var(--text-2);
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all var(--t) var(--ease);
+    }
+    .tab-btn.active { background: var(--red); color: #fff; box-shadow: 0 2px 12px rgba(252,0,37,.35); }
 
-        .section-title {
-            color: #999;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 20px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border-dark);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+    /* Ranking panel */
+    .ranking-panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .ranking-header-row {
+      display: grid; grid-template-columns: 44px 1fr 110px 110px 80px;
+      align-items: center; gap: 10px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--text-3);
+    }
+    .ranking-item {
+      display: grid; grid-template-columns: 44px 1fr 110px 110px 80px;
+      align-items: center; gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      transition: background var(--t) var(--ease);
+    }
+    .ranking-item:last-child { border-bottom: none; }
+    .ranking-item:hover { background: var(--panel-2); }
+    .rank-pos {
+      font-size: 13px; font-weight: 800; color: var(--red);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rank-pos.gold   { color: #f59e0b; }
+    .rank-pos.silver { color: #94a3b8; }
+    .rank-pos.bronze { color: #cd7f32; }
+    .rank-info { min-width: 0; }
+    .rank-name {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rank-league { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+    .rank-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .game-tag {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 999px; white-space: nowrap;
+    }
+    .game-tag.flappy  { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.2); }
+    .game-tag.xadrez  { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border-md); }
+    .game-tag.naval   { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.2); }
+    .game-tag.pinguim { background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.2); }
+    .tapa-tag { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+    .rank-val {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      text-align: right;
+    }
+    .rank-val.muted { color: var(--text-2); font-weight: 600; }
+    .rank-val.small { font-size: 12px; }
 
-        .section-title i { color: var(--accent-green); font-size: 1.2rem; }
+    .empty-state {
+      text-align: center; padding: 56px 20px;
+      color: var(--text-3);
+    }
+    .empty-state i { font-size: 32px; margin-bottom: 10px; display: block; }
+    .empty-state p { font-size: 13px; margin: 0; }
 
-        .ranking-card {
-            background-color: var(--secondary-dark);
-            border: 1px solid var(--border-dark);
-            border-radius: 12px;
-            padding: 20px;
-        }
+    /* Admin tapas */
+    .admin-panel {
+      background: var(--panel); border: 1px solid var(--border-red);
+      border-radius: var(--radius); margin-top: 32px; overflow: hidden;
+    }
+    .admin-head {
+      padding: 14px 18px; border-bottom: 1px solid var(--border-red);
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700; color: #ff6680;
+    }
+    .admin-body { padding: 18px; }
+    .tapa-list { list-style: none; padding: 0; margin-bottom: 20px; }
+    .tapa-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-radius: var(--radius-sm);
+      background: var(--panel-2); border: 1px solid var(--border);
+      margin-bottom: 6px; font-size: 13px;
+    }
+    .tapa-badge {
+      background: rgba(252,0,37,.12); color: #ff6680;
+      border: 1px solid var(--border-red);
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .btn-danger-sm {
+      background: rgba(239,68,68,.15); color: #f87171;
+      border: 1px solid rgba(239,68,68,.2); border-radius: var(--radius-sm);
+      padding: 5px 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: var(--font);
+      transition: all var(--t) var(--ease);
+    }
+    .btn-danger-sm:hover { background: rgba(239,68,68,.25); }
+    .fba-alert {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; margin-bottom: 14px;
+    }
+    .fba-alert.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: #4ade80; }
 
-        .ranking-item {
-            display: grid;
-            grid-template-columns: 40px 1fr 120px 120px 120px;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            font-size: 0.95rem;
-            gap: 10px;
-        }
-
-        .ranking-item.header-row {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #999;
-            border-bottom: 1px solid var(--border-dark);
-        }
-
-        .ranking-item:last-child { border-bottom: none; }
-
-        .ranking-position {
-            font-weight: 800;
-            color: var(--accent-green);
-        }
-
-        .ranking-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .best-game-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.65rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            padding: 2px 6px;
-            border-radius: 999px;
-            background: #ffd54f;
-            color: #000;
-            margin-left: 6px;
-            white-space: nowrap;
-        }
-        .best-game-flappy { background: #d32f2f; color: #fff; }
-        .best-game-xadrez { background: #fff; color: #000; }
-        .best-game-batalha-naval { background: #1976d2; color: #fff; }
-        .best-game-pinguim { background: #7b1fa2; color: #fff; }
-
-        .ranking-value { font-weight: 700; color: #fff; text-align: right; }
-
-        .ranking-values { display: contents; }
-
-        .nav-tabs .nav-link {
-            color: #ccc;
-            border: none;
-            border-bottom: 2px solid transparent;
-        }
-
-        .nav-tabs .nav-link.active {
-            color: #fff;
-            background-color: transparent;
-            border-bottom-color: var(--accent-green);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            background-color: var(--secondary-dark);
-            border: 1px dashed var(--border-dark);
-            border-radius: 12px;
-            margin: 20px 0;
-        }
-
-        .empty-icon {
-            font-size: 3rem;
-            opacity: 0.3;
-            margin-bottom: 10px;
-        }
-
-        .empty-text {
-            color: #666;
-            font-size: 1.1rem;
-        }
-
-        @media (max-width: 768px) {
-            .ranking-item {
-                grid-template-columns: 28px 1fr;
-                align-items: start;
-            }
-
-            .ranking-item.header-row {
-                display: none;
-            }
-
-            .ranking-name {
-                white-space: normal;
-                overflow: visible;
-                text-overflow: clip;
-            }
-
-            .ranking-values {
-                grid-column: 1 / -1;
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 8px;
-                padding-left: 28px;
-            }
-
-            .ranking-value {
-                text-align: left;
-                font-size: 0.9rem;
-            }
-
-            .ranking-value::before {
-                content: attr(data-label) " ";
-                display: block;
-                color: #999;
-                font-size: 0.7rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        }
-    </style>
+    @media (max-width: 640px) {
+      .ranking-header-row { display: none; }
+      .ranking-item { grid-template-columns: 36px 1fr; row-gap: 0; }
+      .ranking-item .rank-val { display: none; }
+      .rank-name { font-size: 12px; }
+      .balance-chip { display: none; }
+      .balance-chip:first-child { display: flex; }
+    }
+  </style>
 </head>
 <body>
 
-<div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
-    <a href="../index.php" class="brand-name">🎮 FBA games</a>
-    <div class="d-flex align-items-center gap-3">
-        <a href="../index.php" class="btn btn-sm btn-outline-light">Voltar</a>
-        <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
-        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS</span>
-        <a href="alterar-senha.php" class="btn btn-sm btn-outline-warning" title="Alterar senha">
-            <i class="bi bi-shield-lock"></i>
-        </a>
-        <a href="../auth/logout.php" class="btn btn-sm btn-outline-danger border-0">
-            <i class="bi bi-box-arrow-right"></i>
-        </a>
+<div class="topbar">
+  <a href="../index.php" class="topbar-brand">
+    <div class="topbar-logo">FBA</div>
+    <span class="topbar-name">FBA <span>Games</span></span>
+  </a>
+  <div class="topbar-spacer"></div>
+  <div class="topbar-balances">
+    <div class="balance-chip">
+      <i class="bi bi-coin"></i>
+      <?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas
     </div>
+    <div class="balance-chip fba">
+      <i class="bi bi-gem"></i>
+      <?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <a href="../index.php" class="icon-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <a href="../auth/logout.php" class="icon-btn" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+  </div>
 </div>
 
-<div class="container-main">
-    <h6 class="section-title"><i class="bi bi-trophy"></i>Ranking Geral</h6>
+<div class="main">
 
-    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
-        <form class="row g-2 align-items-end" method="get" id="dateFilterForm">
-            <div class="col-auto">
-                <label class="form-label small text-secondary mb-1" for="startDate">Dia inicial</label>
-                <input type="date" class="form-control form-control-sm" id="startDate" name="start_date_ui">
-            </div>
-            <div class="col-auto">
-                <label class="form-label small text-secondary mb-1" for="endDate">Dia final</label>
-                <input type="date" class="form-control form-control-sm" id="endDate" name="end_date_ui">
-            </div>
-            <input type="hidden" name="start_date" id="startDateValue" value="<?= htmlspecialchars($filterStart) ?>">
-            <input type="hidden" name="end_date" id="endDateValue" value="<?= htmlspecialchars($filterEnd) ?>">
-            <div class="col-auto d-flex gap-2">
-                <button type="submit" class="btn btn-sm btn-warning">Filtrar</button>
-                <a class="btn btn-sm btn-outline-light" href="ranking-geral.php">Limpar</a>
-            </div>
-        </form>
+  <div class="section-label" style="margin-top:0"><i class="bi bi-trophy-fill"></i>Ranking Geral</div>
 
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-secondary small">Ordenar por:</span>
-            <select class="form-select form-select-sm w-auto" id="rankingSort">
-                <option value="pontos">Moedas</option>
-                <option value="gems">FBA Points</option>
-                <option value="acertos">Acertos</option>
-            </select>
-        </div>
+  <div class="filter-bar">
+    <form class="filter-group" method="get" id="dateFilterForm">
+      <div class="filter-field">
+        <span class="filter-label">Dia inicial</span>
+        <input type="date" class="fba-input" id="startDate" name="start_date_ui">
+      </div>
+      <div class="filter-field">
+        <span class="filter-label">Dia final</span>
+        <input type="date" class="fba-input" id="endDate" name="end_date_ui">
+      </div>
+      <input type="hidden" name="start_date" id="startDateValue" value="<?= htmlspecialchars($filterStart) ?>">
+      <input type="hidden" name="end_date" id="endDateValue" value="<?= htmlspecialchars($filterEnd) ?>">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-red">Filtrar</button>
+        <a href="ranking-geral.php" class="btn-ghost">Limpar</a>
+      </div>
+    </form>
+
+    <div class="filter-field">
+      <span class="filter-label">Ordenar por</span>
+      <select class="fba-select" id="rankingSort">
+        <option value="pontos">Moedas</option>
+        <option value="gems">FBA Points</option>
+        <option value="acertos">Acertos</option>
+      </select>
     </div>
+  </div>
 
-    <ul class="nav nav-tabs mb-4" id="rankingTabs" role="tablist">
-        <?php foreach ($tab_labels as $tabKey => $tabLabel): ?>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link <?= $tabKey === 'geral' ? 'active' : '' ?>" id="tab-<?= $tabKey ?>" data-bs-toggle="tab" data-bs-target="#pane-<?= $tabKey ?>" type="button" role="tab">
-                    <?= $tabLabel ?>
-                </button>
-            </li>
-        <?php endforeach; ?>
-    </ul>
+  <div class="tab-bar" id="rankingTabs">
+    <?php foreach ($tab_labels as $tabKey => $tabLabel): ?>
+      <button class="tab-btn <?= $tabKey === 'geral' ? 'active' : '' ?>"
+              data-target="pane-<?= $tabKey ?>" type="button">
+        <?= $tabLabel ?>
+      </button>
+    <?php endforeach; ?>
+  </div>
 
-    <div class="tab-content" id="rankingTabsContent">
-        <div class="tab-pane fade show active" id="pane-geral" role="tabpanel">
-            <div class="ranking-card">
-                <?php if (empty($ranking_geral)): ?>
-                    <div class="empty-state">
-                        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-                        <div class="empty-text">Sem dados ainda</div>
-                    </div>
-                <?php else: ?>
-                    <div class="ranking-item header-row">
-                        <span>#</span>
-                        <span>Time</span>
-                        <span class="text-end">Moedas</span>
-                        <span class="text-end">FBA Points</span>
-                        <span class="text-end">Acertos</span>
-                    </div>
-                    <?php foreach ($ranking_geral as $idx => $jogador): ?>
-                        <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= (int)($jogador['fba_points'] ?? 0) ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
-                            <span class="ranking-position"><?= $idx + 1 ?></span>
-                            <div class="ranking-name">
-                                <?= htmlspecialchars($jogador['nome']) ?>
-                                <?php if (!empty($jogador['league'])): ?>
-                                    <small class="text-secondary">(<?= htmlspecialchars($jogador['league']) ?>)</small>
-                                <?php endif; ?>
-                                <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                    <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                        $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                        $icon = $bestGameIcons[$gameLabel] ?? '⭐';
-                                    ?>
-                                        <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                                <div class="small text-info mt-1" style="font-size:0.85em;">
-                                    <i class="bi bi-hand-index-thumb"></i> Tapas: <strong><?= (int)($jogador['numero_tapas'] ?? 0) ?></strong>
-                                </div>
-                            </div>
-                            <div class="ranking-values">
-                                <span class="ranking-value" data-label="Moedas"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
-                                <span class="ranking-value" data-label="FBA Points"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
-                                <span class="ranking-value" data-label="Acertos"><?= (int)($jogador['acertos'] ?? 0) ?></span>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
+  <?php
+  $renderTab = function(array $jogadores, bool $showLeague, array $best_game_users, array $bestGameIcons, int $user_id) {
+      if (empty($jogadores)): ?>
+      <div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <p>Sem dados ainda</p>
+      </div>
+      <?php return; endif; ?>
+      <div class="ranking-header-row">
+        <span>#</span>
+        <span>Jogador</span>
+        <span style="text-align:right">Moedas</span>
+        <span style="text-align:right">FBA Points</span>
+        <span style="text-align:right">Acertos</span>
+      </div>
+      <?php foreach ($jogadores as $idx => $jogador):
+        $pos = $idx + 1;
+        $posCls = $pos === 1 ? 'gold' : ($pos === 2 ? 'silver' : ($pos === 3 ? 'bronze' : ''));
+        $medal = $pos === 1 ? '🥇' : ($pos === 2 ? '🥈' : ($pos === 3 ? '🥉' : $pos));
+        $uid = (int)($jogador['id'] ?? 0);
+      ?>
+      <div class="ranking-item"
+           data-pontos="<?= (int)$jogador['pontos'] ?>"
+           data-gems="<?= (int)($jogador['fba_points'] ?? 0) ?>"
+           data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
+        <div class="rank-pos <?= $posCls ?>"><?= $medal ?></div>
+        <div class="rank-info">
+          <div class="rank-name">
+            <?= htmlspecialchars($jogador['nome']) ?>
+            <?php if ($uid === $user_id): ?>
+              <span style="font-size:10px;color:var(--red);font-weight:700;margin-left:4px">• você</span>
+            <?php endif; ?>
+          </div>
+          <?php if ($showLeague && !empty($jogador['league'])): ?>
+            <div class="rank-league"><?= htmlspecialchars($jogador['league']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($best_game_users[$uid])): ?>
+          <div class="rank-tags">
+            <?php foreach ($best_game_users[$uid] as $gameLabel):
+              $tagCls = strtolower(str_replace(' ', '-', $gameLabel));
+              $tagCls = str_replace('batalha-naval', 'naval', $tagCls);
+              $icon = $bestGameIcons[$gameLabel] ?? '⭐';
+            ?>
+              <span class="game-tag <?= $tagCls ?>"><?= $icon ?> <?= htmlspecialchars($gameLabel) ?></span>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+          <?php if ((int)($jogador['numero_tapas'] ?? 0) > 0): ?>
+            <div class="tapa-tag">👋 <?= (int)$jogador['numero_tapas'] ?> tapa<?= (int)$jogador['numero_tapas'] > 1 ? 's' : '' ?></div>
+          <?php endif; ?>
         </div>
+        <div class="rank-val"><?= number_format($jogador['pontos'], 0, ',', '.') ?></div>
+        <div class="rank-val muted"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></div>
+        <div class="rank-val small"><?= (int)($jogador['acertos'] ?? 0) ?></div>
+      </div>
+      <?php endforeach;
+  };
+  ?>
 
-        <?php foreach (['ELITE', 'NEXT', 'RISE', 'ROOKIE'] as $liga): ?>
-            <div class="tab-pane fade" id="pane-<?= $liga ?>" role="tabpanel">
-                <div class="ranking-card">
-                    <?php if (empty($ranking_por_liga[$liga])): ?>
-                        <div class="empty-state">
-                            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-                            <div class="empty-text">Sem dados ainda</div>
-                        </div>
-                    <?php else: ?>
-                        <div class="ranking-item header-row">
-                            <span>#</span>
-                            <span>Time</span>
-                            <span class="text-end">Moedas</span>
-                            <span class="text-end">FBA Points</span>
-                            <span class="text-end">Acertos</span>
-                        </div>
-                        <?php foreach ($ranking_por_liga[$liga] as $idx => $jogador): ?>
-                            <div class="ranking-item" data-pontos="<?= (int)$jogador['pontos'] ?>" data-gems="<?= (int)($jogador['fba_points'] ?? 0) ?>" data-acertos="<?= (int)($jogador['acertos'] ?? 0) ?>">
-                                <span class="ranking-position"><?= $idx + 1 ?></span>
-                                <div class="ranking-name">
-                                    <?= htmlspecialchars($jogador['nome']) ?>
-                                    <?php if (!empty($best_game_users[(int)($jogador['id'] ?? 0)])): ?>
-                                        <?php foreach ($best_game_users[(int)$jogador['id']] as $gameLabel): 
-                                            $cls = 'best-game-' . strtolower(str_replace(' ', '-', $gameLabel));
-                                            $icon = $bestGameIcons[$gameLabel] ?? '⭐';
-                                        ?>
-                                            <span class="best-game-tag <?= $cls ?>"><?= $icon ?> Melhor em <?= htmlspecialchars($gameLabel) ?></span>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                    <div class="small text-info mt-1" style="font-size:0.85em;">
-                                        <i class="bi bi-hand-index-thumb"></i> Tapas: <strong><?= (int)($jogador['numero_tapas'] ?? 0) ?></strong>
-                                    </div>
-                                </div>
-                                <div class="ranking-values">
-                                    <span class="ranking-value" data-label="Moedas"><?= number_format($jogador['pontos'], 0, ',', '.') ?></span>
-                                    <span class="ranking-value" data-label="FBA Points"><?= number_format((int)($jogador['fba_points'] ?? 0), 0, ',', '.') ?></span>
-                                    <span class="ranking-value" data-label="Acertos"><?= (int)($jogador['acertos'] ?? 0) ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
+  <div id="pane-geral" class="tab-pane">
+    <div class="ranking-panel">
+      <?php $renderTab($ranking_geral, true, $best_game_users, $bestGameIcons, $user_id); ?>
     </div>
+  </div>
+
+  <?php foreach (['ELITE', 'NEXT', 'RISE', 'ROOKIE'] as $liga): ?>
+  <div id="pane-<?= $liga ?>" class="tab-pane" style="display:none">
+    <div class="ranking-panel">
+      <?php $renderTab($ranking_por_liga[$liga], false, $best_game_users, $bestGameIcons, $user_id); ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
+
+  <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
+  <div class="admin-panel">
+    <div class="admin-head"><i class="bi bi-hand-index-thumb-fill"></i> Administração de Tapas</div>
+    <div class="admin-body">
+      <div id="tapa-msg"></div>
+      <div class="section-label" style="margin-top:0"><i class="bi bi-list-ul"></i>Usuários com tapas</div>
+      <ul class="tapa-list" id="lista-tapas"></ul>
+      <div class="section-label"><i class="bi bi-plus-circle"></i>Adicionar tapa</div>
+      <form id="form-add-tapa" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select name="adicionar_id" id="adicionar_id" class="fba-select" required style="min-width:180px"></select>
+        <button type="submit" class="btn-red"><i class="bi bi-plus me-1"></i>Adicionar</button>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function sortRankingTab(tabPane, field) {
-            if (!tabPane) return;
-
-            const list = tabPane.querySelector('.ranking-card');
-            if (!list) return;
-
-            const items = Array.from(list.querySelectorAll('.ranking-item')).filter(item => !item.classList.contains('header-row'));
-            if (!items.length) return;
-
-            items.sort((a, b) => {
-                const av = parseInt(a.dataset[field] || '0', 10);
-                const bv = parseInt(b.dataset[field] || '0', 10);
-                return bv - av;
-            });
-
-            const header = list.querySelector('.header-row');
-            if (header) {
-                list.innerHTML = '';
-                list.appendChild(header);
-            } else {
-                list.innerHTML = '';
-            }
-            items.forEach(item => list.appendChild(item));
-        }
-
-        const dateForm = document.getElementById('dateFilterForm');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const startDateValue = document.getElementById('startDateValue');
-        const endDateValue = document.getElementById('endDateValue');
-
-        const toIsoDate = (value) => {
-            if (!value) return '';
-            const parts = value.split('/');
-            if (parts.length !== 3) return '';
-            const [day, month, year] = parts;
-            if (!day || !month || !year) return '';
-            return `${year}-${month}-${day}`;
-        };
-
-        const toBrDate = (value) => {
-            if (!value) return '';
-            const parts = value.split('-');
-            if (parts.length !== 3) return '';
-            const [year, month, day] = parts;
-            if (!day || !month || !year) return '';
-            return `${day}/${month}/${year}`;
-        };
-
-        if (startDateInput && startDateValue?.value) {
-            startDateInput.value = toIsoDate(startDateValue.value);
-        }
-        if (endDateInput && endDateValue?.value) {
-            endDateInput.value = toIsoDate(endDateValue.value);
-        }
-
-        if (dateForm) {
-            dateForm.addEventListener('submit', () => {
-                if (startDateValue && startDateInput) {
-                    startDateValue.value = toBrDate(startDateInput.value);
-                }
-                if (endDateValue && endDateInput) {
-                    endDateValue.value = toBrDate(endDateInput.value);
-                }
-            });
-        }
-
-        function applyRankingSort() {
-            const sortValue = document.getElementById('rankingSort')?.value || 'pontos';
-            const activeTab = document.querySelector('.tab-pane.active');
-            sortRankingTab(activeTab, sortValue);
-        }
-
-        document.getElementById('rankingSort')?.addEventListener('change', applyRankingSort);
-        document.getElementById('rankingTabs')?.addEventListener('shown.bs.tab', applyRankingSort);
-        applyRankingSort();
-    </script>
-</body>
-
-<?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
-<div class="container my-5">
-    <div class="card border-danger shadow-lg" id="admin-tapas-card">
-        <div class="card-header bg-danger text-white fw-bold"><i class="bi bi-hand-index-thumb"></i> Administração de Tapas</div>
-        <div class="card-body">
-            <div id="tapa-msg"></div>
-            <h6 class="mb-3">Usuários com pelo menos 1 tapa:</h6>
-            <ul class="list-group mb-4" id="lista-tapas"></ul>
-            <h6 class="mb-2">Adicionar tapa para um usuário:</h6>
-            <form id="form-add-tapa" class="row g-2 align-items-center">
-                <div class="col-auto">
-                    <select name="adicionar_id" id="adicionar_id" class="form-select" required></select>
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-success"><i class="bi bi-plus"></i> Adicionar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-async function fetchTapasAdmin() {
+  // Tab switching
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      tabPanes.forEach(p => p.style.display = 'none');
+      btn.classList.add('active');
+      const pane = document.getElementById(btn.dataset.target);
+      if (pane) {
+        pane.style.display = 'block';
+        applyRankingSort(pane);
+      }
+    });
+  });
+
+  function sortRankingTab(tabPane, field) {
+    if (!tabPane) return;
+    const panel = tabPane.querySelector('.ranking-panel');
+    if (!panel) return;
+    const items = Array.from(panel.querySelectorAll('.ranking-item'));
+    if (!items.length) return;
+    items.sort((a, b) => parseInt(b.dataset[field]||'0',10) - parseInt(a.dataset[field]||'0',10));
+    const header = panel.querySelector('.ranking-header-row');
+    panel.innerHTML = '';
+    if (header) panel.appendChild(header);
+    items.forEach((item, i) => {
+      const pos = item.querySelector('.rank-pos');
+      if (pos) {
+        const n = i + 1;
+        pos.className = 'rank-pos' + (n===1?' gold':n===2?' silver':n===3?' bronze':'');
+        pos.textContent = n===1?'🥇':n===2?'🥈':n===3?'🥉':n;
+      }
+      panel.appendChild(item);
+    });
+  }
+
+  function applyRankingSort(pane) {
+    if (!pane) pane = document.querySelector('.tab-pane:not([style*="none"])');
+    const field = document.getElementById('rankingSort')?.value || 'pontos';
+    sortRankingTab(pane, field);
+  }
+
+  document.getElementById('rankingSort')?.addEventListener('change', () => applyRankingSort(null));
+
+  // Date filter conversion
+  const toBrDate = v => { if (!v) return ''; const [y,m,d] = v.split('-'); return d&&m&&y ? `${d}/${m}/${y}` : ''; };
+  const toIsoDate = v => { if (!v) return ''; const [d,m,y] = v.split('/'); return d&&m&&y ? `${y}-${m}-${d}` : ''; };
+  const si = document.getElementById('startDate'), sv = document.getElementById('startDateValue');
+  const ei = document.getElementById('endDate'),   ev = document.getElementById('endDateValue');
+  if (si && sv?.value) si.value = toIsoDate(sv.value);
+  if (ei && ev?.value) ei.value = toIsoDate(ev.value);
+  document.getElementById('dateFilterForm')?.addEventListener('submit', () => {
+    if (sv && si) sv.value = toBrDate(si.value);
+    if (ev && ei) ev.value = toBrDate(ei.value);
+  });
+
+  applyRankingSort(null);
+
+  <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
+  async function fetchTapasAdmin() {
     const res = await fetch('ranking-geral.php?ajax_tapas=1');
     const data = await res.json();
-    // Lista tapas
     const lista = document.getElementById('lista-tapas');
     lista.innerHTML = '';
-    if (data.usuarios_tapas.length === 0) {
-        lista.innerHTML = '<li class="list-group-item text-muted">Nenhum usuário com tapas.</li>';
+    if (!data.usuarios_tapas.length) {
+      lista.innerHTML = '<li class="tapa-item" style="color:var(--text-3)">Nenhum usuário com tapas.</li>';
     } else {
-        data.usuarios_tapas.forEach(u => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between align-items-center';
-            li.innerHTML = `<span>${u.nome} <span class='badge bg-info text-dark ms-2'>Tapas: ${u.numero_tapas}</span></span>` +
-                `<button class='btn btn-sm btn-danger' onclick='removerTapa(${u.id})'><i class="bi bi-dash"></i> Remover</button>`;
-            lista.appendChild(li);
-        });
+      data.usuarios_tapas.forEach(u => {
+        const li = document.createElement('li');
+        li.className = 'tapa-item';
+        li.innerHTML = `<span>${u.nome} <span class="tapa-badge">👋 ${u.numero_tapas}</span></span>
+          <button class="btn-danger-sm" onclick="removerTapa(${u.id})"><i class="bi bi-dash"></i> Remover</button>`;
+        lista.appendChild(li);
+      });
     }
-    // Dropdown
     const sel = document.getElementById('adicionar_id');
     sel.innerHTML = '<option value="">Selecione o usuário</option>';
-    data.todos_usuarios.forEach(u => {
-        sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`;
-    });
-}
-async function removerTapa(id) {
+    data.todos_usuarios.forEach(u => { sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`; });
+  }
+  async function removerTapa(id) {
     const res = await fetch('ranking-geral.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `admin_tapa_action=remover&remover_id=${id}&ajax=1`
+      method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `admin_tapa_action=remover&remover_id=${id}&ajax=1`
     });
     const data = await res.json();
-    document.getElementById('tapa-msg').innerHTML = `<div class='alert alert-success py-2'>${data.msg}</div>`;
+    document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i>${data.msg}</div>`;
     fetchTapasAdmin();
-}
-document.getElementById('form-add-tapa').addEventListener('submit', async function(e) {
+  }
+  document.getElementById('form-add-tapa').addEventListener('submit', async function(e) {
     e.preventDefault();
     const id = document.getElementById('adicionar_id').value;
     if (!id) return;
     const res = await fetch('ranking-geral.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `admin_tapa_action=adicionar&adicionar_id=${id}&ajax=1`
+      method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `admin_tapa_action=adicionar&adicionar_id=${id}&ajax=1`
     });
     const data = await res.json();
-    document.getElementById('tapa-msg').innerHTML = `<div class='alert alert-success py-2'>${data.msg}</div>`;
+    document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i>${data.msg}</div>`;
     fetchTapasAdmin();
-});
-fetchTapasAdmin();
+  });
+  fetchTapasAdmin();
+  <?php endif; ?>
 </script>
-<?php endif; ?>
+</body>
 </html>

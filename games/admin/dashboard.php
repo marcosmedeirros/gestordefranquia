@@ -1,5 +1,5 @@
-﻿<?php
-// admin.php - GERENCIADOR DE APOSTAS (DARK MODE PREMIUM 🌑)
+<?php
+// admin/dashboard.php - GERENCIADOR DE APOSTAS
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -8,10 +8,8 @@ session_start();
 require '../core/conexao.php';
 require '../core/funcoes.php';
 
-// --- 1. SEGURANÇA ---
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-// Busca dados do admin para o Header
 $stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -21,58 +19,49 @@ if (!$user || $user['is_admin'] != 1) {
 }
 
 $mensagem = "";
+$mensagemType = "success";
 
-// --- 2. PROCESSAMENTO (POST) ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
-    // A. CADASTRAR NOVO EVENTO
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_evento') {
         $nome_evento = trim($_POST['nome_evento']);
         $data_limite = $_POST['data_limite'];
-    $opcoes_nomes = $_POST['opcoes_nomes']; 
+        $opcoes_nomes = $_POST['opcoes_nomes'];
 
         if (empty($nome_evento) || empty($data_limite) || count(array_filter($opcoes_nomes)) < 2) {
-            $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'><i class='bi bi-exclamation-triangle me-2'></i>Preencha dados obrigatórios (mínimo 2 opções).</div>";
+            $mensagem = "Preencha todos os campos obrigatórios (mínimo 2 opções).";
+            $mensagemType = "warning";
         } else {
             try {
-                $pdo->beginTransaction(); 
-                
-                $sqlEvento = "INSERT INTO eventos (nome, data_limite, status) VALUES (:nome, :data, 'aberta')";
-                $stmt = $pdo->prepare($sqlEvento);
+                $pdo->beginTransaction();
+                $stmt = $pdo->prepare("INSERT INTO eventos (nome, data_limite, status) VALUES (:nome, :data, 'aberta')");
                 $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite]);
                 $evento_id = $pdo->lastInsertId();
 
-                $sqlOpcao = "INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)";
-                $stmtOpcao = $pdo->prepare($sqlOpcao);
-
+                $stmtOpcao = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)");
                 for ($i = 0; $i < count($opcoes_nomes); $i++) {
                     if (!empty($opcoes_nomes[$i])) {
-                        $stmtOpcao->execute([
-                            ':eid' => $evento_id, 
-                            ':desc' => $opcoes_nomes[$i]
-                        ]);
+                        $stmtOpcao->execute([':eid' => $evento_id, ':desc' => $opcoes_nomes[$i]]);
                     }
                 }
                 $pdo->commit();
-                $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-check-circle me-2'></i>Aposta criada com sucesso!</div>";
+                $mensagem = "Aposta criada com sucesso!";
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
+                $mensagem = "Erro: " . $e->getMessage();
+                $mensagemType = "danger";
             }
         }
     }
 
-    // B. EDITAR EVENTO EXISTENTE
     if (isset($_POST['acao']) && $_POST['acao'] == 'editar_evento') {
         $id_evento   = $_POST['id_evento'];
         $nome_evento = trim($_POST['nome_evento']);
         $data_limite = $_POST['data_limite'];
-        
-        $op_ids   = $_POST['opcoes_ids'] ?? []; 
+        $op_ids   = $_POST['opcoes_ids'] ?? [];
         $op_nomes = $_POST['opcoes_nomes'];
         try {
             $pdo->beginTransaction();
-
             $stmt = $pdo->prepare("UPDATE eventos SET nome = :nome, data_limite = :data WHERE id = :id");
             $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite, ':id' => $id_evento]);
 
@@ -82,7 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             for ($i = 0; $i < count($op_nomes); $i++) {
                 $nome = trim($op_nomes[$i]);
                 $oid  = $op_ids[$i] ?? '';
-
                 if (!empty($nome)) {
                     if (!empty($oid)) {
                         $stmtUpd->execute([':desc' => $nome, ':oid' => $oid, ':eid' => $id_evento]);
@@ -91,126 +79,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                 }
             }
-            
             $pdo->commit();
-            $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-pencil-square me-2'></i>Alterações salvas com sucesso!</div>";
+            $mensagem = "Alterações salvas com sucesso!";
         } catch (Exception $e) {
             $pdo->rollBack();
-            $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro ao editar: " . $e->getMessage() . "</div>";
+            $mensagem = "Erro ao editar: " . $e->getMessage();
+            $mensagemType = "danger";
         }
     }
 
-
-    // D. ENCERRAR EVENTO E PAGAR (CORRIGIDO PARA ODD CONGELADA ❄️)
     if (isset($_POST['acao']) && $_POST['acao'] == 'encerrar_evento') {
         $id_evento = $_POST['id_evento'];
         $vencedor_opcao_id = $_POST['vencedor_opcao_id'];
 
         if (empty($vencedor_opcao_id)) {
-            $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'>Selecione quem ganhou!</div>";
+            $mensagem = "Selecione quem ganhou!";
+            $mensagemType = "warning";
         } else {
             try {
                 $pdo->beginTransaction();
-                
-                // 1. Atualiza status do evento
                 $pdo->prepare("UPDATE eventos SET status = 'encerrada', vencedor_opcao_id = ? WHERE id = ?")
                     ->execute([$vencedor_opcao_id, $id_evento]);
 
-                // 2. Busca palpites vencedores usando a ODD REGISTRADA NO MOMENTO DA APOSTA
-                // Nota: 'odd_registrada' é a coluna nova que você criou. Se não tiver, usa 'odd' da tabela opcoes como fallback inseguro.
                 $payStmt = $pdo->prepare("
                     UPDATE usuarios u
-                    JOIN (
-                        SELECT DISTINCT id_usuario
-                        FROM palpites
-                        WHERE opcao_id = ?
-                    ) p ON p.id_usuario = u.id
-                    SET u.fba_points = u.fba_points + 75,
-                        u.acertos_eventos = u.acertos_eventos + 1
+                    JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
+                    SET u.fba_points = u.fba_points + 75, u.acertos_eventos = u.acertos_eventos + 1
                 ");
-                    $payStmt->execute([$vencedor_opcao_id]);
-                    $pagos = $payStmt->rowCount();
-                    $pdo->commit();
-                    $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-trophy-fill me-2'></i>Encerrado! $pagos apostas pagas corretamente (75 FBA Points por acerto).</div>";
+                $payStmt->execute([$vencedor_opcao_id]);
+                $pagos = $payStmt->rowCount();
+                $pdo->commit();
+                $mensagem = "Encerrado! $pagos apostas pagas (75 FBA Points por acerto).";
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
+                $mensagem = "Erro: " . $e->getMessage();
+                $mensagemType = "danger";
             }
         }
     }
 
-    // E. ALTERAR VENCEDOR (EVENTO ENCERRADO)
     if (isset($_POST['acao']) && $_POST['acao'] == 'alterar_vencedor') {
         $id_evento = $_POST['id_evento'];
         $novo_vencedor_opcao_id = $_POST['vencedor_opcao_id'];
 
         if (empty($novo_vencedor_opcao_id)) {
-            $mensagem = "<div class='alert alert-warning bg-warning bg-opacity-10 border-warning text-warning'>Selecione o novo vencedor!</div>";
+            $mensagem = "Selecione o novo vencedor!";
+            $mensagemType = "warning";
         } else {
             try {
                 $pdo->beginTransaction();
-
                 $stmtEvento = $pdo->prepare("SELECT status, vencedor_opcao_id FROM eventos WHERE id = ? FOR UPDATE");
                 $stmtEvento->execute([$id_evento]);
                 $eventoAtual = $stmtEvento->fetch(PDO::FETCH_ASSOC);
 
-                if (!$eventoAtual) {
-                    throw new Exception('Evento não encontrado.');
-                }
-                if ($eventoAtual['status'] != 'encerrada') {
-                    throw new Exception('Este evento ainda não está encerrado.');
-                }
+                if (!$eventoAtual) throw new Exception('Evento não encontrado.');
+                if ($eventoAtual['status'] != 'encerrada') throw new Exception('Este evento ainda não está encerrado.');
 
                 $vencedor_antigo = $eventoAtual['vencedor_opcao_id'];
 
                 if ((int)$vencedor_antigo === (int)$novo_vencedor_opcao_id) {
                     $pdo->commit();
-                    $mensagem = "<div class='alert alert-info bg-info bg-opacity-10 border-info text-info'>Nenhuma alteração: vencedor já estava correto.</div>";
+                    $mensagem = "Nenhuma alteração: vencedor já estava correto.";
+                    $mensagemType = "info";
                 } else {
                     $revertidos = 0;
                     if (!empty($vencedor_antigo)) {
                         $stmtRevert = $pdo->prepare("
                             UPDATE usuarios u
-                            JOIN (
-                                SELECT DISTINCT id_usuario
-                                FROM palpites
-                                WHERE opcao_id = ?
-                            ) p ON p.id_usuario = u.id
-                            SET u.fba_points = u.fba_points - 75,
-                                u.acertos_eventos = GREATEST(u.acertos_eventos - 1, 0)
+                            JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
+                            SET u.fba_points = u.fba_points - 75, u.acertos_eventos = GREATEST(u.acertos_eventos - 1, 0)
                         ");
                         $stmtRevert->execute([$vencedor_antigo]);
                         $revertidos = $stmtRevert->rowCount();
                     }
-
                     $stmtPay = $pdo->prepare("
                         UPDATE usuarios u
-                        JOIN (
-                            SELECT DISTINCT id_usuario
-                            FROM palpites
-                            WHERE opcao_id = ?
-                        ) p ON p.id_usuario = u.id
-                        SET u.fba_points = u.fba_points + 75,
-                            u.acertos_eventos = u.acertos_eventos + 1
+                        JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
+                        SET u.fba_points = u.fba_points + 75, u.acertos_eventos = u.acertos_eventos + 1
                     ");
                     $stmtPay->execute([$novo_vencedor_opcao_id]);
                     $pagos = $stmtPay->rowCount();
 
-                    $pdo->prepare("UPDATE eventos SET vencedor_opcao_id = ? WHERE id = ?")
-                        ->execute([$novo_vencedor_opcao_id, $id_evento]);
-
+                    $pdo->prepare("UPDATE eventos SET vencedor_opcao_id = ? WHERE id = ?")->execute([$novo_vencedor_opcao_id, $id_evento]);
                     $pdo->commit();
-                    $mensagem = "<div class='alert alert-success bg-success bg-opacity-10 border-success text-success'><i class='bi bi-check-circle me-2'></i>Vencedor alterado! $revertidos acertos revertidos e $pagos pagos corretamente (75 FBA Points).</div>";
+                    $mensagem = "Vencedor alterado! $revertidos revertidos, $pagos pagos (75 FBA Points).";
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $mensagem = "<div class='alert alert-danger bg-danger bg-opacity-10 border-danger text-danger'>Erro: " . $e->getMessage() . "</div>";
+                $mensagem = "Erro: " . $e->getMessage();
+                $mensagemType = "danger";
             }
         }
     }
 }
 
-// --- 3. BUSCAR DADOS ---
 $filtro_status = isset($_GET['status']) && $_GET['status'] == 'encerrada' ? 'encerrada' : 'aberta';
 
 $stmtEventos = $pdo->prepare("SELECT * FROM eventos WHERE status = ? ORDER BY data_limite ASC");
@@ -218,355 +180,512 @@ $stmtEventos->execute([$filtro_status]);
 $eventos = $stmtEventos->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($eventos as $key => $evt) {
-    $sqlOpcoes = "SELECT o.*, 
-                 (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id = o.id) as total_palpites
-                 FROM opcoes o WHERE o.evento_id = ?";
-    
-    $stmtOpcoes = $pdo->prepare($sqlOpcoes);
+    $stmtOpcoes = $pdo->prepare("SELECT o.*, (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id = o.id) as total_palpites FROM opcoes o WHERE o.evento_id = ?");
     $stmtOpcoes->execute([$evt['id']]);
     $eventos[$key]['opcoes'] = $stmtOpcoes->fetchAll(PDO::FETCH_ASSOC);
-    
     $total_evento = 0;
-    foreach($eventos[$key]['opcoes'] as $op) {
+    foreach ($eventos[$key]['opcoes'] as $op) {
         $total_evento += $op['total_palpites'];
     }
     $eventos[$key]['total_apostas_evento'] = $total_evento;
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-br" data-bs-theme="dark">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Gerenciar Apostas</title>
-    
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#fc0025">
+  <title>Admin Apostas - FBA Games</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red:        #fc0025;
+      --red-soft:   rgba(252,0,37,.10);
+      --red-glow:   rgba(252,0,37,.18);
+      --bg:         #07070a;
+      --panel:      #101013;
+      --panel-2:    #16161a;
+      --panel-3:    #1c1c21;
+      --border:     rgba(255,255,255,.06);
+      --border-md:  rgba(255,255,255,.10);
+      --border-red: rgba(252,0,37,.22);
+      --text:       #f0f0f3;
+      --text-2:     #868690;
+      --text-3:     #48484f;
+      --amber:      #f59e0b;
+      --green:      #22c55e;
+      --blue:       #3b82f6;
+      --font:       'Poppins', sans-serif;
+      --radius:     14px;
+      --radius-sm:  10px;
+      --ease:       cubic-bezier(.2,.8,.2,1);
+      --t:          200ms;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
-    <style>
-        /* --- ESTILO DARK PREMIUM --- */
-        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
-        /* Navbar Padronizada */
-        .navbar-custom { 
-            background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
-            border-bottom: 1px solid #333;
-            padding: 15px; 
-        }
-        
-        .saldo-badge { 
-            background-color: #FC082B; color: #000; padding: 8px 15px; 
-            border-radius: 20px; font-weight: 800; font-size: 1.1em;
-            box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
-        }
-        
-        /* Cards */
-        .card-dark { 
-            background-color: #1e1e1e; 
-            border: 1px solid #333; 
-            color: #e0e0e0;
-            transition: box-shadow 0.3s;
-        }
-        .card-dark:hover {
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        
-        .card-header-admin { 
-            background: linear-gradient(45deg, #1e1e1e, #2c2c2c); 
-            color: #fff; 
-            border-bottom: 1px solid #444; 
-            padding: 15px;
-        }
-        
-        .card-header-edit { 
-            background: linear-gradient(45deg, #ff6d00, #ff9100); 
-            color: #000; 
-            border-bottom: none;
-        }
-        
-        /* Inputs */
-        .form-control, .form-select { 
-            background-color: #2b2b2b; 
-            border: 1px solid #444; 
-            color: #fff; 
-        }
-        .form-control::placeholder { color: #888; }
-        .form-control:focus, .form-select:focus { 
-            background-color: #2b2b2b; 
-            border-color: #FC082B; 
-            color: #fff; 
-            box-shadow: 0 0 0 0.25rem rgba(252, 8, 43, 0.25); 
-        }
-        
-        /* Abas */
-        .nav-pills { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .nav-pills .nav-link { color: #aaa; border-radius: 50px; padding: 8px 20px; transition: 0.3s; }
-        .nav-pills .nav-link:hover { color: #fff; background-color: #333; }
-    .nav-pills .nav-link.active { background-color: #FC082B; color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(252, 8, 43, 0.4); }
-        
-        /* Badges de Opções */
-        .badge-odd { 
-            background-color: #2b2b2b; 
-            border: 1px solid #444; 
-            font-size: 0.9em; 
-            padding: 10px 15px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .badge-odd:hover { background-color: #333; border-color: #555; }
-    .badge-winner { background-color: rgba(252, 8, 43, 0.15); border-color: #FC082B; color: #FC082B; }
-        
-    </style>
+    /* Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 300; height: 58px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 16px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+    .topbar-logo {
+      width: 32px; height: 32px; border-radius: 8px; background: var(--red);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 12px; color: #fff;
+    }
+    .topbar-name { font-weight: 800; font-size: 15px; color: var(--text); }
+    .topbar-name span { color: var(--red); }
+    .topbar-spacer { flex: 1; }
+    .topbar-balances { display: flex; align-items: center; gap: 8px; }
+    .balance-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 5px 12px;
+      font-size: 12px; font-weight: 700; color: var(--text);
+    }
+    .balance-chip i { color: var(--red); font-size: 13px; }
+    .balance-chip.fba i { color: var(--amber); }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); display: flex; align-items: center; justify-content: center;
+      font-size: 14px; cursor: pointer; text-decoration: none;
+      transition: all var(--t) var(--ease);
+    }
+    .icon-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
+    .main { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    .section-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--text-3);
+      margin-bottom: 16px; margin-top: 28px;
+    }
+    .section-label i { color: var(--red); font-size: 13px; }
+
+    .fba-alert {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; margin-bottom: 20px;
+    }
+    .fba-alert.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: #4ade80; }
+    .fba-alert.danger  { background: rgba(252,0,37,.1);  border: 1px solid var(--border-red); color: #ff6680; }
+    .fba-alert.warning { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2); color: #fbbf24; }
+    .fba-alert.info    { background: rgba(59,130,246,.1);  border: 1px solid rgba(59,130,246,.2); color: #60a5fa; }
+
+    .two-col { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+
+    /* Form panel */
+    .panel-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      position: sticky; top: 74px;
+    }
+    .panel-card.editing { border-color: var(--border-red); }
+    .panel-head {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700;
+    }
+    .panel-head i { color: var(--red); }
+    .panel-head.editing-head { border-bottom-color: var(--border-red); }
+    .panel-head.editing-head i { color: var(--amber); }
+    .panel-body { padding: 18px; }
+
+    .fba-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--text-2); display: block; margin-bottom: 6px;
+    }
+    .fba-input {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 9px 12px;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+      outline: none; transition: border-color var(--t) var(--ease);
+      margin-bottom: 14px;
+    }
+    .fba-input:focus { border-color: var(--red); }
+    .fba-input::placeholder { color: var(--text-3); }
+
+    .opcao-group { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .opcao-group .fba-input { margin-bottom: 0; flex: 1; }
+    .btn-icon-remove {
+      width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px;
+      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.2);
+      color: #f87171; font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--t) var(--ease);
+    }
+    .btn-icon-remove:hover { background: rgba(239,68,68,.22); }
+
+    .btn-add-opcao {
+      width: 100%; background: transparent; border: 1px dashed var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px;
+      color: var(--text-2); font-family: var(--font); font-size: 12px;
+      font-weight: 600; cursor: pointer; margin-bottom: 16px;
+      transition: all var(--t) var(--ease); display: flex; align-items: center;
+      justify-content: center; gap: 6px;
+    }
+    .btn-add-opcao:hover { border-color: var(--red); color: var(--red); }
+
+    .btn-primary-full {
+      width: 100%; background: var(--red); color: #fff; border: none;
+      border-radius: var(--radius-sm); padding: 11px;
+      font-family: var(--font); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity var(--t) var(--ease);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary-full:hover { opacity: .85; }
+    .btn-ghost-full {
+      width: 100%; background: transparent; border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 10px;
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      color: var(--text-2); cursor: pointer; margin-top: 8px;
+      transition: all var(--t) var(--ease); display: none;
+    }
+    .btn-ghost-full:hover { border-color: var(--text-2); color: var(--text); }
+    .btn-ghost-full.visible { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+    /* Status tabs */
+    .tab-bar {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px; width: fit-content; margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 7px 18px; border-radius: 999px; border: none;
+      background: transparent; color: var(--text-2);
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      transition: all var(--t) var(--ease);
+    }
+    .tab-btn.active { background: var(--red); color: #fff; box-shadow: 0 2px 12px rgba(252,0,37,.35); }
+
+    /* Event cards */
+    .evt-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); margin-bottom: 12px; overflow: hidden;
+      transition: border-color var(--t) var(--ease);
+    }
+    .evt-card:hover { border-color: var(--border-md); }
+    .evt-card-head {
+      padding: 16px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .evt-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .evt-meta { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+    .evt-meta i { color: var(--amber); }
+    .evt-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .btn-edit-evt {
+      background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.2);
+      border-radius: 8px; width: 30px; height: 30px; color: #fbbf24;
+      display: flex; align-items: center; justify-content: center; font-size: 13px;
+      cursor: pointer; transition: all var(--t) var(--ease);
+    }
+    .btn-edit-evt:hover { background: rgba(245,158,11,.22); }
+    .bets-count {
+      background: var(--panel-3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+      color: var(--text-2); display: flex; align-items: center; gap: 4px;
+    }
+
+    .evt-options { padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border); }
+    .opt-pill {
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: 10px; padding: 8px 14px;
+      font-size: 12px; font-weight: 600; color: var(--text-2);
+      display: flex; flex-direction: column; gap: 3px; min-width: 110px;
+    }
+    .opt-pill.winner { background: rgba(252,0,37,.08); border-color: var(--border-red); color: var(--text); }
+    .opt-pill-name { display: flex; align-items: center; gap: 6px; }
+    .opt-pill-name .check { color: var(--green); font-size: 12px; }
+    .opt-pill-count { font-size: 10px; color: var(--text-3); }
+
+    .evt-footer { padding: 12px 18px; }
+    .close-form { display: flex; gap: 8px; align-items: center; }
+    .fba-select-sm {
+      flex: 1; background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      color: var(--text); font-family: var(--font); font-size: 12px; outline: none;
+    }
+    .btn-close-evt {
+      background: var(--red); color: #fff; border: none;
+      border-radius: var(--radius-sm); padding: 8px 16px;
+      font-family: var(--font); font-size: 12px; font-weight: 700;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      transition: opacity var(--t) var(--ease);
+    }
+    .btn-close-evt:hover { opacity: .85; }
+    .btn-alter-evt {
+      background: rgba(245,158,11,.12); color: #fbbf24;
+      border: 1px solid rgba(245,158,11,.2);
+      border-radius: var(--radius-sm); padding: 8px 16px;
+      font-family: var(--font); font-size: 12px; font-weight: 700;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      transition: all var(--t) var(--ease);
+    }
+    .btn-alter-evt:hover { background: rgba(245,158,11,.22); }
+
+    .empty-state {
+      text-align: center; padding: 56px 20px; color: var(--text-3);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .empty-state i { font-size: 32px; margin-bottom: 10px; display: block; }
+    .empty-state p { font-size: 13px; margin: 0; }
+
+    @media (max-width: 860px) {
+      .two-col { grid-template-columns: 1fr; }
+      .panel-card { position: static; }
+      .topbar-balances { display: none; }
+    }
+  </style>
 </head>
 <body>
 
-<!-- Header Padronizado -->
-<div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top mb-4">
-    <div class="d-flex align-items-center gap-3">
-        <span class="fs-5 text-white">Olá Admin, <strong><?= htmlspecialchars($user['nome']) ?></strong></span>
+<div class="topbar">
+  <a href="../index.php" class="topbar-brand">
+    <div class="topbar-logo">FBA</div>
+    <span class="topbar-name">FBA <span>Admin</span></span>
+  </a>
+  <div class="topbar-spacer"></div>
+  <div class="topbar-balances">
+    <div class="balance-chip">
+      <i class="bi bi-coin"></i>
+      <?= number_format($user['pontos'], 0, ',', '.') ?> moedas
     </div>
-    
-    <div class="d-flex align-items-center gap-3">
-        <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Site</a>
-        <span class="saldo-badge me-2"><i class="bi bi-coin me-1"></i><?= number_format($user['pontos'], 0, ',', '.') ?> moedas</span>
-        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS</span>
+    <div class="balance-chip fba">
+      <i class="bi bi-gem"></i>
+      <?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?> FBA
     </div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <a href="controlegames.php" class="icon-btn" title="Controle de Jogos"><i class="bi bi-toggles"></i></a>
+    <a href="../index.php" class="icon-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+  </div>
 </div>
 
-<div class="container pb-5">
-    <?= $mensagem ?>
+<div class="main">
 
-    <div class="row g-4">
-        
-        <!-- FORMULÁRIO (Esquerda) -->
-        <div class="col-lg-4">
-            <div class="card card-dark shadow-lg border-0 sticky-top" style="top: 100px; z-index: 100;" id="cardFormulario">
-                <!-- Título muda via JS -->
-                <div class="card-header card-header-admin fw-bold" id="formTitle"><i class="bi bi-plus-circle me-2"></i>Criar Nova Aposta</div>
-                <div class="card-body">
-                    <form method="POST" id="mainForm">
-                        <input type="hidden" name="acao" id="acaoInput" value="criar_evento">
-                        <input type="hidden" name="id_evento" id="idEventoInput">
-                        
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small text-uppercase fw-bold">Pergunta / Evento</label>
-                            <input type="text" name="nome_evento" id="nomeEventoInput" class="form-control form-control-lg" placeholder="Ex: Quem ganha o jogo?" required>
-                        </div>
+  <?php if ($mensagem): ?>
+  <div class="fba-alert <?= $mensagemType ?>">
+    <i class="bi bi-<?= $mensagemType === 'success' ? 'check-circle-fill' : ($mensagemType === 'warning' ? 'exclamation-triangle-fill' : ($mensagemType === 'info' ? 'info-circle-fill' : 'x-circle-fill')) ?>"></i>
+    <?= htmlspecialchars($mensagem) ?>
+  </div>
+  <?php endif; ?>
 
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small text-uppercase fw-bold">Data Limite</label>
-                            <input type="datetime-local" name="data_limite" id="dataLimiteInput" class="form-control" required>
-                        </div>
+  <div class="two-col">
 
-                        <hr class="border-secondary my-4">
+    <!-- Formulário -->
+    <div>
+      <div class="section-label" style="margin-top:0"><i class="bi bi-plus-circle-fill"></i>Gerenciar Apostas</div>
+      <div class="panel-card" id="cardFormulario">
+        <div class="panel-head" id="formTitle">
+          <i class="bi bi-plus-circle-fill"></i>
+          Criar Nova Aposta
+        </div>
+        <div class="panel-body">
+          <form method="POST" id="mainForm">
+            <input type="hidden" name="acao" id="acaoInput" value="criar_evento">
+            <input type="hidden" name="id_evento" id="idEventoInput">
 
-                        <label class="form-label fw-bold text-info"><i class="bi bi-list-check me-2"></i>Opções de Aposta</label>
-                        <div id="container-opcoes">
-                            <!-- Campos iniciais -->
-                            <div class="input-group mb-2">
-                                <input type="hidden" name="opcoes_ids[]" value="">
-                                <input type="text" name="opcoes_nomes[]" class="form-control" placeholder="Nome (Ex: Time A)" required>
-                            </div>
-                            <div class="input-group mb-2">
-                                <input type="hidden" name="opcoes_ids[]" value="">
-                                <input type="text" name="opcoes_nomes[]" class="form-control" placeholder="Nome (Ex: Time B)" required>
-                            </div>
-                        </div>
+            <label class="fba-label">Pergunta / Evento</label>
+            <input type="text" name="nome_evento" id="nomeEventoInput" class="fba-input"
+                   placeholder="Ex: Quem ganha o jogo?" required>
 
-                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-3 dashed-border" onclick="addCampo()">
-                            <i class="bi bi-plus-lg me-1"></i>Adicionar Opção
-                        </button>
-                        
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-success fw-bold text-dark py-2" id="btnSubmit">
-                                <i class="bi bi-check-lg me-2"></i>Publicar Aposta
-                            </button>
-                            <button type="button" class="btn btn-outline-danger d-none" id="btnCancelarEdit" onclick="cancelarEdicao()">
-                                <i class="bi bi-x-lg me-2"></i>Cancelar Edição
-                            </button>
-                        </div>
-                    </form>
-                </div>
+            <label class="fba-label">Data Limite</label>
+            <input type="datetime-local" name="data_limite" id="dataLimiteInput" class="fba-input" required>
+
+            <label class="fba-label" style="margin-top:4px">Opções de Aposta</label>
+            <div id="container-opcoes">
+              <div class="opcao-group">
+                <input type="hidden" name="opcoes_ids[]" value="">
+                <input type="text" name="opcoes_nomes[]" class="fba-input" placeholder="Opção A (Ex: Time A)" required>
+              </div>
+              <div class="opcao-group">
+                <input type="hidden" name="opcoes_ids[]" value="">
+                <input type="text" name="opcoes_nomes[]" class="fba-input" placeholder="Opção B (Ex: Time B)" required>
+              </div>
             </div>
+            <button type="button" class="btn-add-opcao" onclick="addCampo()">
+              <i class="bi bi-plus-lg"></i> Adicionar Opção
+            </button>
+
+            <button type="submit" class="btn-primary-full" id="btnSubmit">
+              <i class="bi bi-check-lg"></i> Publicar Aposta
+            </button>
+            <button type="button" class="btn-ghost-full" id="btnCancelarEdit" onclick="cancelarEdicao()">
+              <i class="bi bi-x-lg"></i> Cancelar Edição
+            </button>
+          </form>
         </div>
-
-        <!-- LISTAGEM (Direita) -->
-        <div class="col-lg-8">
-            <ul class="nav nav-pills justify-content-center">
-                <li class="nav-item me-2"><a class="nav-link <?= $filtro_status == 'aberta' ? 'active' : '' ?>" href="?status=aberta"><i class="bi bi-unlock me-2"></i>Abertas</a></li>
-                <li class="nav-item"><a class="nav-link <?= $filtro_status == 'encerrada' ? 'active' : '' ?>" href="?status=encerrada"><i class="bi bi-lock me-2"></i>Encerradas</a></li>
-            </ul>
-
-            <?php if(count($eventos) == 0): ?>
-                <div class="alert alert-dark border-secondary text-center text-muted p-5 mt-4 rounded-4">
-                    <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                    <h5>Nada por aqui!</h5>
-                    <p>Nenhuma aposta encontrada nesta categoria.</p>
-                </div>
-            <?php endif; ?>
-
-            <?php foreach($eventos as $evt): ?>
-                <div class="card card-dark mb-4 shadow-sm">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
-                            <div>
-                                <h4 class="card-title fw-bold text-white mb-1"><?= htmlspecialchars($evt['nome']) ?></h4>
-                                <span class="text-secondary small">
-                                    <i class="bi bi-clock me-1 text-warning"></i>Limite: <?= date('d/m/Y H:i', strtotime($evt['data_limite'])) ?>
-                                </span>
-                            </div>
-                            
-                            <!-- Botões de Ação -->
-                             <div class="btn-group shadow-sm">
-                                <!-- Botão Editar -->
-                                <button class="btn btn-outline-warning btn-sm" title="Editar Aposta" 
-                                        onclick='prepararEdicao(<?= json_encode($evt) ?>)'>
-                                    <i class="bi bi-pencil-square"></i>
-                                </button>
-                                
-                                <!-- Botão BALANCEAR ODDS -->
-                                <?php if($evt['status'] == 'aberta'): ?>
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Recalcular odds com base no volume de apostas?');">
-                                        <input type="hidden" name="acao" value="recalcular_odds">
-                                        <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-                                        <button type="submit" class="btn btn-outline-info btn-sm" title="Balancear Odds">
-                                            <i class="bi bi-calculator"></i>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-
-                                <span class="btn btn-outline-secondary btn-sm disabled bg-dark text-light border-secondary">
-                                    <?= $evt['total_apostas_evento'] ?> <i class="bi bi-people-fill ms-1"></i>
-                                </span>
-                             </div>
-                        </div>
-
-                        <!-- Lista de Opções -->
-                        <div class="d-flex flex-wrap gap-2 mb-4">
-                            <?php foreach($evt['opcoes'] as $op): ?>
-                                <?php 
-                                    $classe = "";
-                                    if($evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id']) {
-                                        $classe = "badge-winner";
-                                    }
-                                ?>
-                                <div class="badge badge-odd <?= $classe ?> d-flex flex-column align-items-start text-start" style="min-width: 130px;">
-                                    <div class="d-flex w-100 justify-content-between align-items-center mb-1">
-                                        <span class="fw-normal"><?= htmlspecialchars($op['descricao']) ?></span>
-                                        <?php if($evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id']): ?>
-                                            <i class="bi bi-check-circle-fill text-success"></i>
-                                        <?php endif; ?>
-                                    </div>
-                                    <span class="text-secondary small">
-                                        <i class="bi bi-people-fill me-1"></i><?= (int)$op['total_palpites'] ?> apostas
-                                    </span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <!-- Botão Encerrar / Alterar Vencedor -->
-                        <?php if($evt['status'] == 'aberta'): ?>
-                            <div class="bg-dark bg-opacity-50 p-3 rounded border border-secondary">
-                                <form method="POST" class="d-flex gap-2 align-items-center" onsubmit="return confirm('Tem certeza? Isso vai pagar os usuários.');">
-                                    <input type="hidden" name="acao" value="encerrar_evento">
-                                    <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-                                    
-                                    <div class="flex-grow-1">
-                                        <select name="vencedor_opcao_id" class="form-select form-select-sm bg-dark text-white border-secondary" required>
-                                            <option value="">Selecione o Resultado Oficial...</option>
-                                            <?php foreach($evt['opcoes'] as $op): ?>
-                                                <option value="<?= $op['id'] ?>"><?= $op['descricao'] ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="btn btn-danger btn-sm fw-bold px-3">
-                                        <i class="bi bi-flag-fill me-1"></i>Encerrar
-                                    </button>
-                                </form>
-                            </div>
-                        <?php else: ?>
-                            <div class="bg-dark bg-opacity-50 p-3 rounded border border-secondary">
-                                <form method="POST" class="d-flex gap-2 align-items-center" onsubmit="return confirm('Alterar vencedor irá corrigir pontos já pagos. Continuar?');">
-                                    <input type="hidden" name="acao" value="alterar_vencedor">
-                                    <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-
-                                    <div class="flex-grow-1">
-                                        <select name="vencedor_opcao_id" class="form-select form-select-sm bg-dark text-white border-secondary" required>
-                                            <option value="">Alterar vencedor...</option>
-                                            <?php foreach($evt['opcoes'] as $op): ?>
-                                                <option value="<?= $op['id'] ?>" <?= ($evt['vencedor_opcao_id'] == $op['id']) ? 'selected' : '' ?>>
-                                                    <?= $op['descricao'] ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="btn btn-outline-warning btn-sm fw-bold px-3">
-                                        <i class="bi bi-arrow-repeat me-1"></i>Alterar
-                                    </button>
-                                </form>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+      </div>
     </div>
+
+    <!-- Listagem -->
+    <div>
+      <div class="section-label" style="margin-top:0"><i class="bi bi-list-ul"></i>Apostas</div>
+
+      <div class="tab-bar">
+        <a href="?status=aberta" class="tab-btn <?= $filtro_status == 'aberta' ? 'active' : '' ?>">
+          <i class="bi bi-unlock me-1"></i>Abertas
+        </a>
+        <a href="?status=encerrada" class="tab-btn <?= $filtro_status == 'encerrada' ? 'active' : '' ?>">
+          <i class="bi bi-lock me-1"></i>Encerradas
+        </a>
+      </div>
+
+      <?php if (empty($eventos)): ?>
+      <div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <p>Nenhuma aposta nesta categoria.</p>
+      </div>
+      <?php endif; ?>
+
+      <?php foreach ($eventos as $evt): ?>
+      <div class="evt-card">
+        <div class="evt-card-head">
+          <div>
+            <div class="evt-title"><?= htmlspecialchars($evt['nome']) ?></div>
+            <div class="evt-meta">
+              <i class="bi bi-clock"></i>
+              Limite: <?= date('d/m/Y H:i', strtotime($evt['data_limite'])) ?>
+            </div>
+          </div>
+          <div class="evt-actions">
+            <button class="btn-edit-evt" title="Editar"
+                    onclick='prepararEdicao(<?= json_encode($evt) ?>)'>
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <?php if ($evt['status'] == 'aberta'): ?>
+            <form method="POST" style="display:inline"
+                  onsubmit="return confirm('Recalcular odds?')">
+              <input type="hidden" name="acao" value="recalcular_odds">
+              <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+              <button type="submit" class="btn-edit-evt" title="Recalcular odds" style="color:#60a5fa;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.2)">
+                <i class="bi bi-calculator"></i>
+              </button>
+            </form>
+            <?php endif; ?>
+            <div class="bets-count">
+              <i class="bi bi-people-fill"></i> <?= $evt['total_apostas_evento'] ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="evt-options">
+          <?php foreach ($evt['opcoes'] as $op):
+            $isWinner = $evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id'];
+          ?>
+          <div class="opt-pill <?= $isWinner ? 'winner' : '' ?>">
+            <div class="opt-pill-name">
+              <?php if ($isWinner): ?><i class="bi bi-check-circle-fill check"></i><?php endif; ?>
+              <?= htmlspecialchars($op['descricao']) ?>
+            </div>
+            <div class="opt-pill-count"><i class="bi bi-people-fill"></i> <?= (int)$op['total_palpites'] ?> apostas</div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="evt-footer">
+          <?php if ($evt['status'] == 'aberta'): ?>
+          <form method="POST" class="close-form"
+                onsubmit="return confirm('Encerrar? Isso vai pagar os usuários.')">
+            <input type="hidden" name="acao" value="encerrar_evento">
+            <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+            <select name="vencedor_opcao_id" class="fba-select-sm" required>
+              <option value="">Selecione o resultado oficial...</option>
+              <?php foreach ($evt['opcoes'] as $op): ?>
+              <option value="<?= $op['id'] ?>"><?= htmlspecialchars($op['descricao']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn-close-evt">
+              <i class="bi bi-flag-fill me-1"></i>Encerrar
+            </button>
+          </form>
+          <?php else: ?>
+          <form method="POST" class="close-form"
+                onsubmit="return confirm('Alterar vencedor irá corrigir pontos já pagos. Continuar?')">
+            <input type="hidden" name="acao" value="alterar_vencedor">
+            <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
+            <select name="vencedor_opcao_id" class="fba-select-sm" required>
+              <option value="">Alterar vencedor...</option>
+              <?php foreach ($evt['opcoes'] as $op): ?>
+              <option value="<?= $op['id'] ?>" <?= ($evt['vencedor_opcao_id'] == $op['id']) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($op['descricao']) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn-alter-evt">
+              <i class="bi bi-arrow-repeat me-1"></i>Alterar
+            </button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+
+  </div>
 </div>
 
 <script>
 function addCampo(id = '', nome = '') {
-    const div = document.createElement('div');
-    div.className = 'input-group mb-2';
-    div.innerHTML = `
-        <input type="hidden" name="opcoes_ids[]" value="${id}">
-        <input type="text" name="opcoes_nomes[]" class="form-control" value="${nome}" placeholder="Nome da Opção" required>
-        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()"><i class="bi bi-x-lg"></i></button>
-    `;
-    document.getElementById('container-opcoes').appendChild(div);
+  const div = document.createElement('div');
+  div.className = 'opcao-group';
+  div.innerHTML = `
+    <input type="hidden" name="opcoes_ids[]" value="${id}">
+    <input type="text" name="opcoes_nomes[]" class="fba-input" value="${nome}" placeholder="Nome da opção" required>
+    <button type="button" class="btn-icon-remove" onclick="this.parentElement.remove()">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  `;
+  document.getElementById('container-opcoes').appendChild(div);
 }
 
 function prepararEdicao(evento) {
-    document.getElementById('formTitle').innerHTML = "<i class='bi bi-pencil-square me-2'></i>Editando: " + evento.nome;
-    document.getElementById('formTitle').className = "card-header card-header-edit fw-bold";
-    document.getElementById('btnSubmit').className = "btn btn-light fw-bold w-100 text-dark";
-    document.getElementById('btnSubmit').innerText = "Salvar Alterações";
-    document.getElementById('btnCancelarEdit').classList.remove('d-none'); 
+  const card = document.getElementById('cardFormulario');
+  const head = document.getElementById('formTitle');
+  card.classList.add('editing');
+  head.classList.add('editing-head');
+  head.innerHTML = `<i class="bi bi-pencil-square"></i> Editando: ${evento.nome}`;
 
-    document.getElementById('acaoInput').value = 'editar_evento';
-    document.getElementById('idEventoInput').value = evento.id;
-    document.getElementById('nomeEventoInput').value = evento.nome;
-    
-    // Converte MySQL datetime (YYYY-MM-DD HH:MM:SS) para HTML datetime-local (YYYY-MM-DDTHH:MM)
-    let dataFormatada = evento.data_limite.replace(' ', 'T').substring(0, 16);
-    document.getElementById('dataLimiteInput').value = dataFormatada;
+  document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-save-fill"></i> Salvar Alterações';
+  document.getElementById('btnCancelarEdit').classList.add('visible');
+  document.getElementById('acaoInput').value = 'editar_evento';
+  document.getElementById('idEventoInput').value = evento.id;
+  document.getElementById('nomeEventoInput').value = evento.nome;
+  document.getElementById('dataLimiteInput').value = evento.data_limite.replace(' ', 'T').substring(0, 16);
 
-    const container = document.getElementById('container-opcoes');
-    container.innerHTML = ''; 
+  const container = document.getElementById('container-opcoes');
+  container.innerHTML = '';
+  evento.opcoes.forEach(op => addCampo(op.id, op.descricao));
 
-    evento.opcoes.forEach(op => {
-        addCampo(op.id, op.descricao);
-    });
-
-    document.getElementById('cardFormulario').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('cardFormulario').scrollIntoView({ behavior: 'smooth' });
 }
 
 function cancelarEdicao() {
-    document.getElementById('formTitle').innerHTML = "<i class='bi bi-plus-circle me-2'></i>Criar Nova Aposta";
-    document.getElementById('formTitle').className = "card-header card-header-admin fw-bold";
-    document.getElementById('btnSubmit').className = "btn btn-success fw-bold text-dark";
-    document.getElementById('btnSubmit').innerHTML = "<i class='bi bi-check-lg me-2'></i>Publicar Aposta";
-    document.getElementById('btnCancelarEdit').classList.add('d-none');
+  const card = document.getElementById('cardFormulario');
+  const head = document.getElementById('formTitle');
+  card.classList.remove('editing');
+  head.classList.remove('editing-head');
+  head.innerHTML = '<i class="bi bi-plus-circle-fill"></i> Criar Nova Aposta';
 
-    document.getElementById('mainForm').reset();
-    document.getElementById('acaoInput').value = 'criar_evento';
-    document.getElementById('idEventoInput').value = '';
+  document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-check-lg"></i> Publicar Aposta';
+  document.getElementById('btnCancelarEdit').classList.remove('visible');
+  document.getElementById('mainForm').reset();
+  document.getElementById('acaoInput').value = 'criar_evento';
+  document.getElementById('idEventoInput').value = '';
 
-    const container = document.getElementById('container-opcoes');
-    container.innerHTML = '';
-    addCampo();
-    addCampo();
+  const container = document.getElementById('container-opcoes');
+  container.innerHTML = '';
+  addCampo('', ''); addCampo('', '');
 }
 </script>
 </body>
