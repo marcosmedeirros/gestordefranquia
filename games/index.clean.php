@@ -170,15 +170,7 @@ try {
     $total_apostas_usuario = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 } catch (PDOException $e) { $total_apostas_usuario = 0; }
 
-$flappy_pontos = 0; $pinguim_pontos = 0; $xadrez_vitorias = 0; $batalha_naval_vitorias = 0;
-$tigrinho_premios = 0; $termo_streak = 0; $memoria_streak = 0;
 $top_termo_streak = null; $top_memoria_streak = null;
-
-try { $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS recorde FROM flappy_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $flappy_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['recorde'] ?? 0); } catch (PDOException $e) {}
-try { $stmt = $pdo->prepare("SELECT MAX(pontuacao_final) AS recorde FROM dino_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $pinguim_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['recorde'] ?? 0); } catch (PDOException $e) {}
-try { $stmt = $pdo->prepare("SELECT COUNT(*) AS total FROM xadrez_partidas WHERE vencedor = ? AND status = 'finalizada'"); $stmt->execute([$user_id]); $xadrez_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0); } catch (PDOException $e) {}
-try { $stmt = $pdo->prepare("SELECT COUNT(*) AS total FROM naval_salas WHERE vencedor_id = ? AND status = 'fim'"); $stmt->execute([$user_id]); $batalha_naval_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0); } catch (PDOException $e) {}
-try { $stmt = $pdo->prepare("SELECT SUM(premio) AS total FROM tigrinho_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $tigrinho_premios = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0); } catch (PDOException $e) {}
 
 $today = date('Y-m-d');
 $yesterday = date('Y-m-d', strtotime($today . ' -1 day'));
@@ -592,14 +584,14 @@ try {
       display: flex; align-items: center; justify-content: center;
       font-weight: 800; font-size: 15px; color: var(--red); margin-bottom: 8px;
     }
-    .sb-user-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .sb-user-name { font-size: 13px; font-weight: 700; color: #fff; }
     .sb-user-role { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-    .sb-stats { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sb-stat { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-    .sb-stat i { width: 16px; text-align: center; font-size: 12px; color: var(--red); flex-shrink: 0; }
-    .sb-stat-info { display: flex; flex-direction: column; }
-    .sb-stat-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .sb-stat-label { font-size: 10px; color: var(--text-3); }
+    .sb-stats { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 6px; }
+    .sb-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 4px; padding: 8px 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+    .sb-stat i { font-size: 13px; color: var(--red); }
+    .sb-stat-info { display: flex; flex-direction: column; align-items: center; }
+    .sb-stat-val { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
+    .sb-stat-label { font-size: 9px; color: var(--text-3); }
     .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
     .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 8px 14px 4px; }
     .sb-link {
@@ -634,6 +626,9 @@ try {
     }
     .mob-title { font-size: 14px; font-weight: 800; color: var(--text); flex: 1; }
     .mob-title span { color: var(--red); }
+    .mob-chips { display: flex; align-items: center; gap: 6px; }
+    .mob-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .mob-chip i { font-size: 11px; }
     .mob-back {
       width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
       background: transparent; color: var(--text-2);
@@ -673,32 +668,26 @@ try {
   <div class="sb-stats">
     <div class="sb-stat">
       <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($usuario['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">Tapas</div>
-      </div>
+      <div class="sb-stat-val"><?= number_format($usuario['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">Moedas</div>
-      </div>
+      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <div class="sb-stat-val"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:var(--amber)"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">FBA Points</div>
-      </div>
+      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">FBA Pts</div>
     </div>
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="index.clean.php" class="sb-link active">
+    <a href="index.php" class="sb-link active">
       <i class="bi bi-lightning-charge"></i>Apostas
     </a>
-    <a href="index.clean.php" class="sb-link">
+    <a href="games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
     <a href="user/ranking-geral.php" class="sb-link">
@@ -725,6 +714,10 @@ try {
 <div class="mob-bar">
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
   <span class="mob-title">FBA <span>Games</span></span>
+  <div class="mob-chips">
+    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></span>
+  </div>
   <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
 
@@ -738,18 +731,6 @@ try {
     <div class="fba-alert danger"><i class="bi bi-exclamation-triangle-fill"></i><?= $erro ?></div>
   <?php endif; ?>
 
-  <!-- Tab switcher -->
-  <div class="tab-bar">
-    <button class="tab-btn active" id="tabApostas" onclick="switchTab('apostas')">
-      <i class="bi bi-lightning-charge me-1"></i>Apostas
-    </button>
-    <button class="tab-btn" id="tabGames" onclick="switchTab('games')">
-      <i class="bi bi-joystick me-1"></i>Games
-    </button>
-  </div>
-
-  <!-- ════════════════ TAB: APOSTAS ════════════════ -->
-  <div id="pane-apostas">
 
     <?php if ($loja_msg): ?>
       <div class="fba-alert success"><i class="bi bi-check-circle-fill"></i><?= htmlspecialchars($loja_msg) ?></div>
@@ -925,117 +906,6 @@ try {
     <div style="text-align:center;margin-top:16px">
       <a href="user/ranking-geral.php" class="btn-outline-sm"><i class="bi bi-list-ol"></i>Ver ranking geral</a>
     </div>
-  </div><!-- /pane-apostas -->
-
-  <!-- ════════════════ TAB: GAMES ════════════════ -->
-  <div id="pane-games" style="display:none">
-
-    <!-- Stats -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-coin"></i>Moedas</div>
-        <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-rocket-takeoff"></i>Flappy Bird</div>
-        <div class="stat-value"><?= number_format($flappy_pontos, 0, ',', '.') ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-snow2"></i>Pinguim Run</div>
-        <div class="stat-value"><?= number_format($pinguim_pontos, 0, ',', '.') ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-flag-fill"></i>Xadrez · Vitórias</div>
-        <div class="stat-value"><?= $xadrez_vitorias ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-life-preserver"></i>Batalha Naval</div>
-        <div class="stat-value"><?= $batalha_naval_vitorias ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-lightning"></i>Streak Termo</div>
-        <div class="stat-value"><?= $termo_streak ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-lightning-charge"></i>Streak Memória</div>
-        <div class="stat-value"><?= $memoria_streak ?></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label"><i class="bi bi-emoji-smile"></i>Prêmios Tigrinho</div>
-        <div class="stat-value"><?= number_format($tigrinho_premios, 0, ',', '.') ?></div>
-      </div>
-      <?php if (!empty($usuario['is_admin'])): ?>
-      <a href="admin/controlegames.php" class="stat-card link-card">
-        <div class="stat-label"><i class="bi bi-gear-fill"></i>Admin</div>
-        <div class="stat-value small">Controle Games →</div>
-      </a>
-      <?php endif; ?>
-    </div>
-
-    <!-- Jogos -->
-    <div class="section-label"><i class="bi bi-joystick"></i>Escolha um Jogo</div>
-    <div class="games-grid">
-      <a href="games/index.php?game=flappy"      class="game-card"><span class="game-icon">🐦</span><div class="game-title">Flappy Bird</div><div class="game-sub">Desvie dos canos</div></a>
-      <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
-      <a href="games/index.php?game=xadrez"      class="game-card"><span class="game-icon">♛</span><div class="game-title">Xadrez PvP</div><div class="game-sub">Desafie e aposte</div></a>
-      <a href="games/index.php?game=memoria"     class="game-card"><span class="game-icon">🧠</span><div class="game-title">Memória</div><div class="game-sub">Desafio mental</div></a>
-      <a href="games/index.php?game=termo"       class="game-card"><span class="game-icon">📝</span><div class="game-title">Termo</div><div class="game-sub">Adivinhe a palavra</div></a>
-      <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
-      <a href="games/blackjack.php"              class="game-card"><span class="game-icon">🃏</span><div class="game-title">Blackjack</div><div class="game-sub">Chegue a 21</div></a>
-      <a href="games/index.php?game=poker"       class="game-card"><span class="game-icon">♠️</span><div class="game-title">Poker</div><div class="game-sub">Texas Hold'em</div></a>
-      <a href="games/index.php?game=tigrinho"    class="game-card"><span class="game-icon">🐯</span><div class="game-title">Tigrinho</div><div class="game-sub">Fortune Tiger</div></a>
-      <a href="games/batalhanaval.php"           class="game-card"><span class="game-icon">⚔️</span><div class="game-title">Batalha Naval</div><div class="game-sub">Multiplayer</div></a>
-      <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
-    </div>
-
-    <!-- Ranking games -->
-    <div class="section-label"><i class="bi bi-trophy"></i>Ranking · Moedas</div>
-    <div class="panel-card">
-      <div class="panel-head">
-        <div class="filter-row" style="margin:0;flex:1">
-          <div class="filter-title"><i class="bi bi-fire me-1" style="color:var(--red)"></i>Top 5 · Moedas</div>
-          <select class="fba-select" data-league-filter="points">
-            <?php foreach ($ranking_leagues as $k => $v): ?>
-              <option value="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($v) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-      </div>
-      <div class="panel-body" style="padding:10px 18px">
-        <div class="ranking-list" data-ranking-list="points">
-          <?php foreach ($ranking_points as $lk => $rlist): ?>
-            <?php if (empty($rlist)): ?>
-              <div data-ranking-empty="<?= htmlspecialchars($lk) ?>" style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Sem dados ainda</div>
-            <?php else: ?>
-              <?php foreach ($rlist as $i => $j): ?>
-                <div class="ranking-item" data-ranking-league="<?= htmlspecialchars($lk) ?>">
-                  <div class="rank-pos"><?= $medals[$i] ?? ($i+1) ?></div>
-                  <div class="rank-info">
-                    <div class="rank-name">
-                      <?= htmlspecialchars($j['nome']) ?>
-                      <?php if (!empty($best_game_users[(int)($j['id'] ?? 0)])): ?>
-                        <?php foreach ($best_game_users[(int)$j['id']] as $gl):
-                          $cls = 'badge-' . strtolower(str_replace(' ', '-', $gl));
-                          $icon = $bestGameIcons[$gl] ?? '⭐';
-                        ?>
-                          <span class="badge-game <?= $cls ?>"><?= $icon ?> <?= htmlspecialchars($gl) ?></span>
-                        <?php endforeach; ?>
-                      <?php endif; ?>
-                    </div>
-                    <?php if (!empty($j['league'])): ?><div class="rank-meta"><?= htmlspecialchars($j['league']) ?></div><?php endif; ?>
-                  </div>
-                  <div class="rank-value"><?= number_format($j['pontos'], 0, ',', '.') ?> moedas</div>
-                </div>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:16px">
-      <a href="user/ranking-geral.php" class="btn-outline-sm"><i class="bi bi-list-ol"></i>Ver ranking geral</a>
-    </div>
-  </div><!-- /pane-games -->
 
 </div><!-- .main -->
 
@@ -1057,18 +927,6 @@ try {
     document.getElementById('sbOverlay').classList.remove('open');
     document.body.style.overflow = '';
   }
-  function switchTab(tab) {
-    document.getElementById('pane-apostas').style.display = tab === 'apostas' ? '' : 'none';
-    document.getElementById('pane-games').style.display   = tab === 'games'   ? '' : 'none';
-    document.getElementById('tabApostas').classList.toggle('active', tab === 'apostas');
-    document.getElementById('tabGames').classList.toggle('active', tab === 'games');
-    localStorage.setItem('fba-games-tab', tab);
-  }
-
-  // Restore last tab
-  const savedTab = localStorage.getItem('fba-games-tab') || 'apostas';
-  switchTab(savedTab);
-
   // Ranking filter
   const getAcertosPeriod = () => document.getElementById('acertosLast24hToggle')?.checked ? '24h' : 'all';
 
@@ -1091,7 +949,7 @@ try {
 
   document.querySelectorAll('[data-league-filter]').forEach(s => s.addEventListener('change', () => applyRankingFilter(s.dataset.leagueFilter)));
   document.getElementById('acertosLast24hToggle')?.addEventListener('change', () => applyRankingFilter('acertos'));
-  ['points', 'acertos'].forEach(applyRankingFilter);
+  ['acertos'].forEach(applyRankingFilter);
 
   // Accordion chevron sync
   document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(btn => {

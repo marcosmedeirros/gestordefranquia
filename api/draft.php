@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
 
 header('Content-Type: application/json');
 
@@ -19,6 +20,7 @@ try {
 
 $user = getUserSession();
 $pdo = db();
+ensurePlayerRestrictionColumns($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Buscar time do usuário
@@ -813,8 +815,8 @@ if ($method === 'POST') {
                 if ($existingPlayerId) {
                     $duplicateRoster = true;
                 } else {
-                    $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-                        ->execute([(int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([(int)$targetTeamId, (int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
                 }
 
                 $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
@@ -888,8 +890,8 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$pick['team_id'], (int)$pickNumber, (int)$playerId]);
 
-                $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([(int)$pick['team_id'], $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
+                    ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
 
                 if (($session['status'] ?? '') === 'in_progress'
                     && (int)$pick['round'] === (int)$session['current_round']

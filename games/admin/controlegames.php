@@ -227,14 +227,14 @@ $labelMap = [
       display: flex; align-items: center; justify-content: center;
       font-weight: 800; font-size: 15px; color: var(--red); margin-bottom: 8px;
     }
-    .sb-user-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .sb-user-name { font-size: 13px; font-weight: 700; color: #fff; }
     .sb-user-role { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-    .sb-stats { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sb-stat { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-    .sb-stat i { width: 16px; text-align: center; font-size: 12px; color: var(--red); flex-shrink: 0; }
-    .sb-stat-info { display: flex; flex-direction: column; }
-    .sb-stat-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .sb-stat-label { font-size: 10px; color: var(--text-3); }
+    .sb-stats { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 6px; }
+    .sb-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 4px; padding: 8px 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+    .sb-stat i { font-size: 13px; color: var(--red); }
+    .sb-stat-info { display: flex; flex-direction: column; align-items: center; }
+    .sb-stat-val { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
+    .sb-stat-label { font-size: 9px; color: var(--text-3); }
     .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
     .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 8px 14px 4px; }
     .sb-link {
@@ -269,6 +269,9 @@ $labelMap = [
     }
     .mob-title { font-size: 14px; font-weight: 800; color: var(--text); flex: 1; }
     .mob-title span { color: var(--red); }
+    .mob-chips { display: flex; align-items: center; gap: 6px; }
+    .mob-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .mob-chip i { font-size: 11px; }
     .mob-back {
       width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
       background: transparent; color: var(--text-2);
@@ -308,32 +311,26 @@ $labelMap = [
   <div class="sb-stats">
     <div class="sb-stat">
       <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($user['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">Tapas</div>
-      </div>
+      <div class="sb-stat-val"><?= number_format($user['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">Moedas</div>
-      </div>
+      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:var(--amber)"></i>
-      <div class="sb-stat-info">
-        <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
-        <div class="sb-stat-label">FBA Points</div>
-      </div>
+      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">FBA Pts</div>
     </div>
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="../index.clean.php" class="sb-link">
+    <a href="../index.php" class="sb-link">
       <i class="bi bi-lightning-charge"></i>Apostas
     </a>
-    <a href="../index.clean.php" class="sb-link">
+    <a href="../games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
     <a href="../user/ranking-geral.php" class="sb-link">
@@ -358,7 +355,11 @@ $labelMap = [
 <div class="mob-bar">
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
   <span class="mob-title">FBA <span>Admin</span></span>
-  <a href="../index.clean.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+  <div class="mob-chips">
+    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></span>
+  </div>
+  <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
 
 <div class="main">

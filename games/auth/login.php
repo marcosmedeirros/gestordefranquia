@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             // Redireciona
             if($user['is_admin'] == 1) {
-                header("Location: ../admin/dashboard.php");
+                header("Location: ../index.php");
             } else {
                 header("Location: ../index.php");
             }

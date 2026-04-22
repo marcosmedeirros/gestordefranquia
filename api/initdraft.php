@@ -9,10 +9,12 @@ date_default_timezone_set('America/Sao_Paulo');
 
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/helpers.php';
 
 header('Content-Type: application/json');
 
 $pdo = db();
+ensurePlayerRestrictionColumns($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Usuário (pode não estar logado; token controla acesso)
@@ -186,8 +188,8 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
         $pdo->prepare('UPDATE initdraft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
             ->execute([$currentPick['team_id'], $pickNumber, $playerId]);
 
-        $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-            ->execute([$currentPick['team_id'], $player['name'], $player['position'], $player['age'], $player['ovr']]);
+        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
+            ->execute([$currentPick['team_id'], $currentPick['team_id'], $player['name'], $player['position'], $player['age'], $player['ovr']]);
 
         $nextPick = $sessionPick + 1;
         $nextRound = $sessionRound;

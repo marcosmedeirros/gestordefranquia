@@ -200,14 +200,35 @@ function calculateCapTop8(players) {
     .reduce((sum, p) => sum + Number(p.ovr), 0);
 }
 
+function isLoyalPlayer(player) {
+  return Number(player?.was_traded ?? 1) === 0;
+}
+
+function getRestrictedBonus(players) {
+  const teamId = Number(window.__TEAM_ID__);
+  if (!teamId) return 0;
+  const eligible = players.filter((p) => (
+    Number(p.ovr) >= 90
+    && Number(p.drafted_by_team_id) === teamId
+    && Number(p.was_traded) === 0
+  ));
+  return eligible.length * 2;
+}
+
+function getCapMaxAdjusted(players) {
+  const capMax = Number(window.__CAP_MAX__);
+  if (!Number.isFinite(capMax)) return capMax;
+  return capMax + getRestrictedBonus(players);
+}
+
 function getCapAfterRemoval(playerId) {
   const remaining = allPlayers.filter((p) => String(p.id) !== String(playerId));
   return calculateCapTop8(remaining);
 }
 
-function getCapStatusText(newCap) {
+function getCapStatusText(newCap, playersForBonus = allPlayers) {
   const capMin = Number(window.__CAP_MIN__);
-  const capMax = Number(window.__CAP_MAX__);
+  const capMax = getCapMaxAdjusted(playersForBonus);
   if (Number.isFinite(capMin) && Number.isFinite(capMax)) {
     if (newCap < capMin) return 'Voce vai ficar abaixo do cap.';
     if (newCap > capMax) return 'Voce vai ficar acima do cap.';
@@ -224,7 +245,8 @@ function openWaiveModal(player) {
   if (nameEl) nameEl.textContent = player.name || 'jogador';
   const newCap = getCapAfterRemoval(player.id);
   if (capEl) capEl.textContent = newCap;
-  if (statusEl) statusEl.textContent = getCapStatusText(newCap);
+  const remaining = allPlayers.filter((p) => String(p.id) !== String(player.id));
+  if (statusEl) statusEl.textContent = getCapStatusText(newCap, remaining);
   const modalEl = document.getElementById('waivePlayerModal');
   if (modalEl) {
     new bootstrap.Modal(modalEl).show();
@@ -329,12 +351,26 @@ function renderPlayers(players) {
       starters.forEach(p => {
         const ovrColor = getOvrColor(p.ovr);
         const photoUrl = getPlayerPhotoUrl(p);
+        const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
         const col = document.createElement('div');
         col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
         card.className = 'card border-orange h-100 roster-card text-center';
         card.innerHTML = `
-          <div class=\"card-body p-3 d-flex flex-column gap-3 align-items-center\">\n            <img src=\"${photoUrl}\" alt=\"${p.name}\" style=\"width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;\" onerror=\"this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'\">\n            <div class=\"text-center\">\n              <h6 class=\"text-white mb-1 fw-bold\" style=\"font-size: 1.05rem;\">${p.name}</h6>\n              <div class=\"d-flex justify-content-center gap-2 flex-wrap small\">\n                <span class=\"badge bg-secondary\">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>\n              </div>\n            </div>\n            <div class=\"text-center\">\n              <div class=\"fw-bold\" style=\"font-size: 1.8rem; line-height: 1; color: ${ovrColor};\">${p.ovr}</div>\n              <small class=\"text-light-gray\">${p.age} anos</small>\n            </div>\n          </div>`;
+          <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
+            <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+            <div class="text-center">
+              <h6 class="text-white mb-1 fw-bold" style="font-size: 1.05rem;">${p.name}</h6>
+              <div class="d-flex justify-content-center gap-2 flex-wrap small">
+                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
+                ${loyalBadge}
+              </div>
+            </div>
+            <div class="text-center">
+              <div class="fw-bold" style="font-size: 1.8rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
+              <small class="text-light-gray">${p.age} anos</small>
+            </div>
+          </div>`;
         col.appendChild(card);
         list.appendChild(col);
       });
@@ -353,10 +389,11 @@ function renderPlayers(players) {
       const ul = document.createElement('ul');
       ul.className = 'list-group list-group-flush';
       bench.forEach(p => {
+        const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
         const li = document.createElement('li');
         li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
         li.innerHTML = `
-          <span>${p.name} <small class=\"text-light-gray\">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span>${p.name} ${loyalBadge} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -400,6 +437,7 @@ function renderPlayersMobileCards(players) {
   players.forEach(p => {
     const canRetire = Number(p.age) >= 35;
     const photoUrl = getPlayerPhotoUrl(p);
+    const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
     const card = document.createElement('div');
     card.className = 'roster-mobile-card';
     card.innerHTML = `
@@ -409,7 +447,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="text-white fw-bold">${p.name}</div>
+            <div class="text-white fw-bold">${p.name} ${loyalBadge}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -447,6 +485,7 @@ function renderPlayersTable(players) {
   players.forEach(p => {
     const canRetire = Number(p.age) >= 35;
     const photoUrl = getPlayerPhotoUrl(p);
+    const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
@@ -455,7 +494,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold">${p.name}</span>
+            <span class="fw-semibold">${p.name} ${loyalBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
@@ -483,8 +522,14 @@ function renderPlayersTable(players) {
 function updateRosterStats() {
   const totalPlayers = allPlayers.length;
   const topEight = calculateCapTop8(allPlayers);
+  const capMaxAdjusted = getCapMaxAdjusted(allPlayers);
+  const bonus = getRestrictedBonus(allPlayers);
   document.getElementById('total-players').textContent = totalPlayers;
-  document.getElementById('cap-top8').textContent = topEight;
+  document.getElementById('cap-top8').textContent = Number.isFinite(capMaxAdjusted) ? `${topEight} / ${capMaxAdjusted}` : topEight;
+  const bonusLabel = document.getElementById('cap-bonus-label');
+  if (bonusLabel) {
+    bonusLabel.textContent = bonus > 0 ? `+${bonus}` : '';
+  }
 }
 
 async function loadPlayers() {

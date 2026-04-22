@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
+require_once dirname(__DIR__) . '/backend/helpers.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -13,6 +14,7 @@ if (!$user) {
 }
 
 $pdo = db();
+ensurePlayerRestrictionColumns($pdo);
 // Helpers para checar colunas/tabelas e detectar o campo de OVR
 function columnExists(PDO $pdo, string $table, string $column): bool {
     try {
@@ -2096,7 +2098,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
                 unset($item);
 
-                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ?');
                 $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
                 $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
                 $stmtPlayerOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
@@ -2322,7 +2324,7 @@ if ($method === 'PUT') {
             }
             unset($item);
             
-            $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ? AND team_id = ?');
+            $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ? AND team_id = ?');
             $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
             $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
 

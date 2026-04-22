@@ -12,6 +12,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 $MAX_WAIVERS = 3;
 
 ensureTeamFreeAgencyColumns($pdo);
+ensurePlayerRestrictionColumns($pdo);
 
 if (!function_exists('playersTableExists')) {
     function playersTableExists(PDO $pdo, string $table): bool
@@ -260,23 +261,28 @@ if ($method === 'POST') {
 
     $prospectiveCap = capWithCandidate($pdo, $teamId, $ovr);
     $warnings = [];
-    if ($prospectiveCap > $config['app']['cap_max']) {
-        $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $config['app']['cap_max'] . ').';
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
+    if ($prospectiveCap > $capMaxAdjusted) {
+        $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $capMaxAdjusted . ').';
     }
 
     $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade]);
 
     $newCap = topEightCap($pdo, $teamId);
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
     if ($newCap < $config['app']['cap_min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
+    if ($newCap > $capMaxAdjusted) {
+        $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
     }
 
     jsonResponse(201, [
         'message' => 'Jogador adicionado.',
         'player_id' => $pdo->lastInsertId(),
         'cap_top8' => $newCap,
-        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
+        'warning' => !empty($warnings) ? implode(' ', array_unique($warnings)) : null,
     ]);
 }
 
@@ -375,17 +381,7 @@ if ($method === 'PUT') {
         }
     }
 
-    // CAP check: recalcular considerando o novo OVR substituindo o anterior
-    $ovrsStmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? AND id <> ? ORDER BY ovr DESC LIMIT 8');
-    $ovrsStmt->execute([(int)$player['team_id'], $playerId]);
-    $ovrs = $ovrsStmt->fetchAll(PDO::FETCH_COLUMN);
-    $ovrs[] = $ovr;
-    rsort($ovrs, SORT_NUMERIC);
-    $capAfter = array_sum(array_slice($ovrs, 0, 8));
     $warnings = [];
-    if ($capAfter > $config['app']['cap_max']) {
-        $warnings[] = 'CAP acima do limite recomendado (' . $capAfter . ' / ' . $config['app']['cap_max'] . ').';
-    }
 
     // Verificar se as colunas extras existem
     try {
@@ -429,13 +425,17 @@ if ($method === 'PUT') {
     $upd->execute($values);
 
     $newCap = topEightCap($pdo, (int)$player['team_id']);
+    $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], (int)$config['app']['cap_max']);
     if ($newCap < $config['app']['cap_min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
+    }
+    if ($newCap > $capMaxAdjusted) {
+        $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
     }
     jsonResponse(200, [
         'message' => 'Jogador atualizado.',
         'cap_top8' => $newCap,
-        'warning' => !empty($warnings) ? implode(' ', $warnings) : null,
+        'warning' => !empty($warnings) ? implode(' ', array_unique($warnings)) : null,
     ]);
 }
 

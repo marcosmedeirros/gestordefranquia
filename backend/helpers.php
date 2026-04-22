@@ -276,6 +276,54 @@ function topEightCap(PDO $pdo, int $teamId): int
     return (int) ($row['cap'] ?? 0);
 }
 
+function ensurePlayerRestrictionColumns(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $needsDraftedBy = $pdo->query("SHOW COLUMNS FROM players LIKE 'drafted_by_team_id'")->rowCount() === 0;
+        if ($needsDraftedBy) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN drafted_by_team_id INT NULL AFTER team_id");
+            $pdo->exec("CREATE INDEX idx_players_drafted_by_team_id ON players(drafted_by_team_id)");
+        }
+
+        $needsWasTraded = $pdo->query("SHOW COLUMNS FROM players LIKE 'was_traded'")->rowCount() === 0;
+        if ($needsWasTraded) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN was_traded TINYINT(1) NOT NULL DEFAULT 0 AFTER drafted_by_team_id");
+        }
+    } catch (Exception $e) {
+        error_log('[ensurePlayerRestrictionColumns] ' . $e->getMessage());
+    }
+
+    $checked = true;
+}
+
+function restrictedEligibleCount(PDO $pdo, int $teamId): int
+{
+    ensurePlayerRestrictionColumns($pdo);
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND drafted_by_team_id = ? AND was_traded = 0 AND ovr >= 90');
+        $stmt->execute([$teamId, $teamId]);
+        return (int) $stmt->fetchColumn();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+function restrictedCapBonus(PDO $pdo, int $teamId): int
+{
+    $count = restrictedEligibleCount($pdo, $teamId);
+    return $count * 2;
+}
+
+function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
+{
+    return $capMax + restrictedCapBonus($pdo, $teamId);
+}
+
 function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
 {
     $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');

@@ -17,6 +17,7 @@ $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+ensurePlayerRestrictionColumns($pdo);
 
 // Helpers para colunas e OVR
 function columnExists(PDO $pdo, string $table, string $column): bool {
@@ -323,6 +324,8 @@ if ($method === 'GET') {
             while ($team = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $capTop8 = topEightCap($pdo, $team['id']);
                 $team['cap_top8'] = $capTop8;
+                $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$team['id']);
+                $team['restricted_bonus'] = $team['restricted_eligible'] * 2;
                 $teams[] = $team;
             }
 
@@ -402,6 +405,8 @@ if ($method === 'GET') {
             $team['picks'] = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
             $team['cap_top8'] = topEightCap($pdo, $teamId);
+            $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$teamId);
+            $team['restricted_bonus'] = $team['restricted_eligible'] * 2;
 
             echo json_encode(['success' => true, 'team' => $team]);
             break;

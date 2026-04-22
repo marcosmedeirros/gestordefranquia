@@ -197,6 +197,8 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .stat-pill-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--red); flex-shrink: 0; }
         .stat-pill-val   { font-weight: 700; font-size: 18px; font-family: var(--font); }
         .stat-pill-label { color: var(--text-2); font-size: 12px; }
+        .cap-bonus-label { color: var(--text-3); font-size: 11px; margin-left: 6px; }
+        .loyal-badge { background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.35); font-size: 10px; padding: 2px 6px; border-radius: 999px; }
 
         /* ── Panel ─────────────────────────────────────── */
         .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
@@ -492,7 +494,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <div class="stat-pill-icon"><i class="bi bi-graph-up"></i></div>
                 <div>
                     <div class="stat-pill-val" id="cap-top8">—</div>
-                    <div class="stat-pill-label">CAP</div>
+                    <div class="stat-pill-label">CAP <span id="cap-bonus-label" class="cap-bonus-label"></span></div>
                 </div>
             </div>
             <div class="stat-pill">
