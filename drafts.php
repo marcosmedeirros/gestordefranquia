@@ -603,7 +603,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
       <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
       <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-      <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+      <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
+            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
       <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
 
       <?php if ($isAdmin): ?>
