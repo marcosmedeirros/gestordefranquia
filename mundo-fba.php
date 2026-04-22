@@ -152,7 +152,7 @@ foreach ($leagueOrder as $league) {
             LEFT JOIN teams tr ON sh.runner_up_team_id = tr.id
             LEFT JOIN users ur ON tr.user_id = ur.id
             WHERE sh.league = ?
-            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC
+            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC, sh.id DESC
             LIMIT 1
         ");
         $s->execute([$league]);
@@ -194,7 +194,7 @@ foreach ($leagueOrder as $league) {
             SELECT sh.mvp_player, sh.dpoy_player, sh.mip_player, sh.sixth_man_player {$roySel}
             FROM season_history sh
             WHERE sh.league = ?
-            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC
+            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC, sh.id DESC
             LIMIT 1
         ");
         $s->execute([$league]);
