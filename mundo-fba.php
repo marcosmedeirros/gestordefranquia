@@ -119,9 +119,34 @@ foreach ($leagueOrder as $league) {
         }
     } catch (Exception $e) {}
 
-    // Campeão e vice
+    // Campeão e vice — busca em season_history (fonte principal) e playoff_results como fallback
     $champion = null; $runnerUp = null;
-    if ($lastSeason) {
+    try {
+        $s = $pdo->prepare("
+            SELECT sh.champion_team_id, sh.runner_up_team_id, sh.year AS hist_year,
+                   tc.city AS champ_city, tc.name AS champ_name, tc.photo_url AS champ_photo, uc.name AS champ_owner,
+                   tr.city AS ru_city,   tr.name AS ru_name,   tr.photo_url AS ru_photo,   ur.name AS ru_owner
+            FROM season_history sh
+            LEFT JOIN teams tc ON sh.champion_team_id = tc.id
+            LEFT JOIN users uc ON tc.user_id = uc.id
+            LEFT JOIN teams tr ON sh.runner_up_team_id = tr.id
+            LEFT JOIN users ur ON tr.user_id = ur.id
+            WHERE sh.league = ?
+            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC
+            LIMIT 1
+        ");
+        $s->execute([$league]);
+        $sh = $s->fetch(PDO::FETCH_ASSOC);
+        if ($sh && $sh['champion_team_id']) {
+            $champion = ['city'=>$sh['champ_city'],'team_name'=>$sh['champ_name'],'photo_url'=>$sh['champ_photo'],'owner_name'=>$sh['champ_owner']];
+            if (!$seasonYear && !empty($sh['hist_year'])) $seasonYear = (int)$sh['hist_year'];
+        }
+        if ($sh && $sh['runner_up_team_id']) {
+            $runnerUp = ['city'=>$sh['ru_city'],'team_name'=>$sh['ru_name'],'photo_url'=>$sh['ru_photo'],'owner_name'=>$sh['ru_owner']];
+        }
+    } catch (Exception $e) {}
+    // Fallback: playoff_results
+    if (!$champion && $lastSeason) {
         try {
             $s = $pdo->prepare("
                 SELECT pr.position, t.city, t.name AS team_name, t.photo_url, u.name AS owner_name
@@ -344,7 +369,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sec-hd i { font-size:13px; }
 
         /* ── Champion banner ────────────────────────────────── */
-        .champ-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:0; }
+        .champ-grid { display:grid; grid-template-columns:repeat(2, minmax(0,380px)); gap:12px; margin-bottom:0; justify-content:center; }
         .champ-card {
             background:var(--panel); border:1px solid var(--border);
             border-radius:var(--radius); padding:20px;
