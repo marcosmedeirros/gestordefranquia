@@ -321,6 +321,18 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
         @media (max-width: 575px) {
             .league-grid { grid-template-columns: 1fr 1fr; }
         }
+
+        .conf-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 640px) {
+            .conf-grid { grid-template-columns: 1fr; }
+            .bc-body button { font-size: 11px !important; padding: 8px 6px !important; }
+            .bracket-container { font-size: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -1454,7 +1466,7 @@ Stephen Curry,PG,35,95</code>
           <strong>Pontos por Classificação:</strong> 1º +4pts &nbsp;|&nbsp; 2º ao 4º +3pts &nbsp;|&nbsp; 5º ao 6º +2pts &nbsp;|&nbsp; 7º ao 8º +1pt (Play-In) &nbsp;|&nbsp; 9º ao 10º 0pts (Play-In)
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="conf-grid">
           <div class="bc">
             <div class="bc-head" style="border-bottom-color:rgba(252,0,37,.25)">
               <div class="bc-title" style="color:var(--red)"><i class="bi bi-geo-alt-fill"></i>Conferência LESTE</div>
@@ -1600,7 +1612,7 @@ Stephen Curry,PG,35,95</code>
           <strong>Jogo 3:</strong> Perdedor J1 vs Vencedor J2 → vencedor = 8º seed
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="conf-grid">
           <div class="bc">
             <div class="bc-head" style="border-bottom-color:rgba(252,0,37,.25)">
               <div class="bc-title" style="color:var(--red)"><i class="bi bi-lightning-charge-fill"></i>Play-In LESTE</div>
@@ -1771,7 +1783,7 @@ Stephen Curry,PG,35,95</code>
           <strong>Pontos Playoffs:</strong> 1ª Rodada +1pt &nbsp;|&nbsp; 2ª Rodada +2pts &nbsp;|&nbsp; Final Conferência +3pts &nbsp;|&nbsp; Vice +2pts &nbsp;|&nbsp; Campeão +5pts
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="conf-grid">
           <div class="bc">
             <div class="bc-head" style="border-bottom-color:rgba(252,0,37,.25)">
               <div class="bc-title" style="color:var(--red)"><i class="bi bi-trophy-fill"></i>Playoffs LESTE</div>
@@ -1910,14 +1922,14 @@ Stephen Curry,PG,35,95</code>
 
       return `
         <div style="background:var(--panel-3);border-radius:var(--radius-sm);padding:8px;margin-bottom:6px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <button style="${btnBase} ${t1Border};background:${t1Bg};color:${t1Color};${disabledExtra}"
+          <div style="display:flex;align-items:stretch;gap:6px;flex-wrap:wrap">
+            <button style="${btnBase} ${t1Border};background:${t1Bg};color:${t1Color};${disabledExtra}min-width:0;word-break:break-word;"
                     onclick="${canSelect ? `selectWinner('${conference}', '${round}', ${matchNumber}, ${actualT1Id})` : ''}"
                     ${!canSelect ? 'disabled' : ''}>
               ${actualT1Name || 'TBD'}
             </button>
-            <span style="font-size:10px;font-weight:700;color:var(--text-3);flex-shrink:0">vs</span>
-            <button style="${btnBase} ${t2Border};background:${t2Bg};color:${t2Color};${disabledExtra}"
+            <span style="font-size:10px;font-weight:700;color:var(--text-3);flex-shrink:0;align-self:center">vs</span>
+            <button style="${btnBase} ${t2Border};background:${t2Bg};color:${t2Color};${disabledExtra}min-width:0;word-break:break-word;"
                     onclick="${canSelect ? `selectWinner('${conference}', '${round}', ${matchNumber}, ${actualT2Id})` : ''}"
                     ${!canSelect ? 'disabled' : ''}>
               ${actualT2Name || 'TBD'}

@@ -1865,8 +1865,7 @@ async function viewDirectives(deadlineId, league) {
               const updatedAt = d.updated_at || null;
               const submittedAt = d.submitted_at || d.created_at || null;
               const isEdited = !!(updatedAt && submittedAt && new Date(updatedAt).getTime() > new Date(submittedAt).getTime());
-              const directiveKey = `admin_directive_accept_${d.id}`;
-              const isAccepted = !isEdited && localStorage.getItem(directiveKey) === '1';
+              const isAccepted = !isEdited && Number(d.admin_accepted || 0) === 1;
               const pm = normalizeDirectiveMinutes(d.player_minutes);
               const playerInfo = normalizeDirectivePlayerInfo(d.player_info);
               const isManualRotation = d.rotation_style === 'manual';
@@ -1958,6 +1957,7 @@ async function viewDirectives(deadlineId, league) {
               const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
               
               const isEliteLeague = ['ELITE', 'NEXT'].includes(String(league || '').toUpperCase());
+              const isEliteOnly = String(league || '').toUpperCase() === 'ELITE';
               let technicalModelValue = d.technical_model || null;
               let playbookValue = d.playbook || null;
               if ((!technicalModelValue || !playbookValue) && d.directive_profile) {
@@ -2009,30 +2009,28 @@ async function viewDirectives(deadlineId, league) {
                         ${bench}
                       </ul>
                     </div>
-                    <div class="col-md-6 col-lg-4 mt-3">
+                    ${isEliteOnly ? `<div class="col-md-6 col-lg-4 mt-3">
                       <h6 class="text-orange mb-2">G-League</h6>
                       <ul class="text-light-gray small">
                         ${gLeagueList}
                       </ul>
-                    </div>
+                    </div>` : ''}
                     <div class="col-12 mt-3">
                       <h6 class="text-orange">Estilo de Jogo</h6>
                       <div class="row text-light-gray small">
                         <div class="col-md-4">Game Style: ${changedField('game_style') ? `<span class="text-danger">${gameStyleLabels[d.game_style] || d.game_style}</span>` : (gameStyleLabels[d.game_style] || d.game_style)}</div>
-                        <div class="col-md-4">Offense Style: ${changedField('offense_style') ? `<span class="text-danger">${offenseStyleLabels[d.offense_style] || d.offense_style}</span>` : (offenseStyleLabels[d.offense_style] || d.offense_style)}</div>
                         <div class="col-md-4">Rotação: ${changedField('rotation_style') ? `<span class="text-danger">${rotationLabels[d.rotation_style] || d.rotation_style}</span>` : (rotationLabels[d.rotation_style] || d.rotation_style)}</div>
                       </div>
                     </div>
                     <div class="col-12 mt-3">
                       <h6 class="text-orange">Configurações</h6>
                       <div class="row text-light-gray small">
-                        <div class="col-md-3">Tempo Ataque: ${changedField('pace') ? `<span class="text-danger">${paceLabels[d.pace] || d.pace}</span>` : (paceLabels[d.pace] || d.pace)}</div>
-                        <div class="col-md-3">Agress. Def.: ${changedField('offensive_aggression') ? `<span class="text-danger">${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</span>` : (defAggrLabels[d.offensive_aggression] || d.offensive_aggression)}</div>
-                        <div class="col-md-3">Reb. Ofensivo: ${changedField('offensive_rebound') ? `<span class="text-danger">${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</span>` : (offRebLabels[d.offensive_rebound] || d.offensive_rebound)}</div>
-                        <div class="col-md-3">Reb. Defensivo: ${changedField('defensive_rebound') ? `<span class="text-danger">${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</span>` : (defRebLabels[d.defensive_rebound] || d.defensive_rebound)}</div>
-                      </div>
-                      <div class="row text-light-gray small mt-2">
-                        <div class="col-md-3">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
+                        <div class="col-md-4">Offensive Focus: ${changedField('offense_style') ? `<span class="text-danger">${offenseStyleLabels[d.offense_style] || d.offense_style}</span>` : (offenseStyleLabels[d.offense_style] || d.offense_style)}</div>
+                        <div class="col-md-4">Offensive Tempo: ${changedField('pace') ? `<span class="text-danger">${paceLabels[d.pace] || d.pace}</span>` : (paceLabels[d.pace] || d.pace)}</div>
+                        <div class="col-md-4">Offensive Rebounding: ${changedField('offensive_rebound') ? `<span class="text-danger">${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</span>` : (offRebLabels[d.offensive_rebound] || d.offensive_rebound)}</div>
+                        <div class="col-md-4 mt-2">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
+                        <div class="col-md-4 mt-2">Defensive Aggression: ${changedField('offensive_aggression') ? `<span class="text-danger">${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</span>` : (defAggrLabels[d.offensive_aggression] || d.offensive_aggression)}</div>
+                        <div class="col-md-4 mt-2">Defensive Rebounding: ${changedField('defensive_rebound') ? `<span class="text-danger">${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</span>` : (defRebLabels[d.defensive_rebound] || d.defensive_rebound)}</div>
                       </div>
                     </div>
                     ${isEliteLeague ? `<div class="col-12 mt-3">
@@ -2064,16 +2062,19 @@ async function viewDirectives(deadlineId, league) {
   }
 }
 
-function toggleAdminDirectiveAccept(directiveId, checked) {
-  const key = `admin_directive_accept_${directiveId}`;
-  if (checked) {
-    localStorage.setItem(key, '1');
-  } else {
-    localStorage.removeItem(key);
-  }
+async function toggleAdminDirectiveAccept(directiveId, checked) {
   const card = document.querySelector(`[data-directive-id="${directiveId}"]`);
-  if (card) {
-    card.classList.toggle('is-accepted', checked);
+  try {
+    await api('diretrizes.php', {
+      method: 'PATCH',
+      body: JSON.stringify({ directive_id: directiveId, accepted: checked })
+    });
+    if (card) card.classList.toggle('is-accepted', checked);
+  } catch (e) {
+    alert(e.error || 'Erro ao salvar aceite da diretriz');
+    // Reverter o checkbox visualmente
+    const checkbox = card?.querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = !checked;
   }
 }
 

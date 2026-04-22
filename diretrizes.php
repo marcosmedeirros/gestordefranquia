@@ -696,7 +696,7 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                 </div>
 
                 <!-- G-League -->
-                <?php if ($gleagueSlots > 0): ?>
+                <?php if ($gleagueSlots > 0 && ($team['league'] ?? '') === 'ELITE'): ?>
                 <div class="sc">
                     <div class="sc-head">
                         <div class="sc-icon"><i class="bi bi-arrow-down-circle"></i></div>

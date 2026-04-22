@@ -1718,11 +1718,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             const gleague = roster.filter(p => (p.role||'').toLowerCase() === 'g-league');
 
             const r1 = picks.filter(pk => pk.round == 1).map(pk => {
-                const via = pk.last_owner_city ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
+                const via = `${pk.original_team_city} ${pk.original_team_name}`;
                 return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''} `;
             });
             const r2 = picks.filter(pk => pk.round == 2).map(pk => {
-                const via = pk.last_owner_city ? `${pk.last_owner_city} ${pk.last_owner_name}` : `${pk.original_team_city} ${pk.original_team_name}`;
+                const via = `${pk.original_team_city} ${pk.original_team_name}`;
                 return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''} `;
             });
 

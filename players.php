@@ -420,7 +420,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		@media (max-width: 560px) {
 			.stats-strip { grid-template-columns: 1fr; }
-			.filters-grid { grid-template-columns: 1fr; }
+			.filters-grid {
+				grid-template-columns: 1fr 1fr;
+				gap: 10px;
+			}
+			.filters-grid .field-full { grid-column: 1 / -1; }
+			.filters-grid .field-half { grid-column: span 1; }
+			.filters-grid .field-full .btn-action { margin-top: 2px; }
 		}
 
 		.sb-overlay {
@@ -507,7 +513,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
     <header class="topbar">
         <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
         <div class="topbar-title">FBA <em>Manager</em></div>
-        <?php if ($currentSeason): ?>
+        <?php if ($currentSeasonYear): ?>
         <span style="font-size:11px;font-weight:700;color:var(--red)"><?= $seasonDisplayYear ?></span>
         <?php endif; ?>
     </header>
@@ -543,11 +549,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		<div class="panel">
 			<div class="panel-title">Filtros</div>
 			<div class="filters-grid">
-				<div class="field" style="grid-column: span 4;">
+				<div class="field field-full" style="grid-column: span 4;">
 					<label for="playersSearchInput">Buscar por nome</label>
 					<input type="text" id="playersSearchInput" placeholder="Digite o nome do jogador">
 				</div>
-				<div class="field" style="grid-column: span 2;">
+				<div class="field field-half" style="grid-column: span 2;">
 					<label for="playersPositionFilter">Posicao</label>
 					<select id="playersPositionFilter">
 						<option value="">Todas</option>
@@ -558,23 +564,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<option value="C">C</option>
 					</select>
 				</div>
-				<div class="field" style="grid-column: span 2;">
-					<label for="playersOvrMin">OVR minimo</label>
-					<input type="number" id="playersOvrMin" placeholder="70">
-				</div>
-				<div class="field" style="grid-column: span 2;">
-					<label for="playersOvrMax">OVR maximo</label>
-					<input type="number" id="playersOvrMax" placeholder="99">
-				</div>
-				<div class="field" style="grid-column: span 2;">
-					<label for="playersAgeMin">Idade min.</label>
-					<input type="number" id="playersAgeMin" placeholder="18">
-				</div>
-				<div class="field" style="grid-column: span 2;">
-					<label for="playersAgeMax">Idade max.</label>
-					<input type="number" id="playersAgeMax" placeholder="40">
-				</div>
-				<div class="field" style="grid-column: span 4;">
+				<div class="field field-half" style="grid-column: span 2;">
 					<label for="playersTeamFilter">Time</label>
 					<select id="playersTeamFilter">
 						<option value="">Todos</option>
@@ -583,7 +573,23 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<?php endforeach; ?>
 					</select>
 				</div>
-				<div class="field" style="grid-column: span 2; align-self: end;">
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersOvrMin">OVR minimo</label>
+					<input type="number" id="playersOvrMin" placeholder="70" min="0" max="99">
+				</div>
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersOvrMax">OVR maximo</label>
+					<input type="number" id="playersOvrMax" placeholder="99" min="0" max="99">
+				</div>
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersAgeMin">Idade min.</label>
+					<input type="number" id="playersAgeMin" placeholder="18" min="0" max="99">
+				</div>
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersAgeMax">Idade max.</label>
+					<input type="number" id="playersAgeMax" placeholder="40" min="0" max="99">
+				</div>
+				<div class="field field-full" style="grid-column: span 2; align-self: end;">
 					<button class="btn-action" id="playersSearchBtn"><i class="bi bi-search me-1"></i>Buscar</button>
 				</div>
 			</div>

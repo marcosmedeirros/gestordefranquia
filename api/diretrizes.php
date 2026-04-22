@@ -844,6 +844,30 @@ if ($method === 'POST') {
     exit;
 }
 
+// PATCH - Aceitar/desaceitar diretriz (admin)
+if ($method === 'PATCH') {
+    if (($user['user_type'] ?? 'jogador') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+        exit;
+    }
+    $data = json_decode(file_get_contents('php://input'), true);
+    $directiveId = (int)($data['directive_id'] ?? 0);
+    if (!$directiveId) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'directive_id obrigatório']);
+        exit;
+    }
+    $accepted = isset($data['accepted']) ? (int)(bool)$data['accepted'] : 0;
+    try {
+        $pdo->exec("ALTER TABLE team_directives ADD COLUMN IF NOT EXISTS admin_accepted TINYINT(1) NOT NULL DEFAULT 0");
+    } catch (Exception $e) {}
+    $stmt = $pdo->prepare('UPDATE team_directives SET admin_accepted = ? WHERE id = ?');
+    $stmt->execute([$accepted, $directiveId]);
+    echo json_encode(['success' => true, 'admin_accepted' => $accepted]);
+    exit;
+}
+
 // PUT - Atualizar prazo (admin)
 if ($method === 'PUT') {
     if (($user['user_type'] ?? 'jogador') !== 'admin') {
