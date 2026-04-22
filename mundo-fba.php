@@ -138,23 +138,29 @@ foreach ($leagueOrder as $league) {
         } catch (Exception $e) {}
     }
 
-    // Prêmios
+    // Prêmios — busca na season_history (fonte principal)
     $awards = [];
-    if ($lastSeason) {
-        try {
-            $s = $pdo->prepare("SELECT award_type, player_name FROM season_awards WHERE season_id = ? ORDER BY award_type");
-            $s->execute([$lastSeason['id']]);
-            $awards = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (Exception $e) {
-            if ($seasonYear) {
-                try {
-                    $s = $pdo->prepare("SELECT award_name AS award_type, player_name FROM awards WHERE season_year = ? AND league = ? ORDER BY award_name");
-                    $s->execute([$seasonYear, $league]);
-                    $awards = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
-                } catch (Exception $e2) {}
+    try {
+        // Detectar se coluna roy_player existe
+        $chk = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+        $hasRoy = $chk && $chk->rowCount() > 0;
+        $roySel = $hasRoy ? ', sh.roy_player' : ', NULL AS roy_player';
+        $s = $pdo->prepare("
+            SELECT sh.mvp_player, sh.dpoy_player, sh.mip_player, sh.sixth_man_player {$roySel}
+            FROM season_history sh
+            WHERE sh.league = ?
+            ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC
+            LIMIT 1
+        ");
+        $s->execute([$league]);
+        $row = $s->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $map = ['mvp'=>'mvp_player','dpoy'=>'dpoy_player','mip'=>'mip_player','smoy'=>'sixth_man_player','roy'=>'roy_player'];
+            foreach ($map as $type => $col) {
+                if (!empty($row[$col])) $awards[] = ['award_type'=>$type,'player_name'=>$row[$col]];
             }
         }
-    }
+    } catch (Exception $e) {}
 
     // Hall da Fama
     $hof = [];
@@ -193,7 +199,24 @@ foreach ($leagueOrder as $league) {
     // Avg CAP
     $avgCap = count($teams) > 0 ? (int)round(array_sum(array_column($teams, 'cap_top8')) / count($teams)) : 0;
 
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap');
+    // Ranking da liga (pontos acumulados)
+    $ranking = [];
+    try {
+        $s = $pdo->prepare("
+            SELECT CONCAT(t.city,' ',t.name) AS team_name, t.photo_url,
+                   COALESCE(t.ranking_points, 0) AS total_points,
+                   COALESCE(t.ranking_titles, 0) AS total_titles,
+                   u.name AS owner_name
+            FROM teams t
+            LEFT JOIN users u ON u.id = t.user_id
+            WHERE t.league = ?
+            ORDER BY COALESCE(t.ranking_points,0) DESC, COALESCE(t.ranking_titles,0) DESC, t.name ASC
+        ");
+        $s->execute([$league]);
+        $ranking = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Exception $e) {}
+
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -483,6 +506,29 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .chip-red   { border-color:rgba(252,0,37,.25); background:rgba(252,0,37,.06); }
         .chip-red   .chip-lbl { color:#fc6680; }
         .chip-gray  { border-color:var(--border-md); }
+
+        /* ── Ranking table ─────────────────────────────────── */
+        .ranking-table { width:100%; border-collapse:collapse; }
+        .ranking-table th {
+            font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+            color:var(--text-3); padding:8px 12px; text-align:left;
+            border-bottom:1px solid var(--border);
+        }
+        .ranking-table th.right, .ranking-table td.right { text-align:right; }
+        .ranking-table td { padding:11px 12px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+        .ranking-table tr:last-child td { border-bottom:none; }
+        .ranking-table tr:hover td { background:var(--panel-2); }
+        .rk-pos { width:32px; font-size:13px; font-weight:800; color:var(--text-3); }
+        .rk-pos.gold   { color:#f59e0b; }
+        .rk-pos.silver { color:#94a3b8; }
+        .rk-pos.bronze { color:#c97b3b; }
+        .rk-logo { width:30px; height:30px; border-radius:7px; object-fit:cover; border:1px solid var(--border-md); background:var(--panel-2); flex-shrink:0; }
+        .rk-team { display:flex; align-items:center; gap:10px; }
+        .rk-name { font-size:13px; font-weight:700; color:var(--text); }
+        .rk-gm   { font-size:11px; color:var(--text-2); }
+        .rk-pts  { font-size:16px; font-weight:800; color:var(--text); }
+        .rk-titles { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:#f59e0b; }
+        .ranking-wrap { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
 
         /* ── Empty state ────────────────────────────────────── */
         .empty-state {
@@ -815,6 +861,57 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
                 </div>
                 <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php /* ── Ranking da liga ── */ ?>
+            <?php if (!empty($d['ranking'])): ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
+                <i class="bi bi-bar-chart-fill" style="color:<?= $col ?>"></i>
+                RANKING DA LIGA
+            </div>
+            <div class="ranking-wrap">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th style="width:36px">#</th>
+                            <th>Time</th>
+                            <th class="right">Títulos</th>
+                            <th class="right">Pontos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($d['ranking'] as $ri => $rk):
+                            $rPos = $ri + 1;
+                            $rCls = $rPos === 1 ? 'gold' : ($rPos === 2 ? 'silver' : ($rPos === 3 ? 'bronze' : ''));
+                            $pts  = (int)$rk['total_points'];
+                            $tit  = (int)$rk['total_titles'];
+                        ?>
+                        <tr>
+                            <td class="rk-pos <?= $rCls ?>"><?= $rPos ?></td>
+                            <td>
+                                <div class="rk-team">
+                                    <img class="rk-logo"
+                                         src="<?= htmlspecialchars(getTeamPhoto($rk['photo_url'] ?? null)) ?>"
+                                         alt="" onerror="this.src='/img/default-team.png'">
+                                    <div>
+                                        <div class="rk-name"><?= htmlspecialchars($rk['team_name']) ?></div>
+                                        <div class="rk-gm"><?= htmlspecialchars($rk['owner_name'] ?? '') ?></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="right">
+                                <?php if ($tit > 0): ?>
+                                <span class="rk-titles">🏆 <?= $tit ?></span>
+                                <?php else: ?>
+                                <span style="color:var(--text-3)">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="right rk-pts"><?= $pts ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
             <?php endif; ?>
 
