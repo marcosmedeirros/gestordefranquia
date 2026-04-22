@@ -90,7 +90,7 @@ foreach ($leagueOrder as $league) {
     $teams = [];
     try {
         $s = $pdo->prepare("
-            SELECT t.id, t.city, t.name, t.photo_url,
+            SELECT t.id, t.city, t.name, t.photo_url AS team_photo,
                    u.name AS owner_name
             FROM teams t
             INNER JOIN users u ON u.id = t.user_id
@@ -144,8 +144,8 @@ foreach ($leagueOrder as $league) {
     try {
         $s = $pdo->prepare("
             SELECT sh.champion_team_id, sh.runner_up_team_id, sh.year AS hist_year,
-                   tc.city AS champ_city, tc.name AS champ_name, tc.photo_url AS champ_photo, uc.name AS champ_owner,
-                   tr.city AS ru_city,   tr.name AS ru_name,   tr.photo_url AS ru_photo,   ur.name AS ru_owner
+                   tc.city AS champ_city, tc.name AS champ_name, tc.photo_url AS team_photo_c, uc.name AS champ_owner,
+                   tr.city AS ru_city,   tr.name AS ru_name,   tr.photo_url AS team_photo_r, ur.name AS ru_owner
             FROM season_history sh
             LEFT JOIN teams tc ON sh.champion_team_id = tc.id
             LEFT JOIN users uc ON tc.user_id = uc.id
@@ -158,18 +158,18 @@ foreach ($leagueOrder as $league) {
         $s->execute([$league]);
         $sh = $s->fetch(PDO::FETCH_ASSOC);
         if ($sh && $sh['champion_team_id']) {
-            $champion = ['city'=>$sh['champ_city'],'team_name'=>$sh['champ_name'],'photo_url'=>$sh['champ_photo'],'owner_name'=>$sh['champ_owner']];
+            $champion = ['city'=>$sh['champ_city'],'team_name'=>$sh['champ_name'],'team_photo'=>$sh['team_photo_c'],'owner_name'=>$sh['champ_owner']];
             if (!$seasonYear && !empty($sh['hist_year'])) $seasonYear = (int)$sh['hist_year'];
         }
         if ($sh && $sh['runner_up_team_id']) {
-            $runnerUp = ['city'=>$sh['ru_city'],'team_name'=>$sh['ru_name'],'photo_url'=>$sh['ru_photo'],'owner_name'=>$sh['ru_owner']];
+            $runnerUp = ['city'=>$sh['ru_city'],'team_name'=>$sh['ru_name'],'team_photo'=>$sh['team_photo_r'],'owner_name'=>$sh['ru_owner']];
         }
     } catch (Exception $e) {}
     // Fallback: playoff_results
     if (!$champion && $lastSeason) {
         try {
             $s = $pdo->prepare("
-                SELECT pr.position, t.city, t.name AS team_name, t.photo_url, u.name AS owner_name
+                SELECT pr.position, t.city, t.name AS team_name, t.photo_url AS team_photo, u.name AS owner_name
                 FROM playoff_results pr
                 JOIN teams t ON pr.team_id = t.id
                 JOIN users u ON t.user_id = u.id
@@ -214,7 +214,7 @@ foreach ($leagueOrder as $league) {
             SELECT hof.titles,
                    COALESCE(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')), hof.team_name) AS display_team,
                    COALESCE(u.name, hof.gm_name) AS display_gm,
-                   t.photo_url
+                   t.photo_url AS team_photo
             FROM hall_of_fame hof
             LEFT JOIN teams t ON hof.team_id = t.id
             LEFT JOIN users u ON t.user_id = u.id
@@ -248,7 +248,7 @@ foreach ($leagueOrder as $league) {
     $ranking = [];
     try {
         $s = $pdo->prepare("
-            SELECT CONCAT(t.city,' ',t.name) AS team_name, t.photo_url,
+            SELECT CONCAT(t.city,' ',t.name) AS team_name, t.photo_url AS team_photo,
                    COALESCE(t.ranking_points, 0) AS total_points,
                    COALESCE(t.ranking_titles, 0) AS total_titles,
                    u.name AS owner_name
@@ -744,8 +744,8 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             <div class="champ-grid" style="margin-bottom:0">
                 <?php if ($d['champion']): $c = $d['champion']; ?>
                 <div class="champ-card champion">
-                    <?php if ($c['photo_url']): ?>
-                    <img class="champ-logo" src="<?= htmlspecialchars(getTeamPhoto($c['photo_url'])) ?>"
+                    <?php if ($c['team_photo']): ?>
+                    <img class="champ-logo" src="<?= htmlspecialchars(getTeamPhoto($c['team_photo'])) ?>"
                          alt="" onerror="this.src='/img/default-team.png'">
                     <?php else: ?>
                     <div class="champ-badge">🏆</div>
@@ -759,8 +759,8 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <?php endif; ?>
                 <?php if ($d['runnerUp']): $r = $d['runnerUp']; ?>
                 <div class="champ-card">
-                    <?php if ($r['photo_url']): ?>
-                    <img class="champ-logo" src="<?= htmlspecialchars(getTeamPhoto($r['photo_url'])) ?>"
+                    <?php if ($r['team_photo']): ?>
+                    <img class="champ-logo" src="<?= htmlspecialchars(getTeamPhoto($r['team_photo'])) ?>"
                          alt="" onerror="this.src='/img/default-team.png'">
                     <?php else: ?>
                     <div class="champ-badge silver">🥈</div>
@@ -845,7 +845,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
                         <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
                         <img class="team-logo"
-                             src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
+                             src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
                              alt="<?= htmlspecialchars($t['name']) ?>"
                              onerror="this.src='/img/default-team.png'">
                         <div class="team-info">
@@ -905,7 +905,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <?php foreach ($d['hof'] as $h): ?>
                 <div class="hof-card">
                     <img class="hof-logo"
-                         src="<?= htmlspecialchars(getTeamPhoto($h['photo_url'] ?? null)) ?>"
+                         src="<?= htmlspecialchars(getTeamPhoto($h['team_photo'] ?? null)) ?>"
                          alt="" onerror="this.src='/img/default-team.png'">
                     <div class="hof-info">
                         <div class="hof-team"><?= htmlspecialchars(trim($h['display_team'] ?? '—')) ?></div>
@@ -948,7 +948,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                             <td>
                                 <div class="rk-team">
                                     <img class="rk-logo"
-                                         src="<?= htmlspecialchars(getTeamPhoto($rk['photo_url'] ?? null)) ?>"
+                                         src="<?= htmlspecialchars(getTeamPhoto($rk['team_photo'] ?? null)) ?>"
                                          alt="" onerror="this.src='/img/default-team.png'">
                                     <div>
                                         <div class="rk-name"><?= htmlspecialchars($rk['team_name']) ?></div>
