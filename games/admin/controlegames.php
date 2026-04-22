@@ -341,7 +341,7 @@ $labelMap = [
       <i class="bi bi-gear-fill"></i>Controle de Jogos
     </a>
     <a href="dashboard.php" class="sb-link">
-      <i class="bi bi-grid-fill"></i>Dashboard
+      <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
   </nav>
   <div class="sb-footer">

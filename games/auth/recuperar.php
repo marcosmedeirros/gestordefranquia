@@ -1,5 +1,4 @@
 <?php
-// recuperar.php - RECUPERAÇÃO DE SENHA (FBA games)
 session_start();
 
 if (isset($_SESSION['user_id'])) {
@@ -8,146 +7,194 @@ if (isset($_SESSION['user_id'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-br" data-bs-theme="dark">
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperar Senha - FBA games</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recuperar Senha - FBA Games</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red:      #fc0025;
+      --red-soft: rgba(252,0,37,.10);
+      --bg:       #07070a;
+      --panel:    #101013;
+      --panel-2:  #16161a;
+      --border:   rgba(255,255,255,.06);
+      --border-md:rgba(255,255,255,.10);
+      --border-red:rgba(252,0,37,.22);
+      --text:     #f0f0f3;
+      --text-2:   #868690;
+      --text-3:   #48484f;
+      --amber:    #f59e0b;
+      --green:    #22c55e;
+      --font:     'Poppins', sans-serif;
+      --ease:     cubic-bezier(.2,.8,.2,1);
+      --t:        200ms;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; -webkit-font-smoothing: antialiased; }
 
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+    .auth-layout { display: flex; min-height: 100vh; width: 100%; }
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    .auth-left {
+      flex: 1; background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+      padding: 60px 56px; position: relative; overflow: hidden;
+    }
+    .auth-left::before {
+      content: ''; position: absolute; top: -120px; right: -120px;
+      width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(252,0,37,.14) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .auth-logo {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 48px; position: relative;
+    }
+    .auth-logo-box {
+      width: 44px; height: 44px; border-radius: 12px; background: var(--red);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 16px; color: #fff;
+    }
+    .auth-logo-name { font-size: 20px; font-weight: 800; color: var(--text); }
+    .auth-logo-name span { color: var(--red); }
+    .auth-headline { font-size: 32px; font-weight: 900; line-height: 1.2; color: var(--text); margin-bottom: 16px; position: relative; }
+    .auth-headline em { color: var(--red); font-style: normal; }
+    .auth-sub { font-size: 14px; color: var(--text-2); line-height: 1.7; max-width: 380px; position: relative; }
+    .auth-info-box {
+      display: flex; align-items: flex-start; gap: 14px;
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: 14px; padding: 18px 20px; margin-top: 36px; position: relative;
+    }
+    .auth-info-box i { font-size: 20px; color: var(--text-2); flex-shrink: 0; margin-top: 2px; }
+    .auth-info-box p { font-size: 13px; color: var(--text-2); line-height: 1.6; margin: 0; }
 
-    <style>
-        body, html { height: 100%; margin: 0; background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
-        .row-full { height: 100vh; width: 100%; margin: 0; }
+    .auth-right {
+      width: 440px; flex-shrink: 0; display: flex; align-items: center;
+      justify-content: center; padding: 40px 36px;
+    }
+    .auth-card { width: 100%; max-width: 380px; }
+    .auth-card-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .auth-card-sub { font-size: 13px; color: var(--text-2); margin-bottom: 28px; }
 
-        .left-side {
-            background: linear-gradient(135deg, #000000 0%, #1e1e1e 100%);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            padding: 50px;
-            border-right: 1px solid #333;
-        }
+    .fba-alert {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; margin-bottom: 20px;
+    }
+    .fba-alert.danger { background: rgba(252,0,37,.10); border: 1px solid var(--border-red); color: #ff6680; }
+    .fba-alert.success { background: rgba(34,197,94,.10); border: 1px solid rgba(34,197,94,.22); color: #4ade80; }
 
-        .right-side {
-            background-color: #121212;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
+    #reset-message:empty { display: none; }
 
-        .login-card {
-            width: 100%;
-            max-width: 420px;
-            padding: 40px;
-            background: #1e1e1e;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #333;
-        }
+    .fba-field { margin-bottom: 16px; }
+    .fba-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-2); margin-bottom: 7px; }
+    .fba-input-wrap { position: relative; }
+    .fba-input-wrap i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 14px; pointer-events: none; }
+    .fba-input {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: 10px; padding: 11px 14px 11px 38px;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+      outline: none; transition: border-color var(--t) var(--ease);
+    }
+    .fba-input:focus { border-color: var(--red); }
+    .fba-input::placeholder { color: var(--text-3); }
 
-        .brand-text { font-size: 2.4rem; font-weight: 800; margin-bottom: 20px; color: #FC082B; }
-        .hero-text { font-size: 1.1rem; line-height: 1.6; opacity: 0.8; color: #aaa; }
+    .btn-primary {
+      width: 100%; background: var(--red); color: #fff; border: none;
+      border-radius: 10px; padding: 12px;
+      font-family: var(--font); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity var(--t) var(--ease);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .btn-primary:hover { opacity: .87; }
 
-        .form-control {
-            background-color: #2b2b2b; border: 1px solid #444; color: #fff;
-        }
-        .form-control:focus {
-            background-color: #2b2b2b; border-color: #FC082B; color: #fff; box-shadow: 0 0 0 0.25rem rgba(252, 8, 43, 0.25);
-        }
-        .form-label { color: #ccc; }
+    .btn-secondary {
+      width: 100%; background: transparent; border: 1px solid var(--border-md);
+      border-radius: 10px; padding: 11px;
+      font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-2);
+      cursor: pointer; text-decoration: none; text-align: center; display: block;
+      transition: all var(--t) var(--ease);
+    }
+    .btn-secondary:hover { border-color: var(--text-2); color: var(--text); }
 
-        .btn-success-custom {
-            background-color: #FC082B; color: #000; font-weight: 800; border: none;
-            transition: 0.3s;
-        }
-        .btn-success-custom:hover { background-color: #e00627; box-shadow: 0 0 15px rgba(252, 8, 43, 0.4); }
-
-        @media (max-width: 768px) {
-            .row-full { height: auto; }
-            .left-side { padding: 40px 20px; text-align: center; border-right: none; border-bottom: 1px solid #333; }
-            .right-side { padding: 40px 20px; height: auto; }
-        }
-    </style>
+    @media (max-width: 860px) {
+      .auth-left { display: none; }
+      .auth-right { width: 100%; padding: 40px 24px; }
+    }
+  </style>
 </head>
 <body>
+<div class="auth-layout">
 
-    <div class="row row-full">
-        <div class="col-md-6 left-side">
-            <div>
-                <h1 class="brand-text">Recuperar senha 🔒</h1>
-                <p class="hero-text">
-                    Informe seu e-mail para receber o link de redefinição de senha do <strong>FBA games</strong>.
-                </p>
-            </div>
-        </div>
-
-        <div class="col-md-6 right-side">
-            <div class="login-card">
-                <h3 class="text-center mb-2 fw-bold text-white"><i class="bi bi-envelope-fill me-2"></i>Recuperar acesso</h3>
-                <p class="text-center text-secondary small mb-4">Enviaremos um link para seu e-mail</p>
-
-                <div id="reset-message"></div>
-
-                <form id="form-recuperar">
-                    <div class="mb-4">
-                        <label class="form-label">E-mail</label>
-                        <input type="email" name="email" class="form-control form-control-lg" placeholder="seu@email.com" required>
-                    </div>
-
-                    <button type="submit" class="btn btn-success-custom btn-lg w-100 mb-3">Enviar link</button>
-
-                    <div class="text-center border-top border-secondary pt-3">
-                        <a href="login.php" class="btn btn-outline-light btn-sm fw-bold w-50">Voltar ao login</a>
-                    </div>
-                </form>
-            </div>
-        </div>
+  <div class="auth-left">
+    <div class="auth-logo">
+      <div class="auth-logo-box">FBA</div>
+      <span class="auth-logo-name">FBA <span>Games</span></span>
     </div>
+    <h1 class="auth-headline">Recuperar<br>o <em>acesso</em></h1>
+    <p class="auth-sub">Informe seu e-mail e enviaremos um link para você redefinir sua senha.</p>
+    <div class="auth-info-box">
+      <i class="bi bi-shield-lock"></i>
+      <p>O link de recuperação expira em 30 minutos e só pode ser usado uma vez.</p>
+    </div>
+  </div>
 
-</body>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <div class="auth-right">
+    <div class="auth-card">
+      <h2 class="auth-card-title">Esqueceu a senha?</h2>
+      <p class="auth-card-sub">Enviaremos um link de redefinição para seu e-mail</p>
+
+      <div id="reset-message"></div>
+
+      <form id="form-recuperar">
+        <div class="fba-field">
+          <label class="fba-label">E-mail</label>
+          <div class="fba-input-wrap">
+            <i class="bi bi-envelope"></i>
+            <input type="email" name="email" class="fba-input" placeholder="seu@email.com" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary">
+          <i class="bi bi-send-fill"></i>Enviar link de recuperação
+        </button>
+      </form>
+
+      <a href="login.php" class="btn-secondary"><i class="bi bi-arrow-left"></i> Voltar ao login</a>
+    </div>
+  </div>
+
+</div>
 <script>
 const api = (path, options = {}) => fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+  headers: { 'Content-Type': 'application/json' },
+  ...options,
 }).then(async res => {
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw body;
-    return body;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw body;
+  return body;
 });
 
 const showMessage = (elementId, message, type = 'danger') => {
-    const el = document.getElementById(elementId);
-    const bg = type === 'success' ? 'success' : 'danger';
-    el.innerHTML = `<div class="alert alert-${type} text-center p-2 small border-0 bg-${bg} bg-opacity-25 text-white">${message}</div>`;
+  const el = document.getElementById(elementId);
+  el.innerHTML = `<div class="fba-alert ${type}"><i class="bi bi-${type === 'success' ? 'check-circle-fill' : 'exclamation-circle-fill'}"></i>${message}</div>`;
 };
 
 document.getElementById('form-recuperar').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = (e.target.email.value || '').trim();
-
-    if (!email) {
-        showMessage('reset-message', 'Informe seu e-mail.');
-        return;
-    }
-
-    try {
-        const result = await api('../api/reset-password.php', {
-            method: 'POST',
-            body: JSON.stringify({ email })
-        });
-
-        showMessage('reset-message', result.message || 'Se o e-mail existir, você receberá um link de recuperação.', 'success');
-        e.target.reset();
-    } catch (err) {
-        showMessage('reset-message', err.error || 'Erro ao enviar o link. Tente novamente.');
-    }
+  e.preventDefault();
+  const email = (e.target.email.value || '').trim();
+  if (!email) { showMessage('reset-message', 'Informe seu e-mail.'); return; }
+  try {
+    const result = await api('../api/reset-password.php', { method: 'POST', body: JSON.stringify({ email }) });
+    showMessage('reset-message', result.message || 'Se o e-mail existir, você receberá um link de recuperação.', 'success');
+    e.target.reset();
+  } catch (err) {
+    showMessage('reset-message', err.error || 'Erro ao enviar o link. Tente novamente.');
+  }
 });
 </script>
+</body>
 </html>

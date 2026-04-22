@@ -352,6 +352,27 @@ foreach ($eventos as $key => $evt) {
     .btn-ghost-full:hover { border-color: var(--text-2); color: var(--text); }
     .btn-ghost-full.visible { display: flex; align-items: center; justify-content: center; gap: 8px; }
 
+    /* Search bar */
+    .search-bar {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      margin-bottom: 12px; transition: border-color var(--t) var(--ease);
+    }
+    .search-bar:focus-within { border-color: var(--red); }
+    .search-bar i { color: var(--text-3); font-size: 13px; flex-shrink: 0; }
+    .search-bar input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+    }
+    .search-bar input::placeholder { color: var(--text-3); }
+    .evt-card.hidden { display: none; }
+    .no-results {
+      text-align: center; padding: 32px 20px; color: var(--text-3);
+      font-size: 13px; display: none;
+    }
+    .no-results i { font-size: 24px; display: block; margin-bottom: 8px; }
+
     /* Status tabs */
     .tab-bar {
       display: flex; align-items: center; gap: 4px;
@@ -588,7 +609,7 @@ foreach ($eventos as $key => $evt) {
       <i class="bi bi-gear-fill"></i>Controle de Jogos
     </a>
     <a href="dashboard.php" class="sb-link active">
-      <i class="bi bi-grid-fill"></i>Dashboard
+      <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
   </nav>
   <div class="sb-footer">
@@ -669,6 +690,12 @@ foreach ($eventos as $key => $evt) {
     <!-- Listagem -->
     <div>
       <div class="section-label" style="margin-top:0"><i class="bi bi-list-ul"></i>Apostas</div>
+
+      <div class="search-bar">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchApostas" placeholder="Buscar aposta pelo título..." oninput="filtrarApostas(this.value)">
+      </div>
+      <div class="no-results" id="noResults"><i class="bi bi-inbox"></i>Nenhuma aposta encontrada.</div>
 
       <div class="tab-bar">
         <a href="?status=aberta" class="tab-btn <?= $filtro_status == 'aberta' ? 'active' : '' ?>">
@@ -824,6 +851,18 @@ function cancelarEdicao() {
   const container = document.getElementById('container-opcoes');
   container.innerHTML = '';
   addCampo('', ''); addCampo('', '');
+}
+function filtrarApostas(q) {
+  const cards = document.querySelectorAll('.evt-card');
+  const term = q.toLowerCase().trim();
+  let visible = 0;
+  cards.forEach(card => {
+    const title = card.querySelector('.evt-title')?.textContent.toLowerCase() ?? '';
+    const match = !term || title.includes(term);
+    card.classList.toggle('hidden', !match);
+    if (match) visible++;
+  });
+  document.getElementById('noResults').style.display = visible === 0 ? 'block' : 'none';
 }
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
