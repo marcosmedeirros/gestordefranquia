@@ -67,21 +67,24 @@ try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FRO
 
 foreach ($leagueOrder as $league) {
     // Temporada atual e total de temporadas da liga
-    $currentSeasonNum = null; $totalSeasons = null;
+    $leagueMaxSeasons = ['ELITE' => 20, 'NEXT' => 20, 'RISE' => 15];
+    $currentSeasonNum = null;
+    $totalSeasons = $leagueMaxSeasons[$league] ?? null;
     try {
         $s = $pdo->prepare("SELECT season_number FROM seasons WHERE league = ? AND status NOT IN ('completed') ORDER BY created_at DESC LIMIT 1");
         $s->execute([$league]);
         $r = $s->fetchColumn();
         if ($r !== false) $currentSeasonNum = (int)$r;
     } catch (Exception $e) {}
-    try {
-        $s = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ?");
-        $s->execute([$league]);
-        $r = $s->fetchColumn();
-        if ($r !== false) $totalSeasons = (int)$r;
-    } catch (Exception $e) {}
-    // Se não houver temporada ativa, currentSeasonNum = total (última encerrada)
-    if ($currentSeasonNum === null) $currentSeasonNum = $totalSeasons;
+    // Se não houver temporada ativa, pega a última encerrada
+    if ($currentSeasonNum === null) {
+        try {
+            $s = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ?");
+            $s->execute([$league]);
+            $r = $s->fetchColumn();
+            if ($r !== false) $currentSeasonNum = (int)$r;
+        } catch (Exception $e) {}
+    }
 
     // Times
     $teams = [];
@@ -533,7 +536,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .stat-lbl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--text-3); }
 
         /* ── Award chips ────────────────────────────────────── */
-        .award-chips { display:flex; flex-wrap:wrap; gap:8px; }
+        .award-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
         .award-chip {
             display:flex; align-items:center; gap:8px;
             background:var(--panel); border:1px solid var(--border);
