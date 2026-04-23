@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$hiddenRankingEmailLower = 'medeirros99@gmail.com';
+$hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
     $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");

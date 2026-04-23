@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$hiddenRankingEmailLower = 'medeirros99@gmail.com';
+$hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
     $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
@@ -23,9 +23,11 @@ try {
 // ENDPOINTS AJAX MOVIDOS PARA O TOPO (Evita renderizar HTML na resposta)
 // =========================================================================
 if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_GET['ajax_tapas'])) {
-    $stmtTapas = $pdo->query("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 ORDER BY numero_tapas DESC, nome ASC");
+  $stmtTapas = $pdo->prepare("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 AND LOWER(email) <> ? ORDER BY numero_tapas DESC, nome ASC");
+  $stmtTapas->execute([$hiddenRankingEmailLower]);
     $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
-    $stmtAllUsers = $pdo->query("SELECT id, nome FROM usuarios ORDER BY nome ASC");
+  $stmtAllUsers = $pdo->prepare("SELECT id, nome FROM usuarios WHERE LOWER(email) <> ? ORDER BY nome ASC");
+  $stmtAllUsers->execute([$hiddenRankingEmailLower]);
     $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
     header('Content-Type: application/json');
     echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);

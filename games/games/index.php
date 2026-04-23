@@ -53,8 +53,11 @@ $games_disponiveis = [
     'poker' => [
         'titulo' => '🃏 Poker',
         'arquivo' => 'poker.php'
-    ]
-    
+    ],
+    'grade' => [
+        'titulo' => '🏀 Grade NBA',
+        'arquivo' => 'grade.php'
+    ],
 ];
 
 // Valida se o game existe
