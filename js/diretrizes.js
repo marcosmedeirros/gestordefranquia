@@ -248,7 +248,7 @@ function renderPlayerMinutes() {
       row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">Titular ${slotLabel}: ${nameLabel}</span>
+            <span class="small" style="color:var(--text)">Titular ${slotLabel}: ${nameLabel}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"
@@ -282,7 +282,7 @@ function renderPlayerMinutes() {
       row.innerHTML = `
         <div class="form-group mb-2">
           <div class="d-flex align-items-center justify-content-between gap-3">
-            <span class="text-white small">Banco ${idx + 1}: ${nameLabel}</span>
+            <span class="small" style="color:var(--text)">Banco ${idx + 1}: ${nameLabel}</span>
             <div class="input-group input-group-sm" style="max-width: 130px;">
               <input type="number" class="form-control bg-dark text-white border-orange player-minutes-input"
                      name="minutes_player_${player.id}"

@@ -1818,7 +1818,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(tapas, 0) as tapas, COALESCE(tapas_used, 0) as tapas_used FROM teams WHERE id = ?');
+            $stmtTeam = $pdo->prepare('SELECT id, user_id, city, name, COALESCE(tapas, 0) as tapas, COALESCE(tapas_used, 0) as tapas_used FROM teams WHERE id = ?');
             $stmtTeam->execute([$teamId]);
             $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
@@ -1839,8 +1839,8 @@ if ($method === 'POST') {
             }
 
             $removed = 0;
-            if ($operation === 'remove' && $currentTapas > 0) {
-                $removed = max(0, $currentTapas - $newBalance);
+            if ($currentTapas > 0 && $newBalance < $currentTapas) {
+                $removed = $currentTapas - $newBalance;
             }
 
             try {
@@ -1848,6 +1848,25 @@ if ($method === 'POST') {
                     $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ?, tapas_used = tapas_used + ? WHERE id = ?');
                     $stmtUpdate->execute([$newBalance, $removed, $teamId]);
                     $currentUsed += $removed;
+
+                    $gamesUserId = 0;
+                    if (!empty($team['user_id'])) {
+                        $stmtUser = $pdo->prepare('SELECT games_user_id FROM users WHERE id = ?');
+                        $stmtUser->execute([(int)$team['user_id']]);
+                        $gamesUserId = (int)($stmtUser->fetchColumn() ?: 0);
+                    }
+
+                    if ($gamesUserId > 0 && function_exists('dbGames')) {
+                        $gamesPdo = dbGames();
+                        if ($gamesPdo) {
+                            try {
+                                $stmtGames = $gamesPdo->prepare('UPDATE usuarios SET numero_tapas = GREATEST(COALESCE(numero_tapas, 0) - ?, 0) WHERE id = ?');
+                                $stmtGames->execute([$removed, $gamesUserId]);
+                            } catch (Exception $e) {
+                                // Ignora falha no sync com Games para nao quebrar o fluxo admin
+                            }
+                        }
+                    }
                 } else {
                     $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
                     $stmtUpdate->execute([$newBalance, $teamId]);
