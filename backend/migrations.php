@@ -584,6 +584,14 @@ function runMigrations() {
         if (!$hasGamesTapasSyncedAt) {
             $pdo->exec("ALTER TABLE users ADD COLUMN games_tapas_synced_at DATETIME NULL AFTER games_linked_at");
         }
+        $hasGamesLinkToken = $pdo->query("SHOW COLUMNS FROM users LIKE 'games_link_token'")->fetch();
+        if (!$hasGamesLinkToken) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN games_link_token VARCHAR(64) NULL AFTER games_tapas_synced_at, ADD INDEX idx_games_link_token (games_link_token)");
+        }
+        $hasGamesLinkExpires = $pdo->query("SHOW COLUMNS FROM users LIKE 'games_link_expires_at'")->fetch();
+        if (!$hasGamesLinkExpires) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN games_link_expires_at DATETIME NULL AFTER games_link_token");
+        }
     } catch (PDOException $e) {
         $errors[] = "ajuste_users_games_link: " . $e->getMessage();
     }

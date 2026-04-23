@@ -19,10 +19,11 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-$gamesConnectUrl = 'https://games.fbabrasil.com.br/auth/login.php';
+$gamesConnectUrl = '/api/games-link.php?action=start';
 $showGamesConnect = false;
 $gamesTapasValue = null;
 $gamesSyncDisplay = null;
+$isGamesLinked = false;
 
 if ($team) {
     try {
@@ -35,6 +36,7 @@ if ($team) {
         $gamesPdo = function_exists('dbGames') ? dbGames() : null;
         if ($gamesPdo && $emailLower !== '') {
             if ($gamesUserId > 0) {
+                $isGamesLinked = true;
                 $stmtGames = $gamesPdo->prepare('SELECT id, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = ? LIMIT 1');
                 $stmtGames->execute([$gamesUserId]);
                 $gamesRow = $stmtGames->fetch(PDO::FETCH_ASSOC);
@@ -52,6 +54,7 @@ if ($team) {
                     $gamesTapasValue = (int)$gamesRow['numero_tapas'];
                     $pdo->prepare('UPDATE users SET games_user_id = ?, games_linked_at = COALESCE(games_linked_at, NOW()) WHERE id = ?')
                         ->execute([$gamesUserId, $user['id']]);
+                    $isGamesLinked = true;
                 } else {
                     $showGamesConnect = true;
                 }
@@ -61,7 +64,11 @@ if ($team) {
                 $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?')->execute([$gamesTapasValue, $team['id']]);
                 $pdo->prepare('UPDATE users SET games_tapas_synced_at = NOW() WHERE id = ?')->execute([$user['id']]);
                 $team['tapas'] = $gamesTapasValue;
-                $gamesSyncDisplay = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('d/m/Y H:i');
+                $gamesSyncDisplay = 'Conectado a conta games';
+            }
+
+            if ($isGamesLinked) {
+                $showGamesConnect = false;
             }
         }
     } catch (Exception $e) {
@@ -865,7 +872,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 <?php if ($gamesSyncDisplay): ?>
                 <span class="hbadge green">
                     <i class="bi bi-link-45deg" style="font-size:10px"></i>
-                    Conta Games conectada · <?= htmlspecialchars($gamesSyncDisplay) ?>
+                    <?= htmlspecialchars($gamesSyncDisplay) ?>
                 </span>
                 <?php endif; ?>
                 <button id="copyTeamBtn" class="hbadge" style="cursor:pointer;background:var(--panel-2);border-color:var(--border-md)">
@@ -1270,9 +1277,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <div class="quick-btn-label">FBA Games</div>
                             </a>
                             <?php if ($showGamesConnect): ?>
-                            <a href="<?= htmlspecialchars($gamesConnectUrl) ?>" target="_blank" rel="noopener" class="quick-btn">
+                            <a href="<?= htmlspecialchars($gamesConnectUrl) ?>" class="quick-btn">
                                 <i class="bi bi-link-45deg"></i>
-                                <div class="quick-btn-label">Conectar Games</div>
+                                <div class="quick-btn-label">Conectar ao Games</div>
                             </a>
                             <?php endif; ?>
                             <a href="/my-roster.php" class="quick-btn">
