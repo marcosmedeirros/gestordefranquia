@@ -363,10 +363,23 @@ if ($method === 'POST') {
                         $params[] = $existing['id'];
                         $pdo->prepare($updateSql)->execute($params);
                     } else {
-                        $columns = "season_id, league, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id, roy_player, roy_team_id";
-                        $placeholders = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+                        // Buscar dados NOT NULL obrigatórios da temporada
+                        $stmtSzn = $pdo->prepare("
+                            SELECT s.season_number, s.year, COALESCE(sp.sprint_number, 1) AS sprint_number
+                            FROM seasons s
+                            LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                            WHERE s.id = ?
+                        ");
+                        $stmtSzn->execute([$seasonId]);
+                        $sznData = $stmtSzn->fetch(PDO::FETCH_ASSOC);
+                        $sprintNum = (int)($sznData['sprint_number'] ?? 1);
+                        $seasonNum = (int)($sznData['season_number'] ?? 1);
+                        $sznYear   = (int)($sznData['year'] ?? date('Y'));
+
+                        $columns      = "season_id, league, sprint_number, season_number, year, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id, roy_player, roy_team_id";
+                        $placeholders = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
                         $params = [
-                            $seasonId, $league,
+                            $seasonId, $league, $sprintNum, $seasonNum, $sznYear,
                             $awards['mvp_player'], $awards['mvp_team_id'] ?: null,
                             $awards['dpoy_player'], $awards['dpoy_team_id'] ?: null,
                             $awards['mip_player'], $awards['mip_team_id'] ?: null,

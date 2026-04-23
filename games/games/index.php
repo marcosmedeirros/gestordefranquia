@@ -58,6 +58,10 @@ $games_disponiveis = [
         'titulo' => '🏀 Grade NBA',
         'arquivo' => 'grade.php'
     ],
+    'boxnba' => [
+        'titulo' => '🏀 Box NBA',
+        'arquivo' => 'boxnba.php'
+    ],
 ];
 
 // Valida se o game existe
