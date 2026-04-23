@@ -705,7 +705,7 @@ try {
   </nav>
   <div class="sb-footer">
     <a href="auth/logout.php" class="sb-logout">
-      <i class="bi bi-box-arrow-right"></i>Sair
+      <i class="bi bi-box-arrow-right"></i>Sair!!
     </a>
   </div>
 </aside>
