@@ -470,6 +470,43 @@ if ($method === 'POST') {
                         $teamPoints[$runnerUp] += 2;
                     }
                 }
+
+                if ($champion) {
+                    try {
+                        $pdo->exec("CREATE TABLE IF NOT EXISTS hall_of_fame (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            is_active TINYINT(1) NOT NULL DEFAULT 1,
+                            league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+                            team_id INT NULL,
+                            team_name VARCHAR(255) NULL,
+                            gm_name VARCHAR(255) NULL,
+                            titles INT NOT NULL DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            INDEX idx_hof_titles (titles)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+                        $stmtTeamInfo = $pdo->prepare("SELECT t.city, t.name, u.name AS gm_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.id = ? LIMIT 1");
+                        $stmtTeamInfo->execute([$champion]);
+                        $teamInfo = $stmtTeamInfo->fetch(PDO::FETCH_ASSOC) ?: [];
+                        $teamName = trim(($teamInfo['city'] ?? '') . ' ' . ($teamInfo['name'] ?? ''));
+                        $gmName = $teamInfo['gm_name'] ?? null;
+
+                        $stmtHof = $pdo->prepare('SELECT id, titles FROM hall_of_fame WHERE team_id = ? AND league = ? LIMIT 1');
+                        $stmtHof->execute([$champion, $league]);
+                        $hofRow = $stmtHof->fetch(PDO::FETCH_ASSOC);
+
+                        if ($hofRow) {
+                            $pdo->prepare('UPDATE hall_of_fame SET titles = titles + 1, is_active = 1, team_name = ?, gm_name = ? WHERE id = ?')
+                                ->execute([$teamName !== '' ? $teamName : null, $gmName, $hofRow['id']]);
+                        } else {
+                            $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (1, ?, ?, ?, ?, 1)')
+                                ->execute([$league, $champion, $teamName !== '' ? $teamName : null, $gmName]);
+                        }
+                    } catch (Exception $e) {
+                        // Ignora falhas do Hall da Fama para nao quebrar a finalizacao
+                    }
+                }
                 
                 // Finais de conferência
                 $stmtConfFinals = $pdo->prepare("

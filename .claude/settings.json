@@ -10,7 +10,13 @@
       "Bash(sed -n '220,230p' leilao.php)",
       "Bash(identify c:/Users/marco/IdeaProjects/gestordefranquia/img/fba-logo.png)",
       "Read(//c/Users/marco/.claude/projects/c--Users-marco-IdeaProjects-gestordefranquia/memory/**)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Read(//c/Users/marco/.claude/projects/c--Users-marco-IdeaProjects-gestordefranquia/**)",
+      "Bash(python3 -c \" import sys, json lines = sys.stdin.read\\(\\).strip\\(\\).split\\('\\\\n'\\) for line in lines[-20:]: try: obj = json.loads\\(line\\) role = obj.get\\('role', ''\\) content = obj.get\\('content', ''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\('type'\\) == 'text': print\\(f'[{role}]: {c[\\\\\"text\\\\\"][:500]}'\\) elif isinstance\\(content, str\\): print\\(f'[{role}]: {content[:500]}'\\) except: pass \")",
+      "Read(//c/Users/marco/.claude/projects/c--Users-marco-IdeaProjects-gestordefranquia\" 2>/dev/**)",
+      "Bash(grep -n -A 3 'if \\($seasonYear\\)' api/trades.php)",
+      "Bash(php -l api/trades.php)",
+      "Bash(where php *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\marco\\.claude\\projects\\c--Users-marco-IdeaProjects-gestordefranquia\\memory"

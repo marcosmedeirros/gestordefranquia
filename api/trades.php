@@ -933,6 +933,17 @@ function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int 
                 return $row;
             }
         }
+
+        if ($seasonYear) {
+            $stmt = $pdo->prepare(
+                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id WHERE s.year = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+            );
+            $stmt->execute([$seasonYear]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return $row;
+            }
+        }
     } catch (Exception $e) {
         return null;
     }
@@ -1043,26 +1054,22 @@ function enrichPickListWithDraftContext(PDO $pdo, array $picks, ?string $league)
 function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $toTeamId, ?string $league): void
 {
     try {
-        $stmtPick = $pdo->prepare('SELECT season_id, season_year, round, original_team_id FROM picks WHERE id = ?');
+        $stmtPick = $pdo->prepare('SELECT season_year, round, original_team_id FROM picks WHERE id = ?');
         $stmtPick->execute([$pickId]);
         $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
         if (!$pick) {
             return;
         }
 
-        $seasonId = !empty($pick['season_id']) ? (int)$pick['season_id'] : null;
         $seasonYear = !empty($pick['season_year']) ? (int)$pick['season_year'] : null;
-        $draftSession = findActiveDraftSession($pdo, $league, $seasonId, $seasonYear);
+        $draftSession = findActiveDraftSession($pdo, $league, null, $seasonYear);
         if (!$draftSession) {
             return;
         }
 
-        // Só atualiza draft_order se a pick for do draft atual (ano/temporada igual ao draft ativo)
+        // Só atualiza draft_order se a pick for do draft atual
         $isSameSeason = false;
-        if (!empty($pick['season_id']) && !empty($draftSession['season_id']) && (int)$pick['season_id'] === (int)$draftSession['season_id']) {
-            $isSameSeason = true;
-        } elseif (!empty($pick['season_year']) && !empty($draftSession['season_id'])) {
-            // Buscar ano da season do draft ativo
+        if (!empty($pick['season_year']) && !empty($draftSession['season_id'])) {
             $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
             $stmtSeason->execute([(int)$draftSession['season_id']]);
             $draftSessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
@@ -1071,7 +1078,7 @@ function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $to
             }
         }
         if (!$isSameSeason) {
-            return; // Não atualiza draft_order se não for do draft atual
+            return;
         }
 
         $round = (int)($pick['round'] ?? 0);
@@ -1087,14 +1094,28 @@ function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $to
     }
 }
 
-function isPickCurrentDraft(PDO $pdo, int $pickId): bool
+function isPickCurrentDraft(PDO $pdo, int $pickId, ?string $league = null): bool
 {
     try {
-        $stmt = $pdo->prepare('SELECT draft_pick_number, draft_session_id FROM picks WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT season_year, round, original_team_id FROM picks WHERE id = ?');
         $stmt->execute([$pickId]);
         $pick = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$pick) return false;
-        return (int)($pick['draft_pick_number'] ?? 0) > 0 && (int)($pick['draft_session_id'] ?? 0) > 0;
+        if (!$pick || empty($pick['season_year'])) return false;
+
+        $seasonYear = (int)$pick['season_year'];
+        $draftSession = findActiveDraftSession($pdo, $league, null, $seasonYear);
+        if (!$draftSession) return false;
+
+        // Verifica se o ano do draft corresponde ao da pick
+        $stmtYear = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
+        $stmtYear->execute([(int)$draftSession['season_id']]);
+        $draftYear = (int)($stmtYear->fetchColumn() ?: 0);
+        if ($seasonYear !== $draftYear) return false;
+
+        // Verifica se existe entrada no draft_order para essa pick
+        $stmtOrder = $pdo->prepare('SELECT id FROM draft_order WHERE draft_session_id = ? AND original_team_id = ? AND round = ? LIMIT 1');
+        $stmtOrder->execute([(int)$draftSession['id'], (int)$pick['original_team_id'], (int)$pick['round']]);
+        return (bool)$stmtOrder->fetch();
     } catch (Exception $e) {
         return false;
     }
@@ -2124,9 +2145,10 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                                 throw new Exception('Pick ID ' . $item['pick_id'] . ' não pertence ao time de origem.');
                             }
                         } else {
-                            if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
+                            if (isPickCurrentDraft($pdo, (int)$item['pick_id'], $league)) {
                                 // Escolha do draft atual: apenas transfere o dono
                                 $stmtTransferCurrentDraftPick->execute([(int)$item['to_team_id'], (int)$item['pick_id']]);
+                                syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
                             } else {
                                 $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
                                 syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
@@ -2343,12 +2365,13 @@ if ($method === 'PUT') {
                     // Transferir pick
                     $expectedOwner = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
                     $newTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
-                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
+                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'], $tradeLeague)) {
                         // Escolha do draft atual: apenas transfere o dono, sem alterar outros campos
                         $stmtTransferCurrentDraftPick->execute([$newTeamId, $item['pick_id'], $expectedOwner]);
                         if ($stmtTransferCurrentDraftPick->rowCount() === 0) {
                             throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                         }
+                        syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
                     } else {
                         $stmtTransferPick->execute([$newTeamId, $expectedOwner, $item['pick_id'], $expectedOwner]);
                         if ($stmtTransferPick->rowCount() === 0) {
@@ -2366,7 +2389,7 @@ if ($method === 'PUT') {
                         continue;
                     }
                     // Escolhas do draft atual não participam de swap
-                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'])) {
+                    if (isPickCurrentDraft($pdo, (int)$item['pick_id'], $tradeLeague)) {
                         continue;
                     }
                     $role = strtoupper(trim((string)($item['pick_swap_role'] ?? '')));

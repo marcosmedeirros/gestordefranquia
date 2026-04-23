@@ -116,6 +116,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Histórico
             </a>
         </li>
+        <li>
+            <a href="/games/bracketnba.php" class="<?= $currentPage === 'bracketnba.php' ? 'active' : '' ?>">
+                <i class="bi bi-bracket"></i>
+                Bracket NBA
+            </a>
+        </li>
         <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
         <li>
             <a href="/admin.php" class="<?= $currentPage === 'admin.php' ? 'active' : '' ?>">
@@ -133,6 +139,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <a href="/temporadas.php" class="<?= $currentPage === 'temporadas.php' ? 'active' : '' ?>">
                 <i class="bi bi-calendar3"></i>
                 Temporadas
+            </a>
+        </li>
+        <li>
+            <a href="/games/bracketadmin.php" class="<?= $currentPage === 'bracketadmin.php' ? 'active' : '' ?>">
+                <i class="bi bi-diagram-3-fill"></i>
+                Admin Bracket
             </a>
         </li>
         <?php endif; ?>

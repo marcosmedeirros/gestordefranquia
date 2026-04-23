@@ -131,6 +131,7 @@ foreach ($teams as &$t) {
     $capStmt->execute([$t['id']]);
     $capResult = $capStmt->fetch();
     $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
+    $t['restricted_bonus'] = restrictedCapBonus($pdo, (int)$t['id']);
 }
 unset($t);
 
@@ -1213,7 +1214,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     $waLink = $hasContact
                         ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
                         : null;
-                    $capPct = $capMax > 0 ? min(100, round(($t['cap_top8'] / $capMax) * 100)) : 0;
+                    $teamBonus = (int)($t['restricted_bonus'] ?? 0);
+                    $effectiveCapMax = $capMax + $teamBonus;
+                    $capPct = $effectiveCapMax > 0 ? min(100, round(($t['cap_top8'] / $effectiveCapMax) * 100)) : 0;
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
                 ?>
                 <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.04 ?>s">
@@ -1240,7 +1243,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
                     <div class="team-stats">
                         <div class="team-stat">
-                            <div class="team-stat-val red"><?= (int)$t['cap_top8'] ?></div>
+                            <div class="team-stat-val red"><?= (int)$t['cap_top8'] ?><?= $teamBonus > 0 ? '<span style="font-size:.65em;color:#f59e0b;margin-left:2px">+' . $teamBonus . '</span>' : '' ?></div>
                             <div class="team-stat-label">CAP</div>
                         </div>
                         <div class="team-stat">
@@ -1260,7 +1263,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php if ($capMax > 0): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">CAP — <?= $capMin ?> / <?= $capMax ?></span>
+                            <span class="cap-label">CAP — <?= $capMin ?> / <?= $effectiveCapMax ?><?= $teamBonus > 0 ? ' <span style="color:#f59e0b">🏆+' . $teamBonus . '</span>' : '' ?></span>
                             <span class="cap-value"><?= $capPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1310,6 +1313,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         ? 'https://api.whatsapp.com/send/?phone=' . rawurlencode($t['owner_phone_whatsapp']) . "&text={$whatsappDefaultMessage}&type=phone_number&app_absent=0"
                         : null;
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
+                    $listBonus = (int)($t['restricted_bonus'] ?? 0);
                 ?>
                 <div class="list-row" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.02 ?>s">
                     <div class="list-team-cell">
@@ -1323,7 +1327,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         </div>
                     </div>
                     <div class="list-cell" style="text-align:center">
-                        <span class="badge-pill red"><?= (int)$t['cap_top8'] ?></span>
+                        <span class="badge-pill red"><?= (int)$t['cap_top8'] ?><?= $listBonus > 0 ? '<span style="font-size:.75em;color:#f59e0b;margin-left:3px">+' . $listBonus . '</span>' : '' ?></span>
                     </div>
                     <div class="list-cell" style="text-align:center"><?= (int)$t['total_players'] ?></div>
                     <div class="list-cell list-col-tapas" style="text-align:center">
