@@ -650,10 +650,10 @@ const JUMP_FORCE = 13.5;
 const REWARD_MUL = <?= (int)$pointsMultiplier ?>;
 
 const BIOMES = [
-    { name:'PDSA',       skyA:'#0d1b3e', skyB:'#7a0000', gnd:'#1a1a2e', line:'#c0392b' },
-    { name:'PNIP',       skyA:'#1a0633', skyB:'#6b2280', gnd:'#200c3c', line:'#8e44ad' },
-    { name:'SIGBS',      skyA:'#002244', skyB:'#155fa0', gnd:'#082808', line:'#27ae60' },
-    { name:'BOLICHEIRO', skyA:'#1a0000', skyB:'#8b1a2a', gnd:'#200000', line:'#e74c3c' },
+    { name:'CENTRO',   skyA:'#0d1b3e', skyB:'#7a0000', gnd:'#1a1a2e', line:'#c0392b' },
+    { name:'NEON',     skyA:'#1a0633', skyB:'#6b2280', gnd:'#200c3c', line:'#8e44ad' },
+    { name:'SELVA',    skyA:'#002244', skyB:'#155fa0', gnd:'#082808', line:'#27ae60' },
+    { name:'INFERNO',  skyA:'#1a0000', skyB:'#8b1a2a', gnd:'#200000', line:'#e74c3c' },
 ];
 
 const SKINS = {
@@ -853,13 +853,14 @@ function drawBg(biome) {
 function drawDino() {
     const { x, y, w, h } = dino;
     const skin = SKINS[currentSkin] || SKINS['default'];
+    const sqY  = squashTimer > 0 ? 1.25 : 1;
+    const sqX  = squashTimer > 0 ? 0.82 : 1;
     ctx.save();
 
     // Ground shadow
-    const sqFactor = squashTimer > 0 ? 1.3 : 1;
     ctx.fillStyle = 'rgba(0,0,0,.25)';
     ctx.beginPath();
-    ctx.ellipse(x + w/2, GY + 2, (w/2) * sqFactor, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + w/2, GY + 2, (w/2) * (squashTimer > 0 ? 1.3 : 1), 4, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Skateboard
@@ -872,43 +873,40 @@ function drawDino() {
         ctx.beginPath(); ctx.arc(wx, y + h + 9, 4, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Body (squash on land)
-    const sy = squashTimer > 0 ? 1.25 : 1;
-    const sx = squashTimer > 0 ? 0.82 : 1;
-    ctx.save();
-    ctx.translate(x + w/2, y + h/2);
-    ctx.scale(sx, sy);
-    ctx.fillStyle = skin.body;
-    ctx.beginPath(); ctx.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI * 2); ctx.fill();
-    // Belly
-    ctx.fillStyle = skin.belly;
-    ctx.beginPath(); ctx.ellipse(2, 5, w/3, h/2.8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // Wing
-    ctx.fillStyle = skin.body;
-    ctx.beginPath(); ctx.ellipse(x + 10, y + h/2 + 5, 5, 11, 0.5, 0, Math.PI * 2); ctx.fill();
-
-    // Head / face
     if (currentSkin === 'default') {
+        // ── Pinguim padrão (desenhado geometricamente) ─────────────────────────
+        ctx.save();
+        ctx.translate(x + w/2, y + h/2);
+        ctx.scale(sqX, sqY);
+        ctx.fillStyle = skin.body;
+        ctx.beginPath(); ctx.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = skin.belly;
+        ctx.beginPath(); ctx.ellipse(2, 5, w/3, h/2.8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        // Wing
+        ctx.fillStyle = skin.body;
+        ctx.beginPath(); ctx.ellipse(x + 10, y + h/2 + 5, 5, 11, 0.5, 0, Math.PI * 2); ctx.fill();
+        // Face
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(x + w/2 + 5, y + 10, 6, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.beginPath(); ctx.arc(x + w/2 + 7, y + 10, 2.5, 0, Math.PI * 2); ctx.fill();
-        // Beak
         ctx.fillStyle = '#FF9800';
         ctx.beginPath();
         ctx.moveTo(x + w - 4, y + 15); ctx.lineTo(x + w + 6, y + 18); ctx.lineTo(x + w - 4, y + 21);
         ctx.fill();
     } else {
-        ctx.font = '27px Arial';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        // ── Skins alternativas: emoji como personagem inteiro ──────────────────
         ctx.save();
-        ctx.translate(x + w/2 + 5, y + 10);
-        ctx.scale(-1, 1);
-        ctx.fillText(skin.emoji, 0, 0);
+        ctx.translate(x + w/2, y + h/2);
+        ctx.scale(sqX, sqY);
+        ctx.font = `${h * 1.1}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(skin.emoji, 0, 2);
         ctx.restore();
     }
+
     ctx.restore();
 }
 
