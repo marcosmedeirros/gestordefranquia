@@ -27,6 +27,13 @@ return [
             'secure' => getenv('FBA_SMTP_SECURE') ?: 'tls',
         ],
     ],
+        'games_db' => [
+            'host' => getenv('FBA_GAMES_DB_HOST') ?: 'localhost',
+            'name' => getenv('FBA_GAMES_DB_NAME') ?: 'games_db',
+            'user' => getenv('FBA_GAMES_DB_USER') ?: 'root',
+            'pass' => getenv('FBA_GAMES_DB_PASS') ?: '',
+            'charset' => 'utf8mb4',
+        ],
     'app' => [
         'cap_min' => 618,
         'cap_max' => 648,

@@ -19,6 +19,56 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
+$gamesConnectUrl = 'https://games.fbabrasil.com.br/auth/login.php';
+$showGamesConnect = false;
+$gamesTapasValue = null;
+$gamesSyncDisplay = null;
+
+if ($team) {
+    try {
+        $userStmt = $pdo->prepare('SELECT id, email, games_user_id, games_linked_at FROM users WHERE id = ?');
+        $userStmt->execute([$user['id']]);
+        $userRow = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $gamesUserId = (int)($userRow['games_user_id'] ?? 0);
+        $emailLower = strtolower(trim((string)($userRow['email'] ?? '')));
+
+        $gamesPdo = function_exists('dbGames') ? dbGames() : null;
+        if ($gamesPdo && $emailLower !== '') {
+            if ($gamesUserId > 0) {
+                $stmtGames = $gamesPdo->prepare('SELECT id, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = ? LIMIT 1');
+                $stmtGames->execute([$gamesUserId]);
+                $gamesRow = $stmtGames->fetch(PDO::FETCH_ASSOC);
+                if ($gamesRow) {
+                    $gamesTapasValue = (int)$gamesRow['numero_tapas'];
+                } else {
+                    $showGamesConnect = true;
+                }
+            } else {
+                $stmtGames = $gamesPdo->prepare('SELECT id, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE LOWER(email) = ? LIMIT 1');
+                $stmtGames->execute([$emailLower]);
+                $gamesRow = $stmtGames->fetch(PDO::FETCH_ASSOC);
+                if ($gamesRow) {
+                    $gamesUserId = (int)$gamesRow['id'];
+                    $gamesTapasValue = (int)$gamesRow['numero_tapas'];
+                    $pdo->prepare('UPDATE users SET games_user_id = ?, games_linked_at = COALESCE(games_linked_at, NOW()) WHERE id = ?')
+                        ->execute([$gamesUserId, $user['id']]);
+                } else {
+                    $showGamesConnect = true;
+                }
+            }
+
+            if ($gamesTapasValue !== null) {
+                $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?')->execute([$gamesTapasValue, $team['id']]);
+                $pdo->prepare('UPDATE users SET games_tapas_synced_at = NOW() WHERE id = ?')->execute([$user['id']]);
+                $team['tapas'] = $gamesTapasValue;
+                $gamesSyncDisplay = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('d/m/Y H:i');
+            }
+        }
+    } catch (Exception $e) {
+        $showGamesConnect = false;
+    }
+}
+
 $teamDirectiveProfile = null;
 $teamDirectiveProfileUpdatedAt = null;
 if ($team && !empty($team['directive_profile'])) {
@@ -812,6 +862,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     <i class="bi bi-coin" style="font-size:10px"></i>
                     <?= (int)($team['moedas'] ?? 0) ?> moedas
                 </span>
+                <?php if ($gamesSyncDisplay): ?>
+                <span class="hbadge green">
+                    <i class="bi bi-link-45deg" style="font-size:10px"></i>
+                    Conta Games conectada · <?= htmlspecialchars($gamesSyncDisplay) ?>
+                </span>
+                <?php endif; ?>
                 <button id="copyTeamBtn" class="hbadge" style="cursor:pointer;background:var(--panel-2);border-color:var(--border-md)">
                     <i class="bi bi-clipboard-check" style="font-size:10px"></i> Copiar time
                 </button>
@@ -1213,6 +1269,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <i class="bi bi-controller"></i>
                                 <div class="quick-btn-label">FBA Games</div>
                             </a>
+                            <?php if ($showGamesConnect): ?>
+                            <a href="<?= htmlspecialchars($gamesConnectUrl) ?>" target="_blank" rel="noopener" class="quick-btn">
+                                <i class="bi bi-link-45deg"></i>
+                                <div class="quick-btn-label">Conectar Games</div>
+                            </a>
+                            <?php endif; ?>
                             <a href="/my-roster.php" class="quick-btn">
                                 <i class="bi bi-person-lines-fill"></i>
                                 <div class="quick-btn-label">Elenco</div>

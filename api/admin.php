@@ -1155,6 +1155,7 @@ if ($method === 'PUT') {
             $position = $data['position'] ?? null;
             $age = $data['age'] ?? null;
             $secondaryPosition = $data['secondary_position'] ?? null;
+            $isFranchisePlayer = array_key_exists('is_franchise_player', $data) ? $data['is_franchise_player'] : null;
 
             if (!$playerId) {
                 http_response_code(400);
@@ -1188,6 +1189,11 @@ if ($method === 'PUT') {
             if ($secondaryPosition !== null) {
                 $updates[] = 'secondary_position = ?';
                 $params[] = $secondaryPosition ?: null;
+            }
+            if ($isFranchisePlayer !== null) {
+                ensurePlayerRestrictionColumns($pdo);
+                $updates[] = 'is_franchise_player = ?';
+                $params[] = $isFranchisePlayer === 1 || $isFranchisePlayer === '1' || $isFranchisePlayer === true ? 1 : 0;
             }
 
             if (empty($updates)) {

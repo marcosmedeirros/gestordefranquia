@@ -549,12 +549,43 @@ function runMigrations() {
     }
 
     try {
+        $hasSeasonHistory = $pdo->query("SHOW TABLES LIKE 'season_history'")->fetch();
+        if ($hasSeasonHistory) {
+            $hasNbaCup = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'nba_cup_team_id'")->fetch();
+            if (!$hasNbaCup) {
+                $hasRoyTeam = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_team_id'")->fetch();
+                $afterColumn = $hasRoyTeam ? 'roy_team_id' : 'sixth_man_team_id';
+                $pdo->exec("ALTER TABLE season_history ADD COLUMN nba_cup_team_id INT NULL AFTER {$afterColumn}");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_season_history_nba_cup: " . $e->getMessage();
+    }
+
+    try {
         $hasPhone = $pdo->query("SHOW COLUMNS FROM users LIKE 'phone'")->fetch();
         if (!$hasPhone) {
             $pdo->exec("ALTER TABLE users ADD COLUMN phone VARCHAR(30) NULL AFTER photo_url, ADD INDEX idx_user_phone (phone)");
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_users_phone: " . $e->getMessage();
+    }
+
+    try {
+        $hasGamesUserId = $pdo->query("SHOW COLUMNS FROM users LIKE 'games_user_id'")->fetch();
+        if (!$hasGamesUserId) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN games_user_id INT NULL AFTER phone, ADD INDEX idx_games_user_id (games_user_id)");
+        }
+        $hasGamesLinkedAt = $pdo->query("SHOW COLUMNS FROM users LIKE 'games_linked_at'")->fetch();
+        if (!$hasGamesLinkedAt) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN games_linked_at DATETIME NULL AFTER games_user_id");
+        }
+        $hasGamesTapasSyncedAt = $pdo->query("SHOW COLUMNS FROM users LIKE 'games_tapas_synced_at'")->fetch();
+        if (!$hasGamesTapasSyncedAt) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN games_tapas_synced_at DATETIME NULL AFTER games_linked_at");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_users_games_link: " . $e->getMessage();
     }
 
     try {

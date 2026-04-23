@@ -204,15 +204,18 @@ function isLoyalPlayer(player) {
   return Number(player?.was_traded ?? 1) === 0;
 }
 
-function getRestrictedBonus(players) {
+function isFranchiseEligible(player) {
+  if (window.__LEAGUE__ !== 'RISE') return false;
+  if (Number(player.is_franchise_player) === 1) return true;
   const teamId = Number(window.__TEAM_ID__);
-  if (!teamId) return 0;
-  const eligible = players.filter((p) => (
-    Number(p.ovr) >= 90
-    && Number(p.drafted_by_team_id) === teamId
-    && Number(p.was_traded) === 0
-  ));
-  return eligible.length * 2;
+  return teamId > 0
+    && Number(player.ovr) >= 90
+    && Number(player.drafted_by_team_id) === teamId
+    && Number(player.was_traded) === 0;
+}
+
+function getRestrictedBonus(players) {
+  return players.filter(isFranchiseEligible).length * 2;
 }
 
 function getCapMaxAdjusted(players) {
@@ -355,7 +358,8 @@ function renderPlayers(players) {
         const col = document.createElement('div');
         col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
-        card.className = 'card border-orange h-100 roster-card text-center';
+        const isFE = isFranchiseEligible(p);
+        card.className = 'card border-orange h-100 roster-card text-center' + (isFE ? ' franchise-player-card' : '');
         card.innerHTML = `
           <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
             <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
@@ -390,10 +394,12 @@ function renderPlayers(players) {
       ul.className = 'list-group list-group-flush';
       bench.forEach(p => {
         const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
+        const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : '';
         const li = document.createElement('li');
-        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
+        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0'
+          + (isFranchiseEligible(p) ? ' franchise-player-li' : '');
         li.innerHTML = `
-          <span>${p.name} ${loyalBadge} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span>${p.name} ${loyalBadge}${franchiseBadge} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -438,8 +444,9 @@ function renderPlayersMobileCards(players) {
     const canRetire = Number(p.age) >= 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
+    const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge">🏆 Franquia</span>' : '';
     const card = document.createElement('div');
-    card.className = 'roster-mobile-card';
+    card.className = 'roster-mobile-card' + (isFranchiseEligible(p) ? ' franchise-player-card' : '');
     card.innerHTML = `
       <div class="d-flex justify-content-between align-items-start gap-2">
         <div class="d-flex align-items-center gap-2">
@@ -447,7 +454,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="text-white fw-bold">${p.name} ${loyalBadge}</div>
+            <div class="text-white fw-bold">${p.name} ${loyalBadge}${franchiseBadge}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -486,7 +493,9 @@ function renderPlayersTable(players) {
     const canRetire = Number(p.age) >= 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
+    const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : '';
     const tr = document.createElement('tr');
+    if (isFranchiseEligible(p)) tr.classList.add('franchise-player-row');
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center gap-2">
@@ -494,7 +503,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold">${p.name} ${loyalBadge}</span>
+            <span class="fw-semibold">${p.name} ${loyalBadge}${franchiseBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
@@ -529,6 +538,22 @@ function updateRosterStats() {
   const bonusLabel = document.getElementById('cap-bonus-label');
   if (bonusLabel) {
     bonusLabel.textContent = bonus > 0 ? `+${bonus}` : '';
+  }
+
+  // Banner de aviso — jogadores Restricted OVR Cap
+  const bannerEl = document.getElementById('franchise-bonus-banner');
+  if (bannerEl) {
+    const eligible = allPlayers.filter(isFranchiseEligible);
+    if (eligible.length > 0) {
+      const names = eligible.map(p => `<strong>${p.name}</strong> (${p.ovr} OVR)`).join(', ');
+      bannerEl.innerHTML = `
+        <i class="bi bi-trophy-fill me-2" style="color:#f59e0b"></i>
+        <span><strong style="color:#f59e0b">Restricted OVR Cap ativo:</strong>
+        ${names} — bônus de <strong style="color:#f59e0b">+${bonus} pontos</strong> no CAP desta temporada.</span>`;
+      bannerEl.style.display = 'flex';
+    } else {
+      bannerEl.style.display = 'none';
+    }
   }
 }
 

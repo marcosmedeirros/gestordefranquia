@@ -323,42 +323,62 @@ if ($method === 'POST') {
             try {
                 // Verificar se tabela season_history existe
                 $tableExists = $pdo->query("SHOW TABLES LIKE 'season_history'")->rowCount() > 0;
+                $hasNbaCupColumn = false;
+                $nbaCupTeamId = ($league === 'ELITE') ? ($awards['nba_cup_team_id'] ?? null) : null;
                 
                 if ($tableExists) {
+                    $hasNbaCupColumn = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'nba_cup_team_id'")->rowCount() > 0;
+                    if (!$hasNbaCupColumn) {
+                        $hasRoyTeam = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_team_id'")->rowCount() > 0;
+                        $afterColumn = $hasRoyTeam ? 'roy_team_id' : 'sixth_man_team_id';
+                        $pdo->exec("ALTER TABLE season_history ADD COLUMN nba_cup_team_id INT NULL AFTER {$afterColumn}");
+                        $hasNbaCupColumn = true;
+                    }
+
                     // Atualizar ou inserir no histórico
                     $stmtCheck = $pdo->prepare("SELECT id FROM season_history WHERE season_id = ? AND league = ?");
                     $stmtCheck->execute([$seasonId, $league]);
                     $existing = $stmtCheck->fetch();
                     
                     if ($existing) {
-                        $pdo->prepare("
+                        $updateSql = "
                             UPDATE season_history SET
                                 mvp_player = ?, mvp_team_id = ?,
                                 dpoy_player = ?, dpoy_team_id = ?,
                                 mip_player = ?, mip_team_id = ?,
                                 sixth_man_player = ?, sixth_man_team_id = ?,
-                                roy_player = ?, roy_team_id = ?
-                            WHERE id = ?
-                        ")->execute([
+                                roy_player = ?, roy_team_id = ?";
+                        $params = [
                             $awards['mvp_player'], $awards['mvp_team_id'] ?: null,
                             $awards['dpoy_player'], $awards['dpoy_team_id'] ?: null,
                             $awards['mip_player'], $awards['mip_team_id'] ?: null,
                             $awards['sixth_man_player'], $awards['sixth_man_team_id'] ?: null,
-                            $awards['roy_player'] ?? null, $awards['roy_team_id'] ?? null,
-                            $existing['id']
-                        ]);
+                            $awards['roy_player'] ?? null, $awards['roy_team_id'] ?? null
+                        ];
+                        if ($hasNbaCupColumn) {
+                            $updateSql .= ", nba_cup_team_id = ?";
+                            $params[] = $nbaCupTeamId ? (int)$nbaCupTeamId : null;
+                        }
+                        $updateSql .= " WHERE id = ?";
+                        $params[] = $existing['id'];
+                        $pdo->prepare($updateSql)->execute($params);
                     } else {
-                        $pdo->prepare("
-                            INSERT INTO season_history (season_id, league, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id, roy_player, roy_team_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ")->execute([
+                        $columns = "season_id, league, mvp_player, mvp_team_id, dpoy_player, dpoy_team_id, mip_player, mip_team_id, sixth_man_player, sixth_man_team_id, roy_player, roy_team_id";
+                        $placeholders = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+                        $params = [
                             $seasonId, $league,
                             $awards['mvp_player'], $awards['mvp_team_id'] ?: null,
                             $awards['dpoy_player'], $awards['dpoy_team_id'] ?: null,
                             $awards['mip_player'], $awards['mip_team_id'] ?: null,
                             $awards['sixth_man_player'], $awards['sixth_man_team_id'] ?: null,
                             $awards['roy_player'] ?? null, $awards['roy_team_id'] ?? null
-                        ]);
+                        ];
+                        if ($hasNbaCupColumn) {
+                            $columns .= ", nba_cup_team_id";
+                            $placeholders .= ", ?";
+                            $params[] = $nbaCupTeamId ? (int)$nbaCupTeamId : null;
+                        }
+                        $pdo->prepare("INSERT INTO season_history ({$columns}) VALUES ({$placeholders})")->execute($params);
                     }
                 }
                 
@@ -523,10 +543,12 @@ if ($method === 'POST') {
                 // 3. Pontos de prêmios individuais (+1 cada)
                 $tableExists = $pdo->query("SHOW TABLES LIKE 'season_history'")->rowCount() > 0;
                 if ($tableExists) {
-                    $stmtAwards = $pdo->prepare("
-                        SELECT mvp_team_id, dpoy_team_id, mip_team_id, sixth_man_team_id, roy_team_id
-                        FROM season_history WHERE season_id = ? AND league = ?
-                    ");
+                    $hasNbaCupColumn = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'nba_cup_team_id'")->rowCount() > 0;
+                    $awardColumns = "mvp_team_id, dpoy_team_id, mip_team_id, sixth_man_team_id, roy_team_id";
+                    if ($hasNbaCupColumn) {
+                        $awardColumns .= ", nba_cup_team_id";
+                    }
+                    $stmtAwards = $pdo->prepare("SELECT {$awardColumns} FROM season_history WHERE season_id = ? AND league = ?");
                     $stmtAwards->execute([$seasonId, $league]);
                     $awards = $stmtAwards->fetch(PDO::FETCH_ASSOC);
                     
@@ -536,6 +558,9 @@ if ($method === 'POST') {
                         if ($awards['mip_team_id']) $teamPoints[$awards['mip_team_id']] += 1;
                         if ($awards['sixth_man_team_id']) $teamPoints[$awards['sixth_man_team_id']] += 1;
                         if (isset($awards['roy_team_id']) && $awards['roy_team_id']) $teamPoints[$awards['roy_team_id']] += 1;
+                        if ($league === 'ELITE' && isset($awards['nba_cup_team_id']) && $awards['nba_cup_team_id']) {
+                            $teamPoints[$awards['nba_cup_team_id']] += 1;
+                        }
                     }
                     
                     // Atualizar campeão/vice no histórico

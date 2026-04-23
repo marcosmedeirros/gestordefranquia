@@ -346,6 +346,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.ovr-mid { background: rgba(33,133,208,.18); color: #2196f3; }
 		.ovr-low { background: rgba(255,193,7,.18); color: #ffc107; }
 		.ovr-base { background: rgba(130,130,138,.18); color: #9aa0ac; }
+		.franchise-player-row { background: rgba(245,158,11,.07) !important; border-left: 3px solid rgba(245,158,11,.45); }
+		.franchise-player-card { border-color: rgba(245,158,11,.4) !important; background: rgba(245,158,11,.05) !important; }
+		.badge-franchise { display:inline-flex; align-items:center; gap:3px; background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.35); border-radius:999px; font-size:10px; font-weight:700; padding:2px 7px; margin-left:4px; }
 
 		.players-cards {
 			display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
@@ -722,16 +725,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return 'ovr-base';
 	}
 
+	function isFranchiseEligible(p) {
+		if (p.league !== 'RISE') return false;
+		if (Number(p.is_franchise_player) === 1) return true;
+		return Number(p.was_traded) === 0
+			&& Number(p.drafted_by_team_id) > 0
+			&& Number(p.drafted_by_team_id) === Number(p.team_id)
+			&& Number(p.ovr) >= 90;
+	}
+
 	function renderPlayerCard(p, whatsappLink, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const photoUrl = getPlayerPhotoUrl(p);
+		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
+		const franchiseClass = isFranchiseEligible(p) ? ' franchise-player-card' : '';
 		return `
-			<div class="player-card">
+			<div class="player-card${franchiseClass}">
 				<div class="player-card-header">
 					<div class="d-flex align-items-center gap-2">
 						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
 						<div>
-							<div class="player-card-name">${p.name}</div>
+							<div class="player-card-name">${p.name}${franchiseBadge}</div>
 							<div class="player-card-team">${teamName}</div>
 						</div>
 					</div>
@@ -803,12 +817,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					} else {
 						const ovr = Number(p.ovr || 0);
 						const photoUrl = getPlayerPhotoUrl(p);
+						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : '';
+						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
 						tableBody.innerHTML += `
-							<tr>
+							<tr${franchiseRow}>
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
-										<strong>${p.name}</strong>
+										<strong>${p.name}</strong>${franchiseBadgeRow}
 									</div>
 								</td>
 								<td><span class="badge-ovr ${getOvrClass(ovr)}">${p.ovr}</span></td>

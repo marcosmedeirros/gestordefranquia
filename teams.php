@@ -59,7 +59,7 @@ $team = $stmtTeam->fetch();
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas,
-             u.name AS owner_name, u.phone AS owner_phone, u.photo_url AS owner_photo,
+             u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count
     FROM teams t
     INNER JOIN users u ON u.id = t.user_id
@@ -69,9 +69,48 @@ $stmt = $pdo->prepare('
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+$gamesTapasByEmail = [];
+if (!empty($teams) && function_exists('dbGames')) {
+    $gamesPdo = dbGames();
+    if ($gamesPdo) {
+        $emails = [];
+        foreach ($teams as $t) {
+            $email = strtolower(trim((string)($t['owner_email'] ?? '')));
+            if ($email !== '') {
+                $emails[$email] = true;
+            }
+        }
+
+        if (!empty($emails)) {
+            $placeholders = implode(',', array_fill(0, count($emails), '?'));
+            $stmtGames = $gamesPdo->prepare("SELECT id, LOWER(email) as email_lower, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE LOWER(email) IN ({$placeholders})");
+            $stmtGames->execute(array_keys($emails));
+            $gamesRows = $stmtGames->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($gamesRows as $row) {
+                $emailLower = (string)($row['email_lower'] ?? '');
+                if ($emailLower !== '') {
+                    $gamesTapasByEmail[$emailLower] = [
+                        'games_user_id' => (int)($row['id'] ?? 0),
+                        'tapas' => (int)($row['numero_tapas'] ?? 0)
+                    ];
+                }
+            }
+        }
+    }
+}
+
 foreach ($teams as &$t) {
     if (empty($t['owner_name'])) {
         $t['owner_name'] = 'N/A';
+    }
+    $emailLower = strtolower(trim((string)($t['owner_email'] ?? '')));
+    if ($emailLower !== '' && isset($gamesTapasByEmail[$emailLower])) {
+        $gamesTapas = $gamesTapasByEmail[$emailLower]['tapas'];
+        $gamesUserId = $gamesTapasByEmail[$emailLower]['games_user_id'];
+        $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?')->execute([$gamesTapas, $t['id']]);
+        $pdo->prepare('UPDATE users SET games_user_id = ?, games_linked_at = COALESCE(games_linked_at, NOW()), games_tapas_synced_at = NOW() WHERE id = ?')
+            ->execute([$gamesUserId, $t['user_id']]);
+        $t['tapas'] = $gamesTapas;
     }
     $rawPhone = $t['owner_phone'] ?? '';
     $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;

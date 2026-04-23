@@ -35,6 +35,7 @@ try {
             mip_team_id INT,
             sixth_man_player VARCHAR(100),
             sixth_man_team_id INT,
+            nba_cup_team_id INT,
             
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             
@@ -99,7 +100,7 @@ try {
     echo "========================================\n\n";
     
     echo "Estrutura do sistema:\n";
-    echo "- season_history: Salva Campeão, Vice, MVP, DPOY, MIP, 6º Homem (reseta com sprint)\n";
+    echo "- season_history: Salva Campeão, Vice, MVP, DPOY, MIP, 6º Homem, NBA Cup (reseta com sprint)\n";
     echo "- team_season_points: Salva pontos manuais por time/temporada (NÃO reseta)\n";
     echo "\n";
     echo "API disponível em: /api/history-points.php\n";

@@ -142,6 +142,7 @@ if ($method === 'GET') {
 
         $stmt = $pdo->prepare("
                  SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                   p.was_traded, p.drafted_by_team_id,
                    t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p
@@ -371,6 +372,7 @@ if ($method === 'GET') {
         }
         $stmt = $pdo->prepare('
                  SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                   p.was_traded, p.drafted_by_team_id,
                    t.id as team_id, t.city, t.name as team_name, t.league,
                    u.phone as owner_phone
             FROM players p

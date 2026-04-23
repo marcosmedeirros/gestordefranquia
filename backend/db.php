@@ -26,6 +26,41 @@ function db(): PDO
     return $pdo;
 }
 
+function dbGames(): ?PDO
+{
+    static $pdoGames = null;
+    if ($pdoGames instanceof PDO) {
+        return $pdoGames;
+    }
+
+    $config = loadConfig();
+    $gamesConfig = $config['games_db'] ?? null;
+    if (!is_array($gamesConfig)) {
+        return null;
+    }
+
+    $host = $gamesConfig['host'] ?? '';
+    $name = $gamesConfig['name'] ?? '';
+    $user = $gamesConfig['user'] ?? '';
+    $pass = $gamesConfig['pass'] ?? '';
+    $charset = $gamesConfig['charset'] ?? 'utf8mb4';
+
+    if ($host === '' || $name === '' || $user === '') {
+        return null;
+    }
+
+    try {
+        $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', $host, $name, $charset);
+        $pdoGames = new PDO($dsn, $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        return $pdoGames;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
 function ensureSchema(PDO $pdo, string $dbName): void
 {
     // Carrega e executa migrações automáticas

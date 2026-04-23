@@ -294,6 +294,11 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
         if ($needsWasTraded) {
             $pdo->exec("ALTER TABLE players ADD COLUMN was_traded TINYINT(1) NOT NULL DEFAULT 0 AFTER drafted_by_team_id");
         }
+
+        $needsFranchise = $pdo->query("SHOW COLUMNS FROM players LIKE 'is_franchise_player'")->rowCount() === 0;
+        if ($needsFranchise) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN is_franchise_player TINYINT(1) DEFAULT NULL AFTER was_traded");
+        }
     } catch (Exception $e) {
         error_log('[ensurePlayerRestrictionColumns] ' . $e->getMessage());
     }
@@ -305,7 +310,11 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
 {
     ensurePlayerRestrictionColumns($pdo);
     try {
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND drafted_by_team_id = ? AND was_traded = 0 AND ovr >= 90');
+        $leagueStmt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $leagueStmt->execute([$teamId]);
+        if ($leagueStmt->fetchColumn() !== 'RISE') return 0;
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND (is_franchise_player = 1 OR (drafted_by_team_id = ? AND was_traded = 0 AND ovr >= 90))');
         $stmt->execute([$teamId, $teamId]);
         return (int) $stmt->fetchColumn();
     } catch (Exception $e) {

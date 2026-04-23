@@ -26,6 +26,7 @@ CREATE TABLE season_history (
     mip_team_id INT,
     sixth_man_player VARCHAR(100),
     sixth_man_team_id INT,
+    nba_cup_team_id INT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -36,6 +37,7 @@ CREATE TABLE season_history (
     FOREIGN KEY (dpoy_team_id) REFERENCES teams(id) ON DELETE SET NULL,
     FOREIGN KEY (mip_team_id) REFERENCES teams(id) ON DELETE SET NULL,
     FOREIGN KEY (sixth_man_team_id) REFERENCES teams(id) ON DELETE SET NULL,
+    FOREIGN KEY (nba_cup_team_id) REFERENCES teams(id) ON DELETE SET NULL,
     
     UNIQUE KEY unique_season_history (season_id),
     INDEX idx_league_history (league)

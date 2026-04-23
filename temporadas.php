@@ -2094,6 +2094,7 @@ Stephen Curry,PG,35,95</code>
     function renderPlayoffStep3() {
       const container = document.getElementById('mainContainer');
       const teams = playoffState.teams;
+      const showNbaCup = playoffState.league === 'ELITE';
 
       container.innerHTML = `
         <button class="btn-back" onclick="renderPlayoffStep2()">
@@ -2139,6 +2140,19 @@ Stephen Curry,PG,35,95</code>
                   </div>
                 </div>
               `).join('')}
+              ${showNbaCup ? `
+                <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:6px">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2);display:block;margin-bottom:5px">
+                      <i class="bi bi-trophy-fill" style="color:var(--amber);margin-right:5px"></i>Campeão da NBA Cup <span style="color:var(--text-3);font-weight:400">(+1pt)</span>
+                    </label>
+                    <select class="form-select" name="nba_cup_team_id">
+                      <option value="">Selecione o time campeão</option>
+                      ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+              ` : ''}
             </form>
           </div>
         </div>
@@ -2163,7 +2177,8 @@ Stephen Curry,PG,35,95</code>
         sixth_man_player: formData.get('sixth_man_player') || null,
         sixth_man_team_id: formData.get('sixth_man_team_id') || null,
         roy_player: formData.get('roy_player') || null,
-        roy_team_id: formData.get('roy_team_id') || null
+        roy_team_id: formData.get('roy_team_id') || null,
+        nba_cup_team_id: formData.get('nba_cup_team_id') || null
       };
 
       playoffState.step = 5;
@@ -2176,9 +2191,16 @@ Stephen Curry,PG,35,95</code>
       const finalsMatch = getMatch('FINALS', 'finals', 1);
       const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
       const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
+      const showNbaCup = playoffState.league === 'ELITE';
+      const nbaCupTeamId = playoffState.awards.nba_cup_team_id;
       
       const champion = finalsMatch?.winner_id;
       const runnerUp = champion == lesteChamp?.winner_id ? oesteChamp?.winner_id : lesteChamp?.winner_id;
+      const awardLines = [['mvp','MVP'],['dpoy','DPOY'],['mip','MIP'],['sixth_man','6º Homem'],['roy','ROY']]
+        .map(([k,l]) => playoffState.awards[`${k}_player`] ? `<div><span style="color:var(--text-2)">${l}:</span> <strong>${playoffState.awards[`${k}_player`]}</strong></div>` : '')
+        .filter(Boolean);
+      const nbaCupLine = showNbaCup ? `<div><span style="color:var(--text-2)">NBA Cup:</span> <strong>${nbaCupTeamId ? getTeamInfo(nbaCupTeamId) : '—'}</strong></div>` : '';
+      const hasAwards = awardLines.length > 0 || showNbaCup;
       
       container.innerHTML = `
         <button class="btn-back" onclick="renderPlayoffStep3()">
@@ -2215,9 +2237,9 @@ Stephen Curry,PG,35,95</code>
               <div class="bc-title" style="color:#93c5fd"><i class="bi bi-award-fill"></i>Prêmios Individuais</div>
             </div>
             <div class="bc-body" style="font-size:13px;display:flex;flex-direction:column;gap:8px">
-              ${[['mvp','MVP'],['dpoy','DPOY'],['mip','MIP'],['sixth_man','6º Homem'],['roy','ROY']].map(([k,l]) =>
-                playoffState.awards[`${k}_player`] ? `<div><span style="color:var(--text-2)">${l}:</span> <strong>${playoffState.awards[`${k}_player`]}</strong></div>` : ''
-              ).join('') || `<div style="color:var(--text-3)">Nenhum prêmio registrado</div>`}
+              ${awardLines.join('')}
+              ${nbaCupLine}
+              ${hasAwards ? '' : `<div style="color:var(--text-3)">Nenhum prêmio registrado</div>`}
             </div>
           </div>
         </div>
@@ -2235,7 +2257,7 @@ Stephen Curry,PG,35,95</code>
             </div>
             <div>
               <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#4ade80;margin-bottom:8px">Prêmios</div>
-              ${['MVP','DPOY','MIP','6º Homem','ROY'].map(l => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text-2)">${l}</span><strong style="color:#4ade80">+1pt</strong></div>`).join('')}
+              ${['MVP','DPOY','MIP','6º Homem','ROY', ...(showNbaCup ? ['NBA Cup'] : [])].map(l => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text-2)">${l}</span><strong style="color:#4ade80">+1pt</strong></div>`).join('')}
             </div>
           </div>
         </div>

@@ -486,7 +486,7 @@ async function showTeam(teamId) {
 <div class="col-md-6"><h2 class="text-white mb-2">${t.city} ${t.name}</h2><p class="text-light-gray mb-1"><strong>Proprietário:</strong> ${t.owner_name}</p>
 <p class="text-light-gray mb-0"><strong>Liga:</strong> <span class="badge bg-gradient-orange">${t.league}</span></p></div>
 <div class="col-md-4 text-end"><button class="btn btn-outline-orange mb-2 w-100" onclick="editTeam(${t.id})"><i class="bi bi-pencil-fill me-2"></i>Editar</button>
-<div class="bg-dark rounded p-3 mb-2"><h4 class="text-orange mb-0">${t.cap_top8}</h4><small class="text-light-gray">CAP Top 8</small></div>
+<div class="bg-dark rounded p-3 mb-2"><h4 class="text-orange mb-0">${t.cap_top8}${t.restricted_bonus > 0 ? ` <small style="color:#f59e0b;font-size:.7em">+${t.restricted_bonus}</small>` : ''}</h4><small class="text-light-gray">CAP Top 8${t.restricted_bonus > 0 ? ` · <span style="color:#f59e0b">🏆 ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}</span>` : ''}</small></div>
 <div class="bg-dark rounded p-3 mb-2"><h4 class="text-warning mb-0">${parseInt(t.tapas || 0)}</h4><small class="text-light-gray">Tapas</small></div>
 <div class="bg-dark rounded p-3 mb-2 d-flex justify-content-between align-items-center">
   <div><h4 class="text-info mb-0" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</h4><small class="text-light-gray">Trocas feitas</small></div>
@@ -506,10 +506,15 @@ async function showTeam(teamId) {
 </div>
 <div class="table-responsive"><table class="table table-dark table-hover">
 <thead><tr><th>Jogador</th><th>Pos</th><th>Idade</th><th>OVR</th><th>Papel</th><th>Ações</th></tr></thead>
-<tbody>${t.players.map(p => `<tr><td><strong>${p.name}</strong></td><td>${p.position}</td><td>${p.age}</td>
+<tbody>${t.players.map(p => {
+  const isFE = t.league === 'RISE' && (Number(p.is_franchise_player) === 1 || (Number(p.was_traded) === 0 && Number(p.drafted_by_team_id) === t.id && Number(p.ovr) >= 90));
+  const rowStyle = isFE ? ' style="background:rgba(245,158,11,.08);border-left:3px solid rgba(245,158,11,.45)"' : '';
+  const fBadge = isFE ? ' <span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">🏆 Franquia</span>' : '';
+  return `<tr${rowStyle}><td><strong>${p.name}</strong>${fBadge}</td><td>${p.position}</td><td>${p.age}</td>
 <td><span class="badge ${p.ovr >= 80 ? 'bg-success' : p.ovr >= 70 ? 'bg-warning text-dark' : 'bg-secondary'}">${p.ovr}</span></td><td>${p.role}</td>
 <td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPlayer(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-<button class="btn btn-sm btn-outline-danger" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>
+<button class="btn btn-sm btn-outline-danger" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`;
+}).join('')}</tbody></table></div>
 </div>
 <div class="tab-pane fade" id="picks-tab">
 <div class="d-flex justify-content-between mb-3">
@@ -1180,6 +1185,11 @@ function editPlayer(playerId) {
 <option value="Banco" ${p.role === 'Banco' ? 'selected' : ''}>Banco</option>
 <option value="Outro" ${p.role === 'Outro' ? 'selected' : ''}>Outro</option>
 <option value="G-League" ${p.role === 'G-League' ? 'selected' : ''}>G-League</option></select></div>
+${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25)">
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox" role="switch" id="editPlayerFranchise" ${Number(p.is_franchise_player) === 1 ? 'checked' : ''}>
+<label class="form-check-label" for="editPlayerFranchise" style="color:#f59e0b;font-weight:600">🏆 Elegível Restricted CAP</label></div>
+<small class="text-light-gray d-block mt-1">Override manual: marca o jogador como elegível para bônus de CAP independente das regras automáticas.</small></div>` : ''}
 <div class="mb-3"><label class="form-label text-light-gray">Transferir</label>
 <select class="form-select bg-dark text-white border-orange" id="editPlayerTeam"><option value="">Manter no time</option></select></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1207,7 +1217,8 @@ async function savePlayerEdit(playerId) {
   const data = { player_id: playerId, position: document.getElementById('editPlayerPosition').value,
     secondary_position: document.getElementById('editPlayerSecondaryPosition')?.value || null,
     age: parseInt(document.getElementById('editPlayerAge')?.value || '', 10),
-    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10), role: document.getElementById('editPlayerRole').value };
+    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10), role: document.getElementById('editPlayerRole').value,
+    is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0 };
   if (Number.isNaN(data.age)) {
     delete data.age;
   }

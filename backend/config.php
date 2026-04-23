@@ -8,6 +8,13 @@ return [
     'pass' => getenv('FBA_DB_PASS') ?: 'Fbabrasil@2025',
         'charset' => 'utf8mb4',
     ],
+    'games_db' => [
+        'host' => getenv('FBA_GAMES_DB_HOST') ?: 'localhost',
+        'name' => getenv('FBA_GAMES_DB_NAME') ?: 'u289267434_gamesfba',
+        'user' => getenv('FBA_GAMES_DB_USER') ?: 'u289267434_gamesfba',
+        'pass' => getenv('FBA_GAMES_DB_PASS') ?: 'Gamesfba@123',
+        'charset' => 'utf8mb4',
+    ],
     'mail' => [
     'from' => getenv('FBA_MAIL_FROM') ?: 'no-reply@fbabrasil.com.br',
     'verify_base_url' => getenv('FBA_VERIFY_BASE_URL') ?: 'https://fbabrasil.com.br/api/verify.php?token=',
