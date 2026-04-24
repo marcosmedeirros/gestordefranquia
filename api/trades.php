@@ -218,6 +218,64 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
 }
 
+function sendTradePush(PDO $pdo, int $tradeId, string $event): void
+{
+    $pushFile = dirname(__DIR__) . '/backend/push.php';
+    if (!file_exists($pushFile)) return;
+
+    $stmt = $pdo->prepare('
+        SELECT
+            tf.user_id AS from_user_id,
+            TRIM(CONCAT(COALESCE(tf.city,""), " ", tf.name)) AS from_team_name,
+            tt.user_id AS to_user_id,
+            TRIM(CONCAT(COALESCE(tt.city,""), " ", tt.name)) AS to_team_name
+        FROM trades tr
+        JOIN teams tf ON tf.id = tr.from_team_id
+        JOIN teams tt ON tt.id = tr.to_team_id
+        WHERE tr.id = ?
+    ');
+    $stmt->execute([$tradeId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return;
+
+    $fromUserId   = (int)$row['from_user_id'];
+    $toUserId     = (int)$row['to_user_id'];
+    $fromTeamName = $row['from_team_name'];
+    $toTeamName   = $row['to_team_name'];
+
+    switch ($event) {
+        case 'trade_created':
+            $notifyUserId = $toUserId;
+            $title = 'Nova Proposta de Trade 🏀';
+            $body  = "{$fromTeamName} enviou uma proposta de trade para você!";
+            break;
+        case 'trade_accepted':
+            $notifyUserId = $fromUserId;
+            $title = 'Trade Aceito! ✅';
+            $body  = "{$toTeamName} aceitou sua proposta de trade!";
+            break;
+        case 'trade_rejected':
+            $notifyUserId = $fromUserId;
+            $title = 'Trade Recusado ❌';
+            $body  = "{$toTeamName} recusou sua proposta de trade.";
+            break;
+        default:
+            return;
+    }
+
+    require_once $pushFile;
+    try {
+        sendPushToUser($pdo, $notifyUserId, [
+            'title'      => $title,
+            'body'       => $body,
+            'url'        => '/trades.php',
+            'primaryKey' => $tradeId,
+        ]);
+    } catch (Exception $e) {
+        error_log('[trade-push] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
+    }
+}
+
 function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created'): void
 {
     $webhookUrl = 'https://fbabrasil.com.br/nova-trade';
@@ -2027,6 +2085,7 @@ if ($method === 'POST') {
         } catch (Exception $e) {
             error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
         }
+        sendTradePush($pdo, (int)$tradeId, 'trade_created');
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -2463,6 +2522,7 @@ if ($method === 'PUT') {
         } catch (Exception $e) {
             error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
         }
+        sendTradePush($pdo, (int)$tradeId, $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled'));
         echo json_encode(['success' => true]);
     } catch (PDOException $e) {
         $pdo->rollBack();

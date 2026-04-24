@@ -172,3 +172,67 @@ function showConnectionStatus(status) {
 if (!navigator.onLine) {
   document.body.classList.add('offline');
 }
+
+// ── Push Notifications ─────────────────────────────────────────────────────
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function initPushNotifications() {
+  if (!('PushManager' in window) || !('serviceWorker' in navigator) || !('Notification' in window)) return;
+  if (Notification.permission === 'denied') return;
+
+  try {
+    const reg      = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+
+    if (existing) {
+      // Já inscrito — garante que o servidor tem este endpoint
+      if (!localStorage.getItem('push-subscribed')) {
+        await savePushSubscription(existing);
+      }
+      return;
+    }
+
+    // Busca chave pública VAPID
+    const resp = await fetch('/api/push-subscribe.php');
+    const json = await resp.json();
+    if (!json.publicKey) return;
+
+    // Pede permissão ao usuário
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: urlBase64ToUint8Array(json.publicKey),
+    });
+
+    await savePushSubscription(subscription);
+    console.log('[PWA] Push notifications ativadas');
+  } catch (err) {
+    console.log('[PWA] Push init error:', err);
+  }
+}
+
+async function savePushSubscription(subscription) {
+  try {
+    const res = await fetch('/api/push-subscribe.php', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(subscription.toJSON()),
+    });
+    if (res.ok) localStorage.setItem('push-subscribed', '1');
+  } catch (err) {
+    console.log('[PWA] Erro ao salvar push subscription:', err);
+  }
+}
+
+// Inicia push 4 s após o SW estar pronto (evita bloquear carregamento)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.ready.then(() => setTimeout(initPushNotifications, 4000));
+}
