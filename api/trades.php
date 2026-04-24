@@ -1647,7 +1647,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 if ($ownerId !== $fromTeam) {
                     throw new Exception('Pick não pertence ao time informado.');
                 }
-                if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+                if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                     throw new Exception('Uma das picks está travada para swap e não pode ser negociada.');
                 }
             }
@@ -1835,7 +1835,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Você só pode oferecer picks que pertencem ao seu time']);
                 exit;
             }
-            if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+            if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Uma das picks oferecidas está travada para swap e não pode ser negociada']);
                 exit;
@@ -1858,7 +1858,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Só é possível pedir picks que pertencem ao time alvo']);
                 exit;
             }
-            if (!empty($pickRow['swap_locked']) || !empty($pickRow['swap_type'])) {
+            if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Uma das picks solicitadas está travada para swap e não pode ser negociada']);
                 exit;

@@ -285,7 +285,7 @@ const loadMultiAssets = async (teamId, type) => {
   let list = type === 'players' ? (data.players || []) : (data.picks || []);
   if (type === 'picks') {
     list = list.filter((pick) => {
-      if (Number(pick.swap_locked || 0) === 1) return false;
+      if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
       const year = Number(pick.season_year || 0);
       return Number.isFinite(year) && year >= currentSeasonYear;
     });
@@ -704,7 +704,7 @@ function setupPlayerSelectorHandlers() {
 function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   const raw = Array.isArray(picks) ? picks : [];
   pickState[side].available = raw.filter((pick) => {
-    if (Number(pick.swap_locked || 0) === 1) return false;
+    if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
     return year >= currentSeasonYear;
