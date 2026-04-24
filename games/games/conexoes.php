@@ -302,16 +302,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM conexoes_historico WHERE id_usuario=? AND data_jogo=?");
             $stmt->execute([$user_id, $hoje]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Award 50 coins per newly found group
+            $prev_groups = $row ? (json_decode($row['grupos_encontrados'], true) ?: []) : [];
+            $curr_groups = json_decode($grupos_enc, true) ?: [];
+            $new_groups  = count(array_diff($curr_groups, $prev_groups));
+            if ($new_groups > 0) {
+                $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_groups * 50, $user_id]);
+            }
             if ($row) {
                 $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?,vidas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
                     ->execute([$grupos_enc,$vidas,$concluido,$desistiu,$pontos,$row['id']]);
-                if ($concluido && $row['pontos_ganhos'] == 0 && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             } else {
                 $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?,?)")
                     ->execute([$user_id,$hoje,$puzzle_idx,$grupos_enc,$vidas,$concluido,$desistiu,$pontos]);
-                if ($concluido && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             }
             echo json_encode(['ok'=>true]);
         } catch (PDOException $e) { echo json_encode(['ok'=>false]); }
@@ -557,11 +560,7 @@ function updateActionBar() {
 }
 
 function calcScore() {
-  const found = foundIdxs.size;
-  if (found === 0) return 0;
-  const base = Math.round(PONTOS_BASE * found / 4);
-  const lifeBonus = lives * 8;
-  return base + (found === 4 ? lifeBonus : 0);
+  return foundIdxs.size * 50;
 }
 
 // ── INTERACTION ──────────────────────────────────────────────────────────────
@@ -625,6 +624,7 @@ function submitGuess() {
       selected.clear();
       saveState();
       render();
+      showToast('+50 moedas! 🪙');
 
       if (foundIdxs.size === 4) {
         gameOver = true;

@@ -77,21 +77,20 @@ if (!isset($_SESSION['user_id'])) {
     /* ── Tab bar ── */
     .fba-tabs-wrap {
       background: var(--panel); border-bottom: 1px solid var(--border);
-      padding: 10px 20px 0; overflow-x: auto;
-      display: flex; gap: 2px; scrollbar-width: none;
+      padding: 0 20px; overflow-x: auto;
+      display: flex; justify-content: center; gap: 4px; scrollbar-width: none;
     }
     .fba-tabs-wrap::-webkit-scrollbar { display: none; }
     .fba-tab {
-      padding: 9px 20px; border-radius: 10px 10px 0 0;
-      border: 1px solid transparent; border-bottom: none;
+      padding: 14px 22px; border-bottom: 2px solid transparent;
       background: transparent; color: var(--text-2);
       font-family: var(--font); font-size: 12px; font-weight: 700;
       cursor: pointer; white-space: nowrap; transition: all var(--t) var(--ease);
+      border-radius: 0; border-top: none; border-left: none; border-right: none;
     }
-    .fba-tab:hover { color: var(--text); background: var(--panel-2); }
+    .fba-tab:hover { color: var(--text); }
     .fba-tab.active-tab {
-      background: var(--bg); color: var(--text);
-      border-color: var(--border); border-bottom-color: var(--bg);
+      color: var(--text); border-bottom-color: var(--red);
     }
     .fba-tab.active-tab .tab-dot { background: var(--red); }
     .tab-dot {
@@ -228,7 +227,7 @@ if (!isset($_SESSION['user_id'])) {
           <h3 class="fba-title text-lg" style="color:var(--red)">Resgate de Coleções</h3>
           <span style="font-size:11px;color:var(--text-3)">Completo = 500 FBA Points</span>
         </div>
-        <div id="collection-rewards" class="flex gap-3 overflow-x-auto pb-2"></div>
+        <div id="collection-rewards" class="flex gap-3 pb-1" style="overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--border-red) transparent;padding-bottom:8px"></div>
       </div>
       <div id="album-container" class="flex flex-col gap-8 mt-6"></div>
     </section>

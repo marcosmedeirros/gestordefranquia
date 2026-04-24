@@ -307,16 +307,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM boxnba_historico WHERE id_usuario=? AND data_jogo=?");
             $stmt->execute([$user_id, $hoje]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Award 25 coins per newly answered correct cell
+            $prev_respostas = $row ? (json_decode($row['respostas'], true) ?: []) : [];
+            $prev_keys      = array_column($prev_respostas, 'key');
+            $curr_respostas = json_decode($respostas, true) ?: [];
+            $curr_keys      = array_column($curr_respostas, 'key');
+            $new_cells      = count(array_diff($curr_keys, $prev_keys));
+            if ($new_cells > 0) {
+                $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_cells * 25, $user_id]);
+            }
             if ($row) {
                 $pdo->prepare("UPDATE boxnba_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
                     ->execute([$respostas,$tentativas_rest,$concluido,$desistiu,$pontos,$row['id']]);
-                if ($concluido && $row['pontos_ganhos'] == 0 && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             } else {
                 $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?)")
                     ->execute([$user_id,$hoje,$respostas,$tentativas_rest,$concluido,$desistiu,$pontos]);
-                if ($concluido && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             }
             echo json_encode(['ok'=>true]);
         } catch (PDOException $e) { echo json_encode(['ok'=>false,'err'=>$e->getMessage()]); }
@@ -446,6 +451,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .tooltip-wrap{position:relative;display:inline-block}
 .tooltip-wrap .tooltip-body{visibility:hidden;opacity:0;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--panel3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:10px;font-weight:600;white-space:nowrap;color:var(--text);z-index:100;pointer-events:none;transition:opacity .15s}
 .tooltip-wrap:hover .tooltip-body{visibility:visible;opacity:1}
+
+/* Toast */
+.fba-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel3);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:9px 18px;font-size:12px;font-weight:700;color:#f59e0b;z-index:500;white-space:nowrap;pointer-events:none;animation:toastIn .25s ease}
+.fba-toast.out{animation:toastOut .25s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(8px)}}
 
 /* Scrollbar */
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
@@ -610,8 +621,7 @@ function updateUI() {
 }
 
 function calcPoints(correct, triesLeft) {
-  if (correct === 0) return 0;
-  return Math.round(PONTOS * (correct / 9) * (1 + triesLeft * 0.03));
+  return correct * 25;
 }
 
 function openCell(r, c) {
@@ -716,6 +726,7 @@ function selectPlayer(name) {
     el.classList.add('done','correct');
     el.innerHTML = buildCellHtml(name);
     closeSearch();
+    showCoinToast('+25 moedas! 🪙');
     checkFinish();
   } else {
     tries = Math.max(0, tries - 1);
@@ -779,6 +790,21 @@ function saveState(forceSave = false, concluido = false, desistiu = false) {
   body.append('desistiu', desistiu ? 1 : 0);
   body.append('pontos', pts);
   fetch('', {method:'POST', body});
+}
+
+let _toastTimer = null;
+function showCoinToast(msg) {
+  let el = document.getElementById('_fbaToast');
+  if (el) { clearTimeout(_toastTimer); el.remove(); }
+  el = document.createElement('div');
+  el.id = '_fbaToast';
+  el.className = 'fba-toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  _toastTimer = setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 250);
+  }, 1800);
 }
 
 // Inicializa

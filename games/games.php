@@ -402,12 +402,9 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
   <div class="games-grid">
     <a href="games/index.php?game=flappy"      class="game-card"><span class="game-icon">🐦</span><div class="game-title">Flappy Bird</div><div class="game-sub">Desvie dos canos</div></a>
     <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
-    <a href="games/index.php?game=xadrez"      class="game-card"><span class="game-icon">♛</span><div class="game-title">Xadrez PvP</div><div class="game-sub">Desafie e aposte</div></a>
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
     <a href="games/blackjack.php"              class="game-card"><span class="game-icon">🃏</span><div class="game-title">Blackjack</div><div class="game-sub">Chegue a 21</div></a>
-    <a href="games/index.php?game=poker"       class="game-card"><span class="game-icon">♠️</span><div class="game-title">Poker</div><div class="game-sub">Texas Hold'em</div></a>
     <a href="games/index.php?game=tigrinho"    class="game-card"><span class="game-icon">🐯</span><div class="game-title">Tigrinho</div><div class="game-sub">Fortune Tiger</div></a>
-    <a href="games/batalhanaval.php"           class="game-card"><span class="game-icon">⚔️</span><div class="game-title">Batalha Naval</div><div class="game-sub">Multiplayer</div></a>
     <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 
