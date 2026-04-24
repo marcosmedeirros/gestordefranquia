@@ -388,22 +388,26 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <?php endif; ?>
   </div>
 
-  <div class="section-label"><i class="bi bi-joystick"></i>Escolha um Jogo</div>
+  <div class="section-label"><i class="bi bi-calendar-check"></i>Minigames Diários</div>
+  <div class="games-grid">
+    <a href="games/index.php?game=termo"       class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">📝</span><div class="game-title">Termo</div><div class="game-sub">Diário · Palavra</div></a>
+    <a href="games/index.php?game=memoria"     class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🧠</span><div class="game-title">Memória</div><div class="game-sub">Diário · Mental</div></a>
+    <a href="games/index.php?game=grade"       class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
+    <a href="games/index.php?game=boxnba"      class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
+    <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
+    <a href="games/index.php?game=bomba"       class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Diamantes</div></a>
+  </div>
+
+  <div class="section-label" style="margin-top:28px"><i class="bi bi-joystick"></i>Minigames</div>
   <div class="games-grid">
     <a href="games/index.php?game=flappy"      class="game-card"><span class="game-icon">🐦</span><div class="game-title">Flappy Bird</div><div class="game-sub">Desvie dos canos</div></a>
     <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
     <a href="games/index.php?game=xadrez"      class="game-card"><span class="game-icon">♛</span><div class="game-title">Xadrez PvP</div><div class="game-sub">Desafie e aposte</div></a>
-    <a href="games/index.php?game=memoria"     class="game-card"><span class="game-icon">🧠</span><div class="game-title">Memória</div><div class="game-sub">Desafio mental</div></a>
-    <a href="games/index.php?game=termo"       class="game-card"><span class="game-icon">📝</span><div class="game-title">Termo</div><div class="game-sub">Adivinhe a palavra</div></a>
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
     <a href="games/blackjack.php"              class="game-card"><span class="game-icon">🃏</span><div class="game-title">Blackjack</div><div class="game-sub">Chegue a 21</div></a>
     <a href="games/index.php?game=poker"       class="game-card"><span class="game-icon">♠️</span><div class="game-title">Poker</div><div class="game-sub">Texas Hold'em</div></a>
     <a href="games/index.php?game=tigrinho"    class="game-card"><span class="game-icon">🐯</span><div class="game-title">Tigrinho</div><div class="game-sub">Fortune Tiger</div></a>
     <a href="games/batalhanaval.php"           class="game-card"><span class="game-icon">⚔️</span><div class="game-title">Batalha Naval</div><div class="game-sub">Multiplayer</div></a>
-    <a href="games/index.php?game=grade" class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
-    <a href="games/index.php?game=boxnba" class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
-    <a href="games/index.php?game=conexoes" class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
-    <a href="games/index.php?game=bomba" class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Ache diamantes</div></a>
     <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 
