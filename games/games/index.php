@@ -66,6 +66,10 @@ $games_disponiveis = [
         'titulo' => '🔗 Conexões NBA',
         'arquivo' => 'conexoes.php'
     ],
+    'bomba' => [
+        'titulo' => '💣 Bomba',
+        'arquivo' => 'bomba.php'
+    ],
 ];
 
 // Valida se o game existe

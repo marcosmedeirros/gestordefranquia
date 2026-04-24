@@ -28,6 +28,7 @@ $batalha_naval_vitorias = 0; $tigrinho_premios = 0;
 $termo_streak = 0; $memoria_streak = 0; $grade_concluiu_hoje = false;
 $boxnba_concluiu_hoje = false;
 $conexoes_concluiu_hoje = false;
+$bomba_status_hoje = null;
 
 try { $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS r FROM flappy_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $flappy_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['r'] ?? 0); } catch (PDOException $e) {}
 try { $stmt = $pdo->prepare("SELECT MAX(pontuacao_final) AS r FROM dino_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $pinguim_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['r'] ?? 0); } catch (PDOException $e) {}
@@ -72,6 +73,12 @@ try {
     $stmt->execute([$user_id, $today]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row) $conexoes_concluiu_hoje = (bool)$row['concluido'];
+} catch (PDOException $e) {}
+try {
+    $stmt = $pdo->prepare("SELECT status, pontos_ganhos FROM bomba_historico WHERE id_usuario = ? AND data_jogo = ? LIMIT 1");
+    $stmt->execute([$user_id, $today]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) $bomba_status_hoje = $row;
 } catch (PDOException $e) {}
 
 /* ── Ranking moedas ── */
@@ -364,6 +371,15 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="stat-label"><i class="bi bi-link-45deg" style="color:#a78bfa"></i>Conexões · Hoje</div>
       <div class="stat-value"><?= $conexoes_concluiu_hoje ? '✅' : '—' ?></div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-suit-spade-fill" style="color:#ef4444"></i>Bomba · Hoje</div>
+      <div class="stat-value"><?php
+        if (!$bomba_status_hoje) echo '—';
+        elseif ($bomba_status_hoje['status'] === 'saiu') echo '💰 ' . $bomba_status_hoje['pontos_ganhos'] . 'pts';
+        elseif ($bomba_status_hoje['status'] === 'perdeu') echo '💥';
+        else echo '🎮';
+      ?></div>
+    </div>
     <?php if (!empty($usuario['is_admin'])): ?>
     <a href="admin/controlegames.php" class="stat-card">
       <div class="stat-label"><i class="bi bi-gear-fill"></i>Admin</div>
@@ -387,6 +403,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games/index.php?game=grade" class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
     <a href="games/index.php?game=boxnba" class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
     <a href="games/index.php?game=conexoes" class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
+    <a href="games/index.php?game=bomba" class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Ache diamantes</div></a>
     <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 
