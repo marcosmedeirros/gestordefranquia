@@ -125,6 +125,34 @@ $PLAYERS = [
     ['n'=>'Clyde Drexler',           't'=>['POR','HOU','LAL'],                         'c'=>'USA','a'=>['CHAMPION','ALLSTAR']],
     ['n'=>'Gary Payton',             't'=>['SEA','MIL','LAL','BOS','MIA'],             'c'=>'USA','a'=>['CHAMPION','ALLSTAR','DPOY']],
     ['n'=>'Shawn Kemp',              't'=>['SEA','CLE','POR','ORL','LAL'],             'c'=>'USA','a'=>['ALLSTAR']],
+    // --- LENDAS CLÁSSICAS ---
+    ['n'=>'Kareem Abdul-Jabbar',     't'=>['MIL','LAL'],                               'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP','SCORING','DPOY']],
+    ['n'=>'David Robinson',          't'=>['SAS'],                                      'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','DPOY','SCORING','ROY']],
+    ['n'=>'James Worthy',            't'=>['LAL'],                                      'c'=>'USA','a'=>['CHAMPION','ALLSTAR','FINALS_MVP']],
+    ['n'=>'Robert Horry',            't'=>['HOU','LAL','PHX','SAS'],                   'c'=>'USA','a'=>['CHAMPION']],
+    ['n'=>'Alonzo Mourning',         't'=>['CHA','MIA','NJN','TOR'],                   'c'=>'USA','a'=>['CHAMPION','ALLSTAR','DPOY']],
+    ['n'=>'Derek Fisher',            't'=>['LAL','OKC','UTA','MEM','NYK','DAL'],       'c'=>'USA','a'=>['CHAMPION']],
+    ['n'=>'Horace Grant',            't'=>['CHI','ORL','LAL','SEA'],                   'c'=>'USA','a'=>['CHAMPION']],
+    ['n'=>'Moses Malone',            't'=>['HOU','PHI','WAS','ATL','MIL'],             'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP']],
+    ['n'=>'Jerry West',              't'=>['LAL'],                                      'c'=>'USA','a'=>['ALLSTAR','FINALS_MVP']],
+    ['n'=>'Elgin Baylor',            't'=>['LAL'],                                      'c'=>'USA','a'=>['ALLSTAR']],
+    ['n'=>'Bob Cousy',               't'=>['BOS'],                                      'c'=>'USA','a'=>['CHAMPION','ALLSTAR']],
+    ['n'=>'Julius Erving',           't'=>['PHI'],                                      'c'=>'USA','a'=>['MVP','ALLSTAR','FINALS_MVP']],
+    ['n'=>'Kevin McHale',            't'=>['BOS'],                                      'c'=>'USA','a'=>['CHAMPION','ALLSTAR','SIXTHMAN']],
+    ['n'=>'Bernard King',            't'=>['NJN','UTA','NYK','WAS','NJN'],             'c'=>'USA','a'=>['ALLSTAR','SCORING']],
+    ['n'=>'Dominique Wilkins',       't'=>['ATL','LAC','BOS','SAS','ORL'],             'c'=>'USA','a'=>['ALLSTAR','SCORING']],
+    ['n'=>'Dan Majerle',             't'=>['PHX','CLE','MIA'],                         'c'=>'USA','a'=>['ALLSTAR']],
+    ['n'=>'Mitch Richmond',          't'=>['GSW','SAC','WAS','LAL','NYK'],             'c'=>'USA','a'=>['ALLSTAR','SCORING','ROY']],
+    ['n'=>'Muggsy Bogues',           't'=>['WAS','CHA','GSW','TOR'],                   'c'=>'USA','a'=>[]],
+    ['n'=>'Detlef Schrempf',         't'=>['DAL','IND','SEA','POR'],                   'c'=>'GER','a'=>['ALLSTAR','SIXTHMAN']],
+    ['n'=>'Drazen Petrovic',         't'=>['POR','NJN'],                               'c'=>'CRO','a'=>[]],
+    ['n'=>'Toni Kukoc',              't'=>['CHI','PHI','ATL','MIL'],                   'c'=>'CRO','a'=>['CHAMPION','SIXTHMAN']],
+    ['n'=>'Dino Radja',              't'=>['BOS'],                                      'c'=>'CRO','a'=>['ALLSTAR']],
+    ['n'=>'Arvydas Sabonis',         't'=>['POR'],                                      'c'=>'LIT','a'=>['ALLSTAR']],
+    ['n'=>'Sarunas Marciulionis',    't'=>['GSW','SEA','SAC','HOU'],                   'c'=>'LIT','a'=>['ALLSTAR']],
+    ['n'=>'Julius Randle',           't'=>['LAL','NOP','NYK','MIN'],                   'c'=>'USA','a'=>['ALLSTAR']],
+    ['n'=>'Peja Stojakovic',         't'=>['SAC','NOP','IND','TOR','DAL'],             'c'=>'SER','a'=>['CHAMPION','ALLSTAR']],
+    ['n'=>'Predrag Stojakovic',      't'=>['SAC'],                                     'c'=>'SER','a'=>[]],
 ];
 
 // Remove duplicatas
@@ -136,21 +164,25 @@ $PLAYERS = array_values(array_filter($PLAYERS, function($p) use (&$seen) {
 }));
 
 $CRITERIA = [
-    ['id'=>'LAL','type'=>'team',  'label'=>'Lakers',            'icon'=>'🟡','full'=>'Los Angeles Lakers'],
-    ['id'=>'GSW','type'=>'team',  'label'=>'Warriors',          'icon'=>'💛','full'=>'Golden State Warriors'],
-    ['id'=>'BOS','type'=>'team',  'label'=>'Celtics',           'icon'=>'🍀','full'=>'Boston Celtics'],
-    ['id'=>'MIA','type'=>'team',  'label'=>'Heat',              'icon'=>'🔴','full'=>'Miami Heat'],
-    ['id'=>'SAS','type'=>'team',  'label'=>'Spurs',             'icon'=>'⚫','full'=>'San Antonio Spurs'],
-    ['id'=>'CHI','type'=>'team',  'label'=>'Bulls',             'icon'=>'🐂','full'=>'Chicago Bulls'],
-    ['id'=>'OKC','type'=>'team',  'label'=>'Thunder',           'icon'=>'⚡','full'=>'OKC Thunder'],
-    ['id'=>'DEN','type'=>'team',  'label'=>'Nuggets',           'icon'=>'⛏️','full'=>'Denver Nuggets'],
-    ['id'=>'DAL','type'=>'team',  'label'=>'Mavericks',         'icon'=>'🐎','full'=>'Dallas Mavericks'],
-    ['id'=>'TOR','type'=>'team',  'label'=>'Raptors',           'icon'=>'🦖','full'=>'Toronto Raptors'],
-    ['id'=>'PHI','type'=>'team',  'label'=>'76ers',             'icon'=>'🔔','full'=>'Philadelphia 76ers'],
-    ['id'=>'MIL','type'=>'team',  'label'=>'Bucks',             'icon'=>'🦌','full'=>'Milwaukee Bucks'],
-    ['id'=>'HOU','type'=>'team',  'label'=>'Rockets',           'icon'=>'🚀','full'=>'Houston Rockets'],
-    ['id'=>'PHX','type'=>'team',  'label'=>'Suns',              'icon'=>'☀️','full'=>'Phoenix Suns'],
-    ['id'=>'CLE','type'=>'team',  'label'=>'Cavaliers',         'icon'=>'⚔️','full'=>'Cleveland Cavaliers'],
+    ['id'=>'LAL','type'=>'team',  'label'=>'Lakers',            'icon'=>'🟡','full'=>'Los Angeles Lakers',      'nba_id'=>1610612747],
+    ['id'=>'GSW','type'=>'team',  'label'=>'Warriors',          'icon'=>'💛','full'=>'Golden State Warriors',   'nba_id'=>1610612744],
+    ['id'=>'BOS','type'=>'team',  'label'=>'Celtics',           'icon'=>'🍀','full'=>'Boston Celtics',          'nba_id'=>1610612738],
+    ['id'=>'MIA','type'=>'team',  'label'=>'Heat',              'icon'=>'🔴','full'=>'Miami Heat',              'nba_id'=>1610612748],
+    ['id'=>'SAS','type'=>'team',  'label'=>'Spurs',             'icon'=>'⚫','full'=>'San Antonio Spurs',       'nba_id'=>1610612759],
+    ['id'=>'CHI','type'=>'team',  'label'=>'Bulls',             'icon'=>'🐂','full'=>'Chicago Bulls',           'nba_id'=>1610612741],
+    ['id'=>'OKC','type'=>'team',  'label'=>'Thunder',           'icon'=>'⚡','full'=>'OKC Thunder',             'nba_id'=>1610612760],
+    ['id'=>'DEN','type'=>'team',  'label'=>'Nuggets',           'icon'=>'⛏️','full'=>'Denver Nuggets',          'nba_id'=>1610612743],
+    ['id'=>'DAL','type'=>'team',  'label'=>'Mavericks',         'icon'=>'🐎','full'=>'Dallas Mavericks',        'nba_id'=>1610612742],
+    ['id'=>'TOR','type'=>'team',  'label'=>'Raptors',           'icon'=>'🦖','full'=>'Toronto Raptors',         'nba_id'=>1610612761],
+    ['id'=>'PHI','type'=>'team',  'label'=>'76ers',             'icon'=>'🔔','full'=>'Philadelphia 76ers',      'nba_id'=>1610612755],
+    ['id'=>'MIL','type'=>'team',  'label'=>'Bucks',             'icon'=>'🦌','full'=>'Milwaukee Bucks',         'nba_id'=>1610612749],
+    ['id'=>'HOU','type'=>'team',  'label'=>'Rockets',           'icon'=>'🚀','full'=>'Houston Rockets',         'nba_id'=>1610612745],
+    ['id'=>'PHX','type'=>'team',  'label'=>'Suns',              'icon'=>'☀️','full'=>'Phoenix Suns',            'nba_id'=>1610612756],
+    ['id'=>'CLE','type'=>'team',  'label'=>'Cavaliers',         'icon'=>'⚔️','full'=>'Cleveland Cavaliers',     'nba_id'=>1610612739],
+    ['id'=>'NYK','type'=>'team',  'label'=>'Knicks',            'icon'=>'🗽','full'=>'New York Knicks',          'nba_id'=>1610612752],
+    ['id'=>'LAC','type'=>'team',  'label'=>'Clippers',          'icon'=>'✂️','full'=>'Los Angeles Clippers',    'nba_id'=>1610612746],
+    ['id'=>'MIN','type'=>'team',  'label'=>'Timberwolves',      'icon'=>'🐺','full'=>'Minnesota Timberwolves',  'nba_id'=>1610612750],
+    ['id'=>'NOP','type'=>'team',  'label'=>'Pelicans',          'icon'=>'🦅','full'=>'New Orleans Pelicans',    'nba_id'=>1610612740],
     ['id'=>'USA','type'=>'nation','label'=>'EUA',               'icon'=>'🇺🇸','full'=>'Estados Unidos'],
     ['id'=>'BRA','type'=>'nation','label'=>'Brasil',            'icon'=>'🇧🇷','full'=>'Brasil'],
     ['id'=>'FRA','type'=>'nation','label'=>'França',            'icon'=>'🇫🇷','full'=>'França'],
@@ -169,6 +201,42 @@ $CRITERIA = [
     ['id'=>'ROY',       'type'=>'award','label'=>'Calouro Ano',     'icon'=>'🌟','full'=>'Calouro do Ano (ROY)'],
     ['id'=>'SCORING',   'type'=>'award','label'=>'Artilheiro',      'icon'=>'🎯','full'=>'Artilheiro da Temporada'],
     ['id'=>'SIXTHMAN',  'type'=>'award','label'=>'6º Homem',        'icon'=>'🪑','full'=>'Sexto Homem do Ano'],
+];
+
+// NBA player IDs para headshots: https://cdn.nba.com/headshots/nba/latest/260x190/{id}.png
+$PLAYER_PIDS = [
+    'LeBron James'=>2544,'Stephen Curry'=>201939,'Kevin Durant'=>201142,
+    'Giannis Antetokounmpo'=>203507,'Nikola Jokic'=>203999,'Luka Doncic'=>1629029,
+    'Joel Embiid'=>203954,'Kawhi Leonard'=>202695,'Kobe Bryant'=>977,
+    'Shaquille O\'Neal'=>406,'Dwyane Wade'=>2548,'Chris Bosh'=>76001,
+    'Dirk Nowitzki'=>1717,'Tim Duncan'=>1495,'Tony Parker'=>2225,
+    'Manu Ginobili'=>1938,'Kevin Garnett'=>708,'Paul Pierce'=>1718,
+    'Ray Allen'=>951,'Allen Iverson'=>947,'Vince Carter'=>1713,
+    'Tracy McGrady'=>1503,'Carmelo Anthony'=>2546,'Russell Westbrook'=>201566,
+    'James Harden'=>201935,'Derrick Rose'=>201565,'Jimmy Butler'=>202710,
+    'Paul George'=>202331,'Kyrie Irving'=>202681,'Damian Lillard'=>203081,
+    'Chris Paul'=>101108,'Steve Nash'=>959,'Jason Kidd'=>714,
+    'Pau Gasol'=>1932,'Rudy Gobert'=>203497,'Victor Wembanyama'=>1641705,
+    'Andrew Wiggins'=>203952,'Jamal Murray'=>1627750,
+    'Shai Gilgeous-Alexander'=>1628983,'DeMar DeRozan'=>201942,
+    'Draymond Green'=>203110,'Klay Thompson'=>202691,'Anthony Davis'=>203076,
+    'Jayson Tatum'=>1628369,'Bam Adebayo'=>1628389,'Donovan Mitchell'=>1628378,
+    'Devin Booker'=>1626164,'Hakeem Olajuwon'=>165,'Charles Barkley'=>787,
+    'Scottie Pippen'=>979,'Dennis Rodman'=>1007,'Patrick Ewing'=>121,
+    'Dikembe Mutombo'=>137,'Magic Johnson'=>1020,'Larry Bird'=>1449,
+    'Michael Jordan'=>893,'Isiah Thomas'=>262,'John Stockton'=>304,
+    'Karl Malone'=>252,'Clyde Drexler'=>781,'Gary Payton'=>730,
+    'Shawn Kemp'=>713,'Wilt Chamberlain'=>76375,'Bill Russell'=>76343,
+    'Kareem Abdul-Jabbar'=>76003,'David Robinson'=>231,'James Worthy'=>311,
+    'Robert Horry'=>400,'Alonzo Mourning'=>174,'Derek Fisher'=>2524,
+    'Horace Grant'=>363,'Moses Malone'=>76550,'Julius Erving'=>76823,
+    'Kevin McHale'=>76872,'Dominique Wilkins'=>775,
+    'Toni Kukoc'=>758,'Peja Stojakovic'=>2038,'Julius Randle'=>203944,
+    'Khris Middleton'=>203114,'Jrue Holiday'=>201950,'Trae Young'=>1629027,
+    'Karl-Anthony Towns'=>1626157,'Zion Williamson'=>1629627,'Kyle Lowry'=>200768,
+    'Dwight Howard'=>2730,'Rajon Rondo'=>200765,'DeMarcus Cousins'=>202326,
+    'Brook Lopez'=>201572,'Jaylen Brown'=>1627759,'Anthony Edwards'=>1630162,
+    'Paolo Banchero'=>1631094,'Grant Hill'=>397,'Reggie Miller'=>855,
 ];
 
 function playerMatchesCriteria(array $p, array $c): bool {
@@ -314,6 +382,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .header-col,.header-row{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;text-align:center;position:relative;cursor:default}
 .header-col{border-radius:12px 12px 6px 6px}
 .header-row{border-radius:6px 12px 12px 6px}
+.header-logo{width:38px;height:38px;object-fit:contain;display:block}
 .header-icon{font-size:1.5rem;line-height:1}
 .header-label{font-size:9px;font-weight:700;color:var(--text2);letter-spacing:.3px;line-height:1.2}
 .header-type{font-size:7px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:1px 5px;border-radius:999px;margin-top:2px}
@@ -330,9 +399,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .cell.locked{cursor:default;opacity:.5}
 @keyframes wrongFlash{0%,100%{background:var(--panel)}50%{background:rgba(252,0,37,.18);border-color:var(--red)}}
 .cell-plus{font-size:20px;color:var(--text3);font-weight:300;line-height:1}
-.cell-player{padding:6px 4px;text-align:center;width:100%}
+.cell-player{padding:5px 4px;text-align:center;width:100%}
 .cell-player-name{font-size:9.5px;font-weight:700;color:var(--text);line-height:1.3}
 .cell-player-icon{font-size:1.4rem;display:block;margin-bottom:2px}
+.cell-headshot{width:50px;height:37px;object-fit:contain;display:block;margin:0 auto 2px;border-radius:5px}
 
 /* ── SEARCH MODAL ── */
 .search-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px 20px}
@@ -444,7 +514,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     ?>
     <div class="header-col tooltip-wrap">
       <span class="tooltip-body"><?= htmlspecialchars($col['full']) ?></span>
-      <span class="header-icon"><?= $col['icon'] ?></span>
+      <?php if ($col['type'] === 'team' && !empty($col['nba_id'])): ?>
+        <img src="https://cdn.nba.com/logos/nba/<?= $col['nba_id'] ?>/global/L/logo.svg" class="header-logo" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="header-icon" style="display:none"><?= $col['icon'] ?></span>
+      <?php else: ?>
+        <span class="header-icon"><?= $col['icon'] ?></span>
+      <?php endif; ?>
       <span class="header-label"><?= htmlspecialchars($col['label']) ?></span>
       <span class="header-type <?= $typeClass ?>"><?= $typeLabel ?></span>
     </div>
@@ -458,7 +532,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     ?>
       <div class="header-row tooltip-wrap">
         <span class="tooltip-body"><?= htmlspecialchars($row['full']) ?></span>
-        <span class="header-icon"><?= $row['icon'] ?></span>
+        <?php if ($row['type'] === 'team' && !empty($row['nba_id'])): ?>
+          <img src="https://cdn.nba.com/logos/nba/<?= $row['nba_id'] ?>/global/L/logo.svg" class="header-logo" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="header-icon" style="display:none"><?= $row['icon'] ?></span>
+        <?php else: ?>
+          <span class="header-icon"><?= $row['icon'] ?></span>
+        <?php endif; ?>
         <span class="header-label"><?= htmlspecialchars($row['label']) ?></span>
         <span class="header-type <?= $typeClass ?>"><?= $typeLabel ?></span>
       </div>
@@ -482,6 +560,7 @@ const GRID_ROWS   = <?= json_encode(array_values($grid['rows'])) ?>;
 const GRID_COLS   = <?= json_encode(array_values($grid['cols'])) ?>;
 const PONTOS      = <?= (int)$PONTOS_VITORIA ?>;
 const JA_TERMINOU = <?= $jaTerminou ? 'true' : 'false' ?>;
+const PLAYER_PIDS = <?= json_encode((object)$PLAYER_PIDS) ?>;
 
 let answers  = <?= json_encode((object)array_fill_keys(array_keys($validMap), null)) ?>;
 let tries    = <?= (int)$tentativasIniciais ?>;
@@ -493,6 +572,14 @@ if (Array.isArray(savedAnswers)) {
   savedAnswers.forEach(r => {
     if (r && r.key && r.player) answers[r.key] = r.player;
   });
+}
+
+function buildCellHtml(name) {
+  const pid = PLAYER_PIDS[name];
+  const media = pid
+    ? `<img src="https://cdn.nba.com/headshots/nba/latest/260x190/${pid}.png" class="cell-headshot" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="cell-player-icon" style="display:none">🏀</span>`
+    : `<span class="cell-player-icon">🏀</span>`;
+  return `<div class="cell-player">${media}<div class="cell-player-name">${name}</div></div>`;
 }
 
 // Estado atual da célula selecionada
@@ -507,7 +594,7 @@ function updateUI() {
     const ans = answers[key];
     if (ans) {
       el.classList.add('done','correct');
-      el.innerHTML = `<div class="cell-player"><span class="cell-player-icon">🏀</span><div class="cell-player-name">${ans}</div></div>`;
+      el.innerHTML = buildCellHtml(ans);
     } else if (finished) {
       el.classList.add('locked');
     }
@@ -578,8 +665,12 @@ function renderSuggestions(query) {
   }
   box.innerHTML = matches.map((n,i) => {
     const highlighted = n.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'), '<mark>$1</mark>');
-    return `<div class="suggestion-item" data-idx="${i}" data-name="${n}" onclick="selectPlayer('${n.replace(/'/,"\\'")}')">
-      🏀 ${highlighted}
+    const pid = PLAYER_PIDS[n];
+    const avatar = pid
+      ? `<img src="https://cdn.nba.com/headshots/nba/latest/260x190/${pid}.png" style="width:24px;height:18px;object-fit:contain;border-radius:3px;flex-shrink:0" onerror="this.style.display='none'">`
+      : `<span style="font-size:14px;flex-shrink:0">🏀</span>`;
+    return `<div class="suggestion-item" style="display:flex;align-items:center;gap:8px" data-idx="${i}" data-name="${n}" onclick="selectPlayer('${n.replace(/'/,"\\'")}')">
+      ${avatar} ${highlighted}
     </div>`;
   }).join('');
   focusedIdx = -1;
@@ -623,7 +714,7 @@ function selectPlayer(name) {
     answers[key] = name;
     const el = document.getElementById(`cell_${r}_${c}`);
     el.classList.add('done','correct');
-    el.innerHTML = `<div class="cell-player"><span class="cell-player-icon">🏀</span><div class="cell-player-name">${name}</div></div>`;
+    el.innerHTML = buildCellHtml(name);
     closeSearch();
     checkFinish();
   } else {

@@ -16,7 +16,10 @@
       "Read(//c/Users/marco/.claude/projects/c--Users-marco-IdeaProjects-gestordefranquia\" 2>/dev/**)",
       "Bash(grep -n -A 3 'if \\($seasonYear\\)' api/trades.php)",
       "Bash(php -l api/trades.php)",
-      "Bash(where php *)"
+      "Bash(where php *)",
+      "Bash(php -l games/games/boxnba.php)",
+      "PowerShell(php -l \"c:\\\\Users\\\\marco\\\\IdeaProjects\\\\gestordefranquia\\\\games\\\\games\\\\boxnba.php\" 2>&1)",
+      "PowerShell(php -l \"c:\\\\Users\\\\marco\\\\IdeaProjects\\\\gestordefranquia\\\\games\\\\games\\\\conexoes.php\" 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\marco\\.claude\\projects\\c--Users-marco-IdeaProjects-gestordefranquia\\memory"

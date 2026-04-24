@@ -195,6 +195,51 @@ $PUZZLES = [
          'dica'=>'Considerados os melhores alas-armadores (SG) de todos os tempos',
          'jogadores'=>['Michael Jordan','Kobe Bryant','Allen Iverson','Dwyane Wade']],
     ],
+    // 11
+    [
+        ['cor'=>'green',  'label'=>'Lakers Showtime (1980–88)',
+         'dica'=>'Foram campeões com o Los Angeles Lakers durante a era Showtime',
+         'jogadores'=>['Magic Johnson','Kareem Abdul-Jabbar','James Worthy','Byron Scott']],
+        ['cor'=>'yellow', 'label'=>'Boston Celtics campeões 80s',
+         'dica'=>'Fizeram parte dos Celtics que dominaram a década de 1980',
+         'jogadores'=>['Larry Bird','Kevin McHale','Robert Parish','Danny Ainge']],
+        ['cor'=>'red',    'label'=>'Bad Boys Detroit Pistons (1989–90)',
+         'dica'=>'Conquistaram dois títulos consecutivos com o Detroit Pistons',
+         'jogadores'=>['Isiah Thomas','Joe Dumars','Dennis Rodman','Bill Laimbeer']],
+        ['cor'=>'purple', 'label'=>'Hall da Fama sem anel de campeão',
+         'dica'=>'Grandes estrelas que se aposentaram sem conquistar o título da NBA',
+         'jogadores'=>['Dominique Wilkins','Patrick Ewing','Reggie Miller','Karl Malone']],
+    ],
+    // 12
+    [
+        ['cor'=>'green',  'label'=>'Draft Class 1984 — o melhor de todos',
+         'dica'=>'Foram selecionados no histórico Draft de 1984',
+         'jogadores'=>['Michael Jordan','Hakeem Olajuwon','Charles Barkley','John Stockton']],
+        ['cor'=>'yellow', 'label'=>'Draft Class 1985',
+         'dica'=>'Foram selecionados no Draft de 1985',
+         'jogadores'=>['Patrick Ewing','Karl Malone','Joe Dumars','Chris Mullin']],
+        ['cor'=>'red',    'label'=>'Draft Class 1992',
+         'dica'=>'Foram selecionados no Draft de 1992',
+         'jogadores'=>["Shaquille O'Neal",'Alonzo Mourning','Robert Horry','Christian Laettner']],
+        ['cor'=>'purple', 'label'=>'Draft Class 1996',
+         'dica'=>'Foram selecionados no lendário Draft de 1996',
+         'jogadores'=>['Kobe Bryant','Allen Iverson','Ray Allen','Steve Nash']],
+    ],
+    // 13
+    [
+        ['cor'=>'green',  'label'=>'Boston Celtics dynasty (anos 60)',
+         'dica'=>'Definiram a maior dinastia da história da NBA nos anos 1960',
+         'jogadores'=>['Bill Russell','Bob Cousy','John Havlicek','Dave Cowens']],
+        ['cor'=>'yellow', 'label'=>'Los Angeles Lakers através das eras',
+         'dica'=>'Lendas que vestiram a camisa do Los Angeles Lakers em décadas distintas',
+         'jogadores'=>['Jerry West','Elgin Baylor','Kareem Abdul-Jabbar','Magic Johnson']],
+        ['cor'=>'red',    'label'=>'Philadelphia connection — Sixers/Warriors',
+         'dica'=>'Todos tiveram passagens marcantes pelo franchise de Philadelphia',
+         'jogadores'=>['Wilt Chamberlain','Julius Erving','Charles Barkley','Allen Iverson']],
+        ['cor'=>'purple', 'label'=>'Houston Rockets lendas de diferentes eras',
+         'dica'=>'Cada um representou uma era diferente do Houston Rockets',
+         'jogadores'=>['Hakeem Olajuwon','Moses Malone','Clyde Drexler','Tracy McGrady']],
+    ],
 ];
 
 // Fix puzzle 9 that had a placeholder error:
