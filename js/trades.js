@@ -58,7 +58,7 @@ const formatTradePickDisplay = (pick) => {
     ? `${pick.original_team_city} ${pick.original_team_name}` 
     : 'Time';
   
-  let display = pickNumber
+  let display = (pickNumber && isCurrentDraft)
     ? `Pick ${pickNumber} (${originalTeam})${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round} (${originalTeam})`;
 
@@ -488,17 +488,15 @@ const buildPickSummary = (pick) => {
     ? `via ${pick.last_owner_city} ${pick.last_owner_name}`
     : '';
   const metaParts = [];
-  if (pickNumber) {
+  if (pickNumber && isCurrentDraft) {
     metaParts.push(`${year} R${round}`);
-  }
-  if (isCurrentDraft) {
     metaParts.push('Draft atual');
   }
   if (pick.swap_type) {
     metaParts.push(pick.swap_type);
   }
   return {
-    title: pickNumber ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
+    title: (pickNumber && isCurrentDraft) ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
     via,
     meta: metaParts.join(' - ')
