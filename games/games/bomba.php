@@ -226,15 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
 
-        .navbar-custom {
-            background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 16px;
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .navbar-brand { font-size: 18px; font-weight: 800; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 8px; }
-        .saldo-badge { background: #FC082B; color: #fff; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 14px; }
-
         .game-wrapper { max-width: 420px; margin: 0 auto; padding: 16px; }
 
         .info-bar {
@@ -324,16 +315,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
         }
         .volta-btn:hover { color: var(--text); background: #222; }
 
+        /* Topbar */
+        .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; background:#101013; border-bottom:1px solid rgba(255,255,255,.07); position:sticky; top:0; z-index:50; }
+        .topbar-left { display:flex; align-items:center; gap:10px; }
+        .back-btn { display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9px; border:1px solid rgba(255,255,255,.07); background:transparent; color:#868690; text-decoration:none; font-size:14px; transition:.2s; flex-shrink:0; }
+        .back-btn:hover { border-color:#ef4444; color:#ef4444; background:rgba(239,68,68,.1); }
+        .game-title { font-size:15px; font-weight:800; color:#f0f0f3; }
+        .game-title span { color:#ef4444; }
+        .daily-badge { display:inline-flex; align-items:center; gap:4px; font-size:8px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; padding:2px 8px; border-radius:999px; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.25); color:#ef4444; margin-left:6px; }
+        .topbar-right { display:flex; align-items:center; gap:6px; }
+        .chip { display:flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; background:#16161a; border:1px solid rgba(255,255,255,.07); font-size:11px; font-weight:700; color:#f0f0f3; white-space:nowrap; }
+
         .hint { font-size: 12px; color: var(--text-2); text-align: center; margin-bottom: 12px; }
     </style>
 </head>
 <body>
-<nav class="navbar-custom">
-    <a href="../index.php" class="navbar-brand">
-        <span>🎮</span><span>FBA <strong style="color:#FC082B">Games</strong></span>
-    </a>
-    <span class="saldo-badge"><?= number_format($meu_perfil['pontos'] ?? 0) ?> pts</span>
-</nav>
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="../games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <span class="game-title">💣 <span>Bomba</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
+  </div>
+  <div class="topbar-right">
+    <div class="chip"><i class="bi bi-coin" style="color:#f59e0b"></i><?= number_format($meu_perfil['pontos'] ?? 0, 0, ',', '.') ?></div>
+  </div>
+</div>
 
 <div class="game-wrapper">
 
@@ -429,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 
     <?php endif; ?>
 
-    <a href="../index.php" class="volta-btn"><i class="bi bi-arrow-left"></i> Voltar aos Jogos</a>
+    <a href="../games.php" class="volta-btn"><i class="bi bi-arrow-left"></i> Voltar aos Jogos</a>
 </div>
 
 <script>

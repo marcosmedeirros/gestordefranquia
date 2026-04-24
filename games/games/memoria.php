@@ -173,167 +173,129 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-br" data-bs-theme="dark">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memória RAM - FBA games</title>
-    
-    <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Memória · FBA</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07070a;--panel:#101013;--panel2:#16161a;--panel3:#1c1c21;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.14);
+  --red:#fc0025;--red-soft:rgba(252,0,37,.12);--red-glow:rgba(252,0,37,.25);
+  --text:#f0f0f3;--text2:#868690;--text3:#3c3c44;
+  --green:#22c55e;--amber:#f59e0b;--font:'Poppins',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
-    <style>
-        /* PADRÃO DARK MODE */
-        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
-        
-        /* Navbar Padronizada */
-        .navbar-custom { 
-            background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
-            border-bottom: 1px solid #333;
-            padding: 15px; 
-        }
-        .saldo-badge { 
-            background-color: #FC082B; color: #000; padding: 8px 15px; 
-            border-radius: 20px; font-weight: 800; font-size: 1.1em;
-            box-shadow: 0 0 10px rgba(252, 8, 43, 0.3);
-        }
-        .streak-badge {
-            background-color: #1e1e1e;
-            color: #FC082B;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 800;
-            font-size: 0.95em;
-            border: 1px solid #FC082B;
-        }
-        .admin-btn { 
-            background-color: #ff6d00; color: white; padding: 5px 15px; 
-            border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.9em; transition: 0.3s; 
-        }
-        .admin-btn:hover { background-color: #e65100; color: white; box-shadow: 0 0 8px #ff6d00; }
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.back-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text2);text-decoration:none;font-size:14px;transition:.2s;flex-shrink:0}
+.back-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.game-title{font-size:15px;font-weight:800;color:var(--text)}
+.game-title span{color:var(--red)}
+.daily-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--red-soft);border:1px solid var(--red-glow);color:var(--red);margin-left:6px}
+.topbar-right{display:flex;align-items:center;gap:6px}
+.chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
+.chip.fire{border-color:rgba(245,158,11,.3)!important;color:var(--amber)!important}
 
-        /* JOGO */
-        .game-container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        
-        .memory-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 20px;
-            perspective: 1000px;
-        }
+.main{max-width:520px;margin:0 auto;padding:16px 12px 60px}
 
-        .card-game {
-            background-color: transparent;
-            aspect-ratio: 1;
-            border-radius: 8px;
-            cursor: pointer;
-            position: relative;
-            transform-style: preserve-3d;
-            transition: transform 0.5s;
-        }
+.stats-row{display:flex;gap:8px;margin-bottom:16px}
+.stat-pill{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 8px;text-align:center}
+.stat-pill .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:3px}
+.stat-pill .val{font-size:18px;font-weight:800;color:var(--text)}
 
-        .card-game.flip { transform: rotateY(180deg); }
-    .card-game.matched .card-back { background-color: #FC082B !important; border-color: #FC082B; box-shadow: 0 0 10px rgba(252, 8, 43, 0.5); }
+.memory-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;perspective:1000px}
+.card-game{aspect-ratio:1;border-radius:12px;cursor:pointer;position:relative;transform-style:preserve-3d;transition:transform .45s}
+.card-game.flip{transform:rotateY(180deg)}
+.card-game.matched .card-back{background:rgba(252,0,37,.18)!important;border-color:rgba(252,0,37,.5)!important;box-shadow:0 0 14px rgba(252,0,37,.3)!important}
+.card-face{width:100%;height:100%;position:absolute;backface-visibility:hidden;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border2)}
+.card-front{background:var(--panel2);color:var(--text3);font-size:1.1rem;transform:rotateY(0deg)}
+.card-back{background:var(--panel3);color:var(--text);font-size:2rem;transform:rotateY(180deg)}
 
-        .card-face {
-            width: 100%; height: 100%; position: absolute;
-            backface-visibility: hidden; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-            border: 1px solid #333;
-        }
-        
-        .card-front { background-color: #1e1e1e; color: #555; font-size: 1.5rem; transform: rotateY(0deg); }
-        .card-back { background-color: #f5f5f5; color: #2c3e50; transform: rotateY(180deg); }
+.result-card{background:var(--panel);border:1px solid var(--border2);border-radius:18px;padding:28px 20px;text-align:center;margin:16px 0}
+.result-icon{font-size:3.2rem;display:block;margin-bottom:10px}
+.result-title{font-size:20px;font-weight:800;margin-bottom:6px}
+.result-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5}
+.btn-back{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 24px;border-radius:12px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:13px;font-weight:700;text-decoration:none;transition:all .2s;width:100%}
+.btn-back:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
 
-        .stats-bar {
-            background: #1e1e1e;
-            padding: 15px;
-            border-radius: 50px;
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 20px;
-            font-weight: bold;
-            border: 1px solid #333;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        
-        .limit-warning { color: #ff3d00; animation: pulse 1s infinite; text-shadow: 0 0 5px #ff3d00; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-    </style>
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.warn{animation:pulse 1.1s infinite;color:var(--red)!important}
+
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
 </head>
 <body>
 
-<!-- Header Padronizado -->
-<div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top">
-    <div class="d-flex align-items-center gap-3">
-        <span class="fs-5">Olá, <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong></span>
-        <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
-            <a href="../admin/dashboard.php" class="admin-btn"><i class="bi bi-gear-fill me-1"></i> Admin</a>
-        <?php endif; ?>
-    </div>
-    
-    <div class="d-flex align-items-center gap-3">
-        <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
-        <span class="streak-badge">Sequência: <?= (int)$streak_atual ?></span>
-        <span class="saldo-badge me-2"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
-    </div>
-</div>
-
-<div class="container game-container text-center mt-3">
-    
-    <h3 class="mb-4 text-info fw-bold"><i class="bi bi-cpu-fill me-2"></i>MEMÓRIA RAM</h3>
-
-    <?php if($status_atual == 'venceu'): ?>
-        <div class="alert alert-success mt-5 p-5 shadow-lg border-0 bg-success bg-opacity-25 text-white">
-            <h1 class="display-1">🧠🏆</h1>
-            <h3 class="mt-3">Missão Cumprida!</h3>
-            <p class="lead">Você completou o desafio em <strong><?= $dados_jogo['movimentos'] ?></strong> movimentos.</p>
-            <p>Pontos creditados: <strong>+<?= $PONTOS_VITORIA ?></strong></p>
-            <a href="../index.php" class="btn btn-outline-light btn-lg mt-3 fw-bold">Voltar ao Painel</a>
-        </div>
-    <?php elseif($status_atual == 'perdeu'): ?>
-        <div class="alert alert-danger mt-5 p-5 shadow-lg border-0 bg-danger bg-opacity-25 text-white">
-            <h1 class="display-1">💥🧠</h1>
-            <h3 class="mt-3">Você perdeu!</h3>
-            <p class="lead">Você atingiu o limite de <strong><?= $LIMITE_MOVIMENTOS ?></strong> movimentos sem completar o desafio.</p>
-            <p class="fs-5 fw-bold">Tente novamente amanhã! 🧠</p>
-            <a href="../index.php" class="btn btn-outline-light btn-lg mt-3 fw-bold">Voltar ao Painel</a>
-        </div>
-    <?php else: ?>
-
-        <div class="stats-bar text-secondary">
-            <span><i class="bi bi-stopwatch me-2"></i>Tempo: <span id="timer" class="text-white"><?= $dados_jogo['tempo_segundos'] ?></span>s</span>
-            <span>
-                <i class="bi bi-arrow-repeat me-2"></i>Movimentos: 
-                <span id="moves" class="<?= ($movimentos_atuais >= $LIMITE_MOVIMENTOS - 4) ? 'limit-warning' : 'text-white' ?>">
-                    <?= $movimentos_atuais ?>
-                </span> / <?= $LIMITE_MOVIMENTOS ?>
-            </span>
-        </div>
-
-        <div class="memory-grid" id="grid">
-            <?php foreach($tabuleiro_atual as $carta): ?>
-                <div class="card-game <?= $carta['encontrado'] ? 'flip matched' : '' ?>" 
-                     data-id="<?= $carta['id'] ?>" 
-                     data-emoji="<?= $carta['emoji'] ?>"
-                     <?= $carta['encontrado'] ? 'style="pointer-events: none;"' : '' ?>>
-                    <div class="card-face card-front"><i class="bi bi-cpu-fill"></i></div>
-                    <div class="card-face card-back"><?= $carta['emoji'] ?></div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="../games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+    <span class="game-title">🧠 <span>Memória</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
+  </div>
+  <div class="topbar-right">
+    <?php if ($streak_atual > 0): ?>
+    <div class="chip fire"><i class="bi bi-fire"></i><?= $streak_atual ?></div>
     <?php endif; ?>
-
+    <div class="chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($meu_perfil['pontos'],0,',','.') ?></div>
+  </div>
 </div>
 
-<?php if($status_atual == 'jogando'): ?>
+<div class="main">
+
+  <?php if($status_atual === 'venceu'): ?>
+  <div class="result-card" style="border-color:rgba(34,197,94,.3)">
+    <span class="result-icon">🧠🏆</span>
+    <div class="result-title" style="color:var(--green)">Missão Cumprida!</div>
+    <div class="result-sub">Completou em <strong style="color:var(--text)"><?= $dados_jogo['movimentos'] ?></strong> movimentos · <strong style="color:var(--green)">+<?= $PONTOS_VITORIA ?> moedas</strong></div>
+    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+  </div>
+
+  <?php elseif($status_atual === 'perdeu'): ?>
+  <div class="result-card" style="border-color:rgba(252,0,37,.3)">
+    <span class="result-icon">💥</span>
+    <div class="result-title" style="color:var(--red)">Você perdeu!</div>
+    <div class="result-sub">Atingiu o limite de <strong style="color:var(--text)"><?= $LIMITE_MOVIMENTOS ?></strong> movimentos sem completar. Tente amanhã!</div>
+    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+  </div>
+
+  <?php else: ?>
+
+  <div class="stats-row">
+    <div class="stat-pill">
+      <div class="lbl"><i class="bi bi-stopwatch"></i> Tempo</div>
+      <div class="val" id="timer"><?= $dados_jogo['tempo_segundos'] ?>s</div>
+    </div>
+    <div class="stat-pill">
+      <div class="lbl"><i class="bi bi-arrow-repeat"></i> Movimentos</div>
+      <div class="val <?= ($movimentos_atuais >= $LIMITE_MOVIMENTOS - 4) ? 'warn' : '' ?>" id="moves"><?= $movimentos_atuais ?></div>
+    </div>
+    <div class="stat-pill">
+      <div class="lbl">Limite</div>
+      <div class="val"><?= $LIMITE_MOVIMENTOS ?></div>
+    </div>
+  </div>
+
+  <div class="memory-grid" id="grid">
+    <?php foreach($tabuleiro_atual as $carta): ?>
+    <div class="card-game <?= $carta['encontrado'] ? 'flip matched' : '' ?>"
+         data-id="<?= $carta['id'] ?>"
+         data-emoji="<?= $carta['emoji'] ?>"
+         <?= $carta['encontrado'] ? 'style="pointer-events:none"' : '' ?>>
+      <div class="card-face card-front"><i class="bi bi-cpu-fill"></i></div>
+      <div class="card-face card-back"><?= $carta['emoji'] ?></div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
+  <?php endif; ?>
+</div>
+
+<?php if($status_atual === 'jogando'): ?>
 <script>
     const LIMITE = <?= $LIMITE_MOVIMENTOS ?>;
     let cards = document.querySelectorAll('.card-game');
@@ -353,25 +315,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     function startTimer() {
         if(gameStarted) return;
         gameStarted = true;
-        timerInterval = setInterval(() => {
-            seconds++; timerDisplay.textContent = seconds;
-        }, 1000);
+        timerInterval = setInterval(() => { seconds++; timerDisplay.textContent = seconds + 's'; }, 1000);
     }
     if(moves > 0) startTimer();
 
     function flipCard() {
-        if (lockBoard || this === firstCard) return;
+        if(lockBoard || this === firstCard) return;
         startTimer();
         this.classList.add('flip');
-        if (!hasFlippedCard) { hasFlippedCard = true; firstCard = this; return; }
+        if(!hasFlippedCard) { hasFlippedCard = true; firstCard = this; return; }
         secondCard = this;
         incrementMoves();
         checkForMatch();
     }
 
     function checkForMatch() {
-        let isMatch = firstCard.dataset.emoji === secondCard.dataset.emoji;
-        isMatch ? disableCards() : unflipCards();
+        firstCard.dataset.emoji === secondCard.dataset.emoji ? disableCards() : unflipCards();
     }
 
     function disableCards() {
@@ -395,9 +354,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     function incrementMoves() {
         moves++; movesDisplay.textContent = moves;
-        if(moves >= LIMITE - 4) { movesDisplay.classList.remove('text-white'); movesDisplay.classList.add('limit-warning'); }
+        if(moves >= LIMITE - 4) movesDisplay.classList.add('warn');
         if(moves >= LIMITE) {
-            // trava imediatamente e força salvamento/derrota
             lockBoard = true;
             cards.forEach(c => c.removeEventListener('click', flipCard));
             if(timerInterval) clearInterval(timerInterval);
@@ -413,17 +371,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         formData.append('movimentos', moves);
         formData.append('tempo', seconds);
         formData.append('pares_encontrados', JSON.stringify(encontrados));
-
         fetch('index.php?game=memoria', { method: 'POST', body: formData })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
-            if(data.status === 'venceu') setTimeout(() => location.reload(), 500);
-            else if (data.status === 'perdeu') setTimeout(() => location.reload(), 500);
+            if(data.status === 'venceu' || data.status === 'perdeu') setTimeout(() => location.reload(), 500);
         });
     }
 </script>
 <?php endif; ?>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

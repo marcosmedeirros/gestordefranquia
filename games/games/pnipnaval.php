@@ -462,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         <span class="text-secondary small border-start border-secondary ps-3">Capitão <?= htmlspecialchars($meu_perfil['nome']) ?></span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Sair</a>
+        <a href="../games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Sair</a>
         <span class="badge bg-primary fs-6 shadow-sm"><i class="bi bi-coin me-1"></i> <?= number_format($meu_perfil['pontos'], 0, ',', '.') ?></span>
     </div>
 </div>

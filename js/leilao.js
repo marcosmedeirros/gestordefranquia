@@ -419,8 +419,13 @@ async function carregarLeiloesAdmin() {
                             <i class="bi bi-eye"></i> Ver Propostas
                         </button>
                         ${leilao.status === 'ativo' ? `
-                        <button class="btn btn-sm btn-danger" onclick="cancelarLeilao(${leilao.id})">
+                        <button class="btn btn-sm btn-danger ms-1" onclick="cancelarLeilao(${leilao.id})">
                             <i class="bi bi-x-lg"></i> Cancelar
+                        </button>
+                        ` : ''}
+                        ${leilao.status === 'finalizado' ? `
+                        <button class="btn btn-sm btn-warning ms-1" onclick="reverterLeilao(${leilao.id}, '${(leilao.player_name || '').replace(/'/g, "\\'")}')">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reverter
                         </button>
                         ` : ''}
                     </td>
@@ -816,10 +821,10 @@ async function verMinhasPropostasRecebidas(leilaoId) {
                         <ul>
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
-                        ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
-                        ${proposta.obs ? `<p class="text-muted"><strong>Obs:</strong> ${proposta.obs}</p>` : ''}
+                        ${proposta.notas ? `<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#3b82f6;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-chat-left-text me-1"></i>O que vai dar na proposta</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.notas}</p></div>` : ''}
+                        ${proposta.obs ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs}</p></div>` : ''}
                         ${proposta.status === 'pendente' ? `
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 mt-3">
                             <button class="btn btn-success" onclick="aceitarProposta(${proposta.id})">
                                 <i class="bi bi-check-lg"></i> Aceitar Proposta
                             </button>
@@ -881,8 +886,8 @@ async function verPropostasEnviadas(leilaoId) {
                         <ul>
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
-                        ${proposta.notas ? `<p class="text-muted"><strong>Observacoes:</strong> ${proposta.notas}</p>` : ''}
-                        ${proposta.obs ? `<p class="text-muted"><strong>Obs:</strong> ${proposta.obs}</p>` : ''}
+                        ${proposta.notas ? `<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#3b82f6;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-chat-left-text me-1"></i>O que vai dar na proposta</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.notas}</p></div>` : ''}
+                        ${proposta.obs ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs}</p></div>` : ''}
                     </div>
                 </div>`;
             });
@@ -983,6 +988,29 @@ async function aceitarProposta(propostaId) {
     } catch (error) {
         console.error('Erro:', error);
         alert('Erro ao aceitar proposta');
+    }
+}
+
+async function reverterLeilao(leilaoId, playerName) {
+    if (!confirm(`Reverter leilão de "${playerName}"?\n\nIsso irá desfazer a troca: o jogador retorna ao time de origem e os itens oferecidos voltam para os times que os enviaram.`)) return;
+
+    try {
+        const response = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reverter', leilao_id: leilaoId })
+        });
+        const data = await parseJsonSafe(response);
+        if (data.success) {
+            alert('Leilão revertido com sucesso! Os itens voltaram para os times de origem.');
+            carregarLeiloesAdmin();
+            carregarLeiloesAtivos();
+        } else {
+            alert('Erro: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao reverter leilão');
     }
 }
 

@@ -483,10 +483,10 @@ html, body {
     <!-- TOP BAR -->
     <div class="top-bar">
         <div class="top-bar-left">
-            <a href="../index.php" class="back-btn">
-                <i class="bi bi-arrow-left"></i> Voltar
+            <a href="../games.php" class="back-btn">
+                <i class="bi bi-arrow-left"></i>
             </a>
-            <span class="player-name"><?= htmlspecialchars($meu_perfil['nome']) ?></span>
+            <span class="player-name">🐧 Pinguim Run</span>
         </div>
         <div class="coin-badge">
             🪙 <span id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?></span>

@@ -205,13 +205,13 @@ try {
 
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
     <div class="d-flex align-items-center gap-3">
-        <a class="brand-name" href="../index.php">🎮 FBA games</a>
+        <a class="brand-name" href="../games.php">🎮 FBA games</a>
         <span class="text-secondary small">🏀 O Lance Livre Infinito</span>
     </div>
     <div class="d-flex align-items-center gap-2">
         <span class="text-secondary d-none d-md-inline">Olá, <strong class="text-white"><?= htmlspecialchars($usuario['nome']) ?></strong></span>
         <span class="saldo-badge" id="saldoDisplay"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
-        <a href="../index.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
+        <a href="../games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
     </div>
 </div>
 

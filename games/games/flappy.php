@@ -426,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
 <!-- NAV -->
 <div id="topbar">
-    <a href="../index.php"><i class="bi bi-arrow-left-short" style="font-size:18px"></i> Jogos</a>
+    <a href="../games.php"><i class="bi bi-arrow-left-short" style="font-size:18px"></i> Jogos</a>
     <div class="title">🐦 Flappy Bird</div>
     <span class="pts-badge" id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?></span>
 </div>

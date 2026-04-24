@@ -480,7 +480,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             <i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS
         </span>
         
-        <a href="../index.php" class="btn btn-sm btn-outline-light border-0">
+        <a href="../games.php" class="btn btn-sm btn-outline-light border-0">
             <i class="bi bi-arrow-left"></i>
         </a>
     </div>

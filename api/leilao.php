@@ -280,6 +280,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             cancelarLeilao($pdo, $body);
             break;
+        case 'reverter':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            reverterLeilao($pdo, $body);
+            break;
         case 'enviar_proposta':
             enviarProposta($pdo, $body, $team_id, $league_id);
             break;
@@ -896,6 +903,78 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     } catch (Exception $e) {
         $pdo->rollBack();
         echo json_encode(['success' => false, 'error' => 'Erro ao processar troca: ' . $e->getMessage()]);
+    }
+}
+
+function reverterLeilao($pdo, $body) {
+    $leilao_id = $body['leilao_id'] ?? null;
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilão não informado']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT l.*, lp.team_id as winner_team_id
+                           FROM leilao_jogadores l
+                           LEFT JOIN leilao_propostas lp ON lp.id = l.proposta_aceita_id
+                           WHERE l.id = ?");
+    $stmt->execute([$leilao_id]);
+    $leilao = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$leilao) {
+        echo json_encode(['success' => false, 'error' => 'Leilão não encontrado']);
+        return;
+    }
+    if ($leilao['status'] !== 'finalizado') {
+        echo json_encode(['success' => false, 'error' => 'Apenas leilões finalizados podem ser revertidos']);
+        return;
+    }
+
+    $proposta_id = $leilao['proposta_aceita_id'];
+    $origin_team_id = $leilao['team_id'];
+    $winner_team_id = $leilao['winner_team_id'];
+    $player_id = $leilao['player_id'];
+
+    $pdo->beginTransaction();
+    try {
+        // Retornar jogador do leilão ao time de origem
+        if ($player_id && $origin_team_id) {
+            $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?")->execute([$origin_team_id, $player_id]);
+        }
+
+        if ($proposta_id) {
+            // Retornar jogadores oferecidos ao time vencedor
+            $stmt2 = $pdo->prepare("SELECT player_id FROM leilao_proposta_jogadores WHERE proposta_id = ?");
+            $stmt2->execute([$proposta_id]);
+            $jogadores_oferecidos = $stmt2->fetchAll(PDO::FETCH_COLUMN);
+            if ($winner_team_id && !empty($jogadores_oferecidos)) {
+                $upd = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
+                foreach ($jogadores_oferecidos as $pid) {
+                    $upd->execute([$winner_team_id, $pid]);
+                }
+            }
+
+            // Retornar picks oferecidas ao time vencedor
+            $stmt3 = $pdo->prepare("SELECT pick_id FROM leilao_proposta_picks WHERE proposta_id = ?");
+            $stmt3->execute([$proposta_id]);
+            $picks_oferecidas = $stmt3->fetchAll(PDO::FETCH_COLUMN);
+            if ($winner_team_id && !empty($picks_oferecidas)) {
+                $placeholders = implode(',', array_fill(0, count($picks_oferecidas), '?'));
+                $params = array_merge([$winner_team_id], $picks_oferecidas);
+                $pdo->prepare("UPDATE picks SET team_id = ? WHERE id IN ($placeholders)")->execute($params);
+            }
+
+            // Marcar proposta como revertida (usa 'recusada' para compatibilidade)
+            $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?")->execute([$proposta_id]);
+        }
+
+        // Reverter status do leilão para cancelado e limpar proposta aceita
+        $pdo->prepare("UPDATE leilao_jogadores SET status = 'cancelado', proposta_aceita_id = NULL WHERE id = ?")->execute([$leilao_id]);
+
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Leilão revertido com sucesso']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['success' => false, 'error' => 'Erro ao reverter: ' . $e->getMessage()]);
     }
 }
 
