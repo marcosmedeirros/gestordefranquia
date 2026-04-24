@@ -1410,26 +1410,16 @@ Stephen Curry,PG,35,95</code>
           playoffState.bracket.LESTE = existingBracket.filter(b => b.conference === 'LESTE');
           playoffState.bracket.OESTE = existingBracket.filter(b => b.conference === 'OESTE');
 
-          // Carregar partidas para checar estado do play-in
+          // Carregar partidas existentes
           try {
             const matchesData = await fetch(`/api/playoffs.php?action=matches&season_id=${seasonId}&league=${league}`);
             const matchesResult = await matchesData.json();
             playoffState.matches = matchesResult.matches || [];
           } catch (e) { playoffState.matches = []; }
 
-          const hasPlayIn = existingBracket.some(b => Number(b.seed) >= 9);
-          const piDoneLeste = playoffState.matches.some(m => m.conference === 'LESTE' && m.round === 'play_in' && Number(m.match_number) === 3 && m.winner_id);
-          const piDoneOeste = playoffState.matches.some(m => m.conference === 'OESTE' && m.round === 'play_in' && Number(m.match_number) === 3 && m.winner_id);
-
-          if (!hasPlayIn || (piDoneLeste && piDoneOeste)) {
-            // Play-In concluído ou formato antigo → ir direto ao bracket
-            playoffState.step = 3;
-            renderPlayoffStep2();
-          } else {
-            // Play-In em andamento
-            playoffState.step = 2;
-            renderPlayInStep();
-          }
+          // Ir direto ao bracket (play-in removido)
+          playoffState.step = 3;
+          renderPlayoffStep2();
         } else {
           // Não existe - mostrar seleção de classificação
           renderPlayoffStep1(teamsLeste, teamsOeste);
@@ -1455,15 +1445,15 @@ Stephen Curry,PG,35,95</code>
               <div style="font-size:16px;font-weight:800;color:var(--text)">Playoffs — Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 1 de 5</span>
-              <span style="font-size:12px;color:var(--text-2)">Defina a classificação da temporada regular (1º ao 10º lugar)</span>
+              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 1 de 4</span>
+              <span style="font-size:12px;color:var(--text-2)">Defina a classificação da temporada regular (1º ao 8º lugar)</span>
             </div>
           </div>
         </div>
 
         <div style="padding:12px 14px;background:rgba(59,130,246,.08);border-left:3px solid var(--blue);border-radius:var(--radius-sm);font-size:13px;color:#93c5fd;margin-bottom:20px">
           <i class="bi bi-info-circle" style="margin-right:6px"></i>
-          <strong>Pontos por Classificação:</strong> 1º +4pts &nbsp;|&nbsp; 2º ao 4º +3pts &nbsp;|&nbsp; 5º ao 6º +2pts &nbsp;|&nbsp; 7º ao 8º +1pt (Play-In) &nbsp;|&nbsp; 9º ao 10º 0pts (Play-In)
+          <strong>Pontos por Classificação:</strong> 1º +4pts &nbsp;|&nbsp; 2º ao 4º +3pts &nbsp;|&nbsp; 5º ao 6º +2pts &nbsp;|&nbsp; 7º ao 8º +1pt
         </div>
 
         <div class="conf-grid">
@@ -1482,23 +1472,19 @@ Stephen Curry,PG,35,95</code>
         </div>
 
         <button class="btn-primary-red" onclick="submitStandings()" style="width:100%;justify-content:center;padding:12px">
-          <i class="bi bi-arrow-right"></i>Prosseguir para Play-In
+          <i class="bi bi-arrow-right"></i>Prosseguir para Playoffs
         </button>
       `;
     }
 
     function renderStandingsSelectors(conference, teams) {
       let html = '';
-      for (let i = 1; i <= 10; i++) {
-        const isPlayIn = i >= 7;
-        const pointsLabel = i === 1 ? '+4pts' : (i <= 4 ? '+3pts' : (i <= 6 ? '+2pts' : (i <= 8 ? '+1pt' : '0pts')));
+      for (let i = 1; i <= 8; i++) {
+        const pointsLabel = i === 1 ? '+4pts' : (i <= 4 ? '+3pts' : (i <= 6 ? '+2pts' : '+1pt'));
         const badgeBg = i === 1 ? 'rgba(245,158,11,.15)' : (i <= 4 ? 'rgba(34,197,94,.12)' : (i <= 6 ? 'rgba(59,130,246,.12)' : 'var(--panel-3)'));
         const badgeColor = i === 1 ? 'var(--amber)' : (i <= 4 ? '#86efac' : (i <= 6 ? '#93c5fd' : 'var(--text-3)'));
-        const ptsBg = isPlayIn ? 'rgba(245,158,11,.10)' : 'var(--red-soft)';
-        const ptsColor = isPlayIn ? 'var(--amber)' : 'var(--red)';
-        const divider = i === 7 ? `<div style="margin:10px 0 8px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--amber);display:flex;align-items:center;gap:6px"><i class="bi bi-lightning-charge-fill"></i>Play-In Tournament</div>` : '';
 
-        html += `${divider}
+        html += `
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span style="min-width:28px;text-align:center;padding:2px 6px;border-radius:999px;background:${badgeBg};color:${badgeColor};font-size:10px;font-weight:700">${i}º</span>
             <select id="standing_${conference}_${i}" onchange="updateStandingSelectors('${conference}')"
@@ -1506,7 +1492,7 @@ Stephen Curry,PG,35,95</code>
               <option value="">Selecione o ${i}º lugar</option>
               ${teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('')}
             </select>
-            <span style="padding:2px 6px;border-radius:999px;background:${ptsBg};color:${ptsColor};font-size:10px;font-weight:700;white-space:nowrap">${pointsLabel}</span>
+            <span style="padding:2px 6px;border-radius:999px;background:var(--red-soft);color:var(--red);font-size:10px;font-weight:700;white-space:nowrap">${pointsLabel}</span>
           </div>
         `;
       }
@@ -1515,7 +1501,7 @@ Stephen Curry,PG,35,95</code>
 
     function updateStandingSelectors(conference) {
       const selected = [];
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 8; i++) {
         const select = document.getElementById(`standing_${conference}_${i}`);
         if (select && select.value) {
           selected.push(select.value);
@@ -1523,7 +1509,7 @@ Stephen Curry,PG,35,95</code>
       }
 
       // Desabilitar opções já selecionadas em outros selects
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 8; i++) {
         const select = document.getElementById(`standing_${conference}_${i}`);
         if (select) {
           const currentValue = select.value;
@@ -1537,14 +1523,14 @@ Stephen Curry,PG,35,95</code>
     }
 
     async function submitStandings() {
-      // Validar seleções
+      // Validar seleções (8 times por conferência)
       const standings = { LESTE: [], OESTE: [] };
 
       for (const conf of ['LESTE', 'OESTE']) {
-        for (let i = 1; i <= 10; i++) {
+        for (let i = 1; i <= 8; i++) {
           const select = document.getElementById(`standing_${conf}_${i}`);
           if (!select || !select.value) {
-            alert(`Por favor, selecione todos os 10 times da conferência ${conf}`);
+            alert(`Por favor, selecione todos os 8 times da conferência ${conf}`);
             return;
           }
           standings[conf].push({ team_id: parseInt(select.value), seed: i });
@@ -1572,15 +1558,15 @@ Stephen Curry,PG,35,95</code>
         playoffState.bracket.LESTE = bracketResult.bracket.filter(b => b.conference === 'LESTE');
         playoffState.bracket.OESTE = bracketResult.bracket.filter(b => b.conference === 'OESTE');
 
-        // Buscar partidas (jogos de play-in criados)
+        // Buscar partidas criadas
         const matchesData = await fetch(`/api/playoffs.php?action=matches&season_id=${playoffState.seasonId}&league=${playoffState.league}`);
         const matchesResult = await matchesData.json();
         playoffState.matches = matchesResult.matches || [];
 
-        playoffState.step = 2;
-        renderPlayInStep();
+        playoffState.step = 3;
+        renderPlayoffStep2();
       } catch (e) {
-        alert('Erro ao criar Play-In: ' + (e.message || 'Desconhecido'));
+        alert('Erro ao criar bracket: ' + (e.message || 'Desconhecido'));
       }
     }
 
@@ -1772,7 +1758,7 @@ Stephen Curry,PG,35,95</code>
               <div style="font-size:16px;font-weight:800;color:var(--text)">Bracket de Playoffs — Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 3 de 5</span>
+              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 2 de 4</span>
               <span style="font-size:12px;color:var(--text-2)">Clique em cada confronto para selecionar o vencedor</span>
             </div>
           </div>
@@ -1825,11 +1811,7 @@ Stephen Curry,PG,35,95</code>
       const teamsBySeed = {};
       bracket.forEach(b => { teamsBySeed[b.seed] = b; });
 
-      // Sobrescrever seeds 7 e 8 com os vencedores do Play-In
-      const piM1 = getPlayInMatch(conference, 1);
-      const piM3 = getPlayInMatch(conference, 3);
-      if (piM1?.winner_id) teamsBySeed[7] = { team_id: piM1.winner_id, seed: 7 };
-      if (piM3?.winner_id) teamsBySeed[8] = { team_id: piM3.winner_id, seed: 8 };
+      // Seeds 7 e 8 vêm direto do bracket (sem play-in)
       
       // Formato: 1v8, 4v5, 3v6, 2v7
       const firstRoundMatchups = [
@@ -2108,7 +2090,7 @@ Stephen Curry,PG,35,95</code>
               <div style="font-size:16px;font-weight:800;color:var(--text)">Prêmios Individuais — Temporada ${String(currentSeasonData.season_number).padStart(2,'0')}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 4 de 5</span>
+              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 3 de 4</span>
               <span style="font-size:12px;color:var(--text-2)">Registre os prêmios individuais (+1pt para o time de cada vencedor)</span>
             </div>
           </div>
@@ -2214,7 +2196,7 @@ Stephen Curry,PG,35,95</code>
               <div style="font-size:16px;font-weight:800;color:var(--text)">Revisão Final — Temporada ${String(currentSeasonData.season_number).padStart(2,'0')}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 5 de 5</span>
+              <span style="padding:2px 10px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);font-size:11px;font-weight:700">Passo 4 de 4</span>
               <span style="font-size:12px;color:var(--text-2)">Revise os dados e clique em Finalizar para calcular todos os pontos</span>
             </div>
           </div>
@@ -2253,7 +2235,7 @@ Stephen Curry,PG,35,95</code>
             </div>
             <div>
               <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#93c5fd;margin-bottom:8px">Classificação</div>
-              ${[['1º lugar','+4pts'],['2º a 4º','+3pts'],['5º a 6º','+2pts'],['7º a 8º (Play-In)','+1pt'],['9º a 10º (Play-In)','0pts']].map(([l,p]) => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text-2)">${l}</span><strong style="color:#93c5fd">${p}</strong></div>`).join('')}
+              ${[['1º lugar','+4pts'],['2º a 4º','+3pts'],['5º a 6º','+2pts'],['7º a 8º','+1pt']].map(([l,p]) => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text-2)">${l}</span><strong style="color:#93c5fd">${p}</strong></div>`).join('')}
             </div>
             <div>
               <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#4ade80;margin-bottom:8px">Prêmios</div>

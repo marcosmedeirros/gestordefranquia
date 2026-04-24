@@ -158,19 +158,24 @@ if ($method === 'POST') {
                 ");
                 
                 foreach (['LESTE', 'OESTE'] as $conf) {
-                    if (!isset($standings[$conf]) || count($standings[$conf]) !== 8) {
-                        throw new Exception("Conferência {$conf} deve ter exatamente 8 times");
+                    if (!isset($standings[$conf]) || count($standings[$conf]) < 8) {
+                        throw new Exception("Conferência {$conf} deve ter pelo menos 8 times");
                     }
-                    
+
                     foreach ($standings[$conf] as $team) {
-                        // Calcular pontos de standing: 1º=4, 2-4=3, 5-8=2
+                        // Calcular pontos de standing: 1º=4, 2-4=3, 5-6=2, 7-8=1, 9+=0
                         $standingPoints = 0;
-                        if ($team['seed'] == 1) {
+                        $seed = (int)$team['seed'];
+                        if ($seed === 1) {
                             $standingPoints = 4;
-                        } elseif ($team['seed'] >= 2 && $team['seed'] <= 4) {
+                        } elseif ($seed >= 2 && $seed <= 4) {
                             $standingPoints = 3;
-                        } else {
+                        } elseif ($seed >= 5 && $seed <= 6) {
                             $standingPoints = 2;
+                        } elseif ($seed >= 7 && $seed <= 8) {
+                            $standingPoints = 1;
+                        } else {
+                            $standingPoints = 0;
                         }
                         
                         $stmtBracket->execute([
@@ -185,35 +190,39 @@ if ($method === 'POST') {
                 }
                 
                 // Criar partidas da primeira rodada para cada conferência
-                // Formato: 1v8, 4v5, 3v6, 2v7
+                // Formato: 1v8, 4v5, 3v6, 2v7 (apenas com os 8 primeiros seeds)
                 $matchups = [
                     1 => [1, 8],
                     2 => [4, 5],
                     3 => [3, 6],
                     4 => [2, 7]
                 ];
-                
+
                 $stmtMatch = $pdo->prepare("
                     INSERT INTO playoff_matches (season_id, league, conference, round, match_number, team1_id, team2_id)
                     VALUES (?, ?, ?, 'first_round', ?, ?, ?)
                 ");
-                
+
                 foreach (['LESTE', 'OESTE'] as $conf) {
-                    // Criar mapa seed -> team_id
+                    // Criar mapa seed -> team_id (usando apenas seeds 1-8)
                     $seedMap = [];
                     foreach ($standings[$conf] as $team) {
-                        $seedMap[$team['seed']] = $team['team_id'];
+                        if ((int)$team['seed'] <= 8) {
+                            $seedMap[(int)$team['seed']] = $team['team_id'];
+                        }
                     }
-                    
+
                     foreach ($matchups as $matchNum => $seeds) {
-                        $stmtMatch->execute([
-                            $seasonId,
-                            $league,
-                            $conf,
-                            $matchNum,
-                            $seedMap[$seeds[0]],
-                            $seedMap[$seeds[1]]
-                        ]);
+                        if (isset($seedMap[$seeds[0]], $seedMap[$seeds[1]])) {
+                            $stmtMatch->execute([
+                                $seasonId,
+                                $league,
+                                $conf,
+                                $matchNum,
+                                $seedMap[$seeds[0]],
+                                $seedMap[$seeds[1]]
+                            ]);
+                        }
                     }
                 }
                 
