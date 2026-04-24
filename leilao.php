@@ -398,12 +398,9 @@ if ($is_admin) {
                 <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Picks para oferecer (opcional):</p>
                 <div id="minhasPicksParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
                 <div class="mb-3">
-                    <label class="form-label">O que vai dar na proposta</label>
-                    <textarea id="notasProposta" class="form-control" rows="3" placeholder="Ex: 1 jogador + escolha de draft ou moedas"></textarea>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Observações (opcional)</label>
-                    <textarea id="obsProposta" class="form-control" rows="2"></textarea>
+                    <label class="form-label">Observação <span style="color:var(--text-3);font-weight:400;">(opcional)</span></label>
+                    <textarea id="obsProposta" class="form-control" rows="3" placeholder="Ex: estou oferecendo 2 picks + 1 jogador, aberto a negociar..."></textarea>
+                    <input type="hidden" id="notasProposta">
                 </div>
             </div>
             <div class="modal-footer">

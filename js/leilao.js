@@ -821,8 +821,7 @@ async function verMinhasPropostasRecebidas(leilaoId) {
                         <ul>
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
-                        ${proposta.notas ? `<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#3b82f6;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-chat-left-text me-1"></i>O que vai dar na proposta</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.notas}</p></div>` : ''}
-                        ${proposta.obs ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs}</p></div>` : ''}
+                        ${(proposta.obs || proposta.notas) ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs || proposta.notas}</p></div>` : ''}
                         ${proposta.status === 'pendente' ? `
                         <div class="d-flex gap-2 mt-3">
                             <button class="btn btn-success" onclick="aceitarProposta(${proposta.id})">
@@ -886,8 +885,7 @@ async function verPropostasEnviadas(leilaoId) {
                         <ul>
                             ${proposta.picks.map(p => `<li>${p.season_year} R${p.round}${p.original_team_name ? ' • '+p.original_team_name : ''}</li>`).join('')}
                         </ul>` : '<p class="text-muted">Nenhuma pick ofertada.</p>'}
-                        ${proposta.notas ? `<div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#3b82f6;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-chat-left-text me-1"></i>O que vai dar na proposta</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.notas}</p></div>` : ''}
-                        ${proposta.obs ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs}</p></div>` : ''}
+                        ${(proposta.obs || proposta.notas) ? `<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:10px 14px;margin-top:10px;"><strong style="color:#f59e0b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;"><i class="bi bi-sticky me-1"></i>Observação</strong><p style="margin:4px 0 0;font-size:13px;">${proposta.obs || proposta.notas}</p></div>` : ''}
                     </div>
                 </div>`;
             });
