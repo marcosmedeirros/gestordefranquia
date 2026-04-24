@@ -882,11 +882,20 @@ function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, ar
         if ((int)$offerPick['season_year'] !== (int)$requestPick['season_year'] || (string)$offerPick['round'] !== (string)$requestPick['round']) {
             throw new Exception('Swap inválido: picks precisam ser do mesmo ano e rodada.');
         }
-        if (!empty($offerPick['swap_locked']) || !empty($offerPick['swap_type'])) {
+        // Permite troca de picks swap normalmente, mas não permite swap de swap
+        if (!empty($offerPick['swap_locked'])) {
             throw new Exception('Swap inválido: pick já está travada para swap.');
         }
-        if (!empty($requestPick['swap_locked']) || !empty($requestPick['swap_type'])) {
+        if (!empty($requestPick['swap_locked'])) {
             throw new Exception('Swap inválido: pick já está travada para swap.');
+        }
+
+        // Não permite marcar como swap uma pick que já é swap
+        if ($offerRole === 'SW' && !empty($offerPick['swap_type'])) {
+            throw new Exception('Swap inválido: não é permitido swap de swap.');
+        }
+        if ($requestRole === 'SW' && !empty($requestPick['swap_type'])) {
+            throw new Exception('Swap inválido: não é permitido swap de swap.');
         }
 
         $swapMap[$offerPickId] = ['role' => $offerRole, 'pair_id' => $requestPickId];
