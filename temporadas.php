@@ -1378,7 +1378,8 @@ Stephen Curry,PG,35,95</code>
       standings: { LESTE: [], OESTE: [] },
       bracket: { LESTE: [], OESTE: [] },
       matches: [],
-      awards: {}
+      awards: {},
+      nbaCupEnabled: false
     };
 
     async function showHistoryForm(seasonId, league) {
@@ -2076,7 +2077,7 @@ Stephen Curry,PG,35,95</code>
     function renderPlayoffStep3() {
       const container = document.getElementById('mainContainer');
       const teams = playoffState.teams;
-      const showNbaCup = playoffState.league === 'ELITE';
+      const isElite = playoffState.league === 'ELITE';
 
       container.innerHTML = `
         <button class="btn-back" onclick="renderPlayoffStep2()">
@@ -2122,8 +2123,18 @@ Stephen Curry,PG,35,95</code>
                   </div>
                 </div>
               `).join('')}
-              ${showNbaCup ? `
-                <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:6px">
+              ${isElite ? `
+                <hr style="border-color:var(--border);margin:8px 0 14px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+                    <input type="checkbox" id="toggleNbaCup" onchange="document.getElementById('nbaCupField').style.display=this.checked?'block':'none'"
+                      style="width:16px;height:16px;cursor:pointer;accent-color:var(--amber)">
+                    <span style="font-size:12px;font-weight:700;color:var(--text-2)">
+                      <i class="bi bi-trophy-fill" style="color:var(--amber);margin-right:4px"></i>Esta temporada teve NBA Cup?
+                    </span>
+                  </label>
+                </div>
+                <div id="nbaCupField" style="display:none;grid-template-columns:1fr;gap:12px;margin-bottom:6px">
                   <div>
                     <label style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2);display:block;margin-bottom:5px">
                       <i class="bi bi-trophy-fill" style="color:var(--amber);margin-right:5px"></i>Campeão da NBA Cup <span style="color:var(--text-3);font-weight:400">(+1pt)</span>
@@ -2148,6 +2159,8 @@ Stephen Curry,PG,35,95</code>
     function goToStep4() {
       const form = document.getElementById('awardsForm');
       const formData = new FormData(form);
+      const nbaCupToggle = document.getElementById('toggleNbaCup');
+      const nbaCupEnabled = nbaCupToggle ? nbaCupToggle.checked : false;
 
       playoffState.awards = {
         mvp_player: formData.get('mvp_player') || null,
@@ -2160,8 +2173,9 @@ Stephen Curry,PG,35,95</code>
         sixth_man_team_id: formData.get('sixth_man_team_id') || null,
         roy_player: formData.get('roy_player') || null,
         roy_team_id: formData.get('roy_team_id') || null,
-        nba_cup_team_id: formData.get('nba_cup_team_id') || null
+        nba_cup_team_id: nbaCupEnabled ? (formData.get('nba_cup_team_id') || null) : null
       };
+      playoffState.nbaCupEnabled = nbaCupEnabled;
 
       playoffState.step = 5;
       renderPlayoffStep4();
@@ -2173,7 +2187,7 @@ Stephen Curry,PG,35,95</code>
       const finalsMatch = getMatch('FINALS', 'finals', 1);
       const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
       const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
-      const showNbaCup = playoffState.league === 'ELITE';
+      const showNbaCup = playoffState.league === 'ELITE' && !!playoffState.nbaCupEnabled;
       const nbaCupTeamId = playoffState.awards.nba_cup_team_id;
       
       const champion = finalsMatch?.winner_id;
