@@ -286,7 +286,6 @@ const loadMultiAssets = async (teamId, type) => {
   if (type === 'picks') {
     list = list.filter((pick) => {
       if (Number(pick.swap_locked || 0) === 1) return false;
-      if (pick.swap_type) return false;
       const year = Number(pick.season_year || 0);
       return Number.isFinite(year) && year >= currentSeasonYear;
     });
@@ -517,6 +516,7 @@ const getSwapKey = (pick) => `${pick.season_year || ''}-${pick.round || ''}`;
 
 const getSwapCandidateMap = () => {
   const byKey = (list) => list.reduce((acc, pick) => {
+    if (pick.swap_type) return acc; // picks que já são swap não podem ser re-swappadas
     const key = getSwapKey(pick);
     if (!acc[key]) acc[key] = [];
     acc[key].push(pick);
@@ -705,7 +705,6 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   const raw = Array.isArray(picks) ? picks : [];
   pickState[side].available = raw.filter((pick) => {
     if (Number(pick.swap_locked || 0) === 1) return false;
-    if (pick.swap_type) return false;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
     return year >= currentSeasonYear;

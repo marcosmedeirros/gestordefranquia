@@ -247,8 +247,6 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     .btn-close-white { filter: invert(1) grayscale(100%) brightness(200%); }
 
     /* Pick selector */
-    #pick-swaps, .pick-swaps, .pick-swap { display: none !important; }
-
     .pick-selector {
       background: var(--panel-2); border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 14px;
