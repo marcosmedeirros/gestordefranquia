@@ -225,30 +225,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pontos            = (int)($_POST['pontos'] ?? 0);
         $hoje              = date('Y-m-d');
         try {
-            $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM boxnba_historico WHERE id_usuario=? AND data_jogo=?");
-            $stmt->execute([$user_id, $hoje]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            // Award 25 coins per newly answered correct cell (only while game is not yet completed)
-            $already_done = $row && ($row['concluido'] || $row['desistiu'] ?? 0);
-            if (!$already_done) {
-                $prev_respostas = $row ? (json_decode($row['respostas'], true) ?: []) : [];
-                $prev_keys      = array_column($prev_respostas, 'key');
-                $curr_respostas = json_decode($respostas, true) ?: [];
-                $curr_keys      = array_column($curr_respostas, 'key');
-                $new_cells      = count(array_diff($curr_keys, $prev_keys));
-                if ($new_cells > 0) {
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_cells * 25, $user_id]);
-                }
-            }
-            if ($row) {
-                $pdo->prepare("UPDATE boxnba_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-                    ->execute([$respostas,$tentativas_rest,$concluido,$desistiu,$pontos,$row['id']]);
-            } else {
-                $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?)")
-                    ->execute([$user_id,$hoje,$respostas,$tentativas_rest,$concluido,$desistiu,$pontos]);
-            }
+      $pdo->beginTransaction();
+
+      $stmt = $pdo->prepare("SELECT id, respostas, concluido, desistiu FROM boxnba_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+      $stmt->execute([$user_id, $hoje]);
+      $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      // Moedas: SOMENTE 25 por NOVA célula correta (não pode pagar em autosave, fim, etc.)
+      $already_done = $row && (((int)($row['concluido'] ?? 0) === 1) || ((int)($row['desistiu'] ?? 0) === 1));
+      if (!$already_done) {
+        $prev_respostas = $row ? (json_decode((string)($row['respostas'] ?? '[]'), true) ?: []) : [];
+        $prev_keys = array_values(array_filter(array_map(static fn($r) => (string)($r['key'] ?? ''), $prev_respostas)));
+        $prev_set = array_flip($prev_keys);
+
+        $curr_respostas = json_decode((string)$respostas, true) ?: [];
+        $curr_keys = array_values(array_filter(array_map(static fn($r) => (string)($r['key'] ?? ''), $curr_respostas)));
+
+        $new_cells = 0;
+        foreach ($curr_keys as $k) {
+          if (!isset($prev_set[$k])) {
+            $new_cells++;
+          }
+        }
+
+        if ($new_cells > 0) {
+          $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")
+            ->execute([$new_cells * 25, $user_id]);
+        }
+      }
+
+      if ($row) {
+        $pdo->prepare("UPDATE boxnba_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
+          ->execute([$respostas, $tentativas_rest, $concluido, $desistiu, $pontos, $row['id']]);
+      } else {
+        $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?)")
+          ->execute([$user_id, $hoje, $respostas, $tentativas_rest, $concluido, $desistiu, $pontos]);
+      }
+
+      $pdo->commit();
             echo json_encode(['ok'=>true]);
-        } catch (PDOException $e) { echo json_encode(['ok'=>false,'err'=>$e->getMessage()]); }
+    } catch (PDOException $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      echo json_encode(['ok'=>false,'err'=>$e->getMessage()]);
+    }
         exit;
     }
     echo json_encode(['ok'=>false]); exit;

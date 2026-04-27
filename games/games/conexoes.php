@@ -412,28 +412,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pontos      = (int)($_POST['pontos'] ?? 0);
         $hoje        = date('Y-m-d');
         try {
-            $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM conexoes_historico WHERE id_usuario=? AND data_jogo=?");
-            $stmt->execute([$user_id, $hoje]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            // Award 50 coins per newly found group (only while game is not yet completed)
-            $already_done = $row && ($row['concluido'] || $row['desistiu'] ?? 0);
-            if (!$already_done) {
-                $prev_groups = $row ? (json_decode($row['grupos_encontrados'], true) ?: []) : [];
-                $curr_groups = json_decode($grupos_enc, true) ?: [];
-                $new_groups  = count(array_diff($curr_groups, $prev_groups));
-                if ($new_groups > 0) {
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_groups * 50, $user_id]);
-                }
-            }
-            if ($row) {
-                $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?,vidas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-                    ->execute([$grupos_enc,$vidas,$concluido,$desistiu,$pontos,$row['id']]);
-            } else {
-                $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?,?)")
-                    ->execute([$user_id,$hoje,$puzzle_idx,$grupos_enc,$vidas,$concluido,$desistiu,$pontos]);
-            }
+      $pdo->beginTransaction();
+
+      $stmt = $pdo->prepare("SELECT id, grupos_encontrados, concluido, desistiu FROM conexoes_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+      $stmt->execute([$user_id, $hoje]);
+      $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      // Moedas: SOMENTE 50 por NOVO grupo encontrado (nada no fim do relógio / autosave / etc.)
+      $already_done = $row && (((int)($row['concluido'] ?? 0) === 1) || ((int)($row['desistiu'] ?? 0) === 1));
+      if (!$already_done) {
+        $prev_groups_raw = $row ? (json_decode((string)($row['grupos_encontrados'] ?? '[]'), true) ?: []) : [];
+        $prev_groups = array_values(array_filter(array_map(static fn($g) => (string)$g, $prev_groups_raw), static fn($g) => $g !== ''));
+        $prev_set = array_flip($prev_groups);
+
+        $curr_groups_raw = json_decode((string)$grupos_enc, true) ?: [];
+        $curr_groups = array_values(array_filter(array_map(static fn($g) => (string)$g, $curr_groups_raw), static fn($g) => $g !== ''));
+
+        $new_groups = 0;
+        foreach ($curr_groups as $g) {
+          if (!isset($prev_set[$g])) {
+            $new_groups++;
+          }
+        }
+
+        if ($new_groups > 0) {
+          $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")
+            ->execute([$new_groups * 50, $user_id]);
+        }
+      }
+
+      if ($row) {
+        $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?,vidas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
+          ->execute([$grupos_enc, $vidas, $concluido, $desistiu, $pontos, $row['id']]);
+      } else {
+        $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?,?)")
+          ->execute([$user_id, $hoje, $puzzle_idx, $grupos_enc, $vidas, $concluido, $desistiu, $pontos]);
+      }
+
+      $pdo->commit();
             echo json_encode(['ok'=>true]);
-        } catch (PDOException $e) { echo json_encode(['ok'=>false]); }
+    } catch (PDOException $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      echo json_encode(['ok'=>false]);
+    }
         exit;
     }
     echo json_encode(['ok'=>false]); exit;
@@ -538,7 +561,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .result-groups{display:flex;flex-direction:column;gap:6px;margin-bottom:18px;text-align:left}
 .result-group-row{border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px}
 .result-group-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.result-group-info{}
 .result-group-lbl{font-size:12px;font-weight:800;color:#fff}
 .result-group-pls{font-size:10px;font-weight:600;color:rgba(255,255,255,.7)}
 .result-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
