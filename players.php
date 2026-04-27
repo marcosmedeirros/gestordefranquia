@@ -312,15 +312,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			grid-template-columns: repeat(12, minmax(0,1fr));
 			gap: 12px;
 		}
-		.field { display: flex; flex-direction: column; gap: 6px; }
+		.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 		.field label { font-size: 12px; color: var(--text-2); letter-spacing: .08em; text-transform: uppercase; }
 		.field input, .field select {
+			width: 100%;
 			background: var(--panel-2);
 			border: 1px solid var(--border);
 			border-radius: 10px;
 			padding: 10px 12px;
 			color: var(--text);
 			font-size: 14px;
+			min-width: 0;
 		}
 		.field input::placeholder { color: var(--text-3); }
 		.btn-action {
@@ -440,7 +442,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			.sidebar.open { transform: translateX(0); }
 			.topbar { display: flex; }
 			.main { margin-left: 0; width: 100%; padding: 54px 16px 40px; }
-			.filters-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+			.panel { padding: 14px 14px 16px; }
+			.filters-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 			.filters-grid .field-half { grid-column: span 1 !important; }
 			.filters-grid .field-full { grid-column: 1 / -1 !important; }
 			.players-cards { display: block; }
@@ -535,7 +538,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
         <div class="topbar-title">FBA <em>Manager</em></div>
         <?php if ($currentSeasonYear): ?>
-        <span style="font-size:11px;font-weight:700;color:var(--red)"><?= $seasonDisplayYear ?></span>
+        <span style="font-size:11px;font-weight:700;color:var(--red)"><?= $currentSeasonYear ?></span>
         <?php endif; ?>
     </header>
 
