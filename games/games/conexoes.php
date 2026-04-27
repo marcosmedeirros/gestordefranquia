@@ -3,6 +3,8 @@
 // session_start() já chamado no index.php se acessado por ele; chamamos aqui para acesso direto também
 if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
+require_once __DIR__ . '/../core/nba-players-db.php';
+nba_ensure_tables($pdo);
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
@@ -362,6 +364,12 @@ $PUZZLES[9] = [
      'dica'=>'Jogadores que conquistaram 3 ou mais anéis de campeão',
      'jogadores'=>['Bill Russell','Kareem Abdul-Jabbar','Robert Horry','Derek Fisher']],
 ];
+
+// Carrega puzzles customizados do banco e adiciona ao pool
+$customPuzzles = conexoes_get_custom_puzzles($pdo);
+if (!empty($customPuzzles)) {
+    $PUZZLES = array_merge($PUZZLES, $customPuzzles);
+}
 
 // Seleciona puzzle do dia
 $seed_day  = (int)floor(time() / 86400);

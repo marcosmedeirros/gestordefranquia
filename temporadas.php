@@ -1378,8 +1378,7 @@ Stephen Curry,PG,35,95</code>
       standings: { LESTE: [], OESTE: [] },
       bracket: { LESTE: [], OESTE: [] },
       matches: [],
-      awards: {},
-      nbaCupEnabled: false
+      awards: {}
     };
 
     async function showHistoryForm(seasonId, league) {
@@ -2187,7 +2186,7 @@ Stephen Curry,PG,35,95</code>
       const finalsMatch = getMatch('FINALS', 'finals', 1);
       const lesteChamp = getMatch('LESTE', 'conference_finals', 1);
       const oesteChamp = getMatch('OESTE', 'conference_finals', 1);
-      const showNbaCup = playoffState.league === 'ELITE' && !!playoffState.nbaCupEnabled;
+      const showNbaCup = playoffState.league === 'ELITE';
       const nbaCupTeamId = playoffState.awards.nba_cup_team_id;
       
       const champion = finalsMatch?.winner_id;
