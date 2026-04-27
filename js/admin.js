@@ -714,7 +714,11 @@ async function showTrades() {
             const toLabel = teamMap[toId] || `Time ${toId}`;
             const rows = teamItems.map(item => {
               const detail = formatMultiTradeItemDetail(item);
-              return `<li class="text-white mb-1"><i class="bi bi-arrow-right text-orange me-1"></i>${detail}</li>`;
+              const fromLabel = teamMap[String(item.from_team_id)];
+              const fromHtml = fromLabel
+                ? `<span class="text-light-gray small">de ${fromLabel}</span> <i class="bi bi-arrow-right text-secondary" style="font-size:10px"></i> `
+                : '';
+              return `<li class="text-white mb-1">${fromHtml}${detail}</li>`;
             }).join('');
             return `<div class="mb-3"><div class="fw-bold text-orange mb-1">${toLabel} recebe:</div><ul class="list-unstyled ms-2 mb-0">${rows}</ul></div>`;
           }).join('')
