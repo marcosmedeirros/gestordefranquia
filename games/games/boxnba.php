@@ -651,14 +651,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM boxnba_historico WHERE id_usuario=? AND data_jogo=?");
             $stmt->execute([$user_id, $hoje]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            // Award 25 coins per newly answered correct cell
-            $prev_respostas = $row ? (json_decode($row['respostas'], true) ?: []) : [];
-            $prev_keys      = array_column($prev_respostas, 'key');
-            $curr_respostas = json_decode($respostas, true) ?: [];
-            $curr_keys      = array_column($curr_respostas, 'key');
-            $new_cells      = count(array_diff($curr_keys, $prev_keys));
-            if ($new_cells > 0) {
-                $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_cells * 25, $user_id]);
+            // Award 25 coins per newly answered correct cell (only while game is not yet completed)
+            $already_done = $row && ($row['concluido'] || $row['desistiu'] ?? 0);
+            if (!$already_done) {
+                $prev_respostas = $row ? (json_decode($row['respostas'], true) ?: []) : [];
+                $prev_keys      = array_column($prev_respostas, 'key');
+                $curr_respostas = json_decode($respostas, true) ?: [];
+                $curr_keys      = array_column($curr_respostas, 'key');
+                $new_cells      = count(array_diff($curr_keys, $prev_keys));
+                if ($new_cells > 0) {
+                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_cells * 25, $user_id]);
+                }
             }
             if ($row) {
                 $pdo->prepare("UPDATE boxnba_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
@@ -1081,7 +1084,7 @@ function selectPlayer(name) {
     checkFinish();
   }
   updateUI();
-  saveState();
+  if (!finished) saveState();
 }
 
 function checkFinish() {

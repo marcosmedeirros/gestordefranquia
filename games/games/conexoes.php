@@ -407,12 +407,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM conexoes_historico WHERE id_usuario=? AND data_jogo=?");
             $stmt->execute([$user_id, $hoje]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            // Award 50 coins per newly found group
-            $prev_groups = $row ? (json_decode($row['grupos_encontrados'], true) ?: []) : [];
-            $curr_groups = json_decode($grupos_enc, true) ?: [];
-            $new_groups  = count(array_diff($curr_groups, $prev_groups));
-            if ($new_groups > 0) {
-                $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_groups * 50, $user_id]);
+            // Award 50 coins per newly found group (only while game is not yet completed)
+            $already_done = $row && ($row['concluido'] || $row['desistiu'] ?? 0);
+            if (!$already_done) {
+                $prev_groups = $row ? (json_decode($row['grupos_encontrados'], true) ?: []) : [];
+                $curr_groups = json_decode($grupos_enc, true) ?: [];
+                $new_groups  = count(array_diff($curr_groups, $prev_groups));
+                if ($new_groups > 0) {
+                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$new_groups * 50, $user_id]);
+                }
             }
             if ($row) {
                 $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?,vidas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
@@ -727,7 +730,6 @@ function submitGuess() {
     setTimeout(() => {
       foundIdxs.add(correctGi);
       selected.clear();
-      saveState();
       render();
       showToast('+50 moedas! 🪙');
 
@@ -735,6 +737,8 @@ function submitGuess() {
         gameOver = true;
         setTimeout(() => showResult(true), 500);
         saveState(true, false);
+      } else {
+        saveState();
       }
     }, 350);
   } else {
