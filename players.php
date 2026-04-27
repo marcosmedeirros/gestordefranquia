@@ -409,6 +409,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.modal-body h6 { color: var(--red); }
 		.modal-body .card-mini { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
 
+		/* ── Mobile list view ───────────────────────── */
+		.mpl-item {
+			display: flex; align-items: center; gap: 12px;
+			padding: 11px 0; border-bottom: 1px solid var(--border);
+		}
+		.mpl-item:last-child { border-bottom: none; }
+		.mpl-main { flex: 1; min-width: 0; }
+		.mpl-name {
+			font-weight: 600; font-size: 14px; color: var(--text);
+			white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+		}
+		.mpl-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+		.mpl-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+		.mpl-actions { display: flex; gap: 5px; }
+		.mpl-btn {
+			padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
+			border: 1px solid var(--border); background: var(--panel-2); color: var(--text-2);
+			text-decoration: none; cursor: pointer; white-space: nowrap;
+		}
+		.mpl-btn.trade { background: var(--red); color: #fff; border-color: var(--red); }
+
 		/* ── Responsive ──────────────────────────────── */
 		@media (max-width: 1100px) {
 			.filters-grid { grid-template-columns: repeat(6, minmax(0,1fr)); }
@@ -419,17 +440,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			.sidebar.open { transform: translateX(0); }
 			.topbar { display: flex; }
 			.main { margin-left: 0; width: 100%; padding: 54px 16px 40px; }
-			.filters-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+			.filters-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+			.filters-grid .field-half { grid-column: span 1 !important; }
+			.filters-grid .field-full { grid-column: 1 / -1 !important; }
+			.players-cards { display: block; }
 		}
 		@media (max-width: 560px) {
 			.stats-strip { grid-template-columns: 1fr; }
-			.filters-grid {
-				grid-template-columns: 1fr 1fr;
-				gap: 10px;
-			}
-			.filters-grid .field-full { grid-column: 1 / -1; }
-			.filters-grid .field-half { grid-column: span 1; }
-			.filters-grid .field-full .btn-action { margin-top: 2px; }
 		}
 
 		.sb-overlay {
@@ -734,6 +751,26 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			&& Number(p.ovr) >= 90;
 	}
 
+	function renderPlayerListItem(p, teamName) {
+		const ovr = Number(p.ovr || 0);
+		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆</span>' : '';
+		return `
+			<div class="mpl-item">
+				<div class="mpl-main">
+					<div class="mpl-name">${p.name}${franchiseBadge}</div>
+					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · ${teamName}</div>
+				</div>
+				<div class="mpl-right">
+					<span class="badge-ovr ${getOvrClass(ovr)}">${ovr}</span>
+					<div class="mpl-actions">
+						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
+						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
+					</div>
+				</div>
+			</div>
+		`;
+	}
+
 	function renderPlayerCard(p, whatsappLink, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const photoUrl = getPlayerPhotoUrl(p);
@@ -813,7 +850,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						: '';
 
 					if (mobile) {
-						cardsWrap.innerHTML += renderPlayerCard(p, whatsappLink, teamName || '-');
+						cardsWrap.innerHTML += renderPlayerListItem(p, teamName || '-');
 					} else {
 						const ovr = Number(p.ovr || 0);
 						const photoUrl = getPlayerPhotoUrl(p);
@@ -844,7 +881,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					}
 				});
 				if (mobile) {
-					cardsWrap.style.display = 'grid';
+					cardsWrap.style.display = 'block';
 				} else {
 					tableWrap.style.display = 'block';
 				}
