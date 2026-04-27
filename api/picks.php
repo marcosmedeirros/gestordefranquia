@@ -179,6 +179,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
     
+    // Filter out picks from past seasons (only current year and future allowed in trades)
+    $currentYear = (int)date('Y');
+    try {
+        $stmtLeague = $pdo->prepare("SELECT s.year FROM seasons s WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed')) ORDER BY s.created_at DESC LIMIT 1");
+        $stmtLeague->execute([$league ?: '']);
+        $seasonYearRow = $stmtLeague->fetchColumn();
+        if ($seasonYearRow) $currentYear = (int)$seasonYearRow;
+    } catch (Exception $e) {}
+    $picks = array_values(array_filter($picks, function($pick) use ($currentYear) {
+        $y = (int)($pick['season_year'] ?? 0);
+        return $y <= 0 || $y >= $currentYear;
+    }));
+
     $payload = ['success' => true, 'picks' => $picks];
 
     if ($includeAway) {

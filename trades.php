@@ -338,6 +338,20 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
       .tl-team-chip { align-self: flex-start; }
     }
 
+    /* Trade cards */
+    .tc { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
+    .tc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tc-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .tc-date { font-size: 12px; color: var(--text-2); }
+    .tc-side-title { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+    .tc-item { font-size: 13px; color: var(--text); padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+    .tc-notes { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 10px 12px; margin-top: 12px; font-size: 13px; color: var(--text-2); }
+    .tc-response-notes { background: var(--panel-2); border-left: 3px solid var(--amber); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; padding: 10px 12px; margin-top: 10px; }
+    .tc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .btn-r.sm { padding: 5px 12px; font-size: 12px; }
+    .tag.amber { background: rgba(245,158,11,.12); color: var(--amber); }
+    .tag.blue  { background: rgba(59,130,246,.12); color: var(--blue); }
+
     @media (max-width: 992px) {
       :root { --sidebar-w: 0px; }
       .sidebar { transform: translateX(-260px); }
@@ -764,7 +778,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     window.__TEAM_NAME__ = '<?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')), ENT_QUOTES) ?>';
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/trades.js?v=20260424c"></script>
+  <script src="/js/trades.js?v=20260426a"></script>
   <script src="/js/trade-list.js?v=20260130"></script>
   <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>

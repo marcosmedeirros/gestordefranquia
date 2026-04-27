@@ -2095,6 +2095,71 @@ if ($method === 'POST') {
     exit;
 }
 
+// PUT - Editar trade múltipla (somente se nenhum time ainda aceitou)
+if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
+    $data   = json_decode(file_get_contents('php://input'), true);
+    $tradeId = (int)($data['trade_id'] ?? 0);
+    $teams   = array_unique(array_map('intval', $data['teams'] ?? []));
+    $items   = $data['items'] ?? [];
+    $notes   = trim($data['notes'] ?? '');
+
+    if (!$tradeId || count($teams) < 2 || count($items) === 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+        exit;
+    }
+
+    $stmtTrade = $pdo->prepare('SELECT * FROM multi_trades WHERE id = ?');
+    $stmtTrade->execute([$tradeId]);
+    $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+    if (!$trade) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Troca não encontrada']);
+        exit;
+    }
+    if ((int)$trade['created_by_team_id'] !== (int)$teamId) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Sem permissão para editar']);
+        exit;
+    }
+
+    $stmtAcc = $pdo->prepare('SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = ? AND accepted_at IS NOT NULL');
+    $stmtAcc->execute([$tradeId]);
+    if ((int)$stmtAcc->fetchColumn() > 0) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'Não é possível editar: um ou mais times já aceitaram a troca']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('DELETE FROM multi_trade_items WHERE trade_id = ?')->execute([$tradeId]);
+        $pdo->prepare('DELETE FROM multi_trade_teams WHERE trade_id = ?')->execute([$tradeId]);
+        $pdo->prepare('UPDATE multi_trades SET notes = ? WHERE id = ?')->execute([$notes, $tradeId]);
+
+        if (!in_array((int)$teamId, $teams, true)) $teams[] = (int)$teamId;
+        $stmtTeam = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id) VALUES (?, ?)');
+        foreach ($teams as $tid) { $stmtTeam->execute([$tradeId, $tid]); }
+
+        $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id) VALUES (?, ?, ?, ?, ?)');
+        foreach ($items as $item) {
+            $fromId   = (int)($item['from_team_id'] ?? 0);
+            $toId     = (int)($item['to_team_id'] ?? 0);
+            $playerId = !empty($item['player_id']) ? (int)$item['player_id'] : null;
+            $pickId   = !empty($item['pick_id'])   ? (int)$item['pick_id']   : null;
+            if (!$fromId || !$toId || (!$playerId && !$pickId)) continue;
+            $stmtItem->execute([$tradeId, $fromId, $toId, $playerId, $pickId]);
+        }
+        $pdo->commit();
+        echo json_encode(['success' => true]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
 // PUT - Responder trade múltipla
 if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
     $data = json_decode(file_get_contents('php://input'), true);

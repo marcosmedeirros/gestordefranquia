@@ -698,12 +698,23 @@ async function showTrades() {
         return `<span class="badge bg-dark border border-secondary text-white">${label}</span>`;
       }).join('');
 
-      const items = (tr.items || []).map(item => {
-        const fromLabel = teamMap[item.from_team_id] || `Time ${item.from_team_id}`;
-        const toLabel = teamMap[item.to_team_id] || `Time ${item.to_team_id}`;
-        const detail = formatMultiTradeItemDetail(item);
-        return `<li class="text-white mb-1"><i class="bi bi-arrow-left-right text-orange"></i> <strong>${fromLabel}</strong> → <strong>${toLabel}</strong>: ${detail}</li>`;
-      }).join('');
+      // Group items by to_team_id
+      const byTeam = {};
+      (tr.items || []).forEach(item => {
+        const toId = String(item.to_team_id);
+        if (!byTeam[toId]) byTeam[toId] = [];
+        byTeam[toId].push(item);
+      });
+      const items = Object.keys(byTeam).length > 0
+        ? Object.entries(byTeam).map(([toId, teamItems]) => {
+            const toLabel = teamMap[toId] || `Time ${toId}`;
+            const rows = teamItems.map(item => {
+              const detail = formatMultiTradeItemDetail(item);
+              return `<li class="text-white mb-1"><i class="bi bi-arrow-right text-orange me-1"></i>${detail}</li>`;
+            }).join('');
+            return `<div class="mb-3"><div class="fw-bold text-orange mb-1">${toLabel} recebe:</div><ul class="list-unstyled ms-2 mb-0">${rows}</ul></div>`;
+          }).join('')
+        : '<div class="text-light-gray small">Nenhum item</div>';
 
       const acceptanceBadge = tr.status === 'pending'
         ? `<span class="badge bg-info text-dark">Aceites ${tr.teams_accepted || 0}/${tr.teams_total || 0}</span>`
@@ -722,12 +733,7 @@ async function showTrades() {
   </div>
 </div>
 <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-light-gray">Times</span>'}</div>
-<div>
-  <h6 class="text-orange mb-2">Itens</h6>
-  <ul class="list-unstyled mb-0">
-    ${items || '<li class="text-light-gray">Nenhum item</li>'}
-  </ul>
-</div>
+<div class="mt-2">${items}</div>
 ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
 </div>`;
     };
