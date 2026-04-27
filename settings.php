@@ -186,7 +186,61 @@ $team = $stmtTeam->fetch() ?: null;
             display: flex; align-items: flex-start; gap: 9px;
         }
 
+        /* ── Layout ──────────────────────────────────── */
+        --sidebar-w: 260px;
+        .app { display: flex; min-height: 100vh; }
+        .sidebar {
+            position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
+            background: var(--panel); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 300;
+            transition: transform 200ms cubic-bezier(.2,.8,.2,1);
+            overflow-y: auto; scrollbar-width: none;
+        }
+        .sidebar::-webkit-scrollbar { display: none; }
+        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 299; }
+        .sb-overlay.show { display: block; }
+        .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+        .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+        .sb-nav { flex: 1; padding: 12px 10px 8px; }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
+        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all 200ms; }
+        .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+        .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+        .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+        .sb-nav a.active i { color: var(--red); }
+        .sb-theme-toggle { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 200ms; }
+        .sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
+        .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all 200ms; text-decoration: none; flex-shrink: 0; }
+        .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
+        /* ── Main ─────────────────────────────────────── */
+        .main { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 240;
+            background: var(--panel); border-bottom: 1px solid var(--border);
+            padding: 0 16px; height: 54px;
+            display: none; align-items: center; gap: 12px;
+        }
+        .topbar-menu-btn { display: none; background: none; border: none; color: var(--text-2); font-size: 20px; cursor: pointer; padding: 4px; }
+        .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); }
+        .page-hero { padding: 28px 28px 0; }
+        .content { padding: 24px 28px 40px; }
+
         /* ── Responsive ──────────────────────────────── */
+        @media (max-width: 992px) {
+            .main { margin-left: 0; padding-top: 54px; }
+            .sidebar { transform: translateX(-260px); }
+            .sidebar.open { transform: translateX(0); }
+            .topbar { display: flex; }
+            .topbar-menu-btn { display: flex; }
+            .page-hero { padding: 16px 16px 0; }
+            .content { padding: 16px 16px 32px; }
+        }
         @media (max-width: 576px) {
             .panel-card-body { padding: 16px; }
             .page-title { font-size: 1.3rem; }
@@ -196,7 +250,66 @@ $team = $stmtTeam->fetch() ?: null;
 <body>
 
 <div class="app">
-    <?php include __DIR__ . '/includes/sidebar.php'; ?>
+
+    <aside class="sidebar" id="sidebar">
+        <?php if ($team): ?>
+        <div class="sb-team">
+            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
+                 alt="<?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?>"
+                 onerror="this.src='/img/default-team.png'">
+            <div>
+                <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
+                <div class="sb-team-league"><?= htmlspecialchars($team['league'] ?? '') ?></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <nav class="sb-nav">
+            <div class="sb-section">Principal</div>
+            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
+            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
+            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
+            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+
+            <div class="sb-section">Liga</div>
+            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
+            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+
+            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <div class="sb-section">Admin</div>
+            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+            <a href="/punicoes.php"><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
+            <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+            <?php endif; ?>
+
+            <div class="sb-section">Conta</div>
+            <a href="/settings.php" class="active"><i class="bi bi-gear-fill"></i> Configurações</a>
+        </nav>
+
+        <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
+            <i class="bi bi-moon"></i>
+            <span>Modo escuro</span>
+        </button>
+
+        <div class="sb-footer">
+            <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
+                 alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
+                 class="sb-avatar"
+                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=fc0025'">
+            <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
+            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+        </div>
+    </aside>
+
     <div class="sb-overlay" id="sbOverlay"></div>
 
     <!-- Topbar mobile -->
@@ -440,36 +553,36 @@ $team = $stmtTeam->fetch() ?: null;
 <script src="/js/settings.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
-  // ── Theme ──────────────────────────────────────────
-  const themeKey = 'fba-theme';
-  const themeBtn = document.querySelector('[data-theme-toggle]');
-  const applyTheme = (theme) => {
-    if (theme === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
-      if (themeBtn) { themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i><span>Tema claro</span>'; themeBtn.setAttribute('aria-pressed','true'); }
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      if (themeBtn) { themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i><span>Tema escuro</span>'; themeBtn.setAttribute('aria-pressed','false'); }
-    }
-  };
-  applyTheme(localStorage.getItem(themeKey) || 'dark');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', () => {
-      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      localStorage.setItem(themeKey, next);
-      applyTheme(next);
-    });
-  }
+  (function(){
+    // Sidebar
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sbOverlay');
+    const btn     = document.getElementById('sidebarToggle');
+    if (!sidebar || !overlay) return;
+    const open  = () => { sidebar.classList.add('open');  overlay.classList.add('show'); };
+    const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+    if (btn) btn.addEventListener('click', open);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
-  // ── Sidebar toggle ─────────────────────────────────
-  const sidebar  = document.getElementById('sidebar');
-  const overlay  = document.getElementById('sbOverlay');
-  const toggle   = document.getElementById('sidebarToggle');
-  const open  = () => { sidebar.classList.add('open');    overlay.classList.add('show'); };
-  const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
-  if (toggle)  toggle.addEventListener('click', open);
-  if (overlay) overlay.addEventListener('click', close);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    // Theme
+    const key = 'fba-theme';
+    const themeBtn = document.querySelector('[data-theme-toggle]');
+    const apply = (t) => {
+      if (t === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
+      }
+    };
+    apply(localStorage.getItem(key) || 'dark');
+    if (themeBtn) themeBtn.addEventListener('click', () => {
+      const next = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+      localStorage.setItem(key, next); apply(next);
+    });
+  })();
 </script>
 </body>
 </html>

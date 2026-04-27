@@ -235,6 +235,33 @@ async function redeemCollectionReward(collectionName) {
 }
 window.redeemCollectionReward = redeemCollectionReward;
 
+function openRedeemConfirm(collectionName) {
+    const modal   = document.getElementById('redeem-confirm-modal');
+    const nameEl  = document.getElementById('redeem-confirm-collection-name');
+    const okBtn   = document.getElementById('redeem-confirm-ok');
+    const cancelBtn = document.getElementById('redeem-confirm-cancel');
+    if (!modal) { redeemCollectionReward(collectionName); return; }
+
+    nameEl.textContent = collectionName;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    const close = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', close);
+        modal.removeEventListener('click', onBackdrop);
+    };
+    const onOk = () => { close(); redeemCollectionReward(collectionName); };
+    const onBackdrop = (e) => { if (e.target === modal) close(); };
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', close);
+    modal.addEventListener('click', onBackdrop);
+}
+window.openRedeemConfirm = openRedeemConfirm;
+
 function renderCollectionRewards() {
     const wrap = document.getElementById('collection-rewards');
     if (!wrap) return;
@@ -268,7 +295,7 @@ function renderCollectionRewards() {
             const btn = document.createElement('button');
             btn.className = 'mt-1 bg-red-700 hover:bg-red-600 rounded-lg px-3 py-2 text-sm font-bold';
             btn.textContent = 'Resgatar 500 FBA Points';
-            btn.onclick = () => redeemCollectionReward(item.name);
+            btn.onclick = () => openRedeemConfirm(item.name);
             card.appendChild(btn);
         }
         wrap.appendChild(card);

@@ -585,6 +585,28 @@ $teams = [
     </div>
   </div>
 
+  <!-- Modal confirmação de resgate de coleção -->
+  <div id="redeem-confirm-modal" class="fixed inset-0 modal z-50 hidden flex-col justify-center items-center px-4">
+    <div class="fba-modal-box-red p-6 w-full max-w-sm text-center">
+      <div style="width:52px;height:52px;border-radius:50%;background:rgba(252,0,37,.12);border:1px solid var(--border-red);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <i class="bi bi-award-fill" style="font-size:22px;color:var(--red)"></i>
+      </div>
+      <h3 class="fba-title text-xl mb-1" style="color:var(--text)">Resgatar Coleção</h3>
+      <p id="redeem-confirm-collection-name" style="color:var(--red);font-size:14px;font-weight:700;margin-bottom:8px"></p>
+      <p style="color:var(--text-2);font-size:13px;margin-bottom:20px">Você receberá <strong style="color:var(--text)">500 FBA Points</strong> por completar esta coleção. Esta ação não pode ser desfeita.</p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="redeem-confirm-cancel"
+          style="flex:1;padding:10px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">
+          Cancelar
+        </button>
+        <button id="redeem-confirm-ok"
+          style="flex:1;padding:10px;background:var(--red);border:none;border-radius:var(--radius-sm);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer">
+          Resgatar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="album-fba.js"></script>
 </body>
 </html>
