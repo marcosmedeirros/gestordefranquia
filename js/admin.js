@@ -92,6 +92,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'halloffame') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>';
       pageTitle.textContent = 'Hall da Fama';
+    } else if (appState.view === 'dispensas') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>';
+      pageTitle.textContent = 'Dispensas por Temporada';
     }
   }
 }
@@ -125,7 +128,8 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anonimas</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anonimas</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div></div>`;
   container.innerHTML += `
   <div class="row g-4 mt-1">
     <div class="col-12">
@@ -3557,6 +3561,139 @@ async function updatePendingUsersCount() {
   } catch (e) {
     console.error('Erro ao atualizar contagem de usuários pendentes:', e);
   }
+}
+
+// ── Dispensas ─────────────────────────────────────────────────────────────────
+let _dispensasCache = [];
+
+async function showDispensas() {
+  appState.view = 'dispensas';
+  updateBreadcrumb();
+
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+    <div class="panel mb-4">
+      <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Dispensas por Temporada</div>
+      <div class="d-flex flex-wrap gap-3 align-items-end">
+        <div>
+          <label class="form-label text-light-gray small mb-1">Liga</label>
+          <select class="form-select form-select-sm" id="dispensasLeague" style="min-width:130px">
+            <option value="ELITE">ELITE</option>
+            <option value="NEXT">NEXT</option>
+            <option value="RISE">RISE</option>
+            <option value="ROOKIE">ROOKIE</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label text-light-gray small mb-1">Temporada</label>
+          <select class="form-select form-select-sm" id="dispensasSeason" style="min-width:130px">
+            <option value="">Todas</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="dispensasResult"></div>
+  `;
+
+  document.getElementById('dispensasLeague').addEventListener('change', loadDispensas);
+  document.getElementById('dispensasSeason').addEventListener('change', renderDispensasTable);
+
+  await loadDispensas();
+}
+
+async function loadDispensas() {
+  const league = document.getElementById('dispensasLeague')?.value || 'ELITE';
+  const resultEl = document.getElementById('dispensasResult');
+  if (!resultEl) return;
+
+  resultEl.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange" role="status"></div></div>';
+
+  try {
+    const data = await api(`free-agency.php?action=waivers&league=${encodeURIComponent(league)}`);
+    _dispensasCache = data.waivers || [];
+
+    // Populate season dropdown from data
+    const seasonSel = document.getElementById('dispensasSeason');
+    if (seasonSel) {
+      const years = [...new Set(_dispensasCache.map(w => w.season_year).filter(Boolean))].sort((a, b) => b - a);
+      seasonSel.innerHTML = '<option value="">Todas</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+    }
+
+    renderDispensasTable();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Erro ao carregar dispensas: ${escapeHtml(err.error || '')}</div>`;
+  }
+}
+
+function renderDispensasTable() {
+  const resultEl = document.getElementById('dispensasResult');
+  if (!resultEl) return;
+
+  const selectedYear = document.getElementById('dispensasSeason')?.value || '';
+  const filtered = selectedYear
+    ? _dispensasCache.filter(w => String(w.season_year) === selectedYear)
+    : _dispensasCache;
+
+  if (!filtered.length) {
+    resultEl.innerHTML = '<div class="text-light-gray text-center py-4">Nenhuma dispensa encontrada para os filtros selecionados.</div>';
+    return;
+  }
+
+  // Group by team, sort teams alphabetically
+  const byTeam = {};
+  filtered.forEach(w => {
+    const team = w.original_team_name || 'Sem time';
+    if (!byTeam[team]) byTeam[team] = [];
+    byTeam[team].push(w);
+  });
+  const sortedTeams = Object.keys(byTeam).sort();
+
+  let html = `<div class="panel">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <span class="text-light-gray small">${filtered.length} dispensa(s) encontrada(s) em ${sortedTeams.length} time(s)</span>
+    </div>`;
+
+  sortedTeams.forEach(team => {
+    const players = byTeam[team].sort((a, b) => new Date(b.waived_at) - new Date(a.waived_at));
+    html += `
+      <div class="mb-4">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span style="font-weight:700;font-size:14px;color:var(--red)"><i class="bi bi-shield-fill me-1"></i>${escapeHtml(team)}</span>
+          <span class="badge bg-secondary">${players.length}</span>
+        </div>
+        <table class="table table-dark table-sm mb-0" style="font-size:13px">
+          <thead>
+            <tr>
+              <th>Jogador</th>
+              <th>Pos.</th>
+              <th>OVR</th>
+              <th>Idade</th>
+              <th>Temporada</th>
+              <th>Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${players.map(w => `
+              <tr>
+                <td class="text-white fw-semibold">${escapeHtml(w.name || '-')}</td>
+                <td><span class="badge bg-secondary">${escapeHtml(w.position || '-')}</span></td>
+                <td><span class="badge bg-gradient-orange">${w.overall || '-'}</span></td>
+                <td>${w.age || '-'}</td>
+                <td>${w.season_year || '-'}</td>
+                <td class="text-light-gray">${w.waived_at ? new Date(w.waived_at).toLocaleDateString('pt-BR') : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  resultEl.innerHTML = html;
 }
 
 
