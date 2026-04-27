@@ -1487,7 +1487,7 @@ function createMultiTradeCard(trade, type) {
         const toLabel = teamMap[toId] || `Time ${toId}`;
         const rows = teamItems.map((item) => {
           let detail = '';
-          if (item.player_id) {
+          if (item.player_id || item.player_name) {
             detail = formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr });
           } else if (item.pick_id) {
             detail = formatTradePickDisplay(item);

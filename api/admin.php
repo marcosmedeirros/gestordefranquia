@@ -1993,6 +1993,35 @@ if ($method === 'DELETE') {
                 exit;
             }
 
+            // Snapshot player in trade history before permanent deletion
+            try {
+                $stmtPr = $pdo->prepare("SELECT id, name, position, age, ovr FROM players WHERE id = ?");
+                $stmtPr->execute([$id]);
+                $pr = $stmtPr->fetch(PDO::FETCH_ASSOC);
+                if ($pr) {
+                    $pdo->prepare(
+                        "UPDATE trade_items
+                         SET player_name = COALESCE(player_name, ?),
+                             player_position = COALESCE(player_position, ?),
+                             player_age = COALESCE(player_age, ?),
+                             player_ovr = COALESCE(player_ovr, ?),
+                             player_id = NULL
+                         WHERE player_id = ?"
+                    )->execute([$pr['name'], $pr['position'], $pr['age'], $pr['ovr'], $id]);
+                    $pdo->prepare(
+                        "UPDATE multi_trade_items
+                         SET player_name = COALESCE(player_name, ?),
+                             player_position = COALESCE(player_position, ?),
+                             player_age = COALESCE(player_age, ?),
+                             player_ovr = COALESCE(player_ovr, ?),
+                             player_id = NULL
+                         WHERE player_id = ?"
+                    )->execute([$pr['name'], $pr['position'], $pr['age'], $pr['ovr'], $id]);
+                }
+            } catch (Exception $snapshotErr) {
+                error_log('[admin delete player] snapshot failed: ' . $snapshotErr->getMessage());
+            }
+
             $stmt = $pdo->prepare('DELETE FROM players WHERE id = ?');
             $stmt->execute([$id]);
             echo json_encode(['success' => true, 'message' => 'Jogador deletado']);

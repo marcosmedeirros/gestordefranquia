@@ -175,6 +175,24 @@ if (!function_exists('snapshotTradeItemsForPlayer')) {
             $ovr,
             (int)($playerRow['id'] ?? 0)
         ]);
+
+        // Also snapshot multi_trade_items so multi-trade history survives waivers/retirements
+        if (playersTableExists($pdo, 'multi_trade_items') && playersColumnExists($pdo, 'multi_trade_items', 'player_name')) {
+            try {
+                $stmt2 = $pdo->prepare(
+                    'UPDATE multi_trade_items
+                     SET player_name = COALESCE(player_name, ?),
+                         player_position = COALESCE(player_position, ?),
+                         player_age = COALESCE(player_age, ?),
+                         player_ovr = COALESCE(player_ovr, ?),
+                         player_id = NULL
+                     WHERE player_id = ?'
+                );
+                $stmt2->execute([$name, $position, $age, $ovr, (int)($playerRow['id'] ?? 0)]);
+            } catch (Exception $e) {
+                error_log('[snapshotTradeItems] multi_trade_items failed: ' . $e->getMessage());
+            }
+        }
     }
 }
 

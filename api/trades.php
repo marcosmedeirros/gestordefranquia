@@ -2141,14 +2141,37 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
         $stmtTeam = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id) VALUES (?, ?)');
         foreach ($teams as $tid) { $stmtTeam->execute([$tradeId, $tid]); }
 
-        $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id) VALUES (?, ?, ?, ?, ?)');
+        $hasMultiSnap = columnExists($pdo, 'multi_trade_items', 'player_name');
+        $ovrColEdit   = playerOvrColumn($pdo);
+        if ($hasMultiSnap) {
+            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        } else {
+            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id) VALUES (?, ?, ?, ?, ?)');
+        }
         foreach ($items as $item) {
             $fromId   = (int)($item['from_team_id'] ?? 0);
             $toId     = (int)($item['to_team_id'] ?? 0);
             $playerId = !empty($item['player_id']) ? (int)$item['player_id'] : null;
             $pickId   = !empty($item['pick_id'])   ? (int)$item['pick_id']   : null;
             if (!$fromId || !$toId || (!$playerId && !$pickId)) continue;
-            $stmtItem->execute([$tradeId, $fromId, $toId, $playerId, $pickId]);
+            if ($hasMultiSnap) {
+                $pName = $item['player_name'] ?? null;
+                $pPos  = $item['player_position'] ?? null;
+                $pAge  = isset($item['player_age']) ? (int)$item['player_age'] : null;
+                $pOvr  = isset($item['player_ovr']) ? (int)$item['player_ovr'] : null;
+                if ($playerId && !$pName) {
+                    $stmtFP = $pdo->prepare("SELECT name, position, age, {$ovrColEdit} AS ovr FROM players WHERE id = ?");
+                    $stmtFP->execute([$playerId]);
+                    $fp = $stmtFP->fetch(PDO::FETCH_ASSOC) ?: [];
+                    $pName = $fp['name'] ?? null;
+                    $pPos  = $fp['position'] ?? null;
+                    $pAge  = isset($fp['age']) ? (int)$fp['age'] : null;
+                    $pOvr  = isset($fp['ovr']) ? (int)$fp['ovr'] : null;
+                }
+                $stmtItem->execute([$tradeId, $fromId, $toId, $playerId, $pickId, $pName, $pPos, $pAge, $pOvr]);
+            } else {
+                $stmtItem->execute([$tradeId, $fromId, $toId, $playerId, $pickId]);
+            }
         }
         $pdo->commit();
         echo json_encode(['success' => true]);
