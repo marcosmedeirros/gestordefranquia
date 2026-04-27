@@ -637,6 +637,48 @@ if ($method === 'PUT') {
     }
 
     jsonResponse(200, ['message' => 'Time atualizado.']);
+
+    // Unreachable — jsonResponse exits; guard for static analysis only.
+    exit;
+}
+
+// ── PATCH: cabeçalho personalizado ──────────────────────────────────────────
+if ($method === 'PATCH') {
+    $body = readJsonBody();
+    $sessionUser = getUserSession();
+    if (!isset($sessionUser['id'])) {
+        jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+    }
+    $userId = (int) $sessionUser['id'];
+
+    $stmt = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$userId]);
+    $team = $stmt->fetch();
+    if (!$team) {
+        jsonResponse(404, ['error' => 'Time não encontrado.']);
+    }
+
+    if (!teamColumnExists($pdo, 'custom_header')) {
+        try { $pdo->exec('ALTER TABLE teams ADD COLUMN custom_header TEXT NULL'); } catch (Exception $e) {}
+    }
+    if (!teamColumnExists($pdo, 'use_custom_header')) {
+        try { $pdo->exec('ALTER TABLE teams ADD COLUMN use_custom_header TINYINT(1) NOT NULL DEFAULT 0'); } catch (Exception $e) {}
+    }
+
+    $customHeader    = $body['custom_header']    ?? null;
+    $useCustomHeader = isset($body['use_custom_header']) ? (int)(bool)$body['use_custom_header'] : null;
+
+    $setParts = [];
+    $params   = [];
+    if ($customHeader !== null)    { $setParts[] = 'custom_header = ?';    $params[] = $customHeader; }
+    if ($useCustomHeader !== null) { $setParts[] = 'use_custom_header = ?'; $params[] = $useCustomHeader; }
+
+    if ($setParts) {
+        $params[] = (int) $team['id'];
+        $pdo->prepare('UPDATE teams SET ' . implode(', ', $setParts) . ' WHERE id = ?')->execute($params);
+    }
+
+    jsonResponse(200, ['message' => 'Cabeçalho salvo.']);
 }
 
 jsonResponse(405, ['error' => 'Method not allowed']);

@@ -390,6 +390,46 @@ $team = $stmtTeam->fetch() ?: null;
                         </div>
                     </div><!-- /col-lg-6 -->
 
+                    <?php if ($team): ?>
+                    <!-- ── Cabeçalho personalizado ── -->
+                    <div class="col-12">
+                        <div class="panel-card">
+                            <div class="panel-card-head">
+                                <div class="panel-card-icon"><i class="bi bi-card-heading"></i></div>
+                                <div>
+                                    <div class="panel-card-title">Cabeçalho Personalizado</div>
+                                    <div class="panel-card-sub">Texto exibido ao copiar o seu time no dashboard</div>
+                                </div>
+                            </div>
+                            <div class="panel-card-body">
+                                <div class="field-group" style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+                                    <input type="checkbox" id="use-custom-header"
+                                           style="width:16px;height:16px;cursor:pointer;accent-color:var(--red);flex-shrink:0"
+                                           <?= !empty($team['use_custom_header']) ? 'checked' : '' ?>>
+                                    <label for="use-custom-header" class="field-label" style="margin:0;cursor:pointer">Usar cabeçalho personalizado ao copiar o time</label>
+                                </div>
+                                <div id="custom-header-box" style="<?= !empty($team['use_custom_header']) ? '' : 'display:none' ?>">
+                                    <div class="field-group">
+                                        <label class="field-label">Texto do cabeçalho</label>
+                                        <textarea id="custom-header-input" class="field-input" rows="7"
+                                                  placeholder="🏀 Meu Time 🏀&#10;#MinhaHashtag&#10;&#10;🏆 2x Campeão&#10;&#10;🧠 GM: Seu Nome"
+                                                  style="resize:vertical;line-height:1.6;font-family:monospace"><?= htmlspecialchars($team['custom_header'] ?? '') ?></textarea>
+                                        <div class="field-hint">Este texto vai aparecer no início quando você copiar o elenco no dashboard, substituindo o cabeçalho padrão.</div>
+                                    </div>
+                                    <div class="d-flex justify-content-end">
+                                        <button type="button" class="btn-red" id="btn-save-header">
+                                            <i class="bi bi-check2-circle"></i> Salvar Cabeçalho
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="custom-header-off-msg" style="<?= !empty($team['use_custom_header']) ? 'display:none' : '' ?>">
+                                    <p class="field-hint" style="margin:0">Quando desativado, o cabeçalho padrão exibe <strong>nome do time</strong> e <strong>seu nome</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                 </div><!-- .row -->
             </div><!-- .settings-wrap -->
         </div><!-- .content -->

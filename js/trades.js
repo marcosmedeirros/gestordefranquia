@@ -1086,6 +1086,44 @@ function populateLeagueTradesTeamFilter() {
   }
 }
 
+function highlightTrade(tradeId) {
+  const TABS = ['received', 'sent', 'history', 'league'];
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  const tryFind = () => {
+    for (const tab of TABS) {
+      const container = document.getElementById(`${tab}TradesList`);
+      if (!container) continue;
+      const card = container.querySelector(`[data-trade-id="${tradeId}"]`);
+      if (card) {
+        // Ativar aba
+        const tabBtn = document.getElementById(`${tab}-tab`);
+        if (tabBtn && !tabBtn.classList.contains('active')) {
+          tabBtn.click();
+        }
+        // Aguardar aba abrir antes de rolar
+        setTimeout(() => {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.style.transition = 'box-shadow .3s, outline .3s';
+          card.style.outline = '2px solid var(--red)';
+          card.style.boxShadow = '0 0 0 4px rgba(239,68,68,.15)';
+          setTimeout(() => {
+            card.style.outline = '';
+            card.style.boxShadow = '';
+          }, 3000);
+        }, 300);
+        return;
+      }
+    }
+    if (++attempts < maxAttempts) {
+      setTimeout(tryFind, 200);
+    }
+  };
+
+  setTimeout(tryFind, 500);
+}
+
 async function init() {
   if (!myTeamId) return;
   
@@ -1152,11 +1190,17 @@ async function init() {
     addMultiTradeItemRow();
   }
 
-  // Verificar se há jogador pré-selecionado na URL
+  // Verificar se há trade pré-selecionada na URL
   const urlParams = new URLSearchParams(window.location.search);
+  const highlightTradeId = urlParams.get('trade_id');
+  if (highlightTradeId) {
+    highlightTrade(Number(highlightTradeId));
+  }
+
+  // Verificar se há jogador pré-selecionado na URL
   const preselectedPlayerId = urlParams.get('player');
   const preselectedTeamId = urlParams.get('team');
-  
+
   if (preselectedPlayerId && preselectedTeamId) {
     // Abrir modal automaticamente com o jogador e time pré-selecionado
     setTimeout(async () => {
@@ -1458,6 +1502,8 @@ async function loadTrades(type) {
 function createMultiTradeCard(trade, type) {
   const card = document.createElement('div');
   card.className = 'tc';
+  card.dataset.tradeId = trade.id;
+  card.dataset.isMulti = '1';
 
   const statusBadge = {
     'pending':   '<span class="tag gray">Pendente</span>',
@@ -1492,7 +1538,11 @@ function createMultiTradeCard(trade, type) {
           } else if (item.pick_id) {
             detail = formatTradePickDisplay(item);
           }
-          return `<li class="tc-item mb-1"><i class="bi bi-arrow-right me-1" style="color:var(--red)"></i>${detail || 'Item'}</li>`;
+          const fromLabel = teamMap[String(item.from_team_id)];
+          const fromHtml = fromLabel
+            ? `<span style="color:var(--text-2);font-size:12px">de ${fromLabel}</span> <i class="bi bi-arrow-right" style="color:var(--text-3);font-size:10px"></i> `
+            : '';
+          return `<li class="tc-item mb-1">${fromHtml}${detail || 'Item'}</li>`;
         }).join('');
         return `<div class="mb-3"><div style="font-weight:600;color:var(--red);font-size:13px;margin-bottom:4px">${toLabel} recebe:</div><ul class="list-unstyled ms-2 mb-0">${rows}</ul></div>`;
       }).join('')
@@ -1620,6 +1670,8 @@ function createTradeCard(trade, type) {
   }
   const card = document.createElement('div');
   card.className = 'tc';
+  card.dataset.tradeId = trade.id;
+  card.dataset.isMulti = '0';
 
   const statusBadge = {
     'pending':   '<span class="tag gray">Pendente</span>',

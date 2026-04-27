@@ -268,7 +268,7 @@ function sendTradePush(PDO $pdo, int $tradeId, string $event): void
         sendPushToUser($pdo, $notifyUserId, [
             'title'      => $title,
             'body'       => $body,
-            'url'        => '/trades.php',
+            'url'        => '/trades.php?trade_id=' . $tradeId,
             'primaryKey' => $tradeId,
         ]);
     } catch (Exception $e) {

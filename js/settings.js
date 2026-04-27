@@ -84,6 +84,24 @@ document.getElementById('btn-change-password')?.addEventListener('click', async 
   }
 });
 
+// Custom header toggle
+document.getElementById('use-custom-header')?.addEventListener('change', (e) => {
+  document.getElementById('custom-header-box').style.display   = e.target.checked ? '' : 'none';
+  document.getElementById('custom-header-off-msg').style.display = e.target.checked ? 'none' : '';
+});
+
+// Save custom header
+document.getElementById('btn-save-header')?.addEventListener('click', async () => {
+  const useCustom = document.getElementById('use-custom-header')?.checked ? 1 : 0;
+  const header    = document.getElementById('custom-header-input')?.value ?? '';
+  try {
+    await api('team.php', { method: 'PATCH', body: JSON.stringify({ custom_header: header, use_custom_header: useCustom }) });
+    alert('Cabeçalho salvo com sucesso.');
+  } catch (err) {
+    alert(err.error || 'Erro ao salvar cabeçalho');
+  }
+});
+
 // Save team
 document.getElementById('btn-save-team')?.addEventListener('click', async () => {
   const form = document.getElementById('form-team-settings');
