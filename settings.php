@@ -73,7 +73,6 @@ $team = $stmtTeam->fetch() ?: null;
         }
 
         *, *::before, *::after { box-sizing: border-box; }
-        html, body { height: 100%; }
         body {
             font-family: var(--font);
             background: var(--bg);
@@ -332,7 +331,7 @@ $team = $stmtTeam->fetch() ?: null;
                 <div class="row g-4">
 
                     <!-- ── Coluna esquerda: Perfil + Senha ── -->
-                    <div class="col-lg-6">
+                    <div class="col-lg-6 order-1">
 
                         <!-- Meu Perfil -->
                         <div class="panel-card">
@@ -424,7 +423,7 @@ $team = $stmtTeam->fetch() ?: null;
                     </div><!-- /col-lg-6 -->
 
                     <!-- ── Coluna direita: Meu Time ── -->
-                    <div class="col-lg-6">
+                    <div class="col-lg-6 order-3 order-lg-2">
                         <div class="panel-card">
                             <div class="panel-card-head">
                                 <div class="panel-card-icon"><i class="bi bi-trophy-fill"></i></div>
@@ -505,7 +504,7 @@ $team = $stmtTeam->fetch() ?: null;
 
                     <?php if ($team): ?>
                     <!-- ── Cabeçalho personalizado ── -->
-                    <div class="col-12">
+                    <div class="col-12 order-2 order-lg-3">
                         <div class="panel-card">
                             <div class="panel-card-head">
                                 <div class="panel-card-icon"><i class="bi bi-card-heading"></i></div>
