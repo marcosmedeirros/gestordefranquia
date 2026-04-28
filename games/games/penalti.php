@@ -1,80 +1,75 @@
 <?php
-// penalti.php — Copa do Brasil de Pênaltis
 if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 
-// ── DADOS DOS TIMES ───────────────────────────────────────────────────────────
 $TIMES = [
-  // tier 1 — dificuldade alta
-  ['name'=>'Flamengo',          'tier'=>1,'badge'=>'FLA','color'=>'#cc0000'],
-  ['name'=>'Corinthians',       'tier'=>1,'badge'=>'COR','color'=>'#1a1a1a'],
-  ['name'=>'Palmeiras',         'tier'=>1,'badge'=>'PAL','color'=>'#006b3c'],
-  ['name'=>'São Paulo',         'tier'=>1,'badge'=>'SPF','color'=>'#cc0000'],
-  ['name'=>'Santos',            'tier'=>1,'badge'=>'SAN','color'=>'#1a1a1a'],
-  ['name'=>'Vasco da Gama',     'tier'=>1,'badge'=>'VAS','color'=>'#1a1a1a'],
-  ['name'=>'Fluminense',        'tier'=>1,'badge'=>'FLU','color'=>'#8b0000'],
-  ['name'=>'Botafogo',          'tier'=>1,'badge'=>'BOT','color'=>'#1a1a1a'],
-  ['name'=>'Atlético Mineiro',  'tier'=>1,'badge'=>'CAM','color'=>'#1a1a1a'],
-  ['name'=>'Cruzeiro',          'tier'=>1,'badge'=>'CRU','color'=>'#1a3a8f'],
-  ['name'=>'Grêmio',            'tier'=>1,'badge'=>'GRE','color'=>'#1a3a8f'],
-  // tier 2 — dificuldade média
-  ['name'=>'Internacional',          'tier'=>2,'badge'=>'INT','color'=>'#cc0000'],
-  ['name'=>'Athletico Paranaense',   'tier'=>2,'badge'=>'CAP','color'=>'#cc0000'],
-  ['name'=>'Coritiba',               'tier'=>2,'badge'=>'COT','color'=>'#1a6b2c'],
-  ['name'=>'Bahia',                  'tier'=>2,'badge'=>'BAH','color'=>'#1a3a8f'],
-  ['name'=>'Vitória',                'tier'=>2,'badge'=>'VIT','color'=>'#cc0000'],
-  ['name'=>'Sport Recife',           'tier'=>2,'badge'=>'SPT','color'=>'#cc0000'],
-  ['name'=>'Náutico',                'tier'=>2,'badge'=>'NAU','color'=>'#cc0000'],
-  ['name'=>'Santa Cruz',             'tier'=>2,'badge'=>'SCR','color'=>'#cc0000'],
-  ['name'=>'Ceará',                  'tier'=>2,'badge'=>'CEA','color'=>'#1a1a1a'],
-  ['name'=>'Fortaleza',              'tier'=>2,'badge'=>'FOR','color'=>'#1a3a8f'],
-  ['name'=>'Goiás',                  'tier'=>2,'badge'=>'GOI','color'=>'#1a6b2c'],
-  ['name'=>'Atlético Goianiense',    'tier'=>2,'badge'=>'ACG','color'=>'#cc0000'],
-  ['name'=>'Guarani',                'tier'=>2,'badge'=>'GUA','color'=>'#006b3c'],
-  ['name'=>'Ponte Preta',            'tier'=>2,'badge'=>'PON','color'=>'#1a1a1a'],
-  ['name'=>'Portuguesa',             'tier'=>2,'badge'=>'POR','color'=>'#cc0000'],
-  ['name'=>'América Mineiro',        'tier'=>2,'badge'=>'AME','color'=>'#006b3c'],
-  ['name'=>'Chapecoense',            'tier'=>2,'badge'=>'CHA','color'=>'#006b3c'],
-  ['name'=>'Avaí',                   'tier'=>2,'badge'=>'AVA','color'=>'#1a3a8f'],
-  ['name'=>'Figueirense',            'tier'=>2,'badge'=>'FIG','color'=>'#1a1a1a'],
-  ['name'=>'Paraná Clube',           'tier'=>2,'badge'=>'PAR','color'=>'#1a3a8f'],
-  ['name'=>'Juventude',              'tier'=>2,'badge'=>'JUV','color'=>'#006b3c'],
-  // tier 3 — dificuldade baixa
-  ['name'=>'Remo',              'tier'=>3,'badge'=>'REM','color'=>'#1a3a8f'],
-  ['name'=>'Paysandu',          'tier'=>3,'badge'=>'PAY','color'=>'#1a3a8f'],
-  ['name'=>'CSA',               'tier'=>3,'badge'=>'CSA','color'=>'#1a3a8f'],
-  ['name'=>'CRB',               'tier'=>3,'badge'=>'CRB','color'=>'#cc0000'],
-  ['name'=>'ABC',               'tier'=>3,'badge'=>'ABC','color'=>'#cc0000'],
-  ['name'=>'América RN',        'tier'=>3,'badge'=>'AMR','color'=>'#cc0000'],
-  ['name'=>'Sampaio Corrêa',    'tier'=>3,'badge'=>'SAM','color'=>'#1a3a8f'],
-  ['name'=>'Moto Club',         'tier'=>3,'badge'=>'MOT','color'=>'#1a3a8f'],
-  ['name'=>'Treze',             'tier'=>3,'badge'=>'TRE','color'=>'#1a1a1a'],
-  ['name'=>'Campinense',        'tier'=>3,'badge'=>'CAM','color'=>'#cc0000'],
-  ['name'=>'Botafogo-PB',       'tier'=>3,'badge'=>'BPB','color'=>'#1a1a1a'],
-  ['name'=>'Confiança',         'tier'=>3,'badge'=>'CON','color'=>'#1a3a8f'],
-  ['name'=>'Sergipe',           'tier'=>3,'badge'=>'SER','color'=>'#cc0000'],
-  ['name'=>'Joinville',         'tier'=>3,'badge'=>'JOI','color'=>'#1a1a1a'],
-  ['name'=>'Criciúma',          'tier'=>3,'badge'=>'CRI','color'=>'#f5a800'],
-  ['name'=>'Operário Ferroviário','tier'=>3,'badge'=>'OPE','color'=>'#1a1a1a'],
-  ['name'=>'Londrina',          'tier'=>3,'badge'=>'LON','color'=>'#cc0000'],
-  ['name'=>'Vila Nova',         'tier'=>3,'badge'=>'VNO','color'=>'#cc0000'],
-  ['name'=>'Brasil de Pelotas', 'tier'=>3,'badge'=>'BPE','color'=>'#006b3c'],
-  ['name'=>'Caxias',            'tier'=>3,'badge'=>'CAX','color'=>'#cc0000'],
-  ['name'=>'Ypiranga-RS',       'tier'=>3,'badge'=>'YPI','color'=>'#f5a800'],
-  ['name'=>'São Bento',         'tier'=>3,'badge'=>'SBE','color'=>'#1a3a8f'],
-  ['name'=>'Ferroviária',       'tier'=>3,'badge'=>'FER','color'=>'#006b3c'],
-  ['name'=>'XV de Piracicaba',  'tier'=>3,'badge'=>'XVP','color'=>'#006b3c'],
-  ['name'=>'Bangu',             'tier'=>3,'badge'=>'BAN','color'=>'#1a1a1a'],
-  ['name'=>'Madureira',         'tier'=>3,'badge'=>'MAD','color'=>'#f5a800'],
+  ['name'=>'Flamengo',             'tier'=>1,'badge'=>'FLA','color'=>'#e30613','dark'=>'#9e0000'],
+  ['name'=>'Corinthians',          'tier'=>1,'badge'=>'COR','color'=>'#1a1a1a','dark'=>'#000'],
+  ['name'=>'Palmeiras',            'tier'=>1,'badge'=>'PAL','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'São Paulo',            'tier'=>1,'badge'=>'SPF','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Santos',               'tier'=>1,'badge'=>'SAN','color'=>'#555','dark'=>'#222'],
+  ['name'=>'Vasco da Gama',        'tier'=>1,'badge'=>'VAS','color'=>'#222','dark'=>'#000'],
+  ['name'=>'Fluminense',           'tier'=>1,'badge'=>'FLU','color'=>'#8b0000','dark'=>'#600'],
+  ['name'=>'Botafogo',             'tier'=>1,'badge'=>'BOT','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Atlético Mineiro',     'tier'=>1,'badge'=>'CAM','color'=>'#1a1a1a','dark'=>'#000'],
+  ['name'=>'Cruzeiro',             'tier'=>1,'badge'=>'CRU','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Grêmio',               'tier'=>1,'badge'=>'GRE','color'=>'#3c6eb4','dark'=>'#1a3a8f'],
+  ['name'=>'Internacional',        'tier'=>2,'badge'=>'INT','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Athletico PR',         'tier'=>2,'badge'=>'CAP','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Coritiba',             'tier'=>2,'badge'=>'COT','color'=>'#1a6b2c','dark'=>'#0d4a1e'],
+  ['name'=>'Bahia',                'tier'=>2,'badge'=>'BAH','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Vitória',              'tier'=>2,'badge'=>'VIT','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Sport Recife',         'tier'=>2,'badge'=>'SPT','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Náutico',              'tier'=>2,'badge'=>'NAU','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Santa Cruz',           'tier'=>2,'badge'=>'SCR','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Ceará',                'tier'=>2,'badge'=>'CEA','color'=>'#1a1a1a','dark'=>'#000'],
+  ['name'=>'Fortaleza',            'tier'=>2,'badge'=>'FOR','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Goiás',                'tier'=>2,'badge'=>'GOI','color'=>'#1a6b2c','dark'=>'#0d4a1e'],
+  ['name'=>'Atlético GO',          'tier'=>2,'badge'=>'ACG','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Guarani',              'tier'=>2,'badge'=>'GUA','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Ponte Preta',          'tier'=>2,'badge'=>'PON','color'=>'#1a1a1a','dark'=>'#000'],
+  ['name'=>'Portuguesa',           'tier'=>2,'badge'=>'POR','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'América MG',           'tier'=>2,'badge'=>'AME','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Chapecoense',          'tier'=>2,'badge'=>'CHA','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Avaí',                 'tier'=>2,'badge'=>'AVA','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Figueirense',          'tier'=>2,'badge'=>'FIG','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Paraná Clube',         'tier'=>2,'badge'=>'PAR','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Juventude',            'tier'=>2,'badge'=>'JUV','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Remo',                 'tier'=>3,'badge'=>'REM','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Paysandu',             'tier'=>3,'badge'=>'PAY','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'CSA',                  'tier'=>3,'badge'=>'CSA','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'CRB',                  'tier'=>3,'badge'=>'CRB','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'ABC',                  'tier'=>3,'badge'=>'ABC','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'América RN',           'tier'=>3,'badge'=>'AMR','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Sampaio Corrêa',       'tier'=>3,'badge'=>'SAM','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Moto Club',            'tier'=>3,'badge'=>'MOT','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Treze',                'tier'=>3,'badge'=>'TRE','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Campinense',           'tier'=>3,'badge'=>'CPS','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Botafogo-PB',          'tier'=>3,'badge'=>'BPB','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Confiança',            'tier'=>3,'badge'=>'CON','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Sergipe',              'tier'=>3,'badge'=>'SER','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Joinville',            'tier'=>3,'badge'=>'JOI','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Criciúma',             'tier'=>3,'badge'=>'CRI','color'=>'#f5a800','dark'=>'#b37800'],
+  ['name'=>'Operário PR',          'tier'=>3,'badge'=>'OPE','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Londrina',             'tier'=>3,'badge'=>'LON','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Vila Nova',            'tier'=>3,'badge'=>'VNO','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Brasil de Pelotas',    'tier'=>3,'badge'=>'BPE','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Caxias',               'tier'=>3,'badge'=>'CAX','color'=>'#cc0000','dark'=>'#900'],
+  ['name'=>'Ypiranga-RS',          'tier'=>3,'badge'=>'YPI','color'=>'#f5a800','dark'=>'#b37800'],
+  ['name'=>'São Bento',            'tier'=>3,'badge'=>'SBE','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
+  ['name'=>'Ferroviária',          'tier'=>3,'badge'=>'FER','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'XV de Piracicaba',     'tier'=>3,'badge'=>'XVP','color'=>'#006b3c','dark'=>'#004a29'],
+  ['name'=>'Bangu',                'tier'=>3,'badge'=>'BAN','color'=>'#333','dark'=>'#111'],
+  ['name'=>'Madureira',            'tier'=>3,'badge'=>'MAD','color'=>'#f5a800','dark'=>'#b37800'],
 ];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>Copa Pênaltis</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
@@ -85,880 +80,1006 @@ $TIMES = [
   --text:#e8edf5;--text2:#8fa0bb;--text3:#5a6f8a;
   --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--gold:#ffd700;
 }
-body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
 
 /* ── HEADER ── */
-.header{background:linear-gradient(135deg,#1a2a5e,#0d1a3a);padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
-.header-logo{font-size:22px}
-.header-title{font-size:16px;font-weight:700;color:#fff}
-.header-sub{font-size:11px;color:var(--text3)}
-.btn-back{margin-left:auto;background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px}
-.btn-back:hover{background:rgba(255,255,255,.12);color:#fff}
+.hdr{background:linear-gradient(135deg,#1a2a5e,#0d1a3a);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #2a4a8f;position:sticky;top:0;z-index:100}
+.hdr-logo{font-size:24px}
+.hdr-title{font-size:15px;font-weight:800;color:#fff}
+.hdr-sub{font-size:10px;color:#7a9acc}
+.btn-back{margin-left:auto;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:5px;white-space:nowrap}
 
 /* ── SCREENS ── */
-.screen{display:none;padding:20px 16px;max-width:520px;margin:0 auto}
+.screen{display:none;max-width:540px;margin:0 auto;padding:0 0 80px}
 .screen.active{display:block}
 
-/* ── CARDS ── */
-.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}
-.card-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+/* ── START ── */
+.start-hero{background:linear-gradient(180deg,#0d1a3a 0%,#1a2a5e 50%,#0d3a1a 100%);padding:32px 20px 24px;text-align:center;position:relative;overflow:hidden}
+.start-hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.hero-icon{font-size:64px;margin-bottom:10px;display:block;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+.hero-title{font-size:26px;font-weight:900;color:#fff;margin-bottom:4px;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+.hero-sub{font-size:13px;color:#aac4ee;margin-bottom:20px}
 
 /* ── BOTÕES ── */
-.btn{border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;width:100%}
-.btn-green{background:#16a34a;color:#fff}
-.btn-green:hover{background:#15803d}
-.btn-red{background:#dc2626;color:#fff}
-.btn-red:hover{background:#b91c1c}
-.btn-blue{background:#2563eb;color:#fff}
-.btn-blue:hover{background:#1d4ed8}
-.btn-outline{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text)}
-.btn-outline:hover{background:rgba(255,255,255,.1)}
+.btn{border:none;border-radius:12px;padding:13px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%;transition:.15s;letter-spacing:.3px}
+.btn-primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-success{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;box-shadow:0 4px 14px rgba(22,163,74,.4)}
+.btn-danger{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff}
+.btn-ghost{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+.btn-sm{padding:8px 16px;font-size:12px;border-radius:8px;width:auto}
 
-/* ── TIME BADGE ── */
-.team-badge{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.5px}
-.team-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
-.team-row:last-child{border-bottom:none}
-.team-name{flex:1;font-size:13px;font-weight:600}
-.team-pts{font-size:13px;font-weight:700;color:var(--amber);min-width:24px;text-align:center}
-.team-saldo{font-size:11px;color:var(--text3);min-width:30px;text-align:center}
+/* ── TEAM PICKER ── */
+.tier-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:16px 16px 8px;display:flex;align-items:center;gap:8px}
+.tier-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.tier-1-lbl{color:#ffd700}
+.tier-2-lbl{color:#aaa}
+.tier-3-lbl{color:#cd7f32}
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 8px}
+.team-card{background:var(--panel);border:2px solid var(--border);border-radius:12px;padding:10px 6px;cursor:pointer;text-align:center;transition:.15s;position:relative;overflow:hidden}
+.team-card:hover{transform:translateY(-2px);border-color:var(--border2)}
+.team-card.selected{border-color:var(--amber)!important}
+.tc-badge{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;font-size:10px;font-weight:800;margin-bottom:4px;letter-spacing:.3px}
+.tc-name{font-size:10px;font-weight:600;color:var(--text);line-height:1.2}
+.tc-diff{font-size:9px;color:var(--text3);margin-top:2px}
 
-/* ── GRUPO ── */
-.group-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-.group-card{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px}
-.group-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
-.stage-badge{display:inline-block;background:linear-gradient(135deg,#b8860b,#ffd700);color:#000;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;margin-bottom:14px}
+/* ── GROUPS SCREEN ── */
+.groups-wrap{padding:12px}
+.all-groups{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.group-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px}
+.group-card.user-group{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.04)}
+.group-hdr{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.group-hdr .live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.g-team{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.g-team:last-child{border-bottom:none}
+.g-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.g-name{font-size:10px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-name.user-team{color:var(--amber)}
+.g-pts{font-size:10px;font-weight:700;color:var(--amber);min-width:20px;text-align:right}
+.g-saldo{font-size:9px;color:var(--text3);min-width:22px;text-align:center}
 
-/* ── CAMPO DE PÊNALTI ── */
-.field-wrap{position:relative;width:100%;max-width:400px;margin:0 auto}
-.field-svg{width:100%;display:block}
+.match-live-feed{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2);min-height:32px}
+.live-result{animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
-/* Zonas de chute */
-.shoot-zone-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;margin:12px auto;max-width:300px}
-.sz{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.15);border-radius:8px;height:60px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;overflow:hidden}
-.sz:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);transform:scale(1.03)}
-.sz.selected{border-color:var(--amber);background:rgba(245,158,11,.15)}
-.sz.goal{border-color:var(--green)!important;background:rgba(34,197,94,.2)!important}
-.sz.saved{border-color:var(--red)!important;background:rgba(239,68,68,.2)!important}
+.classif{display:inline-block;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px}
+.classif.q{background:rgba(34,197,94,.2);color:var(--green)}
+.classif.e{background:rgba(239,68,68,.15);color:var(--red)}
 
-.arrow-label{font-size:10px;color:var(--text3);text-align:center;margin-top:2px;pointer-events:none}
+/* ── ESTÁDIO / CAMPO ── */
+.stadium{background:linear-gradient(180deg,#1a5c1a 0%,#2d8a2d 40%,#3aa03a 60%,#2d8a2d 100%);position:relative;overflow:hidden;border-radius:14px 14px 0 0;user-select:none}
+.stadium-bg{width:100%;display:block}
 
-/* ── GOLEIRO ── */
-.keeper-wrap{position:relative;margin:0 auto;max-width:300px;height:70px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px}
-.keeper-icon{position:absolute;font-size:32px;top:50%;transform:translateY(-50%);transition:left .25s ease}
+/* Campo com perspectiva */
+.field-scene{position:relative;width:100%;background:linear-gradient(180deg,#87CEEB 0%,#b0e0ff 30%,#4a8a4a 30.1%,#3a7a3a 60%,#2d6a2d 100%);overflow:hidden;border-radius:14px 14px 0 0}
+.crowd{width:100%;height:30px;background:linear-gradient(90deg,#b44,#48b,#4b8,#b84,#84b,#4bb,#bb4,#b44);opacity:.7;position:relative}
+.crowd::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(0,0,0,.15) 0px,rgba(0,0,0,.15) 2px,transparent 2px,transparent 8px)}
+.sky{height:20px;background:linear-gradient(180deg,#1a3a6a,#2a5a9a)}
+.grass-top{height:8px;background:#3a8a3a;border-bottom:2px solid rgba(255,255,255,.3)}
 
-/* ── PLACAR ── */
-.score-board{background:var(--panel3);border:1px solid var(--border2);border-radius:14px;padding:14px 18px;text-align:center;margin-bottom:14px}
-.score-teams{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:4px}
-.score-team-name{font-size:12px;color:var(--text2);font-weight:600}
-.score-goals{font-size:36px;font-weight:800;color:#fff;letter-spacing:2px;font-variant-numeric:tabular-nums}
-.score-goals span{color:var(--text3);font-size:24px;margin:0 8px}
-.score-info{font-size:11px;color:var(--text3);margin-top:4px}
+/* GOL SVG */
+.goal-container{position:relative;max-width:320px;margin:0 auto;padding:8px 10px 0}
+.goal-svg{width:100%;display:block;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
 
-/* ── RESULTADO ── */
-.result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.result-box{background:var(--panel);border:1px solid var(--border2);border-radius:18px;padding:28px 24px;max-width:380px;width:100%;text-align:center}
-.result-icon{font-size:52px;margin-bottom:10px}
-.result-title{font-size:22px;font-weight:800;margin-bottom:6px}
-.result-sub{font-size:13px;color:var(--text2);margin-bottom:18px}
+/* KICKER */
+.kicker-container{position:relative;max-width:320px;margin:-10px auto 0;height:90px;display:flex;align-items:flex-end;justify-content:center}
+.kicker-svg{width:70px;height:90px;display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
+.kicker-svg.kick-anim{animation:kickAnim .35s ease forwards}
+@keyframes kickAnim{
+  0%{transform:translateY(0) rotate(0deg)}
+  30%{transform:translateY(-6px) rotate(-5deg)}
+  60%{transform:translateY(-4px) rotate(3deg)}
+  100%{transform:translateY(0) rotate(0deg)}
+}
 
-/* ── ANIMAÇÃO ── */
-@keyframes ballFly{from{transform:translate(0,0) scale(1)}to{transform:translate(var(--dx),var(--dy)) scale(.5)}}
-@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-@keyframes flash{0%,100%{opacity:1}50%{opacity:.3}}
-.anim-bounce{animation:bounce .4s ease}
-.anim-shake{animation:shake .4s ease}
+/* BALL animation */
+.ball-fly{position:absolute;transition:all .32s cubic-bezier(.2,0,.5,1);pointer-events:none;font-size:18px;z-index:10}
 
-.phase-title{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
-.phase-sub{font-size:12px;color:var(--text3);margin-bottom:16px}
+/* ZONA BUTTONS */
+.zone-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;padding:8px 12px 10px;max-width:380px;margin:0 auto}
+.zone-btn{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:10px;height:52px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;overflow:hidden}
+.zone-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4);transform:scale(1.03)}
+.zone-btn.hit-goal{border-color:var(--green)!important;background:rgba(34,197,94,.25)!important;animation:goalFlash .4s ease}
+.zone-btn.hit-save{border-color:var(--red)!important;background:rgba(239,68,68,.2)!important}
+@keyframes goalFlash{0%,100%{opacity:1}50%{opacity:.6}}
+.zone-icon{font-size:16px}
+.zone-lbl{font-size:8px;color:rgba(255,255,255,.5)}
 
-.match-info{display:flex;align-items:center;justify-content:space-between;background:var(--panel3);border-radius:12px;padding:12px 16px;margin-bottom:12px}
-.match-team{text-align:center;flex:1}
-.match-team-name{font-size:12px;color:var(--text2);font-weight:700}
-.match-vs{font-size:16px;font-weight:800;color:var(--text3)}
+/* MATCH PANEL */
+.match-panel{background:var(--panel);padding:0;border-radius:0 0 14px 14px;overflow:hidden}
+.match-top{background:linear-gradient(135deg,var(--panel2),var(--panel3));padding:10px 14px;display:flex;align-items:center;gap:10px}
+.mt-team{flex:1;text-align:center}
+.mt-name{font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-score{font-size:32px;font-weight:900;color:#fff;letter-spacing:3px;min-width:80px;text-align:center;font-variant-numeric:tabular-nums}
+.mt-round{font-size:10px;color:var(--text3);text-align:center}
 
-.kick-panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
-.kick-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;text-align:center}
+/* DOTS de pênalti */
+.dots-row{display:flex;align-items:center;gap:6px;padding:6px 14px 4px}
+.dots-label{font-size:10px;color:var(--text3);min-width:28px;font-weight:700}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:.2s}
+.dot.goal-u{background:var(--green);border-color:var(--green)}
+.dot.save-u{background:rgba(239,68,68,.3);border-color:var(--red)}
+.dot.goal-o{background:var(--red);border-color:var(--red)}
+.dot.save-o{background:rgba(34,197,94,.2);border-color:var(--green)}
+.dot.pending{opacity:.25}
 
-.penalty-log{max-height:90px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-bottom:10px}
-.log-dot{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:13px}
+/* STATUS */
+.status-bar{text-align:center;padding:6px 12px 2px;font-size:13px;font-weight:700;min-height:28px}
+.s-ok{color:var(--green)}
+.s-fail{color:var(--red)}
+.s-neutral{color:var(--amber)}
+.s-info{color:var(--blue)}
 
-.status-msg{text-align:center;font-size:14px;font-weight:700;min-height:22px;margin-bottom:8px;transition:.2s}
-.status-msg.ok{color:var(--green)}
-.status-msg.fail{color:var(--red)}
-.status-msg.neutral{color:var(--amber)}
+/* PHASE TAG */
+.phase-tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.phase-tag.shoot{background:rgba(245,158,11,.2);color:var(--amber)}
+.phase-tag.defend{background:rgba(59,130,246,.2);color:var(--blue)}
+.phase-tag.sd{background:rgba(239,68,68,.2);color:var(--red)}
 
-.instructions{font-size:11px;color:var(--text3);text-align:center;margin-top:6px}
+/* OVERLAY RESULTADO */
+.result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
+.result-box{background:var(--panel);border:1px solid var(--border2);border-radius:20px;padding:28px 22px;max-width:360px;width:100%;text-align:center}
+.result-big-icon{font-size:58px;margin-bottom:8px}
+.result-title{font-size:22px;font-weight:900;margin-bottom:4px}
+.result-score-display{font-size:28px;font-weight:800;margin:10px 0;color:#fff}
 
-/* Tier visual */
-.tier1{border-left:3px solid #ffd700}
-.tier2{border-left:3px solid #aaa}
-.tier3{border-left:3px solid #cd7f32}
+/* KNOCKOUT BRACKET */
+.ko-wrap{padding:12px}
+.ko-match{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.ko-match.user-match{border-color:rgba(245,158,11,.5)}
+.ko-team-row{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.ko-team-row+.ko-team-row{border-top:1px solid var(--border)}
+.ko-badge{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0}
+.ko-name{flex:1;font-size:12px;font-weight:600}
+.ko-tier{font-size:9px;color:var(--text3)}
+.user-lbl{font-size:9px;font-weight:700;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:4px}
 
-.danger-bar{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--amber),var(--red));margin:8px 0}
+/* CHAMPION */
+.champ-screen{text-align:center;padding:40px 20px}
+.champ-icon{font-size:72px;margin-bottom:12px;display:block;animation:bounce2 .8s ease infinite alternate}
+@keyframes bounce2{from{transform:translateY(0)}to{transform:translateY(-12px)}}
 
-.classif-tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
-.classif-tag.q{background:rgba(34,197,94,.2);color:var(--green)}
-.classif-tag.e{background:rgba(239,68,68,.15);color:var(--red)}
-
+/* MISC */
 .hidden{display:none!important}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.px{padding:0 14px}
+.mb12{margin-bottom:12px}
+.section-pad{padding:14px}
+.ko-phase-hdr{padding:14px 14px 8px;font-size:16px;font-weight:800;color:#fff}
+.ko-phase-sub{padding:0 14px 12px;font-size:11px;color:var(--text3)}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-logo">⚽</div>
+
+<div class="hdr">
+  <div class="hdr-logo">⚽</div>
   <div>
-    <div class="header-title">Copa Pênaltis</div>
-    <div class="header-sub">Fase de Grupos · Mata-Mata</div>
+    <div class="hdr-title">Copa Pênaltis</div>
+    <div class="hdr-sub" id="hdr-phase">Fase de Grupos · Mata-Mata</div>
   </div>
-  <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i> Sair</a>
+  <a href="../games.php" class="btn-back btn-sm"><i class="bi bi-arrow-left"></i> Sair</a>
 </div>
 
-<!-- TELA 1: INÍCIO -->
+<!-- ══ TELA 1: INÍCIO ══ -->
 <div class="screen active" id="sc-start">
-  <div style="text-align:center;padding:24px 0 16px">
-    <div style="font-size:56px;margin-bottom:10px">🏆</div>
-    <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px">Copa Pênaltis</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:6px">Fase de grupos + Mata-Mata</div>
-    <div style="font-size:11px;color:var(--text3)">Chute e defenda pênaltis para avançar</div>
+  <div class="start-hero">
+    <span class="hero-icon">🏆</span>
+    <div class="hero-title">Copa Pênaltis</div>
+    <div class="hero-sub">Fase de Grupos · Oitavas · Quartas · Semi · Final</div>
   </div>
-
-  <div class="card">
-    <div class="card-title"><i class="bi bi-info-circle"></i> Como funciona</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.8">
-      <div>⚽ <b>Fase de Grupos</b> — 3 jogos, 4 times por grupo</div>
-      <div>🏅 <b>Classificação</b> — Passam os 2 melhores (pts + saldo)</div>
-      <div>⚔️ <b>Mata-Mata</b> — Oitavas, Quartas, Semi, Final</div>
-      <div>❌ <b>Eliminado</b> — Volta à tela inicial</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title"><i class="bi bi-controller"></i> Controles</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.8">
-      <div>🦵 <b>Para chutar</b> — escolha uma das 6 zonas do gol</div>
-      <div>🧤 <b>Para defender</b> — escolha a zona que o adversário vai chutar</div>
-      <div>🎯 Cada partida: 5 pênaltis cada lado</div>
-    </div>
-  </div>
-
-  <button class="btn btn-green" onclick="startGame()">
-    <i class="bi bi-play-fill"></i> Começar Copa
-  </button>
-</div>
-
-<!-- TELA 2: GRUPOS -->
-<div class="screen" id="sc-groups">
-  <div style="margin-bottom:14px">
-    <div class="phase-title">Fase de Grupos</div>
-    <div class="phase-sub">4 grupos · Passam os 2 melhores de cada</div>
-  </div>
-  <div id="groups-view"></div>
-  <button class="btn btn-blue" id="btn-play-match" onclick="playNextMatch()" style="margin-top:6px">
-    <i class="bi bi-play-fill"></i> Jogar Próximo Jogo
-  </button>
-</div>
-
-<!-- TELA 3: PARTIDA (pênaltis) -->
-<div class="screen" id="sc-match">
-  <div class="match-info">
-    <div class="match-team">
-      <div class="match-team-name" id="m-team-user">Seu Time</div>
-      <div style="font-size:10px;color:var(--text3)" id="m-badge-user"></div>
-    </div>
-    <div class="match-vs">VS</div>
-    <div class="match-team">
-      <div class="match-team-name" id="m-team-opp">Adversário</div>
-      <div style="font-size:10px;color:var(--text3)" id="m-badge-opp"></div>
-    </div>
-  </div>
-
-  <div class="score-board">
-    <div class="score-teams">
-      <div class="score-team-name" id="sb-user"></div>
-      <div class="score-goals"><span id="sb-score-user">0</span><span>×</span><span id="sb-score-opp">0</span></div>
-      <div class="score-team-name" id="sb-opp"></div>
-    </div>
-    <div class="score-info" id="sb-info">Pênalti 1 de 5</div>
-  </div>
-
-  <!-- Log visual -->
-  <div class="kick-panel">
-    <div class="kick-title" id="kick-round-label">Rodada de Chutes</div>
-    <div class="penalty-log" id="penalty-log"></div>
-    <div class="status-msg neutral" id="status-msg">Escolha uma zona para chutar</div>
-
-    <!-- Gol SVG com goleiro animado -->
-    <div style="position:relative;max-width:320px;margin:0 auto 8px">
-      <svg viewBox="0 0 320 110" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
-        <!-- Grama -->
-        <rect width="320" height="110" fill="#1a3a1a"/>
-        <!-- Área grande -->
-        <rect x="60" y="60" width="200" height="50" fill="none" stroke="#fff" stroke-width="1.5" opacity=".4"/>
-        <!-- Área pequena -->
-        <rect x="110" y="80" width="100" height="30" fill="none" stroke="#fff" stroke-width="1.5" opacity=".3"/>
-        <!-- Bola de pênalti -->
-        <circle cx="160" cy="95" r="5" fill="#fff" opacity=".6"/>
-        <!-- Poste esq -->
-        <rect x="55" y="10" width="6" height="70" fill="#ccc" rx="2"/>
-        <!-- Poste dir -->
-        <rect x="259" y="10" width="6" height="70" fill="#ccc" rx="2"/>
-        <!-- Travessão -->
-        <rect x="55" y="10" width="210" height="6" fill="#ccc" rx="2"/>
-        <!-- Fundo do gol (rede) -->
-        <rect x="61" y="16" width="198" height="64" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.1)" stroke-width=".5"/>
-        <!-- Divisórias de zona (linhas guia) -->
-        <line x1="127" y1="16" x2="127" y2="80" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="4,3"/>
-        <line x1="193" y1="16" x2="193" y2="80" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="4,3"/>
-        <line x1="61"  y1="48" x2="259" y2="48" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="4,3"/>
-        <!-- Zona highlight (atualizado por JS) -->
-        <rect id="zone-highlight" x="0" y="0" width="0" height="0" fill="rgba(245,158,11,.25)" rx="2"/>
-        <!-- Goleiro -->
-        <text id="keeper-svg" x="160" y="72" font-size="28" text-anchor="middle" dominant-baseline="middle" style="transition:x .22s ease,y .22s ease">🧤</text>
-        <!-- Bola animada -->
-        <circle id="ball-svg" cx="160" cy="95" r="7" fill="#fff" opacity="0"/>
-      </svg>
-    </div>
-
-    <!-- Grid de zonas clicáveis -->
-    <div class="shoot-zone-grid" id="shoot-zones">
-      <div class="sz" data-zone="0" onclick="handleZoneClick(0)"><div class="arrow-label">↖ Alto Esq</div></div>
-      <div class="sz" data-zone="1" onclick="handleZoneClick(1)"><div class="arrow-label">↑ Alto Cen</div></div>
-      <div class="sz" data-zone="2" onclick="handleZoneClick(2)"><div class="arrow-label">↗ Alto Dir</div></div>
-      <div class="sz" data-zone="3" onclick="handleZoneClick(3)"><div class="arrow-label">↙ Baixo Esq</div></div>
-      <div class="sz" data-zone="4" onclick="handleZoneClick(4)"><div class="arrow-label">↓ Baixo Cen</div></div>
-      <div class="sz" data-zone="5" onclick="handleZoneClick(5)"><div class="arrow-label">↘ Baixo Dir</div></div>
-    </div>
-    <div class="instructions" id="kick-instructions">Clique na zona onde quer chutar</div>
-  </div>
-
-  <button class="btn btn-outline hidden" id="btn-next-kick" onclick="nextKick()">
-    Próximo ›
-  </button>
-</div>
-
-<!-- TELA 4: RESULTADO DA PARTIDA -->
-<div class="screen" id="sc-match-result">
-  <div style="text-align:center;padding:16px 0">
-    <div style="font-size:48px;margin-bottom:8px" id="mr-icon">🏅</div>
-    <div style="font-size:20px;font-weight:800;margin-bottom:4px" id="mr-title">Vitória!</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:16px" id="mr-sub"></div>
-  </div>
-  <div class="score-board">
-    <div class="score-teams">
-      <div class="score-team-name" id="mr-team-user"></div>
-      <div class="score-goals">
-        <span id="mr-score-user">0</span><span>×</span><span id="mr-score-opp">0</span>
+  <div class="section-pad">
+    <div class="card mb12">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.7px">Como jogar</div>
+      <div style="font-size:12px;color:var(--text2);line-height:2">
+        <div>⚽ Fase de grupos — 3 jogos, 4 times por grupo</div>
+        <div>🏅 Classificam os 2 melhores de cada grupo</div>
+        <div>⚔️ Mata-mata até a Final</div>
+        <div>🦵 Escolha a zona para <b>chutar</b></div>
+        <div>🧤 Escolha a zona para <b>defender</b></div>
+        <div>💀 Empate no mata-mata = morte súbita</div>
       </div>
-      <div class="score-team-name" id="mr-team-opp"></div>
     </div>
-  </div>
-  <div id="mr-group-state"></div>
-  <button class="btn btn-blue" id="btn-mr-continue" onclick="afterMatch()">
-    Continuar ›
-  </button>
-</div>
-
-<!-- TELA 5: MATA-MATA -->
-<div class="screen" id="sc-knockout">
-  <div style="margin-bottom:14px">
-    <div class="phase-title" id="ko-phase-title">Oitavas de Final</div>
-    <div class="phase-sub" id="ko-phase-sub">Eliminação direta · Perde e vai pra casa</div>
-  </div>
-  <div id="ko-bracket"></div>
-  <button class="btn btn-blue" id="btn-ko-play" onclick="playKnockout()">
-    <i class="bi bi-play-fill"></i> Jogar
-  </button>
-</div>
-
-<!-- TELA 6: CAMPEÃO -->
-<div class="screen" id="sc-champion">
-  <div style="text-align:center;padding:30px 0">
-    <div style="font-size:64px;margin-bottom:12px">🏆</div>
-    <div style="font-size:24px;font-weight:800;color:var(--gold);margin-bottom:8px">CAMPEÃO!</div>
-    <div style="font-size:16px;color:#fff;font-weight:700;margin-bottom:6px" id="champ-name"></div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:24px">Você venceu a Copa Pênaltis!</div>
-    <button class="btn btn-green" onclick="resetGame()" style="max-width:240px;margin:0 auto">
-      <i class="bi bi-arrow-clockwise"></i> Jogar Novamente
+    <button class="btn btn-primary" onclick="showScreen('sc-team')">
+      <i class="bi bi-controller"></i> Escolher Time & Jogar
     </button>
   </div>
 </div>
 
-<!-- OVERLAY ELIMINADO -->
-<div class="result-overlay hidden" id="overlay-eliminated">
+<!-- ══ TELA 2: ESCOLHER TIME ══ -->
+<div class="screen" id="sc-team">
+  <div class="section-pad" style="padding-bottom:0">
+    <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:4px">Escolha seu time</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Times Tier 1 enfrentam adversários mais difíceis</div>
+  </div>
+
+  <div class="tier-label tier-1-lbl">⭐ Tier 1 — Grandes</div>
+  <div class="team-grid" id="tg-1"></div>
+
+  <div class="tier-label tier-2-lbl">🥈 Tier 2 — Médios</div>
+  <div class="team-grid" id="tg-2"></div>
+
+  <div class="tier-label tier-3-lbl">🥉 Tier 3 — Menores</div>
+  <div class="team-grid" id="tg-3"></div>
+
+  <div class="section-pad">
+    <button class="btn btn-success" id="btn-confirm-team" onclick="confirmTeam()" disabled>
+      <i class="bi bi-play-fill"></i> Confirmar Time
+    </button>
+  </div>
+</div>
+
+<!-- ══ TELA 3: GRUPOS ══ -->
+<div class="screen" id="sc-groups">
+  <div class="groups-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#fff">Fase de Grupos</div>
+        <div style="font-size:11px;color:var(--text3)" id="groups-round-label">Jogo 1 de 3</div>
+      </div>
+      <div id="live-indicator" style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--red);font-weight:700">
+        <div class="live-dot"></div>AO VIVO
+      </div>
+    </div>
+
+    <div class="match-live-feed" id="live-feed">Aguardando início dos jogos...</div>
+
+    <div class="all-groups" id="all-groups"></div>
+
+    <button class="btn btn-primary" id="btn-play-group" onclick="playNextGroupMatch()">
+      <i class="bi bi-play-fill"></i> Jogar Jogo 1 de 3
+    </button>
+  </div>
+</div>
+
+<!-- ══ TELA 4: PARTIDA ══ -->
+<div class="screen" id="sc-match">
+
+  <!-- CAMPO/ESTÁDIO -->
+  <div class="field-scene">
+    <div class="sky"></div>
+    <div class="crowd"></div>
+    <div class="grass-top"></div>
+
+    <!-- GOL -->
+    <div class="goal-container">
+      <svg class="goal-svg" viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg">
+        <!-- Fundo rede -->
+        <defs>
+          <pattern id="net" width="12" height="12" patternUnits="userSpaceOnUse">
+            <path d="M 12 0 L 0 0 0 12" fill="none" stroke="rgba(255,255,255,.15)" stroke-width=".8"/>
+          </pattern>
+        </defs>
+        <!-- Gramado perspectiva -->
+        <polygon points="0,130 320,130 280,90 40,90" fill="#2d7a2d" opacity=".4"/>
+        <!-- Rede fundo -->
+        <rect x="52" y="14" width="216" height="76" fill="url(#net)"/>
+        <!-- Posts -->
+        <rect x="48" y="10" width="8" height="80" rx="3" fill="#ddd"/>
+        <rect x="264" y="10" width="8" height="80" rx="3" fill="#ddd"/>
+        <rect x="48" y="10" width="224" height="8" rx="3" fill="#ddd"/>
+        <!-- Divisões de zona (linhas guia) -->
+        <line x1="121" y1="18" x2="121" y2="90" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
+        <line x1="196" y1="18" x2="196" y2="90" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
+        <line x1="56" y1="54" x2="264" y2="54" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
+        <!-- Highlight zona selecionada -->
+        <rect id="zone-hl" x="0" y="0" width="0" height="0" rx="4" opacity=".7"/>
+        <!-- Goleiro -->
+        <g id="keeper-g" style="transition:transform .22s ease">
+          <!-- corpo do goleiro -->
+          <ellipse cx="160" cy="74" rx="10" ry="12" fill="#ff8c00"/>
+          <circle cx="160" cy="58" r="9" fill="#ffcc99"/>
+          <!-- luvas -->
+          <ellipse cx="148" cy="70" rx="5" ry="4" fill="#ff8c00"/>
+          <ellipse cx="172" cy="70" rx="5" ry="4" fill="#ff8c00"/>
+          <!-- pernas -->
+          <rect x="153" y="83" width="6" height="14" rx="3" fill="#1a1a8f"/>
+          <rect x="161" y="83" width="6" height="14" rx="3" fill="#1a1a8f"/>
+        </g>
+        <!-- Bola (começa fora da tela) -->
+        <circle id="ball-g" cx="160" cy="200" r="8" fill="white" stroke="#333" stroke-width="1.5" opacity="0">
+          <animate id="ball-anim" attributeName="opacity" values="0" dur="0s"/>
+        </circle>
+      </svg>
+    </div>
+
+    <!-- KICKER -->
+    <div class="kicker-container">
+      <svg id="kicker-svg" class="kicker-svg" viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg">
+        <!-- Sombra -->
+        <ellipse cx="35" cy="88" rx="16" ry="3" fill="rgba(0,0,0,.3)"/>
+        <!-- Bola no chão -->
+        <circle id="kick-ball" cx="44" cy="80" r="6" fill="white" stroke="#333" stroke-width="1"/>
+        <!-- Perna traseira -->
+        <line x1="32" y1="62" x2="25" y2="82" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
+        <!-- Perna de chute (animada) -->
+        <g id="kick-leg">
+          <line x1="38" y1="62" x2="46" y2="80" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
+          <line x1="46" y1="80" x2="50" y2="82" stroke="#cc0000" stroke-width="4" stroke-linecap="round"/>
+        </g>
+        <!-- Corpo -->
+        <rect x="26" y="36" width="18" height="28" rx="6" fill="#cc0000"/>
+        <!-- Número -->
+        <text x="35" y="54" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle" font-weight="bold">10</text>
+        <!-- Braço esq -->
+        <line x1="28" y1="42" x2="18" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
+        <!-- Braço dir -->
+        <line x1="42" y1="42" x2="52" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
+        <!-- Pescoço -->
+        <rect x="31" y="30" width="8" height="8" rx="3" fill="#ffcc99"/>
+        <!-- Cabeça -->
+        <circle cx="35" cy="22" r="12" fill="#ffcc99"/>
+        <!-- Cabelo -->
+        <ellipse cx="35" cy="13" rx="11" ry="5" fill="#3a2000"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- PAINEL DA PARTIDA -->
+  <div class="match-panel">
+    <!-- Placar -->
+    <div class="match-top">
+      <div class="mt-team">
+        <div class="mt-name" id="mt-user-name">Seu Time</div>
+        <div style="font-size:9px;color:var(--text3)" id="mt-user-badge"></div>
+      </div>
+      <div style="text-align:center">
+        <div class="mt-score"><span id="mt-score-u">0</span><span style="color:var(--text3);font-size:20px"> × </span><span id="mt-score-o">0</span></div>
+        <div class="mt-round" id="mt-round">Pênalti 1/5</div>
+      </div>
+      <div class="mt-team">
+        <div class="mt-name" id="mt-opp-name">Adversário</div>
+        <div style="font-size:9px;color:var(--text3)" id="mt-opp-badge"></div>
+      </div>
+    </div>
+
+    <!-- Dots de pênalti por time -->
+    <div class="dots-row">
+      <div class="dots-label" id="dots-lbl-u" style="font-size:9px"></div>
+      <div id="dots-user" style="display:flex;gap:3px"></div>
+    </div>
+    <div class="dots-row" style="padding-top:2px">
+      <div class="dots-label" id="dots-lbl-o" style="font-size:9px"></div>
+      <div id="dots-opp" style="display:flex;gap:3px"></div>
+    </div>
+
+    <div style="text-align:center;padding:6px 0 2px">
+      <span class="phase-tag shoot" id="phase-tag">🦵 Você chuta</span>
+    </div>
+    <div class="status-bar s-neutral" id="status-bar">Escolha uma zona no gol</div>
+
+    <!-- ZONAS DE CHUTE/DEFESA -->
+    <div class="zone-grid" id="zone-grid">
+      <div class="zone-btn" data-zone="0" onclick="handleZone(0)"><span class="zone-icon">↖</span><span class="zone-lbl">Alto Esq</span></div>
+      <div class="zone-btn" data-zone="1" onclick="handleZone(1)"><span class="zone-icon">⬆</span><span class="zone-lbl">Alto Cen</span></div>
+      <div class="zone-btn" data-zone="2" onclick="handleZone(2)"><span class="zone-icon">↗</span><span class="zone-lbl">Alto Dir</span></div>
+      <div class="zone-btn" data-zone="3" onclick="handleZone(3)"><span class="zone-icon">↙</span><span class="zone-lbl">Baixo Esq</span></div>
+      <div class="zone-btn" data-zone="4" onclick="handleZone(4)"><span class="zone-icon">⬇</span><span class="zone-lbl">Baixo Cen</span></div>
+      <div class="zone-btn" data-zone="5" onclick="handleZone(5)"><span class="zone-icon">↘</span><span class="zone-lbl">Baixo Dir</span></div>
+    </div>
+
+    <div style="padding:0 12px 14px">
+      <button class="btn btn-ghost hidden" id="btn-next-kick" onclick="nextKick()" style="padding:10px">
+        Próximo pênalti ›
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TELA 5: RESULTADO PARTIDA ══ -->
+<div class="screen" id="sc-result">
+  <div class="section-pad" style="text-align:center;padding-top:24px">
+    <div class="result-big-icon" id="res-icon">🏅</div>
+    <div class="result-title" id="res-title">Vitória!</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="res-sub"></div>
+    <div class="result-score-display" id="res-score"></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:20px" id="res-teams"></div>
+    <button class="btn btn-primary" id="btn-res-continue" onclick="afterMatch()">Continuar ›</button>
+  </div>
+</div>
+
+<!-- ══ TELA 6: MATA-MATA ══ -->
+<div class="screen" id="sc-ko">
+  <div class="ko-phase-hdr" id="ko-phase-hdr">Quartas de Final</div>
+  <div class="ko-phase-sub" id="ko-phase-sub">Mata-Mata · Eliminação direta</div>
+  <div class="ko-wrap" id="ko-bracket"></div>
+  <div class="px mb12">
+    <button class="btn btn-primary" id="btn-ko-play" onclick="playKO()">⚽ Jogar</button>
+  </div>
+</div>
+
+<!-- ══ TELA 7: CAMPEÃO ══ -->
+<div class="screen" id="sc-champ">
+  <div class="champ-screen">
+    <span class="champ-icon">🏆</span>
+    <div style="font-size:28px;font-weight:900;color:var(--gold);margin-bottom:8px">CAMPEÃO!</div>
+    <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:6px" id="champ-name"></div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:28px">Você venceu a Copa Pênaltis!</div>
+    <div style="display:flex;gap:10px;max-width:280px;margin:0 auto">
+      <button class="btn btn-ghost" onclick="showScreen('sc-start')">Início</button>
+      <button class="btn btn-success" onclick="location.reload()">Jogar Novamente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY ELIMINADO ══ -->
+<div class="result-overlay hidden" id="ov-elim">
   <div class="result-box">
-    <div class="result-icon">😔</div>
+    <div class="result-big-icon">😔</div>
     <div class="result-title" style="color:var(--red)">Eliminado!</div>
-    <div class="result-sub" id="elim-msg">Você foi eliminado da copa.</div>
-    <button class="btn btn-red" onclick="resetGame()">Voltar ao Início</button>
+    <div style="font-size:13px;color:var(--text2);margin:10px 0 18px" id="elim-msg"></div>
+    <button class="btn btn-danger" onclick="location.reload()">Voltar ao Início</button>
   </div>
 </div>
 
 <script>
-// ── TIMES DATA ──────────────────────────────────────────────────────────────
+// ── DADOS ─────────────────────────────────────────────────────────────────────
 const TIMES = <?= json_encode(array_values($TIMES)) ?>;
 
-// ── DIFICULDADE POR TIER ─────────────────────────────────────────────────────
-// pSave = chance do goleiro adversário defender (atacando)
-// pScore = chance do adversário marcar quando chuta (defendendo)
-function getDifficulty(tier, knockoutRound) {
-  // knockout amplifica dificuldade
-  const boost = knockoutRound ? knockoutRound * 0.04 : 0;
-  if (tier === 1) return { pSave: 0.42 + boost, pScore: 0.78 + boost };
-  if (tier === 2) return { pSave: 0.30 + boost, pScore: 0.65 + boost };
-  return           { pSave: 0.18 + boost, pScore: 0.52 + boost };
+// ── DIFICULDADE ───────────────────────────────────────────────────────────────
+function getDiff(tier, koBoost = 0) {
+  const b = koBoost * 0.04;
+  if (tier === 1) return { pSave: Math.min(.55, .42 + b), pScore: Math.min(.88, .78 + b) };
+  if (tier === 2) return { pSave: Math.min(.40, .28 + b), pScore: Math.min(.75, .62 + b) };
+  return             { pSave: Math.min(.28, .16 + b), pScore: Math.min(.62, .48 + b) };
 }
 
-// ── ESTADO DO JOGO ──────────────────────────────────────────────────────────
+// ── ESTADO ────────────────────────────────────────────────────────────────────
 let state = null;
+let selectedTeam = null;
 
-function freshState() {
-  return {
-    phase: 'groups',    // 'groups' | 'knockout'
-    userTeam: null,     // objeto time
-    groups: [],         // [{name, teams:[{...time, pts, gs, gc}]}]
-    groupMatchIndex: 0, // qual jogo da fase de grupos (0-2 para o user)
-    groupMatches: [],   // lista de partidas do user na fase de grupos
-    currentMatch: null, // partida em andamento
-    koRound: 0,         // 0=oitavas,1=quartas,2=semi,3=final
-    koBracket: [],      // times no mata-mata (16 classificados)
-    koMatches: [],      // partidas do mata-mata corrente
-  };
+// ── GOAL GEOMETRY ─────────────────────────────────────────────────────────────
+// zonas: [x, y, w, h] dentro do SVG 320x130
+const ZONE_RECTS = [
+  [56, 18, 65, 36],  // 0 alto-esq
+  [121,18, 75, 36],  // 1 alto-cen
+  [196,18, 68, 36],  // 2 alto-dir
+  [56, 54, 65, 36],  // 3 baixo-esq
+  [121,54, 75, 36],  // 4 baixo-cen
+  [196,54, 68, 36],  // 5 baixo-dir
+];
+function zoneCX(z){ const r=ZONE_RECTS[z]; return r[0]+r[2]/2; }
+function zoneCY(z){ const r=ZONE_RECTS[z]; return r[1]+r[3]/2; }
+
+// ── KEEPER POSITIONS ──────────────────────────────────────────────────────────
+// translateX offset para animar o keeper dentro do goal SVG
+const KEEPER_X = { 0:-80, 1:-15, 2:55, 3:-80, 4:-15, 5:55 };
+
+// ── TEAM PICKER ───────────────────────────────────────────────────────────────
+(function buildPicker() {
+  [1,2,3].forEach(tier => {
+    const grid = document.getElementById('tg-' + tier);
+    TIMES.filter(t => t.tier === tier).forEach(t => {
+      const d = document.createElement('div');
+      d.className = 'team-card';
+      d.dataset.name = t.name;
+      d.innerHTML = `
+        <div class="tc-badge" style="background:${t.color}22;color:${t.color};border:1px solid ${t.color}44">${t.badge}</div>
+        <div class="tc-name">${t.name}</div>
+        <div class="tc-diff">${tier===1?'★★★':tier===2?'★★☆':'★☆☆'}</div>`;
+      d.onclick = () => selectTeam(t, d);
+      grid.appendChild(d);
+    });
+  });
+})();
+
+function selectTeam(team, el) {
+  document.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  el.style.borderColor = team.color;
+  selectedTeam = team;
+  const btn = document.getElementById('btn-confirm-team');
+  btn.disabled = false;
+  btn.textContent = `⚽ Jogar com ${team.name}`;
 }
 
-// ── SORTEIO DOS GRUPOS ───────────────────────────────────────────────────────
-function drawGroups(userTeam) {
-  // 16 times sorteados: user + 15 outros, 4 grupos de 4
+function confirmTeam() {
+  if (!selectedTeam) return;
+  startGame(selectedTeam);
+}
+
+// ── INÍCIO ────────────────────────────────────────────────────────────────────
+function startGame(userTeam) {
+  state = {
+    userTeam,
+    phase: 'groups',
+    groups: buildGroups(userTeam),
+    gmIdx: 0,       // game index 0-2 nos grupos
+    gmList: [],     // partidas do user nos grupos
+    cur: null,      // partida corrente
+    koRound: 0,
+    koBracket: [],
+  };
+  state.gmList = buildUserMatches(state.groups);
+  showScreen('sc-groups');
+  renderGroups();
+  simulateOtherGroupsLive();
+}
+
+// ── GRUPOS ────────────────────────────────────────────────────────────────────
+function buildGroups(userTeam) {
   const pool = TIMES.filter(t => t.name !== userTeam.name);
   shuffle(pool);
-  const chosen = pool.slice(0, 15);
-  chosen.unshift(userTeam);
-  shuffle(chosen);
-
-  // Garantir que user fique no grupo A posição 0
-  const userIdx = chosen.findIndex(t => t.name === userTeam.name);
-  [chosen[0], chosen[userIdx]] = [chosen[userIdx], chosen[0]];
-
+  const picked = [userTeam, ...pool.slice(0, 15)];
+  // Garante user na posição 0 do grupo A
   const groups = [];
   const letters = ['A','B','C','D'];
   for (let i = 0; i < 4; i++) {
-    groups.push({
-      name: 'Grupo ' + letters[i],
-      teams: chosen.slice(i*4, i*4+4).map(t => ({...t, pts:0, gs:0, gc:0}))
-    });
+    groups.push({ name: 'Grupo ' + letters[i], teams: picked.slice(i*4, i*4+4).map(t => ({...t, pts:0, gs:0, gc:0, played:0})) });
   }
   return groups;
 }
 
-// ── PARTIDAS DO USER NA FASE DE GRUPOS ──────────────────────────────────────
-function buildUserGroupMatches(groups) {
-  const group = groups[0]; // user está no grupo A
-  const others = group.teams.filter(t => t.name !== state.userTeam.name);
-  return others.map(opp => ({ opp, result: null }));
+function buildUserMatches(groups) {
+  const g = groups[0];
+  return g.teams.filter(t => t.name !== state.userTeam.name).map(opp => ({ opp, done: false }));
 }
 
-// ── INÍCIO DO JOGO ──────────────────────────────────────────────────────────
-function startGame() {
-  // Escolhe um time aleatório para o user (com preferência por tier 1-2)
-  const pool = TIMES.filter(t => t.tier <= 2);
-  const userTeam = pool[Math.floor(Math.random() * pool.length)];
+// ── SIMULAÇÃO AO VIVO DOS OUTROS GRUPOS ──────────────────────────────────────
+let liveSimTimer = null;
+const liveMessages = [];
 
-  state = freshState();
-  state.userTeam = userTeam;
-  state.groups = drawGroups(userTeam);
-  state.groupMatches = buildUserGroupMatches(state.groups);
-  state.groupMatchIndex = 0;
+function simulateOtherGroupsLive() {
+  if (liveSimTimer) clearInterval(liveSimTimer);
+  liveMessages.length = 0;
 
-  showScreen('sc-groups');
-  renderGroups();
-  document.getElementById('btn-play-match').textContent = '⚽ Jogar Jogo 1 de 3';
+  // Coleta os confrontos que precisam ser simulados
+  const confrontos = [];
+  for (let gi = 1; gi < state.groups.length; gi++) {
+    const g = state.groups[gi];
+    for (let a = 0; a < g.teams.length; a++) {
+      for (let b = a+1; b < g.teams.length; b++) {
+        confrontos.push({ gi, a, b });
+      }
+    }
+  }
+  shuffle(confrontos);
+
+  let idx = 0;
+  liveSimTimer = setInterval(() => {
+    if (idx >= confrontos.length || state.gmIdx >= 3) {
+      clearInterval(liveSimTimer);
+      return;
+    }
+    const { gi, a, b } = confrontos[idx++];
+    const g = state.groups[gi];
+    const ta = g.teams[a], tb = g.teams[b];
+    const ga = Math.floor(Math.random()*4), gb = Math.floor(Math.random()*4);
+    ta.gs += ga; ta.gc += gb; ta.played++;
+    tb.gs += gb; tb.gc += ga; tb.played++;
+    if (ga > gb) ta.pts += 3;
+    else if (ga === gb) { ta.pts += 1; tb.pts += 1; }
+    else tb.pts += 3;
+
+    const feed = document.getElementById('live-feed');
+    if (feed) {
+      feed.innerHTML = `<span class="live-result">⚽ ${g.name}: <b>${ta.name}</b> ${ga} × ${gb} <b>${tb.name}</b></span>`;
+    }
+    renderGroups();
+  }, 1800);
 }
 
-// ── RENDER GRUPOS ──────────────────────────────────────────────────────────
+// ── RENDER TODOS OS GRUPOS ────────────────────────────────────────────────────
 function renderGroups() {
-  const wrap = document.getElementById('groups-view');
+  const wrap = document.getElementById('all-groups');
+  if (!wrap) return;
   wrap.innerHTML = state.groups.map((g, gi) => {
-    const sorted = [...g.teams].sort((a,b) => {
-      if (b.pts !== a.pts) return b.pts - a.pts;
-      return (b.gs-b.gc) - (a.gs-a.gc);
-    });
-    return `<div class="card" style="padding:12px 14px;margin-bottom:10px">
-      <div class="card-title" style="margin-bottom:8px"><i class="bi bi-people"></i> ${g.name}</div>
+    const sorted = [...g.teams].sort((a,b) => (b.pts-a.pts) || ((b.gs-b.gc)-(a.gs-a.gc)));
+    const isUserGrp = gi === 0;
+    const done = isUserGrp && state.gmIdx >= 3;
+    return `<div class="group-card ${isUserGrp?'user-group':''}">
+      <div class="group-hdr">
+        <span>${g.name}${isUserGrp?' <span style="color:var(--amber);font-size:9px">SEU GRUPO</span>':''}</span>
+        ${!done?'<div class="live-dot"></div>':''}
+      </div>
       ${sorted.map((t,i) => {
         const isUser = t.name === state.userTeam.name;
         const saldo = t.gs - t.gc;
-        const classifTag = gi === 0 && state.groupMatchIndex === 3
-          ? (i < 2 ? '<span class="classif-tag q">Q</span>' : '<span class="classif-tag e">E</span>')
-          : '';
-        return `<div class="team-row ${isUser?'':''}">
-          <div class="team-badge" style="background:${t.color}20;color:${t.color}">${t.badge}</div>
-          <div class="team-name" style="${isUser?'color:var(--amber);font-weight:800':''}">${t.name}</div>
-          ${classifTag}
-          <div class="team-saldo" style="color:${saldo>=0?'var(--green)':'var(--red)'}">${saldo>0?'+':''}${saldo}</div>
-          <div class="team-pts">${t.pts}pts</div>
+        const tag = done ? (i < 2 ? '<span class="classif q">Q</span>' : '<span class="classif e">E</span>') : '';
+        return `<div class="g-team">
+          <div class="g-dot" style="background:${t.color}"></div>
+          <div class="g-name ${isUser?'user-team':''}">${t.badge} ${t.name}${tag}</div>
+          <div class="g-saldo" style="color:${saldo>=0?'var(--green)':'var(--red)'}">${saldo>0?'+':''}${saldo}</div>
+          <div class="g-pts">${t.pts}</div>
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
 
-  // Simula jogos dos outros grupos (não do user)
-  const btnPlay = document.getElementById('btn-play-match');
-  if (state.groupMatchIndex >= 3) {
-    btnPlay.textContent = '📋 Ver Classificação & Avançar';
-    btnPlay.onclick = advanceFromGroups;
+  // Atualiza botão
+  const btn = document.getElementById('btn-play-group');
+  if (!btn) return;
+  if (state.gmIdx >= 3) {
+    btn.textContent = '📋 Ver Classificação Final & Avançar';
+    btn.onclick = advanceFromGroups;
   } else {
-    btnPlay.textContent = `⚽ Jogar Jogo ${state.groupMatchIndex+1} de 3`;
-    btnPlay.onclick = playNextMatch;
+    btn.textContent = `⚽ Jogar Jogo ${state.gmIdx+1} de 3`;
+    btn.onclick = playNextGroupMatch;
+  }
+  document.getElementById('groups-round-label').textContent =
+    state.gmIdx >= 3 ? 'Fase de grupos concluída' : `Jogo ${state.gmIdx+1} de 3`;
+}
+
+// ── PRÓXIMO JOGO DO GRUPO ─────────────────────────────────────────────────────
+function playNextGroupMatch() {
+  if (state.gmIdx >= 3) { advanceFromGroups(); return; }
+  startMatch(state.gmList[state.gmIdx].opp, false);
+}
+
+// ── INICIAR PARTIDA ────────────────────────────────────────────────────────────
+function startMatch(opp, isKO, koBoost = 0) {
+  if (liveSimTimer) clearInterval(liveSimTimer);
+  state.cur = {
+    opp, isKO, koBoost,
+    uGoals: 0, oGoals: 0,
+    kickIdx: 0,   // 0-9: par=user chuta, ímpar=opp chuta
+    dotsU: [], dotsO: [],
+    locked: false,
+    sd: false, sdPhase: 0, sdUserScored: null,
+  };
+  document.getElementById('penalty-log') && (document.getElementById('penalty-log').innerHTML = '');
+  resetZoneBtns();
+  updateMatchUI();
+  initDots();
+  showScreen('sc-match');
+  prepKick();
+}
+
+// ── UI DA PARTIDA ──────────────────────────────────────────────────────────────
+function updateMatchUI() {
+  const { cur, userTeam } = state;
+  document.getElementById('mt-user-name').textContent = userTeam.name;
+  document.getElementById('mt-opp-name').textContent = cur.opp.name;
+  document.getElementById('mt-user-badge').textContent = userTeam.badge;
+  document.getElementById('mt-opp-badge').textContent = cur.opp.badge;
+  document.getElementById('mt-score-u').textContent = cur.uGoals;
+  document.getElementById('mt-score-o').textContent = cur.oGoals;
+  document.getElementById('dots-lbl-u').textContent = userTeam.badge;
+  document.getElementById('dots-lbl-o').textContent = cur.opp.badge;
+}
+
+function initDots() {
+  ['dots-user','dots-opp'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    for (let i=0;i<5;i++) {
+      const d = document.createElement('div');
+      d.className = 'dot pending';
+      d.id = id + '-' + i;
+      el.appendChild(d);
+    }
+  });
+}
+
+function setDot(side, kickRound, result) {
+  // side: 'user'|'opp', kickRound: 0-4
+  const id = `dots-${side}-${kickRound}`;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('pending');
+  if (side === 'user') {
+    el.className = result === 'goal' ? 'dot goal-u' : 'dot save-u';
+    el.textContent = result === 'goal' ? '⚽' : '✕';
+  } else {
+    el.className = result === 'goal' ? 'dot goal-o' : 'dot save-o';
+    el.textContent = result === 'goal' ? '⚽' : '🛡';
   }
 }
 
-// ── PRÓXIMO JOGO DA FASE DE GRUPOS ──────────────────────────────────────────
-function playNextMatch() {
-  if (state.groupMatchIndex >= 3) { advanceFromGroups(); return; }
-  const match = state.groupMatches[state.groupMatchIndex];
-  startMatch(match.opp, false);
-}
-
-// ── INICIAR PARTIDA (PÊNALTIS) ───────────────────────────────────────────────
-function startMatch(opp, isKnockout, koRound = 0) {
-  state.currentMatch = {
-    opp,
-    isKnockout,
-    koRound,
-    userGoals: 0,
-    oppGoals: 0,
-    kicks: [],      // {role:'shoot'|'defend', userZone, oppZone, result:'goal'|'save'}
-    kickIndex: 0,   // 0..9 (5 chutes cada, alternando)
-    phase: 'shoot', // 'shoot' = user chuta; 'defend' = user defende
-    locked: false,
-  };
-
-  // Alternância: par=user chuta, ímpar=user defende
-  // Sequência: user chuta (0), opp chuta (1), ... (5 pares)
-  // kick 0,2,4,6,8 = user chuta; 1,3,5,7,9 = user defende
-
-  updateMatchUI();
-  showScreen('sc-match');
-  prepareKick();
-}
-
-function currentKickIsUserShooting() {
-  return state.currentMatch.kickIndex % 2 === 0;
-}
-
-function prepareKick() {
-  const m = state.currentMatch;
+function prepKick() {
+  const m = state.cur;
   if (m.locked) return;
+  const userShooting = m.kickIdx % 2 === 0;
+  const round = Math.floor(m.kickIdx / 2) + 1;
+  document.getElementById('mt-round').textContent = `Pênalti ${round}/5`;
 
-  const kickNum = m.kickIndex;
-  const userShooting = currentKickIsUserShooting();
-  const round = Math.floor(kickNum / 2) + 1; // 1-5
+  const tag = document.getElementById('phase-tag');
+  if (m.sd) {
+    tag.className = 'phase-tag sd';
+    tag.textContent = m.sdPhase === 0 ? '💀 Morte Súbita — Chute!' : '💀 Morte Súbita — Defenda!';
+  } else if (userShooting) {
+    tag.className = 'phase-tag shoot';
+    tag.textContent = `🦵 Você chuta (${round}/5)`;
+  } else {
+    tag.className = 'phase-tag defend';
+    tag.textContent = `🧤 Você defende (${round}/5)`;
+  }
 
-  document.getElementById('sb-info').textContent = `Pênalti ${round} de 5`;
-  document.getElementById('kick-round-label').textContent = userShooting
-    ? `🦵 Você está CHUTANDO (${round}/5)`
-    : `🧤 Você está DEFENDENDO (${round}/5)`;
-  document.getElementById('kick-instructions').textContent = userShooting
-    ? 'Clique na zona onde quer chutar'
-    : 'Clique na zona que vai defender';
-  setStatus('', 'neutral');
-  resetZones();
+  setStatus(m.sd ? 'Clique na zona!' : userShooting ? 'Escolha onde chutar' : 'Escolha a zona para defender', 'neutral');
+  resetZoneBtns();
   document.getElementById('btn-next-kick').classList.add('hidden');
-
-  // Reposicionar goleiro
-  animateKeeper(4, false); // zona 4 = centro-baixo (posição inicial)
+  moveKeeper(4); // centro
 }
 
-function handleZoneClick(zone) {
-  const m = state.currentMatch;
+// ── CLICK NA ZONA ──────────────────────────────────────────────────────────────
+function handleZone(zone) {
+  const m = state.cur;
   if (m.locked) return;
   m.locked = true;
 
-  // ── MODO MORTE SÚBITA ──────────────────────────────────────────────────────
-  if (m.suddenDeath) {
-    handleSuddenDeathKick(zone);
-    return;
-  }
+  if (m.sd) { handleSD(zone); return; }
 
-  // ── MODO NORMAL ────────────────────────────────────────────────────────────
-  const userShooting = currentKickIsUserShooting();
-  const opp = m.opp;
-  const diff = getDifficulty(opp.tier, m.koRound);
-
-  let result, oppZone;
+  const userShooting = m.kickIdx % 2 === 0;
+  const diff = getDiff(m.opp.tier, m.koBoost);
+  const oppZone = Math.floor(Math.random() * 6);
+  const kickRound = Math.floor(m.kickIdx / 2);
 
   if (userShooting) {
-    oppZone = Math.floor(Math.random() * 6);
     const saved = (zone === oppZone) || (Math.random() < diff.pSave);
-    result = saved ? 'save' : 'goal';
-    animateKeeper(oppZone, true);
-    animateBall(zone);
-    highlightZoneSVG(zone, result);
-    markZone(zone, result);
-    if (result === 'goal') { m.userGoals++; setStatus('⚽ GOL! Você marcou!', 'ok'); }
+    const result = saved ? 'save' : 'goal';
+    animateShoot(zone, oppZone, result, true);
+    if (result === 'goal') { m.uGoals++; setStatus('⚽ GOL! Você marcou!', 'ok'); }
     else setStatus('🧤 Defendido! O goleiro pegou.', 'fail');
-    addLogDot(result === 'goal' ? 'user-goal' : 'defense');
+    setDot('user', kickRound, result);
+    document.getElementById('mt-score-u').textContent = m.uGoals;
   } else {
-    oppZone = Math.floor(Math.random() * 6);
     const scored = (zone !== oppZone) && (Math.random() < diff.pScore);
-    result = scored ? 'goal' : 'save';
-    animateKeeper(zone, true);
-    animateBall(oppZone);
-    highlightZoneSVG(oppZone, scored ? 'goal' : 'save');
-    markZone(oppZone, result === 'save' ? 'goal' : 'saved');
+    const result = scored ? 'goal' : 'save';
+    animateShoot(oppZone, zone, result, false);
     if (result === 'save') setStatus('🧤 Você defendeu! Ótima defesa!', 'ok');
-    else { m.oppGoals++; setStatus('😬 Gol do adversário!', 'fail'); }
-    addLogDot(result === 'save' ? 'defense' : 'opp-goal');
+    else { m.oGoals++; setStatus('😬 Gol do adversário!', 'fail'); }
+    setDot('opp', kickRound, result);
+    document.getElementById('mt-score-o').textContent = m.oGoals;
   }
 
-  m.kicks.push({ userShooting, userZone: zone, oppZone, result });
-  updateMatchUI();
-  m.kickIndex++;
-
-  if (m.kickIndex >= 10) {
-    setTimeout(finishMatch, 900);
+  m.kickIdx++;
+  if (m.kickIdx >= 10) {
+    setTimeout(finishMatch, 1000);
   } else {
-    document.getElementById('btn-next-kick').classList.remove('hidden');
-    m.locked = false;
-  }
-}
-
-function handleSuddenDeathKick(zone) {
-  const m = state.currentMatch;
-  const diff = getDifficulty(m.opp.tier, m.koRound);
-  resetZones();
-
-  if (m.sdKick === 0) {
-    // User chuta
-    const oppZone = Math.floor(Math.random() * 6);
-    const saved = (zone === oppZone) || (Math.random() < diff.pSave);
-    animateKeeper(oppZone, true);
-    animateBall(zone);
-    highlightZoneSVG(zone, saved ? 'save' : 'goal');
-    markZone(zone, saved ? 'saved' : 'goal');
-    m.sdUserScored = !saved;
-
-    if (m.sdUserScored) setStatus('⚽ GOL na morte súbita!', 'ok');
-    else setStatus('🧤 Defendido na morte súbita!', 'fail');
-
-    m.sdKick = 1;
-    // Agora adversário chuta — o user defende
     setTimeout(() => {
-      resetZones();
-      document.getElementById('kick-round-label').textContent = '💀 MORTE SÚBITA — Defenda o chute!';
-      document.getElementById('kick-instructions').textContent = 'Clique na zona para defender';
-      setStatus(m.sdUserScored ? 'Você marcou! Agora defenda para vencer.' : 'Você errou. Defenda para não perder!', 'neutral');
+      document.getElementById('btn-next-kick').classList.remove('hidden');
       m.locked = false;
     }, 700);
-
-  } else {
-    // User defende
-    const oppZone = Math.floor(Math.random() * 6);
-    const scored = (zone !== oppZone) && (Math.random() < diff.pScore * 0.9);
-    animateKeeper(zone, true);
-    animateBall(oppZone);
-    highlightZoneSVG(oppZone, scored ? 'goal' : 'save');
-    markZone(oppZone, scored ? 'goal' : 'saved');
-
-    const userWins = m.sdUserScored && !scored;
-    const userLoses = !m.sdUserScored && scored;
-
-    if (!scored) setStatus('🧤 Você defendeu!', 'ok');
-    else setStatus('😬 Gol do adversário na morte súbita!', 'fail');
-
-    setTimeout(() => {
-      if (userWins) {
-        m.userGoals++; // placar simbólico
-        showMatchResult(true, false, false);
-      } else if (userLoses) {
-        m.oppGoals++;
-        showMatchResult(false, false, false);
-      } else {
-        // Ambos marcaram ou nenhum marcou — nova rodada
-        m.sdKick = 0;
-        m.sdUserScored = null;
-        m.locked = false;
-        document.getElementById('kick-round-label').textContent = '💀 MORTE SÚBITA — Você chuta novamente';
-        document.getElementById('kick-instructions').textContent = 'Clique na zona para chutar';
-        setStatus('Continua! Nova rodada de morte súbita.', 'neutral');
-        document.getElementById('penalty-log').innerHTML = '';
-        resetZones();
-        animateKeeper(4, false); // zona 4 = centro-baixo (posição inicial)
-      }
-    }, 700);
   }
 }
 
-function nextKick() {
-  state.currentMatch.locked = false;
-  document.getElementById('btn-next-kick').classList.add('hidden');
-  prepareKick();
+// ── ANIMAÇÕES ──────────────────────────────────────────────────────────────────
+function animateShoot(ballZone, keeperZone, result, userKicking) {
+  // Kicker
+  const ksvg = document.getElementById('kicker-svg');
+  ksvg.classList.add('kick-anim');
+  setTimeout(() => ksvg.classList.remove('kick-anim'), 400);
+
+  // Bola no chão some
+  const kickBall = document.getElementById('kick-ball');
+  if (kickBall) kickBall.setAttribute('opacity','0');
+
+  // Keeper move
+  setTimeout(() => moveKeeper(keeperZone), 150);
+
+  // Highlight zona
+  highlightZone(ballZone, result);
+
+  // Botão da zona
+  setTimeout(() => {
+    const btn = document.querySelector(`.zone-btn[data-zone="${ballZone}"]`);
+    if (btn) btn.classList.add(result === 'goal' ? 'hit-goal' : 'hit-save');
+  }, 300);
+
+  // Bola no SVG voa
+  animBallSVG(ballZone, result);
 }
 
-// Coordenadas SVG (cx) e cy por zona
-const ZONE_SVG = {
-  0: {x: 82,  y: 32},
-  1: {x: 160, y: 32},
-  2: {x: 238, y: 32},
-  3: {x: 82,  y: 62},
-  4: {x: 160, y: 62},
-  5: {x: 238, y: 62},
-};
-// Bounds highlight por zona [x, y, w, h]
-const ZONE_RECT = {
-  0: [61,  16, 66, 32],
-  1: [127, 16, 66, 32],
-  2: [193, 16, 66, 32],
-  3: [61,  48, 66, 32],
-  4: [127, 48, 66, 32],
-  5: [193, 48, 66, 32],
-};
-
-function animateKeeper(zone, jump) {
-  const k = document.getElementById('keeper-svg');
-  if (!k) return;
-  const pos = ZONE_SVG[zone] ?? {x:160, y:62};
-  k.setAttribute('x', pos.x);
-  k.setAttribute('y', pos.y);
+function animBallSVG(zone, result) {
+  const ball = document.getElementById('ball-g');
+  if (!ball) return;
+  const tx = zoneCX(zone), ty = zoneCY(zone);
+  ball.setAttribute('cx', 160);
+  ball.setAttribute('cy', 120);
+  ball.setAttribute('opacity', '1');
+  ball.setAttribute('fill', result === 'goal' ? '#22c55e' : '#ef4444');
+  // Anima via JS
+  let progress = 0;
+  const anim = setInterval(() => {
+    progress += 0.08;
+    if (progress >= 1) { progress = 1; clearInterval(anim); }
+    const x = 160 + (tx - 160) * progress;
+    const y = 120 + (ty - 120) * progress;
+    ball.setAttribute('cx', x);
+    ball.setAttribute('cy', y);
+    ball.setAttribute('r', 8 - progress * 3);
+  }, 16);
+  setTimeout(() => {
+    ball.setAttribute('opacity','0');
+    ball.setAttribute('cx', 160);
+    ball.setAttribute('cy', 200);
+    // Bola no chão volta
+    const kb = document.getElementById('kick-ball');
+    if (kb) kb.setAttribute('opacity','1');
+  }, 700);
 }
 
-function animateBall(zone) {
-  const b = document.getElementById('ball-svg');
-  if (!b) return;
-  const pos = ZONE_SVG[zone] ?? {x:160, y:32};
-  b.setAttribute('cx', pos.x);
-  b.setAttribute('cy', pos.y);
-  b.setAttribute('opacity', '1');
-  setTimeout(() => b.setAttribute('opacity', '0'), 600);
+function moveKeeper(zone) {
+  const kg = document.getElementById('keeper-g');
+  if (!kg) return;
+  const dx = KEEPER_X[zone] ?? 0;
+  const dy = zone <= 2 ? -18 : 0;
+  kg.style.transform = `translate(${dx}px, ${dy}px)`;
 }
 
-function highlightZoneSVG(zone, cls) {
-  const h = document.getElementById('zone-highlight');
-  if (!h) return;
-  const r = ZONE_RECT[zone];
-  if (!r) { h.setAttribute('width','0'); return; }
-  h.setAttribute('x', r[0]);
-  h.setAttribute('y', r[1]);
-  h.setAttribute('width', r[2]);
-  h.setAttribute('height', r[3]);
-  h.setAttribute('fill', cls === 'goal' ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)');
+function highlightZone(zone, result) {
+  const hl = document.getElementById('zone-hl');
+  if (!hl) return;
+  const r = ZONE_RECTS[zone];
+  hl.setAttribute('x', r[0]); hl.setAttribute('y', r[1]);
+  hl.setAttribute('width', r[2]); hl.setAttribute('height', r[3]);
+  hl.setAttribute('fill', result === 'goal' ? 'rgba(34,197,94,.4)' : 'rgba(239,68,68,.35)');
+  setTimeout(() => hl.setAttribute('width','0'), 1000);
 }
 
-function getZoneX(zone) {
-  return zone; // agora usamos zone diretamente em animateKeeper
-}
-
-function markZone(zone, cls) {
-  const el = document.querySelector(`.sz[data-zone="${zone}"]`);
-  if (el) el.classList.add(cls === 'goal' ? 'goal' : 'saved');
-}
-
-function resetZones() {
-  document.querySelectorAll('.sz').forEach(el => {
-    el.classList.remove('goal','saved','selected');
-  });
-}
-
-function addLogDot(type) {
-  const log = document.getElementById('penalty-log');
-  const dot = document.createElement('div');
-  dot.className = 'log-dot';
-  if (type === 'user-goal') { dot.textContent = '⚽'; dot.style.borderColor = 'var(--green)'; }
-  else if (type === 'opp-goal') { dot.textContent = '⚽'; dot.style.borderColor = 'var(--red)'; }
-  else { dot.textContent = '🧤'; dot.style.borderColor = 'var(--blue)'; }
-  log.appendChild(dot);
+function resetZoneBtns() {
+  document.querySelectorAll('.zone-btn').forEach(b => b.classList.remove('hit-goal','hit-save'));
 }
 
 function setStatus(msg, cls) {
-  const el = document.getElementById('status-msg');
+  const el = document.getElementById('status-bar');
   el.textContent = msg;
-  el.className = 'status-msg ' + cls;
+  el.className = 'status-bar s-' + cls;
 }
 
-function updateMatchUI() {
-  const m = state.currentMatch;
-  document.getElementById('m-team-user').textContent = state.userTeam.name;
-  document.getElementById('m-team-opp').textContent = m.opp.name;
-  document.getElementById('m-badge-user').textContent = state.userTeam.badge;
-  document.getElementById('m-badge-opp').textContent = m.opp.badge;
-  document.getElementById('sb-user').textContent = state.userTeam.name;
-  document.getElementById('sb-opp').textContent = m.opp.name;
-  document.getElementById('sb-score-user').textContent = m.userGoals;
-  document.getElementById('sb-score-opp').textContent = m.oppGoals;
-}
-
-// ── FINALIZAR PARTIDA ────────────────────────────────────────────────────────
-function finishMatch() {
-  const m = state.currentMatch;
-  const win = m.userGoals > m.oppGoals;
-  const draw = m.userGoals === m.oppGoals;
-
-  if (m.isKnockout) {
-    if (draw) {
-      // Pênalti extra (morte súbita) — simplificado: simula 3 pênaltis extras
-      runSuddenDeath();
-      return;
-    }
-    showMatchResult(win, draw, false);
-  } else {
-    // Fase de grupos
-    updateGroupStandings(m.opp, m.userGoals, m.oppGoals);
-    showMatchResult(win, draw, false);
-  }
-}
-
-function runSuddenDeath() {
-  // Ativa modo morte súbita — o user joga kick a kick
-  const m = state.currentMatch;
-  m.suddenDeath = true;
-  m.sdKick = 0;   // 0=user chuta, 1=opp chuta
-  m.sdUserScored = null;
-  m.locked = false;
-
-  document.getElementById('sb-info').textContent = 'MORTE SÚBITA!';
-  document.getElementById('kick-round-label').textContent = '💀 MORTE SÚBITA — Você chuta primeiro';
-  document.getElementById('kick-instructions').textContent = 'Clique na zona para chutar';
-  setStatus('Empate! Decide na morte súbita.', 'neutral');
-  document.getElementById('penalty-log').innerHTML = '';
-  resetZones();
+function nextKick() {
+  state.cur.locked = false;
   document.getElementById('btn-next-kick').classList.add('hidden');
-  animateKeeper(4, false); // zona 4 = centro-baixo (posição inicial)
+  resetZoneBtns();
+  highlightZone(0, 'save'); // limpa
+  document.getElementById('zone-hl') && document.getElementById('zone-hl').setAttribute('width','0');
+  moveKeeper(4);
+  // Bola no chão volta
+  const kb = document.getElementById('kick-ball');
+  if (kb) kb.setAttribute('opacity','1');
+  prepKick();
 }
 
-function updateGroupStandings(opp, uGoals, oGoals) {
-  const group = state.groups[0];
-  const uTeam = group.teams.find(t => t.name === state.userTeam.name);
-  const oTeam = group.teams.find(t => t.name === opp.name);
-  uTeam.gs += uGoals; uTeam.gc += oGoals;
-  oTeam.gs += oGoals; oTeam.gc += uGoals;
-  if (uGoals > oGoals) { uTeam.pts += 3; }
-  else if (uGoals === oGoals) { uTeam.pts += 1; oTeam.pts += 1; }
-  else { oTeam.pts += 3; }
+// ── FINALIZAR PARTIDA ──────────────────────────────────────────────────────────
+function finishMatch() {
+  const m = state.cur;
+  const win = m.uGoals > m.oGoals, draw = m.uGoals === m.oGoals;
 
-  // Simula jogos dos outros times do grupo
-  const others = group.teams.filter(t => t.name !== state.userTeam.name && t.name !== opp.name);
-  if (others.length >= 2) {
-    const g1 = Math.floor(Math.random()*4), g2 = Math.floor(Math.random()*4);
-    others[0].gs += g1; others[0].gc += g2;
-    others[1].gs += g2; others[1].gc += g1;
-    if (g1 > g2) others[0].pts += 3;
-    else if (g1 === g2) { others[0].pts += 1; others[1].pts += 1; }
-    else others[1].pts += 3;
+  if (m.isKO && draw) { startSD(); return; }
+
+  if (!m.isKO) {
+    updateGroupStandings(m.opp, m.uGoals, m.oGoals);
+    state.gmIdx++;
   }
+  showResult(win, draw);
+}
 
-  // Simula jogos dos outros grupos apenas no último jogo do user
-  if (state.groupMatchIndex === 2) {
-    for (let gi = 1; gi < state.groups.length; gi++) {
-      const g = state.groups[gi];
-      for (let a = 0; a < g.teams.length; a++) {
-        for (let b = a+1; b < g.teams.length; b++) {
-          const ga = Math.floor(Math.random()*4), gb = Math.floor(Math.random()*4);
-          g.teams[a].gs += ga; g.teams[a].gc += gb;
-          g.teams[b].gs += gb; g.teams[b].gc += ga;
-          if (ga > gb) g.teams[a].pts += 3;
-          else if (ga === gb) { g.teams[a].pts += 1; g.teams[b].pts += 1; }
-          else g.teams[b].pts += 3;
-        }
+// ── MORTE SÚBITA ──────────────────────────────────────────────────────────────
+function startSD() {
+  const m = state.cur;
+  m.sd = true; m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
+  initDots();
+  resetZoneBtns();
+  moveKeeper(4);
+  document.getElementById('mt-round').textContent = 'Morte Súbita!';
+  prepKick();
+}
+
+function handleSD(zone) {
+  const m = state.cur;
+  const diff = getDiff(m.opp.tier, m.koBoost);
+  const oppZone = Math.floor(Math.random() * 6);
+
+  if (m.sdPhase === 0) {
+    // User chuta
+    const saved = (zone === oppZone) || (Math.random() < diff.pSave);
+    m.sdUserScored = !saved;
+    animateShoot(zone, oppZone, saved ? 'save' : 'goal', true);
+    if (m.sdUserScored) setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
+    else setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
+    m.sdPhase = 1;
+    setTimeout(() => {
+      resetZoneBtns();
+      moveKeeper(4);
+      prepKick();
+      m.locked = false;
+    }, 900);
+  } else {
+    // User defende
+    const scored = (zone !== oppZone) && (Math.random() < diff.pScore * 0.9);
+    animateShoot(oppZone, zone, scored ? 'goal' : 'save', false);
+    const userWins = m.sdUserScored && !scored;
+    const userLoses = !m.sdUserScored && scored;
+    if (!scored) setStatus('🧤 Você defendeu!', 'ok');
+    else setStatus('😬 Gol do adversário!', 'fail');
+    setTimeout(() => {
+      if (userWins) { m.uGoals++; showResult(true, false); }
+      else if (userLoses) { m.oGoals++; showResult(false, false); }
+      else {
+        // Nova rodada morte súbita
+        m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
+        resetZoneBtns(); moveKeeper(4); prepKick();
+        setStatus('Continua! Nova rodada.', 'neutral');
       }
-    }
+    }, 900);
   }
-
-  state.groupMatchIndex++;
 }
 
-// ── MOSTRAR RESULTADO DA PARTIDA ────────────────────────────────────────────
-function showMatchResult(win, draw, knockout) {
-  const m = state.currentMatch;
-  document.getElementById('mr-team-user').textContent = state.userTeam.name;
-  document.getElementById('mr-team-opp').textContent = m.opp.name;
-  document.getElementById('mr-score-user').textContent = m.userGoals;
-  document.getElementById('mr-score-opp').textContent = m.oppGoals;
+// ── STANDINGS DOS GRUPOS ───────────────────────────────────────────────────────
+function updateGroupStandings(opp, uG, oG) {
+  const g = state.groups[0];
+  const u = g.teams.find(t => t.name === state.userTeam.name);
+  const o = g.teams.find(t => t.name === opp.name);
+  u.gs += uG; u.gc += oG; u.played++;
+  o.gs += oG; o.gc += uG; o.played++;
+  if (uG > oG) u.pts += 3;
+  else if (uG === oG) { u.pts += 1; o.pts += 1; }
+  else o.pts += 3;
 
-  if (win) {
-    document.getElementById('mr-icon').textContent = '🏅';
-    document.getElementById('mr-title').textContent = 'Vitória!';
-    document.getElementById('mr-title').style.color = 'var(--green)';
-    document.getElementById('mr-sub').textContent = `${state.userTeam.name} ${m.userGoals} × ${m.oppGoals} ${m.opp.name}`;
-  } else if (draw) {
-    document.getElementById('mr-icon').textContent = '🤝';
-    document.getElementById('mr-title').textContent = 'Empate!';
-    document.getElementById('mr-title').style.color = 'var(--amber)';
-    document.getElementById('mr-sub').textContent = 'Um ponto para cada lado.';
-  } else {
-    document.getElementById('mr-icon').textContent = '😓';
-    document.getElementById('mr-title').textContent = m.isKnockout ? 'Eliminado!' : 'Derrota!';
-    document.getElementById('mr-title').style.color = m.isKnockout ? 'var(--red)' : 'var(--amber)';
-    document.getElementById('mr-sub').textContent = m.isKnockout
-      ? 'Você foi eliminado. A copa continua sem você.'
-      : 'Derrota, mas ainda há mais jogos.';
+  // Simula jogo entre os outros 2 do grupo
+  const rest = g.teams.filter(t => t.name !== state.userTeam.name && t.name !== opp.name);
+  if (rest.length >= 2) {
+    const ga = Math.floor(Math.random()*4), gb = Math.floor(Math.random()*4);
+    rest[0].gs += ga; rest[0].gc += gb; rest[0].played++;
+    rest[1].gs += gb; rest[1].gc += ga; rest[1].played++;
+    if (ga > gb) rest[0].pts += 3;
+    else if (ga === gb) { rest[0].pts += 1; rest[1].pts += 1; }
+    else rest[1].pts += 3;
   }
+}
 
-  const btnCont = document.getElementById('btn-mr-continue');
+// ── RESULTADO DA PARTIDA ───────────────────────────────────────────────────────
+function showResult(win, draw) {
+  const m = state.cur;
+  document.getElementById('res-icon').textContent = win ? '🏅' : draw ? '🤝' : '😓';
+  document.getElementById('res-title').textContent = win ? 'Vitória!' : draw ? 'Empate!' : (m.isKO ? 'Eliminado!' : 'Derrota!');
+  document.getElementById('res-title').style.color = win ? 'var(--green)' : draw ? 'var(--amber)' : (m.isKO ? 'var(--red)' : 'var(--amber)');
+  document.getElementById('res-score').textContent = `${m.uGoals} × ${m.oGoals}`;
+  document.getElementById('res-teams').textContent = `${state.userTeam.name} vs ${m.opp.name}`;
+  document.getElementById('res-sub').textContent = win
+    ? (m.isKO ? `${state.userTeam.name} avança para a próxima fase!` : 'Vitória na fase de grupos!')
+    : draw ? 'Empate — 1 ponto cada.' : (m.isKO ? 'Você foi eliminado da copa.' : 'Derrota, mas ainda há jogos!');
 
-  if (m.isKnockout && !win) {
-    document.getElementById('mr-group-state').innerHTML = '';
-    btnCont.textContent = 'Voltar ao Início';
-    btnCont.onclick = resetGame;
+  const btn = document.getElementById('btn-res-continue');
+  if (m.isKO && !win) {
+    btn.textContent = 'Voltar ao Início';
+    btn.onclick = () => location.reload();
   } else {
-    btnCont.textContent = 'Continuar ›';
-    btnCont.onclick = afterMatch;
-    document.getElementById('mr-group-state').innerHTML = '';
+    btn.textContent = 'Continuar ›';
+    btn.onclick = afterMatch;
   }
-
-  showScreen('sc-match-result');
+  showScreen('sc-result');
 }
 
 function afterMatch() {
-  const m = state.currentMatch;
-  if (m.isKnockout) {
-    advanceKnockout();
-  } else {
-    showScreen('sc-groups');
-    renderGroups();
-  }
+  if (state.cur.isKO) { advanceKO(); return; }
+  showScreen('sc-groups');
+  renderGroups();
+  simulateOtherGroupsLive();
 }
 
-// ── AVANÇAR FASE DE GRUPOS → MATA-MATA ──────────────────────────────────────
+// ── AVANÇAR DOS GRUPOS ─────────────────────────────────────────────────────────
 function advanceFromGroups() {
-  // Checar se user classificou
-  const group = state.groups[0];
-  const sorted = [...group.teams].sort((a,b) => {
-    if (b.pts !== a.pts) return b.pts - a.pts;
-    return (b.gs-b.gc) - (a.gs-a.gc);
-  });
+  if (liveSimTimer) clearInterval(liveSimTimer);
+  const g = state.groups[0];
+  const sorted = [...g.teams].sort((a,b) => (b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
   const userPos = sorted.findIndex(t => t.name === state.userTeam.name);
   if (userPos >= 2) {
-    // Eliminado na fase de grupos
     document.getElementById('elim-msg').textContent =
-      `${state.userTeam.name} terminou em ${userPos+1}º no Grupo A e não se classificou.`;
-    document.getElementById('overlay-eliminated').classList.remove('hidden');
+      `${state.userTeam.name} terminou em ${userPos+1}º no Grupo A e não avançou.`;
+    document.getElementById('ov-elim').classList.remove('hidden');
     return;
   }
-
-  // Montar bracket do mata-mata: 8 times (2 de cada grupo)
-  state.phase = 'knockout';
-  state.koRound = 0;
-  const qualifiers = [];
-  state.groups.forEach(g => {
-    const s = [...g.teams].sort((a,b) => {
-      if (b.pts !== a.pts) return b.pts - a.pts;
-      return (b.gs-b.gc) - (a.gs-a.gc);
-    });
-    qualifiers.push(s[0], s[1]);
+  // Monta bracket: 2 classificados de cada grupo
+  state.koBracket = [];
+  state.groups.forEach(grp => {
+    const s = [...grp.teams].sort((a,b) => (b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
+    state.koBracket.push(s[0], s[1]);
   });
-
-  // Garantir user no bracket
-  state.koBracket = qualifiers;
-  showKnockoutScreen();
+  state.koRound = 0;
+  state.phase = 'knockout';
+  showKO();
 }
 
-// ── MATA-MATA ────────────────────────────────────────────────────────────────
-const KO_ROUND_NAMES = ['Oitavas de Final','Quartas de Final','Semifinal','Final'];
+// ── MATA-MATA ──────────────────────────────────────────────────────────────────
+const KO_NAMES = ['Oitavas de Final','Quartas de Final','Semifinal','Final'];
 
-function showKnockoutScreen() {
-  const round = state.koRound;
-  document.getElementById('ko-phase-title').textContent = KO_ROUND_NAMES[round] ?? 'Final';
-  document.getElementById('ko-phase-sub').textContent = 'Mata-Mata · Eliminação direta';
+function showKO() {
+  const r = state.koRound;
+  document.getElementById('ko-phase-hdr').textContent = KO_NAMES[r] ?? 'Final';
+  document.getElementById('ko-phase-sub').textContent = 'Mata-Mata · Eliminação direta · Empate = Morte Súbita';
+  document.getElementById('hdr-phase').textContent = KO_NAMES[r] ?? 'Final';
 
   const bracket = state.koBracket;
   const userIdx = bracket.findIndex(t => t && t.name === state.userTeam.name);
@@ -968,86 +1089,72 @@ function showKnockoutScreen() {
   let html = '';
   for (let i = 0; i < bracket.length; i += 2) {
     const t1 = bracket[i], t2 = bracket[i+1];
-    const isUserMatch = (t1 && t1.name === state.userTeam.name) || (t2 && t2.name === state.userTeam.name);
-    html += `<div class="card" style="padding:12px 14px;margin-bottom:8px;${isUserMatch?'border-color:var(--amber)':''}">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-weight:700">${isUserMatch?'⭐ SEU JOGO':''}</div>
-      <div class="team-row" style="border:none;padding:4px 0">
-        <div class="team-badge" style="background:${t1?.color??'#333'}20;color:${t1?.color??'#aaa'}">${t1?.badge??'?'}</div>
-        <div class="team-name" style="${t1?.name===state.userTeam.name?'color:var(--amber);font-weight:800':''}">${t1?.name??'?'}</div>
-        <div style="font-size:10px;color:var(--text3)">Tier ${t1?.tier??'?'}</div>
+    if (!t1 || !t2) continue;
+    const isUserMatch = t1.name === state.userTeam.name || t2.name === state.userTeam.name;
+    html += `<div class="ko-match ${isUserMatch?'user-match':''}">
+      ${isUserMatch?`<div style="font-size:10px;color:var(--amber);padding:6px 12px 0;font-weight:700">⭐ SEU JOGO</div>`:''}
+      <div class="ko-team-row">
+        <div class="ko-badge" style="background:${t1.color}22;color:${t1.color}">${t1.badge}</div>
+        <div class="ko-name ${t1.name===state.userTeam.name?'':''}">
+          ${t1.name} ${t1.name===state.userTeam.name?'<span class="user-lbl">VOCÊ</span>':''}
+        </div>
+        <div class="ko-tier">Tier ${t1.tier}</div>
       </div>
-      <div style="text-align:center;font-size:12px;color:var(--text3);padding:2px 0">vs</div>
-      <div class="team-row" style="border:none;padding:4px 0">
-        <div class="team-badge" style="background:${t2?.color??'#333'}20;color:${t2?.color??'#aaa'}">${t2?.badge??'?'}</div>
-        <div class="team-name" style="${t2?.name===state.userTeam.name?'color:var(--amber);font-weight:800':''}">${t2?.name??'?'}</div>
-        <div style="font-size:10px;color:var(--text3)">Tier ${t2?.tier??'?'}</div>
+      <div class="ko-team-row">
+        <div class="ko-badge" style="background:${t2.color}22;color:${t2.color}">${t2.badge}</div>
+        <div class="ko-name">
+          ${t2.name} ${t2.name===state.userTeam.name?'<span class="user-lbl">VOCÊ</span>':''}
+        </div>
+        <div class="ko-tier">Tier ${t2.tier}</div>
       </div>
     </div>`;
   }
   document.getElementById('ko-bracket').innerHTML = html;
 
-  // Botão
   const btn = document.getElementById('btn-ko-play');
   btn.textContent = `⚽ Jogar vs ${userOpp?.name ?? '?'}`;
-  showScreen('sc-knockout');
+  showScreen('sc-ko');
 }
 
-function playKnockout() {
+function playKO() {
   const bracket = state.koBracket;
   const userIdx = bracket.findIndex(t => t && t.name === state.userTeam.name);
   const pairIdx = userIdx % 2 === 0 ? userIdx + 1 : userIdx - 1;
-  const opp = bracket[pairIdx];
-  startMatch(opp, true, state.koRound + 1);
+  startMatch(bracket[pairIdx], true, state.koRound + 1);
 }
 
-function advanceKnockout() {
-  const m = state.currentMatch;
-  const win = m.userGoals > m.oppGoals;
+function advanceKO() {
+  const m = state.cur;
+  const win = m.uGoals > m.oGoals;
+  if (!win) { location.reload(); return; }
 
-  if (!win) { resetGame(); return; }
-
-  // Simular outros jogos do bracket
   const bracket = state.koBracket;
   const winners = [];
   for (let i = 0; i < bracket.length; i += 2) {
     const t1 = bracket[i], t2 = bracket[i+1];
     if (!t1 || !t2) { winners.push(t1 ?? t2); continue; }
-    if (t1.name === state.userTeam.name) {
-      winners.push(state.userTeam);
-    } else {
-      // Sorteio ponderado por tier (tier 1 ganha mais)
-      const t1w = 4 - t1.tier, t2w = 4 - t2.tier;
-      const total = t1w + t2w;
-      winners.push(Math.random() < t1w/total ? t1 : t2);
-    }
+    if (t1.name === state.userTeam.name) { winners.push(state.userTeam); continue; }
+    if (t2.name === state.userTeam.name) { winners.push(state.userTeam); continue; }
+    const w1 = 4 - t1.tier, w2 = 4 - t2.tier;
+    winners.push(Math.random() < w1/(w1+w2) ? t1 : t2);
   }
 
   state.koBracket = winners;
   state.koRound++;
 
   if (winners.length === 1) {
-    // Campeão!
-    document.getElementById('champ-name').textContent = state.userTeam.name + ' 🏆';
-    showScreen('sc-champion');
+    document.getElementById('champ-name').textContent = state.userTeam.name;
+    showScreen('sc-champ');
     return;
   }
-
-  showKnockoutScreen();
+  showKO();
 }
 
-// ── RESET ────────────────────────────────────────────────────────────────────
-function resetGame() {
-  document.getElementById('overlay-eliminated').classList.add('hidden');
-  document.getElementById('penalty-log').innerHTML = '';
-  state = null;
-  showScreen('sc-start');
-}
-
-// ── UTILITÁRIOS ──────────────────────────────────────────────────────────────
+// ── UTILS ──────────────────────────────────────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  window.scrollTo(0,0);
+  window.scrollTo(0, 0);
 }
 
 function shuffle(arr) {
