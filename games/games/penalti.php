@@ -459,9 +459,9 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
       <div class="zone-btn" data-zone="5" onclick="handleZone(5)"><span class="zone-icon">↘</span><span class="zone-lbl">Baixo Dir</span></div>
     </div>
 
-    <div style="padding:0 12px 14px">
-      <button class="btn btn-ghost hidden" id="btn-next-kick" onclick="nextKick()" style="padding:10px">
-        Próximo pênalti ›
+    <div style="padding:4px 12px 14px;text-align:center">
+      <button class="btn btn-ghost hidden" id="btn-next-kick" onclick="nextKick()" style="padding:8px;font-size:12px">
+        Pular ›
       </button>
     </div>
   </div>
@@ -808,7 +808,9 @@ function handleZone(zone) {
   if (userShooting) {
     const saved = (zone === oppZone) || (Math.random() < diff.pSave);
     const result = saved ? 'save' : 'goal';
-    animateShoot(zone, oppZone, result, true);
+    // Goleiro vai para onde a bola foi se defendeu, ou para zona errada se gol
+    const keeperVZ = saved ? zone : oppZone;
+    animateShoot(zone, keeperVZ, result, true);
     if (result === 'goal') { m.uGoals++; setStatus('⚽ GOL! Você marcou!', 'ok'); }
     else setStatus('🧤 Defendido! O goleiro pegou.', 'fail');
     setDot('user', kickRound, result);
@@ -816,7 +818,9 @@ function handleZone(zone) {
   } else {
     const scored = (zone !== oppZone) && (Math.random() < diff.pScore);
     const result = scored ? 'goal' : 'save';
-    animateShoot(oppZone, zone, result, false);
+    // Goleiro vai para onde a bola foi se defendeu, ou para zona errada se gol
+    const keeperVZ = scored ? zone : oppZone;
+    animateShoot(oppZone, keeperVZ, result, false);
     if (result === 'save') setStatus('🧤 Você defendeu! Ótima defesa!', 'ok');
     else { m.oGoals++; setStatus('😬 Gol do adversário!', 'fail'); }
     setDot('opp', kickRound, result);
@@ -825,12 +829,15 @@ function handleZone(zone) {
 
   m.kickIdx++;
   if (m.kickIdx >= 10) {
-    setTimeout(finishMatch, 1000);
+    setTimeout(finishMatch, 1900);
   } else {
-    setTimeout(() => {
-      document.getElementById('btn-next-kick').classList.remove('hidden');
-      m.locked = false;
-    }, 700);
+    const skipBtn = document.getElementById('btn-next-kick');
+    skipBtn.classList.remove('hidden');
+    const autoTimer = setTimeout(() => {
+      skipBtn.classList.add('hidden');
+      nextKick();
+    }, 1900);
+    skipBtn.onclick = () => { clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
   }
 }
 
@@ -866,28 +873,33 @@ function animBallSVG(zone, result) {
   if (!ball) return;
   const tx = zoneCX(zone), ty = zoneCY(zone);
   ball.setAttribute('cx', 160);
-  ball.setAttribute('cy', 120);
+  ball.setAttribute('cy', 118);
+  ball.setAttribute('r', 11);
   ball.setAttribute('opacity', '1');
-  ball.setAttribute('fill', result === 'goal' ? '#22c55e' : '#ef4444');
-  // Anima via JS
+  ball.setAttribute('fill', 'white');
+  ball.setAttribute('stroke', '#333');
   let progress = 0;
   const anim = setInterval(() => {
-    progress += 0.08;
+    progress += 0.045;
     if (progress >= 1) { progress = 1; clearInterval(anim); }
-    const x = 160 + (tx - 160) * progress;
-    const y = 120 + (ty - 120) * progress;
+    const ease = progress < 0.5 ? 2*progress*progress : -1+(4-2*progress)*progress;
+    const x = 160 + (tx - 160) * ease;
+    const y = 118 + (ty - 118) * ease;
+    const r = 11 - ease * 5;
     ball.setAttribute('cx', x);
     ball.setAttribute('cy', y);
-    ball.setAttribute('r', 8 - progress * 3);
+    ball.setAttribute('r', r);
+    // Flash cor no final
+    if (progress >= 1) ball.setAttribute('fill', result === 'goal' ? '#22c55e' : '#ef4444');
   }, 16);
   setTimeout(() => {
     ball.setAttribute('opacity','0');
     ball.setAttribute('cx', 160);
     ball.setAttribute('cy', 200);
-    // Bola no chão volta
+    ball.setAttribute('fill', 'white');
     const kb = document.getElementById('kick-ball');
     if (kb) kb.setAttribute('opacity','1');
-  }, 700);
+  }, 1400);
 }
 
 function moveKeeper(zone) {
@@ -965,7 +977,8 @@ function handleSD(zone) {
     // User chuta
     const saved = (zone === oppZone) || (Math.random() < diff.pSave);
     m.sdUserScored = !saved;
-    animateShoot(zone, oppZone, saved ? 'save' : 'goal', true);
+    const keeperVZ0 = saved ? zone : oppZone;
+    animateShoot(zone, keeperVZ0, saved ? 'save' : 'goal', true);
     if (m.sdUserScored) setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
     else setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
     m.sdPhase = 1;
@@ -978,7 +991,8 @@ function handleSD(zone) {
   } else {
     // User defende
     const scored = (zone !== oppZone) && (Math.random() < diff.pScore * 0.9);
-    animateShoot(oppZone, zone, scored ? 'goal' : 'save', false);
+    const keeperVZ1 = scored ? zone : oppZone;
+    animateShoot(oppZone, keeperVZ1, scored ? 'goal' : 'save', false);
     const userWins = m.sdUserScored && !scored;
     const userLoses = !m.sdUserScored && scored;
     if (!scored) setStatus('🧤 Você defendeu!', 'ok');
