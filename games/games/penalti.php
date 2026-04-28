@@ -69,8 +69,8 @@ $TIMES = [
   ['name'=>'Bangu',             'tier'=>3,'badge'=>'BAN','color'=>'#1a1a1a'],
   ['name'=>'Madureira',         'tier'=>3,'badge'=>'MAD','color'=>'#f5a800'],
 ];
-
-echo '<!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -1059,4 +1059,4 @@ function shuffle(arr) {
 }
 </script>
 </body>
-</html>';
+</html>
