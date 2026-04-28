@@ -2289,10 +2289,20 @@ Stephen Curry,PG,35,95</code>
             league: playoffState.league
           })
         });
-        const result = await response.json();
+        const responseText = await response.text();
+        let result = null;
+        try {
+          result = responseText ? JSON.parse(responseText) : null;
+        } catch {
+          result = null;
+        }
         
-        if (!result.success) {
-          throw new Error(result.error);
+        if (!result || !result.success) {
+          let serverMsg = result?.error || responseText || 'Falha ao finalizar playoffs.';
+          if (serverMsg) {
+            serverMsg = String(serverMsg).replace(/<[^>]*>/g, '').trim();
+          }
+          throw new Error(serverMsg || 'Falha ao finalizar playoffs.');
         }
         
         alert('Playoffs finalizados com sucesso! Todos os pontos foram calculados e aplicados.');
@@ -2314,6 +2324,15 @@ Stephen Curry,PG,35,95</code>
         const pointsData = await pointsResp.json();
         if (!pointsData.success) throw new Error(pointsData.error || 'Erro ao carregar pontos');
         const teams = pointsData.teams || [];
+        const pointsLocked = !!pointsData.points_locked;
+        const pointsLockedAt = pointsData.points_locked_at || null;
+        const lockedDate = pointsLockedAt ? new Date(String(pointsLockedAt).replace(' ', 'T')) : null;
+        const lockedAtText = (lockedDate && !isNaN(lockedDate.getTime()))
+          ? lockedDate.toLocaleString('pt-BR')
+          : pointsLockedAt;
+        const lockedMsg = pointsLockedAt
+          ? `Pontos já foram definidos em ${lockedAtText}. Não é permitido alterar novamente.`
+          : 'Pontos já foram definidos. Não é permitido alterar novamente.';
 
         container.innerHTML = `
           <button class="btn btn-back mb-4" onclick="showLeagueManagement('${league}')">
@@ -2326,6 +2345,12 @@ Stephen Curry,PG,35,95</code>
                 <i class="bi bi-bar-chart-steps text-warning me-2"></i>
                 Pontos da Temporada ${String(currentSeasonData.season_number).padStart(2, '0')}
               </h3>
+
+              ${pointsLocked ? `
+                <div class="alert alert-warning" style="border-radius:12px;">
+                  <i class="bi bi-lock-fill me-2"></i>${lockedMsg}
+                </div>
+              ` : ''}
 
               <form id="pointsForm" onsubmit="saveSeasonPoints(event, ${seasonId}, '${league}')">
                 <div class="table-responsive">
@@ -2347,10 +2372,10 @@ Stephen Curry,PG,35,95</code>
                             </div>
                           </td>
                           <td>
-                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="${Number(t.current_points || 0)}" min="0" />
+                            <input type="number" class="form-control bg-dark text-white border-warning" name="points_${t.id}" value="${Number(t.current_points || 0)}" min="0" ${pointsLocked ? 'disabled' : ''} />
                           </td>
                           <td class="d-none d-md-table-cell">
-                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" />
+                            <input type="text" class="form-control bg-dark text-white border-warning" name="reason_${t.id}" placeholder="Ex: desempenho regular, bônus" ${pointsLocked ? 'disabled' : ''} />
                           </td>
                         </tr>
                       `).join('')}
@@ -2359,8 +2384,8 @@ Stephen Curry,PG,35,95</code>
                 </div>
 
                 <div class="d-grid gap-2">
-                  <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-save me-2"></i>Salvar Pontos (Editar)
+                  <button type="submit" class="btn btn-warning" ${pointsLocked ? 'disabled' : ''}>
+                    <i class="bi ${pointsLocked ? 'bi-lock-fill' : 'bi-save'} me-2"></i>${pointsLocked ? 'Pontos já definidos' : 'Salvar Pontos (Editar)'}
                   </button>
                 </div>
               </form>
@@ -2372,9 +2397,20 @@ Stephen Curry,PG,35,95</code>
       }
     }
 
+    let seasonPointsSaving = false;
     async function saveSeasonPoints(event, seasonId, league) {
       event.preventDefault();
       const form = event.target;
+
+      if (seasonPointsSaving) return;
+      seasonPointsSaving = true;
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const prevBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" style="margin-right:8px"></span>Salvando...';
+      }
 
       // Montar payload
       const teamPoints = [];
@@ -2404,6 +2440,12 @@ Stephen Curry,PG,35,95</code>
         showLeagueManagement(league);
       } catch (e) {
         alert('Erro ao salvar pontos: ' + (e.message || 'Desconhecido'));
+      } finally {
+        seasonPointsSaving = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          if (prevBtnHtml !== null) submitBtn.innerHTML = prevBtnHtml;
+        }
       }
     }
 

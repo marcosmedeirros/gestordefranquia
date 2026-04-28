@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(php -l \"c:/Users/marco/IdeaProjects/gestordefranquia/games/games/penalti.php\")"
     ]
   }
 }

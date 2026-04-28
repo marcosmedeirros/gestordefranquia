@@ -346,8 +346,22 @@ try {
             ");
             $stmt->execute([$seasonId, $league]);
             $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            echo json_encode(['success' => true, 'teams' => $teams]);
+
+            // Travar edição: pontos da temporada só podem ser definidos UMA vez.
+            // Se já existir qualquer registro em team_season_points para season_id + league,
+            // consideramos como "definido" e bloqueamos novas alterações.
+            $stmtLock = $pdo->prepare("SELECT MIN(created_at) AS locked_at FROM team_season_points WHERE season_id = ? AND league = ?");
+            $stmtLock->execute([$seasonId, $league]);
+            $lockRow = $stmtLock->fetch(PDO::FETCH_ASSOC);
+            $lockedAt = $lockRow['locked_at'] ?? null;
+            $pointsLocked = $lockedAt !== null;
+
+            echo json_encode([
+                'success' => true,
+                'teams' => $teams,
+                'points_locked' => $pointsLocked,
+                'points_locked_at' => $lockedAt
+            ]);
             break;
             
         case 'save_season_points':
@@ -379,10 +393,28 @@ try {
             
             $sprintNumber = $season['sprint_number'] ?? 1;
             $seasonNumber = $season['season_number'] ?? 1;
-            
+
             $pdo->beginTransaction();
             
             try {
+                // Lock no registro da temporada para evitar corridas (duplo clique / 2 admins)
+                // e garantir que a checagem abaixo seja consistente.
+                $stmtSeasonLock = $pdo->prepare("SELECT id FROM seasons WHERE id = ? FOR UPDATE");
+                $stmtSeasonLock->execute([$seasonId]);
+
+                // Se já existir qualquer ponto registrado para esta temporada+liga, bloqueia.
+                $stmtAlready = $pdo->prepare("SELECT created_at FROM team_season_points WHERE season_id = ? AND league = ? ORDER BY created_at ASC LIMIT 1");
+                $stmtAlready->execute([$seasonId, $league]);
+                $already = $stmtAlready->fetch(PDO::FETCH_ASSOC);
+                if ($already) {
+                    $pdo->rollBack();
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Pontos desta temporada já foram definidos e não podem ser alterados novamente.'
+                    ]);
+                    exit;
+                }
+
                 foreach ($teamPoints as $tp) {
                     $teamId = $tp['team_id'];
                     $points = intval($tp['points']);

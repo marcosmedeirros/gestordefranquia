@@ -94,18 +94,69 @@ async function saveCustomHeader() {
   }
 }
 
-// Custom header toggle — salva imediatamente ao marcar/desmarcar
-document.getElementById('use-custom-header')?.addEventListener('change', async (e) => {
-  document.getElementById('custom-header-box').style.display    = e.target.checked ? '' : 'none';
-  document.getElementById('custom-header-off-msg').style.display = e.target.checked ? 'none' : '';
+function setCustomHeaderVisibility(checked) {
+  const box = document.getElementById('custom-header-box');
+  const off = document.getElementById('custom-header-off-msg');
+  if (box) box.style.display = checked ? '' : 'none';
+  if (off) off.style.display = checked ? 'none' : '';
+}
+
+let customHeaderToggleBusy = false;
+async function handleCustomHeaderToggle(checked) {
+  if (customHeaderToggleBusy) return;
+  customHeaderToggleBusy = true;
+  setCustomHeaderVisibility(checked);
   await saveCustomHeader();
-});
+  customHeaderToggleBusy = false;
+}
+
+const customHeaderToggle = document.getElementById('use-custom-header');
+if (customHeaderToggle) {
+  let lastTouchToggle = 0;
+  // Custom header toggle — salva imediatamente ao marcar/desmarcar
+  customHeaderToggle.addEventListener('change', (e) => handleCustomHeaderToggle(e.target.checked));
+  // Fallback para alguns mobiles que nem sempre disparam change
+  customHeaderToggle.addEventListener('touchend', (e) => {
+    lastTouchToggle = Date.now();
+    handleCustomHeaderToggle(e.target.checked);
+  });
+  customHeaderToggle.addEventListener('click', (e) => {
+    if (Date.now() - lastTouchToggle < 500) return;
+    handleCustomHeaderToggle(e.target.checked);
+  });
+}
+
+let customHeaderSaveBusy = false;
+async function handleCustomHeaderSave(btn) {
+  if (customHeaderSaveBusy) return;
+  customHeaderSaveBusy = true;
+  const prevHtml = btn ? btn.innerHTML : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="margin-right:8px"></span>Salvando...';
+  }
+  await saveCustomHeader();
+  alert('Cabecalho salvo com sucesso.');
+  if (btn) {
+    btn.disabled = false;
+    if (prevHtml !== null) btn.innerHTML = prevHtml;
+  }
+  customHeaderSaveBusy = false;
+}
 
 // Save custom header
-document.getElementById('btn-save-header')?.addEventListener('click', async () => {
-  await saveCustomHeader();
-  alert('Cabeçalho salvo com sucesso.');
-});
+const customHeaderBtn = document.getElementById('btn-save-header');
+if (customHeaderBtn) {
+  let lastTouchSave = 0;
+  customHeaderBtn.addEventListener('click', () => {
+    if (Date.now() - lastTouchSave < 500) return;
+    handleCustomHeaderSave(customHeaderBtn);
+  });
+  customHeaderBtn.addEventListener('touchend', () => {
+    lastTouchSave = Date.now();
+    handleCustomHeaderSave(customHeaderBtn);
+  });
+}
 
 // Save team
 document.getElementById('btn-save-team')?.addEventListener('click', async () => {
