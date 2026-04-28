@@ -70,6 +70,10 @@ $games_disponiveis = [
         'titulo' => '💣 Bomba',
         'arquivo' => 'bomba.php'
     ],
+    'penalti' => [
+        'titulo' => '⚽ Copa Pênaltis',
+        'arquivo' => 'penalti.php'
+    ],
 ];
 
 // Valida se o game existe
