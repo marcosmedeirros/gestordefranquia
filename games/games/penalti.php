@@ -126,19 +126,21 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 
 /* ── GROUPS SCREEN ── */
 .groups-wrap{padding:12px}
-.all-groups{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.group-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px}
+.all-groups{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.group-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
 .group-card.user-group{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.04)}
-.group-hdr{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
-.group-hdr .live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1s infinite}
+.group-hdr{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.group-hdr .live-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.g-team{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.g-team{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
 .g-team:last-child{border-bottom:none}
-.g-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.g-name{font-size:10px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.g-pos{font-size:10px;font-weight:700;color:var(--text3);min-width:14px;text-align:center}
+.g-name{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-name.user-team{color:var(--amber)}
-.g-pts{font-size:10px;font-weight:700;color:var(--amber);min-width:20px;text-align:right}
-.g-saldo{font-size:9px;color:var(--text3);min-width:22px;text-align:center}
+.g-pts{font-size:12px;font-weight:700;color:var(--amber);min-width:22px;text-align:right}
+.g-saldo{font-size:10px;color:var(--text3);min-width:28px;text-align:center}
+.g-pld{font-size:10px;color:var(--text3);min-width:18px;text-align:center}
 
 .match-live-feed{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2);min-height:32px}
 .live-result{animation:fadeIn .3s ease}
@@ -449,6 +451,12 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
     </div>
     <div class="status-bar s-neutral" id="status-bar">Escolha uma zona no gol</div>
 
+    <!-- Labels de setor -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:0 12px 2px;max-width:380px;margin:0 auto">
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">◀ ESQ</div>
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">▼ CEN</div>
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">DIR ▶</div>
+    </div>
     <!-- ZONAS DE CHUTE/DEFESA -->
     <div class="zone-grid" id="zone-grid">
       <div class="zone-btn" data-zone="0" onclick="handleZone(0)"><span class="zone-icon">↖</span><span class="zone-lbl">Alto Esq</span></div>
@@ -458,6 +466,7 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
       <div class="zone-btn" data-zone="4" onclick="handleZone(4)"><span class="zone-icon">⬇</span><span class="zone-lbl">Baixo Cen</span></div>
       <div class="zone-btn" data-zone="5" onclick="handleZone(5)"><span class="zone-icon">↘</span><span class="zone-lbl">Baixo Dir</span></div>
     </div>
+    <div style="text-align:center;padding:0 12px 4px;font-size:10px;color:rgba(255,255,255,.3)" id="sector-hint">Esq / Centro / Dir determinam o resultado</div>
 
     <div style="padding:4px 12px 14px;text-align:center">
       <button class="btn btn-ghost hidden" id="btn-next-kick" onclick="nextKick()" style="padding:8px;font-size:12px">
@@ -517,12 +526,23 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 // ── DADOS ─────────────────────────────────────────────────────────────────────
 const TIMES = <?= json_encode(array_values($TIMES)) ?>;
 
-// ── DIFICULDADE ───────────────────────────────────────────────────────────────
-function getDiff(tier, koBoost = 0) {
-  const b = koBoost * 0.04;
-  if (tier === 1) return { pSave: Math.min(.55, .42 + b), pScore: Math.min(.88, .78 + b) };
-  if (tier === 2) return { pSave: Math.min(.40, .28 + b), pScore: Math.min(.75, .62 + b) };
-  return             { pSave: Math.min(.28, .16 + b), pScore: Math.min(.62, .48 + b) };
+// ── SETOR: 3 colunas (esq / cen / dir) ───────────────────────────────────────
+// Zonas 0,3 = esq(0) | Zonas 1,4 = cen(1) | Zonas 2,5 = dir(2)
+function sector(z) { return z % 3; }
+
+// Goleiro "lê" o setor do user ou chuta aleatório
+function keeperDive(userZone, tier, koBoost = 0) {
+  const readChance = Math.min(0.60, (tier === 1 ? 0.42 : tier === 2 ? 0.26 : 0.14) + koBoost * 0.07);
+  const sec = Math.random() < readChance ? sector(userZone) : Math.floor(Math.random() * 3);
+  // Retorna zona concreta naquele setor (top ou bottom)
+  return sec + (Math.random() < 0.5 ? 0 : 3);
+}
+
+// Adversário escolhe zona para chutar — tier mais alto prefere cantos
+function aiShootZone(tier, koBoost = 0) {
+  const cornerBias = Math.min(0.82, (tier === 1 ? 0.68 : tier === 2 ? 0.52 : 0.36) + koBoost * 0.06);
+  const side = Math.random() < cornerBias ? (Math.random() < 0.5 ? 0 : 2) : 1;
+  return side + (Math.random() < 0.5 ? 0 : 3);
 }
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
@@ -667,21 +687,33 @@ function renderGroups() {
   wrap.innerHTML = state.groups.map((g, gi) => {
     const sorted = [...g.teams].sort((a,b) => (b.pts-a.pts) || ((b.gs-b.gc)-(a.gs-a.gc)));
     const isUserGrp = gi === 0;
-    const done = isUserGrp && state.gmIdx >= 3;
+    const done = gi > 0 ? sorted[0].played >= 3 : state.gmIdx >= 3;
+    const header = `<div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 4px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <span style="font-size:9px;color:var(--text3);font-weight:700">TIME</span>
+      <div style="display:flex;gap:14px">
+        <span style="font-size:9px;color:var(--text3);min-width:18px;text-align:center">J</span>
+        <span style="font-size:9px;color:var(--text3);min-width:28px;text-align:center">SG</span>
+        <span style="font-size:9px;color:var(--text3);min-width:22px;text-align:right">PTS</span>
+      </div></div>`;
     return `<div class="group-card ${isUserGrp?'user-group':''}">
       <div class="group-hdr">
-        <span>${g.name}${isUserGrp?' <span style="color:var(--amber);font-size:9px">SEU GRUPO</span>':''}</span>
-        ${!done?'<div class="live-dot"></div>':''}
+        <span>${g.name}${isUserGrp?' <span style="color:var(--amber);font-size:9px">▶ SEU GRUPO</span>':''}</span>
+        ${!done?'<div class="live-dot"></div>':'<span style="font-size:9px;color:var(--text3)">✓ Encerrado</span>'}
       </div>
+      ${header}
       ${sorted.map((t,i) => {
         const isUser = t.name === state.userTeam.name;
         const saldo = t.gs - t.gc;
         const tag = done ? (i < 2 ? '<span class="classif q">Q</span>' : '<span class="classif e">E</span>') : '';
         return `<div class="g-team">
+          <div class="g-pos" style="color:${i<2&&done?'var(--green)':'var(--text3)'}">${i+1}º</div>
           <div class="g-dot" style="background:${t.color}"></div>
-          <div class="g-name ${isUser?'user-team':''}">${t.badge} ${t.name}${tag}</div>
-          <div class="g-saldo" style="color:${saldo>=0?'var(--green)':'var(--red)'}">${saldo>0?'+':''}${saldo}</div>
-          <div class="g-pts">${t.pts}</div>
+          <div class="g-name ${isUser?'user-team':''}">${t.name}${tag}</div>
+          <div style="display:flex;gap:14px;align-items:center">
+            <div class="g-pld">${t.played}</div>
+            <div class="g-saldo" style="color:${saldo>=0?'var(--green)':'var(--red)'}">${saldo>0?'+':''}${saldo}</div>
+            <div class="g-pts">${t.pts}</div>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
@@ -801,28 +833,28 @@ function handleZone(zone) {
   if (m.sd) { handleSD(zone); return; }
 
   const userShooting = m.kickIdx % 2 === 0;
-  const diff = getDiff(m.opp.tier, m.koBoost);
-  const oppZone = Math.floor(Math.random() * 6);
   const kickRound = Math.floor(m.kickIdx / 2);
 
   if (userShooting) {
-    const saved = (zone === oppZone) || (Math.random() < diff.pSave);
+    // Goleiro escolhe setor; se coincidir com o setor do chute = defendido
+    const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
+    const saved = sector(zone) === sector(keepZone);
     const result = saved ? 'save' : 'goal';
-    // Goleiro vai para onde a bola foi se defendeu, ou para zona errada se gol
-    const keeperVZ = saved ? zone : oppZone;
-    animateShoot(zone, keeperVZ, result, true);
+    animateShoot(zone, keepZone, result, true);
     if (result === 'goal') { m.uGoals++; setStatus('⚽ GOL! Você marcou!', 'ok'); }
-    else setStatus('🧤 Defendido! O goleiro pegou.', 'fail');
+    else setStatus('🧤 Defendido! O goleiro foi no lado certo.', 'fail');
     setDot('user', kickRound, result);
     document.getElementById('mt-score-u').textContent = m.uGoals;
   } else {
-    const scored = (zone !== oppZone) && (Math.random() < diff.pScore);
-    const result = scored ? 'goal' : 'save';
-    // Goleiro vai para onde a bola foi se defendeu, ou para zona errada se gol
-    const keeperVZ = scored ? zone : oppZone;
-    animateShoot(oppZone, keeperVZ, result, false);
-    if (result === 'save') setStatus('🧤 Você defendeu! Ótima defesa!', 'ok');
-    else { m.oGoals++; setStatus('😬 Gol do adversário!', 'fail'); }
+    // Adversário chuta; user defende por setor
+    const oppZone = aiShootZone(m.opp.tier, m.koBoost);
+    const saved = sector(zone) === sector(oppZone);
+    const result = saved ? 'save' : 'goal';
+    // Keeper (user) aparece onde defendeu; se salvou vai para zona exata da bola
+    const keepZone = saved ? oppZone : zone;
+    animateShoot(oppZone, keepZone, result, false);
+    if (result === 'save') setStatus('🧤 Você defendeu! Lado certo!', 'ok');
+    else { m.oGoals++; setStatus('😬 Gol do adversário! Lado errado.', 'fail'); }
     setDot('opp', kickRound, result);
     document.getElementById('mt-score-o').textContent = m.oGoals;
   }
@@ -970,15 +1002,13 @@ function startSD() {
 
 function handleSD(zone) {
   const m = state.cur;
-  const diff = getDiff(m.opp.tier, m.koBoost);
-  const oppZone = Math.floor(Math.random() * 6);
 
   if (m.sdPhase === 0) {
-    // User chuta
-    const saved = (zone === oppZone) || (Math.random() < diff.pSave);
+    // User chuta — goleiro lê por setor
+    const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
+    const saved = sector(zone) === sector(keepZone);
     m.sdUserScored = !saved;
-    const keeperVZ0 = saved ? zone : oppZone;
-    animateShoot(zone, keeperVZ0, saved ? 'save' : 'goal', true);
+    animateShoot(zone, keepZone, saved ? 'save' : 'goal', true);
     if (m.sdUserScored) setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
     else setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
     m.sdPhase = 1;
@@ -989,10 +1019,12 @@ function handleSD(zone) {
       m.locked = false;
     }, 900);
   } else {
-    // User defende
-    const scored = (zone !== oppZone) && (Math.random() < diff.pScore * 0.9);
-    const keeperVZ1 = scored ? zone : oppZone;
-    animateShoot(oppZone, keeperVZ1, scored ? 'goal' : 'save', false);
+    // User defende — adversário chuta por setor
+    const oppZone = aiShootZone(m.opp.tier, m.koBoost);
+    const saved = sector(zone) === sector(oppZone);
+    const scored = !saved;
+    const keepZone = saved ? oppZone : zone;
+    animateShoot(oppZone, keepZone, scored ? 'goal' : 'save', false);
     const userWins = m.sdUserScored && !scored;
     const userLoses = !m.sdUserScored && scored;
     if (!scored) setStatus('🧤 Você defendeu!', 'ok');
