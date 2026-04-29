@@ -785,7 +785,6 @@ function initDots() {
 }
 
 function setDot(side, kickRound, result) {
-  // side: 'user'|'opp', kickRound: 0-4
   const id = `dots-${side}-${kickRound}`;
   const el = document.getElementById(id);
   if (!el) return;
@@ -793,10 +792,19 @@ function setDot(side, kickRound, result) {
   if (side === 'user') {
     el.className = result === 'goal' ? 'dot goal-u' : 'dot save-u';
     el.textContent = result === 'goal' ? '⚽' : '✕';
+    state.cur.dotsU[kickRound] = result;
   } else {
     el.className = result === 'goal' ? 'dot goal-o' : 'dot save-o';
-    el.textContent = result === 'goal' ? '⚽' : '🛡';
+    el.textContent = result === 'goal' ? '⚽' : '✕';  // ✕ = user salvou, fundo verde distingue
+    state.cur.dotsO[kickRound] = result;
   }
+  // Placar sempre derivado dos dots — única fonte de verdade
+  const uG = state.cur.dotsU.filter(r => r === 'goal').length;
+  const oG = state.cur.dotsO.filter(r => r === 'goal').length;
+  state.cur.uGoals = uG;
+  state.cur.oGoals = oG;
+  document.getElementById('mt-score-u').textContent = uG;
+  document.getElementById('mt-score-o').textContent = oG;
 }
 
 function prepKick() {
@@ -836,27 +844,22 @@ function handleZone(zone) {
   const kickRound = Math.floor(m.kickIdx / 2);
 
   if (userShooting) {
-    // Goleiro escolhe setor; se coincidir com o setor do chute = defendido
     const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
     const saved = sector(zone) === sector(keepZone);
     const result = saved ? 'save' : 'goal';
     animateShoot(zone, keepZone, result, true);
-    if (result === 'goal') { m.uGoals++; setStatus('⚽ GOL! Você marcou!', 'ok'); }
+    setDot('user', kickRound, result); // atualiza placar via dots
+    if (result === 'goal') setStatus('⚽ GOL! Você marcou!', 'ok');
     else setStatus('🧤 Defendido! O goleiro foi no lado certo.', 'fail');
-    setDot('user', kickRound, result);
-    document.getElementById('mt-score-u').textContent = m.uGoals;
   } else {
-    // Adversário chuta; user defende por setor
     const oppZone = aiShootZone(m.opp.tier, m.koBoost);
     const saved = sector(zone) === sector(oppZone);
     const result = saved ? 'save' : 'goal';
-    // Keeper (user) aparece onde defendeu; se salvou vai para zona exata da bola
     const keepZone = saved ? oppZone : zone;
     animateShoot(oppZone, keepZone, result, false);
+    setDot('opp', kickRound, result); // atualiza placar via dots
     if (result === 'save') setStatus('🧤 Você defendeu! Lado certo!', 'ok');
-    else { m.oGoals++; setStatus('😬 Gol do adversário! Lado errado.', 'fail'); }
-    setDot('opp', kickRound, result);
-    document.getElementById('mt-score-o').textContent = m.oGoals;
+    else setStatus('😬 Gol do adversário! Lado errado.', 'fail');
   }
 
   m.kickIdx++;
