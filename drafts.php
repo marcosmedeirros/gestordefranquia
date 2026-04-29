@@ -891,6 +891,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     let body = {};
     try { body = await res.json(); } catch {}
     if (!res.ok) throw body;
+    if (body && body.success === false) throw body;
     return body;
   };
 
@@ -1324,7 +1325,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         method: 'POST',
         body: JSON.stringify({ action: 'make_pick', draft_session_id: currentDraftSession.id, round: 2, player_id: parseInt(playerId, 10), team_id: parseInt(teamId, 10) })
       });
-      alert(result.message || result.error || 'Pick registrada!');
+      alert(result.message || 'Pick registrada!');
       await loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
   }
@@ -1377,7 +1378,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (!confirm(`Confirma a escolha de ${playerName}?`)) return;
     try {
       const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'make_pick', draft_session_id: currentDraftSession.id, player_id: playerId }) });
-      alert(result.message);
+      alert(result.message || 'Pick realizada!');
       bootstrap.Modal.getInstance(document.getElementById('pickModal')).hide();
       loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
