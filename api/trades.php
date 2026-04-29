@@ -981,9 +981,9 @@ function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int 
 
         if ($league && $seasonYear) {
             $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id WHERE s.league = ? AND s.year = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.year = ? OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL AND (sp.start_year + s.season_number - 1) = ?)) AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
             );
-            $stmt->execute([$league, $seasonYear]);
+            $stmt->execute([$league, $seasonYear, $seasonYear]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 return $row;
@@ -1003,9 +1003,9 @@ function findActiveDraftSession(PDO $pdo, ?string $league, ?int $seasonId, ?int 
 
         if ($seasonYear) {
             $stmt = $pdo->prepare(
-                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id WHERE s.year = ? AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
+                "SELECT ds.* FROM draft_sessions ds INNER JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE (s.year = ? OR (sp.start_year IS NOT NULL AND s.season_number IS NOT NULL AND (sp.start_year + s.season_number - 1) = ?)) AND ds.status IN ('setup','in_progress') ORDER BY ds.created_at DESC LIMIT 1"
             );
-            $stmt->execute([$seasonYear]);
+            $stmt->execute([$seasonYear, $seasonYear]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 return $row;
@@ -1072,6 +1072,27 @@ function applyDraftContextToPick(array $pick, ?array $draftSession, array $draft
     return $pick;
 }
 
+function getSeasonDisplayYearById(PDO $pdo, int $seasonId): ?int
+{
+    try {
+        $stmt = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?');
+        $stmt->execute([$seasonId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+        if (isset($row['start_year'], $row['season_number'])) {
+            return (int)$row['start_year'] + (int)$row['season_number'] - 1;
+        }
+        if (!empty($row['year'])) {
+            return (int)$row['year'];
+        }
+    } catch (Exception $e) {
+        return null;
+    }
+    return null;
+}
+
 function enrichPickListWithDraftContext(PDO $pdo, array $picks, ?string $league): array
 {
     if (empty($picks)) {
@@ -1104,13 +1125,7 @@ function enrichPickListWithDraftContext(PDO $pdo, array $picks, ?string $league)
     $sessionSeasonId = !empty($draftSession['season_id']) ? (int)$draftSession['season_id'] : null;
     $sessionYear = null;
     if ($sessionSeasonId) {
-        try {
-            $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
-            $stmtSeason->execute([$sessionSeasonId]);
-            $sessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
-        } catch (Exception $e) {
-            $sessionYear = null;
-        }
+        $sessionYear = getSeasonDisplayYearById($pdo, $sessionSeasonId);
     }
 
     return array_map(static function ($pick) use ($draftSession, $draftMap, $sessionSeasonId, $sessionYear) {
@@ -1137,10 +1152,8 @@ function syncDraftOrderPickOwner(PDO $pdo, int $pickId, int $fromTeamId, int $to
         // Só atualiza draft_order se a pick for do draft atual
         $isSameSeason = false;
         if (!empty($pick['season_year']) && !empty($draftSession['season_id'])) {
-            $stmtSeason = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
-            $stmtSeason->execute([(int)$draftSession['season_id']]);
-            $draftSessionYear = (int)($stmtSeason->fetchColumn() ?: 0);
-            if ((int)$pick['season_year'] === $draftSessionYear) {
+            $draftSessionYear = getSeasonDisplayYearById($pdo, (int)$draftSession['season_id']);
+            if ($draftSessionYear && (int)$pick['season_year'] === $draftSessionYear) {
                 $isSameSeason = true;
             }
         }
@@ -1174,10 +1187,8 @@ function isPickCurrentDraft(PDO $pdo, int $pickId, ?string $league = null): bool
         if (!$draftSession) return false;
 
         // Verifica se o ano do draft corresponde ao da pick
-        $stmtYear = $pdo->prepare('SELECT year FROM seasons WHERE id = ?');
-        $stmtYear->execute([(int)$draftSession['season_id']]);
-        $draftYear = (int)($stmtYear->fetchColumn() ?: 0);
-        if ($seasonYear !== $draftYear) return false;
+        $draftYear = getSeasonDisplayYearById($pdo, (int)$draftSession['season_id']);
+        if (!$draftYear || $seasonYear !== $draftYear) return false;
 
         // Verifica se existe entrada no draft_order para essa pick
         $stmtOrder = $pdo->prepare('SELECT id FROM draft_order WHERE draft_session_id = ? AND original_team_id = ? AND round = ? LIMIT 1');

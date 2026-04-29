@@ -48,6 +48,29 @@ if (!$currentSeasonYear) {
   $currentSeasonYear = (int)date('Y');
 }
 
+if (!empty($team['league'])) {
+  try {
+    $stmtDraftSeason = $pdo->prepare('
+      SELECT s.season_number, s.year, sp.start_year
+      FROM draft_sessions ds
+      JOIN seasons s ON ds.season_id = s.id
+      LEFT JOIN sprints sp ON s.sprint_id = sp.id
+      WHERE ds.league = ? AND ds.status IN ("setup", "in_progress")
+      ORDER BY ds.created_at DESC
+      LIMIT 1
+    ');
+    $stmtDraftSeason->execute([$team['league']]);
+    $draftSeason = $stmtDraftSeason->fetch();
+    if ($draftSeason && isset($draftSeason['start_year'], $draftSeason['season_number'])) {
+      $currentSeasonYear = (int)$draftSeason['start_year'] + (int)$draftSeason['season_number'] - 1;
+    } elseif ($draftSeason && isset($draftSeason['year'])) {
+      $currentSeasonYear = (int)$draftSeason['year'];
+    }
+  } catch (Exception $e) {
+    // fallback to previously computed value
+  }
+}
+
 function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 {
     try {
