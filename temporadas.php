@@ -834,6 +834,18 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
         return startNewSeason(league);
       }
 
+      // Bloqueia se o draft da temporada atual ainda não foi criado
+      try {
+        const draftCheck = await api(`draft.php?action=get_session&season_id=${currentSeasonData.id}`);
+        if (!draftCheck.season || !draftCheck.season.draft_session_id) {
+          showNoDraftModal(league);
+          return;
+        }
+      } catch (e) {
+        showNoDraftModal(league);
+        return;
+      }
+
       let sprintStart = resolveSprintStartYearFromSeason(currentSeasonData);
       if (!sprintStart) {
         sprintStart = promptForStartYear(new Date().getFullYear());
@@ -870,6 +882,47 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
       } catch (e) {
         alert('Erro ao avançar: ' + (e.error || 'Desconhecido'));
       }
+    }
+
+    function showNoDraftModal(league) {
+      const existing = document.getElementById('noDraftModal');
+      if (existing) existing.closest('.nd-modal-wrapper')?.remove();
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'nd-modal-wrapper';
+      wrapper.innerHTML = `
+        <div class="modal fade" id="noDraftModal" tabindex="-1">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)">
+              <div class="modal-header" style="border-bottom:1px solid var(--border);padding:16px 20px">
+                <h5 class="modal-title" style="font-family:var(--font);font-weight:700;color:var(--text);font-size:15px">
+                  <i class="bi bi-exclamation-triangle-fill" style="color:#f59e0b;margin-right:8px"></i>Draft necessário
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body" style="padding:20px;color:var(--text-muted);font-family:var(--font);font-size:14px;line-height:1.6">
+                <p style="margin:0 0 12px">Antes de avançar para a próxima temporada, é necessário <strong style="color:var(--text)">criar o Draft</strong> da temporada atual.</p>
+                <p style="margin:0;font-size:13px">Acesse o gerenciamento de Draft para configurá-lo antes de prosseguir.</p>
+              </div>
+              <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="btn-back" style="margin-bottom:0" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn-primary-red" id="btnGoToDraft" style="margin-bottom:0">
+                  <i class="bi bi-pencil-square me-1"></i>Ir para Draft
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(wrapper);
+      const modalEl = document.getElementById('noDraftModal');
+      const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      bsModal.show();
+      modalEl.addEventListener('hidden.bs.modal', () => wrapper.remove());
+      document.getElementById('btnGoToDraft').addEventListener('click', () => {
+        bsModal.hide();
+        showDraftManagement(currentSeasonData.id, league);
+      });
     }
 
     // ========== RESETAR SPRINT (NOVO CICLO) ==========
