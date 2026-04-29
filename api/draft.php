@@ -808,15 +808,24 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$targetTeamId, (int)$pickNumber, (int)$playerId]);
 
+                $playerName = trim((string)($player['name'] ?? ''));
                 $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
-                $stmtExisting->execute([(int)$targetTeamId, $player['name']]);
+                $stmtExisting->execute([(int)$targetTeamId, $playerName]);
                 $existingPlayerId = $stmtExisting->fetchColumn();
 
                 if ($existingPlayerId) {
                     $duplicateRoster = true;
                 } else {
-                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                        ->execute([(int)$targetTeamId, (int)$targetTeamId, $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    try {
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
+                            ->execute([(int)$targetTeamId, (int)$targetTeamId, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    } catch (Exception $e) {
+                        if (str_contains($e->getMessage(), 'unique_player_per_team')) {
+                            $duplicateRoster = true;
+                        } else {
+                            throw $e;
+                        }
+                    }
                 }
 
                 $stmtNext = $pdo->prepare('SELECT round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
@@ -857,6 +866,7 @@ if ($method === 'POST') {
             }
 
             try {
+                $duplicateRoster = false;
                 $pdo->beginTransaction();
 
                 $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE id = ?');
@@ -890,8 +900,17 @@ if ($method === 'POST') {
                 $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
                     ->execute([(int)$pick['team_id'], (int)$pickNumber, (int)$playerId]);
 
-                $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $player['name'], $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                $playerName = trim((string)($player['name'] ?? ''));
+                try {
+                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                } catch (Exception $e) {
+                    if (str_contains($e->getMessage(), 'unique_player_per_team')) {
+                        $duplicateRoster = true;
+                    } else {
+                        throw $e;
+                    }
+                }
 
                 if (($session['status'] ?? '') === 'in_progress'
                     && (int)$pick['round'] === (int)$session['current_round']
@@ -920,7 +939,10 @@ if ($method === 'POST') {
                 }
 
                 $pdo->commit();
-                echo json_encode(['success' => true, 'message' => 'Pick preenchida!', 'player' => $player]);
+                $message = $duplicateRoster
+                    ? 'Pick preenchida! Jogador já existia no elenco e não foi duplicado.'
+                    : 'Pick preenchida!';
+                echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
