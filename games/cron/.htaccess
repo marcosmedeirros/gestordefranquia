@@ -1,0 +1,9 @@
+# Bloqueia listagem de diretório
+Options -Indexes
+
+# Permite acesso apenas ao reset-mensal.php (os demais ficam bloqueados por padrão)
+<Files "*.php">
+    Order Deny,Allow
+    Deny from all
+    Allow from all
+</Files>
