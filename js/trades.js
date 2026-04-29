@@ -719,8 +719,6 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
   const raw = Array.isArray(picks) ? picks : [];
   pickState[side].available = raw.filter((pick) => {
     if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
-    // Always include picks from an active draft session (position already assigned)
-    if (Number(pick.draft_session_id || 0) > 0) return true;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
     return year >= currentSeasonYear;
