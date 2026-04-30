@@ -66,6 +66,10 @@ $games_disponiveis = [
         'titulo' => '🔗 Conexões NBA',
         'arquivo' => 'conexoes.php'
     ],
+    'quemsoueu' => [
+        'titulo' => '🤔 Quem Sou Eu?',
+        'arquivo' => 'quemsoueu.php'
+    ],
     'bomba' => [
         'titulo' => '💣 Bomba',
         'arquivo' => 'bomba.php'
