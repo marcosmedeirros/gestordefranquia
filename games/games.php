@@ -366,10 +366,12 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="stat-label"><i class="bi bi-emoji-smile"></i>Prêmios Tigrinho</div>
       <div class="stat-value"><?= number_format($tigrinho_premios, 0, ',', '.') ?></div>
     </div>
+    <?php /* OCULTO PROVISORIAMENTE
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-grid-3x3-gap-fill" style="color:#f59e0b"></i>Grade NBA · Hoje</div>
       <div class="stat-value"><?= $grade_concluiu_hoje ? '✅' : '—' ?></div>
     </div>
+    */ ?>
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-question-circle-fill" style="color:#3b82f6"></i>Quem Sou Eu · Hoje</div>
       <div class="stat-value"><?= $quemsoueu_concluiu_hoje ? '✅' : '—' ?></div>
@@ -405,7 +407,9 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
   <div class="games-grid">
     <a href="games/index.php?game=termo"       class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">📝</span><div class="game-title">Termo</div><div class="game-sub">Diário · Palavra</div></a>
     <a href="games/index.php?game=memoria"     class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🧠</span><div class="game-title">Memória</div><div class="game-sub">Diário · Mental</div></a>
+    <?php /* OCULTO PROVISORIAMENTE
     <a href="games/index.php?game=grade"       class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
+    */ ?>
     <?php /* OCULTO PROVISORIAMENTE
     <a href="games/index.php?game=boxnba"      class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
     <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>

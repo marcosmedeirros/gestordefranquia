@@ -176,8 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'palpi
     $acertou       = ($guessedId === $targetPlayer['id']);
     $fim           = $acertou || count($tentativas) >= $MAX_TENTATIVAS;
 
-    $pontosMap  = [1=>100,2=>80,3=>60,4=>45,5=>30,6=>20,7=>10,8=>5];
-    $pontosGanhos = $acertou ? ($pontosMap[count($tentativas)] ?? 5) : 0;
+    $pontosGanhos = $acertou ? 200 : 0;
 
     try {
         $pdo->prepare("UPDATE quemsoueu_partidas
@@ -487,19 +486,29 @@ function selectPlayer(id, name) {
 input.addEventListener('input', () => { selectedId = null; showSuggestions(input.value); });
 input.addEventListener('keydown', e => {
   const items = sugBox.querySelectorAll('.qse-sug-item');
-  if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); items.forEach((el,i)=>el.classList.toggle('active',i===activeIdx)); }
-  if (e.key === 'ArrowUp')   { e.preventDefault(); activeIdx = Math.max(activeIdx-1, 0); items.forEach((el,i)=>el.classList.toggle('active',i===activeIdx)); }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    activeIdx = Math.max(activeIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+    return;
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (activeIdx >= 0 && items[activeIdx]) {
-      selectPlayer(+items[activeIdx].dataset.id, items[activeIdx].textContent);
+    const sugVisible = sugBox.style.display !== 'none' && items.length > 0;
+    if (sugVisible) {
+      // Seleciona da lista (1º Enter = selecionar, 2º Enter = confirmar)
+      const target = activeIdx >= 0 ? items[activeIdx] : items[0];
+      selectPlayer(+target.dataset.id, target.textContent);
     } else if (selectedId) {
       submitGuess();
-    } else if (sugBox.querySelector('.qse-sug-item')) {
-      const first = sugBox.querySelector('.qse-sug-item');
-      selectPlayer(+first.dataset.id, first.textContent);
     }
-    if (selectedId) submitGuess();
+    return;
   }
   if (e.key === 'Escape') { sugBox.style.display = 'none'; }
 });
@@ -542,12 +551,6 @@ async function submitGuess() {
   }
 }
 
-// Add a "Confirmar" button click handler on the input
-input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && selectedId && sugBox.style.display === 'none') {
-    submitGuess();
-  }
-});
 
 // ── Share ────────────────────────────────────────────────────────────────────
 function qseShare() {
