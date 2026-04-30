@@ -1,5 +1,6 @@
 <?php
 session_start();
+ob_start();
 header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
@@ -9,6 +10,7 @@ require_once dirname(__DIR__) . '/backend/db.php';
 $user = getUserSession();
 if (!$user) {
     http_response_code(401);
+    ob_end_clean();
     echo json_encode(['success' => false, 'error' => 'Não autorizado']);
     exit;
 }
@@ -113,6 +115,7 @@ function computeSeasonDisplayYear(?array $row): ?int
 // POST - Desabilitado: sistema gera picks automaticamente
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     http_response_code(405);
+    ob_end_clean();
     echo json_encode(['success' => false, 'error' => 'Edição manual de picks desabilitada. As picks são geradas automaticamente.']);
     exit;
 }
@@ -120,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // DELETE - Desabilitado
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     http_response_code(405);
+    ob_end_clean();
     echo json_encode(['success' => false, 'error' => 'Exclusão manual de picks desabilitada. As picks são geridas automaticamente.']);
     exit;
 }
@@ -127,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
 // PUT - Desabilitado
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
     http_response_code(405);
+    ob_end_clean();
     echo json_encode(['success' => false, 'error' => 'Atualização manual de picks desabilitada. As picks são geradas automaticamente.']);
     exit;
 }
@@ -137,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $includeAway = isset($_GET['include_away']) && $_GET['include_away'] === '1';
 
     if (!$teamId) {
+        ob_end_clean();
         echo json_encode(['success' => false, 'error' => 'Team ID não informado']);
         exit;
     }
@@ -182,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 try {
                     $stmtSeason = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?');
                     $stmtSeason->execute([$sessionSeasonId]);
-                    $sessionYear = computeSeasonDisplayYear($stmtSeason->fetch(PDO::FETCH_ASSOC));
+                    $sessionYear = computeSeasonDisplayYear($stmtSeason->fetch(PDO::FETCH_ASSOC) ?: null);
                 } catch (Exception $e) {
                     $sessionYear = null;
                 }
@@ -200,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($league) {
             $stmtDraft = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE ds.league = ? AND ds.status IN ("setup", "in_progress") ORDER BY ds.created_at DESC LIMIT 1');
             $stmtDraft->execute([$league]);
-            $draftYear = computeSeasonDisplayYear($stmtDraft->fetch(PDO::FETCH_ASSOC));
+            $draftYear = computeSeasonDisplayYear($stmtDraft->fetch(PDO::FETCH_ASSOC) ?: null);
             if ($draftYear) {
                 $currentYear = $draftYear;
                 $foundCurrentYear = true;
@@ -209,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (!$foundCurrentYear && $league) {
             $stmtLeague = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
             $stmtLeague->execute([$league]);
-            $seasonYearRow = computeSeasonDisplayYear($stmtLeague->fetch(PDO::FETCH_ASSOC));
+            $seasonYearRow = computeSeasonDisplayYear($stmtLeague->fetch(PDO::FETCH_ASSOC) ?: null);
             if ($seasonYearRow) {
                 $currentYear = $seasonYearRow;
                 $foundCurrentYear = true;
@@ -239,8 +245,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $payload['picks_away'] = $stmtAway->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    ob_end_clean();
     echo json_encode($payload);
     exit;
 }
 
+ob_end_clean();
 echo json_encode(['success' => false, 'error' => 'Método não suportado']);
