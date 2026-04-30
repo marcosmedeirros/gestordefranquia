@@ -220,37 +220,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $currentYear = (int)date('Y');
     }
 
-    // Anos cujo draft foi CONCLUÍDO e não há sessão ativa — picks desses anos devem ser ocultadas
-    $completedDraftYears = [];
-    if ($league) {
-        try {
-            $stmtDrStatus = $pdo->prepare("
-                SELECT
-                    COALESCE(sp.start_year + s.season_number - 1, s.year) AS yr,
-                    MAX(CASE WHEN ds.status IN ('setup','in_progress') THEN 1 ELSE 0 END) AS has_active,
-                    MAX(CASE WHEN ds.status = 'completed' THEN 1 ELSE 0 END) AS has_completed
-                FROM draft_sessions ds
-                JOIN seasons s ON ds.season_id = s.id
-                LEFT JOIN sprints sp ON s.sprint_id = sp.id
-                WHERE s.league = ?
-                GROUP BY yr
-            ");
-            $stmtDrStatus->execute([$league]);
-            while ($row = $stmtDrStatus->fetch(PDO::FETCH_ASSOC)) {
-                $y = (int)$row['yr'];
-                if ($y > 0 && (int)$row['has_completed'] && !(int)$row['has_active']) {
-                    $completedDraftYears[$y] = true;
-                }
-            }
-        } catch (Exception $e) {}
-    }
-
-    $picks = array_values(array_filter($picks, function($pick) use ($currentYear, $completedDraftYears) {
+    $picks = array_values(array_filter($picks, function($pick) use ($currentYear) {
         $y = (int)($pick['season_year'] ?? 0);
-        if ($y < $currentYear) return false;
-        // Oculta picks de anos cujo draft foi concluído (sem sessão ativa)
-        if (isset($completedDraftYears[$y])) return false;
-        return true;
+        return $y >= $currentYear;
     }));
 
     $payload = ['success' => true, 'picks' => $picks];
