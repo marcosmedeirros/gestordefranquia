@@ -363,6 +363,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="stat-label"><i class="bi bi-grid-3x3-gap-fill" style="color:#f59e0b"></i>Grade NBA · Hoje</div>
       <div class="stat-value"><?= $grade_concluiu_hoje ? '✅' : '—' ?></div>
     </div>
+    <?php /* OCULTO PROVISORIAMENTE
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-grid-fill" style="color:#3b82f6"></i>Box NBA · Hoje</div>
       <div class="stat-value"><?= $boxnba_concluiu_hoje ? '✅' : '—' ?></div>
@@ -371,6 +372,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="stat-label"><i class="bi bi-link-45deg" style="color:#a78bfa"></i>Conexões · Hoje</div>
       <div class="stat-value"><?= $conexoes_concluiu_hoje ? '✅' : '—' ?></div>
     </div>
+    */ ?>
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-suit-spade-fill" style="color:#ef4444"></i>Bomba · Hoje</div>
       <div class="stat-value"><?php
@@ -393,8 +395,10 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games/index.php?game=termo"       class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">📝</span><div class="game-title">Termo</div><div class="game-sub">Diário · Palavra</div></a>
     <a href="games/index.php?game=memoria"     class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🧠</span><div class="game-title">Memória</div><div class="game-sub">Diário · Mental</div></a>
     <a href="games/index.php?game=grade"       class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
+    <?php /* OCULTO PROVISORIAMENTE
     <a href="games/index.php?game=boxnba"      class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
     <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
+    */ ?>
     <a href="games/index.php?game=bomba"       class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Diamantes</div></a>
   </div>
 
