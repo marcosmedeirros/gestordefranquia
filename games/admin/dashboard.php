@@ -208,23 +208,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .shell{display:flex;height:100vh;overflow:hidden}
 
 /* ── Sidebar nav ── */
-.sb{width:220px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
-    display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;
-    overflow-y:auto;scrollbar-width:none}
-.sb::-webkit-scrollbar{display:none}
-.sb-logo-wrap{padding:16px 14px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.sidebar{width:240px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+         display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;overflow-y:auto}
+.sb-header{display:flex;align-items:center;gap:10px;padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sb-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;
          justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
-.sb-brand{font-weight:800;font-size:13px;color:var(--text)}
+.sb-brand{font-weight:800;font-size:13px;color:var(--text);flex:1}
 .sb-brand span{color:var(--red)}
-.sb-close{display:none;background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px;margin-left:auto}
+.sb-close{display:none;background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px}
 .sb-user{padding:14px;border-bottom:1px solid var(--border)}
-.sb-avatar{width:38px;height:38px;border-radius:50%;background:var(--red-soft);border:2px solid var(--border-red);
-           display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--red);margin-bottom:7px}
-.sb-name{font-size:13px;font-weight:700;color:#fff}
-.sb-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.sb-nav{flex:1;padding:8px 0}
-.sb-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
+.sb-avatar{width:40px;height:40px;border-radius:50%;background:var(--red-soft);border:2px solid var(--border-red);
+           display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--red);margin-bottom:8px}
+.sb-user-name{font-size:13px;font-weight:700;color:#fff}
+.sb-user-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.sb-stats{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:row;gap:6px}
+.sb-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:4px;
+         padding:8px 4px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border)}
+.sb-stat i{font-size:13px;color:var(--red)}
+.sb-stat-val{font-size:12px;font-weight:700;color:var(--text);line-height:1.2}
+.sb-stat-label{font-size:9px;color:var(--text-3)}
+.sb-nav{flex:1;padding:8px 0;overflow-y:auto}
+.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
 .sb-link{display:flex;align-items:center;gap:10px;padding:9px 14px;text-decoration:none;
          font-size:12px;font-weight:500;color:var(--text-2);transition:all var(--t) var(--ease);border-left:3px solid transparent}
 .sb-link i{width:16px;text-align:center;font-size:13px}
@@ -237,7 +241,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-logout:hover{background:rgba(252,0,37,.1);border-color:var(--border-red);color:var(--red)}
 
 /* ── Page body ── */
-.page{margin-left:220px;display:flex;height:100vh;flex-direction:column;overflow:hidden}
+.page{margin-left:240px;display:flex;height:100vh;flex-direction:column;overflow:hidden}
 
 /* ── Topbar ── */
 .topbar{flex-shrink:0;height:52px;background:var(--panel);border-bottom:1px solid var(--border);
@@ -414,11 +418,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(2px)}
 .sb-overlay.open{display:block}
 
-@media(max-width:900px){
+@media(max-width:768px){
   html,body{height:auto;overflow:auto}
   .shell{height:auto;overflow:visible}
-  .sb{transform:translateX(-100%);transition:transform 280ms var(--ease)}
-  .sb.open{transform:translateX(0)}
+  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease)}
+  .sidebar.open{transform:translateX(0)}
   .sb-close{display:flex;align-items:center;justify-content:center}
   .page{margin-left:0;height:auto;overflow:visible;flex-direction:column}
   .topbar{display:none}
@@ -439,25 +443,42 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
 
 <!-- Sidebar nav -->
-<aside class="sb" id="sidebar">
-  <div class="sb-logo-wrap">
+<aside class="sidebar" id="sidebar">
+  <div class="sb-header">
     <div class="sb-logo">FBA</div>
     <span class="sb-brand">FBA <span>Admin</span></span>
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
     <div class="sb-avatar"><?= strtoupper(substr($user['nome'] ?? 'A', 0, 1)) ?></div>
-    <div class="sb-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
-    <div class="sb-role">Administrador</div>
+    <div class="sb-user-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
+    <div class="sb-user-role">Administrador</div>
+  </div>
+  <div class="sb-stats">
+    <div class="sb-stat">
+      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
+      <div class="sb-stat-val"><?= number_format($user['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Tapas</div>
+    </div>
+    <div class="sb-stat">
+      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Moedas</div>
+    </div>
+    <div class="sb-stat">
+      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">FBA Pts</div>
+    </div>
   </div>
   <nav class="sb-nav">
-    <div class="sb-section">Menu</div>
-    <a href="../index.php"             class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <a href="../games.php"             class="sb-link"><i class="bi bi-joystick"></i>Games</a>
-    <a href="../user/ranking-geral.php"class="sb-link"><i class="bi bi-trophy"></i>Ranking</a>
-    <div class="sb-section">Admin</div>
-    <a href="controlegames.php"        class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
-    <a href="dashboard.php"            class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Apostas</a>
+    <div class="sb-nav-section">Menu</div>
+    <a href="../index.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="../games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
+    <div class="sb-nav-section">Admin</div>
+    <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a href="dashboard.php"             class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
