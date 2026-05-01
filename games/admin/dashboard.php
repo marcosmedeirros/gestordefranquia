@@ -782,6 +782,7 @@ function cancelarEdicao() {
   document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-send-fill"></i> Publicar Aposta';
   document.getElementById('btnCancelar').classList.remove('show');
   document.getElementById('mainForm').reset();
+  document.getElementById('dataInput').value = defaultDataLimite();
 
   const lista = document.getElementById('listaOpcoes');
   lista.innerHTML = '';
@@ -811,8 +812,15 @@ function closeSidebar() {
   document.body.style.overflow = '';
 }
 
+function defaultDataLimite() {
+  const d = new Date(Date.now() + 30 * 60 * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('#listaOpcoes input[name="opcoes_nomes[]"]').forEach(initAC);
+  document.getElementById('dataInput').value = defaultDataLimite();
 });
 </script>
 </body>
