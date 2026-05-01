@@ -1,9 +1,4 @@
 <?php
-// admin/dashboard.php - GERENCIADOR DE APOSTAS
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 session_start();
 require '../core/conexao.php';
 require '../core/funcoes.php';
@@ -24,12 +19,12 @@ $mensagemType = "success";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (isset($_POST['acao']) && $_POST['acao'] == 'criar_evento') {
-        $nome_evento = trim($_POST['nome_evento']);
-        $data_limite = $_POST['data_limite'];
+        $nome_evento  = trim($_POST['nome_evento']);
+        $data_limite  = $_POST['data_limite'];
         $opcoes_nomes = $_POST['opcoes_nomes'];
 
         if (empty($nome_evento) || empty($data_limite) || count(array_filter($opcoes_nomes)) < 2) {
-            $mensagem = "Preencha todos os campos obrigatórios (mínimo 2 opções).";
+            $mensagem = "Preencha todos os campos (mínimo 2 opções).";
             $mensagemType = "warning";
         } else {
             try {
@@ -37,15 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO eventos (nome, data_limite, status) VALUES (:nome, :data, 'aberta')");
                 $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite]);
                 $evento_id = $pdo->lastInsertId();
-
                 $stmtOpcao = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)");
-                for ($i = 0; $i < count($opcoes_nomes); $i++) {
-                    if (!empty($opcoes_nomes[$i])) {
-                        $stmtOpcao->execute([':eid' => $evento_id, ':desc' => $opcoes_nomes[$i]]);
-                    }
+                foreach ($opcoes_nomes as $op) {
+                    if (!empty(trim($op))) $stmtOpcao->execute([':eid' => $evento_id, ':desc' => trim($op)]);
                 }
                 $pdo->commit();
-                $mensagem = "Aposta criada com sucesso!";
+                $mensagem = "Aposta publicada com sucesso!";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $mensagem = "Erro: " . $e->getMessage();
@@ -58,58 +50,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $id_evento   = $_POST['id_evento'];
         $nome_evento = trim($_POST['nome_evento']);
         $data_limite = $_POST['data_limite'];
-        $op_ids   = $_POST['opcoes_ids'] ?? [];
-        $op_nomes = $_POST['opcoes_nomes'];
+        $op_ids      = $_POST['opcoes_ids'] ?? [];
+        $op_nomes    = $_POST['opcoes_nomes'];
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("UPDATE eventos SET nome = :nome, data_limite = :data WHERE id = :id");
-            $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite, ':id' => $id_evento]);
-
-            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao = :desc WHERE id = :oid AND evento_id = :eid");
-            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)");
-
+            $pdo->prepare("UPDATE eventos SET nome=:nome, data_limite=:data WHERE id=:id")
+                ->execute([':nome'=>$nome_evento,':data'=>$data_limite,':id'=>$id_evento]);
+            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao=:desc WHERE id=:oid AND evento_id=:eid");
+            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id,descricao,odd) VALUES (:eid,:desc,1)");
             for ($i = 0; $i < count($op_nomes); $i++) {
                 $nome = trim($op_nomes[$i]);
                 $oid  = $op_ids[$i] ?? '';
                 if (!empty($nome)) {
-                    if (!empty($oid)) {
-                        $stmtUpd->execute([':desc' => $nome, ':oid' => $oid, ':eid' => $id_evento]);
-                    } else {
-                        $stmtIns->execute([':eid' => $id_evento, ':desc' => $nome]);
-                    }
+                    if (!empty($oid)) $stmtUpd->execute([':desc'=>$nome,':oid'=>$oid,':eid'=>$id_evento]);
+                    else              $stmtIns->execute([':eid'=>$id_evento,':desc'=>$nome]);
                 }
             }
             $pdo->commit();
-            $mensagem = "Alterações salvas com sucesso!";
+            $mensagem = "Aposta editada com sucesso!";
         } catch (Exception $e) {
             $pdo->rollBack();
-            $mensagem = "Erro ao editar: " . $e->getMessage();
+            $mensagem = "Erro: " . $e->getMessage();
             $mensagemType = "danger";
         }
     }
 
     if (isset($_POST['acao']) && $_POST['acao'] == 'encerrar_evento') {
-        $id_evento = $_POST['id_evento'];
+        $id_evento         = $_POST['id_evento'];
         $vencedor_opcao_id = $_POST['vencedor_opcao_id'];
-
         if (empty($vencedor_opcao_id)) {
-            $mensagem = "Selecione quem ganhou!";
+            $mensagem = "Selecione o resultado!";
             $mensagemType = "warning";
         } else {
             try {
                 $pdo->beginTransaction();
-                $pdo->prepare("UPDATE eventos SET status = 'encerrada', vencedor_opcao_id = ? WHERE id = ?")
+                $pdo->prepare("UPDATE eventos SET status='encerrada', vencedor_opcao_id=? WHERE id=?")
                     ->execute([$vencedor_opcao_id, $id_evento]);
-
                 $payStmt = $pdo->prepare("
                     UPDATE usuarios u
-                    JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
-                    SET u.fba_points = u.fba_points + 75, u.acertos_eventos = u.acertos_eventos + 1
+                    JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
+                    SET u.fba_points=u.fba_points+75, u.acertos_eventos=u.acertos_eventos+1
                 ");
                 $payStmt->execute([$vencedor_opcao_id]);
                 $pagos = $payStmt->rowCount();
                 $pdo->commit();
-                $mensagem = "Encerrado! $pagos apostas pagas (75 FBA Points por acerto).";
+                $mensagem = "Encerrado! $pagos apostas pagas (+75 FBA Points cada).";
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $mensagem = "Erro: " . $e->getMessage();
@@ -119,50 +104,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (isset($_POST['acao']) && $_POST['acao'] == 'alterar_vencedor') {
-        $id_evento = $_POST['id_evento'];
-        $novo_vencedor_opcao_id = $_POST['vencedor_opcao_id'];
-
+        $id_evento             = $_POST['id_evento'];
+        $novo_vencedor_opcao_id= $_POST['vencedor_opcao_id'];
         if (empty($novo_vencedor_opcao_id)) {
             $mensagem = "Selecione o novo vencedor!";
             $mensagemType = "warning";
         } else {
             try {
                 $pdo->beginTransaction();
-                $stmtEvento = $pdo->prepare("SELECT status, vencedor_opcao_id FROM eventos WHERE id = ? FOR UPDATE");
+                $stmtEvento = $pdo->prepare("SELECT status, vencedor_opcao_id FROM eventos WHERE id=? FOR UPDATE");
                 $stmtEvento->execute([$id_evento]);
                 $eventoAtual = $stmtEvento->fetch(PDO::FETCH_ASSOC);
-
                 if (!$eventoAtual) throw new Exception('Evento não encontrado.');
-                if ($eventoAtual['status'] != 'encerrada') throw new Exception('Este evento ainda não está encerrado.');
-
+                if ($eventoAtual['status'] != 'encerrada') throw new Exception('Evento ainda não encerrado.');
                 $vencedor_antigo = $eventoAtual['vencedor_opcao_id'];
-
                 if ((int)$vencedor_antigo === (int)$novo_vencedor_opcao_id) {
                     $pdo->commit();
-                    $mensagem = "Nenhuma alteração: vencedor já estava correto.";
+                    $mensagem = "Vencedor já estava correto.";
                     $mensagemType = "info";
                 } else {
-                    $revertidos = 0;
                     if (!empty($vencedor_antigo)) {
-                        $stmtRevert = $pdo->prepare("
+                        $pdo->prepare("
                             UPDATE usuarios u
-                            JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
-                            SET u.fba_points = u.fba_points - 75, u.acertos_eventos = GREATEST(u.acertos_eventos - 1, 0)
-                        ");
-                        $stmtRevert->execute([$vencedor_antigo]);
-                        $revertidos = $stmtRevert->rowCount();
+                            JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
+                            SET u.fba_points=u.fba_points-75, u.acertos_eventos=GREATEST(u.acertos_eventos-1,0)
+                        ")->execute([$vencedor_antigo]);
                     }
-                    $stmtPay = $pdo->prepare("
+                    $pdo->prepare("
                         UPDATE usuarios u
-                        JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id = ?) p ON p.id_usuario = u.id
-                        SET u.fba_points = u.fba_points + 75, u.acertos_eventos = u.acertos_eventos + 1
-                    ");
-                    $stmtPay->execute([$novo_vencedor_opcao_id]);
-                    $pagos = $stmtPay->rowCount();
-
-                    $pdo->prepare("UPDATE eventos SET vencedor_opcao_id = ? WHERE id = ?")->execute([$novo_vencedor_opcao_id, $id_evento]);
+                        JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
+                        SET u.fba_points=u.fba_points+75, u.acertos_eventos=u.acertos_eventos+1
+                    ")->execute([$novo_vencedor_opcao_id]);
+                    $pdo->prepare("UPDATE eventos SET vencedor_opcao_id=? WHERE id=?")->execute([$novo_vencedor_opcao_id, $id_evento]);
                     $pdo->commit();
-                    $mensagem = "Vencedor alterado! $revertidos revertidos, $pagos pagos (75 FBA Points).";
+                    $mensagem = "Vencedor corrigido com sucesso.";
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -173,697 +148,651 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$filtro_status = isset($_GET['status']) && $_GET['status'] == 'encerrada' ? 'encerrada' : 'aberta';
-
-$stmtEventos = $pdo->prepare("SELECT * FROM eventos WHERE status = ? ORDER BY data_limite ASC");
+$filtro_status = (isset($_GET['status']) && $_GET['status'] == 'encerrada') ? 'encerrada' : 'aberta';
+$stmtEventos = $pdo->prepare("SELECT * FROM eventos WHERE status=? ORDER BY data_limite ASC");
 $stmtEventos->execute([$filtro_status]);
 $eventos = $stmtEventos->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($eventos as $key => $evt) {
-    $stmtOpcoes = $pdo->prepare("SELECT o.*, (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id = o.id) as total_palpites FROM opcoes o WHERE o.evento_id = ?");
+    $stmtOpcoes = $pdo->prepare("SELECT o.*, (SELECT COUNT(*) FROM palpites p WHERE p.opcao_id=o.id) as total_palpites FROM opcoes o WHERE o.evento_id=?");
     $stmtOpcoes->execute([$evt['id']]);
     $eventos[$key]['opcoes'] = $stmtOpcoes->fetchAll(PDO::FETCH_ASSOC);
-    $total_evento = 0;
-    foreach ($eventos[$key]['opcoes'] as $op) {
-        $total_evento += $op['total_palpites'];
-    }
-    $eventos[$key]['total_apostas_evento'] = $total_evento;
+    $total = 0;
+    foreach ($eventos[$key]['opcoes'] as $op) $total += $op['total_palpites'];
+    $eventos[$key]['total_apostas_evento'] = $total;
 }
+
+$totalAbertas   = $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='aberta'")->fetchColumn();
+$totalEncerradas= $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='encerrada'")->fetchColumn();
+$totalPalpites  = $pdo->query("SELECT COUNT(*) FROM palpites")->fetchColumn();
+
+$acTeams   = $pdo->query("SELECT DISTINCT name FROM teams ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+$acPlayers = $pdo->query("SELECT DISTINCT name FROM players ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+$acTeamSet = array_flip($acTeams);
+$acSuggestions = $acTeams;
+foreach ($acPlayers as $n) { if (!isset($acTeamSet[$n])) $acSuggestions[] = $n; }
+sort($acSuggestions);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#fc0025">
-  <title>Admin Apostas - FBA Games</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --red:        #fc0025;
-      --red-soft:   rgba(252,0,37,.10);
-      --red-glow:   rgba(252,0,37,.18);
-      --bg:         #07070a;
-      --panel:      #101013;
-      --panel-2:    #16161a;
-      --panel-3:    #1c1c21;
-      --border:     rgba(255,255,255,.06);
-      --border-md:  rgba(255,255,255,.10);
-      --border-red: rgba(252,0,37,.22);
-      --text:       #f0f0f3;
-      --text-2:     #868690;
-      --text-3:     #48484f;
-      --amber:      #f59e0b;
-      --green:      #22c55e;
-      --blue:       #3b82f6;
-      --font:       'Poppins', sans-serif;
-      --radius:     14px;
-      --radius-sm:  10px;
-      --ease:       cubic-bezier(.2,.8,.2,1);
-      --t:          200ms;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Apostas — FBA Games</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:#fc0025; --red-soft:rgba(252,0,37,.10); --red-glow:rgba(252,0,37,.18);
+  --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
+  --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10); --border-red:rgba(252,0,37,.22);
+  --text:#f0f0f3; --text-2:#868690; --text-3:#48484f;
+  --amber:#f59e0b; --green:#22c55e; --blue:#3b82f6;
+  --font:'Poppins',sans-serif; --radius:14px; --radius-sm:10px;
+  --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
+  --form-w:360px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 
-    /* Topbar */
-    .topbar {
-      position: sticky; top: 0; z-index: 300; height: 58px;
-      background: var(--panel); border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; padding: 0 24px; gap: 16px;
-    }
-    .topbar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
-    .topbar-logo {
-      width: 32px; height: 32px; border-radius: 8px; background: var(--red);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 12px; color: #fff;
-    }
-    .topbar-name { font-weight: 800; font-size: 15px; color: var(--text); }
-    .topbar-name span { color: var(--red); }
-    .topbar-spacer { flex: 1; }
-    .topbar-balances { display: flex; align-items: center; gap: 8px; }
-    .balance-chip {
-      display: flex; align-items: center; gap: 6px;
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 999px; padding: 5px 12px;
-      font-size: 12px; font-weight: 700; color: var(--text);
-    }
-    .balance-chip i { color: var(--red); font-size: 13px; }
-    .balance-chip.fba i { color: var(--amber); }
-    .icon-btn {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-2); display: flex; align-items: center; justify-content: center;
-      font-size: 14px; cursor: pointer; text-decoration: none;
-      transition: all var(--t) var(--ease);
-    }
-    .icon-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+/* ── Shell ── */
+.shell{display:flex;min-height:100vh}
 
-    .main { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+/* ── Sidebar nav ── */
+.sb{width:200px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;overflow-y:auto}
+.sb-logo-wrap{padding:16px 14px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.sb-logo{width:28px;height:28px;border-radius:7px;background:var(--red);display:flex;align-items:center;
+         justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
+.sb-brand{font-weight:800;font-size:13px;color:var(--text)}
+.sb-brand span{color:var(--red)}
+.sb-user{padding:12px 14px;border-bottom:1px solid var(--border)}
+.sb-avatar{width:36px;height:36px;border-radius:50%;background:var(--red-soft);border:2px solid var(--border-red);
+           display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:var(--red);margin-bottom:6px}
+.sb-name{font-size:12px;font-weight:700;color:#fff}
+.sb-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px}
+.sb-nav{flex:1;padding:8px 0}
+.sb-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
+.sb-link{display:flex;align-items:center;gap:9px;padding:9px 14px;text-decoration:none;
+         font-size:12px;font-weight:500;color:var(--text-2);transition:all var(--t) var(--ease);border-left:3px solid transparent}
+.sb-link i{width:15px;text-align:center;font-size:13px}
+.sb-link:hover{background:var(--panel-2);color:var(--text);border-left-color:var(--border-md)}
+.sb-link.active{background:var(--red-soft);color:var(--red);border-left-color:var(--red);font-weight:700}
+.sb-footer{padding:10px 14px;border-top:1px solid var(--border)}
+.sb-logout{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:8px;
+           border:1px solid var(--border);background:transparent;color:var(--text-2);text-decoration:none;
+           font-family:var(--font);font-size:12px;font-weight:600;transition:all var(--t) var(--ease)}
+.sb-logout:hover{background:rgba(252,0,37,.1);border-color:var(--border-red);color:var(--red)}
 
-    .section-label {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
-      text-transform: uppercase; color: var(--text-3);
-      margin-bottom: 16px; margin-top: 28px;
-    }
-    .section-label i { color: var(--red); font-size: 13px; }
+/* ── Page body ── */
+.page{margin-left:200px;display:flex;min-height:100vh;flex-direction:column}
 
-    .fba-alert {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 16px; border-radius: var(--radius-sm);
-      font-size: 13px; font-weight: 500; margin-bottom: 20px;
-    }
-    .fba-alert.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: #4ade80; }
-    .fba-alert.danger  { background: rgba(252,0,37,.1);  border: 1px solid var(--border-red); color: #ff6680; }
-    .fba-alert.warning { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2); color: #fbbf24; }
-    .fba-alert.info    { background: rgba(59,130,246,.1);  border: 1px solid rgba(59,130,246,.2); color: #60a5fa; }
+/* ── Topbar ── */
+.topbar{position:sticky;top:0;z-index:100;height:52px;background:var(--panel);border-bottom:1px solid var(--border);
+        display:flex;align-items:center;padding:0 20px;gap:14px}
+.topbar-title{font-size:15px;font-weight:800;color:var(--text);flex:1}
+.topbar-title span{color:var(--red)}
+.chip{display:flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--border);
+      border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--text)}
+.chip i{font-size:11px}
 
-    .two-col { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+/* ── Main layout: fixed form + scrollable list ── */
+.body-wrap{display:flex;flex:1;overflow:hidden}
 
-    /* Form panel */
-    .panel-card {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius); overflow: hidden;
-      position: sticky; top: 74px;
-    }
-    .panel-card.editing { border-color: var(--border-red); }
-    .panel-head {
-      padding: 14px 18px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; font-weight: 700;
-    }
-    .panel-head i { color: var(--red); }
-    .panel-head.editing-head { border-bottom-color: var(--border-red); }
-    .panel-head.editing-head i { color: var(--amber); }
-    .panel-body { padding: 18px; }
+/* Form panel — fixed */
+.form-panel{width:var(--form-w);flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+            position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;display:flex;flex-direction:column}
+.form-panel::-webkit-scrollbar{width:4px}
+.form-panel::-webkit-scrollbar-track{background:transparent}
+.form-panel::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:4px}
 
-    .fba-label {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .6px; color: var(--text-2); display: block; margin-bottom: 6px;
-    }
-    .fba-input {
-      width: 100%; background: var(--panel-2); border: 1px solid var(--border-md);
-      border-radius: var(--radius-sm); padding: 9px 12px;
-      color: var(--text); font-family: var(--font); font-size: 13px;
-      outline: none; transition: border-color var(--t) var(--ease);
-      margin-bottom: 14px;
-    }
-    .fba-input:focus { border-color: var(--red); }
-    .fba-input::placeholder { color: var(--text-3); }
+.form-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.form-head-icon{width:30px;height:30px;border-radius:8px;background:var(--red-soft);border:1px solid var(--border-red);
+                display:flex;align-items:center;justify-content:center;color:var(--red);font-size:14px;flex-shrink:0}
+.form-head-title{font-size:13px;font-weight:700;color:var(--text);flex:1;line-height:1.2}
+.form-head-sub{font-size:10px;color:var(--text-3);font-weight:400}
+.form-body{padding:16px 18px;flex:1}
 
-    .opcao-group { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-    .opcao-group .fba-input { margin-bottom: 0; flex: 1; }
-    .btn-icon-remove {
-      width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px;
-      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.2);
-      color: #f87171; font-size: 14px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all var(--t) var(--ease);
-    }
-    .btn-icon-remove:hover { background: rgba(239,68,68,.22); }
+.f-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);display:block;margin-bottom:5px}
+.f-input{width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);
+         padding:9px 12px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;
+         transition:border-color var(--t) var(--ease);margin-bottom:13px}
+.f-input:focus{border-color:var(--red)}
+.f-input::placeholder{color:var(--text-3)}
+.f-input.editing{border-color:rgba(245,158,11,.4)}
 
-    .btn-add-opcao {
-      width: 100%; background: transparent; border: 1px dashed var(--border-md);
-      border-radius: var(--radius-sm); padding: 8px;
-      color: var(--text-2); font-family: var(--font); font-size: 12px;
-      font-weight: 600; cursor: pointer; margin-bottom: 16px;
-      transition: all var(--t) var(--ease); display: flex; align-items: center;
-      justify-content: center; gap: 6px;
-    }
-    .btn-add-opcao:hover { border-color: var(--red); color: var(--red); }
+.opcoes-list{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.opcao-row{display:flex;gap:7px;align-items:center}
+.opcao-row .f-input{margin-bottom:0;flex:1}
+.btn-rm{width:30px;height:30px;flex-shrink:0;border-radius:8px;background:rgba(239,68,68,.1);
+        border:1px solid rgba(239,68,68,.2);color:#f87171;font-size:13px;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;transition:all var(--t) var(--ease)}
+.btn-rm:hover{background:rgba(239,68,68,.2)}
 
-    .btn-primary-full {
-      width: 100%; background: var(--red); color: #fff; border: none;
-      border-radius: var(--radius-sm); padding: 11px;
-      font-family: var(--font); font-size: 13px; font-weight: 700;
-      cursor: pointer; transition: opacity var(--t) var(--ease);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-    }
-    .btn-primary-full:hover { opacity: .85; }
-    .btn-ghost-full {
-      width: 100%; background: transparent; border: 1px solid var(--border-md);
-      border-radius: var(--radius-sm); padding: 10px;
-      font-family: var(--font); font-size: 13px; font-weight: 600;
-      color: var(--text-2); cursor: pointer; margin-top: 8px;
-      transition: all var(--t) var(--ease); display: none;
-    }
-    .btn-ghost-full:hover { border-color: var(--text-2); color: var(--text); }
-    .btn-ghost-full.visible { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-add{width:100%;background:transparent;border:1px dashed var(--border-md);border-radius:var(--radius-sm);
+         padding:8px;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;
+         cursor:pointer;margin-bottom:14px;transition:all var(--t) var(--ease);
+         display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-add:hover{border-color:var(--red);color:var(--red)}
 
-    /* Search bar */
-    .search-bar {
-      display: flex; align-items: center; gap: 8px;
-      background: var(--panel-2); border: 1px solid var(--border-md);
-      border-radius: var(--radius-sm); padding: 8px 12px;
-      margin-bottom: 12px; transition: border-color var(--t) var(--ease);
-    }
-    .search-bar:focus-within { border-color: var(--red); }
-    .search-bar i { color: var(--text-3); font-size: 13px; flex-shrink: 0; }
-    .search-bar input {
-      flex: 1; background: none; border: none; outline: none;
-      color: var(--text); font-family: var(--font); font-size: 13px;
-    }
-    .search-bar input::placeholder { color: var(--text-3); }
-    .evt-card.hidden { display: none; }
-    .no-results {
-      text-align: center; padding: 32px 20px; color: var(--text-3);
-      font-size: 13px; display: none;
-    }
-    .no-results i { font-size: 24px; display: block; margin-bottom: 8px; }
+.btn-submit{width:100%;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);
+            padding:11px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;
+            transition:opacity var(--t) var(--ease);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-submit:hover{opacity:.85}
+.btn-cancel{width:100%;background:transparent;border:1px solid var(--border-md);border-radius:var(--radius-sm);
+            padding:9px;font-family:var(--font);font-size:12px;font-weight:600;color:var(--text-2);
+            cursor:pointer;margin-top:8px;transition:all var(--t) var(--ease);
+            display:none;align-items:center;justify-content:center;gap:7px}
+.btn-cancel.show{display:flex}
+.btn-cancel:hover{border-color:var(--text-2);color:var(--text)}
 
-    /* Status tabs */
-    .tab-bar {
-      display: flex; align-items: center; gap: 4px;
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 999px; padding: 4px; width: fit-content; margin-bottom: 20px;
-    }
-    .tab-btn {
-      padding: 7px 18px; border-radius: 999px; border: none;
-      background: transparent; color: var(--text-2);
-      font-family: var(--font); font-size: 13px; font-weight: 600;
-      cursor: pointer; text-decoration: none;
-      transition: all var(--t) var(--ease);
-    }
-    .tab-btn.active { background: var(--red); color: #fff; box-shadow: 0 2px 12px rgba(252,0,37,.35); }
+/* ── List panel ── */
+.list-panel{flex:1;overflow-y:auto;padding:20px 24px 48px;min-width:0}
 
-    /* Event cards */
-    .evt-card {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius); margin-bottom: 12px; overflow: hidden;
-      transition: border-color var(--t) var(--ease);
-    }
-    .evt-card:hover { border-color: var(--border-md); }
-    .evt-card-head {
-      padding: 16px 18px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    }
-    .evt-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .evt-meta { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
-    .evt-meta i { color: var(--amber); }
-    .evt-actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .btn-edit-evt {
-      background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.2);
-      border-radius: 8px; width: 30px; height: 30px; color: #fbbf24;
-      display: flex; align-items: center; justify-content: center; font-size: 13px;
-      cursor: pointer; transition: all var(--t) var(--ease);
-    }
-    .btn-edit-evt:hover { background: rgba(245,158,11,.22); }
-    .bets-count {
-      background: var(--panel-3); border: 1px solid var(--border);
-      border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 700;
-      color: var(--text-2); display: flex; align-items: center; gap: 4px;
-    }
+/* Stats strip */
+.stats-strip{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.stat-chip{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;
+           display:flex;align-items:center;gap:10px;flex:1;min-width:100px}
+.stat-chip-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.stat-chip-val{font-size:16px;font-weight:800;color:var(--text);line-height:1}
+.stat-chip-label{font-size:10px;color:var(--text-3);margin-top:2px}
 
-    .evt-options { padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border); }
-    .opt-pill {
-      background: var(--panel-2); border: 1px solid var(--border-md);
-      border-radius: 10px; padding: 8px 14px;
-      font-size: 12px; font-weight: 600; color: var(--text-2);
-      display: flex; flex-direction: column; gap: 3px; min-width: 110px;
-    }
-    .opt-pill.winner { background: rgba(252,0,37,.08); border-color: var(--border-red); color: var(--text); }
-    .opt-pill-name { display: flex; align-items: center; gap: 6px; }
-    .opt-pill-name .check { color: var(--green); font-size: 12px; }
-    .opt-pill-count { font-size: 10px; color: var(--text-3); }
+/* Alert */
+.alert-bar{display:flex;align-items:center;gap:9px;padding:11px 15px;border-radius:var(--radius-sm);
+           font-size:13px;font-weight:500;margin-bottom:16px}
+.alert-bar.success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:#4ade80}
+.alert-bar.danger{background:rgba(252,0,37,.1);border:1px solid var(--border-red);color:#ff6680}
+.alert-bar.warning{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:#fbbf24}
+.alert-bar.info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#60a5fa}
 
-    .evt-footer { padding: 12px 18px; }
-    .close-form { display: flex; gap: 8px; align-items: center; }
-    .fba-select-sm {
-      flex: 1; background: var(--panel-2); border: 1px solid var(--border-md);
-      border-radius: var(--radius-sm); padding: 8px 12px;
-      color: var(--text); font-family: var(--font); font-size: 12px; outline: none;
-    }
-    .btn-close-evt {
-      background: var(--red); color: #fff; border: none;
-      border-radius: var(--radius-sm); padding: 8px 16px;
-      font-family: var(--font); font-size: 12px; font-weight: 700;
-      cursor: pointer; white-space: nowrap; flex-shrink: 0;
-      transition: opacity var(--t) var(--ease);
-    }
-    .btn-close-evt:hover { opacity: .85; }
-    .btn-alter-evt {
-      background: rgba(245,158,11,.12); color: #fbbf24;
-      border: 1px solid rgba(245,158,11,.2);
-      border-radius: var(--radius-sm); padding: 8px 16px;
-      font-family: var(--font); font-size: 12px; font-weight: 700;
-      cursor: pointer; white-space: nowrap; flex-shrink: 0;
-      transition: all var(--t) var(--ease);
-    }
-    .btn-alter-evt:hover { background: rgba(245,158,11,.22); }
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.tab-bar{display:flex;gap:3px;background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:3px}
+.tab-btn{padding:6px 16px;border-radius:999px;border:none;background:transparent;color:var(--text-2);
+         font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;
+         transition:all var(--t) var(--ease)}
+.tab-btn.active{background:var(--red);color:#fff;box-shadow:0 2px 10px rgba(252,0,37,.3)}
+.search-bar{flex:1;min-width:160px;display:flex;align-items:center;gap:7px;background:var(--panel-2);
+            border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:7px 11px;
+            transition:border-color var(--t) var(--ease)}
+.search-bar:focus-within{border-color:var(--red)}
+.search-bar i{color:var(--text-3);font-size:13px;flex-shrink:0}
+.search-bar input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:13px}
+.search-bar input::placeholder{color:var(--text-3)}
 
-    .empty-state {
-      text-align: center; padding: 56px 20px; color: var(--text-3);
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius);
-    }
-    .empty-state i { font-size: 32px; margin-bottom: 10px; display: block; }
-    .empty-state p { font-size: 13px; margin: 0; }
+/* Event cards */
+.evt-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+          margin-bottom:10px;overflow:hidden;transition:border-color var(--t) var(--ease)}
+.evt-card:hover{border-color:var(--border-md)}
+.evt-card.editing-target{border-color:var(--amber) !important;box-shadow:0 0 0 2px rgba(245,158,11,.1)}
 
-    @media (max-width: 860px) {
-      .two-col { grid-template-columns: 1fr; }
-      .panel-card { position: static; }
-    }
+.evt-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.evt-badge{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.evt-badge.aberta{background:var(--green)}
+.evt-badge.encerrada{background:var(--text-3)}
+.evt-info{flex:1;min-width:0}
+.evt-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;line-height:1.3}
+.evt-meta{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.evt-meta i{color:var(--amber);font-size:10px}
+.evt-actions{display:flex;gap:5px;flex-shrink:0}
+.btn-sm-icon{width:28px;height:28px;border-radius:7px;border:1px solid;display:flex;align-items:center;
+             justify-content:center;font-size:12px;cursor:pointer;transition:all var(--t) var(--ease);background:transparent}
+.btn-sm-icon.edit{border-color:rgba(245,158,11,.25);color:#fbbf24}
+.btn-sm-icon.edit:hover{background:rgba(245,158,11,.15)}
+.bets-pill{background:var(--panel-3);border:1px solid var(--border);border-radius:7px;
+           padding:3px 9px;font-size:11px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:4px}
 
-    /* ── Sidebar Layout ── */
-    .page-layout { display: flex; min-height: 100vh; }
-    .sidebar {
-      width: 240px; flex-shrink: 0;
-      background: var(--panel); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
-      overflow-y: auto;
-    }
-    .page-content { flex: 1; margin-left: 240px; min-width: 0; }
-    .sb-header {
-      display: flex; align-items: center; gap: 10px;
-      padding: 16px 14px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-    }
-    .sb-logo {
-      width: 30px; height: 30px; border-radius: 8px; background: var(--red);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 11px; color: #fff; flex-shrink: 0;
-    }
-    .sb-brand { font-weight: 800; font-size: 13px; color: var(--text); flex: 1; }
-    .sb-brand span { color: var(--red); }
-    .sb-close { display: none; background: none; border: none; color: var(--text-2); font-size: 18px; cursor: pointer; padding: 4px; }
-    .sb-user { padding: 14px; border-bottom: 1px solid var(--border); }
-    .sb-avatar {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: var(--red-soft); border: 2px solid var(--border-red);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 15px; color: var(--red); margin-bottom: 8px;
-    }
-    .sb-user-name { font-size: 13px; font-weight: 700; color: #fff; }
-    .sb-user-role { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-    .sb-stats { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 6px; }
-    .sb-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 4px; padding: 8px 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
-    .sb-stat i { font-size: 13px; color: var(--red); }
-    .sb-stat-info { display: flex; flex-direction: column; align-items: center; }
-    .sb-stat-val { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .sb-stat-label { font-size: 9px; color: var(--text-3); }
-    .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
-    .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 8px 14px 4px; }
-    .sb-link {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 14px; text-decoration: none;
-      font-size: 12px; font-weight: 500; color: var(--text-2);
-      transition: all var(--t) var(--ease); border-left: 3px solid transparent;
-    }
-    .sb-link i { width: 16px; text-align: center; font-size: 13px; }
-    .sb-link:hover { background: var(--panel-2); color: var(--text); border-left-color: var(--border-md); }
-    .sb-link.active { background: var(--red-soft); color: var(--red); border-left-color: var(--red); font-weight: 700; }
-    .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
-    .sb-logout {
-      display: flex; align-items: center; gap: 8px;
-      width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
-      background: transparent; color: var(--text-2); text-decoration: none;
-      font-family: var(--font); font-size: 12px; font-weight: 600;
-      transition: all var(--t) var(--ease);
-    }
-    .sb-logout:hover { background: rgba(252,0,37,.1); border-color: var(--border-red); color: var(--red); }
-    .mob-bar {
-      display: none; align-items: center; gap: 12px;
-      height: 52px; padding: 0 14px;
-      background: var(--panel); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 100;
-    }
-    .mob-ham {
-      background: none; border: 1px solid var(--border); border-radius: 8px;
-      color: var(--text); width: 34px; height: 34px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; font-size: 16px; flex-shrink: 0;
-    }
-    .mob-title { font-size: 14px; font-weight: 800; color: var(--text); flex: 1; }
-    .mob-title span { color: var(--red); }
-    .mob-chips { display: flex; align-items: center; gap: 6px; }
-    .mob-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
-    .mob-chip i { font-size: 11px; }
-    .mob-back {
-      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
-      background: transparent; color: var(--text-2);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; text-decoration: none; transition: all var(--t) var(--ease);
-    }
-    .mob-back:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
-    .sb-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
-      z-index: 199; backdrop-filter: blur(2px);
-    }
-    @media (max-width: 768px) {
-      .sidebar { transform: translateX(-100%); transition: transform 280ms var(--ease); }
-      .sidebar.open { transform: translateX(0); }
-      .page-content { margin-left: 0; }
-      .mob-bar { display: flex; }
-      .sb-close { display: flex; align-items: center; justify-content: center; }
-      .sb-overlay.open { display: block; }
-    }
-  </style>
+.evt-opts{padding:12px 16px;display:flex;flex-wrap:wrap;gap:7px;border-bottom:1px solid var(--border)}
+.opt-chip{background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;
+          padding:7px 12px;font-size:12px;font-weight:600;color:var(--text-2);display:flex;flex-direction:column;gap:2px}
+.opt-chip.win{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);color:var(--text)}
+.opt-chip-name{display:flex;align-items:center;gap:5px}
+.opt-chip-name .ic{color:var(--green);font-size:11px}
+.opt-chip-count{font-size:10px;color:var(--text-3)}
+
+.evt-footer{padding:12px 16px}
+.result-row{display:flex;gap:8px;align-items:center}
+.f-select{flex:1;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);
+          padding:8px 11px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;
+          transition:border-color var(--t) var(--ease)}
+.f-select:focus{border-color:var(--red)}
+.btn-close-evt{background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);
+               padding:8px 15px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;
+               white-space:nowrap;flex-shrink:0;transition:opacity var(--t) var(--ease)}
+.btn-close-evt:hover{opacity:.85}
+.btn-alter-evt{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.2);
+               border-radius:var(--radius-sm);padding:8px 15px;font-family:var(--font);font-size:12px;
+               font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all var(--t) var(--ease)}
+.btn-alter-evt:hover{background:rgba(245,158,11,.2)}
+
+.empty-state{text-align:center;padding:52px 20px;color:var(--text-3);background:var(--panel);
+             border:1px solid var(--border);border-radius:var(--radius)}
+.empty-state i{font-size:28px;margin-bottom:8px;display:block}
+.empty-state p{font-size:13px}
+
+.evt-card.hidden{display:none}
+.no-results{text-align:center;padding:30px 20px;color:var(--text-3);font-size:13px;display:none}
+
+/* ── Autocomplete ── */
+.ac-wrap{position:relative;flex:1}
+.ac-wrap .f-input{width:100%;margin-bottom:0}
+.ac-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel-2);
+         border:1px solid var(--border-md);border-radius:var(--radius-sm);z-index:500;
+         max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);display:none}
+.ac-drop::-webkit-scrollbar{width:4px}
+.ac-drop::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:4px}
+.ac-item{padding:8px 12px;font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;
+         display:flex;align-items:center;gap:7px;transition:background var(--t) var(--ease)}
+.ac-item:hover,.ac-item.ac-active{background:var(--panel-3);color:var(--text)}
+.ac-item i{font-size:11px;color:var(--text-3);flex-shrink:0}
+
+/* ── Mobile ── */
+.mob-bar{display:none;align-items:center;gap:10px;height:52px;padding:0 14px;
+         background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.mob-ham{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);
+         width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}
+.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
+.mob-title span{color:var(--red)}
+.sb-close{display:none;background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(2px)}
+.sb-overlay.open{display:block}
+
+@media(max-width:900px){
+  .sb{transform:translateX(-100%);transition:transform 280ms var(--ease)}
+  .sb.open{transform:translateX(0)}
+  .sb-close{display:flex;align-items:center;justify-content:center}
+  .page{margin-left:0}
+  .topbar{display:none}
+  .mob-bar{display:flex}
+  .body-wrap{flex-direction:column}
+  .form-panel{width:100%;position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}
+  .list-panel{padding:16px}
+}
+@media(max-width:500px){
+  .stats-strip{gap:7px}
+  .stat-chip{padding:8px 12px}
+}
+</style>
 </head>
 <body>
 
-<div class="page-layout">
+<div class="shell">
 <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
-<aside class="sidebar" id="sidebar">
-  <div class="sb-header">
+
+<!-- Sidebar nav -->
+<aside class="sb" id="sidebar">
+  <div class="sb-logo-wrap">
     <div class="sb-logo">FBA</div>
     <span class="sb-brand">FBA <span>Admin</span></span>
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
     <div class="sb-avatar"><?= strtoupper(substr($user['nome'] ?? 'A', 0, 1)) ?></div>
-    <div class="sb-user-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
-    <div class="sb-user-role">Admin</div>
-  </div>
-  <div class="sb-stats">
-    <div class="sb-stat">
-      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
-      <div class="sb-stat-val"><?= number_format($user['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
-      <div class="sb-stat-label">Tapas</div>
-    </div>
-    <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
-      <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
-      <div class="sb-stat-label">Moedas</div>
-    </div>
-    <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
-      <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
-      <div class="sb-stat-label">FBA Pts</div>
-    </div>
+    <div class="sb-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
+    <div class="sb-role">Administrador</div>
   </div>
   <nav class="sb-nav">
-    <div class="sb-nav-section">Menu</div>
-    <a href="../index.php" class="sb-link">
-      <i class="bi bi-lightning-charge"></i>Apostas
-    </a>
-    <a href="../games.php" class="sb-link">
-      <i class="bi bi-joystick"></i>Games
-    </a>
-    <a href="../user/ranking-geral.php" class="sb-link">
-      <i class="bi bi-trophy"></i>Ranking Geral
-    </a>
-    <div class="sb-nav-section">Admin</div>
-    <a href="controlegames.php" class="sb-link">
-      <i class="bi bi-gear-fill"></i>Controle de Jogos
-    </a>
-    <a href="dashboard.php" class="sb-link active">
-      <i class="bi bi-receipt-cutoff"></i>Controle Apostas
-    </a>
+    <div class="sb-section">Menu</div>
+    <a href="../index.php"             class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="../games.php"             class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../user/ranking-geral.php"class="sb-link"><i class="bi bi-trophy"></i>Ranking</a>
+    <div class="sb-section">Admin</div>
+    <a href="controlegames.php"        class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a href="dashboard.php"            class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Apostas</a>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout">
-      <i class="bi bi-box-arrow-right"></i>Sair
-    </a>
+    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
   </div>
 </aside>
 
-<div class="page-content">
-<div class="mob-bar">
-  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
-  <span class="mob-title">FBA <span>Admin</span></span>
-  <div class="mob-chips">
-    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></span>
-    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></span>
+<!-- Main page -->
+<div class="page">
+
+  <!-- Topbar (desktop) -->
+  <div class="topbar">
+    <div class="topbar-title">Controle de <span>Apostas</span></div>
+    <div class="chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'], 0, ',', '.') ?></div>
+    <div class="chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($user['fba_points'], 0, ',', '.') ?></div>
   </div>
-  <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
-</div>
 
-<div class="main">
-
-  <?php if ($mensagem): ?>
-  <div class="fba-alert <?= $mensagemType ?>">
-    <i class="bi bi-<?= $mensagemType === 'success' ? 'check-circle-fill' : ($mensagemType === 'warning' ? 'exclamation-triangle-fill' : ($mensagemType === 'info' ? 'info-circle-fill' : 'x-circle-fill')) ?>"></i>
-    <?= htmlspecialchars($mensagem) ?>
+  <!-- Topbar (mobile) -->
+  <div class="mob-bar">
+    <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+    <span class="mob-title">Admin <span>Apostas</span></span>
+    <div class="chip" style="font-size:11px"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'], 0, ',', '.') ?></div>
   </div>
-  <?php endif; ?>
 
-  <div class="two-col">
+  <div class="body-wrap">
 
-    <!-- Formulário -->
-    <div>
-      <div class="section-label" style="margin-top:0"><i class="bi bi-plus-circle-fill"></i>Gerenciar Apostas</div>
-      <div class="panel-card" id="cardFormulario">
-        <div class="panel-head" id="formTitle">
-          <i class="bi bi-plus-circle-fill"></i>
-          Criar Nova Aposta
+    <!-- ── FORM PANEL (fixed) ── -->
+    <div class="form-panel">
+      <div class="form-head">
+        <div class="form-head-icon" id="formIcon"><i class="bi bi-plus-lg"></i></div>
+        <div>
+          <div class="form-head-title" id="formTitle">Nova Aposta</div>
+          <div class="form-head-sub" id="formSub">Preencha e publique</div>
         </div>
-        <div class="panel-body">
-          <form method="POST" id="mainForm">
-            <input type="hidden" name="acao" id="acaoInput" value="criar_evento">
-            <input type="hidden" name="id_evento" id="idEventoInput">
+      </div>
+      <div class="form-body">
+        <form method="POST" id="mainForm">
+          <input type="hidden" name="acao"      id="acaoInput"    value="criar_evento">
+          <input type="hidden" name="id_evento" id="idEventoInput">
 
-            <label class="fba-label">Pergunta / Evento</label>
-            <input type="text" name="nome_evento" id="nomeEventoInput" class="fba-input"
-                   placeholder="Ex: Quem ganha o jogo?" required>
+          <label class="f-label">Pergunta / Evento</label>
+          <input type="text" name="nome_evento" id="nomeInput" class="f-input"
+                 placeholder="Ex: Quem ganha o jogo?" required>
 
-            <label class="fba-label">Data Limite</label>
-            <input type="datetime-local" name="data_limite" id="dataLimiteInput" class="fba-input" required>
+          <label class="f-label">Data limite</label>
+          <input type="datetime-local" name="data_limite" id="dataInput" class="f-input" required>
 
-            <label class="fba-label" style="margin-top:4px">Opções de Aposta</label>
-            <div id="container-opcoes">
-              <div class="opcao-group">
-                <input type="hidden" name="opcoes_ids[]" value="">
-                <input type="text" name="opcoes_nomes[]" class="fba-input" placeholder="Opção A (Ex: Time A)" required>
-              </div>
-              <div class="opcao-group">
-                <input type="hidden" name="opcoes_ids[]" value="">
-                <input type="text" name="opcoes_nomes[]" class="fba-input" placeholder="Opção B (Ex: Time B)" required>
+          <label class="f-label" style="margin-top:2px">Opções</label>
+          <div class="opcoes-list" id="listaOpcoes">
+            <div class="opcao-row">
+              <input type="hidden" name="opcoes_ids[]" value="">
+              <div class="ac-wrap">
+                <input type="text" name="opcoes_nomes[]" class="f-input" placeholder="Time, jogador ou texto livre" required>
+                <div class="ac-drop"></div>
               </div>
             </div>
-            <button type="button" class="btn-add-opcao" onclick="addCampo()">
-              <i class="bi bi-plus-lg"></i> Adicionar Opção
-            </button>
+            <div class="opcao-row">
+              <input type="hidden" name="opcoes_ids[]" value="">
+              <div class="ac-wrap">
+                <input type="text" name="opcoes_nomes[]" class="f-input" placeholder="Time, jogador ou texto livre" required>
+                <div class="ac-drop"></div>
+              </div>
+            </div>
+          </div>
 
-            <button type="submit" class="btn-primary-full" id="btnSubmit">
-              <i class="bi bi-check-lg"></i> Publicar Aposta
-            </button>
-            <button type="button" class="btn-ghost-full" id="btnCancelarEdit" onclick="cancelarEdicao()">
-              <i class="bi bi-x-lg"></i> Cancelar Edição
-            </button>
-          </form>
-        </div>
+          <button type="button" class="btn-add" onclick="addOpcao()">
+            <i class="bi bi-plus-lg"></i> Adicionar opção
+          </button>
+
+          <button type="submit" class="btn-submit" id="btnSubmit">
+            <i class="bi bi-send-fill"></i> Publicar Aposta
+          </button>
+          <button type="button" class="btn-cancel" id="btnCancelar" onclick="cancelarEdicao()">
+            <i class="bi bi-x-lg"></i> Cancelar edição
+          </button>
+        </form>
       </div>
     </div>
 
-    <!-- Listagem -->
-    <div>
-      <div class="section-label" style="margin-top:0"><i class="bi bi-list-ul"></i>Apostas</div>
+    <!-- ── LIST PANEL ── -->
+    <div class="list-panel">
 
-      <div class="search-bar">
-        <i class="bi bi-search"></i>
-        <input type="text" id="searchApostas" placeholder="Buscar aposta pelo título..." oninput="filtrarApostas(this.value)">
+      <?php if ($mensagem): ?>
+      <div class="alert-bar <?= $mensagemType ?>">
+        <i class="bi bi-<?= $mensagemType==='success'?'check-circle-fill':($mensagemType==='warning'?'exclamation-triangle-fill':($mensagemType==='info'?'info-circle-fill':'x-circle-fill')) ?>"></i>
+        <?= htmlspecialchars($mensagem) ?>
       </div>
-      <div class="no-results" id="noResults"><i class="bi bi-inbox"></i>Nenhuma aposta encontrada.</div>
+      <?php endif; ?>
 
-      <div class="tab-bar">
-        <a href="?status=aberta" class="tab-btn <?= $filtro_status == 'aberta' ? 'active' : '' ?>">
-          <i class="bi bi-unlock me-1"></i>Abertas
-        </a>
-        <a href="?status=encerrada" class="tab-btn <?= $filtro_status == 'encerrada' ? 'active' : '' ?>">
-          <i class="bi bi-lock me-1"></i>Encerradas
-        </a>
+      <!-- Stats -->
+      <div class="stats-strip">
+        <div class="stat-chip">
+          <div class="stat-chip-icon" style="background:rgba(34,197,94,.1)"><i class="bi bi-unlock-fill" style="color:var(--green)"></i></div>
+          <div><div class="stat-chip-val"><?= $totalAbertas ?></div><div class="stat-chip-label">Abertas</div></div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-chip-icon" style="background:rgba(255,255,255,.05)"><i class="bi bi-lock-fill" style="color:var(--text-3)"></i></div>
+          <div><div class="stat-chip-val"><?= $totalEncerradas ?></div><div class="stat-chip-label">Encerradas</div></div>
+        </div>
+        <div class="stat-chip">
+          <div class="stat-chip-icon" style="background:rgba(245,158,11,.1)"><i class="bi bi-people-fill" style="color:var(--amber)"></i></div>
+          <div><div class="stat-chip-val"><?= $totalPalpites ?></div><div class="stat-chip-label">Palpites</div></div>
+        </div>
       </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="tab-bar">
+          <a href="?status=aberta"    class="tab-btn <?= $filtro_status==='aberta'    ?'active':'' ?>"><i class="bi bi-unlock me-1"></i>Abertas</a>
+          <a href="?status=encerrada" class="tab-btn <?= $filtro_status==='encerrada' ?'active':'' ?>"><i class="bi bi-lock me-1"></i>Encerradas</a>
+        </div>
+        <div class="search-bar">
+          <i class="bi bi-search"></i>
+          <input type="text" placeholder="Buscar aposta..." oninput="filtrar(this.value)">
+        </div>
+      </div>
+
+      <div class="no-results" id="noResults"><i class="bi bi-inbox"></i> Nenhuma aposta encontrada.</div>
 
       <?php if (empty($eventos)): ?>
       <div class="empty-state">
         <i class="bi bi-inbox"></i>
-        <p>Nenhuma aposta nesta categoria.</p>
+        <p>Nenhuma aposta <?= $filtro_status === 'aberta' ? 'aberta' : 'encerrada' ?> no momento.</p>
       </div>
       <?php endif; ?>
 
       <?php foreach ($eventos as $evt): ?>
-      <div class="evt-card">
-        <div class="evt-card-head">
-          <div>
+      <div class="evt-card" id="card-<?= $evt['id'] ?>">
+        <div class="evt-head">
+          <div class="evt-badge <?= $evt['status'] ?>"></div>
+          <div class="evt-info">
             <div class="evt-title"><?= htmlspecialchars($evt['nome']) ?></div>
             <div class="evt-meta">
               <i class="bi bi-clock"></i>
-              Limite: <?= date('d/m/Y H:i', strtotime($evt['data_limite'])) ?>
+              <?= date('d/m/Y \à\s H:i', strtotime($evt['data_limite'])) ?>
             </div>
           </div>
           <div class="evt-actions">
-            <button class="btn-edit-evt" title="Editar"
-                    onclick='prepararEdicao(<?= json_encode($evt) ?>)'>
+            <button class="btn-sm-icon edit" title="Editar"
+                    onclick='editarAposta(<?= json_encode($evt) ?>)'>
               <i class="bi bi-pencil-square"></i>
             </button>
-            <?php if ($evt['status'] == 'aberta'): ?>
-            <form method="POST" style="display:inline"
-                  onsubmit="return confirm('Recalcular odds?')">
-              <input type="hidden" name="acao" value="recalcular_odds">
-              <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-              <button type="submit" class="btn-edit-evt" title="Recalcular odds" style="color:#60a5fa;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.2)">
-                <i class="bi bi-calculator"></i>
-              </button>
-            </form>
-            <?php endif; ?>
-            <div class="bets-count">
-              <i class="bi bi-people-fill"></i> <?= $evt['total_apostas_evento'] ?>
+            <div class="bets-pill">
+              <i class="bi bi-people-fill"></i><?= $evt['total_apostas_evento'] ?>
             </div>
           </div>
         </div>
 
-        <div class="evt-options">
+        <div class="evt-opts">
           <?php foreach ($evt['opcoes'] as $op):
-            $isWinner = $evt['status'] == 'encerrada' && $evt['vencedor_opcao_id'] == $op['id'];
+            $win = $evt['status']==='encerrada' && $evt['vencedor_opcao_id']==$op['id'];
           ?>
-          <div class="opt-pill <?= $isWinner ? 'winner' : '' ?>">
-            <div class="opt-pill-name">
-              <?php if ($isWinner): ?><i class="bi bi-check-circle-fill check"></i><?php endif; ?>
+          <div class="opt-chip <?= $win?'win':'' ?>">
+            <div class="opt-chip-name">
+              <?php if ($win): ?><i class="bi bi-check-circle-fill ic"></i><?php endif; ?>
               <?= htmlspecialchars($op['descricao']) ?>
             </div>
-            <div class="opt-pill-count"><i class="bi bi-people-fill"></i> <?= (int)$op['total_palpites'] ?> apostas</div>
+            <div class="opt-chip-count"><?= (int)$op['total_palpites'] ?> palpites</div>
           </div>
           <?php endforeach; ?>
         </div>
 
         <div class="evt-footer">
-          <?php if ($evt['status'] == 'aberta'): ?>
-          <form method="POST" class="close-form"
-                onsubmit="return confirm('Encerrar? Isso vai pagar os usuários.')">
+          <?php if ($evt['status']==='aberta'): ?>
+          <form method="POST" class="result-row"
+                onsubmit="return confirm('Encerrar aposta e pagar usuários? (+75 FBA Points por acerto)')">
             <input type="hidden" name="acao" value="encerrar_evento">
             <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-            <select name="vencedor_opcao_id" class="fba-select-sm" required>
-              <option value="">Selecione o resultado oficial...</option>
+            <select name="vencedor_opcao_id" class="f-select" required>
+              <option value="">Selecione o resultado...</option>
               <?php foreach ($evt['opcoes'] as $op): ?>
               <option value="<?= $op['id'] ?>"><?= htmlspecialchars($op['descricao']) ?></option>
               <?php endforeach; ?>
             </select>
             <button type="submit" class="btn-close-evt">
-              <i class="bi bi-flag-fill me-1"></i>Encerrar
+              <i class="bi bi-flag-fill"></i> Encerrar
             </button>
           </form>
           <?php else: ?>
-          <form method="POST" class="close-form"
-                onsubmit="return confirm('Alterar vencedor irá corrigir pontos já pagos. Continuar?')">
+          <form method="POST" class="result-row"
+                onsubmit="return confirm('Corrigir vencedor vai ajustar os pontos pagos. Continuar?')">
             <input type="hidden" name="acao" value="alterar_vencedor">
             <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
-            <select name="vencedor_opcao_id" class="fba-select-sm" required>
+            <select name="vencedor_opcao_id" class="f-select" required>
               <option value="">Alterar vencedor...</option>
               <?php foreach ($evt['opcoes'] as $op): ?>
-              <option value="<?= $op['id'] ?>" <?= ($evt['vencedor_opcao_id'] == $op['id']) ? 'selected' : '' ?>>
+              <option value="<?= $op['id'] ?>" <?= $evt['vencedor_opcao_id']==$op['id']?'selected':'' ?>>
                 <?= htmlspecialchars($op['descricao']) ?>
               </option>
               <?php endforeach; ?>
             </select>
             <button type="submit" class="btn-alter-evt">
-              <i class="bi bi-arrow-repeat me-1"></i>Alterar
+              <i class="bi bi-arrow-repeat"></i> Corrigir
             </button>
           </form>
           <?php endif; ?>
         </div>
       </div>
       <?php endforeach; ?>
-    </div>
 
-  </div>
-</div>
+    </div><!-- /list-panel -->
+  </div><!-- /body-wrap -->
+</div><!-- /page -->
+</div><!-- /shell -->
 
 <script>
-function addCampo(id = '', nome = '') {
-  const div = document.createElement('div');
-  div.className = 'opcao-group';
-  div.innerHTML = `
-    <input type="hidden" name="opcoes_ids[]" value="${id}">
-    <input type="text" name="opcoes_nomes[]" class="fba-input" value="${nome}" placeholder="Nome da opção" required>
-    <button type="button" class="btn-icon-remove" onclick="this.parentElement.remove()">
-      <i class="bi bi-x-lg"></i>
-    </button>
-  `;
-  document.getElementById('container-opcoes').appendChild(div);
+const AC_SUGGESTIONS = <?= json_encode($acSuggestions, JSON_UNESCAPED_UNICODE) ?>;
+const AC_TEAM_SET    = new Set(<?= json_encode($acTeams, JSON_UNESCAPED_UNICODE) ?>);
+
+let editingCardId = null;
+
+function initAC(input) {
+  const wrap = input.closest('.ac-wrap');
+  if (!wrap) return;
+  const drop = wrap.querySelector('.ac-drop');
+  let activeIdx = -1;
+
+  function show(items) {
+    drop.innerHTML = '';
+    activeIdx = -1;
+    if (!items.length) { drop.style.display = 'none'; return; }
+    items.forEach(name => {
+      const d = document.createElement('div');
+      d.className = 'ac-item';
+      const icon = AC_TEAM_SET.has(name) ? 'shield-half' : 'person-fill';
+      d.innerHTML = `<i class="bi bi-${icon}"></i>${name}`;
+      d.addEventListener('mousedown', e => {
+        e.preventDefault();
+        input.value = name;
+        drop.style.display = 'none';
+      });
+      drop.appendChild(d);
+    });
+    drop.style.display = 'block';
+  }
+
+  function move(dir) {
+    const items = drop.querySelectorAll('.ac-item');
+    if (!items.length) return;
+    items[activeIdx]?.classList.remove('ac-active');
+    activeIdx = Math.max(0, Math.min(items.length - 1, activeIdx + dir));
+    items[activeIdx].classList.add('ac-active');
+    items[activeIdx].scrollIntoView({block:'nearest'});
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { drop.style.display = 'none'; return; }
+    const starts   = AC_SUGGESTIONS.filter(s => s.toLowerCase().startsWith(q));
+    const contains = AC_SUGGESTIONS.filter(s => !s.toLowerCase().startsWith(q) && s.toLowerCase().includes(q));
+    show([...starts, ...contains].slice(0, 30));
+  });
+
+  input.addEventListener('keydown', e => {
+    if (drop.style.display === 'none') return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter') {
+      const active = drop.querySelector('.ac-active');
+      if (active) { e.preventDefault(); input.value = active.textContent.trim(); drop.style.display = 'none'; }
+    }
+    else if (e.key === 'Escape') { drop.style.display = 'none'; }
+  });
+
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target)) drop.style.display = 'none';
+  });
 }
 
-function prepararEdicao(evento) {
-  const card = document.getElementById('cardFormulario');
-  const head = document.getElementById('formTitle');
-  card.classList.add('editing');
-  head.classList.add('editing-head');
-  head.innerHTML = `<i class="bi bi-pencil-square"></i> Editando: ${evento.nome}`;
+function addOpcao(id='', nome='') {
+  const div = document.createElement('div');
+  div.className = 'opcao-row';
+  div.innerHTML = `
+    <input type="hidden" name="opcoes_ids[]" value="${id}">
+    <div class="ac-wrap">
+      <input type="text" name="opcoes_nomes[]" class="f-input" value="${nome.replace(/"/g,'&quot;')}" placeholder="Time, jogador ou texto livre" required>
+      <div class="ac-drop"></div>
+    </div>
+    <button type="button" class="btn-rm" onclick="this.closest('.opcao-row').remove()"><i class="bi bi-x-lg"></i></button>
+  `;
+  document.getElementById('listaOpcoes').appendChild(div);
+  initAC(div.querySelector('input[name="opcoes_nomes[]"]'));
+}
 
-  document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-save-fill"></i> Salvar Alterações';
-  document.getElementById('btnCancelarEdit').classList.add('visible');
-  document.getElementById('acaoInput').value = 'editar_evento';
-  document.getElementById('idEventoInput').value = evento.id;
-  document.getElementById('nomeEventoInput').value = evento.nome;
-  document.getElementById('dataLimiteInput').value = evento.data_limite.replace(' ', 'T').substring(0, 16);
+function editarAposta(evt) {
+  // Highlight card
+  document.querySelectorAll('.evt-card').forEach(c => c.classList.remove('editing-target'));
+  const card = document.getElementById('card-' + evt.id);
+  if (card) card.classList.add('editing-target');
+  editingCardId = evt.id;
 
-  const container = document.getElementById('container-opcoes');
-  container.innerHTML = '';
-  evento.opcoes.forEach(op => addCampo(op.id, op.descricao));
+  // Update form header
+  document.getElementById('formTitle').textContent = 'Editando Aposta';
+  document.getElementById('formSub').textContent   = evt.nome.length > 30 ? evt.nome.slice(0,30)+'…' : evt.nome;
+  document.getElementById('formIcon').innerHTML    = '<i class="bi bi-pencil-square"></i>';
+  document.getElementById('formIcon').style.background = 'rgba(245,158,11,.1)';
+  document.getElementById('formIcon').style.borderColor= 'rgba(245,158,11,.25)';
+  document.getElementById('formIcon').style.color  = '#fbbf24';
 
-  document.getElementById('cardFormulario').scrollIntoView({ behavior: 'smooth' });
+  // Fill fields
+  document.getElementById('acaoInput').value    = 'editar_evento';
+  document.getElementById('idEventoInput').value = evt.id;
+  document.getElementById('nomeInput').value     = evt.nome;
+  document.getElementById('dataInput').value     = evt.data_limite.replace(' ','T').substring(0,16);
+
+  // Fill opcoes
+  const lista = document.getElementById('listaOpcoes');
+  lista.innerHTML = '';
+  evt.opcoes.forEach(op => addOpcao(op.id, op.descricao));
+
+  document.getElementById('btnSubmit').innerHTML  = '<i class="bi bi-save-fill"></i> Salvar Alterações';
+  document.getElementById('btnCancelar').classList.add('show');
+
+  // Scroll form into view on mobile
+  document.querySelector('.form-panel').scrollTo({top:0, behavior:'smooth'});
 }
 
 function cancelarEdicao() {
-  const card = document.getElementById('cardFormulario');
-  const head = document.getElementById('formTitle');
-  card.classList.remove('editing');
-  head.classList.remove('editing-head');
-  head.innerHTML = '<i class="bi bi-plus-circle-fill"></i> Criar Nova Aposta';
+  if (editingCardId) {
+    const card = document.getElementById('card-' + editingCardId);
+    if (card) card.classList.remove('editing-target');
+    editingCardId = null;
+  }
 
-  document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-check-lg"></i> Publicar Aposta';
-  document.getElementById('btnCancelarEdit').classList.remove('visible');
-  document.getElementById('mainForm').reset();
-  document.getElementById('acaoInput').value = 'criar_evento';
+  document.getElementById('formTitle').textContent = 'Nova Aposta';
+  document.getElementById('formSub').textContent   = 'Preencha e publique';
+  document.getElementById('formIcon').innerHTML    = '<i class="bi bi-plus-lg"></i>';
+  document.getElementById('formIcon').style.background   = 'var(--red-soft)';
+  document.getElementById('formIcon').style.borderColor  = 'var(--border-red)';
+  document.getElementById('formIcon').style.color        = 'var(--red)';
+
+  document.getElementById('acaoInput').value    = 'criar_evento';
   document.getElementById('idEventoInput').value = '';
+  document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-send-fill"></i> Publicar Aposta';
+  document.getElementById('btnCancelar').classList.remove('show');
+  document.getElementById('mainForm').reset();
 
-  const container = document.getElementById('container-opcoes');
-  container.innerHTML = '';
-  addCampo('', ''); addCampo('', '');
+  const lista = document.getElementById('listaOpcoes');
+  lista.innerHTML = '';
+  addOpcao(); addOpcao();
 }
-function filtrarApostas(q) {
+
+function filtrar(q) {
   const cards = document.querySelectorAll('.evt-card');
-  const term = q.toLowerCase().trim();
-  let visible = 0;
-  cards.forEach(card => {
-    const title = card.querySelector('.evt-title')?.textContent.toLowerCase() ?? '';
-    const match = !term || title.includes(term);
-    card.classList.toggle('hidden', !match);
-    if (match) visible++;
+  const term  = q.toLowerCase().trim();
+  let vis = 0;
+  cards.forEach(c => {
+    const match = !term || (c.querySelector('.evt-title')?.textContent.toLowerCase() ?? '').includes(term);
+    c.classList.toggle('hidden', !match);
+    if (match) vis++;
   });
-  document.getElementById('noResults').style.display = visible === 0 ? 'block' : 'none';
+  document.getElementById('noResults').style.display = vis===0 ? 'block' : 'none';
 }
+
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sbOverlay').classList.add('open');
@@ -874,8 +803,10 @@ function closeSidebar() {
   document.getElementById('sbOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#listaOpcoes input[name="opcoes_nomes[]"]').forEach(initAC);
+});
 </script>
-</div><!-- /page-content -->
-</div><!-- /page-layout -->
 </body>
 </html>
