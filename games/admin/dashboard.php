@@ -166,8 +166,15 @@ $totalAbertas   = $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='aberta
 $totalEncerradas= $pdo->query("SELECT COUNT(*) FROM eventos WHERE status='encerrada'")->fetchColumn();
 $totalPalpites  = $pdo->query("SELECT COUNT(*) FROM palpites")->fetchColumn();
 
-$acTeams   = $pdo->query("SELECT DISTINCT name FROM teams ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
-$acPlayers = $pdo->query("SELECT DISTINCT name FROM players ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+$acTeams = [];
+$acPlayers = [];
+try {
+    $pdoFba = new PDO('mysql:host=localhost;dbname=u289267434_fbabrasilbanco;charset=utf8mb4',
+                      'u289267434_fbabrasilbanco', 'Fbabrasil@2025',
+                      [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $acTeams   = $pdoFba->query("SELECT DISTINCT name FROM teams ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+    $acPlayers = $pdoFba->query("SELECT DISTINCT name FROM players ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) { /* se o banco principal não estiver acessível, sugestões ficam vazias */ }
 $acTeamSet = array_flip($acTeams);
 $acSuggestions = $acTeams;
 foreach ($acPlayers as $n) { if (!isset($acTeamSet[$n])) $acSuggestions[] = $n; }
