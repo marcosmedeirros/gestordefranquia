@@ -392,40 +392,18 @@ if ($method === 'POST') {
             $maxPos = (int)($stmtCount->fetch()['max_pos'] ?? 0);
             $newPos = $maxPos + 1;
 
-            // Verificar se picks deste time foram tradadas antes de montar o draft_order
-            $sessionYear = null;
-            try {
-                if (!empty($session['season_id'])) {
-                    $stmtSY = $pdo->prepare('SELECT COALESCE(sp.start_year + s.season_number - 1, s.year) AS yr FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?');
-                    $stmtSY->execute([(int)$session['season_id']]);
-                    $yr = (int)($stmtSY->fetchColumn() ?: 0);
-                    if ($yr > 0) $sessionYear = $yr;
-                }
-            } catch (Exception $e) {}
-
             try {
                 $pdo->beginTransaction();
-                $stmtPickOwner = $sessionYear
-                    ? $pdo->prepare('SELECT team_id FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ? LIMIT 1')
-                    : null;
                 for ($round = 1; $round <= (int)$session['total_rounds']; $round++) {
-                    // Usar dono atual da pick caso ela tenha sido tradada antes do draft ser criado
-                    $currentOwnerId = (int)$teamId;
-                    if ($stmtPickOwner) {
-                        $stmtPickOwner->execute([(int)$teamId, $sessionYear, $round]);
-                        $ownerRow = (int)($stmtPickOwner->fetchColumn() ?: 0);
-                        if ($ownerRow > 0) $currentOwnerId = $ownerRow;
-                    }
                     $pdo->prepare(
                         'INSERT INTO draft_order (draft_session_id, team_id, original_team_id, pick_position, round, traded_from_team_id)
-                         VALUES (?, ?, ?, ?, ?, ?)'
+                         VALUES (?, ?, ?, ?, ?, NULL)'
                     )->execute([
                         (int)$draftSessionId,
-                        $currentOwnerId,
+                        (int)$teamId,
                         (int)$teamId,
                         (int)$newPos,
                         (int)$round,
-                        $currentOwnerId !== (int)$teamId ? (int)$teamId : null
                     ]);
                 }
                 $pdo->commit();
