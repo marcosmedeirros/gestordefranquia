@@ -22,23 +22,42 @@ $msgType = 'success';
 $gameKeys = ['memoria', 'termo', 'flappy', 'pinguim', 'ai'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $pdo->beginTransaction();
-        $stmtUp = $pdo->prepare("INSERT INTO fba_game_controls (game_key, is_double) VALUES (:k, :v)
-            ON DUPLICATE KEY UPDATE is_double = VALUES(is_double)");
-
-        foreach ($gameKeys as $key) {
-            $val = isset($_POST['double'][$key]) ? (int)$_POST['double'][$key] : 0;
-            $stmtUp->execute([':k' => $key, ':v' => ($val === 1 ? 1 : 0)]);
+    // Ações destrutivas
+    if (!empty($_POST['action'])) {
+        try {
+            if ($_POST['action'] === 'zerar_pontos') {
+                $pdo->exec("UPDATE usuarios SET pontos = 0, fba_points = 0");
+                $mensagem = 'FBA Points e Moedas zerados para todos os usuários.';
+                $msgType  = 'success';
+            } elseif ($_POST['action'] === 'resetar_tapas') {
+                $pdo->exec("UPDATE usuarios SET tapas_disponiveis = 2");
+                $mensagem = 'Tapas disponíveis resetadas para 2/2 para todos os usuários.';
+                $msgType  = 'success';
+            }
+        } catch (Exception $e) {
+            $mensagem = 'Erro: ' . htmlspecialchars($e->getMessage());
+            $msgType  = 'danger';
         }
+    } else {
+        // Salvar configurações de dobro de moedas
+        try {
+            $pdo->beginTransaction();
+            $stmtUp = $pdo->prepare("INSERT INTO fba_game_controls (game_key, is_double) VALUES (:k, :v)
+                ON DUPLICATE KEY UPDATE is_double = VALUES(is_double)");
 
-        $pdo->commit();
-        $mensagem = 'Configurações salvas com sucesso.';
-        $msgType = 'success';
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        $mensagem = 'Erro ao salvar: ' . htmlspecialchars($e->getMessage());
-        $msgType = 'danger';
+            foreach ($gameKeys as $key) {
+                $val = isset($_POST['double'][$key]) ? (int)$_POST['double'][$key] : 0;
+                $stmtUp->execute([':k' => $key, ':v' => ($val === 1 ? 1 : 0)]);
+            }
+
+            $pdo->commit();
+            $mensagem = 'Configurações salvas com sucesso.';
+            $msgType  = 'success';
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $mensagem = 'Erro ao salvar: ' . htmlspecialchars($e->getMessage());
+            $msgType  = 'danger';
+        }
     }
 }
 
@@ -412,6 +431,46 @@ $labelMap = [
     </div>
   </div>
 
+  <div class="section-label" style="margin-top:32px"><i class="bi bi-exclamation-triangle-fill"></i>Ações Administrativas</div>
+
+  <div class="panel-card" style="margin-bottom:14px">
+    <div class="panel-head">
+      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      Zerar FBA Points e Moedas
+    </div>
+    <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text)">Resetar saldo de todos os usuários</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:3px">Define <code style="color:var(--amber)">pontos = 0</code> e <code style="color:#a78bfa">fba_points = 0</code> para todos.</div>
+      </div>
+      <form method="POST" onsubmit="return confirmar('Tem certeza? Isso vai ZERAR as moedas e FBA Points de TODOS os usuários.')">
+        <input type="hidden" name="action" value="zerar_pontos">
+        <button type="submit" class="btn-save" style="background:#d97706;white-space:nowrap">
+          <i class="bi bi-eraser-fill"></i> Zerar tudo
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="panel-head">
+      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
+      Resetar Tapas Disponíveis
+    </div>
+    <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text)">Restaurar tapas para todos os usuários</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:3px">Define <code style="color:var(--green)">tapas_disponiveis = 2</code> para todos.</div>
+      </div>
+      <form method="POST" onsubmit="return confirmar('Tem certeza? Isso vai restaurar as 2 tapas disponíveis para TODOS os usuários.')">
+        <input type="hidden" name="action" value="resetar_tapas">
+        <button type="submit" class="btn-save" style="background:#16a34a;white-space:nowrap">
+          <i class="bi bi-arrow-counterclockwise"></i> Resetar tapas
+        </button>
+      </form>
+    </div>
+  </div>
+
 </div>
 
 </div><!-- /page-content -->
@@ -432,6 +491,9 @@ function updateStatus(input, key) {
   const span = document.getElementById('status-' + key);
   span.textContent = input.checked ? 'ATIVO' : 'OFF';
   span.classList.toggle('on', input.checked);
+}
+function confirmar(msg) {
+  return window.confirm(msg);
 }
 </script>
 </body>
