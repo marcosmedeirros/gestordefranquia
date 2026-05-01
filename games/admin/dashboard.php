@@ -201,10 +201,11 @@ sort($acSuggestions);
   --form-w:360px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 
 /* ── Shell ── */
-.shell{display:flex;min-height:100vh}
+.shell{display:flex;height:100vh;overflow:hidden}
 
 /* ── Sidebar nav ── */
 .sb{width:200px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
@@ -233,11 +234,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-logout:hover{background:rgba(252,0,37,.1);border-color:var(--border-red);color:var(--red)}
 
 /* ── Page body ── */
-.page{margin-left:200px;display:flex;min-height:100vh;flex-direction:column}
+.page{margin-left:200px;display:flex;height:100vh;flex-direction:column;overflow:hidden}
 
 /* ── Topbar ── */
-.topbar{position:sticky;top:0;z-index:100;height:52px;background:var(--panel);border-bottom:1px solid var(--border);
-        display:flex;align-items:center;padding:0 20px;gap:14px}
+.topbar{flex-shrink:0;height:52px;background:var(--panel);border-bottom:1px solid var(--border);
+        display:flex;align-items:center;padding:0 20px;gap:14px;z-index:100}
 .topbar-title{font-size:15px;font-weight:800;color:var(--text);flex:1}
 .topbar-title span{color:var(--red)}
 .chip{display:flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--border);
@@ -245,11 +246,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .chip i{font-size:11px}
 
 /* ── Main layout: fixed form + scrollable list ── */
-.body-wrap{display:flex;flex:1;overflow:hidden}
+.body-wrap{display:flex;flex:1;min-height:0;overflow:hidden}
 
 /* Form panel — fixed */
 .form-panel{width:var(--form-w);flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
-            position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;display:flex;flex-direction:column}
+            height:100%;overflow-y:auto;display:flex;flex-direction:column}
 .form-panel::-webkit-scrollbar{width:4px}
 .form-panel::-webkit-scrollbar-track{background:transparent}
 .form-panel::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:4px}
@@ -295,7 +296,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .btn-cancel:hover{border-color:var(--text-2);color:var(--text)}
 
 /* ── List panel ── */
-.list-panel{flex:1;overflow-y:auto;padding:20px 24px 48px;min-width:0}
+.list-panel{flex:1;overflow-y:auto;padding:20px 24px 48px;min-width:0;height:100%}
 
 /* Stats strip */
 .stats-strip{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
@@ -412,9 +413,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .page{margin-left:0}
   .topbar{display:none}
   .mob-bar{display:flex}
-  .body-wrap{flex-direction:column}
-  .form-panel{width:100%;position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}
-  .list-panel{padding:16px}
+  .body-wrap{flex-direction:column;overflow-y:auto}
+  .form-panel{width:100%;height:auto;flex-shrink:0;border-right:none;border-bottom:1px solid var(--border)}
+  .list-panel{height:auto;overflow-y:visible;padding:16px}
 }
 @media(max-width:500px){
   .stats-strip{gap:7px}

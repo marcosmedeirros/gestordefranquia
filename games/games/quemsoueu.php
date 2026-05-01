@@ -213,99 +213,159 @@ $jsPlayers = array_map(fn($p) => ['id'=>$p['id'],'n'=>$p['n']], $QSE_PLAYERS);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quem Sou Eu? NBA</title>
+<title>Quem Sou Eu? NBA — FBA Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0f0f17;color:#e2e2ee;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px}
+:root{
+  --red:#fc0025;--red-soft:rgba(252,0,37,.10);--red-glow:rgba(252,0,37,.18);
+  --bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;
+  --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--border-red:rgba(252,0,37,.22);
+  --text:#f0f0f3;--text-2:#868690;--text-3:#48484f;
+  --green:#22c55e;--amber:#f59e0b;--purple:#818cf8;
+  --font:'Poppins',system-ui,sans-serif;
+  --radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
 
-  /* ── Header ── */
-  .qse-header{width:100%;max-width:520px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
-  .qse-title{font-size:22px;font-weight:800;letter-spacing:-.5px}
-  .qse-title span{color:#3b82f6}
-  .qse-badge{background:#1e1e2e;border:1px solid #2a2a3e;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;color:#94a3b8}
+/* ── Topbar ── */
+.topbar{position:sticky;top:0;z-index:200;height:52px;background:var(--panel);border-bottom:1px solid var(--border);
+        display:flex;align-items:center;gap:12px;padding:0 16px}
+.topbar-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:transparent;
+             color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;
+             text-decoration:none;transition:all var(--t) var(--ease);flex-shrink:0}
+.topbar-back:hover{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
+.topbar-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
+.topbar-title span{color:var(--red)}
+.topbar-chip{display:flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--border);
+             border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--text-2);flex-shrink:0}
+.topbar-chip i{font-size:10px;color:var(--red)}
 
-  /* ── Silhouette card ── */
-  .qse-card{background:#1a1a2e;border:1px solid #2a2a4e;border-radius:20px;padding:28px 20px 20px;width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px}
-  .qse-sil{width:140px;height:140px;border-radius:50%;background:#12122a;border:3px solid #2a2a4e;display:flex;align-items:center;justify-content:center;font-size:72px;position:relative;overflow:hidden;transition:all .4s}
-  .qse-sil.solved{border-color:#22c55e}
-  .qse-sil-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:none}
-  .qse-sil-q{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:80px;color:#3b82f6;font-weight:900;text-shadow:0 0 30px rgba(59,130,246,.4)}
-  .qse-guess-count{font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6b7280}
-  .qse-result-msg{font-size:18px;font-weight:700;text-align:center;display:none}
-  .qse-result-msg.win{color:#22c55e}
-  .qse-result-msg.lose{color:#ef4444}
-  .qse-points-badge{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:700;display:none}
+/* ── Page wrap ── */
+.qse-page{display:flex;flex-direction:column;align-items:center;padding:20px 16px 56px}
 
-  /* ── Column labels ── */
-  .qse-cols{display:grid;grid-template-columns:1fr 60px 60px 80px 60px 60px;gap:6px;width:100%;max-width:520px;padding:0 4px;margin-bottom:4px}
-  .qse-col-lbl{text-align:center;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6b7280}
-  .qse-col-lbl:first-child{text-align:left}
+/* ── Attempt counter ── */
+.qse-counter-row{width:100%;max-width:520px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.qse-guess-count{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3)}
+.qse-pips{display:flex;gap:5px}
+.qse-pip{width:10px;height:10px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border-md);transition:all .3s}
+.qse-pip.used{background:var(--text-3)}
+.qse-pip.win{background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.5)}
+.qse-pip.lose{background:var(--red);box-shadow:0 0 6px rgba(252,0,37,.4)}
 
-  /* ── Guess rows ── */
-  .qse-rows{width:100%;max-width:520px;display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
-  .qse-row{display:grid;grid-template-columns:1fr 60px 60px 80px 60px 60px;gap:6px;animation:rowIn .3s ease both}
-  @keyframes rowIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-  .qse-row-name{background:#1e1e2e;border:1px solid #2a2a3e;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;color:#e2e2ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
-  .qse-cell{border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;min-height:52px;font-size:11px;font-weight:700;gap:2px;transition:background .2s}
-  .qse-cell.correct{background:#14532d;border:1px solid #22c55e;color:#22c55e}
-  .qse-cell.up,.qse-cell.down{background:#1c1917;border:1px solid #78716c;color:#d6d3d1}
-  .qse-cell.wrong{background:#1c1917;border:1px solid #3f3f46;color:#71717a}
-  .qse-cell-logo{width:32px;height:32px;object-fit:contain}
-  .qse-cell-arrow{font-size:14px;line-height:1}
-  .qse-cell.up .qse-cell-arrow{color:#f59e0b}
-  .qse-cell.down .qse-cell-arrow{color:#818cf8}
+/* ── Silhouette card ── */
+.qse-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+          padding:20px;width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;
+          gap:10px;margin-bottom:16px;transition:border-color .4s}
+.qse-card.solved{border-color:rgba(34,197,94,.35)}
+.qse-card.failed{border-color:var(--border-red)}
+.qse-sil{width:96px;height:96px;border-radius:50%;background:var(--panel-2);border:2px solid var(--border-md);
+         display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;transition:all .4s}
+.qse-sil.solved{border-color:var(--green);box-shadow:0 0 20px rgba(34,197,94,.25)}
+.qse-sil-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:none}
+.qse-sil-q{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+           font-size:54px;color:var(--red);font-weight:900;text-shadow:0 0 24px var(--red-glow)}
+.qse-result-msg{font-size:16px;font-weight:700;text-align:center;display:none}
+.qse-result-msg.win{color:var(--green)}
+.qse-result-msg.lose{color:#ff6680}
+.qse-points-badge{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:var(--green);
+                  border-radius:999px;padding:4px 14px;font-size:12px;font-weight:700;display:none}
 
-  /* ── Input area ── */
-  .qse-input-wrap{width:100%;max-width:520px;position:relative;margin-bottom:8px}
-  .qse-input{width:100%;background:#1e1e2e;border:1.5px solid #3b82f6;border-radius:12px;padding:14px 18px;font-size:15px;color:#e2e2ee;outline:none;transition:border-color .2s;font-family:inherit}
-  .qse-input:disabled{opacity:.4;cursor:not-allowed;border-color:#2a2a3e}
-  .qse-input::placeholder{color:#4b5563}
-  .qse-input:focus{border-color:#60a5fa}
-  .qse-suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a1a2e;border:1px solid #2a2a3e;border-radius:12px;overflow:hidden;z-index:100;display:none;max-height:240px;overflow-y:auto}
-  .qse-sug-item{padding:12px 18px;font-size:14px;cursor:pointer;transition:background .15s;border-bottom:1px solid #1e1e2e}
-  .qse-sug-item:last-child{border-bottom:none}
-  .qse-sug-item:hover,.qse-sug-item.active{background:#2a2a4e;color:#60a5fa}
-  .qse-sug-item em{color:#60a5fa;font-style:normal;font-weight:700}
+/* ── Legend ── */
+.qse-legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:12px;width:100%;max-width:520px}
+.qse-legend span{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--text-3)}
+.qse-legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
 
-  /* ── Share ── */
-  .qse-share-btn{display:none;background:#1e1e2e;border:1px solid #2a2a3e;border-radius:10px;padding:10px 24px;font-size:13px;font-weight:600;color:#94a3b8;cursor:pointer;transition:all .2s;margin-top:4px}
-  .qse-share-btn:hover{border-color:#60a5fa;color:#60a5fa}
+/* ── Column labels ── */
+.qse-cols{display:grid;grid-template-columns:1fr 56px 52px 74px 52px 48px;gap:5px;
+          width:100%;max-width:520px;padding:0 2px;margin-bottom:4px}
+.qse-col-lbl{text-align:center;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3)}
+.qse-col-lbl:first-child{text-align:left}
 
-  /* ── Info row ── */
-  .qse-legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;font-size:11px;color:#6b7280}
-  .qse-legend span{display:flex;align-items:center;gap:5px}
-  .qse-legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+/* ── Guess rows ── */
+.qse-rows{width:100%;max-width:520px;display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.qse-row{display:grid;grid-template-columns:1fr 56px 52px 74px 52px 48px;gap:5px;animation:rowIn .3s ease both}
+@keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.qse-row-name{background:var(--panel-2);border:1px solid var(--border-md);border-radius:9px;
+              padding:8px 10px;font-size:12px;font-weight:600;color:var(--text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
+.qse-cell{border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:5px 3px;min-height:48px;font-size:10px;font-weight:700;gap:2px;transition:background .2s}
+.qse-cell.correct{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:var(--green)}
+.qse-cell.up,.qse-cell.down{background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2)}
+.qse-cell.wrong{background:var(--panel-2);border:1px solid var(--border);color:var(--text-3)}
+.qse-cell-logo{width:28px;height:28px;object-fit:contain}
+.qse-cell-arrow{font-size:13px;line-height:1}
+.qse-cell.up .qse-cell-arrow{color:var(--amber)}
+.qse-cell.down .qse-cell-arrow{color:var(--purple)}
 
-  @media(max-width:480px){
-    .qse-cols,.qse-row{grid-template-columns:1fr 52px 52px 70px 52px 52px;gap:4px}
-    .qse-row-name{font-size:11px;padding:8px}
-    .qse-cell{min-height:46px;font-size:10px}
-    .qse-cell-logo{width:26px;height:26px}
-  }
+/* ── Input area ── */
+.qse-input-wrap{width:100%;max-width:520px;position:relative;margin-bottom:8px}
+.qse-input{width:100%;background:var(--panel-2);border:1.5px solid var(--border-red);border-radius:var(--radius-sm);
+           padding:12px 16px;font-size:14px;color:var(--text);outline:none;
+           transition:border-color var(--t) var(--ease);font-family:var(--font)}
+.qse-input:disabled{opacity:.35;cursor:not-allowed;border-color:var(--border)}
+.qse-input::placeholder{color:var(--text-3)}
+.qse-input:focus{border-color:var(--red)}
+.qse-suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);
+                 border:1px solid var(--border-md);border-radius:var(--radius-sm);overflow:hidden;
+                 z-index:100;display:none;max-height:220px;overflow-y:auto;
+                 box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.qse-sug-item{padding:10px 16px;font-size:13px;cursor:pointer;transition:background .15s;
+              border-bottom:1px solid var(--border);font-family:var(--font)}
+.qse-sug-item:last-child{border-bottom:none}
+.qse-sug-item:hover,.qse-sug-item.active{background:var(--panel-2);color:var(--red)}
+.qse-sug-item em{color:var(--red);font-style:normal;font-weight:700}
+
+/* ── Share btn ── */
+.qse-share-btn{display:none;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);
+               padding:9px 22px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;
+               transition:all var(--t) var(--ease);font-family:var(--font);margin-top:4px}
+.qse-share-btn:hover{border-color:var(--border-red);color:var(--red)}
+
+@media(max-width:480px){
+  .qse-cols,.qse-row{grid-template-columns:1fr 48px 46px 66px 46px 42px;gap:4px}
+  .qse-row-name{font-size:10px;padding:7px 8px}
+  .qse-cell{min-height:44px;font-size:9px}
+  .qse-cell-logo{width:24px;height:24px}
+}
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<div class="qse-header">
-  <div class="qse-title">Quem Sou Eu? <span>NBA</span></div>
-  <div class="qse-badge" id="qseDate"><?= date('d/m/Y') ?></div>
+<!-- Topbar -->
+<div class="topbar">
+  <a href="../games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
+  <div class="topbar-title">Quem Sou Eu? <span>NBA</span></div>
+  <div class="topbar-chip"><i class="bi bi-calendar3"></i><?= date('d/m/Y') ?></div>
+</div>
+
+<div class="qse-page">
+
+<!-- Tentativas (pips) -->
+<div class="qse-counter-row">
+  <div class="qse-guess-count" id="qseCounter">Tentativa <?= count($tentativas)+1 ?> de <?= $MAX_TENTATIVAS ?></div>
+  <div class="qse-pips" id="qsePips">
+    <?php for($i=0;$i<$MAX_TENTATIVAS;$i++): ?>
+    <div class="qse-pip<?= $i < count($tentativas) ? ' used' : '' ?>" data-pip="<?= $i ?>"></div>
+    <?php endfor; ?>
+  </div>
 </div>
 
 <!-- Silhouette card -->
-<div class="qse-card">
+<div class="qse-card" id="qseCard">
   <div class="qse-sil" id="qseSil">
     <div class="qse-sil-q" id="qseQ">?</div>
   </div>
-  <div class="qse-guess-count" id="qseCounter">GUESS <?= count($tentativas)+1 ?> DE <?= $MAX_TENTATIVAS ?></div>
   <div class="qse-result-msg" id="qseResultMsg"></div>
   <div class="qse-points-badge" id="qsePointsBadge"></div>
 </div>
 
 <!-- Legend -->
 <div class="qse-legend">
-  <span><div class="qse-legend-dot" style="background:#14532d;border:1px solid #22c55e"></div>Correto</span>
-  <span><div class="qse-legend-dot" style="background:#1c1917;border:1px solid #78716c"></div>Errado (↑ maior / ↓ menor)</span>
+  <span><div class="qse-legend-dot" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.4)"></div>Correto</span>
+  <span><div class="qse-legend-dot" style="background:var(--panel-2);border:1px solid var(--border-md)"></div>Errado &nbsp;↑ maior &nbsp;↓ menor</span>
 </div>
 
 <!-- Column headers -->
@@ -326,7 +386,9 @@ $jsPlayers = array_map(fn($p) => ['id'=>$p['id'],'n'=>$p['n']], $QSE_PLAYERS);
   <input type="text" id="qseInput" class="qse-input" placeholder="Digite o nome do jogador..." autocomplete="off" <?= $jogo_fim ? 'disabled' : '' ?>>
   <div class="qse-suggestions" id="qseSuggestions"></div>
 </div>
-<button class="qse-share-btn" id="qseShareBtn" onclick="qseShare()">📋 Compartilhar resultado</button>
+<button class="qse-share-btn" id="qseShareBtn" onclick="qseShare()"><i class="bi bi-share-fill" style="margin-right:6px"></i>Compartilhar resultado</button>
+
+</div><!-- /qse-page -->
 
 <script>
 const QSE_PLAYERS   = <?= json_encode($jsPlayers, JSON_UNESCAPED_UNICODE) ?>;
@@ -399,14 +461,19 @@ function renderRows() {
   tentativas.forEach(t => container.appendChild(makeRow(t)));
 }
 
-// ── Update counter ───────────────────────────────────────────────────────────
+// ── Update counter + pips ────────────────────────────────────────────────────
 function updateCounter() {
   const el = document.getElementById('qseCounter');
   if (gameDone) {
     el.style.display = 'none';
   } else {
-    el.textContent = `GUESS ${tentativas.length + 1} DE ${MAX_TENT}`;
+    el.textContent = `Tentativa ${tentativas.length + 1} de ${MAX_TENT}`;
   }
+  // pips
+  document.querySelectorAll('.qse-pip').forEach((pip, i) => {
+    pip.classList.remove('used','win','lose');
+    if (i < tentativas.length) pip.classList.add(gameDone && i === tentativas.length - 1 ? (gameWin ? 'win' : 'lose') : 'used');
+  });
 }
 
 // ── Show finish state ────────────────────────────────────────────────────────
@@ -414,6 +481,17 @@ function showFinish(win, pontos, teamAbbr, playerName) {
   gameDone = true; gameWin = win;
   document.getElementById('qseInput').disabled = true;
   document.getElementById('qseCounter').style.display = 'none';
+
+  // Card state
+  const card = document.getElementById('qseCard');
+  card.classList.add(win ? 'solved' : 'failed');
+
+  // Pips final state
+  document.querySelectorAll('.qse-pip').forEach((pip, i) => {
+    pip.classList.remove('used','win','lose');
+    if (i < tentativas.length - 1) pip.classList.add('used');
+    else if (i === tentativas.length - 1) pip.classList.add(win ? 'win' : 'lose');
+  });
 
   // Silhouette
   const sil = document.getElementById('qseSil');
@@ -423,7 +501,7 @@ function showFinish(win, pontos, teamAbbr, playerName) {
       const img = document.createElement('img');
       img.className = 'qse-sil-img';
       img.src = teamLogo(teamAbbr);
-      img.style.cssText = 'display:block;border-radius:0;width:80%;height:80%;object-fit:contain;padding:8px';
+      img.style.cssText = 'display:block;border-radius:0;width:76%;height:76%;object-fit:contain;padding:6px';
       sil.appendChild(img);
       q.style.display = 'none';
       sil.classList.add('solved');
