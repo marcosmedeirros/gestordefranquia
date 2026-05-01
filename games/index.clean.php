@@ -393,56 +393,71 @@ try {
     /* ── Bet cards ── */
     .bet-card {
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius); margin-bottom: 14px; overflow: hidden;
+      border-radius: var(--radius-sm); margin-bottom: 8px; overflow: hidden;
       transition: border-color var(--t) var(--ease);
     }
     .bet-card:hover { border-color: var(--border-md); }
-    .bet-header {
-      display: flex; align-items: flex-start; gap: 12px;
-      padding: 16px 18px 14px; border-bottom: 1px solid var(--border);
+    .bet-toggle {
+      width: 100%; display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; background: transparent; border: none;
+      color: var(--text); font-family: var(--font); cursor: pointer;
+      text-align: left; transition: background var(--t) var(--ease);
     }
+    .bet-toggle:hover { background: var(--panel-2); }
+    .bet-toggle[aria-expanded="true"] { background: var(--panel-2); border-bottom: 1px solid var(--border); }
     .bet-live-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
-      background: var(--red); box-shadow: 0 0 6px var(--red);
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: var(--red); box-shadow: 0 0 5px var(--red);
       animation: betpulse 1.8s ease-in-out infinite;
     }
-    @keyframes betpulse { 0%,100%{box-shadow:0 0 4px var(--red)} 50%{box-shadow:0 0 10px rgba(252,0,37,.7)} }
+    @keyframes betpulse { 0%,100%{box-shadow:0 0 3px var(--red)} 50%{box-shadow:0 0 8px rgba(252,0,37,.7)} }
     .bet-title-wrap { flex: 1; min-width: 0; }
-    .bet-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; line-height: 1.3; }
-    .bet-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .bet-meta span { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); }
-    .bet-meta i { font-size: 10px; }
+    .bet-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bet-meta { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+    .bet-meta span { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-2); }
+    .bet-meta i { font-size: 9px; }
+    .bet-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .bet-prize {
-      display: flex; align-items: center; gap: 5px; flex-shrink: 0;
-      background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.22);
-      border-radius: 999px; padding: 4px 11px;
-      font-size: 11px; font-weight: 700; color: var(--amber);
+      display: flex; align-items: center; gap: 4px;
+      background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2);
+      border-radius: 999px; padding: 2px 8px;
+      font-size: 10px; font-weight: 700; color: var(--amber);
     }
+    .bet-picked-pill {
+      display: flex; align-items: center; gap: 4px;
+      background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2);
+      border-radius: 999px; padding: 2px 8px;
+      font-size: 10px; font-weight: 700; color: var(--green);
+    }
+    .bet-chevron { color: var(--text-3); font-size: 12px; transition: transform var(--t) var(--ease); }
+    .bet-toggle[aria-expanded="true"] .bet-chevron { transform: rotate(180deg); }
 
-    .bet-opts { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
+    .bet-body { padding: 10px 14px 14px; background: var(--panel-2); }
+    .bet-opts { display: flex; flex-direction: column; gap: 8px; }
     .bet-opt {
-      background: var(--panel-2); border: 1px solid var(--border-md);
-      border-radius: var(--radius-sm); padding: 13px 14px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
       transition: border-color var(--t) var(--ease);
     }
-    .bet-opt.picked { border-color: var(--red); background: rgba(252,0,37,.06); }
-    .bet-opt-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; gap: 8px; }
-    .bet-opt-name { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bet-opt-pct { font-size: 13px; font-weight: 800; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+    .bet-opt.picked { border-color: var(--red); background: rgba(252,0,37,.05); }
+    .bet-opt-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
+    .bet-opt-name { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bet-opt-pct { font-size: 12px; font-weight: 800; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
     .bet-opt.picked .bet-opt-pct { color: var(--red); }
-    .bet-bar-wrap { height: 5px; background: rgba(255,255,255,.05); border-radius: 3px; margin-bottom: 10px; overflow: hidden; }
-    .bet-bar { height: 100%; border-radius: 3px; background: rgba(255,255,255,.15); transition: width .7s cubic-bezier(.2,.8,.2,1); }
-    .bet-opt.picked .bet-bar { background: linear-gradient(90deg, #fc0025, #ff4444); }
-    .bet-opt-count { font-size: 10px; color: var(--text-3); margin-bottom: 10px; }
+    .bet-bar-wrap { height: 4px; background: rgba(255,255,255,.05); border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+    .bet-bar { height: 100%; border-radius: 2px; background: rgba(255,255,255,.12); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+    .bet-opt.picked .bet-bar { background: linear-gradient(90deg,#fc0025,#ff4444); }
+    .bet-opt-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .bet-opt-count { font-size: 10px; color: var(--text-3); }
     .bet-btn {
-      width: 100%; padding: 8px 0; border-radius: 8px; border: none;
-      font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer;
-      transition: all var(--t) var(--ease); display: flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 5px 14px; border-radius: 7px; border: none;
+      font-family: var(--font); font-size: 11px; font-weight: 700; cursor: pointer;
+      transition: all var(--t) var(--ease); display: flex; align-items: center; gap: 4px; white-space: nowrap;
     }
     .bet-btn.primary { background: var(--red); color: #fff; }
-    .bet-btn.primary:hover { filter: brightness(1.12); }
+    .bet-btn.primary:hover { filter: brightness(1.1); }
     .bet-btn.current { background: transparent; border: 1px solid var(--border-red); color: var(--red); cursor: default; }
-    .bet-btn.secondary { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-2); }
+    .bet-btn.secondary { background: var(--panel-2); border: 1px solid var(--border-md); color: var(--text-2); }
     .bet-btn.secondary:hover { border-color: rgba(252,0,37,.3); color: var(--red); }
 
     @media (min-width: 640px) {
@@ -786,55 +801,77 @@ try {
 
     <?php if (!empty($ultimos_eventos_abertos)): ?>
       <?php foreach ($ultimos_eventos_abertos as $evento):
-        $evento_id    = (int)$evento['id'];
-        $bloqueado    = in_array($evento_id, $eventos_apostados, true);
-        $total_palps  = (int)($evento['total_palpites'] ?? 0);
-        $is2          = count($evento['opcoes']) === 2;
+        $evento_id   = (int)$evento['id'];
+        $bloqueado   = in_array($evento_id, $eventos_apostados, true);
+        $total_palps = (int)($evento['total_palpites'] ?? 0);
+        $is2         = count($evento['opcoes']) === 2;
+        $aberto      = !$bloqueado; // expandido se ainda não apostou
+        $opcaoEscolhida = '';
+        if ($bloqueado && !empty($aposta_por_evento[$evento_id])) {
+          foreach ($evento['opcoes'] as $op) {
+            if ((int)$op['id'] === (int)$aposta_por_evento[$evento_id]) { $opcaoEscolhida = $op['descricao']; break; }
+          }
+        }
       ?>
       <div class="bet-card">
-        <div class="bet-header">
+        <button class="bet-toggle" type="button"
+                data-bs-toggle="collapse" data-bs-target="#bev-<?= $evento_id ?>"
+                aria-expanded="<?= $aberto ? 'true' : 'false' ?>">
           <div class="bet-live-dot"></div>
           <div class="bet-title-wrap">
             <div class="bet-title"><?= htmlspecialchars($evento['nome']) ?></div>
             <div class="bet-meta">
-              <span><i class="bi bi-clock-fill"></i>Encerra <?= date('d/m \à\s H:i', strtotime($evento['data_limite'])) ?></span>
+              <span><i class="bi bi-clock-fill"></i><?= date('d/m \à\s H:i', strtotime($evento['data_limite'])) ?></span>
               <span><i class="bi bi-people-fill"></i><?= $total_palps ?> palpite<?= $total_palps !== 1 ? 's' : '' ?></span>
             </div>
           </div>
-          <div class="bet-prize"><i class="bi bi-gem"></i>+75 FBA Pts</div>
-        </div>
-        <div class="bet-opts<?= $is2 ? ' bet-opts-2' : '' ?>">
-          <?php foreach ($evento['opcoes'] as $opcao):
-            $isPicked = $bloqueado && !empty($aposta_por_evento[$evento_id]) && (int)$aposta_por_evento[$evento_id] === (int)$opcao['id'];
-            $pct      = (int)($opcao['pct'] ?? 0);
-            $cnt      = (int)($opcao['palpites_count'] ?? 0);
-          ?>
-          <div class="bet-opt<?= $isPicked ? ' picked' : '' ?>">
-            <div class="bet-opt-top">
-              <span class="bet-opt-name"><?= htmlspecialchars($opcao['descricao']) ?></span>
-              <span class="bet-opt-pct"><?= $total_palps > 0 ? $pct.'%' : '—' ?></span>
-            </div>
-            <div class="bet-bar-wrap">
-              <div class="bet-bar" style="width:<?= $pct ?>%"></div>
-            </div>
-            <div class="bet-opt-count"><?= $cnt ?> palpite<?= $cnt !== 1 ? 's' : '' ?></div>
+          <div class="bet-right">
             <?php if ($bloqueado): ?>
-              <?php if ($isPicked): ?>
-                <button class="bet-btn current" disabled><i class="bi bi-check-circle-fill"></i>Seu palpite</button>
-              <?php else: ?>
-                <form method="POST" action="games/apostas.php">
-                  <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                  <button type="submit" class="bet-btn secondary">Mudar palpite</button>
-                </form>
-              <?php endif; ?>
+              <div class="bet-picked-pill"><i class="bi bi-check-circle-fill"></i><?= htmlspecialchars(mb_strimwidth($opcaoEscolhida, 0, 16, '…')) ?></div>
             <?php else: ?>
-              <form method="POST" action="games/apostas.php">
-                <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
-                <button type="submit" class="bet-btn primary">Selecionar</button>
-              </form>
+              <div class="bet-prize"><i class="bi bi-gem"></i>+75 pts</div>
             <?php endif; ?>
+            <i class="bi bi-chevron-down bet-chevron"></i>
           </div>
-          <?php endforeach; ?>
+        </button>
+        <div class="collapse<?= $aberto ? ' show' : '' ?>" id="bev-<?= $evento_id ?>">
+          <div class="bet-body">
+            <div class="bet-opts<?= $is2 ? ' bet-opts-2' : '' ?>">
+              <?php foreach ($evento['opcoes'] as $opcao):
+                $isPicked = $bloqueado && !empty($aposta_por_evento[$evento_id]) && (int)$aposta_por_evento[$evento_id] === (int)$opcao['id'];
+                $pct      = (int)($opcao['pct'] ?? 0);
+                $cnt      = (int)($opcao['palpites_count'] ?? 0);
+              ?>
+              <div class="bet-opt<?= $isPicked ? ' picked' : '' ?>">
+                <div class="bet-opt-top">
+                  <span class="bet-opt-name"><?= htmlspecialchars($opcao['descricao']) ?></span>
+                  <span class="bet-opt-pct"><?= $total_palps > 0 ? $pct.'%' : '—' ?></span>
+                </div>
+                <div class="bet-bar-wrap">
+                  <div class="bet-bar" style="width:<?= $pct ?>%"></div>
+                </div>
+                <div class="bet-opt-footer">
+                  <span class="bet-opt-count"><?= $cnt ?> palpite<?= $cnt !== 1 ? 's' : '' ?></span>
+                  <?php if ($bloqueado): ?>
+                    <?php if ($isPicked): ?>
+                      <button class="bet-btn current" disabled><i class="bi bi-check-circle-fill"></i>Seu palpite</button>
+                    <?php else: ?>
+                      <form method="POST" action="games/apostas.php">
+                        <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                        <button type="submit" class="bet-btn secondary">Mudar</button>
+                      </form>
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <form method="POST" action="games/apostas.php">
+                      <input type="hidden" name="opcao_id" value="<?= (int)$opcao['id'] ?>">
+                      <button type="submit" class="bet-btn primary">Selecionar</button>
+                    </form>
+                  <?php endif; ?>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
         </div>
       </div>
       <?php endforeach; ?>
