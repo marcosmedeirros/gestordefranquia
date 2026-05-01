@@ -296,7 +296,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .btn-cancel:hover{border-color:var(--text-2);color:var(--text)}
 
 /* ── List panel ── */
-.list-panel{flex:1;overflow-y:auto;padding:20px 24px 48px;min-width:0;height:100%}
+.list-panel{flex:1;overflow-y:auto;padding:20px 24px 48px;min-width:0;height:100%;scrollbar-width:thin;scrollbar-color:var(--border-md) transparent}
+.list-panel::-webkit-scrollbar{width:5px}
+.list-panel::-webkit-scrollbar-track{background:transparent}
+.list-panel::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:999px}
+.list-panel::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.18)}
 
 /* Stats strip */
 .stats-strip{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
