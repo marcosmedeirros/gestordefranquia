@@ -834,16 +834,14 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
         return startNewSeason(league);
       }
 
-      // Bloqueia se o draft da temporada atual ainda não foi criado
+      // Avisa se o draft da temporada atual ainda não foi criado, mas permite avançar
       try {
         const draftCheck = await api(`draft.php?action=get_session&season_id=${currentSeasonData.id}`);
         if (!draftCheck.season || !draftCheck.season.draft_session_id) {
-          showNoDraftModal(league);
-          return;
+          if (!confirm('⚠️ Atenção: o Draft da temporada atual ainda não foi criado.\n\nVocê pode avançar mesmo assim, mas lembre-se de criar o Draft depois.\n\nDeseja avançar para a próxima temporada?')) return;
         }
       } catch (e) {
-        showNoDraftModal(league);
-        return;
+        // Ignora erro na verificação do draft e segue normalmente
       }
 
       let sprintStart = resolveSprintStartYearFromSeason(currentSeasonData);
