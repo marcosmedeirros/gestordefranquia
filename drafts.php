@@ -1034,6 +1034,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
   }
 
+  function initTooltips() {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+      bootstrap.Tooltip.getOrCreateInstance(el, { trigger: 'hover focus' });
+    });
+  }
+
   function statusPill(status) {
     const map = {
       'setup':       '<span class="draft-status-pill setup"><i class="bi bi-gear-fill"></i> Configurando</span>',
@@ -1122,7 +1128,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           ${session.status === 'in_progress' && !isMyTurn ? `<button class="btn-ghost-sm" style="margin-top:8px" onclick="openOptionsModal()"><i class="bi bi-eye"></i> Ver disponíveis</button>` : ''}
         </div>
         <div class="status-card" id="mockCardContainer" style="cursor:default">
-          <div class="status-label"><i class="bi bi-list-stars" style="color:var(--amber)"></i> Mock Draft</div>
+          <div class="status-label" style="display:flex;align-items:center;gap:5px">
+            <i class="bi bi-list-stars" style="color:var(--amber)"></i> Mock Draft
+            <span tabindex="0" data-bs-toggle="tooltip" data-bs-placement="bottom"
+              title="Selecione até 8 jogadores em ordem de prioridade. Após 30 min na sua pick com auto-pick ativo, o sistema escolhe o primeiro disponível da fila. Se todos já foram selecionados, nada acontece."
+              style="color:var(--text-3);cursor:help;line-height:1">
+              <i class="bi bi-info-circle"></i>
+            </span>
+          </div>
           <div id="mockCardBody" style="font-size:12px;color:var(--text-3)">Carregando…</div>
         </div>
       </div>
@@ -1223,6 +1236,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     document.getElementById('draftContainer').innerHTML = html;
 
     loadMockCard(session);
+    initTooltips();
 
     const finalizeContainer = document.getElementById('finalizeDraftContainer');
     if (finalizeContainer) {
