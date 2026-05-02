@@ -201,7 +201,7 @@ function calculateCapTop8(players) {
 }
 
 function isLoyalPlayer(player) {
-  return Number(player?.was_traded ?? 1) === 0;
+  return window.__LEAGUE__ === 'RISE' && Number(player?.was_traded ?? 1) === 0;
 }
 
 function isFranchiseEligible(player) {

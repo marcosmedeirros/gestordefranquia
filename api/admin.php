@@ -281,7 +281,21 @@ if ($method === 'GET') {
 
             $teamIds = array_map(static fn($r) => (int)$r['id'], $teams);
             $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+
+            // Busca o ano da temporada atual da liga
             $currentYear = (int)date('Y');
+            try {
+                $stmtSY = $pdo->prepare('
+                    SELECT COALESCE(sp.start_year + s.season_number - 1, s.year) AS yr
+                    FROM seasons s
+                    LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                    WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
+                    ORDER BY s.created_at DESC LIMIT 1
+                ');
+                $stmtSY->execute([$league]);
+                $yr = (int)($stmtSY->fetchColumn() ?: 0);
+                if ($yr > 0) $currentYear = $yr;
+            } catch (Exception $e) {}
 
             $stmtPicks = $pdo->prepare("
                 SELECT p.team_id, p.season_year, p.original_team_id,
