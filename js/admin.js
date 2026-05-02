@@ -147,6 +147,9 @@ async function showHome() {
             <button class="btn btn-sm btn-orange" type="button" id="copyRosterBtn">
               <i class="bi bi-clipboard me-1"></i>Copiar elencos
             </button>
+            <button class="btn btn-sm btn-outline-orange" type="button" id="copyPicksBtn">
+              <i class="bi bi-calendar2-check me-1"></i>Copiar picks
+            </button>
           </div>
         </div>
         <small class="text-light-gray">Gera um texto com o elenco de todos os times da liga selecionada.</small>
@@ -178,6 +181,13 @@ async function showHome() {
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
       copyLeagueRosters();
+    });
+  }
+
+  const copyPicksBtn = document.getElementById('copyPicksBtn');
+  if (copyPicksBtn) {
+    copyPicksBtn.addEventListener('click', () => {
+      copyLeaguePicks();
     });
   }
 
@@ -359,6 +369,63 @@ function ensureCopyRosterModal() {
         textarea.select();
       }
     });
+  }
+}
+
+function ensureCopyPicksModal() {
+  if (document.getElementById('copyPicksModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'copyPicksModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-calendar2-check me-2 text-orange"></i>Picks 1ª rodada</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <textarea id="copyPicksTextarea" class="form-control bg-dark text-white border-secondary" rows="14" readonly></textarea>
+          <small class="text-light-gray d-block mt-2">Toque e segure para copiar no celular.</small>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" id="copyPicksClipboardBtn">
+            <i class="bi bi-clipboard me-1"></i>Copiar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('#copyPicksClipboardBtn').addEventListener('click', async () => {
+    const textarea = document.getElementById('copyPicksTextarea');
+    if (!textarea) return;
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      alert('Picks copiadas para a área de transferência!');
+    } catch (e) {
+      textarea.focus();
+      textarea.select();
+    }
+  });
+}
+
+async function copyLeaguePicks() {
+  const league = document.getElementById('copyRosterLeague')?.value || 'ELITE';
+  ensureCopyPicksModal();
+  const textarea = document.getElementById('copyPicksTextarea');
+  if (textarea) textarea.value = 'Carregando...';
+  const modalEl = document.getElementById('copyPicksModal');
+  if (modalEl) new bootstrap.Modal(modalEl).show();
+
+  try {
+    const data = await api(`admin.php?action=copy_picks&league=${league}`);
+    if (textarea) textarea.value = data.text || 'Nenhuma pick encontrada.';
+  } catch (e) {
+    if (textarea) textarea.value = e.error || 'Erro ao copiar picks.';
   }
 }
 

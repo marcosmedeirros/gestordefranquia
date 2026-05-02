@@ -262,6 +262,65 @@ if ($method === 'GET') {
 
             echo json_encode(['success' => true, 'text' => trim(implode("\n", $lines))]);
             break;
+
+        case 'copy_picks':
+            $league = strtoupper(trim((string)($_GET['league'] ?? '')));
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                break;
+            }
+
+            $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM teams t WHERE t.league = ? ORDER BY t.city, t.name');
+            $stmtTeams->execute([$league]);
+            $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+            if (!$teams) {
+                echo json_encode(['success' => true, 'text' => 'Nenhum time encontrado.']);
+                break;
+            }
+
+            $teamIds = array_map(static fn($r) => (int)$r['id'], $teams);
+            $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+            $currentYear = (int)date('Y');
+
+            $stmtPicks = $pdo->prepare("
+                SELECT p.team_id, p.season_year, p.original_team_id,
+                       orig.city AS orig_city, orig.name AS orig_name
+                FROM picks p
+                LEFT JOIN teams orig ON p.original_team_id = orig.id
+                WHERE p.team_id IN ($placeholders)
+                  AND p.round = 1
+                  AND p.season_year >= ?
+                ORDER BY p.team_id, p.season_year
+            ");
+            $stmtPicks->execute([...$teamIds, $currentYear]);
+            $picksRaw = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+
+            $picksByTeam = [];
+            foreach ($picksRaw as $pk) {
+                $picksByTeam[(int)$pk['team_id']][] = $pk;
+            }
+
+            $lines = [];
+            foreach ($teams as $team) {
+                $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
+                $lines[] = '*' . $teamName . '*';
+                $teamPicks = $picksByTeam[(int)$team['id']] ?? [];
+                if (!$teamPicks) {
+                    $lines[] = '- Sem picks de 1ª rodada';
+                } else {
+                    foreach ($teamPicks as $pk) {
+                        $traded = (int)$pk['original_team_id'] !== (int)$team['id'];
+                        $orig = $traded ? trim(($pk['orig_city'] ?? '') . ' ' . ($pk['orig_name'] ?? '')) : '';
+                        $lines[] = '- ' . $pk['season_year'] . ($traded ? ' (de ' . $orig . ')' : '');
+                    }
+                }
+                $lines[] = '';
+            }
+
+            echo json_encode(['success' => true, 'text' => trim(implode("\n", $lines))]);
+            break;
+
         case 'leagues':
             // Listar todas as ligas com configurações
             $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
