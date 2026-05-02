@@ -545,6 +545,68 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .modal-body { padding: 20px; }
     .modal-footer { border-top: 1px solid var(--border); padding: 14px 20px; gap: 8px; }
 
+    /* ── Mock Draft Card ────────────────────────────── */
+    .mock-card {
+      background: var(--panel);
+      border: 1px solid var(--border-md);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .mock-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .mock-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700;
+    }
+    .mock-title i { color: var(--amber); }
+    .mock-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .mock-badge.on  { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .mock-badge.off { background: var(--panel-2); color: var(--text-3); border: 1px solid var(--border); }
+    .mock-toggle-wrap {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-2);
+    }
+    .mock-toggle-wrap .form-check-input {
+      width: 2em; height: 1em; cursor: pointer;
+      background-color: var(--panel-3);
+      border-color: var(--border-md);
+    }
+    .mock-toggle-wrap .form-check-input:checked { background-color: var(--green); border-color: var(--green); }
+    .mock-queue-list {
+      display: flex; flex-direction: column; gap: 5px;
+      margin-bottom: 10px;
+    }
+    .mock-queue-empty { font-size: 12px; color: var(--text-3); padding: 8px 0; }
+    .mock-queue-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .mock-queue-num { font-weight: 700; font-size: 11px; color: var(--text-3); width: 16px; flex-shrink: 0; text-align: center; }
+    .mock-queue-name { flex: 1; font-size: 12px; font-weight: 600; }
+    .mock-queue-meta { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+    .mock-queue-del {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-3); padding: 2px 4px; border-radius: 4px;
+      font-size: 13px; line-height: 1;
+      transition: color var(--t) var(--ease);
+    }
+    .mock-queue-del:hover { color: var(--red); }
+    .mock-timer {
+      font-size: 11px; color: var(--text-2); margin-top: 10px;
+      padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .mock-timer.urgent  { color: var(--amber); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.06); }
+    .mock-timer.expired { color: var(--red); border-color: var(--border-red); background: var(--red-soft); }
+
     /* ── Responsive ──────────────────────────────── */
     @media (max-width: 992px) {
       :root { --sidebar-w: 0px; }
@@ -674,6 +736,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
       <!-- View do Draft Ativo -->
       <div id="activeDraftView">
+        <?php if (!$isAdmin): ?>
+        <div id="mockCardContainer"></div>
+        <?php endif; ?>
         <div id="draftContainer">
           <div class="state-empty">
             <i class="bi bi-hourglass-split"></i>
@@ -791,6 +856,29 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <button type="button" class="btn-red" onclick="submitTradePick()">
           <i class="bi bi-check2-circle"></i> Confirmar troca
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Mock Draft — Adicionar jogador à fila -->
+<div class="modal fade" id="mockAddModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title"><i class="bi bi-list-stars"></i> Adicionar ao Mock Draft</span>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Selecione até 8 jogadores para sua fila. O auto-pick escolhe o primeiro disponível após 30 min.</p>
+        <input type="text" id="mockPlayerSearch" class="field-input mb-3" placeholder="Buscar por nome ou posição…">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-size:12px;color:var(--text-2)">Disponíveis</span>
+          <span style="font-size:12px;color:var(--text-2)" id="mockAvailableCount">0</span>
+        </div>
+        <div id="mockAvailablePlayers" class="pick-grid">
+          <div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>
+        </div>
       </div>
     </div>
   </div>
@@ -920,6 +1008,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (session.status === 'in_progress' && !isAdminRound2) {
         if (refreshInterval) clearInterval(refreshInterval);
         refreshInterval = setInterval(loadDraft, 10000);
+        if (!isAdmin) checkAutopick();
       } else {
         if (refreshInterval) clearInterval(refreshInterval);
       }
@@ -1117,6 +1206,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     html += `</div></div>`;
 
     document.getElementById('draftContainer').innerHTML = html;
+
+    if (!isAdmin && session.status === 'in_progress') {
+      loadMockCard(session);
+    }
 
     const finalizeContainer = document.getElementById('finalizeDraftContainer');
     if (finalizeContainer) {
@@ -1596,6 +1689,199 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         loadHistory();
       }
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+  }
+
+  // ── Mock Draft ──────────────────────────────────────
+  let mockQueue     = [];
+  let mockIsActive  = false;
+  let mockTimerInt  = null;
+  let mockAllPlayers = [];
+
+  async function loadMockCard(session) {
+    const container = document.getElementById('mockCardContainer');
+    if (!container || isAdmin || session.status !== 'in_progress') return;
+    if (!currentDraftSession) return;
+    try {
+      const data = await api(`draft-mock.php?action=get&draft_session_id=${currentDraftSession.id}`);
+      mockQueue    = data.queue    || [];
+      mockIsActive = data.is_active || false;
+    } catch (e) {
+      console.warn('Erro ao carregar mock:', e);
+    }
+    renderMockCard(session);
+  }
+
+  function renderMockCard(session) {
+    const container = document.getElementById('mockCardContainer');
+    if (!container) return;
+
+    const allPicks = currentDraftPicks || [];
+    const currentPickInfo = session.status === 'in_progress'
+      ? allPicks.find(p => p.round == session.current_round && p.pick_position == session.current_pick && !p.picked_player_id)
+      : null;
+    const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && Number(session.current_round) === 1;
+
+    const queueHtml = mockQueue.length > 0
+      ? mockQueue.map((item, idx) => `
+          <div class="mock-queue-item">
+            <span class="mock-queue-num">${idx + 1}</span>
+            <span class="mock-queue-name">${item.player_name}</span>
+            <span class="mock-queue-meta">${item.player_position} · OVR ${item.player_ovr}</span>
+            <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
+          </div>`)
+        .join('')
+      : `<div class="mock-queue-empty">Nenhum jogador na fila. Adicione até 8.</div>`;
+
+    const canAdd = mockQueue.length < 8;
+
+    container.innerHTML = `
+      <div class="mock-card">
+        <div class="mock-card-header">
+          <div class="mock-title">
+            <i class="bi bi-list-stars"></i> Mock Draft
+            <span class="mock-badge ${mockIsActive ? 'on' : 'off'}">${mockIsActive ? 'Auto-pick ON' : 'Auto-pick OFF'}</span>
+          </div>
+          <div class="mock-toggle-wrap">
+            <span>Auto-pick</span>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                id="mockActiveToggle" ${mockIsActive ? 'checked' : ''}
+                onchange="toggleMock(this.checked)">
+            </div>
+          </div>
+        </div>
+        <div class="mock-queue-list">${queueHtml}</div>
+        ${canAdd ? `<button class="btn-ghost-sm" onclick="openMockAddModal()"><i class="bi bi-plus-lg"></i> Adicionar jogador</button>` : ''}
+        ${isMyTurn ? `<div class="mock-timer" id="mockTimerDisplay"><i class="bi bi-clock"></i> Calculando…</div>` : ''}
+      </div>`;
+
+    if (isMyTurn && session.current_pick_started_at) {
+      startMockTimer(session.current_pick_started_at);
+    }
+  }
+
+  function startMockTimer(startedAt) {
+    if (mockTimerInt) clearInterval(mockTimerInt);
+    function tick() {
+      const el = document.getElementById('mockTimerDisplay');
+      if (!el) { clearInterval(mockTimerInt); return; }
+      const startMs = new Date(startedAt.replace(' ', 'T')).getTime();
+      const elapsed  = (Date.now() - startMs) / 1000;
+      const remaining = 1800 - elapsed;
+      if (remaining <= 0) {
+        el.className = 'mock-timer expired';
+        el.innerHTML = mockIsActive
+          ? `<i class="bi bi-robot"></i> Auto-pick ativo — escolhendo primeiro disponível…`
+          : `<i class="bi bi-clock"></i> 30 min esgotados — faça sua pick!`;
+      } else {
+        const mins = Math.floor(remaining / 60);
+        const secs = Math.floor(remaining % 60);
+        el.className = remaining < 300 ? 'mock-timer urgent' : 'mock-timer';
+        el.innerHTML = `<i class="bi bi-clock"></i> Auto-pick em <strong>${mins}m${String(secs).padStart(2,'0')}s</strong>${mockIsActive ? ' <span style="color:var(--green)">(mock ativo)</span>' : ' (mock inativo)'}`;
+      }
+    }
+    tick();
+    mockTimerInt = setInterval(tick, 1000);
+  }
+
+  async function toggleMock(isActive) {
+    if (!currentDraftSession) return;
+    try {
+      const data = await api('draft-mock.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'toggle', draft_session_id: currentDraftSession.id, is_active: isActive })
+      });
+      mockIsActive = data.is_active;
+      const badge = document.querySelector('.mock-badge');
+      if (badge) {
+        badge.className = `mock-badge ${mockIsActive ? 'on' : 'off'}`;
+        badge.textContent = mockIsActive ? 'Auto-pick ON' : 'Auto-pick OFF';
+      }
+    } catch (e) {
+      alert('Erro: ' + (e.error || 'Desconhecido'));
+    }
+  }
+
+  async function openMockAddModal() {
+    if (!currentDraftSession) return;
+    new bootstrap.Modal(document.getElementById('mockAddModal')).show();
+    const container = document.getElementById('mockAvailablePlayers');
+    const countEl   = document.getElementById('mockAvailableCount');
+    container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
+    try {
+      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+      const queueIds = new Set(mockQueue.map(m => Number(m.player_id)));
+      mockAllPlayers = (data.players || []).filter(p => !queueIds.has(Number(p.id)));
+      if (countEl) countEl.textContent = mockAllPlayers.length;
+      const search = document.getElementById('mockPlayerSearch');
+      if (search) {
+        search.value = '';
+        search.oninput = e => {
+          const q = e.target.value.toLowerCase();
+          renderMockPlayerList(mockAllPlayers.filter(p => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)));
+        };
+      }
+      renderMockPlayerList(mockAllPlayers);
+    } catch (e) {
+      container.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+    }
+  }
+
+  function renderMockPlayerList(players) {
+    const container = document.getElementById('mockAvailablePlayers');
+    const countEl   = document.getElementById('mockAvailableCount');
+    if (countEl) countEl.textContent = players.length;
+    if (!players.length) {
+      container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador disponível</p></div>';
+      return;
+    }
+    container.innerHTML = players.map(p => `
+      <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${p.name.replace(/'/g,"\\'")}', '${p.position}', ${p.ovr})" style="cursor:pointer">
+        <div class="player-chip-name">${p.name}</div>
+        <div><span class="player-chip-pos">${p.position}</span><span class="player-chip-ovr">OVR ${p.ovr}</span></div>
+        <div class="player-chip-age">${p.age} anos</div>
+      </div>`).join('');
+  }
+
+  async function addPlayerToMockQueue(playerId, playerName, position, ovr) {
+    if (!currentDraftSession) return;
+    if (mockQueue.length >= 8) { alert('Máximo 8 jogadores no mock.'); return; }
+    mockQueue.push({ player_id: playerId, player_name: playerName, player_position: position, player_ovr: ovr });
+    try {
+      await api('draft-mock.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save', draft_session_id: currentDraftSession.id, player_ids: mockQueue.map(m => m.player_id) })
+      });
+      bootstrap.Modal.getInstance(document.getElementById('mockAddModal')).hide();
+      renderMockCard(currentDraftSession);
+    } catch (e) {
+      mockQueue.pop();
+      alert('Erro: ' + (e.error || 'Desconhecido'));
+    }
+  }
+
+  async function removeFromMockQueue(playerId) {
+    if (!currentDraftSession) return;
+    mockQueue = mockQueue.filter(m => Number(m.player_id) !== Number(playerId));
+    try {
+      await api('draft-mock.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save', draft_session_id: currentDraftSession.id, player_ids: mockQueue.map(m => m.player_id) })
+      });
+      renderMockCard(currentDraftSession);
+    } catch (e) {
+      alert('Erro: ' + (e.error || 'Desconhecido'));
+    }
+  }
+
+  async function checkAutopick() {
+    if (!currentDraftSession || currentDraftSession.status !== 'in_progress') return;
+    try {
+      const result = await api(`draft-mock.php?action=check_autopick&draft_session_id=${currentDraftSession.id}`);
+      if (result.autopicked) await loadDraft();
+    } catch (e) {
+      console.warn('check_autopick:', e);
+    }
   }
 
   loadDraft();

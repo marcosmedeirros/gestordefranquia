@@ -21,6 +21,7 @@ try {
 $user = getUserSession();
 $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
+try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Buscar time do usuário
@@ -645,7 +646,7 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $pdo->prepare('UPDATE draft_sessions SET status = "in_progress", started_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
+            $pdo->prepare('UPDATE draft_sessions SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
             echo json_encode(['success' => true, 'message' => 'Draft iniciado!']);
             break;
 
@@ -832,7 +833,7 @@ if ($method === 'POST') {
                 $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 
                 if ($next) {
-                    $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
+                    $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                         ->execute([(int)$next['round'], (int)$next['pick_position'], (int)$draftSessionId]);
                 } else {
                     $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
