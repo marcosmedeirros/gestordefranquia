@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/push.php';
 
 header('Content-Type: application/json');
 
@@ -247,15 +248,34 @@ switch ($action) {
             $stmtNext->execute([$draftSessionId]);
             $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 
+            $nextTeamId = null;
             if ($next) {
                 $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                     ->execute([(int)$next['round'], (int)$next['pick_position'], $draftSessionId]);
+                $stmtNextTeam = $pdo->prepare('SELECT team_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? LIMIT 1');
+                $stmtNextTeam->execute([$draftSessionId, (int)$next['round'], (int)$next['pick_position']]);
+                $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
             } else {
                 $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
                     ->execute([$draftSessionId]);
             }
 
             $pdo->commit();
+
+            if ($nextTeamId && $next) {
+                $stmtUser = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ? LIMIT 1');
+                $stmtUser->execute([$nextTeamId]);
+                $nextUserId = (int)($stmtUser->fetchColumn() ?: 0);
+                if ($nextUserId) {
+                    sendPushToUser($pdo, $nextUserId, [
+                        'title'      => '🏀 É a sua vez no Draft!',
+                        'body'       => "Rodada {$next['round']} · Pick #{$next['pick_position']} — Você tem 30 min para escolher.",
+                        'url'        => '/drafts.php',
+                        'primaryKey' => 'draft_pick_' . $nextTeamId . '_' . $next['round'] . '_' . $next['pick_position'],
+                    ]);
+                }
+            }
+
             echo json_encode(['success' => true, 'autopicked' => true, 'player_name' => $playerToPick['name']]);
         } catch (Exception $e) {
             $pdo->rollBack();

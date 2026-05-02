@@ -1131,7 +1131,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="status-label" style="display:flex;align-items:center;gap:5px">
             <i class="bi bi-list-stars" style="color:var(--amber)"></i> Mock Draft
             <span tabindex="0" data-bs-toggle="tooltip" data-bs-placement="bottom"
-              title="Selecione até 8 jogadores em ordem de prioridade. Após 30 min na sua pick com auto-pick ativo, o sistema escolhe o primeiro disponível da fila. Se todos já foram selecionados, nada acontece."
+              title="Selecione até 8 jogadores em ordem de prioridade. Após 30 min na sua pick com auto-pick ativo, o sistema escolhe o primeiro disponível da fila. Se todos já forem selecionados, nada acontece."
               style="color:var(--text-3);cursor:help;line-height:1">
               <i class="bi bi-info-circle"></i>
             </span>

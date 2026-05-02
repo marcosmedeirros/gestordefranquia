@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/push.php';
 
 header('Content-Type: application/json');
 
@@ -48,6 +49,21 @@ function recalculateOrderPositions(PDO $pdo, int $draftSessionId): void {
             $pos++;
         }
     }
+}
+
+// Notifica o próximo time que é a vez dele
+function notifyNextPick(PDO $pdo, int $teamId, int $round, int $pickPosition): void {
+    $stmt = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ? LIMIT 1');
+    $stmt->execute([$teamId]);
+    $userId = (int)($stmt->fetchColumn() ?: 0);
+    if (!$userId) return;
+
+    sendPushToUser($pdo, $userId, [
+        'title'      => '🏀 É a sua vez no Draft!',
+        'body'       => "Rodada {$round} · Pick #{$pickPosition} — Você tem 30 min para escolher.",
+        'url'        => '/drafts.php',
+        'primaryKey' => 'draft_pick_' . $teamId . '_' . $round . '_' . $pickPosition,
+    ]);
 }
 
 // ========== GET ==========
@@ -647,6 +663,15 @@ if ($method === 'POST') {
             }
 
             $pdo->prepare('UPDATE draft_sessions SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
+
+            // Notifica o primeiro time da fila
+            $stmtFirst = $pdo->prepare('SELECT team_id, round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+            $stmtFirst->execute([(int)$draftSessionId]);
+            $firstPick = $stmtFirst->fetch(PDO::FETCH_ASSOC);
+            if ($firstPick) {
+                notifyNextPick($pdo, (int)$firstPick['team_id'], (int)$firstPick['round'], (int)$firstPick['pick_position']);
+            }
+
             echo json_encode(['success' => true, 'message' => 'Draft iniciado!']);
             break;
 
@@ -832,14 +857,24 @@ if ($method === 'POST') {
                 $stmtNext->execute([(int)$draftSessionId]);
                 $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 
+                $nextTeamId = null;
                 if ($next) {
                     $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                         ->execute([(int)$next['round'], (int)$next['pick_position'], (int)$draftSessionId]);
+                    // Pega o team_id da próxima pick para notificar
+                    $stmtNextTeam = $pdo->prepare('SELECT team_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? LIMIT 1');
+                    $stmtNextTeam->execute([(int)$draftSessionId, (int)$next['round'], (int)$next['pick_position']]);
+                    $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
                 } else {
                     $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
                 }
 
                 $pdo->commit();
+
+                if ($nextTeamId && isset($next)) {
+                    notifyNextPick($pdo, $nextTeamId, (int)$next['round'], (int)$next['pick_position']);
+                }
+
                 $message = $duplicateRoster
                     ? 'Pick realizada! Jogador j?? existia no elenco e n??o foi duplicado.'
                     : 'Pick realizada!';
