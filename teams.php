@@ -1282,6 +1282,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <button class="btn-action" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-clipboard-check"></i>
                         </button>
+                        <button class="btn-action" title="Copiar picks" onclick="copiarPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                            <i class="bi bi-calendar2-check"></i>
+                        </button>
                         <?php if ($hasContact): ?>
                         <a class="btn-action green" href="<?= htmlspecialchars($waLink) ?>" target="_blank" rel="noopener">
                             <i class="bi bi-whatsapp"></i>
@@ -1345,6 +1348,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         </button>
                         <button class="btn-action" style="flex:initial;padding:0 10px;" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-clipboard-check"></i>
+                        </button>
+                        <button class="btn-action" style="flex:initial;padding:0 10px;" title="Copiar picks" onclick="copiarPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
+                            <i class="bi bi-calendar2-check"></i>
                         </button>
                         <?php if ($hasContact): ?>
                         <a class="btn-action green" style="flex:initial;padding:0 10px;" href="<?= htmlspecialchars($waLink) ?>" target="_blank" rel="noopener">
@@ -1794,6 +1800,41 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             }
         } catch (err) {
             alert(err.message || 'Erro ao copiar time');
+        }
+    }
+
+    /* ── Copiar Picks (1ª rodada) ────────────────────── */
+    async function copiarPicks(teamId, teamName) {
+        try {
+            const res = await fetch(`/api/picks.php?team_id=${teamId}`);
+            const data = await res.json();
+            const picks = (data.picks || [])
+                .filter(pk => pk.round == 1 && Number(pk.season_year) > Number(currentSeasonYear))
+                .sort((a, b) => a.season_year - b.season_year);
+
+            const lines = [`*${teamName}*`];
+            if (picks.length) {
+                picks.forEach(pk => {
+                    const origem = `${pk.original_team_city} ${pk.original_team_name}`.trim();
+                    const traded = pk.original_team_id != pk.team_id;
+                    lines.push(`- ${pk.season_year}${traded ? ` (de ${origem})` : ''}`);
+                });
+            } else {
+                lines.push('- Sem picks de 1ª rodada');
+            }
+
+            const text = lines.join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('Picks copiadas!');
+            } catch {
+                const textarea = document.getElementById('copyTeamTextarea');
+                textarea.value = text;
+                new bootstrap.Modal(document.getElementById('copyTeamModal')).show();
+                setTimeout(() => { textarea.focus(); textarea.select(); }, 150);
+            }
+        } catch (err) {
+            alert(err.message || 'Erro ao copiar picks');
         }
     }
 </script>
