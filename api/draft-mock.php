@@ -59,11 +59,10 @@ switch ($action) {
     // ── GET: fila + configuração ──────────────────────
     case 'get':
         $draftSessionId = (int)($_GET['draft_session_id'] ?? 0);
-        $teamId = (int)($_GET['team_id'] ?? ($userTeam['id'] ?? 0));
+        $teamId = (int)($userTeam['id'] ?? 0);
 
-        if (!$isAdmin) $teamId = (int)($userTeam['id'] ?? 0);
         if (!$draftSessionId || !$teamId) {
-            echo json_encode(['success' => false, 'error' => 'Parâmetros inválidos']);
+            echo json_encode(['success' => true, 'queue' => [], 'is_active' => false]);
             exit;
         }
 

@@ -1019,7 +1019,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (session.status === 'in_progress' && !isAdminRound2) {
         if (refreshInterval) clearInterval(refreshInterval);
         refreshInterval = setInterval(loadDraft, 10000);
-        if (!isAdmin) checkAutopick();
+        checkAutopick();
       } else {
         if (refreshInterval) clearInterval(refreshInterval);
       }
@@ -1121,11 +1121,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="status-val" style="font-size:13px">${currentPickLabel}</div>
           ${session.status === 'in_progress' && !isMyTurn ? `<button class="btn-ghost-sm" style="margin-top:8px" onclick="openOptionsModal()"><i class="bi bi-eye"></i> Ver disponíveis</button>` : ''}
         </div>
-        ${!isAdmin ? `
         <div class="status-card" id="mockCardContainer" style="cursor:default">
           <div class="status-label"><i class="bi bi-list-stars" style="color:var(--amber)"></i> Mock Draft</div>
           <div id="mockCardBody" style="font-size:12px;color:var(--text-3)">Carregando…</div>
-        </div>` : ''}
+        </div>
       </div>
     `;
 
@@ -1223,7 +1222,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     document.getElementById('draftContainer').innerHTML = html;
 
-    if (!isAdmin) loadMockCard(session);
+    loadMockCard(session);
 
     const finalizeContainer = document.getElementById('finalizeDraftContainer');
     if (finalizeContainer) {
@@ -1713,7 +1712,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function loadMockCard(session) {
     const body = document.getElementById('mockCardBody');
-    if (!body || isAdmin || !currentDraftSession) return;
+    if (!body || !currentDraftSession) return;
     try {
       const data = await api(`draft-mock.php?action=get&draft_session_id=${currentDraftSession.id}`);
       mockQueue    = data.queue    || [];
