@@ -424,6 +424,21 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         </div>
     </div>
 
+    <!-- Modal Log do Time -->
+    <div class="modal fade" id="teamLogModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-scrollable">
+            <div class="modal-content minimal">
+                <div class="modal-header minimal">
+                    <h5 class="modal-title"><i class="bi bi-journal-text me-2" style="color:var(--red)"></i>Log · <span id="teamLogName"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding:0; overflow-y:auto; max-height:70vh;" id="teamLogBody">
+                    <div class="text-center py-4"><div class="spinner" style="margin:32px auto"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
     <div class="modal fade" id="editRankingModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -549,6 +564,14 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                         ${team.total_points || 0}
                         ${(team.last_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px;opacity:.85">+${team.last_delta}</span>` : ''}
                     </td>
+                    <td style="text-align:center">
+                        <button class="hbadge" style="padding:4px 8px;font-size:11px;gap:4px"
+                            data-bs-toggle="modal" data-bs-target="#teamLogModal"
+                            data-team-id="${team.team_id}"
+                            data-team-name="${(team.team_name || '').replace(/"/g,'&quot;')}">
+                            <i class="bi bi-journal-text"></i>
+                        </button>
+                    </td>
                 </tr>`;
             }).join('');
 
@@ -563,6 +586,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                                     <th class="hide-mobile" style="width: 100px;">Liga</th>
                                     <th style="width: 100px; text-align: center;"><i class="bi bi-trophy"></i> Títulos</th>
                                     <th style="width: 100px; text-align: center;"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Pontos</th>
+                                    <th style="width: 50px;"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -634,6 +658,57 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             ptsHistoryBody.innerHTML = html;
         } catch (e) {
             ptsHistoryBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle" style="font-size:24px;display:block;margin-bottom:8px"></i>${e.message}</div>`;
+        }
+    }
+
+    /* ── Log do Time ── */
+    const teamLogModal  = document.getElementById('teamLogModal');
+    const teamLogBody   = document.getElementById('teamLogBody');
+    const teamLogNameEl = document.getElementById('teamLogName');
+
+    teamLogModal?.addEventListener('show.bs.modal', (e) => {
+        const btn = e.relatedTarget;
+        if (!btn) return;
+        loadTeamLog(parseInt(btn.dataset.teamId, 10), btn.dataset.teamName || '');
+    });
+
+    async function loadTeamLog(teamId, teamName) {
+        teamLogNameEl.textContent = teamName;
+        teamLogBody.innerHTML = '<div class="text-center py-4"><div class="spinner" style="margin:32px auto"></div></div>';
+        try {
+            const resp = await fetch(`/api/history-points.php?action=get_team_season_log&team_id=${teamId}`);
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Falha ao carregar');
+
+            const seasons = data.seasons || [];
+            if (!seasons.length) {
+                teamLogBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma temporada encontrada.</div>';
+                return;
+            }
+
+            const total = seasons.reduce((acc, s) => acc + (s.points || 0), 0);
+            let html = `<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:var(--text-3)">Total acumulado</span>
+                <span style="font-weight:800;color:var(--red);font-size:16px">${total} pts</span>
+            </div>`;
+
+            seasons.forEach((s) => {
+                const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+                const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
+                const yearLabel   = s.year ? ` · ${s.year}` : '';
+                const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || 'Temporada';
+                const hasPoints = s.points > 0;
+                html += `
+                <div class="pts-row">
+                    <div class="pts-team" style="flex:1">${title}</div>
+                    <div class="pts-val" style="color:${hasPoints ? 'var(--red)' : 'var(--text-3)'};font-weight:${hasPoints ? 800 : 400}">
+                        ${hasPoints ? s.points + ' pts' : '—'}
+                    </div>
+                </div>`;
+            });
+            teamLogBody.innerHTML = html;
+        } catch (e) {
+            teamLogBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle" style="font-size:24px;display:block;margin-bottom:8px"></i>${e.message}</div>`;
         }
     }
 

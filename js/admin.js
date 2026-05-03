@@ -95,6 +95,9 @@ function updateBreadcrumb() {
     } else if (appState.view === 'dispensas') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>';
       pageTitle.textContent = 'Dispensas por Temporada';
+    } else if (appState.view === 'pontuacao') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>';
+      pageTitle.textContent = 'Pontuação por Temporada';
     }
   }
 }
@@ -129,7 +132,8 @@ async function showHome() {
 <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
 <div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anonimas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div></div>`;
+<div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div>
+<div class="col-md-6"><div class="action-card" onclick="showPointsManagement()"><i class="bi bi-bar-chart-steps"></i><h4>Pontuação</h4><p>Cadastre e visualize pontuações por temporada e liga</p></div></div></div>`;
   container.innerHTML += `
   <div class="row g-4 mt-1">
     <div class="col-12">
@@ -3765,6 +3769,143 @@ function renderDispensasTable() {
 
   html += '</div>';
   resultEl.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+// PONTUAÇÃO POR TEMPORADA
+// ══════════════════════════════════════════════
+
+async function showPointsManagement(league = 'ELITE') {
+  appState.view = 'pontuacao';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+
+  const tabs = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(l =>
+    `<button class="btn btn-sm ${l === league ? 'btn-orange' : 'btn-outline-orange'} me-2 mb-2"
+      onclick="showPointsManagement('${l}')">${l}</button>`
+  ).join('');
+
+  container.innerHTML = `
+    <div class="mb-4">${tabs}</div>
+    <div id="ptsMgmtContent">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>`;
+
+  let data;
+  try {
+    data = await api(`history-points.php?action=get_league_seasons_overview&league=${encodeURIComponent(league)}`);
+  } catch (e) {
+    document.getElementById('ptsMgmtContent').innerHTML =
+      `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Falha ao carregar dados')}</div>`;
+    return;
+  }
+
+  const seasons    = data.seasons    || [];
+  const leagueTeams = data.league_teams || [];
+
+  if (!seasons.length) {
+    document.getElementById('ptsMgmtContent').innerHTML =
+      `<div class="alert alert-info">Nenhuma temporada encontrada para a liga ${league}.</div>`;
+    return;
+  }
+
+  let html = '';
+  seasons.forEach((s) => {
+    const title = [
+      s.sprint_number ? `Sprint ${s.sprint_number}` : '',
+      s.season_number ? `Temp ${s.season_number}`   : '',
+      s.year          ? String(s.year)               : ''
+    ].filter(Boolean).join(' · ');
+
+    if (s.points_registered) {
+      const rows = (s.teams || []).map((t, ti) => `
+        <tr>
+          <td style="color:var(--text-3);font-size:12px;width:32px">${ti + 1}°</td>
+          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
+          <td class="text-end" style="color:var(--red);font-weight:700">${t.points} pts</td>
+        </tr>`).join('');
+
+      html += `
+      <div class="bg-dark-panel rounded mb-3">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2"
+             style="border-bottom:1px solid var(--border)">
+          <span style="font-weight:700;color:var(--text)">🏆 ${escapeHtml(title)}</span>
+          <span class="badge bg-gradient-orange" style="font-size:10px">Registrado</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm mb-0">
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    } else {
+      const teamInputs = leagueTeams.map(t => `
+        <tr>
+          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
+          <td>
+            <input type="number" class="form-control form-control-sm pts-mgmt-input"
+              data-team-id="${t.team_id}" value="0" min="0" style="max-width:100px">
+          </td>
+        </tr>`).join('');
+
+      html += `
+      <div class="bg-dark-panel rounded mb-3" id="pts-season-${s.season_id}">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2"
+             style="border-bottom:1px solid var(--border)">
+          <span style="font-weight:700;color:var(--text)">📋 ${escapeHtml(title)}</span>
+          <button class="btn btn-sm btn-orange" onclick="togglePtsForm(${s.season_id})">
+            <i class="bi bi-plus-circle me-1"></i>Cadastrar Pontuação
+          </button>
+        </div>
+        <div id="pts-form-${s.season_id}" style="display:none;padding:16px">
+          <div class="table-responsive">
+            <table class="table table-dark table-sm mb-3">
+              <thead><tr><th>Time</th><th>Pontos</th></tr></thead>
+              <tbody>${teamInputs}</tbody>
+            </table>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-orange"
+              onclick="savePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <i class="bi bi-save me-1"></i>Salvar
+            </button>
+            <button class="btn btn-sm btn-outline-orange" onclick="togglePtsForm(${s.season_id})">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>`;
+    }
+  });
+
+  document.getElementById('ptsMgmtContent').innerHTML =
+    html || '<div class="alert alert-info">Nenhuma temporada encontrada.</div>';
+}
+
+function togglePtsForm(seasonId) {
+  const form = document.getElementById(`pts-form-${seasonId}`);
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function savePtsMgmt(seasonId, league) {
+  const card = document.getElementById(`pts-season-${seasonId}`);
+  if (!card) return;
+  const inputs = card.querySelectorAll('.pts-mgmt-input');
+  const team_points = Array.from(inputs).map(inp => ({
+    team_id: parseInt(inp.dataset.teamId, 10),
+    points:  parseInt(inp.value || '0', 10)
+  }));
+
+  try {
+    await api('history-points.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
+    });
+    showAlert('success', 'Pontuação salva com sucesso!');
+    showPointsManagement(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao salvar pontuação');
+  }
 }
 
 

@@ -652,6 +652,105 @@ try {
             echo json_encode(['success' => true, 'seasons' => array_values($seasons)]);
             break;
 
+        case 'get_league_seasons_overview':
+            $league = $_REQUEST['league'] ?? null;
+            if (!$league) { echo json_encode(['success'=>false,'error'=>'league required']); break; }
+
+            $stmtS = $pdo->prepare("
+                SELECT s.id AS season_id, s.season_number, s.year, s.status,
+                       sp.sprint_number, sp.start_year
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.league = ?
+                ORDER BY s.id ASC
+            ");
+            $stmtS->execute([$league]);
+            $allSeasons = $stmtS->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtReg = $pdo->prepare("SELECT DISTINCT season_id FROM team_season_points WHERE league = ?");
+            $stmtReg->execute([$league]);
+            $registeredIds = array_flip(array_column($stmtReg->fetchAll(PDO::FETCH_ASSOC), 'season_id'));
+
+            $stmtLT = $pdo->prepare("
+                SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name
+                FROM teams t WHERE t.league = ? ORDER BY t.city, t.name
+            ");
+            $stmtLT->execute([$league]);
+            $leagueTeams = $stmtLT->fetchAll(PDO::FETCH_ASSOC);
+
+            $overview = [];
+            foreach ($allSeasons as $row) {
+                $sid  = (int)$row['season_id'];
+                $isReg = isset($registeredIds[$sid]) || isset($registeredIds[(string)$sid]);
+                $teams = [];
+                if ($isReg) {
+                    $stmtPts = $pdo->prepare("
+                        SELECT tsp.team_id,
+                               COALESCE(NULLIF(CONCAT(t.city,' ',t.name),' '), tsp.team_name) AS team_name,
+                               tsp.points
+                        FROM team_season_points tsp
+                        LEFT JOIN teams t ON tsp.team_id = t.id
+                        WHERE tsp.season_id = ? AND tsp.league = ?
+                        ORDER BY tsp.points DESC
+                    ");
+                    $stmtPts->execute([$sid, $league]);
+                    $teams = $stmtPts->fetchAll(PDO::FETCH_ASSOC);
+                }
+                $overview[] = [
+                    'season_id'         => $sid,
+                    'season_number'     => (int)($row['season_number'] ?? 0),
+                    'sprint_number'     => (int)($row['sprint_number'] ?? 0),
+                    'year'              => $row['year'] ?? $row['start_year'] ?? null,
+                    'status'            => $row['status'] ?? null,
+                    'points_registered' => $isReg,
+                    'teams'             => $teams,
+                ];
+            }
+            echo json_encode(['success' => true, 'seasons' => $overview, 'league_teams' => $leagueTeams]);
+            break;
+
+        case 'get_team_season_log':
+            $teamId = (int)($_REQUEST['team_id'] ?? 0);
+            if (!$teamId) { echo json_encode(['success'=>false,'error'=>'team_id required']); break; }
+
+            $stmtTm = $pdo->prepare("SELECT league FROM teams WHERE id = ? LIMIT 1");
+            $stmtTm->execute([$teamId]);
+            $tmRow = $stmtTm->fetch(PDO::FETCH_ASSOC);
+            $teamLeague = $tmRow['league'] ?? null;
+            if (!$teamLeague) { echo json_encode(['success'=>false,'error'=>'time não encontrado']); break; }
+
+            $stmtAS = $pdo->prepare("
+                SELECT s.id AS season_id, s.season_number, s.year,
+                       sp.sprint_number, sp.start_year
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.league = ?
+                ORDER BY s.id ASC
+            ");
+            $stmtAS->execute([$teamLeague]);
+            $allSeasonsForTeam = $stmtAS->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtTP = $pdo->prepare("SELECT season_id, points FROM team_season_points WHERE team_id = ? AND league = ?");
+            $stmtTP->execute([$teamId, $teamLeague]);
+            $pointsMap = [];
+            foreach ($stmtTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $pointsMap[(int)$r['season_id']] = (int)$r['points'];
+            }
+
+            $log = [];
+            foreach ($allSeasonsForTeam as $row) {
+                $sid = (int)$row['season_id'];
+                $log[] = [
+                    'season_id'     => $sid,
+                    'season_number' => (int)($row['season_number'] ?? 0),
+                    'sprint_number' => (int)($row['sprint_number'] ?? 0),
+                    'year'          => $row['year'] ?? $row['start_year'] ?? null,
+                    'points'        => $pointsMap[$sid] ?? 0,
+                ];
+            }
+            echo json_encode(['success' => true, 'seasons' => $log]);
+            break;
+
         // =====================================================
         // RANKING
         // =====================================================
