@@ -52,27 +52,124 @@ function removerAcentos($string) {
 }
 
 // --- LÓGICA DO DIA ---
+// Usa wordlist gerada pelo léxico pt-br se disponível
+$_wl = __DIR__ . '/../core/wordlist5.php';
+if (file_exists($_wl)) {
+    require $_wl;
+    $dicionario = $wordlist5;
+} else {
+    // Fallback enquanto o wordlist não for gerado
 $dicionario = [
-    'PRATO', 'METAS', 'LUCRO', 'PRAZO', 'DADOS', 'IDEIA', 'PODER', 'NIVEL', 'ATIVO', 
-    'CRISE', 'RISCO', 'ETICA', 'CLUBE', 'HONRA', 'LIDER', 'MORAL', 'GRUPO', 
-    'AJUDA', 'LABOR', 'TEMPO', 'CAIXA', 'VENDA', 'CUSTO', 'VALOR', 'JUROS', 
-    'RENDA', 'PRECO', 'SOCIO', 'ACOES', 'BONUS', 'MARCA', 'MIDIA', 'EMAIL', 
-    'VIDEO', 'AUDIO', 'TEXTO', 'LISTA', 'MAPAS', 'TESTE', 'LOGIN', 'SENHA', 
-    'SALDO', 'CONTA', 'BANCO', 'PAGAR', 'BAIXA', 'CHEFE', 'SETOR', 'CARGO', 
-    'GERIR', 'FOCAR', 'PLANO', 'AUTOR', 'VIGOR', 'EXITO', 'MUITO', 'REGRA', 
-    'NORMA', 'PAPEL', 'NUVEM', 'PAUTA', 'NOBRE', 'SENSO', 'VISAO', 'UNIAO', 
-    'FATOR', 'JUSTO', 'CERTO', 'FALSO', 'CLARO', 'NOVOS', 'VELHO', 'FORTE', 
-    'FRACO', 'GRATO', 'FAVOR', 'FELIZ', 'AMIGO', 'SABIO', 'DIGNO', 'CAPAZ', 
-    'BRAVO', 'CALMO', 'DOCIL', 'DOIDO', 'DURO', 'FIRME', 'GERAL', 'HABIL', 
-    'IDEAL', 'IGUAL', 'JOVEM', 'LEGAL', 'LENTO', 'LIVRE', 'MAIOR', 'MENOR', 
-    'NATAL', 'OTIMO', 'POBRE', 'RICOS', 'SANTO', 'SERIO', 'SUTIL', 'TENSO', 
-    'TOTAL', 'UNICO', 'VAZIO', 'QUACK', 'VITAL', 'VORAZ', 'USUAL', 'VAGAS'
+    // A
+    'ABRIR','ABUSO','ACABA','ACABO','ACASO','ACATA','ACATO','ACENA','ACENO','ACIMA',
+    'ACODE','ACUSA','ADEUS','ADOTA','AFETO','AGITA','AGORA','AGUDO','AINDA','AJUDA',
+    'ALADO','ALEGA','ALOJA','ALTAS','ALTOS','ALUNO','AMADO','AMARA','AMAVA','AMIGA',
+    'AMIGO','AMORA','AMPLO','AMUAR','ANCAS','ANDAR','ANEIS','ANIME','ANTES','APELA',
+    'APOIA','ARDOR','ARENA','ARMAS','ARTES','AROMA','ASSAR','ATADO','ATIRA','ATROZ',
+    'AUTOR','AVARO','AVISO','AXILA','AZEDO',
+    // B
+    'BACIA','BAILE','BAIXA','BAIXO','BALAO','BALDO','BAMBA','BAMBU','BANDA','BANDO',
+    'BANCO','BANHO','BARCO','BARRO','BATER','BEBEM','BEIJO','BELGA','BELAS','BELOS',
+    'BENZE','BERCO','BESTA','BICHO','BIRRA','BIZCO','BOCAL','BOLSA','BRASA','BRAVO',
+    'BREVE','BRIGA','BRUTA','BRUTO','BURLA','BURRO','BUSTO',
+    // C
+    'CABER','CABRA','CACOS','CAGAR','CAIXA','CALCA','CALDO','CALHA','CALMA','CALMO',
+    'Canas','CANOA','CANTO','CAPAZ','CAPIM','CARAS','CARGO','CARNE','CARRO','CARTA',
+    'CASAS','CASCO','CAUSA','CEDER','CEIFA','CELAS','CERCA','CERCO','CERTO','CERVO',
+    'CHATA','CHATO','CHAVE','CHEGA','CHEIO','CHEFE','CHOCA','CHORA','CHUVA','CINCO',
+    'CISMA','CLARO','CLUBE','COBRA','COCAR','COISA','COLHE','COMUM','CONTA','COPOS',
+    'COPIA','COQUE','CORAL','CORDA','CORES','COROA','CORPO','CORTE','COSTA','COURO',
+    'COXIA','CRAVO','CREDO','CREIO','CREME','CRIAR','CRIME','CRUEL','CRUZA','CUECA',
+    'CULPA','CULTO','CUJAS','CUJOS','CURAR','CURTO','CURVA',
+    // D
+    'DAMAS','DANCA','DARES','DARIA','DEITO','DELAS','DELES','DENSO','DENTE','DESDE',
+    'DIABO','DIETA','DIGAM','DIGNO','DISSE','DITAS','DITOS','DOCIL','DOCES','DOIDA',
+    'DOIDO','DONAS','DONOS','DORSO','DUPLO','DUROS',
+    // E
+    'EIRAS','EMITE','ENOJA','ENTRE','EPOCA','ERRAR','ERROS','ESPIA','ESTAR','ETAPA',
+    'ETICA','EVITA','EXAME','EXIBE','EXITO','EXPOE','EXTRA',
+    // F
+    'FACAO','FAINA','FALAR','FALSA','FALSO','FALTA','FARDA','FARDO','FARTA','FARTO',
+    'FATAL','FATOR','FAVOR','FECHA','FEDOR','FEIAS','FEIOS','FEITO','FELIZ','FENDA',
+    'FEREM','FERIR','FERVE','FEIXE','FIADA','FIADO','FICAR','FIGOS','FILHO','FILMA',
+    'FILME','FIRMA','FIXAR','FLORA','FLUIR','FLUXO','FOCAR','FOLHA','FONTE','FORMA',
+    'FORTE','FOTOS','FRACA','FRACO','FRADE','FRACO','FREIA','FREIO','FRETE','FRITO',
+    'FRUTO','FUGAS','FUGIR','FUNDA','FUNDO','FUROS',
+    // G
+    'GAFES','GANHA','GARRA','GASES','GATOS','GELAR','GEMEM','GEMER','GENTE','GERAL',
+    'GIROS','GLOSA','GOTAS','GRATO','GREVE','GRIPE','GRUPO','GUETO','GUIAR',
+    // H
+    'HABIL','HEROI','HINOS','HONRA','HORAS','HOTEL','HUMOR',
+    // I
+    'IDEAL','IDEIA','IGUAL','IMITA','IMUNE','INCHA','INIBE','INTRO','IRMAS','IRMOS',
+    'ISOLA',
+    // J
+    'JANTA','JARRA','JESUS','JOGAR','JOVEM','JUIZO','JUNCO','JUNTO','JUNTA','JURAR',
+    'JUROS','JUSTO',
+    // L
+    'LABOR','LADOS','LAIVO','LAMAS','LANCE','LAPSO','LARES','LARGO','LATIM','LAUDO',
+    'LAVAR','LEBRE','LEIAS','LEITE','LEMOS','LENTO','LEOES','LESMA','LETRA','LEVAR',
+    'LIDER','LIDAR','LIGAR','LICOR','LIMAO','LIMPO','LINCE','LINDA','LINDO','LINHA',
+    'LISTA','LIVRE','LOCAL','LOBOS','LONGO','LOUVA','LOUCO','LUGAR','LUSCO','LUTAR',
+    // M
+    'MACHO','MAIOR','MALHA','MALTA','MAMAE','MAMAO','MANDA','MANGA','MANIA','MANSO',
+    'MANTO','MARES','MARCA','MARRA','MASSA','MATAR','MEIOS','MEDIR','MENOR','MESMO',
+    'METAL','MEXAM','MEXER','MEXIA','MIDIA','MINHA','MIRRA','MIUDO','MOEDA','MOLDA',
+    'MOLDE','MOLHO','MONGE','MONTE','MORAL','MORDO','MORAR','MORTE','MOSTO','MOTIM',
+    'MUITO','MUGIR','MULTA','MUNDO',
+    // N
+    'NADAR','NEGAM','NEGAR','NEGRO','NETOS','NIVEL','NOBRE','NOITE','NOIVA','NOIVO',
+    'NOMES','NORMA','NOSSA','NOSSO','NOTAR','NOTAS','NUVEM',
+    // O
+    'OBRAS','OBTER','ODEIA','ODIAR','ODIOS','OFEGA','OLHAR','OLHOS','OMITA','OMITE',
+    'ONDAS','OPINA','ORDEM','OTIMO','OUTRO','OVULO',
+    // P
+    'PADRE','PAIOL','PAPEL','PAPAI','PAPOS','PARCO','PARAR','PAUTA','PASSO','PAGAR',
+    'BAIXA','PEDAL','PEDEM','PEDIR','PELOS','PENAS','PENSO','PEOES','PERDA','PERTO',
+    'PESAR','PIANO','PIADA','PILAR','PILHA','PINTA','PINTO','PIORA','PIQUE','PISAR',
+    'PISCA','PLACA','PLANO','PLENA','PLENO','POBRE','PODAR','PODES','PODIA','POEMA',
+    'PODER','POLOS','POLVO','POMBA','POMBO','PONTO','PONTE','PORTA','POSSO','POTRO',
+    'PRAGA','PRAIA','PRATA','PRAZO','PRECO','PRESA','PRESO','PRIMO','PROBO','PROLE',
+    'PULSA','PULAR','PULSO',
+    // Q
+    'QUASE','QUERO','QUOTA',
+    // R
+    'RABOS','RAIOS','RAIVA','RAMPA','RAMOS','RAPAZ','RASGO','RAZAO','REAIS','RECAI',
+    'RECUA','REDUZ','REINA','REINO','RENDA','REUNE','REZAR','RICOS','RIGOR','RITMO',
+    'RODAM','RODAR','RODAS','ROLAM','ROLAR','ROLHA','ROSTO','ROUBO','ROUBA','RUMOR',
+    'RUMOS','RUSSA','RUSSO',
+    // S
+    'SABER','SABIA','SABIO','SACAM','SACOA','SACOU','SACAR','SAGAZ','SAIRE','SALDO',
+    'SALTA','SALVO','SAMBA','SANAR','SANTA','SANTO','SAQUE','SAUDE','SECAM','SECAR',
+    'SEGUE','SENHA','SENSO','SERIO','SERVO','SETOR','SETAS','SIGLA','SINAL','SIRVO',
+    'SOBEM','SOBRA','SOBRE','SOCIO','SOFRE','SOLAR','SOLTA','SOLTO','SOLOS','SONHO',
+    'SORTE','SUBIR','SUCRE','SUECA','SUECO','SUPOE','SURGE','SURJA','SURTE','SUAVE',
+    'SUMIR','SUTIL',
+    // T
+    'TALCO','TALHA','TAPAM','TAPAS','TARDE','TECAM','TECEM','TECER','TECLA','TECLE',
+    'TELAO','TEMAS','TEMER','TEMPO','TENDE','TENDO','TENHO','TENTA','TENSO','TERRA',
+    'TESTE','TEXTO','TIMAO','TIRAR','TIREM','TIRAS','TIREI','TOCAM','TOCAR','TOLAS',
+    'TOLOS','TOMAR','TOMBE','TOPAM','TORCE','TORGA','TORNO','TOTAL','TRAEM','TRAGO',
+    'TRAPO','TRAIR','TRATO','TREVO','TRIBO','TRIPA','TROCA','TROVA','TUCUM','TUMOR',
+    'TUNAR','TURBO','TURMA',
+    // U
+    'ULTRA','UNIAO','UNICA','UNICO','URGEM','URGIR','USADA','USADO','USUAL','USURA',
+    // V
+    'VAGAM','VAGAR','VAGAS','VAGEM','VALER','VALOR','VARAL','VARIA','VARIE','VAPOR',
+    'VASTO','VEDAS','VELAS','VELHO','VELOZ','VENAM','VENDE','VENDI','VENDO','VENHA',
+    'VENHO','VERBO','VERDE','VIELA','VIGOR','VIOLA','VIRAR','VIRES','VIREI','VISAM',
+    'VISAR','VISEI','VISAO','VISTA','VISTO','VIVAS','VIVOS','VOCAL','VOCES','VOLTA',
+    'VOLTO','VOTAR','VOVOS','VORAZ','VULGO',
+    // Z
+    'ZANGA','ZANGE','ZINCO','ZONAS',
 ];
+$dicionario = array_values(array_unique(array_map('strtoupper', $dicionario)));
+} // fim do else (fallback)
 
-$seed = floor(time() / 86400); 
+$seed = floor(time() / 86400);
 srand($seed);
 $indice_do_dia = rand(0, count($dicionario) - 1);
-$PALAVRA_DO_DIA = $dicionario[$indice_do_dia]; 
+$PALAVRA_DO_DIA = $dicionario[$indice_do_dia];
 
 // --- VERIFICAÇÃO DE ESTADO ---
 $hoje = date('Y-m-d');
@@ -281,6 +378,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .tile.correct{background:#538d4e;border-color:#538d4e;color:#fff}
 .tile.present{background:#b59f3b;border-color:#b59f3b;color:#fff}
 .tile.absent{background:#3a3a3c;border-color:#3a3a3c;color:#fff}
+.tile.selected{border-color:var(--amber);box-shadow:0 0 0 2px rgba(245,158,11,.25);cursor:text}
 
 .keyboard{width:100%;max-width:500px;margin:12px auto 0;display:flex;flex-direction:column;gap:6px;padding:0 8px}
 .key-row{display:flex;justify-content:center;gap:5px}
@@ -374,9 +472,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <script>
     const historicoChutes = <?= json_encode($chutes_realizados) ?>;
     let currentRow = historicoChutes.length;
-    let currentTile = 0;
+    let selectedTile = 0;
     const maxRows = 6, maxTiles = 5;
-    let gameOver = false, guess = "";
+    let gameOver = false;
+    let guess = ['', '', '', '', ''];
+
+    function updateTileSelection() {
+        for (let i = 0; i < maxTiles; i++) {
+            const t = document.getElementById(`tile-${currentRow}-${i}`);
+            if (t) t.classList.toggle('selected', i === selectedTile);
+        }
+    }
+
+    function bindRowClicks() {
+        for (let i = 0; i < maxTiles; i++) {
+            const t = document.getElementById(`tile-${currentRow}-${i}`);
+            if (t) t.onclick = () => { selectedTile = i; updateTileSelection(); };
+        }
+    }
+
+    if (historicoChutes.length < maxRows) {
+        updateTileSelection();
+        bindRowClicks();
+    }
 
     function restoreState() {
         historicoChutes.forEach((palavra, index) => {
@@ -390,101 +508,119 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
                 for (let i = 0; i < 5; i++) {
                     const tile = document.getElementById(`tile-${index}-${i}`);
                     tile.innerText = palavra[i];
-                    tile.classList.remove("active");
-                    if(data.cores[i]==='G') tile.classList.add("correct");
-                    else if(data.cores[i]==='Y') tile.classList.add("present");
-                    else tile.classList.add("absent");
+                    tile.classList.remove('active', 'selected');
+                    if (data.cores[i] === 'G') tile.classList.add('correct');
+                    else if (data.cores[i] === 'Y') tile.classList.add('present');
+                    else tile.classList.add('absent');
                 }
                 updateKeyboard(palavra, data.cores);
             });
         });
     }
-    if(historicoChutes.length > 0) restoreState();
+    if (historicoChutes.length > 0) restoreState();
 
-    document.addEventListener("keydown", e => {
-        if(gameOver) return;
+    document.addEventListener('keydown', e => {
+        if (gameOver) return;
         const key = e.key.toUpperCase();
-        if(key === "ENTER") submitGuess();
-        else if(key === "BACKSPACE") deleteLetter();
-        else if(key.length === 1 && /^[A-ZÇ]$/.test(key)) addLetter(key);
+        if (key === 'ENTER') submitGuess();
+        else if (key === 'BACKSPACE') deleteLetter();
+        else if (key.length === 1 && /^[A-ZÇ]$/.test(key)) addLetter(key);
     });
 
-    document.querySelectorAll(".key").forEach(btn => {
-        btn.addEventListener("click", () => {
-            if(gameOver) return;
-            if(btn.id === "enter-btn") { submitGuess(); return; }
-            if(btn.id === "back-btn") { deleteLetter(); return; }
+    document.querySelectorAll('.key').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (gameOver) return;
+            if (btn.id === 'enter-btn') { submitGuess(); return; }
+            if (btn.id === 'back-btn') { deleteLetter(); return; }
             addLetter(btn.innerText);
         });
     });
 
     function addLetter(letter) {
-        if(currentTile < maxTiles) {
-            const tile = document.getElementById(`tile-${currentRow}-${currentTile}`);
-            tile.innerText = letter; tile.classList.add("active");
-            guess += letter; currentTile++;
-        }
+        const tile = document.getElementById(`tile-${currentRow}-${selectedTile}`);
+        if (!tile) return;
+        tile.innerText = letter;
+        tile.classList.add('active');
+        guess[selectedTile] = letter;
+        if (selectedTile < maxTiles - 1) selectedTile++;
+        updateTileSelection();
     }
 
     function deleteLetter() {
-        if(currentTile > 0) {
-            currentTile--;
-            const tile = document.getElementById(`tile-${currentRow}-${currentTile}`);
-            tile.innerText = ""; tile.classList.remove("active");
-            guess = guess.slice(0, -1);
+        if (guess[selectedTile]) {
+            const tile = document.getElementById(`tile-${currentRow}-${selectedTile}`);
+            tile.innerText = '';
+            tile.classList.remove('active');
+            guess[selectedTile] = '';
+        } else if (selectedTile > 0) {
+            selectedTile--;
+            const tile = document.getElementById(`tile-${currentRow}-${selectedTile}`);
+            tile.innerText = '';
+            tile.classList.remove('active');
+            guess[selectedTile] = '';
         }
+        updateTileSelection();
     }
 
     function submitGuess() {
-        if(guess.length !== 5) { showMessage("A palavra precisa de 5 letras!"); return; }
+        if (guess.some(l => !l)) { showMessage('Preencha todas as letras!'); return; }
+        const guessStr = guess.join('');
         fetch('index.php?game=termo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `chute=${guess}&tentativa=${currentRow + 1}`
+            body: `chute=${guessStr}&tentativa=${currentRow + 1}`
         })
         .then(res => res.json())
         .then(data => {
-            if(data.erro) { showMessage(data.erro); return; }
+            if (data.erro) { showMessage(data.erro); return; }
             updateBoard(data.cores);
-            updateKeyboard(guess, data.cores);
-            if(data.fim_jogo) {
+            updateKeyboard(guessStr, data.cores);
+            if (data.fim_jogo) {
                 gameOver = true;
+                for (let i = 0; i < maxTiles; i++) {
+                    const t = document.getElementById(`tile-${currentRow}-${i}`);
+                    if (t) { t.onclick = null; t.classList.remove('selected'); }
+                }
                 const msg = data.ganhou ? `Parabéns! +${data.pontos} moedas 🎉` : `A palavra era: ${data.palavra_correta}`;
                 showMessage(msg, data.ganhou ? 'success' : 'danger');
                 setTimeout(() => location.reload(), 3200);
             } else {
-                currentRow++; currentTile = 0; guess = "";
+                currentRow++;
+                selectedTile = 0;
+                guess = ['', '', '', '', ''];
+                updateTileSelection();
+                bindRowClicks();
             }
         });
     }
 
     function updateBoard(cores) {
-        for(let i = 0; i < 5; i++) {
+        for (let i = 0; i < 5; i++) {
             const tile = document.getElementById(`tile-${currentRow}-${i}`);
-            tile.classList.remove("active");
+            tile.classList.remove('active', 'selected');
             setTimeout(() => {
-                if(cores[i]==='G') tile.classList.add("correct");
-                else if(cores[i]==='Y') tile.classList.add("present");
-                else tile.classList.add("absent");
+                if (cores[i] === 'G') tile.classList.add('correct');
+                else if (cores[i] === 'Y') tile.classList.add('present');
+                else tile.classList.add('absent');
             }, i * 150);
         }
     }
 
     function updateKeyboard(chuteAtual, cores) {
         setTimeout(() => {
-            for(let i = 0; i < 5; i++) {
+            for (let i = 0; i < 5; i++) {
                 const letra = chuteAtual[i], cor = cores[i];
-                const keyBtn = Array.from(document.querySelectorAll(".key")).find(k => k.innerText === letra);
-                if(keyBtn) {
-                    if(cor==='G') { keyBtn.classList.add('correct'); keyBtn.classList.remove('present'); }
-                    else if(cor==='Y' && !keyBtn.classList.contains('correct')) keyBtn.classList.add('present');
-                    else if(cor==='X' && !keyBtn.classList.contains('correct') && !keyBtn.classList.contains('present')) keyBtn.classList.add('absent');
+                const keyBtn = Array.from(document.querySelectorAll('.key')).find(k => k.innerText === letra);
+                if (keyBtn) {
+                    if (cor === 'G') { keyBtn.classList.add('correct'); keyBtn.classList.remove('present'); }
+                    else if (cor === 'Y' && !keyBtn.classList.contains('correct')) keyBtn.classList.add('present');
+                    else if (cor === 'X' && !keyBtn.classList.contains('correct') && !keyBtn.classList.contains('present')) keyBtn.classList.add('absent');
                 }
             }
         }, 500);
     }
 
-    function showMessage(msg, type='warning') {
+    function showMessage(msg, type = 'warning') {
         const area = document.getElementById('msg-area');
         area.className = `msg-area ${type}`;
         area.innerText = msg;
