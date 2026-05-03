@@ -2,6 +2,10 @@
 php_flag display_errors On
 php_flag log_errors On
 
+# Manter sessão por 90 dias (evita deslogar ao fechar o browser)
+php_value session.cookie_lifetime 7776000
+php_value session.gc_maxlifetime 7776000
+
 # Charset padrão
 AddDefaultCharset UTF-8
 
