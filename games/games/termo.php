@@ -211,11 +211,16 @@ srand($seed);
 $indice_do_dia = rand(0, count($dicionario) - 1);
 $PALAVRA_DO_DIA = $dicionario[$indice_do_dia];
 
-// Segunda palavra (dueto)
+// Dueto: duas palavras exclusivas (diferentes entre si e da palavra do Normal)
 srand($seed + 7919);
-$indice_2 = rand(0, count($dicionario) - 1);
-if ($indice_2 === $indice_do_dia) $indice_2 = ($indice_2 + 1) % count($dicionario);
-$PALAVRA_2 = $dicionario[$indice_2];
+$indice_d1 = rand(0, count($dicionario) - 1);
+while ($indice_d1 === $indice_do_dia) $indice_d1 = ($indice_d1 + 1) % count($dicionario);
+$PALAVRA_D1 = $dicionario[$indice_d1];
+
+srand($seed + 15973);
+$indice_d2 = rand(0, count($dicionario) - 1);
+while ($indice_d2 === $indice_do_dia || $indice_d2 === $indice_d1) $indice_d2 = ($indice_d2 + 1) % count($dicionario);
+$PALAVRA_D2 = $dicionario[$indice_d2];
 
 // --- VERIFICAÇÃO DE ESTADO ---
 $hoje = date('Y-m-d');
@@ -320,8 +325,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
             echo json_encode(['erro' => 'Palavra não encontrada no dicionário.']); exit;
         }
 
-        $c1 = removerAcentos($PALAVRA_DO_DIA);
-        $c2 = removerAcentos($PALAVRA_2);
+        $c1 = removerAcentos($PALAVRA_D1);
+        $c2 = removerAcentos($PALAVRA_D2);
         $cores_1 = calcularCores($chute, $c1);
         $cores_2 = calcularCores($chute, $c2);
 
@@ -370,8 +375,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
             'ganhou_2'  => $now_g2,
             'fim_jogo'  => $fim,
             'pontos'    => $pts,
-            'palavra_1' => $fim ? $PALAVRA_DO_DIA : null,
-            'palavra_2' => $fim ? $PALAVRA_2 : null,
+            'palavra_1' => $fim ? $PALAVRA_D1 : null,
+            'palavra_2' => $fim ? $PALAVRA_D2 : null,
         ]);
         exit;
     }
@@ -634,15 +639,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <?php if($venceu_dueto): ?>
         <strong style="color:#4ade80">+<?= $dados_dueto['pontos_ganhos'] ?? $PONTOS_VITORIA_DUETO ?> moedas</strong> em <?= count($chutes_dueto) ?> tentativas
       <?php else: ?>
-        Palavra 1: <strong style="color:var(--text)"><?= $PALAVRA_DO_DIA ?></strong> <?= $ganhou_1 ? '✅' : '❌' ?><br>
-        Palavra 2: <strong style="color:var(--text)"><?= $PALAVRA_2 ?></strong> <?= $ganhou_2 ? '✅' : '❌' ?>
+        Palavra 1: <strong style="color:var(--text)"><?= $PALAVRA_D1 ?></strong> <?= $ganhou_1 ? '✅' : '❌' ?><br>
+        Palavra 2: <strong style="color:var(--text)"><?= $PALAVRA_D2 ?></strong> <?= $ganhou_2 ? '✅' : '❌' ?>
       <?php endif; ?>
     </div>
     <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
   </div>
   <?php else: ?>
   <div class="dueto-wrap">
-    <?php foreach ([[$PALAVRA_DO_DIA, $ganhou_1, 0], [$PALAVRA_2, $ganhou_2, 1]] as [$pw, $gw, $bi]): ?>
+    <?php foreach ([[$PALAVRA_D1, $ganhou_1, 0], [$PALAVRA_D2, $ganhou_2, 1]] as [$pw, $gw, $bi]): ?>
     <div class="dueto-col">
       <div class="dueto-label <?= $gw ? 'solved' : '' ?>" id="dlabel-<?= $bi ?>">
         <?= $gw ? '✅ ' : '' ?>Palavra <?= $bi + 1 ?>
