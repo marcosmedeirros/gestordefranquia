@@ -139,8 +139,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .dash-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
         .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 3px; }
         .hero-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .hbadge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-md); background: var(--panel); transition: all var(--t) var(--ease); }
-        .hbadge:hover { border-color: var(--text-3); color: var(--text); }
+        .hbadge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-md); background: var(--panel); color: var(--text); font-family: var(--font); cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; }
+        .hbadge:hover { border-color: rgba(255,255,255,.25); color: var(--text); background: var(--panel-2); }
         .hbadge.red { background: var(--red-soft); border-color: var(--red); color: var(--red); }
         .hbadge.red:hover { background: var(--red); color: #fff; }
 
