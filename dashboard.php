@@ -773,7 +773,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     <aside class="sidebar" id="sidebar">
 
         <div class="sb-brand">
-            <div class="sb-logo">FBAAAAAAAAAA</div>
+            <div class="sb-logo">FBA</div>
             <div class="sb-brand-text">
                 FBA Manager
                 <span>Liga <?= htmlspecialchars($user['league']) ?></span>
