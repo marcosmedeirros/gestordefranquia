@@ -98,6 +98,52 @@ function checkTablesExist($pdo) {
     return true;
 }
 
+// Recalcula os títulos em hall_of_fame com base em season_history para uma liga
+function syncHallOfFame(PDO $pdo, string $league): void {
+    $stmtTbl = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'");
+    if (!$stmtTbl || $stmtTbl->rowCount() === 0) return;
+
+    $stmtCounts = $pdo->prepare("
+        SELECT sh.champion_team_id,
+               COUNT(*) AS total,
+               CONCAT(t.city, ' ', t.name) AS team_name,
+               u.name AS gm_name
+        FROM season_history sh
+        LEFT JOIN teams t ON sh.champion_team_id = t.id
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE sh.league = ? AND sh.champion_team_id IS NOT NULL
+        GROUP BY sh.champion_team_id
+    ");
+    $stmtCounts->execute([$league]);
+    $counts = $stmtCounts->fetchAll(PDO::FETCH_ASSOC);
+
+    $championIds = array_column($counts, 'champion_team_id');
+
+    if (!empty($championIds)) {
+        $placeholders = implode(',', array_fill(0, count($championIds), '?'));
+        $pdo->prepare("UPDATE hall_of_fame SET titles = 0 WHERE league = ? AND (team_id NOT IN ({$placeholders}) OR team_id IS NULL)")
+            ->execute(array_merge([$league], $championIds));
+    } else {
+        $pdo->prepare("UPDATE hall_of_fame SET titles = 0 WHERE league = ?")
+            ->execute([$league]);
+    }
+
+    $stmtCheck  = $pdo->prepare("SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? LIMIT 1");
+    $stmtUpdate = $pdo->prepare("UPDATE hall_of_fame SET titles = ?, team_name = ?, gm_name = ? WHERE team_id = ? AND league = ?");
+    $stmtInsert = $pdo->prepare("INSERT INTO hall_of_fame (team_id, league, titles, team_name, gm_name, is_active) VALUES (?, ?, ?, ?, ?, 1)");
+
+    foreach ($counts as $row) {
+        $teamId = $row['champion_team_id'];
+        $total  = (int)$row['total'];
+        $stmtCheck->execute([$teamId, $league]);
+        if ($stmtCheck->fetch()) {
+            $stmtUpdate->execute([$total, $row['team_name'], $row['gm_name'], $teamId, $league]);
+        } else {
+            $stmtInsert->execute([$teamId, $league, $total, $row['team_name'], $row['gm_name']]);
+        }
+    }
+}
+
 // Garante que a coluna teams.ranking_points exista para sobrescrita manual do ranking
 function ensureRankingPointsColumn(PDO $pdo): void {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM teams LIKE 'ranking_points'");
@@ -301,22 +347,35 @@ try {
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute($historyData);
-            
+
+            if (!empty($historyData['league'])) {
+                syncHallOfFame($pdo, $historyData['league']);
+            }
+
             echo json_encode(['success' => true, 'message' => 'Histórico salvo com sucesso']);
             break;
             
         case 'delete_history':
             // Admin já verificado no início
-            
+
             $seasonId = $_REQUEST['season_id'] ?? null;
-            
+
             if (!$seasonId) {
                 throw new Exception('ID da temporada é obrigatório');
             }
-            
+
+            // Captura a liga antes de deletar para poder sincronizar depois
+            $stmtLeague = $pdo->prepare("SELECT league FROM season_history WHERE season_id = ? LIMIT 1");
+            $stmtLeague->execute([$seasonId]);
+            $deletedLeague = $stmtLeague->fetchColumn();
+
             $stmt = $pdo->prepare("DELETE FROM season_history WHERE season_id = ?");
             $stmt->execute([$seasonId]);
-            
+
+            if ($deletedLeague) {
+                syncHallOfFame($pdo, $deletedLeague);
+            }
+
             echo json_encode(['success' => true, 'message' => 'Histórico excluído com sucesso']);
             break;
             
