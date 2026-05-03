@@ -607,7 +607,51 @@ try {
             
             echo json_encode(['success' => true, 'points' => $points]);
             break;
-            
+
+        case 'get_points_history':
+            $league = $_REQUEST['league'] ?? null;
+            if (!$league) throw new Exception('Liga é obrigatória');
+
+            $stmt = $pdo->prepare("
+                SELECT
+                    tsp.season_id,
+                    tsp.sprint_number,
+                    tsp.season_number,
+                    tsp.league,
+                    tsp.team_id,
+                    COALESCE(NULLIF(CONCAT(t.city, ' ', t.name), ' '), tsp.team_name) AS team_name,
+                    tsp.points,
+                    s.year
+                FROM team_season_points tsp
+                LEFT JOIN teams t ON tsp.team_id = t.id
+                LEFT JOIN seasons s ON tsp.season_id = s.id
+                WHERE tsp.league = ?
+                ORDER BY tsp.sprint_number DESC, tsp.season_number DESC, tsp.points DESC
+            ");
+            $stmt->execute([$league]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $seasons = [];
+            foreach ($rows as $row) {
+                $key = $row['season_id'] ?? ($row['sprint_number'] . '_' . $row['season_number']);
+                if (!isset($seasons[$key])) {
+                    $seasons[$key] = [
+                        'season_id'     => $row['season_id'],
+                        'sprint_number' => (int)$row['sprint_number'],
+                        'season_number' => (int)$row['season_number'],
+                        'year'          => $row['year'] ?? null,
+                        'teams'         => [],
+                    ];
+                }
+                $seasons[$key]['teams'][] = [
+                    'team_name' => $row['team_name'],
+                    'points'    => (int)$row['points'],
+                ];
+            }
+
+            echo json_encode(['success' => true, 'seasons' => array_values($seasons)]);
+            break;
+
         // =====================================================
         // RANKING
         // =====================================================

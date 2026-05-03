@@ -190,6 +190,32 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
         /* ── Loader ── */
         .spinner { width: 32px; height: 32px; border: 3px solid var(--border-md); border-top-color: var(--red); border-radius: 50%; animation: spin 1s linear infinite; margin: 40px auto; }
+
+        /* ── Histórico de Pontuação (modal) ─────────── */
+        .pts-season { margin-bottom: 4px; }
+        .pts-season-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px; background: var(--panel-2);
+            border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1;
+        }
+        .pts-season-label { font-size: 12px; font-weight: 700; color: var(--text); }
+        .pts-season-count { font-size: 10px; color: var(--text-3); font-weight: 600; }
+        .pts-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 20px; border-bottom: 1px solid var(--border);
+            transition: background var(--t) var(--ease);
+        }
+        .pts-row:last-child { border-bottom: none; }
+        .pts-row:hover { background: var(--panel-2); }
+        .pts-rank { width: 22px; font-size: 11px; font-weight: 800; color: var(--text-3); text-align: center; flex-shrink: 0; }
+        .pts-rank.g { color: var(--amber); }
+        .pts-rank.s { color: #94a3b8; }
+        .pts-rank.b { color: #cd7c4a; }
+        .pts-team { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pts-bar-wrap { width: 80px; height: 5px; background: var(--panel-3); border-radius: 3px; flex-shrink: 0; }
+        .pts-bar { height: 5px; border-radius: 3px; background: var(--red); transition: width .4s var(--ease); }
+        .pts-val { font-size: 13px; font-weight: 800; color: var(--red); min-width: 42px; text-align: right; flex-shrink: 0; }
+        .pts-empty { padding: 40px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
         
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -223,6 +249,13 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .sidebar-toggle { display: none !important; }
         .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199; }
         .sidebar-overlay.active, .sidebar-overlay.show { display: block; }
+
+        /* ── Responsivo Histórico ───────────────────── */
+        @media (max-width: 480px) {
+            .pts-bar-wrap { display: none; }
+            .pts-row { padding: 10px 14px; gap: 8px; }
+            .pts-season-head { padding: 10px 14px; }
+        }
 
         /* ── Responsivo ──────────────────────────────── */
         @media (max-width: 992px) {
@@ -346,6 +379,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </div>
             <div class="hero-badges">
                 <a href="/hall-da-fama.php" class="hbadge"><i class="bi bi-award"></i> Hall da Fama</a>
+                <button class="hbadge" id="btnVerHistorico" data-bs-toggle="modal" data-bs-target="#ptsHistoryModal">
+                    <i class="bi bi-clock-history"></i> Ver Histórico
+                </button>
                 <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
                 <button class="hbadge red" id="btnEditRanking" data-bs-toggle="modal" data-bs-target="#editRankingModal">
                     <i class="bi bi-pencil-square"></i> Editar Ranking
@@ -373,6 +409,21 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     <!-- ══════════════════════════════════════════════
          MODAL DE EDIÇÃO (ADMIN)
     ══════════════════════════════════════════════ -->
+    <!-- Modal Histórico de Pontuação -->
+    <div class="modal fade" id="ptsHistoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-scrollable">
+            <div class="modal-content minimal">
+                <div class="modal-header minimal">
+                    <h5 class="modal-title"><i class="bi bi-clock-history me-2" style="color:var(--red)"></i>Histórico de Pontuação · <span id="ptsHistoryLeague"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding:0; overflow-y:auto; max-height:70vh;" id="ptsHistoryBody">
+                    <div class="text-center py-4"><div class="spinner" style="margin:32px auto"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
     <div class="modal fade" id="editRankingModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -528,6 +579,63 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
     // Load initial
     document.addEventListener('DOMContentLoaded', () => loadRanking(userLeague));
+
+    /* ── Histórico de Pontuação ── */
+    const ptsHistoryModal = document.getElementById('ptsHistoryModal');
+    const ptsHistoryBody  = document.getElementById('ptsHistoryBody');
+    const ptsHistoryLeagueEl = document.getElementById('ptsHistoryLeague');
+
+    ptsHistoryModal?.addEventListener('show.bs.modal', () => loadPtsHistory(currentLeague));
+
+    async function loadPtsHistory(league) {
+        ptsHistoryLeagueEl.textContent = league;
+        ptsHistoryBody.innerHTML = '<div class="text-center py-4"><div class="spinner" style="margin:32px auto"></div></div>';
+        try {
+            const resp = await fetch(`/api/history-points.php?action=get_points_history&league=${encodeURIComponent(league)}`);
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Falha ao carregar');
+
+            const seasons = data.seasons || [];
+            if (!seasons.length) {
+                ptsHistoryBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma pontuação registrada ainda.</div>';
+                return;
+            }
+
+            let html = '';
+            seasons.forEach((s, si) => {
+                const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+                const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
+                const yearLabel   = s.year ? ` · ${s.year}` : '';
+                const title       = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || `Temporada ${si + 1}`;
+
+                const maxPts = Math.max(...s.teams.map(t => t.points), 1);
+
+                const rows = s.teams.map((t, ti) => {
+                    const rankCls = ti === 0 ? 'g' : ti === 1 ? 's' : ti === 2 ? 'b' : '';
+                    const barW    = Math.round((t.points / maxPts) * 100);
+                    return `
+                    <div class="pts-row">
+                        <div class="pts-rank ${rankCls}">${ti + 1}</div>
+                        <div class="pts-team">${t.team_name}</div>
+                        <div class="pts-bar-wrap"><div class="pts-bar" style="width:${barW}%"></div></div>
+                        <div class="pts-val">${t.points}</div>
+                    </div>`;
+                }).join('');
+
+                html += `
+                <div class="pts-season">
+                    <div class="pts-season-head">
+                        <span class="pts-season-label">🏆 ${title}</span>
+                        <span class="pts-season-count">${s.teams.length} times</span>
+                    </div>
+                    ${rows}
+                </div>`;
+            });
+            ptsHistoryBody.innerHTML = html;
+        } catch (e) {
+            ptsHistoryBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle" style="font-size:24px;display:block;margin-bottom:8px"></i>${e.message}</div>`;
+        }
+    }
 
     /* ── Editor Admin ── */
     <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
