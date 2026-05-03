@@ -834,7 +834,24 @@ if ($method === 'POST') {
             }
             $stmt = $pdo->prepare('INSERT INTO directive_deadlines (league, deadline_date, description, phase) VALUES (?, ?, ?, ?)');
             $stmt->execute([$league, $deadlineDateTime, $description, $phase]);
-            echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+            $newDeadlineId = (int)$pdo->lastInsertId();
+            echo json_encode(['success' => true, 'id' => $newDeadlineId]);
+            // Notifica todos os donos de time da liga
+            if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+            try {
+                require_once __DIR__ . '/../backend/push.php';
+                $stmtOwners = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.league = ?');
+                $stmtOwners->execute([$league]);
+                $descLabel = $description ? " — {$description}" : '';
+                foreach ($stmtOwners->fetchAll(PDO::FETCH_ASSOC) as $ownerRow) {
+                    sendPushToUser($pdo, (int)$ownerRow['id'], [
+                        'title'      => '📋 Prazo de Diretrizes Aberto!',
+                        'body'       => "Novo prazo disponível na liga {$league}{$descLabel}.",
+                        'url'        => '/diretrizes.php',
+                        'primaryKey' => 'directive_deadline_' . $newDeadlineId,
+                    ]);
+                }
+            } catch (Exception $e) {}
             break;
 
         default:
@@ -918,10 +935,36 @@ if ($method === 'PUT') {
         exit;
     }
 
+    $activating = array_key_exists('is_active', $data) && (int)$data['is_active'] === 1;
+
     $params[] = $deadlineId;
     $stmt = $pdo->prepare('UPDATE directive_deadlines SET ' . implode(', ', $updates) . ' WHERE id = ?');
     $stmt->execute($params);
     echo json_encode(['success' => true]);
+
+    // Notifica times da liga quando prazo é ativado manualmente
+    if ($activating) {
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        try {
+            $stmtDL = $pdo->prepare('SELECT league, description FROM directive_deadlines WHERE id = ?');
+            $stmtDL->execute([$deadlineId]);
+            $dl = $stmtDL->fetch(PDO::FETCH_ASSOC);
+            if ($dl && $dl['league']) {
+                require_once __DIR__ . '/../backend/push.php';
+                $stmtOwners = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.league = ?');
+                $stmtOwners->execute([$dl['league']]);
+                $descLabel = $dl['description'] ? " — {$dl['description']}" : '';
+                foreach ($stmtOwners->fetchAll(PDO::FETCH_ASSOC) as $ownerRow) {
+                    sendPushToUser($pdo, (int)$ownerRow['id'], [
+                        'title'      => '📋 Prazo de Diretrizes Aberto!',
+                        'body'       => "Prazo disponível na liga {$dl['league']}{$descLabel}.",
+                        'url'        => '/diretrizes.php',
+                        'primaryKey' => 'directive_deadline_activate_' . $deadlineId,
+                    ]);
+                }
+            }
+        } catch (Exception $e) {}
+    }
     exit;
 }
 

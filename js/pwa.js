@@ -187,29 +187,52 @@ async function initPushNotifications() {
   if (Notification.permission === 'denied') return;
 
   try {
-    const reg      = await navigator.serviceWorker.ready;
-    const existing = await reg.pushManager.getSubscription();
+    const reg = await navigator.serviceWorker.ready;
 
-    if (existing) {
-      // Já inscrito — garante que o servidor tem este endpoint
-      if (!localStorage.getItem('push-subscribed')) {
-        await savePushSubscription(existing);
-      }
-      return;
-    }
-
-    // Busca chave pública VAPID
+    // Busca chave pública VAPID primeiro (precisamos para comparar)
     const resp = await fetch('/api/push-subscribe.php');
     const json = await resp.json();
     if (!json.publicKey) return;
 
-    // Pede permissão ao usuário
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
+    const serverKey = urlBase64ToUint8Array(json.publicKey);
+    const existing  = await reg.pushManager.getSubscription();
+
+    if (existing) {
+      // Verifica se a chave VAPID do servidor mudou (ex: após regeneração)
+      const existingKeyBuf = existing.options?.applicationServerKey;
+      if (existingKeyBuf) {
+        const existingKey = new Uint8Array(existingKeyBuf);
+        const keysMatch   = serverKey.length === existingKey.length &&
+                            serverKey.every((b, i) => b === existingKey[i]);
+        if (!keysMatch) {
+          // Chave mudou — cancela subscription antiga e refaz
+          await existing.unsubscribe();
+          localStorage.removeItem('push-subscribed');
+        } else {
+          // Chave correta — garante que o servidor tem este endpoint
+          if (!localStorage.getItem('push-subscribed')) {
+            await savePushSubscription(existing);
+          }
+          return;
+        }
+      } else {
+        // Não foi possível comparar chaves — usa subscription existente
+        if (!localStorage.getItem('push-subscribed')) {
+          await savePushSubscription(existing);
+        }
+        return;
+      }
+    }
+
+    // Pede permissão ao usuário (se não concedida)
+    if (Notification.permission !== 'granted') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+    }
 
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly:      true,
-      applicationServerKey: urlBase64ToUint8Array(json.publicKey),
+      applicationServerKey: serverKey,
     });
 
     await savePushSubscription(subscription);

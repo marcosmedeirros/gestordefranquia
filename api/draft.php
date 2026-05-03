@@ -664,15 +664,16 @@ if ($method === 'POST') {
 
             $pdo->prepare('UPDATE draft_sessions SET status = "in_progress", started_at = NOW(), current_pick_started_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
 
-            // Notifica o primeiro time da fila
+            // Busca o primeiro time para notificar após resposta
             $stmtFirst = $pdo->prepare('SELECT team_id, round, pick_position FROM draft_order WHERE draft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
             $stmtFirst->execute([(int)$draftSessionId]);
             $firstPick = $stmtFirst->fetch(PDO::FETCH_ASSOC);
-            if ($firstPick) {
-                notifyNextPick($pdo, (int)$firstPick['team_id'], (int)$firstPick['round'], (int)$firstPick['pick_position']);
-            }
 
             echo json_encode(['success' => true, 'message' => 'Draft iniciado!']);
+            if ($firstPick) {
+                if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+                try { notifyNextPick($pdo, (int)$firstPick['team_id'], (int)$firstPick['round'], (int)$firstPick['pick_position']); } catch (Exception $e) {}
+            }
             break;
 
         // ADMIN: Finalizar draft manualmente
@@ -871,14 +872,14 @@ if ($method === 'POST') {
 
                 $pdo->commit();
 
-                if ($nextTeamId && isset($next)) {
-                    notifyNextPick($pdo, $nextTeamId, (int)$next['round'], (int)$next['pick_position']);
-                }
-
                 $message = $duplicateRoster
                     ? 'Pick realizada! Jogador j?? existia no elenco e n??o foi duplicado.'
                     : 'Pick realizada!';
                 echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
+                if ($nextTeamId && isset($next)) {
+                    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+                    try { notifyNextPick($pdo, $nextTeamId, (int)$next['round'], (int)$next['pick_position']); } catch (Exception $e) {}
+                }
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
