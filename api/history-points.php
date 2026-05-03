@@ -161,6 +161,28 @@ function ensureRankingTitlesColumn(PDO $pdo): void {
     }
 }
 
+// Garante que a tabela de log de pontos de temporada existe
+function ensureSeasonPointsLogTable(PDO $pdo): void {
+    $stmt = $pdo->query("SHOW TABLES LIKE 'season_points_log'");
+    if ($stmt && $stmt->rowCount() > 0) return;
+    $pdo->exec("CREATE TABLE season_points_log (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        season_id    INT NOT NULL,
+        league       VARCHAR(20) NOT NULL,
+        sprint_number INT NOT NULL DEFAULT 1,
+        season_number INT NOT NULL DEFAULT 1,
+        team_id      INT NOT NULL,
+        team_name    VARCHAR(255) NOT NULL DEFAULT '',
+        points_old   INT NOT NULL DEFAULT 0,
+        points_new   INT NOT NULL DEFAULT 0,
+        delta        INT NOT NULL DEFAULT 0,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_spl_team    (team_id),
+        INDEX idx_spl_league  (league),
+        INDEX idx_spl_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 try {
     // Verificar tabelas para ações que precisam delas
     $tableActions = ['get_history', 'save_history', 'delete_history', 'get_ranking', 'save_season_points', 'get_season_points', 'get_teams_for_points'];
@@ -453,8 +475,10 @@ try {
             $sprintNumber = $season['sprint_number'] ?? 1;
             $seasonNumber = $season['season_number'] ?? 1;
 
+            ensureSeasonPointsLogTable($pdo);
+
             $pdo->beginTransaction();
-            
+
             try {
                 // Lock no registro da temporada para evitar corridas (duplo clique / 2 admins)
                 // e garantir que a checagem abaixo seja consistente.
@@ -527,8 +551,19 @@ try {
                         ");
                         $stmtUpdate->execute([$delta, $teamId]);
                     }
+
+                    // Registra no log de pontos para rastreabilidade
+                    $stmtLog = $pdo->prepare("
+                        INSERT INTO season_points_log
+                            (season_id, league, sprint_number, season_number, team_id, team_name, points_old, points_new, delta)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmtLog->execute([
+                        $seasonId, $league, $sprintNumber, $seasonNumber,
+                        $teamId, $teamName, $prevPoints, $points, $delta
+                    ]);
                 }
-                
+
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Pontos salvos com sucesso']);
                 
@@ -668,9 +703,29 @@ try {
 
             $ranking = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Agrupar por liga
+            // Busca o último delta registrado por time (da tabela de log)
+            $lastDeltas = [];
+            $stmtLogTbl = $pdo->query("SHOW TABLES LIKE 'season_points_log'");
+            if ($stmtLogTbl && $stmtLogTbl->rowCount() > 0) {
+                $deltaParams = $league ? [$league] : [];
+                $deltaWhere  = $league ? "WHERE league = ?" : "";
+                $stmtDelta = $pdo->prepare("
+                    SELECT team_id, delta
+                    FROM season_points_log
+                    WHERE id IN (
+                        SELECT MAX(id) FROM season_points_log {$deltaWhere} GROUP BY team_id
+                    )
+                ");
+                $stmtDelta->execute($deltaParams);
+                foreach ($stmtDelta->fetchAll(PDO::FETCH_ASSOC) as $dr) {
+                    $lastDeltas[(int)$dr['team_id']] = (int)$dr['delta'];
+                }
+            }
+
+            // Agrupar por liga e injetar last_delta
             $grouped = [];
             foreach ($ranking as $row) {
+                $row['last_delta'] = $lastDeltas[(int)$row['team_id']] ?? 0;
                 $grouped[$row['league']][] = $row;
             }
 
