@@ -56,7 +56,7 @@ function removerAcentos($string) {
 $_wl = __DIR__ . '/../core/wordlist5.php';
 if (file_exists($_wl)) {
     require $_wl;
-    $dicionario = $wordlist5;
+    $dicionario = $wordlist5 ?? [];
 } else {
     // Fallback enquanto o wordlist não for gerado
 $dicionario = [
@@ -247,6 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     
     if (strlen($chute) != 5) {
         echo json_encode(['erro' => 'A palavra deve ter 5 letras.']);
+        exit;
+    }
+
+    if (!$apenas_validar && !in_array($chute, $dicionario)) {
+        echo json_encode(['erro' => 'Palavra não encontrada no dicionário.']);
         exit;
     }
 
