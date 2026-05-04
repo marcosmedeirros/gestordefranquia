@@ -46,7 +46,7 @@ try {
     ');
     $updateStmt->execute([$hash, $user['id']]);
 
-    jsonResponse(200, ['message' => 'Senha redefinida com sucesso!']);
+    jsonResponse(200, ['success' => true, 'message' => 'Senha redefinida com sucesso!']);
 
 } catch (PDOException $e) {
     error_log('Erro SQL no reset-password-confirm.php: ' . $e->getMessage());
