@@ -68,15 +68,17 @@ const TAG_META = {
 
 function computeAiTag(players) {
   if (!players || players.length < 5) return null;
-  const top8 = [...players].sort((a, b) => Number(b.ovr) - Number(a.ovr)).slice(0, 8);
-  const avgOvr = top8.reduce((s, p) => s + Number(p.ovr), 0) / top8.length;
+  const starters = players.filter(p => normalizeRoleKey(p.role) === 'Titular');
+  if (!starters.length) return null;
+  const top5 = [...starters].sort((a, b) => Number(b.ovr) - Number(a.ovr)).slice(0, 5);
+  const avgOvr = top5.reduce((s, p) => s + Number(p.ovr), 0) / top5.length;
+  const maxOvr = Math.max(...top5.map(p => Number(p.ovr)));
   const avgAge = players.reduce((s, p) => s + Number(p.age || 25), 0) / players.length;
-  const hasFranchise = players.some(p => Number(p.ovr) >= SCOUT_CONFIG.THRESHOLDS.FRANCHISE_PLAYER);
-  const youngCount = players.filter(p => Number(p.age || 99) <= SCOUT_CONFIG.AGE.YOUNG_PROSPECT).length;
+  const hasFranchise = starters.some(p => Number(p.ovr) >= SCOUT_CONFIG.THRESHOLDS.FRANCHISE_PLAYER);
 
   if (avgOvr >= SCOUT_CONFIG.THRESHOLDS.STARTER_ELITE && hasFranchise) return 'Contending';
   if (avgOvr >= SCOUT_CONFIG.THRESHOLDS.PLAYOFF_CONTENDER) return 'Buying';
-  if (avgAge >= SCOUT_CONFIG.AGE.VETERAN - 2 || (youngCount < 2 && avgOvr < SCOUT_CONFIG.THRESHOLDS.REBUILD_CEILING + 2)) return 'Rebuilding';
+  if (avgAge >= SCOUT_CONFIG.AGE.VETERAN - 2 || avgOvr < SCOUT_CONFIG.THRESHOLDS.REBUILD_CEILING) return 'Rebuilding';
   return 'Selling';
 }
 
@@ -229,8 +231,9 @@ function generateAIAnalysis() {
     const statusContainer = document.getElementById('ai-status-container');
     if (statusContainer && aiTag && TAG_META[aiTag]) {
       const m = TAG_META[aiTag];
-      const top8 = [...allPlayers].sort((a,b)=>Number(b.ovr)-Number(a.ovr)).slice(0,8);
-      const avgOvr = (top8.reduce((s,p)=>s+Number(p.ovr),0)/top8.length).toFixed(1);
+      const starters = allPlayers.filter(p => normalizeRoleKey(p.role) === 'Titular');
+      const top5 = [...starters].sort((a,b)=>Number(b.ovr)-Number(a.ovr)).slice(0,5);
+      const avgOvr = top5.length ? (top5.reduce((s,p)=>s+Number(p.ovr),0)/top5.length).toFixed(1) : '—';
       const avgAge = (allPlayers.reduce((s,p)=>s+Number(p.age||25),0)/allPlayers.length).toFixed(1);
       statusContainer.innerHTML = `
         <div style="background:${m.bg};border:1px solid ${m.color}55;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">

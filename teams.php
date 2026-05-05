@@ -70,10 +70,21 @@ try {
     }
 } catch (Exception $e) {}
 
+function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?string {
+    if ($avgOvr === null || $avgOvr < 1) return null;
+    if ($avgOvr >= 86 && ($maxOvr ?? 0) >= 89) return 'Contending';
+    if ($avgOvr >= 82) return 'Buying';
+    if (($avgAge ?? 25) >= 31 || $avgOvr < 78) return 'Rebuilding';
+    return 'Selling';
+}
+
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
-             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count
+             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count,
+             (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_avg_ovr,
+             (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_max_ovr,
+             (SELECT AVG(p.age) FROM players p WHERE p.team_id = t.id) as avg_age
     FROM teams t
     INNER JOIN users u ON u.id = t.user_id
     WHERE t.league = ?
@@ -1282,18 +1293,26 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <i class="bi bi-person" style="font-size:11px;color:var(--text-3)"></i>
                                 <span class="team-owner-name"><?= htmlspecialchars($t['owner_name']) ?></span>
                             </div>
-                            <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>">
-                                <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'check-circle' ?>"></i>
-                                <?= $rosterOk ? 'Atualizado' : '' ?>
+                            <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>" style="padding:3px 6px;" title="<?= $rosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
+                                <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'clock' ?>"></i>
                             </div>
-                            <?php $tag = strtolower($t['team_tag'] ?? ''); if ($tag): ?>
+                            <?php
+                            $tagIcons  = ['contending'=>'trophy-fill','buying'=>'cart-plus-fill','selling'=>'box-arrow-right','rebuilding'=>'tools'];
+                            $tagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                            $rawTag = $t['team_tag'] ?? null;
+                            if (!$rawTag) {
+                                $rawTag = computeAiTagPHP(
+                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
+                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
+                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
+                                );
+                            }
+                            $tag = strtolower($rawTag ?? '');
+                            ?>
+                            <?php if ($tag): ?>
                             <div class="team-tag <?= htmlspecialchars($tag) ?>">
-                                <?php
-                                $tagIcons = ['contending'=>'trophy-fill','buying'=>'cart-plus-fill','selling'=>'box-arrow-right','rebuilding'=>'tools'];
-                                $tagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
-                                ?>
                                 <i class="bi bi-<?= $tagIcons[$tag] ?? 'circle-fill' ?>"></i>
-                                <?= $tagLabels[$tag] ?? htmlspecialchars($t['team_tag']) ?>
+                                <?= $tagLabels[$tag] ?? htmlspecialchars($rawTag) ?>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -1385,13 +1404,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <?php
                                 $listRua = $t['roster_updated_at'] ?? null;
                                 $listRosterOk = $listRua && (!$seasonCreatedAt || strtotime($listRua) >= strtotime($seasonCreatedAt));
-                                $listTag = strtolower($t['team_tag'] ?? '');
                                 $listTagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
-                                $listTagColors = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#ef4444'];
+                                $listTagColors = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
+                                $listRawTag = $t['team_tag'] ?? null;
+                                if (!$listRawTag) {
+                                    $listRawTag = computeAiTagPHP(
+                                        isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
+                                        isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
+                                        isset($t['avg_age'])          ? (float)$t['avg_age']          : null
+                                    );
+                                }
+                                $listTag = strtolower($listRawTag ?? '');
                             ?>
                             <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;">
                                 <span style="font-size:10px;color:<?= $listRosterOk ? '#22c55e' : '#f59e0b' ?>;line-height:1" title="<?= $listRosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
-                                    <i class="bi bi-<?= $listRosterOk ? 'check-circle-fill' : 'check-circle' ?>"></i>
+                                    <i class="bi bi-<?= $listRosterOk ? 'check-circle-fill' : 'clock' ?>"></i>
                                 </span>
                                 <?php if ($listTag && isset($listTagLabels[$listTag])): ?>
                                 <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid <?= $listTagColors[$listTag] ?>;color:<?= $listTagColors[$listTag] ?>;background:<?= $listTagColors[$listTag] ?>22"><?= $listTagLabels[$listTag] ?></span>
@@ -1908,11 +1935,23 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
             if (titleEl) titleEl.innerHTML = `<i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>${team.city||''} ${team.name||''}`;
 
-            const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#ef4444' };
+            const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#64748b' };
             const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding' };
-            const tagKey = (team.team_tag||'').toLowerCase();
+            const allRosterPlayers = Object.values(roster).flat();
+            const startersForTag = (roster['Titular'] || []);
+            const _aiTagForModal = (() => {
+                if (!startersForTag.length) return null;
+                const avgOvr = startersForTag.reduce((s,p)=>s+Number(p.ovr),0)/startersForTag.length;
+                const maxOvr = Math.max(...startersForTag.map(p=>Number(p.ovr)));
+                const avgAge = allRosterPlayers.length ? allRosterPlayers.reduce((s,p)=>s+Number(p.age||25),0)/allRosterPlayers.length : 25;
+                if (avgOvr >= 86 && maxOvr >= 89) return 'contending';
+                if (avgOvr >= 82) return 'buying';
+                if (avgAge >= 31 || avgOvr < 78) return 'rebuilding';
+                return 'selling';
+            })();
+            const tagKey = ((team.team_tag || _aiTagForModal) || '').toLowerCase();
             const tagHtml = tagKey
-                ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:5px;display:inline-block">${tagLabel[tagKey]||team.team_tag}</span>`
+                ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:5px;display:inline-block">${tagLabel[tagKey]||tagKey}</span>`
                 : '';
 
             const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
