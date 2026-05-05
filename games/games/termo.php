@@ -321,10 +321,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         if (strlen($chute) != 5) {
             echo json_encode(['erro' => 'A palavra deve ter 5 letras.']); exit;
         }
-        if (!$apenas_validar && !in_array($chute, $dicionario)) {
-            echo json_encode(['erro' => 'Palavra não encontrada no dicionário.']); exit;
-        }
-
         $c1 = removerAcentos($PALAVRA_D1);
         $c2 = removerAcentos($PALAVRA_D2);
         $cores_1 = calcularCores($chute, $c1);
@@ -391,11 +387,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     
     if (strlen($chute) != 5) {
         echo json_encode(['erro' => 'A palavra deve ter 5 letras.']);
-        exit;
-    }
-
-    if (!$apenas_validar && !in_array($chute, $dicionario)) {
-        echo json_encode(['erro' => 'Palavra não encontrada no dicionário.']);
         exit;
     }
 
