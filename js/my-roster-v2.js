@@ -599,93 +599,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPlayers();
   loadFreeAgencyLimits();
 
-  document.getElementById('btn-team-infos')?.addEventListener('click', async () => {
-    const modalEl = document.getElementById('teamInfoModal');
-    if (!modalEl) return;
-    const content = document.getElementById('teamInfoContent');
-    if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:40px;"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
-    new bootstrap.Modal(modalEl).show();
-    try {
-      const d = await api('team.php?action=team_info');
-      const team = d.team || {};
-      const roster = d.roster || {};
-      const lastTrades = d.last_trades || [];
-      const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#ef4444' };
-      const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding' };
-      const tagKey = (team.team_tag||'').toLowerCase();
-      const tagHtml = tagKey
-        ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22">${tagLabel[tagKey]||team.team_tag}</span>`
-        : '';
-      const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
-
-      const renderRosterSection = (title, players) => {
-        if (!players || !players.length) return '';
-        const rows = players.map(p => {
-          const pos2 = p.secondary_position ? `<span style="font-size:9px;color:#666;margin-left:3px">${p.secondary_position}</span>` : '';
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
-            <div><span style="font-weight:600;font-size:13px">${p.name}</span><span style="font-size:11px;color:var(--text-2);margin-left:8px">${p.position}${pos2} · ${p.age??'-'}a</span></div>
-            <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
-          </div>`;
-        }).join('');
-        return `<div style="margin-bottom:16px">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
-          ${rows}
-        </div>`;
-      };
-
-      const tradesHtml = lastTrades.length
-        ? lastTrades.map(t => {
-            const dt = t.updated_at ? new Date(t.updated_at).toLocaleDateString('pt-BR') : '';
-            return `<div style="display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid var(--border)">
-              <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>
-              ${dt ? `<div style="font-size:11px;color:var(--text-3)">${dt}</div>` : ''}
-            </div>`;
-          }).join('')
-        : '<div style="font-size:12px;color:var(--text-3);padding:6px 0">Nenhuma trade registrada.</div>';
-
-      const logoSrc = team.photo_url || '/img/default-team.png';
-      const titlesFmt = d.titles > 0
-        ? `${'🏆'.repeat(Math.min(d.titles,5))} ${d.titles}x`
-        : '<span style="color:var(--text-3)">—</span>';
-
-      if (content) content.innerHTML = `
-        <div style="padding:20px 22px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
-               style="width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px solid var(--border-md);flex-shrink:0">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:1px">${team.league||''}${team.conference ? ' · '+team.conference : ''}</div>
-            <div style="font-size:18px;font-weight:800;line-height:1.2">${team.city||''} ${team.name||''}</div>
-            <div style="font-size:12px;color:var(--text-2);margin-top:2px"><i class="bi bi-person-fill"></i> ${team.owner_name||''}</div>
-            ${tagHtml ? `<div style="margin-top:6px">${tagHtml}</div>` : ''}
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border)">
-          ${[
-            ['CAP', d.cap],
-            ['Jogadores', totalPlayers],
-            ['Trades', d.trades_count],
-            ['Títulos', titlesFmt],
-          ].map(([lbl,val]) => `<div style="padding:14px 10px;text-align:center;border-right:1px solid var(--border)">
-            <div style="font-size:17px;font-weight:800;color:var(--red)">${val}</div>
-            <div style="font-size:10px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:.7px">${lbl}</div>
-          </div>`).join('')}
-        </div>
-        <div style="padding:16px 22px">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Últimas Trades</div>
-          ${tradesHtml}
-        </div>
-        <div style="padding:0 22px 22px">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Elenco</div>
-          ${renderRosterSection('Titulares', roster['Titular'])}
-          ${renderRosterSection('Banco', roster['Banco'])}
-          ${renderRosterSection('Outros', roster['Outro'])}
-          ${renderRosterSection('G-League', roster['G-League'])}
-        </div>`;
-    } catch (err) {
-      if (content) content.innerHTML = '<div class="alert alert-danger m-3">Erro ao carregar informações do time.</div>';
-    }
-  });
-
   document.getElementById('btn-ai-analysis')?.addEventListener('click', generateAIAnalysis);
 
   document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);
@@ -784,6 +697,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('players-table-body')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.classList.contains('btn-details-player')) {
+      openPlayerDetails(parseInt(btn.dataset.id, 10));
+      return;
+    }
     if (btn.classList.contains('btn-toggle-trade')) {
       const playerId = btn.dataset.id;
       const currentStatus = (() => {
@@ -940,8 +857,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modalEl) return;
     const content = document.getElementById('playerDetailsContent');
     const titleEl = document.getElementById('playerDetailsTitle');
-    if (content) content.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="color:var(--red);"></div></div>';
-    if (titleEl) titleEl.textContent = 'Detalhes do Jogador';
+    if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:48px"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
+    if (titleEl) titleEl.textContent = 'Detalhes';
     new bootstrap.Modal(modalEl).show();
     try {
       const data = await api(`team.php?action=player_details&player_id=${playerId}`);
@@ -950,41 +867,68 @@ document.addEventListener('DOMContentLoaded', () => {
       const transfers = Array.isArray(data.transfers) ? data.transfers : [];
       const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
 
-      const transferHtml = transfers.length
-        ? transfers.map(t => `<div class="d-flex flex-column gap-1 border-bottom border-secondary py-2"><div>${t.year||'-'}: ${t.from_team} → ${t.to_team}</div></div>`).join('')
-        : '<div class="text-light-gray">Nenhuma trade encontrada.</div>';
+      const latestDelta = seasonLog.length >= 2
+        ? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
+        : 0;
+      const deltaHtml = latestDelta > 0
+        ? `<span style="font-size:11px;color:#22c55e;font-weight:700;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);padding:2px 8px;border-radius:999px;margin-left:8px">+${latestDelta}</span>`
+        : latestDelta < 0
+          ? `<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:999px;margin-left:8px">${latestDelta}</span>`
+          : '';
 
       const seasonLogHtml = seasonLog.length
         ? seasonLog.map((s, si) => {
-            const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
-            const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
-            const yearLabel   = s.year ? ` · ${s.year}` : '';
-            const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || `Temporada ${si+1}`;
-            const delta = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
-            const deltaHtml = delta > 0
-              ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${delta}</span>`
-              : delta < 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${delta}</span>` : '';
-            return `<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
-              <div><div style="font-size:12px;font-weight:600">${title}</div><div style="font-size:11px;color:#8c8c98">${s.team_name||'-'} · ${s.age??'-'}a</div></div>
-              <div style="color:#fc0025;font-weight:800;font-size:15px">${s.ovr??'-'}${deltaHtml}</div>
+            const sp = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+            const tm = s.season_number ? `Temp ${s.season_number}` : '';
+            const yr = s.year ? ` · ${s.year}` : '';
+            const label = [sp, tm].filter(Boolean).join(' · ') + yr || `Temporada ${si+1}`;
+            const d = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
+            const dHtml = d > 0 && si > 0
+              ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${d}</span>`
+              : d < 0 && si > 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${d}</span>` : '';
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+              <div><div style="font-size:12px;font-weight:600">${label}</div><div style="font-size:11px;color:var(--text-2)">${s.team_name||'-'} · ${s.age??'-'}a</div></div>
+              <div style="display:flex;align-items:center"><span style="color:var(--red);font-weight:800;font-size:15px">${s.ovr??'-'}</span>${dHtml}</div>
             </div>`;
           }).join('')
-        : '<div class="text-light-gray">Nenhum snapshot registrado ainda.</div>';
+        : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhum snapshot registrado ainda.</div>';
 
-      if (content) {
-        content.innerHTML = `
-          <div class="mb-3"><div class="text-light-gray">Time atual</div><div style="font-weight:700">${player.team_name||'-'}</div></div>
-          <div class="row g-3 mb-3">
-            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">OVR</div><div style="color:var(--red);font-weight:700">${player.ovr??'-'}</div></div></div>
-            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Idade</div><div style="font-weight:700">${player.age??'-'}</div></div></div>
-            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Posição</div><div style="font-weight:700">${player.position??'-'}</div></div></div>
-            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Pos. Sec.</div><div style="font-weight:700">${player.secondary_position||'-'}</div></div></div>
+      const transferHtml = transfers.length
+        ? transfers.map(t => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:12px;font-weight:600">${t.from_team} <span style="color:var(--text-3)">→</span> ${t.to_team}</div>
+            ${t.year ? `<div style="font-size:11px;color:var(--text-3)">${t.year}</div>` : ''}
+          </div>`).join('')
+        : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
+
+      const photoUrl = getPlayerPhotoUrl(player);
+      if (content) content.innerHTML = `
+        <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
+          <img src="${photoUrl}" alt="${player.name||''}"
+               style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)"
+               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=fc0025&rounded=true&bold=true'">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:18px;font-weight:800;line-height:1.2">${player.name||'-'}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px">${player.team_name||'-'}</div>
+            <div style="display:flex;align-items:center;margin-top:6px">
+              <span style="font-size:30px;font-weight:900;color:var(--red);line-height:1">${player.ovr??'-'}</span>
+              ${deltaHtml}
+            </div>
           </div>
-          <div class="mb-3"><h6>Evolução por Temporada</h6>${seasonLogHtml}</div>
-          <div class="mb-3"><h6>Transferências</h6>${transferHtml}</div>`;
-      }
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
+          ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-'],['Função',player.role||'-']]
+            .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
+        </div>
+        <div style="padding:16px 22px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
+          ${seasonLogHtml}
+        </div>
+        <div style="padding:0 22px 22px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
+          ${transferHtml}
+        </div>`;
     } catch (err) {
-      if (content) content.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes.</div>';
+      if (content) content.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>';
     }
   };
 

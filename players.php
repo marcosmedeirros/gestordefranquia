@@ -953,116 +953,84 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	async function openPlayerDetails(playerId) {
 		if (!detailsModalEl) return;
 		const content = document.getElementById('playerDetailsContent');
-		const title = document.getElementById('playerDetailsTitle');
-		if (content) {
-			content.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="color: var(--red);"></div></div>';
-		}
-		if (title) title.textContent = 'Detalhes do Jogador';
-
+		const titleEl = document.getElementById('playerDetailsTitle');
+		if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:48px"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
+		if (titleEl) titleEl.textContent = 'Detalhes';
 		detailsModal?.show();
-
 		try {
 			const res = await fetch(`/api/team.php?action=player_details&player_id=${playerId}`);
 			const data = await res.json();
 			if (!data || data.error) {
-				if (content) content.innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar detalhes.'}</div>`;
+				if (content) content.innerHTML = `<div style="padding:20px;color:var(--red)">${data.error || 'Erro ao carregar.'}</div>`;
 				return;
 			}
-
 			const player = data.player || {};
-			if (title) title.textContent = player.name || 'Detalhes do Jogador';
-
+			if (titleEl) titleEl.textContent = player.name || 'Detalhes';
 			const transfers = Array.isArray(data.transfers) ? data.transfers : [];
-			const ovrTimeline = Array.isArray(data.ovr_timeline) ? data.ovr_timeline : [];
-
-			const transferHtml = transfers.length
-				? transfers.map((t) => `
-					<div class="d-flex flex-column gap-1 border-bottom border-secondary py-2">
-						<div>${t.year || '-'}: ${t.from_team} -> ${t.to_team}</div>
-					</div>
-				`).join('')
-				: '<div class="text-light-gray">Nenhuma trade encontrada.</div>';
-
-			const ovrHtml = ovrTimeline.length
-				? ovrTimeline.map((o) => `
-					<div class="d-flex justify-content-between border-bottom border-secondary py-2">
-						<div>Idade ${o.age ?? '-'}</div>
-						<div style="color: var(--red); font-weight: 700;">OVR ${o.ovr ?? '-'}</div>
-					</div>
-				`).join('')
-				: '<div class="text-light-gray">Sem historico de OVR registrado.</div>';
-
 			const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
+
+			const latestDelta = seasonLog.length >= 2
+				? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
+				: 0;
+			const deltaHtml = latestDelta > 0
+				? `<span style="font-size:11px;color:#22c55e;font-weight:700;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);padding:2px 8px;border-radius:999px;margin-left:8px">+${latestDelta}</span>`
+				: latestDelta < 0
+					? `<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:999px;margin-left:8px">${latestDelta}</span>`
+					: '';
+
 			const seasonLogHtml = seasonLog.length
 				? seasonLog.map((s, si) => {
-					const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
-					const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
-					const yearLabel   = s.year ? ` · ${s.year}` : '';
-					const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || `Temporada ${si+1}`;
-					const delta = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
-					const deltaHtml = delta > 0
-						? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${delta}</span>`
-						: delta < 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${delta}</span>` : '';
-					return `
-					<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
-						<div>
-							<div style="font-size:12px;font-weight:600">${title}</div>
-							<div style="font-size:11px;color:var(--text-2)">${s.team_name || '-'} · ${s.age ?? '-'}a</div>
-						</div>
-						<div style="color:var(--red);font-weight:800;font-size:15px">${s.ovr ?? '-'}${deltaHtml}</div>
+					const sp = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+					const tm = s.season_number ? `Temp ${s.season_number}` : '';
+					const yr = s.year ? ` · ${s.year}` : '';
+					const label = [sp, tm].filter(Boolean).join(' · ') + yr || `Temporada ${si+1}`;
+					const d = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
+					const dHtml = d > 0 && si > 0
+						? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${d}</span>`
+						: d < 0 && si > 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${d}</span>` : '';
+					return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+						<div><div style="font-size:12px;font-weight:600">${label}</div><div style="font-size:11px;color:var(--text-2)">${s.team_name||'-'} · ${s.age??'-'}a</div></div>
+						<div style="display:flex;align-items:center"><span style="color:var(--red);font-weight:800;font-size:15px">${s.ovr??'-'}</span>${dHtml}</div>
 					</div>`;
 				}).join('')
-				: '<div class="text-light-gray">Nenhum snapshot registrado ainda.</div>';
+				: '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhum snapshot registrado ainda.</div>';
 
-			if (content) {
-				content.innerHTML = `
-					<div class="mb-3">
-						<div class="text-light-gray">Time atual</div>
-						<div style="font-weight:700;">${player.team_name || '-'}</div>
-					</div>
-					<div class="row g-3 mb-3">
-						<div class="col-6 col-md-3">
-							<div class="card-mini text-center">
-								<div class="text-light-gray small">OVR</div>
-								<div style="color: var(--red); font-weight: 700;">${player.ovr ?? '-'}</div>
-							</div>
-						</div>
-						<div class="col-6 col-md-3">
-							<div class="card-mini text-center">
-								<div class="text-light-gray small">Idade</div>
-								<div style="font-weight: 700;">${player.age ?? '-'}</div>
-							</div>
-						</div>
-						<div class="col-6 col-md-3">
-							<div class="card-mini text-center">
-								<div class="text-light-gray small">Posicao</div>
-								<div style="font-weight: 700;">${player.position ?? '-'}</div>
-							</div>
-						</div>
-						<div class="col-6 col-md-3">
-							<div class="card-mini text-center">
-								<div class="text-light-gray small">Pos. Sec.</div>
-								<div style="font-weight: 700;">${player.secondary_position || '-'}</div>
-							</div>
-						</div>
-					</div>
+			const transferHtml = transfers.length
+				? transfers.map(t => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+					<div style="font-size:12px;font-weight:600">${t.from_team} <span style="color:var(--text-3)">→</span> ${t.to_team}</div>
+					${t.year ? `<div style="font-size:11px;color:var(--text-3)">${t.year}</div>` : ''}
+				</div>`).join('')
+				: '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
 
-					<div class="mb-3">
-						<h6>Transferencias</h6>
-						${transferHtml}
+			const photoUrl = getPlayerPhotoUrl(player);
+			if (content) content.innerHTML = `
+				<div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
+					<img src="${photoUrl}" alt="${player.name||''}"
+					     style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)"
+					     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=fc0025&rounded=true&bold=true'">
+					<div style="flex:1;min-width:0">
+						<div style="font-size:18px;font-weight:800;line-height:1.2">${player.name||'-'}</div>
+						<div style="font-size:12px;color:var(--text-2);margin-top:2px">${player.team_name||'-'}</div>
+						<div style="display:flex;align-items:center;margin-top:6px">
+							<span style="font-size:30px;font-weight:900;color:var(--red);line-height:1">${player.ovr??'-'}</span>
+							${deltaHtml}
+						</div>
 					</div>
-					<div class="mb-3">
-						<h6>OVR por idade</h6>
-						${ovrHtml}
-					</div>
-					<div class="mb-3">
-						<h6>Evolução por Temporada</h6>
-						${seasonLogHtml}
-					</div>
-				`;
-			}
+				</div>
+				<div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
+					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-'],['Função',player.role||'-']]
+						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
+				</div>
+				<div style="padding:16px 22px">
+					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
+					${seasonLogHtml}
+				</div>
+				<div style="padding:0 22px 22px">
+					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
+					${transferHtml}
+				</div>`;
 		} catch (err) {
-			if (content) content.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes.</div>';
+			if (content) content.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>';
 		}
 	}
 </script>

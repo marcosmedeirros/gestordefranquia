@@ -443,8 +443,16 @@ if ($method === 'GET') {
         $user = getUserSession();
         if (!$user) jsonResponse(401, ['error' => 'Sessão expirada.']);
 
-        $stmtT = $pdo->prepare('SELECT t.*, u.name AS owner_name FROM teams t JOIN users u ON u.id = t.user_id WHERE t.user_id = ? LIMIT 1');
-        $stmtT->execute([$user['id']]);
+        $requestedTeamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
+        if ($requestedTeamId > 0) {
+            // Fetch any team in user's league
+            $userLeague = $user['league'] ?? '';
+            $stmtT = $pdo->prepare('SELECT t.*, u.name AS owner_name FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ? AND t.league = ? LIMIT 1');
+            $stmtT->execute([$requestedTeamId, $userLeague]);
+        } else {
+            $stmtT = $pdo->prepare('SELECT t.*, u.name AS owner_name FROM teams t JOIN users u ON u.id = t.user_id WHERE t.user_id = ? LIMIT 1');
+            $stmtT->execute([$user['id']]);
+        }
         $teamRow = $stmtT->fetch(PDO::FETCH_ASSOC);
         if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
         $tid = (int)$teamRow['id'];

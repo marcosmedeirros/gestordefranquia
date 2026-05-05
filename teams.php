@@ -888,6 +888,15 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             background: #16a34a;
             color: #fff;
         }
+        .btn-action.info {
+            background: rgba(59,130,246,.10);
+            border-color: rgba(59,130,246,.25);
+            color: #60a5fa;
+        }
+        .btn-action.info:hover {
+            background: #2563eb;
+            color: #fff;
+        }
 
         /* ── List View ─────────────────────────────────── */
         .teams-list { display: none; }
@@ -1274,8 +1283,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <span class="team-owner-name"><?= htmlspecialchars($t['owner_name']) ?></span>
                             </div>
                             <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>">
-                                <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'exclamation-circle' ?>"></i>
-                                <?= $rosterOk ? 'Atualizado' : 'Pendente' ?>
+                                <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'check-circle' ?>"></i>
+                                <?= $rosterOk ? 'Atualizado' : '' ?>
                             </div>
                             <?php $tag = strtolower($t['team_tag'] ?? ''); if ($tag): ?>
                             <div class="team-tag <?= htmlspecialchars($tag) ?>">
@@ -1325,8 +1334,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <button class="btn-action primary" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-eye"></i> Ver
                         </button>
+                        <button class="btn-action info" onclick="openTeamDetail(<?= $t['id'] ?>)">
+                            <i class="bi bi-info-circle-fill"></i> Infos
+                        </button>
                         <button class="btn-action" onclick="verPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
-                            <i class="bi bi-calendar-event"></i> Picks
+                            <i class="bi bi-calendar-event"></i>
                         </button>
                         <button class="btn-action" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-clipboard-check"></i>
@@ -1388,6 +1400,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <div class="list-actions">
                         <button class="btn-action primary" style="flex:initial;padding:0 10px;" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn-action info" style="flex:initial;padding:0 10px;" onclick="openTeamDetail(<?= $t['id'] ?>)">
+                            <i class="bi bi-info-circle-fill"></i>
                         </button>
                         <button class="btn-action" style="flex:initial;padding:0 10px;" onclick="verPicks(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-calendar-event"></i>
@@ -1504,6 +1519,25 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-action" data-bs-dismiss="modal" style="flex:initial;padding:8px 18px;">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Infos do Time -->
+<div class="modal fade" id="teamDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content" style="background:var(--panel);border:1px solid var(--border);">
+            <div class="modal-header" style="border-bottom:1px solid var(--border);padding:14px 20px;">
+                <h5 class="modal-title" id="teamDetailTitle" style="font-weight:700;font-size:15px;">
+                    <i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>Infos do Time
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="teamDetailContent">
+                <div style="display:flex;align-items:center;justify-content:center;padding:48px;">
+                    <div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1843,6 +1877,99 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             }
         } catch (err) {
             alert(err.message || 'Erro ao copiar time');
+        }
+    }
+
+    /* ── Infos do Time ──────────────────────────────── */
+    async function openTeamDetail(teamId) {
+        const modalEl = document.getElementById('teamDetailModal');
+        const content = document.getElementById('teamDetailContent');
+        const titleEl = document.getElementById('teamDetailTitle');
+        if (!modalEl) return;
+        if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:48px;"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
+        new bootstrap.Modal(modalEl).show();
+        try {
+            const res = await fetch(`/api/team.php?action=team_info&team_id=${teamId}`);
+            const d = await res.json();
+            if (d.error) throw new Error(d.error);
+
+            const team = d.team || {};
+            const roster = d.roster || {};
+            const lastTrades = d.last_trades || [];
+
+            if (titleEl) titleEl.innerHTML = `<i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>${team.city||''} ${team.name||''}`;
+
+            const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#ef4444' };
+            const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding' };
+            const tagKey = (team.team_tag||'').toLowerCase();
+            const tagHtml = tagKey
+                ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:5px;display:inline-block">${tagLabel[tagKey]||team.team_tag}</span>`
+                : '';
+
+            const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
+
+            const renderSection = (title, players) => {
+                if (!players || !players.length) return '';
+                return `<div style="margin-bottom:14px">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
+                    ${players.map(p => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+                        <div>
+                            <span style="font-weight:600;font-size:13px">${p.name}</span>
+                            <span style="font-size:11px;color:var(--text-2);margin-left:6px">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</span>
+                        </div>
+                        <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
+                    </div>`).join('')}
+                </div>`;
+            };
+
+            const tradesHtml = lastTrades.length
+                ? lastTrades.map(t => {
+                    const dt = t.updated_at ? new Date(t.updated_at).toLocaleDateString('pt-BR') : '';
+                    return `<div style="padding:5px 0;border-bottom:1px solid var(--border)">
+                        <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>
+                        ${dt ? `<div style="font-size:11px;color:var(--text-3)">${dt}</div>` : ''}
+                    </div>`;
+                }).join('')
+                : '<div style="font-size:12px;color:var(--text-3);padding:4px 0">Nenhuma trade registrada.</div>';
+
+            const titlesFmt = d.titles > 0
+                ? `${'🏆'.repeat(Math.min(d.titles,5))} ${d.titles}x`
+                : '<span style="color:var(--text-3)">—</span>';
+
+            const logoSrc = team.photo_url || '/img/default-team.png';
+
+            content.innerHTML = `
+                <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                    <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
+                         style="width:60px;height:60px;border-radius:10px;object-fit:cover;border:2px solid var(--border-md);flex-shrink:0">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-size:10px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:1px">${team.league||''}${team.conference ? ' · '+team.conference : ''}</div>
+                        <div style="font-size:17px;font-weight:800;line-height:1.2">${team.city||''} ${team.name||''}</div>
+                        <div style="font-size:12px;color:var(--text-2);margin-top:1px"><i class="bi bi-person-fill"></i> ${team.owner_name||''}</div>
+                        ${tagHtml}
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
+                    ${[['CAP',d.cap],['Jogadores',totalPlayers],['Trades',d.trades_count],['Títulos',titlesFmt]].map(([l,v],i) =>
+                        `<div style="padding:12px 8px;text-align:center${i<3?';border-right:1px solid var(--border)':''}">
+                            <div style="font-size:16px;font-weight:800;color:var(--red)">${v}</div>
+                            <div style="font-size:10px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:.6px">${l}</div>
+                        </div>`).join('')}
+                </div>
+                <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">Últimas Trades</div>
+                    ${tradesHtml}
+                </div>
+                <div style="padding:14px 20px 20px">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">Elenco</div>
+                    ${renderSection('Titulares', roster['Titular'])}
+                    ${renderSection('Banco', roster['Banco'])}
+                    ${renderSection('Outros', roster['Outro'])}
+                    ${renderSection('G-League', roster['G-League'])}
+                </div>`;
+        } catch (err) {
+            if (content) content.innerHTML = `<div class="alert alert-danger m-3">${err.message || 'Erro ao carregar informações.'}</div>`;
         }
     }
 </script>

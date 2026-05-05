@@ -626,10 +626,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                         <option value="age">Ordenar: Idade</option>
                     </select>
                     <div class="toolbar-sep"></div>
-                    <!-- Infos -->
-                    <button id="btn-team-infos" class="btn-ghost" type="button">
-                        <i class="bi bi-info-circle-fill"></i> Infos
-                    </button>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
@@ -684,25 +680,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 <!-- ══════════════════════════════════════
      MODAIS
 ══════════════════════════════════════ -->
-
-<!-- Modal: Infos do Time -->
-<div class="modal fade" id="teamInfoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content" style="background:var(--panel);border:1px solid var(--border);">
-            <div class="modal-header" style="border-bottom:1px solid var(--border);">
-                <h5 class="modal-title" style="font-weight:700;font-size:15px;">
-                    <i class="bi bi-info-circle-fill me-2" style="color:var(--red)"></i>Informações do Time
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0" id="teamInfoContent">
-                <div style="display:flex;align-items:center;justify-content:center;padding:40px;">
-                    <div class="spinner-border" role="status" style="width:2rem;height:2rem;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Modal: Detalhes do Jogador -->
 <div class="modal fade" id="playerDetailsModal" tabindex="-1" aria-hidden="true">
