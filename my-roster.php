@@ -689,7 +689,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <h5 class="modal-title" id="playerDetailsTitle">Detalhes do Jogador</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="playerDetailsContent"></div>
+            <div class="modal-body p-0" id="playerDetailsContent"></div>
         </div>
     </div>
 </div>
@@ -873,6 +873,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260323-1"></script>
+<script src="/js/my-roster-v2.js?v=20260505"></script>
 </body>
 </html>

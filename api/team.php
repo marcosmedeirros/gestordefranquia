@@ -485,6 +485,21 @@ if ($method === 'GET') {
         $stmtTrades->execute([$tid, $tid]);
         $lastTrades = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
 
+        // Buscar itens (jogadores) de cada trade
+        foreach ($lastTrades as $k => $tr) {
+            try {
+                $stmtItems = $pdo->prepare(
+                    "SELECT player_name, player_position, player_ovr, from_team
+                     FROM trade_items WHERE trade_id = ? AND pick_id IS NULL
+                     ORDER BY from_team DESC, player_name ASC"
+                );
+                $stmtItems->execute([$tr['id']]);
+                $lastTrades[$k]['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            } catch (Exception $e) {
+                $lastTrades[$k]['items'] = [];
+            }
+        }
+
         $titles = 0;
         try {
             $stmtHof = $pdo->prepare("SELECT titles FROM hall_of_fame WHERE team_id = ? LIMIT 1");

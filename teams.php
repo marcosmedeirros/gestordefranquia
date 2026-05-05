@@ -1385,6 +1385,21 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <div>
                             <div class="list-team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
                             <div class="list-team-owner"><?= htmlspecialchars($t['owner_name']) ?></div>
+                            <?php
+                                $listRua = $t['roster_updated_at'] ?? null;
+                                $listRosterOk = $listRua && (!$seasonCreatedAt || strtotime($listRua) >= strtotime($seasonCreatedAt));
+                                $listTag = strtolower($t['team_tag'] ?? '');
+                                $listTagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                $listTagColors = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#ef4444'];
+                            ?>
+                            <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;">
+                                <span style="font-size:10px;color:<?= $listRosterOk ? '#22c55e' : '#f59e0b' ?>;line-height:1" title="<?= $listRosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
+                                    <i class="bi bi-<?= $listRosterOk ? 'check-circle-fill' : 'check-circle' ?>"></i>
+                                </span>
+                                <?php if ($listTag && isset($listTagLabels[$listTag])): ?>
+                                <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid <?= $listTagColors[$listTag] ?>;color:<?= $listTagColors[$listTag] ?>;background:<?= $listTagColors[$listTag] ?>22"><?= $listTagLabels[$listTag] ?></span>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
                     <div class="list-cell" style="text-align:center">
@@ -1923,12 +1938,34 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 </div>`;
             };
 
+            let tradeIdx = 0;
             const tradesHtml = lastTrades.length
                 ? lastTrades.map(t => {
                     const dt = t.updated_at ? new Date(t.updated_at).toLocaleDateString('pt-BR') : '';
-                    return `<div style="padding:5px 0;border-bottom:1px solid var(--border)">
-                        <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>
-                        ${dt ? `<div style="font-size:11px;color:var(--text-3)">${dt}</div>` : ''}
+                    const items = Array.isArray(t.items) ? t.items : [];
+                    const idx = tradeIdx++;
+                    const fromItems = items.filter(i => Number(i.from_team) === 1);
+                    const toItems   = items.filter(i => Number(i.from_team) === 0);
+                    const renderItems = (list, fromName, toName) => list.length
+                        ? list.map(i => `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px">
+                            <span>${i.player_name||'-'} <span style="color:var(--text-3);font-size:10px">${i.player_position||''}</span></span>
+                            <span style="color:var(--red);font-weight:700">${i.player_ovr||'-'}</span>
+                          </div>`).join('')
+                        : '';
+                    const hasItems = items.length > 0;
+                    return `<div style="border-bottom:1px solid var(--border)">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;cursor:${hasItems?'pointer':'default'}"
+                             ${hasItems ? `onclick="var el=document.getElementById('ti-${idx}');el.style.display=el.style.display==='none'?'block':'none'"` : ''}>
+                            <div>
+                                <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>
+                                ${dt ? `<div style="font-size:11px;color:var(--text-3)">${dt}</div>` : ''}
+                            </div>
+                            ${hasItems ? `<i class="bi bi-chevron-down" style="color:var(--text-3);font-size:11px"></i>` : ''}
+                        </div>
+                        ${hasItems ? `<div id="ti-${idx}" style="display:none;padding:6px 0 10px;border-top:1px solid var(--border)">
+                            ${fromItems.length ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3);letter-spacing:.6px;margin-bottom:3px">${t.from_team_name} envia</div>${renderItems(fromItems)}` : ''}
+                            ${toItems.length ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-3);letter-spacing:.6px;margin:6px 0 3px">${t.to_team_name} envia</div>${renderItems(toItems)}` : ''}
+                        </div>` : ''}
                     </div>`;
                 }).join('')
                 : '<div style="font-size:12px;color:var(--text-3);padding:4px 0">Nenhuma trade registrada.</div>';
