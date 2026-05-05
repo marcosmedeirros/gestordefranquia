@@ -442,6 +442,15 @@ if ($method === 'PUT') {
     $values[] = $playerId;
     $upd->execute($values);
 
+    // Registrar que o time atualizou o elenco nesta temporada
+    try {
+        $chkRUA = $pdo->query("SHOW COLUMNS FROM teams LIKE 'roster_updated_at'");
+        if ($chkRUA->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN roster_updated_at TIMESTAMP NULL DEFAULT NULL");
+        }
+        $pdo->prepare("UPDATE teams SET roster_updated_at = NOW() WHERE id = ?")->execute([(int)$player['team_id']]);
+    } catch (Exception $e) {}
+
     $newCap = topEightCap($pdo, (int)$player['team_id']);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], (int)$config['app']['cap_max']);
     if ($newCap < $config['app']['cap_min']) {

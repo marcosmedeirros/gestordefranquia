@@ -599,6 +599,93 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPlayers();
   loadFreeAgencyLimits();
 
+  document.getElementById('btn-team-infos')?.addEventListener('click', async () => {
+    const modalEl = document.getElementById('teamInfoModal');
+    if (!modalEl) return;
+    const content = document.getElementById('teamInfoContent');
+    if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:40px;"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
+    new bootstrap.Modal(modalEl).show();
+    try {
+      const d = await api('team.php?action=team_info');
+      const team = d.team || {};
+      const roster = d.roster || {};
+      const lastTrades = d.last_trades || [];
+      const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#ef4444' };
+      const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding' };
+      const tagKey = (team.team_tag||'').toLowerCase();
+      const tagHtml = tagKey
+        ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22">${tagLabel[tagKey]||team.team_tag}</span>`
+        : '';
+      const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
+
+      const renderRosterSection = (title, players) => {
+        if (!players || !players.length) return '';
+        const rows = players.map(p => {
+          const pos2 = p.secondary_position ? `<span style="font-size:9px;color:#666;margin-left:3px">${p.secondary_position}</span>` : '';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <div><span style="font-weight:600;font-size:13px">${p.name}</span><span style="font-size:11px;color:var(--text-2);margin-left:8px">${p.position}${pos2} · ${p.age??'-'}a</span></div>
+            <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
+          </div>`;
+        }).join('');
+        return `<div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
+          ${rows}
+        </div>`;
+      };
+
+      const tradesHtml = lastTrades.length
+        ? lastTrades.map(t => {
+            const dt = t.updated_at ? new Date(t.updated_at).toLocaleDateString('pt-BR') : '';
+            return `<div style="display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid var(--border)">
+              <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>
+              ${dt ? `<div style="font-size:11px;color:var(--text-3)">${dt}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div style="font-size:12px;color:var(--text-3);padding:6px 0">Nenhuma trade registrada.</div>';
+
+      const logoSrc = team.photo_url || '/img/default-team.png';
+      const titlesFmt = d.titles > 0
+        ? `${'🏆'.repeat(Math.min(d.titles,5))} ${d.titles}x`
+        : '<span style="color:var(--text-3)">—</span>';
+
+      if (content) content.innerHTML = `
+        <div style="padding:20px 22px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
+               style="width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px solid var(--border-md);flex-shrink:0">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:1px">${team.league||''}${team.conference ? ' · '+team.conference : ''}</div>
+            <div style="font-size:18px;font-weight:800;line-height:1.2">${team.city||''} ${team.name||''}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px"><i class="bi bi-person-fill"></i> ${team.owner_name||''}</div>
+            ${tagHtml ? `<div style="margin-top:6px">${tagHtml}</div>` : ''}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border)">
+          ${[
+            ['CAP', d.cap],
+            ['Jogadores', totalPlayers],
+            ['Trades', d.trades_count],
+            ['Títulos', titlesFmt],
+          ].map(([lbl,val]) => `<div style="padding:14px 10px;text-align:center;border-right:1px solid var(--border)">
+            <div style="font-size:17px;font-weight:800;color:var(--red)">${val}</div>
+            <div style="font-size:10px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:.7px">${lbl}</div>
+          </div>`).join('')}
+        </div>
+        <div style="padding:16px 22px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Últimas Trades</div>
+          ${tradesHtml}
+        </div>
+        <div style="padding:0 22px 22px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Elenco</div>
+          ${renderRosterSection('Titulares', roster['Titular'])}
+          ${renderRosterSection('Banco', roster['Banco'])}
+          ${renderRosterSection('Outros', roster['Outro'])}
+          ${renderRosterSection('G-League', roster['G-League'])}
+        </div>`;
+    } catch (err) {
+      if (content) content.innerHTML = '<div class="alert alert-danger m-3">Erro ao carregar informações do time.</div>';
+    }
+  });
+
   document.getElementById('btn-ai-analysis')?.addEventListener('click', generateAIAnalysis);
 
   document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);

@@ -151,7 +151,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         <li>
             <a href="/settings.php" class="<?= $currentPage === 'settings.php' ? 'active' : '' ?>">
                 <i class="bi bi-gear-fill"></i>
-                Configurações
+                Minha Conta
             </a>
         </li>
     </ul>

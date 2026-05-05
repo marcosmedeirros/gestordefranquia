@@ -439,6 +439,71 @@ if ($method === 'GET') {
     }
 
 
+    if ($action === 'team_info') {
+        $user = getUserSession();
+        if (!$user) jsonResponse(401, ['error' => 'Sessão expirada.']);
+
+        $stmtT = $pdo->prepare('SELECT t.*, u.name AS owner_name FROM teams t JOIN users u ON u.id = t.user_id WHERE t.user_id = ? LIMIT 1');
+        $stmtT->execute([$user['id']]);
+        $teamRow = $stmtT->fetch(PDO::FETCH_ASSOC);
+        if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
+        $tid = (int)$teamRow['id'];
+
+        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role FROM players WHERE team_id = ? ORDER BY ovr DESC');
+        $stmtP->execute([$tid]);
+        $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
+        foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $role = isset($roster[$p['role']]) ? $p['role'] : 'Outro';
+            $roster[$role][] = $p;
+        }
+
+        $cap = topEightCap($pdo, $tid);
+
+        $stmtTCount = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
+        $stmtTCount->execute([$tid, $tid]);
+        $tradesCount = (int)$stmtTCount->fetchColumn();
+
+        $stmtTrades = $pdo->prepare("
+            SELECT tr.id, tr.updated_at,
+                   TRIM(CONCAT(COALESCE(tf.city,''),' ',tf.name)) AS from_team_name,
+                   TRIM(CONCAT(COALESCE(tt.city,''),' ',tt.name)) AS to_team_name,
+                   tr.from_team_id, tr.to_team_id
+            FROM trades tr
+            JOIN teams tf ON tf.id = tr.from_team_id
+            JOIN teams tt ON tt.id = tr.to_team_id
+            WHERE tr.status = 'accepted' AND (tr.from_team_id = ? OR tr.to_team_id = ?)
+            ORDER BY tr.updated_at DESC LIMIT 3
+        ");
+        $stmtTrades->execute([$tid, $tid]);
+        $lastTrades = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
+
+        $titles = 0;
+        try {
+            $stmtHof = $pdo->prepare("SELECT titles FROM hall_of_fame WHERE team_id = ? LIMIT 1");
+            $stmtHof->execute([$tid]);
+            $hofRow = $stmtHof->fetch(PDO::FETCH_ASSOC);
+            $titles = $hofRow ? (int)$hofRow['titles'] : 0;
+        } catch (Exception $e) {}
+
+        jsonResponse(200, [
+            'team'         => [
+                'id'         => $tid,
+                'name'       => $teamRow['name'],
+                'city'       => $teamRow['city'],
+                'photo_url'  => $teamRow['photo_url'] ?? null,
+                'league'     => $teamRow['league'],
+                'owner_name' => $teamRow['owner_name'],
+                'team_tag'   => $teamRow['team_tag'] ?? null,
+                'conference' => $teamRow['conference'] ?? null,
+            ],
+            'cap'          => $cap,
+            'trades_count' => $tradesCount,
+            'last_trades'  => $lastTrades,
+            'roster'       => $roster,
+            'titles'       => $titles,
+        ]);
+    }
+
     $teamId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
     $leagueParam = isset($_GET['league']) ? strtoupper(trim($_GET['league'])) : null;
@@ -611,6 +676,9 @@ if ($method === 'PUT') {
     $mascot = trim($body['mascot'] ?? '');
     $conference = strtoupper(trim($body['conference'] ?? ''));
     $photoUrl = trim($body['photo_url'] ?? '');
+    $teamTagRaw = $body['team_tag'] ?? null;
+    $validTags = ['Contending', 'Buying', 'Selling', 'Rebuilding'];
+    $teamTag = ($teamTagRaw !== null && in_array($teamTagRaw, $validTags, true)) ? $teamTagRaw : null;
 
     $sessionUser = getUserSession();
     if (!isset($sessionUser['id'])) {
@@ -660,26 +728,24 @@ if ($method === 'PUT') {
         jsonResponse(422, ['error' => 'Conferência inválida.']);
     }
 
-    if ($hasConference) {
-        $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ?, conference = ? WHERE id = ?');
-        $upd->execute([
-            $name !== '' ? $name : $team['name'],
-            $city !== '' ? $city : $team['city'],
-            $mascot !== '' ? $mascot : '',
-            $photoUrl !== '' ? $photoUrl : $team['photo_url'],
-            $conference !== '' ? $conference : $team['conference'] ?? null,
-            (int) $team['id'],
-        ]);
-    } else {
-        $upd = $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ? WHERE id = ?');
-        $upd->execute([
-            $name !== '' ? $name : $team['name'],
-            $city !== '' ? $city : $team['city'],
-            $mascot !== '' ? $mascot : '',
-            $photoUrl !== '' ? $photoUrl : $team['photo_url'],
-            (int) $team['id'],
-        ]);
+    if (!teamColumnExists($pdo, 'team_tag')) {
+        try { $pdo->exec("ALTER TABLE teams ADD COLUMN team_tag VARCHAR(20) NULL DEFAULT NULL"); } catch (Exception $e) {}
     }
+
+    $setParts = ['name = ?', 'city = ?', 'mascot = ?', 'photo_url = ?', 'team_tag = ?'];
+    $params = [
+        $name !== '' ? $name : $team['name'],
+        $city !== '' ? $city : $team['city'],
+        $mascot !== '' ? $mascot : '',
+        $photoUrl !== '' ? $photoUrl : $team['photo_url'],
+        $teamTag,
+    ];
+    if ($hasConference) {
+        $setParts[] = 'conference = ?';
+        $params[] = $conference !== '' ? $conference : ($team['conference'] ?? null);
+    }
+    $params[] = (int) $team['id'];
+    $pdo->prepare('UPDATE teams SET ' . implode(', ', $setParts) . ' WHERE id = ?')->execute($params);
 
     jsonResponse(200, ['message' => 'Time atualizado.']);
 

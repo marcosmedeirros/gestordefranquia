@@ -20,7 +20,7 @@ $currentSeason = null;
 $seasonDisplayYear = null;
 try {
     $stmtSeason = $pdo->prepare('
-        SELECT s.season_number, s.year, sp.start_year, sp.sprint_number
+        SELECT s.season_number, s.year, s.created_at AS season_created_at, sp.start_year, sp.sprint_number
         FROM seasons s
         INNER JOIN sprints sp ON s.sprint_id = sp.id
         WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
@@ -43,8 +43,9 @@ try {
 } catch (Exception $e) {
     $currentSeasonYear = null;
 }
-$currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
-$seasonDisplayYear = (string)$currentSeasonYear;
+$currentSeasonYear  = $currentSeasonYear ?: (int)date('Y');
+$seasonDisplayYear  = (string)$currentSeasonYear;
+$seasonCreatedAt    = $currentSeason['season_created_at'] ?? null;
 
 $stmtTeam = $pdo->prepare('
     SELECT t.*, COUNT(p.id) as player_count
@@ -57,8 +58,20 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
+// Garantir colunas
+try {
+    $chkRUA = $pdo->query("SHOW COLUMNS FROM teams LIKE 'roster_updated_at'");
+    if ($chkRUA->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE teams ADD COLUMN roster_updated_at TIMESTAMP NULL DEFAULT NULL");
+    }
+    $chkTag = $pdo->query("SHOW COLUMNS FROM teams LIKE 'team_tag'");
+    if ($chkTag->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE teams ADD COLUMN team_tag VARCHAR(20) NULL DEFAULT NULL");
+    }
+} catch (Exception $e) {}
+
 $stmt = $pdo->prepare('
-    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas,
+    SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count
     FROM teams t
@@ -750,6 +763,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             text-overflow: ellipsis;
         }
 
+        .roster-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 700; padding: 2px 8px;
+            border-radius: 999px; margin-top: 6px;
+        }
+        .roster-badge.ok  { background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.25); }
+        .roster-badge.nok { background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+
+        .team-tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 700; padding: 2px 8px;
+            border-radius: 999px; margin-top: 4px;
+        }
+        .team-tag.contending { background: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+        .team-tag.buying     { background: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
+        .team-tag.selling    { background: rgba(249,115,22,.12); color: #f97316; border: 1px solid rgba(249,115,22,.3); }
+        .team-tag.rebuilding { background: rgba(239,68,68,.12);  color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
+
         /* Stats row inside card */
         .team-stats {
             display: grid;
@@ -1147,7 +1178,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <?php endif; ?>
 
             <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
+            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
         </nav>
 
             <button class="sb-theme-toggle" type="button" id="themeToggle">
@@ -1220,6 +1251,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
                 ?>
                 <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.04 ?>s">
+                    <?php
+                        $rua = $t['roster_updated_at'] ?? null;
+                        $rosterOk = $rua && (!$seasonCreatedAt || strtotime($rua) >= strtotime($seasonCreatedAt));
+                    ?>
                     <div class="team-card-header">
                         <div class="team-logos">
                             <img class="team-logo-main"
@@ -1238,6 +1273,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <i class="bi bi-person" style="font-size:11px;color:var(--text-3)"></i>
                                 <span class="team-owner-name"><?= htmlspecialchars($t['owner_name']) ?></span>
                             </div>
+                            <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>">
+                                <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'exclamation-circle' ?>"></i>
+                                <?= $rosterOk ? 'Atualizado' : 'Pendente' ?>
+                            </div>
+                            <?php $tag = strtolower($t['team_tag'] ?? ''); if ($tag): ?>
+                            <div class="team-tag <?= htmlspecialchars($tag) ?>">
+                                <?php
+                                $tagIcons = ['contending'=>'trophy-fill','buying'=>'cart-plus-fill','selling'=>'box-arrow-right','rebuilding'=>'tools'];
+                                $tagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                ?>
+                                <i class="bi bi-<?= $tagIcons[$tag] ?? 'circle-fill' ?>"></i>
+                                <?= $tagLabels[$tag] ?? htmlspecialchars($t['team_tag']) ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
 

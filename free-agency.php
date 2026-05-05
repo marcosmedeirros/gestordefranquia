@@ -505,7 +505,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <?php endif; ?>
 
             <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
+            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
         </nav>
 
         <button class="sb-theme-toggle" type="button" id="themeToggle">

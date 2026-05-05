@@ -17,7 +17,7 @@ $team = $stmtTeam->fetch() ?: null;
     <meta charset="UTF-8">
     <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Configurações — FBA Manager</title>
+    <title>Minha Conta — FBA Manager</title>
 
     <?php include __DIR__ . '/includes/head-pwa.php'; ?>
 
@@ -186,7 +186,6 @@ $team = $stmtTeam->fetch() ?: null;
         }
 
         /* ── Layout ──────────────────────────────────── */
-        --sidebar-w: 260px;
         .app { display: flex; min-height: 100vh; }
         .sidebar {
             position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
@@ -291,7 +290,7 @@ $team = $stmtTeam->fetch() ?: null;
             <?php endif; ?>
 
             <div class="sb-section">Conta</div>
-            <a href="/settings.php" class="active"><i class="bi bi-gear-fill"></i> Configurações</a>
+            <a href="/settings.php" class="active"><i class="bi bi-gear-fill"></i> Minha Conta</a>
         </nav>
 
         <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
@@ -321,7 +320,7 @@ $team = $stmtTeam->fetch() ?: null;
         <div class="page-hero">
             <div class="page-head">
                 <div class="page-eyebrow">Conta</div>
-                <h1 class="page-title">Configurações</h1>
+                <h1 class="page-title">Minha Conta</h1>
                 <p class="page-sub">Edite suas informações pessoais e os dados do seu time.</p>
             </div>
         </div>
@@ -486,6 +485,20 @@ $team = $stmtTeam->fetch() ?: null;
                                             <option value="OESTE" <?= (isset($team['conference']) && $team['conference'] === 'OESTE') ? 'selected' : '' ?>>OESTE</option>
                                         </select>
                                     </div>
+                                    <div class="field-group">
+                                        <label class="field-label" style="display:flex;align-items:center;gap:6px">
+                                            Status da Franquia
+                                            <span style="font-size:11px;color:var(--text-3);font-weight:400">(visível para todos)</span>
+                                        </label>
+                                        <select name="team_tag" class="field-input" id="team-tag-select">
+                                            <option value="" <?= empty($team['team_tag']) ? 'selected' : '' ?>>— Nenhum —</option>
+                                            <option value="Contending" <?= ($team['team_tag'] ?? '') === 'Contending' ? 'selected' : '' ?>>Contending</option>
+                                            <option value="Buying"     <?= ($team['team_tag'] ?? '') === 'Buying'     ? 'selected' : '' ?>>Buying</option>
+                                            <option value="Selling"    <?= ($team['team_tag'] ?? '') === 'Selling'    ? 'selected' : '' ?>>Selling</option>
+                                            <option value="Rebuilding" <?= ($team['team_tag'] ?? '') === 'Rebuilding' ? 'selected' : '' ?>>Rebuilding</option>
+                                        </select>
+                                        <div id="team-tag-hint" class="field-hint" style="margin-top:8px;padding:8px 10px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border);display:none"></div>
+                                    </div>
                                     <div class="d-flex justify-content-end">
                                         <button type="button" class="btn-red" id="btn-save-team">
                                             <i class="bi bi-check2-circle"></i> Salvar Time
@@ -551,6 +564,30 @@ $team = $stmtTeam->fetch() ?: null;
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/settings.js"></script>
 <script src="/js/pwa.js"></script>
+<script>
+(function(){
+  const tagHints = {
+    'Contending': '🏆 Time pronto para ser campeão — foco total em vencer agora.',
+    'Buying':     '📈 Time competitivo que busca reforços imediatos para subir de nível.',
+    'Selling':    '📦 Time desistindo da temporada atual para trocar veteranos por ativos futuros.',
+    'Rebuilding': '🔧 Time focado em perder e desenvolver jovens para brilhar no futuro.',
+  };
+  const tagSel  = document.getElementById('team-tag-select');
+  const tagHint = document.getElementById('team-tag-hint');
+  function updateTagHint() {
+    const v = tagSel ? tagSel.value : '';
+    if (tagHint) {
+      if (v && tagHints[v]) {
+        tagHint.textContent = tagHints[v];
+        tagHint.style.display = '';
+      } else {
+        tagHint.style.display = 'none';
+      }
+    }
+  }
+  if (tagSel) { tagSel.addEventListener('change', updateTagHint); updateTagHint(); }
+})();
+</script>
 <script>
   (function(){
     // Sidebar

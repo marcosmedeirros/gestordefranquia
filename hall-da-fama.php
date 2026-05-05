@@ -309,7 +309,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <?php endif; ?>
 
       <div class="sb-section">Conta</div>
-      <a href="/settings.php"><i class="bi bi-gear-fill"></i> Configurações</a>
+      <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
     </nav>
 
     <div class="sb-footer">
