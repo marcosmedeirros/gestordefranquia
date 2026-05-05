@@ -28,7 +28,7 @@ $team = $stmtTeam->fetch() ?: null;
     <meta name="apple-mobile-web-app-title" content="FBA Manager">
     <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
 
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/styles.css">
@@ -37,6 +37,7 @@ $team = $stmtTeam->fetch() ?: null;
         /* ── Tokens ──────────────────────────────────── */
         :root {
             --red:        #fc0025;
+            --red-2:      #ff2a44;
             --red-soft:   rgba(252,0,37,.10);
             --red-glow:   rgba(252,0,37,.18);
             --bg:         #07070a;
@@ -52,104 +53,164 @@ $team = $stmtTeam->fetch() ?: null;
             --green:      #22c55e;
             --amber:      #f59e0b;
             --blue:       #3b82f6;
+            --sidebar-w:  260px;
             --font:       'Poppins', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
         }
-
         :root[data-theme="light"] {
-            --bg: #f6f7fb;
-            --panel: #ffffff;
-            --panel-2: #f2f4f8;
-            --panel-3: #e9edf4;
-            --border: #e3e6ee;
-            --border-md: #d7dbe6;
-            --border-red: rgba(252,0,37,.18);
-            --text: #111217;
-            --text-2: #5b6270;
-            --text-3: #8b93a5;
+            --bg: #f6f7fb; --panel: #ffffff; --panel-2: #f2f4f8; --panel-3: #e9edf4;
+            --border: #e3e6ee; --border-md: #d7dbe6; --border-red: rgba(252,0,37,.18);
+            --text: #111217; --text-2: #5b6270; --text-3: #8b93a5;
         }
 
-        *, *::before, *::after { box-sizing: border-box; }
-        body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text);
-            -webkit-font-smoothing: antialiased;
-            min-height: 100vh;
-        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-        /* ── Content wrap (inside .content) ─────────── */
-        .settings-wrap { max-width: 1020px; margin: 0 auto; }
+        /* ── App shell ───────────────────────────────── */
+        .app { display: flex; min-height: 100vh; }
 
-        /* ── Page header ──────────────────────────────── */
-        .page-head { margin-bottom: 24px; }
-        .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 5px; }
-        .page-title  { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
-        .page-sub    { font-size: 13px; color: var(--text-2); }
+        /* ── Sidebar ─────────────────────────────────── */
+        .sidebar {
+            position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
+            background: var(--panel); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 300;
+            transition: transform var(--t) var(--ease);
+            overflow-y: auto; scrollbar-width: none;
+        }
+        .sidebar::-webkit-scrollbar { display: none; }
+        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 250; }
+        .sb-overlay.show { display: block; }
+        .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+        .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+        .sb-nav { flex: 1; padding: 12px 10px 8px; }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
+        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+        .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+        .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+        .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+        .sb-nav a.active i { color: var(--red); }
+        .sb-theme-toggle { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--t) var(--ease); }
+        .sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
+        .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+        .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; flex-shrink: 0; }
+        .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
-        /* ── Panel card ──────────────────────────────── */
-        .panel-card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-            margin-bottom: 20px;
+        /* ── Topbar mobile ───────────────────────────── */
+        .topbar { display: none; position: fixed; top: 0; left: 0; right: 0; height: 54px; background: var(--panel); border-bottom: 1px solid var(--border); align-items: center; padding: 0 16px; gap: 12px; z-index: 240; }
+        .topbar-title { font-weight: 700; font-size: 15px; flex: 1; }
+        .topbar-title em { color: var(--red); font-style: normal; }
+        .menu-btn { width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 17px; }
+
+        /* ── Main ────────────────────────────────────── */
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
+
+        /* ── Hero ────────────────────────────────────── */
+        .page-hero { padding: 32px 32px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .hero-left {}
+        .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+        .page-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
+        .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+        /* user hero card */
+        .hero-user {
+            display: flex; align-items: center; gap: 14px;
+            background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 14px 18px;
         }
-        .panel-card-head {
-            padding: 16px 22px;
-            border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; gap: 10px;
+        .hero-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-md); flex-shrink: 0; }
+        .hero-user-name { font-size: 15px; font-weight: 700; line-height: 1.2; }
+        .hero-user-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+        .hero-league-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--red-soft); border: 1px solid var(--border-red); color: var(--red); font-size: 11px; font-weight: 700; margin-top: 5px; }
+
+        /* ── Content ─────────────────────────────────── */
+        .content { padding: 20px 32px 48px; flex: 1; }
+
+        /* ── Settings grid ───────────────────────────── */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 16px;
+            align-items: start;
+            max-width: 1100px;
         }
-        .panel-card-icon {
+        .settings-main { display: flex; flex-direction: column; gap: 16px; }
+        .settings-side  { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ── Card (bc pattern from dashboard) ────────── */
+        .bc {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: var(--radius); overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .bc-head {
+            padding: 16px 20px 14px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+        }
+        .bc-icon {
             width: 32px; height: 32px; border-radius: 8px;
             background: var(--red-soft); border: 1px solid var(--border-red);
             display: flex; align-items: center; justify-content: center;
             font-size: 14px; color: var(--red); flex-shrink: 0;
         }
-        .panel-card-title { font-size: 14px; font-weight: 700; }
-        .panel-card-sub   { font-size: 12px; color: var(--text-2); margin-top: 1px; }
-        .panel-card-body  { padding: 22px; }
-
-        /* ── Section divider ─────────────────────────── */
-        .section-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-        .section-label { font-size: 11px; font-weight: 700; letter-spacing: .9px; text-transform: uppercase; color: var(--text-3); margin-bottom: 16px; }
+        .bc-title { font-size: 14px; font-weight: 700; }
+        .bc-sub   { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+        .bc-body  { padding: 20px; flex: 1; }
 
         /* ── Photo upload ────────────────────────────── */
-        .photo-upload-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px; }
-        .photo-upload-ring { position: relative; width: 96px; height: 96px; }
-        .photo-preview { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-md); display: block; }
-        .photo-upload-overlay {
+        .photo-row { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+        .photo-ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+        .photo-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-md); display: block; }
+        .photo-ring.team .photo-img { border-radius: var(--radius-sm); }
+        .photo-overlay {
             position: absolute; inset: 0; border-radius: 50%;
-            background: rgba(0,0,0,.55);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 3px; cursor: pointer; opacity: 0;
-            transition: opacity var(--t) var(--ease);
-            font-size: 11px; font-weight: 600; color: #fff; text-align: center;
+            background: rgba(0,0,0,.6); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 2px;
+            cursor: pointer; opacity: 0; transition: opacity var(--t) var(--ease);
+            font-size: 10px; font-weight: 600; color: #fff; text-align: center;
         }
-        .photo-upload-overlay i { font-size: 18px; }
-        .photo-upload-ring:hover .photo-upload-overlay { opacity: 1; }
-        .photo-upload-hint { font-size: 11px; color: var(--text-3); text-align: center; }
+        .photo-ring.team .photo-overlay { border-radius: var(--radius-sm); }
+        .photo-overlay i { font-size: 16px; }
+        .photo-ring:hover .photo-overlay { opacity: 1; }
+        .photo-info { flex: 1; min-width: 0; }
+        .photo-info-name { font-size: 15px; font-weight: 700; }
+        .photo-info-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+        .photo-hint { font-size: 11px; color: var(--text-3); margin-top: 6px; }
 
         /* ── Form fields ─────────────────────────────── */
-        .field-group  { margin-bottom: 16px; }
-        .field-label  { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; display: block; }
-        .field-input  {
-            width: 100%;
-            background: var(--panel-2); border: 1px solid var(--border-md);
+        .fg { margin-bottom: 14px; }
+        .fg:last-child { margin-bottom: 0; }
+        .fl { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+        .fi {
+            width: 100%; background: var(--panel-2); border: 1px solid var(--border-md);
             border-radius: 8px; padding: 9px 12px;
             color: var(--text); font-family: var(--font); font-size: 13px;
             outline: none; transition: border-color var(--t) var(--ease);
         }
-        .field-input:focus { border-color: var(--red); }
-        .field-input::placeholder { color: var(--text-3); }
-        .field-input:disabled { opacity: .45; cursor: not-allowed; }
-        .field-input option { background: var(--panel-2); }
-        .field-hint { font-size: 11px; color: var(--text-3); margin-top: 5px; line-height: 1.4; }
+        .fi:focus { border-color: var(--red); }
+        .fi::placeholder { color: var(--text-3); }
+        .fi:disabled { opacity: .45; cursor: not-allowed; }
+        .fi option { background: var(--panel-2); }
+        .fh { font-size: 11px; color: var(--text-3); margin-top: 5px; line-height: 1.45; }
+        .fgrid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* ── Tag hint box ────────────────────────────── */
+        .tag-hint-box {
+            margin-top: 8px; padding: 9px 12px;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: 8px; font-size: 12px; color: var(--text-2); line-height: 1.5;
+            display: none;
+        }
 
         /* ── Buttons ─────────────────────────────────── */
+        .btn-row { display: flex; justify-content: flex-end; margin-top: 18px; }
         .btn-red {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 9px 20px; border-radius: 9px;
@@ -164,96 +225,62 @@ $team = $stmtTeam->fetch() ?: null;
             padding: 9px 20px; border-radius: 9px;
             background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
             font-family: var(--font); font-size: 13px; font-weight: 600;
-            cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none;
+            cursor: pointer; transition: all var(--t) var(--ease);
         }
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
 
-        /* ── Team badge ──────────────────────────────── */
-        .team-badge {
-            display: inline-flex; align-items: center; gap: 7px;
-            background: var(--panel-2); border: 1px solid var(--border);
-            border-radius: 999px; padding: 4px 12px 4px 4px;
-            font-size: 12px; font-weight: 600; color: var(--text-2);
-        }
-        .team-badge img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); }
+        /* ── Divider ─────────────────────────────────── */
+        .bc-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
-        /* ── No-team notice ──────────────────────────── */
+        /* ── Team settings: internal layout ─────────── */
+        .team-logo-row { display: flex; align-items: flex-start; gap: 20px; }
+        .team-logo-col { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .team-logo-col .fh { text-align: center; }
+        .team-form-col { flex: 1; min-width: 0; }
+
+        /* ── Notice box ──────────────────────────────── */
         .notice-box {
             background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2);
-            border-radius: 9px; padding: 14px 16px;
-            font-size: 13px; color: var(--amber);
+            border-radius: 9px; padding: 14px 16px; font-size: 13px; color: var(--amber);
             display: flex; align-items: flex-start; gap: 9px;
         }
 
-        /* ── Layout ──────────────────────────────────── */
-        .app { display: flex; min-height: 100vh; }
-        .sidebar {
-            position: fixed; top: 0; left: 0; width: 260px; height: 100vh;
-            background: var(--panel); border-right: 1px solid var(--border);
-            display: flex; flex-direction: column; z-index: 300;
-            transition: transform 200ms cubic-bezier(.2,.8,.2,1);
-            overflow-y: auto; scrollbar-width: none;
-        }
-        .sidebar::-webkit-scrollbar { display: none; }
-        .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 299; }
-        .sb-overlay.show { display: block; }
-        .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-        .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
-        .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
-        .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
-        .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all 200ms; }
-        .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
-        .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
-        .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
-        .sb-nav a.active i { color: var(--red); }
-        .sb-theme-toggle { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 200ms; }
-        .sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
-        .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-        .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
-        .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all 200ms; text-decoration: none; flex-shrink: 0; }
-        .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
-
-        /* ── Main ─────────────────────────────────────── */
-        .main { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 240;
-            background: var(--panel); border-bottom: 1px solid var(--border);
-            padding: 0 16px; height: 54px;
-            display: none; align-items: center; gap: 12px;
-        }
-        .topbar-menu-btn { display: none; background: none; border: none; color: var(--text-2); font-size: 20px; cursor: pointer; padding: 4px; }
-        .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); }
-        .page-hero { padding: 28px 28px 0; }
-        .content { padding: 24px 28px 40px; }
+        /* ── Custom header ───────────────────────────── */
+        .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer; }
+        .toggle-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--red); flex-shrink: 0; }
+        .toggle-label { font-size: 13px; font-weight: 500; color: var(--text); }
 
         /* ── Responsive ──────────────────────────────── */
+        @media (max-width: 1024px) {
+            .settings-grid { grid-template-columns: 1fr; }
+            .settings-side  { grid-row: auto; }
+        }
         @media (max-width: 992px) {
             .main { margin-left: 0; padding-top: 54px; }
             .sidebar { transform: translateX(-260px); }
             .sidebar.open { transform: translateX(0); }
             .topbar { display: flex; }
-            .topbar-menu-btn { display: flex; }
             .page-hero { padding: 16px 16px 0; }
-            .content { padding: 16px 16px 32px; }
+            .content { padding: 16px 16px 36px; }
+            .hero-user { display: none; }
         }
-        @media (max-width: 576px) {
-            .panel-card-body { padding: 16px; }
-            .page-title { font-size: 1.3rem; }
+        @media (max-width: 640px) {
+            .fgrid-2 { grid-template-columns: 1fr; }
+            .team-logo-row { flex-direction: column; align-items: center; }
+            .team-form-col { width: 100%; }
+            .bc-body { padding: 16px; }
         }
     </style>
 </head>
 <body>
-
 <div class="app">
 
+    <!-- ══ Sidebar ══════════════════════════════════════ -->
     <aside class="sidebar" id="sidebar">
         <?php if ($team): ?>
         <div class="sb-team">
             <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?>"
+                 alt="<?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>"
                  onerror="this.src='/img/default-team.png'">
             <div>
                 <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
@@ -294,8 +321,7 @@ $team = $stmtTeam->fetch() ?: null;
         </nav>
 
         <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
-            <i class="bi bi-moon"></i>
-            <span>Modo escuro</span>
+            <i class="bi bi-moon"></i><span>Modo escuro</span>
         </button>
 
         <div class="sb-footer">
@@ -312,313 +338,322 @@ $team = $stmtTeam->fetch() ?: null;
 
     <!-- Topbar mobile -->
     <header class="topbar">
-        <button class="topbar-menu-btn" id="sidebarToggle"><i class="bi bi-list"></i></button>
+        <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
         <div class="topbar-title">FBA <em>Manager</em></div>
     </header>
 
+    <!-- ══ Main ═════════════════════════════════════════ -->
     <main class="main">
+
+        <!-- Page Hero -->
         <div class="page-hero">
-            <div class="page-head">
+            <div class="hero-left">
                 <div class="page-eyebrow">Conta</div>
                 <h1 class="page-title">Minha Conta</h1>
-                <p class="page-sub">Edite suas informações pessoais e os dados do seu time.</p>
+                <p class="page-sub">Perfil pessoal, segurança e configurações do time.</p>
+            </div>
+            <div class="hero-user">
+                <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
+                     alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
+                     class="hero-avatar"
+                     onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=fc0025'">
+                <div>
+                    <div class="hero-user-name"><?= htmlspecialchars($user['name'] ?? '') ?></div>
+                    <div class="hero-user-meta"><?= htmlspecialchars($user['email'] ?? '') ?></div>
+                    <div class="hero-league-badge"><i class="bi bi-patch-check-fill"></i> <?= htmlspecialchars($user['league'] ?? '') ?></div>
+                </div>
             </div>
         </div>
 
+        <!-- Content -->
         <div class="content">
-            <div class="settings-wrap">
-                <div class="row g-4">
+            <div class="settings-grid">
 
-                    <!-- ── Coluna esquerda: Perfil + Senha ── -->
-                    <div class="col-lg-6 order-1">
+                <!-- ═══ COLUNA PRINCIPAL ═══════════════════ -->
+                <div class="settings-main">
 
-                        <!-- Meu Perfil -->
-                        <div class="panel-card">
-                            <div class="panel-card-head">
-                                <div class="panel-card-icon"><i class="bi bi-person-fill"></i></div>
-                                <div>
-                                    <div class="panel-card-title">Meu Perfil</div>
-                                    <div class="panel-card-sub">Nome, foto e contato</div>
-                                </div>
-                            </div>
-                            <div class="panel-card-body">
-                                <div class="photo-upload-wrap">
-                                    <div class="photo-upload-ring">
-                                        <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
-                                             alt="Avatar" class="photo-preview" id="profile-photo-preview">
-                                        <label for="profile-photo-upload" class="photo-upload-overlay">
-                                            <i class="bi bi-camera-fill"></i>
-                                            <span>Alterar</span>
-                                        </label>
-                                        <input type="file" id="profile-photo-upload" class="d-none" accept="image/*">
-                                    </div>
-                                    <div class="photo-upload-hint">Clique na foto para alterar</div>
-                                </div>
-                                <form id="form-profile">
-                                    <div class="field-group">
-                                        <label class="field-label">Nome</label>
-                                        <input type="text" name="name" class="field-input"
-                                               value="<?= htmlspecialchars($user['name']) ?>" required
-                                               placeholder="Seu nome">
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">E-mail</label>
-                                        <input type="email" class="field-input"
-                                               value="<?= htmlspecialchars($user['email']) ?>" disabled>
-                                        <div class="field-hint">O e-mail não pode ser alterado.</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">Telefone (WhatsApp)</label>
-                                        <input type="tel" name="phone" class="field-input"
-                                               value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>"
-                                               placeholder="Ex.: 55999999999 ou +351916047829"
-                                               required maxlength="16">
-                                        <div class="field-hint">Apenas números. Inclua o código do país se não for +55 (o "+" é opcional).</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">Liga</label>
-                                        <input type="text" class="field-input"
-                                               value="<?= htmlspecialchars($user['league']) ?>" disabled>
-                                    </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn-red" id="btn-save-profile">
-                                            <i class="bi bi-check2-circle"></i> Salvar Perfil
-                                        </button>
-                                    </div>
-                                </form>
+                    <!-- ── Meu Perfil ──────────────────────── -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-person-fill"></i></div>
+                            <div>
+                                <div class="bc-title">Meu Perfil</div>
+                                <div class="bc-sub">Nome, foto e WhatsApp</div>
                             </div>
                         </div>
-
-                        <!-- Alterar Senha -->
-                        <div class="panel-card">
-                            <div class="panel-card-head">
-                                <div class="panel-card-icon"><i class="bi bi-shield-lock-fill"></i></div>
-                                <div>
-                                    <div class="panel-card-title">Alterar Senha</div>
-                                    <div class="panel-card-sub">Troque sua senha de acesso</div>
+                        <div class="bc-body">
+                            <div class="photo-row">
+                                <div class="photo-ring">
+                                    <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
+                                         alt="Avatar" class="photo-img" id="profile-photo-preview">
+                                    <label for="profile-photo-upload" class="photo-overlay">
+                                        <i class="bi bi-camera-fill"></i><span>Alterar</span>
+                                    </label>
+                                    <input type="file" id="profile-photo-upload" class="d-none" accept="image/*">
+                                </div>
+                                <div class="photo-info">
+                                    <div class="photo-info-name"><?= htmlspecialchars($user['name'] ?? '') ?></div>
+                                    <div class="photo-info-meta"><?= htmlspecialchars($user['email'] ?? '') ?></div>
+                                    <div class="photo-hint">Clique na foto para alterar</div>
                                 </div>
                             </div>
-                            <div class="panel-card-body">
-                                <form id="form-password">
-                                    <div class="field-group">
-                                        <label class="field-label">Senha atual</label>
-                                        <input type="password" name="current_password" class="field-input"
-                                               required placeholder="••••••••">
+                            <form id="form-profile">
+                                <div class="fgrid-2">
+                                    <div class="fg">
+                                        <label class="fl">Nome</label>
+                                        <input type="text" name="name" class="fi"
+                                               value="<?= htmlspecialchars($user['name']) ?>" required placeholder="Seu nome">
                                     </div>
-                                    <div class="field-group">
-                                        <label class="field-label">Nova senha</label>
-                                        <input type="password" name="new_password" class="field-input"
-                                               required placeholder="••••••••">
+                                    <div class="fg">
+                                        <label class="fl">Liga</label>
+                                        <input type="text" class="fi" value="<?= htmlspecialchars($user['league']) ?>" disabled>
                                     </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn-ghost" id="btn-change-password">
-                                            <i class="bi bi-key-fill"></i> Alterar Senha
-                                        </button>
-                                    </div>
-                                </form>
+                                </div>
+                                <div class="fg">
+                                    <label class="fl">E-mail</label>
+                                    <input type="email" class="fi" value="<?= htmlspecialchars($user['email']) ?>" disabled>
+                                    <div class="fh">O e-mail não pode ser alterado.</div>
+                                </div>
+                                <div class="fg">
+                                    <label class="fl">Telefone (WhatsApp)</label>
+                                    <input type="tel" name="phone" class="fi"
+                                           value="<?= htmlspecialchars(formatBrazilianPhone($user['phone'] ?? '')) ?>"
+                                           placeholder="Ex.: 55999999999 ou +351916047829"
+                                           required maxlength="16">
+                                    <div class="fh">Inclua o código do país se não for +55.</div>
+                                </div>
+                                <div class="btn-row">
+                                    <button type="button" class="btn-red" id="btn-save-profile">
+                                        <i class="bi bi-check2-circle"></i> Salvar Perfil
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- ── Meu Time ────────────────────────── -->
+                    <?php if ($team): ?>
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-trophy-fill"></i></div>
+                            <div>
+                                <div class="bc-title">Meu Time</div>
+                                <div class="bc-sub"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
                             </div>
                         </div>
-
-                    </div><!-- /col-lg-6 -->
-
-                    <!-- ── Coluna direita: Meu Time ── -->
-                    <div class="col-lg-6 order-3 order-lg-2">
-                        <div class="panel-card">
-                            <div class="panel-card-head">
-                                <div class="panel-card-icon"><i class="bi bi-trophy-fill"></i></div>
-                                <div>
-                                    <div class="panel-card-title">Meu Time</div>
-                                    <div class="panel-card-sub">
-                                        <?php if ($team): ?>
-                                        <span class="team-badge">
-                                            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                                                 alt="<?= htmlspecialchars($team['name']) ?>">
-                                            <?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?>
-                                        </span>
-                                        <?php else: ?>
-                                        Nenhum time cadastrado
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="panel-card-body">
-                                <?php if ($team): ?>
-                                <div class="photo-upload-wrap">
-                                    <div class="photo-upload-ring">
+                        <div class="bc-body">
+                            <div class="team-logo-row">
+                                <div class="team-logo-col">
+                                    <div class="photo-ring team">
                                         <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                                             alt="Logo" class="photo-preview" id="team-photo-preview">
-                                        <label for="team-photo-upload" class="photo-upload-overlay">
-                                            <i class="bi bi-image-fill"></i>
-                                            <span>Alterar</span>
+                                             alt="Logo" class="photo-img" id="team-photo-preview">
+                                        <label for="team-photo-upload" class="photo-overlay">
+                                            <i class="bi bi-image-fill"></i><span>Alterar</span>
                                         </label>
                                         <input type="file" id="team-photo-upload" class="d-none" accept="image/*">
                                     </div>
-                                    <div class="photo-upload-hint">Clique no logo para alterar</div>
+                                    <div class="fh">Clique para alterar</div>
                                 </div>
-                                <form id="form-team-settings">
-                                    <div class="row g-3 mb-0">
-                                        <div class="col-sm-6">
-                                            <div class="field-group">
-                                                <label class="field-label">Nome do Time</label>
-                                                <input type="text" name="name" class="field-input"
+                                <div class="team-form-col">
+                                    <form id="form-team-settings">
+                                        <div class="fgrid-2">
+                                            <div class="fg">
+                                                <label class="fl">Nome do Time</label>
+                                                <input type="text" name="name" class="fi"
                                                        value="<?= htmlspecialchars($team['name']) ?>" required>
                                             </div>
-                                        </div>
-                                        <div class="col-sm-6">
-                                            <div class="field-group">
-                                                <label class="field-label">Cidade</label>
-                                                <input type="text" name="city" class="field-input"
+                                            <div class="fg">
+                                                <label class="fl">Cidade</label>
+                                                <input type="text" name="city" class="fi"
                                                        value="<?= htmlspecialchars($team['city']) ?>" required>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">Mascote</label>
-                                        <input type="text" name="mascot" class="field-input"
-                                               value="<?= htmlspecialchars($team['mascot']) ?>"
-                                               placeholder="Ex.: Lions, Thunder…">
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">Conferência</label>
-                                        <select name="conference" class="field-input">
-                                            <option value="LESTE" <?= (isset($team['conference']) && $team['conference'] === 'LESTE') ? 'selected' : '' ?>>LESTE</option>
-                                            <option value="OESTE" <?= (isset($team['conference']) && $team['conference'] === 'OESTE') ? 'selected' : '' ?>>OESTE</option>
-                                        </select>
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label" style="display:flex;align-items:center;gap:6px">
-                                            Status da Franquia
-                                            <span style="font-size:11px;color:var(--text-3);font-weight:400">(visível para todos)</span>
-                                        </label>
-                                        <select name="team_tag" class="field-input" id="team-tag-select">
-                                            <option value="" <?= empty($team['team_tag']) ? 'selected' : '' ?>>— Nenhum —</option>
-                                            <option value="Contending" <?= ($team['team_tag'] ?? '') === 'Contending' ? 'selected' : '' ?>>Contending</option>
-                                            <option value="Buying"     <?= ($team['team_tag'] ?? '') === 'Buying'     ? 'selected' : '' ?>>Buying</option>
-                                            <option value="Selling"    <?= ($team['team_tag'] ?? '') === 'Selling'    ? 'selected' : '' ?>>Selling</option>
-                                            <option value="Rebuilding" <?= ($team['team_tag'] ?? '') === 'Rebuilding' ? 'selected' : '' ?>>Rebuilding</option>
-                                        </select>
-                                        <div id="team-tag-hint" class="field-hint" style="margin-top:8px;padding:8px 10px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border);display:none"></div>
-                                    </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn-red" id="btn-save-team">
-                                            <i class="bi bi-check2-circle"></i> Salvar Time
-                                        </button>
-                                    </div>
-                                </form>
-                                <?php else: ?>
-                                <div class="notice-box">
-                                    <i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>
-                                    <span>Você ainda não possui um time cadastrado. Crie um no <a href="/onboarding.php" style="color:var(--amber);font-weight:600">onboarding</a>.</span>
+                                        <div class="fgrid-2">
+                                            <div class="fg">
+                                                <label class="fl">Mascote</label>
+                                                <input type="text" name="mascot" class="fi"
+                                                       value="<?= htmlspecialchars($team['mascot']) ?>"
+                                                       placeholder="Ex.: Lions, Thunder…">
+                                            </div>
+                                            <div class="fg">
+                                                <label class="fl">Conferência</label>
+                                                <select name="conference" class="fi">
+                                                    <option value="LESTE" <?= (isset($team['conference']) && $team['conference'] === 'LESTE') ? 'selected' : '' ?>>LESTE</option>
+                                                    <option value="OESTE" <?= (isset($team['conference']) && $team['conference'] === 'OESTE') ? 'selected' : '' ?>>OESTE</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="fg">
+                                            <label class="fl">
+                                                Status da Franquia
+                                                <span style="font-size:10px;color:var(--text-3);font-weight:400">(visível para todos)</span>
+                                            </label>
+                                            <select name="team_tag" class="fi" id="team-tag-select">
+                                                <option value="" <?= empty($team['team_tag']) ? 'selected' : '' ?>>— Nenhum —</option>
+                                                <option value="Contending" <?= ($team['team_tag'] ?? '') === 'Contending' ? 'selected' : '' ?>>🏆 Contending</option>
+                                                <option value="Buying"     <?= ($team['team_tag'] ?? '') === 'Buying'     ? 'selected' : '' ?>>📈 Buying</option>
+                                                <option value="Selling"    <?= ($team['team_tag'] ?? '') === 'Selling'    ? 'selected' : '' ?>>📦 Selling</option>
+                                                <option value="Rebuilding" <?= ($team['team_tag'] ?? '') === 'Rebuilding' ? 'selected' : '' ?>>🔧 Rebuilding</option>
+                                            </select>
+                                            <div id="team-tag-hint" class="tag-hint-box"></div>
+                                        </div>
+                                        <div class="btn-row">
+                                            <button type="button" class="btn-red" id="btn-save-team">
+                                                <i class="bi bi-check2-circle"></i> Salvar Time
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
-                                <?php endif; ?>
                             </div>
                         </div>
-                    </div><!-- /col-lg-6 -->
-
-                    <?php if ($team): ?>
-                    <!-- ── Cabeçalho personalizado ── -->
-                    <div class="col-12 order-2 order-lg-3">
-                        <div class="panel-card">
-                            <div class="panel-card-head">
-                                <div class="panel-card-icon"><i class="bi bi-card-heading"></i></div>
-                                <div>
-                                    <div class="panel-card-title">Cabeçalho Personalizado</div>
-                                    <div class="panel-card-sub">Texto exibido ao copiar o seu time no dashboard</div>
-                                </div>
-                            </div>
-                            <div class="panel-card-body">
-                                <div class="field-group" style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
-                                    <input type="checkbox" id="use-custom-header"
-                                           style="width:16px;height:16px;cursor:pointer;accent-color:var(--red);flex-shrink:0"
-                                           <?= !empty($team['use_custom_header']) ? 'checked' : '' ?>>
-                                    <label for="use-custom-header" class="field-label" style="margin:0;cursor:pointer">Usar cabeçalho personalizado ao copiar o time</label>
-                                </div>
-                                <div id="custom-header-box" style="<?= !empty($team['use_custom_header']) ? '' : 'display:none' ?>">
-                                    <div class="field-group">
-                                        <label class="field-label">Texto do cabeçalho</label>
-                                        <textarea id="custom-header-input" class="field-input" rows="7"
-                                                  placeholder="🏀 Meu Time 🏀&#10;#MinhaHashtag&#10;&#10;🏆 2x Campeão&#10;&#10;🧠 GM: Seu Nome"
-                                                  style="resize:vertical;line-height:1.6;font-family:monospace"><?= htmlspecialchars($team['custom_header'] ?? '') ?></textarea>
-                                        <div class="field-hint">Este texto vai aparecer no início quando você copiar o elenco no dashboard, substituindo o cabeçalho padrão.</div>
-                                    </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn-red" id="btn-save-header">
-                                            <i class="bi bi-check2-circle"></i> Salvar Cabeçalho
-                                        </button>
-                                    </div>
-                                </div>
-                                <div id="custom-header-off-msg" style="<?= !empty($team['use_custom_header']) ? 'display:none' : '' ?>">
-                                    <p class="field-hint" style="margin:0">Quando desativado, o cabeçalho padrão exibe <strong>nome do time</strong> e <strong>seu nome</strong>.</p>
-                                </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-trophy-fill"></i></div>
+                            <div><div class="bc-title">Meu Time</div><div class="bc-sub">Nenhum time cadastrado</div></div>
+                        </div>
+                        <div class="bc-body">
+                            <div class="notice-box">
+                                <i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>
+                                <span>Você ainda não possui um time. Crie um no <a href="/onboarding.php" style="color:var(--amber);font-weight:600">onboarding</a>.</span>
                             </div>
                         </div>
                     </div>
                     <?php endif; ?>
 
-                </div><!-- .row -->
-            </div><!-- .settings-wrap -->
-        </div><!-- .content -->
+                </div><!-- /settings-main -->
+
+                <!-- ═══ COLUNA LATERAL ════════════════════ -->
+                <div class="settings-side">
+
+                    <!-- ── Alterar Senha ───────────────────── -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                            <div>
+                                <div class="bc-title">Alterar Senha</div>
+                                <div class="bc-sub">Troque sua senha de acesso</div>
+                            </div>
+                        </div>
+                        <div class="bc-body">
+                            <form id="form-password">
+                                <div class="fg">
+                                    <label class="fl">Senha atual</label>
+                                    <input type="password" name="current_password" class="fi" required placeholder="••••••••">
+                                </div>
+                                <div class="fg">
+                                    <label class="fl">Nova senha</label>
+                                    <input type="password" name="new_password" class="fi" required placeholder="••••••••">
+                                </div>
+                                <div class="btn-row" style="margin-top:14px;">
+                                    <button type="button" class="btn-ghost" id="btn-change-password">
+                                        <i class="bi bi-key-fill"></i> Alterar Senha
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- ── Cabeçalho Personalizado ─────────── -->
+                    <?php if ($team): ?>
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-card-heading"></i></div>
+                            <div>
+                                <div class="bc-title">Cabeçalho Personalizado</div>
+                                <div class="bc-sub">Ao copiar o elenco no dashboard</div>
+                            </div>
+                        </div>
+                        <div class="bc-body">
+                            <label class="toggle-row" for="use-custom-header">
+                                <input type="checkbox" id="use-custom-header"
+                                       <?= !empty($team['use_custom_header']) ? 'checked' : '' ?>>
+                                <span class="toggle-label">Usar cabeçalho personalizado</span>
+                            </label>
+                            <div id="custom-header-box" style="<?= !empty($team['use_custom_header']) ? '' : 'display:none' ?>">
+                                <textarea id="custom-header-input" class="fi" rows="8"
+                                          placeholder="🏀 Meu Time 🏀&#10;#MinhaHashtag&#10;&#10;🏆 2x Campeão&#10;&#10;🧠 GM: Seu Nome"
+                                          style="resize:vertical;line-height:1.6;font-family:monospace;font-size:12px"><?= htmlspecialchars($team['custom_header'] ?? '') ?></textarea>
+                                <div class="fh" style="margin-top:6px">Aparece no início ao copiar o elenco, substituindo o cabeçalho padrão.</div>
+                                <div class="btn-row" style="margin-top:14px;">
+                                    <button type="button" class="btn-red" id="btn-save-header">
+                                        <i class="bi bi-check2-circle"></i> Salvar
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="custom-header-off-msg" style="<?= !empty($team['use_custom_header']) ? 'display:none' : '' ?>">
+                                <p class="fh" style="margin:0">Quando desativado, o cabeçalho padrão exibe <strong>nome do time</strong> e <strong>seu nome</strong>.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                </div><!-- /settings-side -->
+
+            </div><!-- /settings-grid -->
+        </div><!-- /content -->
     </main>
-</div><!-- .app -->
+</div><!-- /app -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/settings.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
-(function(){
-  const tagHints = {
-    'Contending': '🏆 Time pronto para ser campeão — foco total em vencer agora.',
-    'Buying':     '📈 Time competitivo que busca reforços imediatos para subir de nível.',
-    'Selling':    '📦 Time desistindo da temporada atual para trocar veteranos por ativos futuros.',
-    'Rebuilding': '🔧 Time focado em perder e desenvolver jovens para brilhar no futuro.',
-  };
-  const tagSel  = document.getElementById('team-tag-select');
-  const tagHint = document.getElementById('team-tag-hint');
-  function updateTagHint() {
-    const v = tagSel ? tagSel.value : '';
-    if (tagHint) {
-      if (v && tagHints[v]) {
-        tagHint.textContent = tagHints[v];
-        tagHint.style.display = '';
-      } else {
-        tagHint.style.display = 'none';
-      }
-    }
-  }
-  if (tagSel) { tagSel.addEventListener('change', updateTagHint); updateTagHint(); }
-})();
-</script>
-<script>
-  (function(){
-    // Sidebar
+(function () {
+    // Sidebar toggle
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sbOverlay');
-    const btn     = document.getElementById('sidebarToggle');
-    if (!sidebar || !overlay) return;
-    const open  = () => { sidebar.classList.add('open');  overlay.classList.add('show'); };
-    const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
-    if (btn) btn.addEventListener('click', open);
-    overlay.addEventListener('click', close);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    const menuBtn = document.getElementById('menuBtn');
+    if (sidebar && overlay) {
+        const open  = () => { sidebar.classList.add('open');    overlay.classList.add('show'); };
+        const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+        menuBtn  && menuBtn.addEventListener('click', open);
+        overlay.addEventListener('click', close);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    }
 
-    // Theme
+    // Theme toggle
     const key = 'fba-theme';
     const themeBtn = document.querySelector('[data-theme-toggle]');
-    const apply = (t) => {
-      if (t === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>';
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-        if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
-      }
+    const applyTheme = (t) => {
+        if (t === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>';
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            if (themeBtn) themeBtn.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
+        }
     };
-    apply(localStorage.getItem(key) || 'dark');
-    if (themeBtn) themeBtn.addEventListener('click', () => {
-      const next = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
-      localStorage.setItem(key, next); apply(next);
+    applyTheme(localStorage.getItem(key) || 'dark');
+    themeBtn && themeBtn.addEventListener('click', () => {
+        const next = document.documentElement.hasAttribute('data-theme') ? 'dark' : 'light';
+        localStorage.setItem(key, next); applyTheme(next);
     });
-  })();
+
+    // Status tag hint
+    const tagHints = {
+        'Contending': '🏆 Time pronto para ser campeão — foco total em vencer agora.',
+        'Buying':     '📈 Time competitivo que busca reforços imediatos para subir de nível.',
+        'Selling':    '📦 Time desistindo da temporada atual para trocar veteranos por ativos futuros.',
+        'Rebuilding': '🔧 Time focado em perder e desenvolver jovens para brilhar no futuro.',
+    };
+    const tagSel  = document.getElementById('team-tag-select');
+    const tagHint = document.getElementById('team-tag-hint');
+    function updateTagHint() {
+        const v = tagSel ? tagSel.value : '';
+        if (tagHint) {
+            if (v && tagHints[v]) {
+                tagHint.textContent = tagHints[v];
+                tagHint.style.display = '';
+            } else {
+                tagHint.style.display = 'none';
+            }
+        }
+    }
+    tagSel && tagSel.addEventListener('change', updateTagHint);
+    updateTagHint();
+})();
 </script>
 </body>
 </html>
