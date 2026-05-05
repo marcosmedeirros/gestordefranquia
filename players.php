@@ -1017,8 +1017,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						</div>
 					</div>
 				</div>
-				<div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
-					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-'],['Função',player.role||'-']]
+				<div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
+					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
 						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
 				</div>
 				<div style="padding:16px 22px">
