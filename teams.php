@@ -1331,9 +1331,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <?php endif; ?>
 
                     <div class="team-actions">
-                        <button class="btn-action primary" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
-                            <i class="bi bi-eye"></i> Ver
-                        </button>
                         <button class="btn-action info" onclick="openTeamDetail(<?= $t['id'] ?>)">
                             <i class="bi bi-info-circle-fill"></i> Infos
                         </button>
@@ -1413,9 +1410,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <span class="badge-pill gray"><?= (int)($t['punicoes_count'] ?? 0) ?></span>
                     </div>
                     <div class="list-actions">
-                        <button class="btn-action primary" style="flex:initial;padding:0 10px;" onclick="verJogadores(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
-                            <i class="bi bi-eye"></i>
-                        </button>
                         <button class="btn-action info" style="flex:initial;padding:0 10px;" onclick="openTeamDetail(<?= $t['id'] ?>)">
                             <i class="bi bi-info-circle-fill"></i>
                         </button>
@@ -1923,18 +1917,31 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
             const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
 
+            const getPlayerPhoto = (p) => {
+                if (p.foto_adicional && p.foto_adicional.trim()) return p.foto_adicional.trim();
+                if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`;
+                return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
+            };
             const renderSection = (title, players) => {
                 if (!players || !players.length) return '';
                 return `<div style="margin-bottom:14px">
                     <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
-                    ${players.map(p => `
+                    ${players.map(p => {
+                        const photoUrl = getPlayerPhoto(p);
+                        return `
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
-                        <div>
-                            <span style="font-weight:600;font-size:13px">${p.name}</span>
-                            <span style="font-size:11px;color:var(--text-2);margin-left:6px">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</span>
+                        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                            <img src="${photoUrl}" alt="${p.name||''}"
+                                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"
+                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64'">
+                            <div style="min-width:0">
+                                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+                                <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
+                            </div>
                         </div>
-                        <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
-                    </div>`).join('')}
+                        <span style="font-weight:800;color:var(--red);font-size:14px;flex-shrink:0;margin-left:8px">${p.ovr??'-'}</span>
+                    </div>`;
+                    }).join('')}
                 </div>`;
             };
 

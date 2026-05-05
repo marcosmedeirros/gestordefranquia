@@ -457,7 +457,7 @@ if ($method === 'GET') {
         if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
         $tid = (int)$teamRow['id'];
 
-        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role FROM players WHERE team_id = ? ORDER BY ovr DESC');
+        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id FROM players WHERE team_id = ? ORDER BY ovr DESC');
         $stmtP->execute([$tid]);
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
         foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {

@@ -662,7 +662,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<h5 class="modal-title" id="playerDetailsTitle">Detalhes do Jogador</h5>
 				<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
 			</div>
-			<div class="modal-body" id="playerDetailsContent"></div>
+			<div class="modal-body p-0" id="playerDetailsContent"></div>
 		</div>
 	</div>
 </div>
