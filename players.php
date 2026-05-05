@@ -764,7 +764,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · ${teamName}</div>
 				</div>
 				<div class="mpl-right">
-					<span class="badge-ovr ${getOvrClass(ovr)}">${ovr}</span>
+					<div style="text-align:right">
+						<span class="badge-ovr ${getOvrClass(ovr)}">${ovr}</span>
+						${(p.ovr_delta > 0) ? `<div style="font-size:10px;color:#22c55e;font-weight:700;line-height:1.2">+${p.ovr_delta}</div>` : (p.ovr_delta < 0) ? `<div style="font-size:10px;color:#ef4444;font-weight:700;line-height:1.2">${p.ovr_delta}</div>` : ''}
+					</div>
 					<div class="mpl-actions">
 						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
 						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
@@ -867,7 +870,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 										<strong>${p.name}</strong>${franchiseBadgeRow}
 									</div>
 								</td>
-								<td><span class="badge-ovr ${getOvrClass(ovr)}">${p.ovr}</span></td>
+								<td>
+							<span class="badge-ovr ${getOvrClass(ovr)}">${p.ovr}</span>
+							${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}
+						</td>
 								<td>${p.age ?? '-'}</td>
 								<td>${p.position ?? '-'}</td>
 								<td>${p.secondary_position ?? '-'}</td>
@@ -986,6 +992,28 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				`).join('')
 				: '<div class="text-light-gray">Sem historico de OVR registrado.</div>';
 
+			const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
+			const seasonLogHtml = seasonLog.length
+				? seasonLog.map((s, si) => {
+					const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+					const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
+					const yearLabel   = s.year ? ` · ${s.year}` : '';
+					const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || `Temporada ${si+1}`;
+					const delta = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
+					const deltaHtml = delta > 0
+						? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${delta}</span>`
+						: delta < 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${delta}</span>` : '';
+					return `
+					<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
+						<div>
+							<div style="font-size:12px;font-weight:600">${title}</div>
+							<div style="font-size:11px;color:var(--text-2)">${s.team_name || '-'} · ${s.age ?? '-'}a</div>
+						</div>
+						<div style="color:var(--red);font-weight:800;font-size:15px">${s.ovr ?? '-'}${deltaHtml}</div>
+					</div>`;
+				}).join('')
+				: '<div class="text-light-gray">Nenhum snapshot registrado ainda.</div>';
+
 			if (content) {
 				content.innerHTML = `
 					<div class="mb-3">
@@ -1026,6 +1054,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div class="mb-3">
 						<h6>OVR por idade</h6>
 						${ovrHtml}
+					</div>
+					<div class="mb-3">
+						<h6>Evolução por Temporada</h6>
+						${seasonLogHtml}
 					</div>
 				`;
 			}

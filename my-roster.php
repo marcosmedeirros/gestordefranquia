@@ -681,6 +681,19 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
      MODAIS
 ══════════════════════════════════════ -->
 
+<!-- Modal: Detalhes do Jogador -->
+<div class="modal fade" id="playerDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playerDetailsTitle">Detalhes do Jogador</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="playerDetailsContent"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Editar Jogador -->
 <div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">

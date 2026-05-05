@@ -160,6 +160,32 @@ if ($method === 'GET') {
         }
         unset($player);
 
+        // OVR delta: diferença entre as últimas 2 temporadas registradas
+        $playerIds = array_column($players, 'id');
+        if (!empty($playerIds)) {
+            try {
+                $inPh = implode(',', array_fill(0, count($playerIds), '?'));
+                $stmtDelta = $pdo->prepare("
+                    SELECT player_id, ovr, season_id
+                    FROM player_season_log
+                    WHERE player_id IN ($inPh)
+                    ORDER BY player_id ASC, season_id DESC
+                ");
+                $stmtDelta->execute($playerIds);
+                $byPlayer = [];
+                foreach ($stmtDelta->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    $pid = (int)$row['player_id'];
+                    if (!isset($byPlayer[$pid])) $byPlayer[$pid] = [];
+                    if (count($byPlayer[$pid]) < 2) $byPlayer[$pid][] = (int)$row['ovr'];
+                }
+                foreach ($players as &$p) {
+                    $ovrs = $byPlayer[(int)$p['id']] ?? [];
+                    $p['ovr_delta'] = count($ovrs) === 2 ? ($ovrs[0] - $ovrs[1]) : 0;
+                }
+                unset($p);
+            } catch (Exception $e) { /* tabela pode não existir ainda */ }
+        }
+
         jsonResponse(200, [
             'players' => $players,
             'pagination' => [
@@ -345,6 +371,23 @@ if ($method === 'GET') {
 
         appendPhoneFields($player);
 
+        // Histórico por temporada
+        $seasonLog = [];
+        $ovrDelta  = 0;
+        try {
+            $stmtLog = $pdo->prepare("
+                SELECT season_id, season_number, sprint_number, year, team_id, team_name, ovr, age
+                FROM player_season_log WHERE player_id = ? ORDER BY season_id ASC
+            ");
+            $stmtLog->execute([$playerId]);
+            $seasonLog = $stmtLog->fetchAll(PDO::FETCH_ASSOC);
+            if (count($seasonLog) >= 2) {
+                $last = (int)($seasonLog[count($seasonLog)-1]['ovr'] ?? 0);
+                $prev = (int)($seasonLog[count($seasonLog)-2]['ovr'] ?? 0);
+                $ovrDelta = $last - $prev;
+            }
+        } catch (Exception $e) {}
+
         jsonResponse(200, [
             'player' => [
                 'id' => (int)$player['id'],
@@ -361,6 +404,8 @@ if ($method === 'GET') {
             ],
             'transfers' => $transfers,
             'ovr_timeline' => $ovrTimeline,
+            'season_log' => $seasonLog,
+            'ovr_delta' => $ovrDelta,
             'awards' => []
         ]);
     }

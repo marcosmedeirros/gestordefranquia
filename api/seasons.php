@@ -337,6 +337,68 @@ if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'a
     exit;
 }
 
+function ensurePlayerSeasonLogTable(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS player_season_log (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        player_id   INT NOT NULL,
+        player_name VARCHAR(120),
+        league      VARCHAR(20),
+        season_id   INT,
+        season_number INT,
+        sprint_number INT,
+        year        INT,
+        team_id     INT,
+        team_name   VARCHAR(200),
+        ovr         INT,
+        age         INT,
+        position    VARCHAR(20),
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_player_season (player_id, season_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void {
+    ensurePlayerSeasonLogTable($pdo);
+
+    $stmtS = $pdo->prepare("
+        SELECT s.season_number, s.year, sp.sprint_number, sp.start_year
+        FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
+        WHERE s.id = ? LIMIT 1
+    ");
+    $stmtS->execute([$seasonId]);
+    $s = $stmtS->fetch(PDO::FETCH_ASSOC);
+    if (!$s) return;
+
+    $seasonNumber = (int)($s['season_number'] ?? 0);
+    $sprintNumber = (int)($s['sprint_number'] ?? 0);
+    $year         = $s['year'] ?? $s['start_year'] ?? null;
+
+    $stmtP = $pdo->prepare("
+        SELECT p.id AS player_id, p.name AS player_name, p.ovr, p.age, p.position,
+               t.id AS team_id, CONCAT(t.city, ' ', t.name) AS team_name
+        FROM players p JOIN teams t ON p.team_id = t.id
+        WHERE t.league = ?
+    ");
+    $stmtP->execute([$league]);
+    $players = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+    $ins = $pdo->prepare("
+        INSERT INTO player_season_log
+            (player_id, player_name, league, season_id, season_number, sprint_number, year, team_id, team_name, ovr, age, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            team_id=VALUES(team_id), team_name=VALUES(team_name),
+            ovr=VALUES(ovr), age=VALUES(age), position=VALUES(position)
+    ");
+    foreach ($players as $p) {
+        $ins->execute([
+            (int)$p['player_id'], $p['player_name'], $league,
+            $seasonId, $seasonNumber, $sprintNumber, $year,
+            (int)$p['team_id'], $p['team_name'], (int)($p['ovr'] ?? 0), (int)($p['age'] ?? 0), $p['position'] ?? null
+        ]);
+    }
+}
+
 try {
     switch ($action) {
         // ========== DEFINIR CLASSIFICAÇÃO (STANDINGS) E PONTOS DA TEMPORADA REGULAR ==========
@@ -1220,7 +1282,10 @@ try {
             
             // Marcar temporada como completa
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
-            
+
+            // Snapshot automático dos jogadores ao encerrar a temporada
+            snapshotPlayersForSeason($pdo, $seasonId, $league);
+
             $pdo->commit();
             
                 echo json_encode(['success' => true, 'message' => 'Histórico salvo!']);

@@ -459,7 +459,7 @@ function renderPlayersMobileCards(players) {
           </div>
         </div>
         <div class="text-end">
-          <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}</div>
+          <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</div>
           <small class="text-light-gray">${p.age} anos</small>
         </div>
       </div>
@@ -467,6 +467,7 @@ function renderPlayersMobileCards(players) {
         ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
       </div>
       <div class="roster-mobile-actions mt-3">
+        <button class="btn btn-outline-info btn-sm btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
         <button class="btn btn-outline-light btn-sm btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-outline-warning btn-sm btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
         ${canRetire ? `<button class="btn btn-outline-danger btn-sm btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
@@ -509,13 +510,14 @@ function renderPlayersTable(players) {
         </div>
       </td>
       <td>${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</td>
-      <td><span style="color:${getOvrColor(p.ovr)};" class="fw-bold">${p.ovr}</span></td>
+      <td><span style="color:${getOvrColor(p.ovr)};" class="fw-bold">${p.ovr}</span>${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</td>
       <td>${p.age}</td>
       <td>${normalizeRoleKey(p.role)}</td>
       <td>
         ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
       </td>
       <td class="text-end">
+        <button class="btn btn-sm btn-outline-info btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
         <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
         ${canRetire ? `<button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
@@ -756,6 +758,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('players-mobile-cards')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.classList.contains('btn-details-player')) {
+      openPlayerDetails(parseInt(btn.dataset.id, 10));
+      return;
+    }
     if (btn.classList.contains('btn-toggle-trade')) {
       const playerId = btn.dataset.id;
       const currentStatus = (() => {
@@ -769,6 +775,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         alert('Erro ao atualizar: ' + (err.error || 'Desconhecido'));
       }
+      return;
+    }
+    if (btn.classList.contains('btn-details-player')) {
+      openPlayerDetails(parseInt(btn.dataset.id, 10));
       return;
     }
     if (btn.classList.contains('btn-edit-player')) {
@@ -836,6 +846,60 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
     }
   });
+
+  // Detalhes do jogador
+  window.openPlayerDetails = async function(playerId) {
+    const modalEl = document.getElementById('playerDetailsModal');
+    if (!modalEl) return;
+    const content = document.getElementById('playerDetailsContent');
+    const titleEl = document.getElementById('playerDetailsTitle');
+    if (content) content.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="color:var(--red);"></div></div>';
+    if (titleEl) titleEl.textContent = 'Detalhes do Jogador';
+    new bootstrap.Modal(modalEl).show();
+    try {
+      const data = await api(`team.php?action=player_details&player_id=${playerId}`);
+      const player = data.player || {};
+      if (titleEl) titleEl.textContent = player.name || 'Detalhes';
+      const transfers = Array.isArray(data.transfers) ? data.transfers : [];
+      const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
+
+      const transferHtml = transfers.length
+        ? transfers.map(t => `<div class="d-flex flex-column gap-1 border-bottom border-secondary py-2"><div>${t.year||'-'}: ${t.from_team} → ${t.to_team}</div></div>`).join('')
+        : '<div class="text-light-gray">Nenhuma trade encontrada.</div>';
+
+      const seasonLogHtml = seasonLog.length
+        ? seasonLog.map((s, si) => {
+            const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
+            const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
+            const yearLabel   = s.year ? ` · ${s.year}` : '';
+            const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || `Temporada ${si+1}`;
+            const delta = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
+            const deltaHtml = delta > 0
+              ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${delta}</span>`
+              : delta < 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${delta}</span>` : '';
+            return `<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
+              <div><div style="font-size:12px;font-weight:600">${title}</div><div style="font-size:11px;color:#8c8c98">${s.team_name||'-'} · ${s.age??'-'}a</div></div>
+              <div style="color:#fc0025;font-weight:800;font-size:15px">${s.ovr??'-'}${deltaHtml}</div>
+            </div>`;
+          }).join('')
+        : '<div class="text-light-gray">Nenhum snapshot registrado ainda.</div>';
+
+      if (content) {
+        content.innerHTML = `
+          <div class="mb-3"><div class="text-light-gray">Time atual</div><div style="font-weight:700">${player.team_name||'-'}</div></div>
+          <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">OVR</div><div style="color:var(--red);font-weight:700">${player.ovr??'-'}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Idade</div><div style="font-weight:700">${player.age??'-'}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Posição</div><div style="font-weight:700">${player.position??'-'}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card-mini text-center"><div class="text-light-gray small">Pos. Sec.</div><div style="font-weight:700">${player.secondary_position||'-'}</div></div></div>
+          </div>
+          <div class="mb-3"><h6>Evolução por Temporada</h6>${seasonLogHtml}</div>
+          <div class="mb-3"><h6>Transferências</h6>${transferHtml}</div>`;
+      }
+    } catch (err) {
+      if (content) content.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes.</div>';
+    }
+  };
 
   document.getElementById('btn-confirm-waive')?.addEventListener('click', async () => {
     const modalEl = document.getElementById('waivePlayerModal');
