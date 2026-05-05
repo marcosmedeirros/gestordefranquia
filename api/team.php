@@ -600,6 +600,23 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $body = readJsonBody();
+
+    // ── save_ai_tag: IA auto-classifica o time ──────────────────────────────
+    if (($body['action'] ?? '') === 'save_ai_tag') {
+        $user = getUserSession();
+        if (!$user) jsonResponse(401, ['error' => 'Sessão expirada.']);
+        $validTags = ['Contending', 'Buying', 'Selling', 'Rebuilding'];
+        $tag = $body['tag'] ?? null;
+        if (!$tag || !in_array($tag, $validTags, true)) jsonResponse(400, ['error' => 'Tag inválida.']);
+        $season = isset($body['season']) ? (int)$body['season'] : 0;
+        // auto-migrate columns
+        try { $pdo->exec("ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_tag_source VARCHAR(10) NULL DEFAULT NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_tag_ai_season INT NULL DEFAULT NULL"); } catch (Exception $e) {}
+        $stmt = $pdo->prepare("UPDATE teams SET team_tag = ?, team_tag_source = 'ai', team_tag_ai_season = ? WHERE user_id = ?");
+        $stmt->execute([$tag, $season, $user['id']]);
+        jsonResponse(200, ['success' => true, 'tag' => $tag]);
+    }
+
     $name = trim($body['name'] ?? '');
     $city = trim($body['city'] ?? '');
     $mascot = trim($body['mascot'] ?? '');

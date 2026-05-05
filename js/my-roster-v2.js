@@ -53,6 +53,73 @@ function normalizeRoleKey(role) {
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
 const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
+// ── Scout IA ─────────────────────────────────────────────────────────────────
+const SCOUT_CONFIG = {
+  THRESHOLDS: { STARTER_ELITE: 86, PLAYOFF_CONTENDER: 82, REBUILD_CEILING: 78, FRANCHISE_PLAYER: 89, WEAK_STARTER: 80 },
+  AGE: { VETERAN: 33, YOUNG_PROSPECT: 23, YOUNG_TEAM_AVG: 25 }
+};
+
+const TAG_META = {
+  Contending: { label: '🏆 Contending', color: '#10b981', bg: 'rgba(16,185,129,.12)', desc: 'Time candidato ao título. Janela de contenda aberta.' },
+  Buying:     { label: '📈 Buying',     color: '#3b82f6', bg: 'rgba(59,130,246,.12)', desc: 'Time competitivo buscando reforços para disputar o playoff.' },
+  Selling:    { label: '📦 Selling',    color: '#f97316', bg: 'rgba(249,115,22,.12)', desc: 'Time em transição — trocando veteranos por futuro.' },
+  Rebuilding: { label: '🔧 Rebuilding', color: '#64748b', bg: 'rgba(100,116,139,.12)', desc: 'Time em reconstrução. Foco no desenvolvimento jovem.' },
+};
+
+function computeAiTag(players) {
+  if (!players || players.length < 5) return null;
+  const top8 = [...players].sort((a, b) => Number(b.ovr) - Number(a.ovr)).slice(0, 8);
+  const avgOvr = top8.reduce((s, p) => s + Number(p.ovr), 0) / top8.length;
+  const avgAge = players.reduce((s, p) => s + Number(p.age || 25), 0) / players.length;
+  const hasFranchise = players.some(p => Number(p.ovr) >= SCOUT_CONFIG.THRESHOLDS.FRANCHISE_PLAYER);
+  const youngCount = players.filter(p => Number(p.age || 99) <= SCOUT_CONFIG.AGE.YOUNG_PROSPECT).length;
+
+  if (avgOvr >= SCOUT_CONFIG.THRESHOLDS.STARTER_ELITE && hasFranchise) return 'Contending';
+  if (avgOvr >= SCOUT_CONFIG.THRESHOLDS.PLAYOFF_CONTENDER) return 'Buying';
+  if (avgAge >= SCOUT_CONFIG.AGE.VETERAN - 2 || (youngCount < 2 && avgOvr < SCOUT_CONFIG.THRESHOLDS.REBUILD_CEILING + 2)) return 'Rebuilding';
+  return 'Selling';
+}
+
+function renderTeamTag(tag) {
+  const bar = document.getElementById('franchise-tag-bar');
+  if (!bar) return;
+  if (!tag || !TAG_META[tag]) { bar.style.display = 'none'; return; }
+  const m = TAG_META[tag];
+  bar.style.display = 'block';
+  bar.innerHTML = `
+    <div style="display:inline-flex;align-items:center;gap:10px;background:${m.bg};border:1px solid ${m.color}44;border-radius:10px;padding:10px 16px;">
+      <span style="font-size:15px;font-weight:800;color:${m.color}">${m.label}</span>
+      <span style="font-size:12px;color:var(--text-2)">${m.desc}</span>
+      <span style="font-size:10px;color:var(--text-3);margin-left:4px;">· IA</span>
+    </div>`;
+}
+
+async function checkAndApplyAiTag() {
+  const teamId = window.__TEAM_ID__;
+  if (!teamId || allPlayers.length < 5) return;
+
+  const aiTag = computeAiTag(allPlayers);
+  if (!aiTag) return;
+
+  const currentSeason = window.__CURRENT_SEASON__ || 1;
+  const lastAiSeason = window.__TEAM_TAG_AI_SEASON__;
+  const shouldApply = lastAiSeason == null || (currentSeason - lastAiSeason) >= 2;
+
+  if (shouldApply) {
+    try {
+      await fetch('/api/team.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save_ai_tag', tag: aiTag, season: currentSeason }),
+      });
+      window.__TEAM_TAG__ = aiTag;
+      window.__TEAM_TAG_AI_SEASON__ = currentSeason;
+    } catch (e) {}
+  }
+
+  renderTeamTag(window.__TEAM_TAG__ || aiTag);
+}
+
 let allPlayers = [];
 let currentSort = { field: 'role', ascending: true };
 let currentSearch = '';
@@ -156,6 +223,34 @@ function generateAIAnalysis() {
     const weaknessesEl = document.getElementById('ai-weaknesses');
     if (strengthsEl) strengthsEl.innerHTML = strengthsHtml;
     if (weaknessesEl) weaknessesEl.innerHTML = weaknessesHtml;
+
+    // Card de status da franquia
+    const aiTag = computeAiTag(allPlayers);
+    const statusContainer = document.getElementById('ai-status-container');
+    if (statusContainer && aiTag && TAG_META[aiTag]) {
+      const m = TAG_META[aiTag];
+      const top8 = [...allPlayers].sort((a,b)=>Number(b.ovr)-Number(a.ovr)).slice(0,8);
+      const avgOvr = (top8.reduce((s,p)=>s+Number(p.ovr),0)/top8.length).toFixed(1);
+      const avgAge = (allPlayers.reduce((s,p)=>s+Number(p.age||25),0)/allPlayers.length).toFixed(1);
+      statusContainer.innerHTML = `
+        <div style="background:${m.bg};border:1px solid ${m.color}55;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:180px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Status da Franquia · IA</div>
+            <div style="font-size:20px;font-weight:800;color:${m.color}">${m.label}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:3px;">${m.desc}</div>
+          </div>
+          <div style="display:flex;gap:20px;flex-shrink:0;">
+            <div style="text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:${m.color}">${avgOvr}</div>
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">OVR Médio</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:var(--text)">${avgAge}</div>
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Idade Média</div>
+            </div>
+          </div>
+        </div>`;
+    }
 
     if (loadingEl) loadingEl.style.display = 'none';
     if (resultsEl) resultsEl.style.display = 'block';
@@ -585,6 +680,7 @@ async function loadPlayers() {
     currentSort = { field: 'role', ascending: true };
     renderPlayers(allPlayers);
     if (statusEl) statusEl.style.display = 'none';
+    checkAndApplyAiTag();
   } catch (err) {
     console.error('Erro ao carregar:', err);
     if (statusEl) {

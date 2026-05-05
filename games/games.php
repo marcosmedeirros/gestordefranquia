@@ -412,8 +412,8 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     */ ?>
     <?php /* OCULTO PROVISORIAMENTE
     <a href="games/index.php?game=boxnba"      class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
-    <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
     */ ?>
+    <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
     <a href="games/index.php?game=quemsoueu"   class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🤔</span><div class="game-title">Quem Sou Eu?</div><div class="game-sub">Diário · NBA</div></a>
     <a href="games/index.php?game=bomba"       class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Diamantes</div></a>
   </div>

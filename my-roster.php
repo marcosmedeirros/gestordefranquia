@@ -487,6 +487,9 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         </div>
         <?php else: ?>
 
+        <!-- Tag da franquia (definida pela IA) -->
+        <div id="franchise-tag-bar" style="display:none;margin-bottom:18px;"></div>
+
         <!-- Stats strip -->
         <div class="stats-strip">
             <div class="stat-pill">
@@ -797,7 +800,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 <!-- Modal: Análise IA -->
 <div class="modal fade" id="aiAnalysisModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content" style="border-color:rgba(13,202,240,.3) !important;">
+        <div class="modal-content" style="border-color:rgba(13,202,240,.3) !important; background-color:var(--panel);">
             <div class="modal-header" style="background:rgba(13,202,240,.12);border-bottom-color:rgba(13,202,240,.2) !important;">
                 <h5 class="modal-title" style="color:#0dcaf0;"><i class="bi bi-robot me-2"></i>Relatório do Assistente Técnico</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -806,13 +809,24 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <div id="ai-loading" class="text-center py-5">
                     <div class="spinner-border" role="status" style="width:3rem;height:3rem;color:#0dcaf0 !important;"></div>
                     <h5 style="color:var(--text);margin-top:16px;font-size:16px;">A IA está analisando seu elenco…</h5>
-                    <p style="color:var(--text-2);font-size:13px;">Avaliando idades, OVR e equilíbrio tático das posições…</p>
+                    <p style="color:var(--text-2);font-size:13px;">Avaliando médias de OVR, teto salarial e potencial dos jovens…</p>
                 </div>
                 <div id="ai-results" style="display:none;">
-                    <h6 style="color:#25c677;font-weight:700;margin-bottom:10px;"><i class="bi bi-arrow-up-circle me-1"></i>Pontos Fortes</h6>
-                    <ul id="ai-strengths" style="color:var(--text);font-size:14px;margin-bottom:24px;padding-left:20px;"></ul>
-                    <h6 style="color:var(--red);font-weight:700;margin-bottom:10px;"><i class="bi bi-arrow-down-circle me-1"></i>Pontos de Atenção</h6>
-                    <ul id="ai-weaknesses" style="color:var(--text);font-size:14px;padding-left:20px;"></ul>
+                    <div id="ai-status-container" style="margin-bottom:20px;"></div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 style="color:#25c677;font-weight:700;margin-bottom:10px;">
+                                <i class="bi bi-arrow-up-circle me-1"></i>Pontos Fortes
+                            </h6>
+                            <ul id="ai-strengths" style="color:var(--text);font-size:14px;margin-bottom:24px;padding-left:20px;"></ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 style="color:var(--red);font-weight:700;margin-bottom:10px;">
+                                <i class="bi bi-arrow-down-circle me-1"></i>Pontos de Atenção
+                            </h6>
+                            <ul id="ai-weaknesses" style="color:var(--text);font-size:14px;padding-left:20px;"></ul>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" style="border-top-color:rgba(13,202,240,.2) !important;">
@@ -832,6 +846,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
     window.__CAP_MAX__ = <?= (int)$capMax ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
+    window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
+    window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;
+    window.__TEAM_TAG_AI_SEASON__ = <?= json_encode(isset($team['team_tag_ai_season']) ? (int)$team['team_tag_ai_season'] : null) ?>;
+    window.__CURRENT_SEASON__ = <?= json_encode($currentSeason ? (int)$currentSeason['season_number'] : 1) ?>;
 
     /* ── Tema ─────────────────────────── */
     const themeKey = 'fba-theme';
