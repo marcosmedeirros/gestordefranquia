@@ -764,6 +764,26 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                             <label class="form-check-label" for="edit-available">Disponível para troca</label>
                         </div>
                     </div>
+                    <div style="grid-column: span 12; border-top: 1px solid var(--border); padding-top:14px; margin-top:4px;">
+                        <div style="font-size:11px;color:var(--text-2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">Tag do Jogador</div>
+                        <div class="fgrid" style="gap:10px;">
+                            <div class="field" style="grid-column: span 6;">
+                                <label for="edit-tag">Texto da tag <span style="color:var(--text-3);font-size:10px;">(máx 25 chars)</span></label>
+                                <input type="text" id="edit-tag" maxlength="25" placeholder="Ex: Veteran Leader">
+                            </div>
+                            <div class="field" style="grid-column: span 2;">
+                                <label for="edit-tag-color">Cor</label>
+                                <input type="color" id="edit-tag-color" value="#3b82f6"
+                                       style="height:42px;width:100%;padding:4px 6px;border-radius:10px;background:var(--panel-2);border:1px solid var(--border);cursor:pointer;">
+                            </div>
+                            <div style="grid-column: span 4; display:flex; align-items:center; gap:10px; padding-top:22px;">
+                                <div class="form-check" style="margin:0;">
+                                    <input class="form-check-input" type="checkbox" id="edit-tag-copy">
+                                    <label class="form-check-label" for="edit-tag-copy">Incluir na cópia do time</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" style="gap:10px;">
@@ -891,6 +911,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260505"></script>
+<script src="/js/my-roster-v2.js?v=20260506"></script>
 </body>
 </html>

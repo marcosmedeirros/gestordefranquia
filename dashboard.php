@@ -164,9 +164,15 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     $seasonDisplayYear = (int)$currentSeason['year'];
 }
 
-$stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
-$stmtAllPlayers->execute([$team['id']]);
-$allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age, player_tag, player_tag_color, player_tag_copy FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+    $stmtAllPlayers->execute([$team['id']]);
+    $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $stmtAllPlayers = $pdo->prepare("SELECT id, name, position, role, ovr, age FROM players WHERE team_id = ? ORDER BY ovr DESC, name ASC");
+    $stmtAllPlayers->execute([$team['id']]);
+    $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
+}
 
 $stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name AS team_name, p.original_team_id, p.team_id FROM picks p JOIN teams orig ON p.original_team_id = orig.id WHERE p.team_id = ? ORDER BY p.season_year ASC, p.round ASC");
 $stmtPicks->execute([$team['id']]);
@@ -1418,7 +1424,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const startersMap = {};
         positions.forEach(p => startersMap[p] = null);
         const fmt = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
-        const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
+        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` [${p.player_tag}]` : '';
+        const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtTag(p)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtTag(p)}`;
 
         rosterData.filter(p => p.role === 'Titular').forEach(p => { if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p; });
         const bench   = rosterData.filter(p => p.role === 'Banco');
@@ -1434,9 +1442,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         return [
             ...headerLines, '',
             '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '',
-            '_Bench_', ...(bench.length ? bench.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
-            '_Others_', ...(others.length ? others.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
-            '_G-League_', ...(gleague.length ? gleague.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
+            '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), '',
+            '_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '',
+            '_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '',
             '_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '',
             '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '',
             `_CAP_: ${teamMeta.capMin} / *${teamMeta.cap}* / ${teamMeta.capMax}`,

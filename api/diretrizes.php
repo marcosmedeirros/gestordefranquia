@@ -611,7 +611,8 @@ if ($method === 'POST') {
                             rotation_style = ?, game_style = ?, offense_style = ?,
                             rotation_players = ?, veteran_focus = ?,
                             gleague_1_id = ?, gleague_2_id = ?,
-                            notes = ?, technical_model = ?, technical_model_changed = ?, playbook = ?, updated_at = NOW()
+                            notes = ?, technical_model = ?, technical_model_changed = ?, playbook = ?,
+                            admin_accepted = 0, updated_at = NOW()
                         WHERE id = ?
                     ");
                     $stmt->execute([

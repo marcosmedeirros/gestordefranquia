@@ -754,13 +754,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			&& Number(p.ovr) >= 90;
 	}
 
+	function renderPlayerTagBadge(p) {
+		if (!p.player_tag) return '';
+		const color = p.player_tag_color || '#3b82f6';
+		return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
+	}
+
 	function renderPlayerListItem(p, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆</span>' : '';
+		const tagBadge = renderPlayerTagBadge(p);
 		return `
 			<div class="mpl-item">
 				<div class="mpl-main">
-					<div class="mpl-name">${p.name}${franchiseBadge}</div>
+					<div class="mpl-name">${p.name}${franchiseBadge}${tagBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · ${teamName}</div>
 				</div>
 				<div class="mpl-right">
@@ -782,13 +789,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		const photoUrl = getPlayerPhotoUrl(p);
 		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
 		const franchiseClass = isFranchiseEligible(p) ? ' franchise-player-card' : '';
+		const tagBadgeCard = renderPlayerTagBadge(p);
 		return `
 			<div class="player-card${franchiseClass}">
 				<div class="player-card-header">
 					<div class="d-flex align-items-center gap-2">
 						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
 						<div>
-							<div class="player-card-name">${p.name}${franchiseBadge}</div>
+							<div class="player-card-name">${p.name}${franchiseBadge}${tagBadgeCard}</div>
 							<div class="player-card-team">${teamName}</div>
 						</div>
 					</div>
@@ -862,12 +870,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						const photoUrl = getPlayerPhotoUrl(p);
 						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : '';
 						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
+						const tagBadgeRow = renderPlayerTagBadge(p);
 						tableBody.innerHTML += `
 							<tr${franchiseRow}>
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
-										<strong>${p.name}</strong>${franchiseBadgeRow}
+										<strong>${p.name}</strong>${franchiseBadgeRow}${tagBadgeRow}
 									</div>
 								</td>
 								<td>

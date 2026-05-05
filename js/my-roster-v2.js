@@ -82,6 +82,12 @@ function computeAiTag(players) {
   return 'Selling';
 }
 
+function renderPlayerTagBadge(p) {
+  if (!p.player_tag) return '';
+  const color = p.player_tag_color || '#3b82f6';
+  return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
+}
+
 function renderTeamTag(tag) {
   const bar = document.getElementById('franchise-tag-bar');
   if (!bar) return;
@@ -453,6 +459,7 @@ function renderPlayers(players) {
         const ovrColor = getOvrColor(p.ovr);
         const photoUrl = getPlayerPhotoUrl(p);
         const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
+        const tagBadgeStarter = renderPlayerTagBadge(p);
         const col = document.createElement('div');
         col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
@@ -465,7 +472,7 @@ function renderPlayers(players) {
               <h6 class="text-white mb-1 fw-bold" style="font-size: 1.05rem;">${p.name}</h6>
               <div class="d-flex justify-content-center gap-2 flex-wrap small">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                ${loyalBadge}
+                ${loyalBadge}${tagBadgeStarter}
               </div>
             </div>
             <div class="text-center">
@@ -493,11 +500,12 @@ function renderPlayers(players) {
       bench.forEach(p => {
         const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
         const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : '';
+        const tagBadgeBench = renderPlayerTagBadge(p);
         const li = document.createElement('li');
         li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0'
           + (isFranchiseEligible(p) ? ' franchise-player-li' : '');
         li.innerHTML = `
-          <span>${p.name} ${loyalBadge}${franchiseBadge} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span>${p.name} ${loyalBadge}${franchiseBadge}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -543,6 +551,7 @@ function renderPlayersMobileCards(players) {
     const photoUrl = getPlayerPhotoUrl(p);
     const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge">🏆 Franquia</span>' : '';
+    const tagBadgeMobile = renderPlayerTagBadge(p);
     const card = document.createElement('div');
     card.className = 'roster-mobile-card' + (isFranchiseEligible(p) ? ' franchise-player-card' : '');
     card.innerHTML = `
@@ -552,7 +561,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="text-white fw-bold">${p.name} ${loyalBadge}${franchiseBadge}</div>
+            <div class="text-white fw-bold">${p.name} ${loyalBadge}${franchiseBadge}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -593,6 +602,7 @@ function renderPlayersTable(players) {
     const photoUrl = getPlayerPhotoUrl(p);
     const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '';
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : '';
+    const tagBadge = renderPlayerTagBadge(p);
     const tr = document.createElement('tr');
     if (isFranchiseEligible(p)) tr.classList.add('franchise-player-row');
     tr.innerHTML = `
@@ -602,7 +612,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold">${p.name} ${loyalBadge}${franchiseBadge}</span>
+            <span class="fw-semibold">${p.name} ${loyalBadge}${franchiseBadge}${tagBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
@@ -832,6 +842,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
+        const editTagEl = document.getElementById('edit-tag');
+        if (editTagEl) editTagEl.value = player.player_tag || '';
+        const editTagColorEl = document.getElementById('edit-tag-color');
+        if (editTagColorEl) editTagColorEl.value = player.player_tag_color || '#3b82f6';
+        const editTagCopyEl = document.getElementById('edit-tag-copy');
+        if (editTagCopyEl) editTagCopyEl.checked = !!Number(player.player_tag_copy);
         new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
       }
       return;
@@ -901,6 +917,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
+        const editTagEl = document.getElementById('edit-tag');
+        if (editTagEl) editTagEl.value = player.player_tag || '';
+        const editTagColorEl = document.getElementById('edit-tag-color');
+        if (editTagColorEl) editTagColorEl.value = player.player_tag_color || '#3b82f6';
+        const editTagCopyEl = document.getElementById('edit-tag-copy');
+        if (editTagCopyEl) editTagCopyEl.checked = !!Number(player.player_tag_copy);
         new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
       }
       return;
@@ -928,6 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Salvar edição
   document.getElementById('btn-save-edit')?.addEventListener('click', async () => {
+    const tagVal = (document.getElementById('edit-tag')?.value || '').trim().slice(0, 25);
     const data = {
       id: document.getElementById('edit-player-id').value,
       name: document.getElementById('edit-name').value,
@@ -936,7 +959,10 @@ document.addEventListener('DOMContentLoaded', () => {
       secondary_position: document.getElementById('edit-secondary-position').value || null,
       ovr: document.getElementById('edit-ovr').value,
       role: document.getElementById('edit-role').value,
-      available_for_trade: document.getElementById('edit-available').checked ? 1 : 0
+      available_for_trade: document.getElementById('edit-available').checked ? 1 : 0,
+      player_tag: tagVal || null,
+      player_tag_color: tagVal ? (document.getElementById('edit-tag-color')?.value || '#3b82f6') : null,
+      player_tag_copy: (document.getElementById('edit-tag-copy')?.checked && tagVal) ? 1 : 0,
     };
     if (editPhotoFile) {
       data.foto_adicional = await convertToBase64(editPhotoFile);

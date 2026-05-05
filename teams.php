@@ -1724,11 +1724,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     const photo = (p.foto_adicional || '').trim()
                         || (p.nba_player_id ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
                             : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=fc0025&rounded=true&bold=true`);
+                    const tagHtml = p.player_tag ? (() => { const c = p.player_tag_color || '#3b82f6'; return `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${c}55;background:${c}18;color:${c};margin-left:5px;">${p.player_tag}</span>`; })() : '';
                     tbody.innerHTML += `<tr>
                         <td><div style="display:flex;align-items:center;gap:10px">
                             <img src="${photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-strong)"
                                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=fc0025&rounded=true&bold=true'">
-                            <strong>${p.name}</strong>
+                            <strong>${p.name}</strong>${tagHtml}
                         </div></td>
                         <td><span class="badge-pill yellow">${p.ovr}</span></td>
                         <td>${p.age}</td>

@@ -140,18 +140,36 @@ if ($method === 'GET') {
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        $stmt = $pdo->prepare("
-                 SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
-                   p.was_traded, p.drafted_by_team_id,
-                   t.id as team_id, t.city, t.name as team_name, t.league,
-                   u.phone as owner_phone
-            FROM players p
-            JOIN teams t ON p.team_id = t.id
-            JOIN users u ON t.user_id = u.id
-            WHERE {$where}
-            ORDER BY p.ovr DESC, p.name ASC
-            LIMIT {$perPage} OFFSET {$offset}
-        ");
+        try {
+            $stmt = $pdo->prepare("
+                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                  p.was_traded, p.drafted_by_team_id,
+                  COALESCE(p.player_tag, NULL) as player_tag,
+                  COALESCE(p.player_tag_color, NULL) as player_tag_color,
+                  COALESCE(p.player_tag_copy, 0) as player_tag_copy,
+                  t.id as team_id, t.city, t.name as team_name, t.league,
+                  u.phone as owner_phone
+                FROM players p
+                JOIN teams t ON p.team_id = t.id
+                JOIN users u ON t.user_id = u.id
+                WHERE {$where}
+                ORDER BY p.ovr DESC, p.name ASC
+                LIMIT {$perPage} OFFSET {$offset}
+            ");
+        } catch (Exception $e) {
+            $stmt = $pdo->prepare("
+                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                  p.was_traded, p.drafted_by_team_id,
+                  t.id as team_id, t.city, t.name as team_name, t.league,
+                  u.phone as owner_phone
+                FROM players p
+                JOIN teams t ON p.team_id = t.id
+                JOIN users u ON t.user_id = u.id
+                WHERE {$where}
+                ORDER BY p.ovr DESC, p.name ASC
+                LIMIT {$perPage} OFFSET {$offset}
+            ");
+        }
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

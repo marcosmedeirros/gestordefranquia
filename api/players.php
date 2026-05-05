@@ -337,6 +337,15 @@ if ($method === 'PUT') {
     if ($hasFotoAdicionalField && $fotoAdicional === '') {
         $fotoAdicional = null;
     }
+    $playerTag = array_key_exists('player_tag', $body)
+        ? (substr(trim((string)$body['player_tag']), 0, 25) ?: null)
+        : ($player['player_tag'] ?? null);
+    $playerTagColor = array_key_exists('player_tag_color', $body)
+        ? (trim((string)$body['player_tag_color']) ?: null)
+        : ($player['player_tag_color'] ?? null);
+    $playerTagCopy = isset($body['player_tag_copy'])
+        ? (int)((bool)$body['player_tag_copy'])
+        : (int)($player['player_tag_copy'] ?? 0);
 
     if ($hasFotoAdicionalField && $fotoAdicional && str_starts_with($fotoAdicional, 'data:image/')) {
         try {
@@ -405,16 +414,26 @@ if ($method === 'PUT') {
     try {
         $checkCol = $pdo->query("SHOW COLUMNS FROM players LIKE 'secondary_position'");
         $hasSecondaryPosition = $checkCol->rowCount() > 0;
-        
+
         $checkCol2 = $pdo->query("SHOW COLUMNS FROM players LIKE 'seasons_in_league'");
         $hasSeasonsInLeague = $checkCol2->rowCount() > 0;
 
         $checkCol3 = $pdo->query("SHOW COLUMNS FROM players LIKE 'foto_adicional'");
         $hasFotoAdicional = $checkCol3->rowCount() > 0;
+
+        $checkCol4 = $pdo->query("SHOW COLUMNS FROM players LIKE 'player_tag'");
+        $hasPlayerTag = $checkCol4->rowCount() > 0;
+        if (!$hasPlayerTag) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN player_tag VARCHAR(25) NULL DEFAULT NULL");
+            $pdo->exec("ALTER TABLE players ADD COLUMN player_tag_color VARCHAR(7) NULL DEFAULT NULL");
+            $pdo->exec("ALTER TABLE players ADD COLUMN player_tag_copy TINYINT(1) NOT NULL DEFAULT 0");
+            $hasPlayerTag = true;
+        }
     } catch (Exception $e) {
         $hasSecondaryPosition = false;
         $hasSeasonsInLeague = false;
         $hasFotoAdicional = false;
+        $hasPlayerTag = false;
     }
 
     // Construir UPDATE dinamicamente
@@ -434,6 +453,11 @@ if ($method === 'PUT') {
     }
     if ($hasFotoAdicional && $hasFotoAdicionalField) {
         $fields['foto_adicional'] = $fotoAdicional;
+    }
+    if ($hasPlayerTag) {
+        $fields['player_tag']       = $playerTag;
+        $fields['player_tag_color'] = $playerTagColor;
+        $fields['player_tag_copy']  = $playerTagCopy;
     }
 
     $setClause = implode(', ', array_map(fn($col) => $col . ' = ?', array_keys($fields)));
