@@ -54,6 +54,14 @@ $awardLabels = [
     'conf_champ_oeste'  => 'Conf. Oeste',
 ];
 
+function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?string {
+    if ($avgOvr === null || $avgOvr < 1) return null;
+    if ($avgOvr >= 86 && ($maxOvr ?? 0) >= 89) return 'Contending';
+    if ($avgOvr >= 82) return 'Buying';
+    if (($avgAge ?? 25) >= 31 || $avgOvr < 78) return 'Rebuilding';
+    return 'Selling';
+}
+
 $leagueOrder = ['ELITE', 'NEXT', 'RISE'];
 $leagueMeta  = [
     'ELITE' => ['color' => '#f59e0b', 'icon' => 'bi-trophy-fill',       'label' => 'Liga Elite'],
@@ -90,8 +98,11 @@ foreach ($leagueOrder as $league) {
     $teams = [];
     try {
         $s = $pdo->prepare("
-            SELECT t.id, t.city, t.name, t.photo_url AS team_photo,
-                   u.name AS owner_name
+            SELECT t.id, t.city, t.name, t.photo_url AS team_photo, t.team_tag,
+                   u.name AS owner_name,
+                   (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_avg_ovr,
+                   (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_max_ovr,
+                   (SELECT AVG(p.age) FROM players p WHERE p.team_id = t.id) AS avg_age
             FROM teams t
             INNER JOIN users u ON u.id = t.user_id
             WHERE t.league = ?
@@ -849,7 +860,24 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                              alt="<?= htmlspecialchars($t['name']) ?>"
                              onerror="this.src='/img/default-team.png'">
                         <div class="team-info">
-                            <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                <?php
+                                $tagColors  = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
+                                $tagLabels  = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                $rawMfTag   = $t['team_tag'] ?? null;
+                                if (!$rawMfTag) $rawMfTag = computeAiTagPHP(
+                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
+                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
+                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
+                                );
+                                $mfTag = strtolower($rawMfTag ?? '');
+                                if ($mfTag && isset($tagColors[$mfTag])):
+                                    $tc = $tagColors[$mfTag];
+                                ?>
+                                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid <?= $tc ?>;color:<?= $tc ?>;background:<?= $tc ?>22;white-space:nowrap"><?= $tagLabels[$mfTag] ?></span>
+                                <?php endif; ?>
+                            </div>
                             <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
                         </div>
                         <div class="team-cap">
