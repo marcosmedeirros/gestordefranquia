@@ -518,10 +518,14 @@ function setupLeaguePlayerSearch(league) {
         return;
       }
       const html = players.map(p => {
-        const ovr = p.ovr !== null && p.ovr !== undefined ? p.ovr : '-';
+        const ovr = p.ovr != null ? p.ovr : '-';
+        const age = p.age != null ? p.age : '-';
         return `<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
-  <div class="text-white"><strong>${p.name}</strong> <small class="text-light-gray">(${p.position || '-'}, OVR ${ovr})</small></div>
-  <div class="text-light-gray">${p.team_city || ''} ${p.team_name || ''}</div>
+  <div>
+    <div class="text-white fw-semibold">${p.name}</div>
+    <div class="text-light-gray" style="font-size:12px">OVR ${ovr} · ${age} anos · ${p.position || '-'}</div>
+  </div>
+  <div class="text-light-gray" style="font-size:12px">${p.team_city || ''} ${p.team_name || ''}</div>
 </div>`;
       }).join('');
       results.innerHTML = html;
@@ -1958,10 +1962,8 @@ async function viewDirectives(deadlineId, league) {
           ${directives.length === 0 ? 
             `${debugInfo}${fallbackNotice}<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>` :
             directives.map(d => {
-              const updatedAt = d.updated_at || null;
               const submittedAt = d.submitted_at || d.created_at || null;
-              const isEdited = !!(updatedAt && submittedAt && new Date(updatedAt).getTime() > new Date(submittedAt).getTime());
-              const isAccepted = !isEdited && Number(d.admin_accepted || 0) === 1;
+              const isAccepted = Number(d.admin_accepted || 0) === 1;
               const pm = normalizeDirectiveMinutes(d.player_minutes);
               const playerInfo = normalizeDirectivePlayerInfo(d.player_info);
               const isManualRotation = d.rotation_style === 'manual';
@@ -2079,13 +2081,13 @@ async function viewDirectives(deadlineId, league) {
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
                     <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
-                    <small class="text-light-gray">Enviado em ${formatDirectiveTimestamp(submittedAt || d.submitted_at)}${isEdited ? ' • EDITADO' : ''}</small>
+                    <small class="text-light-gray">Enviado em ${formatDirectiveTimestamp(submittedAt || d.submitted_at)}</small>
                   </div>
                   <div class="d-flex align-items-center gap-2">
-                    ${!isEdited ? `<div class="form-check form-switch m-0">
+                    <div class="form-check form-switch m-0">
                       <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminDirectiveAccept(${d.id}, this.checked)">
-                      <label class="form-check-label text-light-gray">Aceita</label>
-                    </div>` : ''}
+                      <label class="form-check-label text-light-gray">Foi pro jogo</label>
+                    </div>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
                       <i class="bi bi-trash"></i> Excluir
                     </button>

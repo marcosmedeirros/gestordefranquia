@@ -719,17 +719,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <h1 class="hero-title">Draft</h1>
         <p class="hero-sub">Ordem de seleção de jogadores da liga</p>
       </div>
-      <?php if ($isAdmin): ?>
       <div class="hero-actions">
+        <?php if ($isAdmin): ?>
         <button class="btn-ghost" onclick="openAddDraftPlayerModal()">
           <i class="bi bi-person-plus"></i> Adicionar jogador
         </button>
+        <?php endif; ?>
         <button class="btn-ghost" onclick="toggleHistoryView()">
           <i class="bi bi-clock-history"></i>
           <span id="viewToggleText">Ver Histórico</span>
         </button>
       </div>
-      <?php endif; ?>
     </div>
 
     <div class="content">
@@ -745,8 +745,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       </div>
 
       <!-- View do Histórico de Drafts (oculta por padrão) -->
-      <?php if ($isAdmin): ?>
       <div id="historyView" style="display: none;">
+        <?php if ($isAdmin): ?>
         <div class="league-sel-bar">
           <span class="league-sel-label"><i class="bi bi-funnel" style="color:var(--red)"></i> Liga:</span>
           <select id="leagueSelector" class="field-input" style="max-width:200px" onchange="loadHistoryForLeague()">
@@ -757,6 +757,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           </select>
           <span id="selectedLeagueBadge" style="font-size:11px;font-weight:700;color:var(--red);margin-left:auto"></span>
         </div>
+        <?php endif; ?>
         <div id="historyContainer">
           <div class="state-empty">
             <i class="bi bi-hourglass-split"></i>
@@ -764,7 +765,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           </div>
         </div>
       </div>
-      <?php endif; ?>
 
       <!-- Finalizar Draft (Admin) -->
       <?php if ($isAdmin): ?>
@@ -999,12 +999,20 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const draftData = await api(`draft.php?action=active_draft&league=${userLeague}`);
 
       if (!draftData.draft) {
-        document.getElementById('draftContainer').innerHTML = `
-          <div class="state-empty">
-            <i class="bi bi-trophy"></i>
-            <p>Não há draft ativo para a liga ${userLeague} no momento.${isAdmin ? '<br><small>Use a página de Temporadas para criar uma sessão de draft.</small>' : ''}</p>
-          </div>
-        `;
+        // Sem draft ativo — mostra histórico automaticamente
+        if (currentView === 'active') {
+          currentView = 'history';
+          document.getElementById('activeDraftView').style.display = 'none';
+          document.getElementById('historyView').style.display = 'block';
+          const toggleText = document.getElementById('viewToggleText');
+          if (toggleText) toggleText.textContent = 'Ver Draft Ativo';
+          selectedLeague = userLeague;
+          const leagueSel = document.getElementById('leagueSelector');
+          if (leagueSel) leagueSel.value = userLeague;
+          const badge = document.getElementById('selectedLeagueBadge');
+          if (badge) badge.textContent = userLeague;
+          loadHistory();
+        }
         return;
       }
 
@@ -1091,6 +1099,23 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     let html = '';
 
+    // Resultado final — draft encerrado
+    if (session.status === 'completed') {
+      const totalPicked = picks.filter(p => p.picked_player_id).length;
+      html += `
+        <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-left:3px solid var(--green);border-radius:var(--radius-sm);padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="font-size:28px;line-height:1">🏆</div>
+            <div>
+              <div style="font-size:16px;font-weight:800;color:var(--green)">Draft Encerrado</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:2px">Temporada ${session.season_number} · ${session.year} · ${totalPicked} picks registradas</div>
+            </div>
+          </div>
+          <button class="btn-ghost-sm" onclick="toggleHistoryView()"><i class="bi bi-clock-history"></i> Ver todos os drafts</button>
+        </div>
+      `;
+    }
+
     // My turn banner
     if (isMyTurn) {
       html += `
@@ -1102,9 +1127,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               <div class="my-turn-sub">Rodada ${session.current_round} · Pick #${session.current_pick}</div>
             </div>
           </div>
-          <button class="btn-green" onclick="openPickModal()">
-            <i class="bi bi-person-plus"></i> Fazer Minha Pick
-          </button>
+          ${isAdmin
+            ? `<button class="btn-green" onclick="openPickModal()"><i class="bi bi-person-plus"></i> Fazer Pick</button>`
+            : `<span style="font-size:12px;color:var(--text-2)">Aguarde — pick será realizada pelo admin</span>`}
         </div>
       `;
     }
@@ -1511,10 +1536,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       document.getElementById('historyView').style.display = 'block';
       document.getElementById('viewToggleText').textContent = 'Ver Draft Ativo';
       if (refreshInterval) clearInterval(refreshInterval);
+      selectedLeague = userLeague;
       const leagueSelector = document.getElementById('leagueSelector');
       if (leagueSelector) {
         leagueSelector.value = userLeague;
-        selectedLeague = userLeague;
         document.getElementById('selectedLeagueBadge').textContent = userLeague;
       }
       loadHistory();

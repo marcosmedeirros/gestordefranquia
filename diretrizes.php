@@ -63,11 +63,14 @@ if ($deadline && !empty($deadline['deadline_date'])) {
         $deadlineDisplay = date('d/m/Y', strtotime($deadline['deadline_date']));
     }
 }
+$directiveAccepted = false;
 if ($deadline && !empty($team['id'])) {
     try {
-        $s = $pdo->prepare("SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ? LIMIT 1");
+        $s = $pdo->prepare("SELECT id, admin_accepted FROM team_directives WHERE team_id = ? AND deadline_id = ? LIMIT 1");
         $s->execute([(int)$team['id'], (int)$deadline['id']]);
-        $hasDirectiveSubmission = (bool)$s->fetchColumn();
+        $row = $s->fetch();
+        $hasDirectiveSubmission = !!$row;
+        $directiveAccepted = $hasDirectiveSubmission && !empty($row['admin_accepted']);
     } catch (Exception $e) {}
 }
 
@@ -436,6 +439,20 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                     <div class="banner-sub">Até <strong><?= htmlspecialchars($deadlineDisplay ?? '') ?></strong> (Horário de Brasília)</div>
                 </div>
             </div>
+            <?php if ($hasDirectiveSubmission): ?>
+            <div class="banner" style="background:<?= $directiveAccepted ? 'rgba(34,197,94,.08)' : 'rgba(148,163,184,.06)' ?>;border-color:<?= $directiveAccepted ? 'rgba(34,197,94,.3)' : 'rgba(148,163,184,.2)' ?>;border-left:3px solid <?= $directiveAccepted ? '#22c55e' : 'var(--border-md)' ?>">
+                <i class="bi bi-<?= $directiveAccepted ? 'check-circle-fill' : 'hourglass-split' ?>" style="color:<?= $directiveAccepted ? '#22c55e' : 'var(--text-2)' ?>"></i>
+                <div>
+                    <?php if ($directiveAccepted): ?>
+                    <div class="banner-title" style="color:#22c55e">Foi pro jogo!</div>
+                    <div class="banner-sub">Sua diretriz foi confirmada pelo admin para o próximo jogo.</div>
+                    <?php else: ?>
+                    <div class="banner-title">Diretriz enviada</div>
+                    <div class="banner-sub">Aguardando confirmação do admin. Você pode atualizar até o prazo.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
 
             <div class="banner rules">
