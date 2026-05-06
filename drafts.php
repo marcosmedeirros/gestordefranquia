@@ -1127,9 +1127,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               <div class="my-turn-sub">Rodada ${session.current_round} · Pick #${session.current_pick}</div>
             </div>
           </div>
-          ${isAdmin
-            ? `<button class="btn-green" onclick="openPickModal()"><i class="bi bi-person-plus"></i> Fazer Pick</button>`
-            : `<span style="font-size:12px;color:var(--text-2)">Aguarde — pick será realizada pelo admin</span>`}
+          <button class="btn-green" onclick="openPickModal()"><i class="bi bi-person-plus"></i> Fazer Pick</button>
         </div>
       `;
     }
