@@ -255,7 +255,7 @@ $PUZZLES = [
          'jogadores'=>['Willis Reed','Walt Frazier','Dave DeBusschere','Bill Bradley']],
         ['cor'=>'purple', 'label'=>'MVP + Finals MVP na mesma carreira (múltiplos)',
          'dica'=>'Foram campeões da temporada E MVP das Finais ao menos uma vez cada',
-         'jogadores'=>['Oscar Robertson','John Havlicek','Rick Barry','Chauncey Billups']],
+         'jogadores'=>['Oscar Robertson','John Havlicek','Larry Bird','Chauncey Billups']],
     ],
     // 15
     [
@@ -345,7 +345,7 @@ $PUZZLES = [
          'jogadores'=>['Arvydas Sabonis','Sarunas Marciulionis','Zydrunas Ilgauskas','Jonas Valanciunas']],
         ['cor'=>'purple', 'label'=>'Campeões NBA com mais de um time diferente',
          'dica'=>'Conquistaram anéis com dois ou mais franchises distintos',
-         'jogadores'=>['LeBron James','Kawhi Leonard','Dennis Rodman','Robert Horry']],
+         'jogadores'=>['LeBron James','Kawhi Leonard','Dennis Rodman','Rajon Rondo']],
     ],
 ];
 
@@ -375,6 +375,21 @@ if (!empty($customPuzzles)) {
 $seed_day  = (int)floor(time() / 86400);
 $puzzle_idx = $seed_day % count($PUZZLES);
 $puzzle     = $PUZZLES[$puzzle_idx];
+
+// Remover jogadores duplicados entre grupos do mesmo puzzle (o primeiro grupo vence)
+$seenPlayers = [];
+foreach ($puzzle as $gi => &$grupo) {
+    $unique = [];
+    foreach ($grupo['jogadores'] as $j) {
+        $key = mb_strtolower(trim($j));
+        if (!isset($seenPlayers[$key])) {
+            $seenPlayers[$key] = true;
+            $unique[] = $j;
+        }
+    }
+    $grupo['jogadores'] = $unique;
+}
+unset($grupo);
 
 // Embaralha os 16 jogadores com seed do dia (mesmo para todos os usuários)
 srand($seed_day);
