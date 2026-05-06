@@ -55,7 +55,7 @@ if (!$action && is_array($jsonPayload) && isset($jsonPayload['action'])) {
 $user = getUserSession();
 
 // Verificar se é admin para ações protegidas
-$adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals'];
+$adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals', 'edit_season_points', 'delete_season_points'];
 if (in_array($action, $adminActions)) {
     if (!$user || ($user['user_type'] ?? 'jogador') !== 'admin') {
         http_response_code(403);
@@ -185,7 +185,7 @@ function ensureSeasonPointsLogTable(PDO $pdo): void {
 
 try {
     // Verificar tabelas para ações que precisam delas
-    $tableActions = ['get_history', 'save_history', 'delete_history', 'get_ranking', 'save_season_points', 'get_season_points', 'get_teams_for_points'];
+    $tableActions = ['get_history', 'save_history', 'delete_history', 'get_ranking', 'save_season_points', 'get_season_points', 'get_teams_for_points', 'edit_season_points', 'delete_season_points'];
     if (in_array($action, $tableActions) && !checkTablesExist($pdo)) {
         echo json_encode([
             'success' => false, 
@@ -783,10 +783,127 @@ try {
             echo json_encode(['success' => true, 'seasons' => $log]);
             break;
 
+        case 'edit_season_points':
+            // Admin bypasses season_points_lock to correct existing points
+            $data = is_array($jsonPayload) ? $jsonPayload : null;
+            $seasonId = (int)($data['season_id'] ?? 0);
+            $league = $data['league'] ?? null;
+            $teamPoints = $data['team_points'] ?? [];
+
+            if (!$seasonId || !$league) {
+                throw new Exception('ID da temporada e liga são obrigatórios');
+            }
+
+            $stmtSzn = $pdo->prepare("
+                SELECT s.season_number, s.year,
+                       COALESCE(sp.sprint_number, 1) AS sprint_number
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.id = ?
+            ");
+            $stmtSzn->execute([$seasonId]);
+            $season = $stmtSzn->fetch(PDO::FETCH_ASSOC);
+            if (!$season) throw new Exception('Temporada não encontrada');
+
+            $sprintNumber = (int)($season['sprint_number'] ?? 1);
+            $seasonNumber = (int)($season['season_number'] ?? 1);
+
+            $pdo->beginTransaction();
+            try {
+                $stmtPrev   = $pdo->prepare("SELECT points FROM team_season_points WHERE team_id = ? AND season_id = ? LIMIT 1");
+                $stmtName   = $pdo->prepare("SELECT CONCAT(city, ' ', name) AS team_name FROM teams WHERE id = ?");
+                $stmtUpsert = $pdo->prepare("
+                    INSERT INTO team_season_points (team_id, team_name, league, season_id, sprint_number, season_number, points)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE points = VALUES(points), team_name = VALUES(team_name), updated_at = NOW()
+                ");
+                $hasRankCol = teamColumnExists($pdo, 'ranking_points');
+                $stmtDelta  = $hasRankCol
+                    ? $pdo->prepare("UPDATE teams SET ranking_points = GREATEST(0, COALESCE(ranking_points, 0) + ?) WHERE id = ?")
+                    : null;
+
+                foreach ($teamPoints as $tp) {
+                    $teamId    = (int)($tp['team_id'] ?? 0);
+                    $newPoints = (int)($tp['points'] ?? 0);
+                    if ($teamId <= 0) continue;
+
+                    $stmtPrev->execute([$teamId, $seasonId]);
+                    $prevRow   = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+                    $prevPoints = (int)($prevRow['points'] ?? 0);
+
+                    $stmtName->execute([$teamId]);
+                    $nameRow  = $stmtName->fetch(PDO::FETCH_ASSOC);
+                    $teamName = $nameRow['team_name'] ?? 'Time Desconhecido';
+
+                    $stmtUpsert->execute([$teamId, $teamName, $league, $seasonId, $sprintNumber, $seasonNumber, $newPoints]);
+
+                    $delta = $newPoints - $prevPoints;
+                    if ($delta !== 0 && $stmtDelta) {
+                        $stmtDelta->execute([$delta, $teamId]);
+                    }
+                }
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Pontos da temporada atualizados com sucesso']);
+            break;
+
+        case 'delete_season_points':
+            // Admin zeroes a season's points, removes locks and adjusts ranking totals
+            $data = is_array($jsonPayload) ? $jsonPayload : null;
+            $seasonId = (int)($data['season_id'] ?? 0);
+            $league = $data['league'] ?? null;
+
+            if (!$seasonId || !$league) {
+                throw new Exception('ID da temporada e liga são obrigatórios');
+            }
+
+            $pdo->beginTransaction();
+            try {
+                if (teamColumnExists($pdo, 'ranking_points')) {
+                    $stmtCur = $pdo->prepare("SELECT team_id, points FROM team_season_points WHERE season_id = ? AND league = ?");
+                    $stmtCur->execute([$seasonId, $league]);
+                    $currentPoints = $stmtCur->fetchAll(PDO::FETCH_ASSOC);
+
+                    $stmtSub = $pdo->prepare("UPDATE teams SET ranking_points = GREATEST(0, COALESCE(ranking_points, 0) - ?) WHERE id = ?");
+                    foreach ($currentPoints as $cp) {
+                        if ((int)$cp['points'] > 0) {
+                            $stmtSub->execute([(int)$cp['points'], (int)$cp['team_id']]);
+                        }
+                    }
+                }
+
+                $pdo->prepare("DELETE FROM team_season_points WHERE season_id = ? AND league = ?")->execute([$seasonId, $league]);
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
+            // Remove locks outside transaction (DDL-safe)
+            try {
+                $stmtTbl = $pdo->query("SHOW TABLES LIKE 'season_points_lock'");
+                if ($stmtTbl && $stmtTbl->rowCount() > 0) {
+                    $pdo->prepare("DELETE FROM season_points_lock WHERE season_id = ? AND league = ?")->execute([$seasonId, $league]);
+                }
+            } catch (Exception $ignored) {}
+            try {
+                $stmtTbl = $pdo->query("SHOW TABLES LIKE 'playoff_finalize_lock'");
+                if ($stmtTbl && $stmtTbl->rowCount() > 0) {
+                    $pdo->prepare("DELETE FROM playoff_finalize_lock WHERE season_id = ? AND league = ?")->execute([$seasonId, $league]);
+                }
+            } catch (Exception $ignored) {}
+
+            echo json_encode(['success' => true, 'message' => 'Pontos da temporada removidos e locks liberados com sucesso']);
+            break;
+
         // =====================================================
         // RANKING
         // =====================================================
-        
+
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
             $hasRankingPointsCol = teamColumnExists($pdo, 'ranking_points');

@@ -3827,17 +3827,53 @@ async function showPointsManagement(league = 'ELITE') {
           <td class="text-end" style="color:var(--red);font-weight:700">${t.points} pts</td>
         </tr>`).join('');
 
+      const editInputs = leagueTeams.map(t => {
+        const pts = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
+        return `
+        <tr>
+          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
+          <td>
+            <input type="number" class="form-control form-control-sm pts-edit-input"
+              data-team-id="${t.team_id}" value="${pts ? pts.points : 0}" min="0" style="max-width:100px">
+          </td>
+        </tr>`;
+      }).join('');
+
       html += `
-      <div class="bg-dark-panel rounded mb-3">
+      <div class="bg-dark-panel rounded mb-3" id="pts-season-${s.season_id}">
         <div class="d-flex align-items-center justify-content-between px-3 py-2"
              style="border-bottom:1px solid var(--border)">
           <span style="font-weight:700;color:var(--text)">🏆 ${escapeHtml(title)}</span>
-          <span class="badge bg-gradient-orange" style="font-size:10px">Registrado</span>
+          <div class="d-flex gap-2 align-items-center">
+            <span class="badge bg-gradient-orange" style="font-size:10px">Registrado</span>
+            <button class="btn btn-sm btn-outline-orange" style="padding:2px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
+              <i class="bi bi-pencil me-1"></i>Editar
+            </button>
+            <button class="btn btn-sm" style="padding:2px 10px;font-size:11px;border:1px solid rgba(239,68,68,.3);color:#ef4444;background:rgba(239,68,68,.08)" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <i class="bi bi-trash3 me-1"></i>Zerar
+            </button>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table class="table table-dark table-sm mb-0">
-            <tbody>${rows}</tbody>
-          </table>
+        <div id="pts-view-${s.season_id}">
+          <div class="table-responsive">
+            <table class="table table-dark table-sm mb-0">
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+        <div id="pts-edit-form-${s.season_id}" style="display:none;padding:16px">
+          <div class="table-responsive">
+            <table class="table table-dark table-sm mb-3">
+              <thead><tr><th>Time</th><th>Pontos</th></tr></thead>
+              <tbody>${editInputs}</tbody>
+            </table>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-orange" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <i class="bi bi-save me-1"></i>Salvar Alterações
+            </button>
+            <button class="btn btn-sm btn-outline-orange" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
+          </div>
         </div>
       </div>`;
     } else {
@@ -3907,6 +3943,51 @@ async function savePtsMgmt(seasonId, league) {
     showPointsManagement(league);
   } catch (e) {
     showAlert('danger', e.error || 'Erro ao salvar pontuação');
+  }
+}
+
+function toggleEditPtsForm(seasonId) {
+  const view = document.getElementById(`pts-view-${seasonId}`);
+  const form = document.getElementById(`pts-edit-form-${seasonId}`);
+  if (!view || !form) return;
+  const isOpen = form.style.display !== 'none';
+  view.style.display = isOpen ? 'block' : 'none';
+  form.style.display = isOpen ? 'none' : 'block';
+}
+
+async function saveEditPtsMgmt(seasonId, league) {
+  const card = document.getElementById(`pts-season-${seasonId}`);
+  if (!card) return;
+  const inputs = card.querySelectorAll('.pts-edit-input');
+  const team_points = Array.from(inputs).map(inp => ({
+    team_id: parseInt(inp.dataset.teamId, 10),
+    points:  parseInt(inp.value || '0', 10)
+  }));
+
+  try {
+    await api('history-points.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'edit_season_points', season_id: seasonId, league, team_points })
+    });
+    showAlert('success', 'Pontuação atualizada com sucesso!');
+    showPointsManagement(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao atualizar pontuação');
+  }
+}
+
+async function deletePtsMgmt(seasonId, league) {
+  if (!confirm(`Tem certeza? Isso irá ZERAR todos os pontos desta temporada para a liga ${league} e liberar os locks. O lock do playoff também será removido, permitindo novo cadastro.`)) return;
+
+  try {
+    await api('history-points.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete_season_points', season_id: seasonId, league })
+    });
+    showAlert('success', 'Pontos da temporada zerados. Os locks foram liberados.');
+    showPointsManagement(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao zerar pontuação');
   }
 }
 
