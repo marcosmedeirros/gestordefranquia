@@ -414,12 +414,36 @@ if ($method === 'POST') {
         case 'finalize':
             $seasonId = $data['season_id'] ?? null;
             $league = $data['league'] ?? null;
-            
+
             if (!$seasonId || !$league) {
                 echo json_encode(['success' => false, 'error' => 'season_id e league obrigatórios']);
                 exit;
             }
-            
+
+            // Garantir tabela de lock
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS playoff_finalize_lock (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    season_id INT NOT NULL,
+                    league VARCHAR(20) NOT NULL,
+                    locked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    locked_by INT NULL,
+                    UNIQUE KEY uq_playoff_season_league (season_id, league)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            } catch (Exception $e) {}
+
+            // Lock atômico — impede dupla execução
+            $lockStmt = $pdo->prepare("INSERT IGNORE INTO playoff_finalize_lock (season_id, league, locked_by) VALUES (?, ?, ?)");
+            $lockStmt->execute([$seasonId, $league, $user['id'] ?? null]);
+            if ($lockStmt->rowCount() === 0) {
+                echo json_encode([
+                    'success' => false,
+                    'already_locked' => true,
+                    'error' => 'Os playoffs desta temporada já foram finalizados. Os pontos não podem ser aplicados novamente.'
+                ]);
+                exit;
+            }
+
             try {
                 $pdo->beginTransaction();
                 
@@ -710,10 +734,15 @@ if ($method === 'POST') {
                 ]);
             } catch (Exception $e) {
                 $pdo->rollBack();
+                // Remove o lock para permitir nova tentativa em caso de erro interno
+                try {
+                    $pdo->prepare("DELETE FROM playoff_finalize_lock WHERE season_id = ? AND league = ?")
+                        ->execute([$seasonId, $league]);
+                } catch (Exception $ex) {}
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
             break;
-            
+
         default:
             echo json_encode(['success' => false, 'error' => 'Ação POST inválida: ' . $action]);
     }

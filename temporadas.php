@@ -2344,13 +2344,22 @@ Stephen Curry,PG,35,95</code>
         }
         
         if (!result || !result.success) {
+          if (result?.already_locked) {
+            btn.innerHTML = '<i class="bi bi-lock-fill" style="margin-right:6px"></i>Playoffs já finalizados';
+            btn.style.background = 'rgba(239,68,68,.15)';
+            btn.style.borderColor = 'rgba(239,68,68,.4)';
+            btn.style.color = '#f87171';
+            alert('Atenção: os playoffs desta temporada já foram finalizados anteriormente. Os pontos já estão registrados.');
+            return;
+          }
           let serverMsg = result?.error || responseText || 'Falha ao finalizar playoffs.';
           if (serverMsg) {
             serverMsg = String(serverMsg).replace(/<[^>]*>/g, '').trim();
           }
           throw new Error(serverMsg || 'Falha ao finalizar playoffs.');
         }
-        
+
+        btn.innerHTML = '<i class="bi bi-check-circle-fill" style="margin-right:6px"></i>Playoffs Finalizados';
         alert('Playoffs finalizados com sucesso! Todos os pontos foram calculados e aplicados.');
         showLeagueManagement(playoffState.league);
       } catch (e) {
