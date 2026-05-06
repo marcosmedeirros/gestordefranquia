@@ -803,7 +803,9 @@ async function showTrades() {
         ? `<span class="badge bg-info text-dark">Aceites ${tr.teams_accepted || 0}/${tr.teams_total || 0}</span>`
         : '';
 
-      return `<div class="bg-dark-panel rounded p-3 mb-3">
+      const isAccepted = Number(tr.is_in_game || 0) === 1;
+
+      return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}">
 <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
   <div>
     <h5 class="text-white mb-1">Trade múltipla</h5>
@@ -812,6 +814,10 @@ async function showTrades() {
   <div class="d-flex align-items-center gap-2">
     ${acceptanceBadge}
     <span class="badge ${badge}">${tr.status}</span>
+    <div class="form-check form-switch m-0">
+      <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)">
+      <label class="form-check-label text-light-gray">Ta no Game?</label>
+    </div>
     ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
   </div>
 </div>

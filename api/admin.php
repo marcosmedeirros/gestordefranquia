@@ -67,9 +67,12 @@ function ensureTradeInGameColumn(PDO $pdo): void
         if (!columnExists($pdo, 'trades', 'is_in_game')) {
             $pdo->exec('ALTER TABLE trades ADD COLUMN is_in_game TINYINT(1) NOT NULL DEFAULT 0');
         }
-    } catch (Exception $e) {
-        // ignore
-    }
+    } catch (Exception $e) {}
+    try {
+        if (tableExists($pdo, 'multi_trades') && !columnExists($pdo, 'multi_trades', 'is_in_game')) {
+            $pdo->exec('ALTER TABLE multi_trades ADD COLUMN is_in_game TINYINT(1) NOT NULL DEFAULT 0');
+        }
+    } catch (Exception $e) {}
 }
 
 ensureTradeInGameColumn($pdo);
@@ -1309,8 +1312,13 @@ if ($method === 'PUT') {
                 exit;
             }
 
+            // Tenta atualizar em trades primeiro; se não afetou nenhuma linha, tenta multi_trades
             $stmt = $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?');
             $stmt->execute([$isInGame ? 1 : 0, $tradeId]);
+            if ($stmt->rowCount() === 0 && tableExists($pdo, 'multi_trades')) {
+                $pdo->prepare('UPDATE multi_trades SET is_in_game = ? WHERE id = ?')
+                    ->execute([$isInGame ? 1 : 0, $tradeId]);
+            }
 
             echo json_encode(['success' => true]);
             break;
