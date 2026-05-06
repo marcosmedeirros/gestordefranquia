@@ -702,7 +702,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 <div class="pts-row">
                     <div class="pts-team" style="flex:1">${title}</div>
                     <div class="pts-val" style="color:${hasPoints ? 'var(--red)' : 'var(--text-3)'};font-weight:${hasPoints ? 800 : 400}">
-                        ${hasPoints ? s.points + ' pts' : '—'}
+                        ${s.points} pts
                     </div>
                 </div>`;
             });
