@@ -2313,9 +2313,9 @@ Stephen Curry,PG,35,95</code>
       const btn = document.getElementById('btnFinalize');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="margin-right:8px"></span>Processando...';
-      
+
       try {
-        // 1. Salvar prêmios individuais
+        // 1. Salvar prêmios individuais no histórico
         await fetch('/api/playoffs.php?action=save_awards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2325,8 +2325,8 @@ Stephen Curry,PG,35,95</code>
             awards: playoffState.awards
           })
         });
-        
-        // 2. Finalizar e calcular pontos
+
+        // 2. Calcular e aplicar todos os pontos da temporada
         const response = await fetch('/api/playoffs.php?action=finalize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2337,12 +2337,8 @@ Stephen Curry,PG,35,95</code>
         });
         const responseText = await response.text();
         let result = null;
-        try {
-          result = responseText ? JSON.parse(responseText) : null;
-        } catch {
-          result = null;
-        }
-        
+        try { result = responseText ? JSON.parse(responseText) : null; } catch { result = null; }
+
         if (!result || !result.success) {
           if (result?.already_locked) {
             btn.innerHTML = '<i class="bi bi-lock-fill" style="margin-right:6px"></i>Playoffs já finalizados';
@@ -2353,9 +2349,7 @@ Stephen Curry,PG,35,95</code>
             return;
           }
           let serverMsg = result?.error || responseText || 'Falha ao finalizar playoffs.';
-          if (serverMsg) {
-            serverMsg = String(serverMsg).replace(/<[^>]*>/g, '').trim();
-          }
+          if (serverMsg) serverMsg = String(serverMsg).replace(/<[^>]*>/g, '').trim();
           throw new Error(serverMsg || 'Falha ao finalizar playoffs.');
         }
 

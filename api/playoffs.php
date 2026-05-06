@@ -403,7 +403,7 @@ if ($method === 'POST') {
                         $pdo->prepare("INSERT INTO season_history ({$columns}) VALUES ({$placeholders})")->execute($params);
                     }
                 }
-                
+
                 echo json_encode(['success' => true, 'message' => 'Prêmios salvos!']);
             } catch (Exception $e) {
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -623,7 +623,7 @@ if ($method === 'POST') {
                     }
                 }
                 
-                // 3. Pontos de prêmios individuais (+1 cada)
+                // 3. Pontos de prêmios individuais (+1 cada) + atualizar campeão/vice no histórico
                 $tableExists = $pdo->query("SHOW TABLES LIKE 'season_history'")->rowCount() > 0;
                 if ($tableExists) {
                     $hasNbaCupColumn = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'nba_cup_team_id'")->rowCount() > 0;
@@ -634,18 +634,18 @@ if ($method === 'POST') {
                     $stmtAwards = $pdo->prepare("SELECT {$awardColumns} FROM season_history WHERE season_id = ? AND league = ?");
                     $stmtAwards->execute([$seasonId, $league]);
                     $awards = $stmtAwards->fetch(PDO::FETCH_ASSOC);
-                    
+
                     if ($awards) {
-                        if ($awards['mvp_team_id']) $teamPoints[$awards['mvp_team_id']] += 1;
-                        if ($awards['dpoy_team_id']) $teamPoints[$awards['dpoy_team_id']] += 1;
-                        if ($awards['mip_team_id']) $teamPoints[$awards['mip_team_id']] += 1;
-                        if ($awards['sixth_man_team_id']) $teamPoints[$awards['sixth_man_team_id']] += 1;
-                        if (isset($awards['roy_team_id']) && $awards['roy_team_id']) $teamPoints[$awards['roy_team_id']] += 1;
-                        if ($league === 'ELITE' && isset($awards['nba_cup_team_id']) && $awards['nba_cup_team_id']) {
-                            $teamPoints[$awards['nba_cup_team_id']] += 1;
+                        if ($awards['mvp_team_id']) $teamPoints[$awards['mvp_team_id']] = ($teamPoints[$awards['mvp_team_id']] ?? 0) + 1;
+                        if ($awards['dpoy_team_id']) $teamPoints[$awards['dpoy_team_id']] = ($teamPoints[$awards['dpoy_team_id']] ?? 0) + 1;
+                        if ($awards['mip_team_id']) $teamPoints[$awards['mip_team_id']] = ($teamPoints[$awards['mip_team_id']] ?? 0) + 1;
+                        if ($awards['sixth_man_team_id']) $teamPoints[$awards['sixth_man_team_id']] = ($teamPoints[$awards['sixth_man_team_id']] ?? 0) + 1;
+                        if (!empty($awards['roy_team_id'])) $teamPoints[$awards['roy_team_id']] = ($teamPoints[$awards['roy_team_id']] ?? 0) + 1;
+                        if ($league === 'ELITE' && !empty($awards['nba_cup_team_id'])) {
+                            $teamPoints[$awards['nba_cup_team_id']] = ($teamPoints[$awards['nba_cup_team_id']] ?? 0) + 1;
                         }
                     }
-                    
+
                     // Atualizar campeão/vice no histórico
                     if ($champion || $runnerUp) {
                         $pdo->prepare("
@@ -733,7 +733,9 @@ if ($method === 'POST') {
                     'points' => $teamPoints
                 ]);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 // Remove o lock para permitir nova tentativa em caso de erro interno
                 try {
                     $pdo->prepare("DELETE FROM playoff_finalize_lock WHERE season_id = ? AND league = ?")
