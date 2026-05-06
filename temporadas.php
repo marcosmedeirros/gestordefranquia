@@ -2430,8 +2430,8 @@ Stephen Curry,PG,35,95</code>
                 </div>
 
                 <div class="d-grid gap-2">
-                  <button type="submit" class="btn btn-warning" ${pointsLocked ? 'disabled' : ''}>
-                    <i class="bi ${pointsLocked ? 'bi-lock-fill' : 'bi-save'} me-2"></i>${pointsLocked ? 'Pontos já definidos' : 'Salvar Pontos (Editar)'}
+                  <button type="submit" class="btn btn-warning" id="btnSavePoints" ${pointsLocked ? 'disabled' : ''}>
+                    <i class="bi ${pointsLocked ? 'bi-lock-fill' : 'bi-save'} me-2"></i>${pointsLocked ? 'Pontos já registrados' : 'Registrar Pontos'}
                   </button>
                 </div>
               </form>
@@ -2451,11 +2451,11 @@ Stephen Curry,PG,35,95</code>
       if (seasonPointsSaving) return;
       seasonPointsSaving = true;
 
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const prevBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+      // Desabilita o botão IMEDIATAMENTE para bloquear duplo clique
+      const submitBtn = form.querySelector('button[type="submit"]') || document.getElementById('btnSavePoints');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" style="margin-right:8px"></span>Salvando...';
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" style="margin-right:8px"></span>Registrando...';
       }
 
       // Montar payload
@@ -2470,27 +2470,38 @@ Stephen Curry,PG,35,95</code>
       }
 
       try {
-        await fetch('/api/history-points.php?action=save_season_points', {
+        const res = await fetch('/api/history-points.php?action=save_season_points', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            season_id: seasonId, 
+          body: JSON.stringify({
+            season_id: seasonId,
             league: league,
-            team_points: teamPoints 
+            team_points: teamPoints
           })
-        }).then(res => res.json()).then(data => {
-          if (!data.success) throw new Error(data.error);
         });
-        
-        alert('Pontos salvos com sucesso!');
-        showLeagueManagement(league);
-      } catch (e) {
-        alert('Erro ao salvar pontos: ' + (e.message || 'Desconhecido'));
-      } finally {
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erro ao salvar pontos.');
+
+        // Sucesso: mantém botão bloqueado e recarrega a tela de pontos (já travada)
         seasonPointsSaving = false;
         if (submitBtn) {
+          submitBtn.innerHTML = '<i class="bi bi-lock-fill me-2"></i>Pontos registrados';
+          submitBtn.disabled = true;
+        }
+        alert('Pontos registrados com sucesso!');
+        // Recarrega a tela de pontos para exibir o estado travado
+        showSeasonPointsForm(seasonId, league);
+      } catch (e) {
+        const msg = e.message || 'Desconhecido';
+        alert('Erro ao registrar pontos: ' + msg);
+        // Só reabilita o botão se for erro de rede/inesperado (não se já estava travado)
+        seasonPointsSaving = false;
+        if (submitBtn && !msg.includes('já foram definidos') && !msg.includes('já registrados')) {
           submitBtn.disabled = false;
-          if (prevBtnHtml !== null) submitBtn.innerHTML = prevBtnHtml;
+          submitBtn.innerHTML = '<i class="bi bi-save me-2"></i>Registrar Pontos';
+        } else if (submitBtn) {
+          // Já estava travado no servidor: recarrega para mostrar estado correto
+          showSeasonPointsForm(seasonId, league);
         }
       }
     }

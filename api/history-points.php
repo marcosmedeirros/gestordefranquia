@@ -428,14 +428,22 @@ try {
             $stmt->execute([$seasonId, $league]);
             $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Travar edição: pontos da temporada só podem ser definidos UMA vez.
-            // Se já existir qualquer registro em team_season_points para season_id + league,
-            // consideramos como "definido" e bloqueamos novas alterações.
-            $stmtLock = $pdo->prepare("SELECT MIN(created_at) AS locked_at FROM team_season_points WHERE season_id = ? AND league = ?");
-            $stmtLock->execute([$seasonId, $league]);
-            $lockRow = $stmtLock->fetch(PDO::FETCH_ASSOC);
-            $lockedAt = $lockRow['locked_at'] ?? null;
-            $pointsLocked = $lockedAt !== null;
+            // Verificar lock via season_points_lock (novo) com fallback para team_season_points (legado)
+            $lockedAt = null;
+            $pointsLocked = false;
+            $stmtLockTbl = $pdo->query("SHOW TABLES LIKE 'season_points_lock'");
+            if ($stmtLockTbl && $stmtLockTbl->rowCount() > 0) {
+                $stmtLockCheck = $pdo->prepare("SELECT locked_at FROM season_points_lock WHERE season_id = ? AND league = ? LIMIT 1");
+                $stmtLockCheck->execute([$seasonId, $league]);
+                $lockRow = $stmtLockCheck->fetch(PDO::FETCH_ASSOC);
+                if ($lockRow) { $lockedAt = $lockRow['locked_at']; $pointsLocked = true; }
+            }
+            if (!$pointsLocked) {
+                $stmtLockFallback = $pdo->prepare("SELECT MIN(created_at) AS locked_at FROM team_season_points WHERE season_id = ? AND league = ?");
+                $stmtLockFallback->execute([$seasonId, $league]);
+                $lockRow = $stmtLockFallback->fetch(PDO::FETCH_ASSOC);
+                if (!empty($lockRow['locked_at'])) { $lockedAt = $lockRow['locked_at']; $pointsLocked = true; }
+            }
 
             echo json_encode([
                 'success' => true,
@@ -447,31 +455,68 @@ try {
             
         case 'save_season_points':
             // Admin já verificado no início
-            
+
             $data = is_array($jsonPayload) ? $jsonPayload : null;
-            
+
             $seasonId = $data['season_id'] ?? null;
             $league = $data['league'] ?? null;
             $teamPoints = $data['team_points'] ?? [];
-            
+
             if (!$seasonId || !$league) {
                 throw new Exception('ID da temporada e liga são obrigatórios');
             }
-            
+
+            // ── Lock atômico anti-duplo-clique / race-condition ───────────────────
+            // Garante coluna de lock na tabela seasons (migração segura)
+            try { $pdo->exec("ALTER TABLE seasons ADD COLUMN IF NOT EXISTS points_locked_at TIMESTAMP NULL DEFAULT NULL"); } catch (Exception $e) {}
+            // Coluna de lock por liga (chave composta season_id + liga)
+            try { $pdo->exec("ALTER TABLE seasons ADD COLUMN IF NOT EXISTS points_locked_league VARCHAR(20) NULL DEFAULT NULL"); } catch (Exception $e) {}
+
+            // Verificar se já há lock para esta liga nesta temporada via tabela dedicada
+            $stmtTbl = $pdo->query("SHOW TABLES LIKE 'season_points_lock'");
+            if (!$stmtTbl || $stmtTbl->rowCount() === 0) {
+                $pdo->exec("CREATE TABLE season_points_lock (
+                    id         INT AUTO_INCREMENT PRIMARY KEY,
+                    season_id  INT NOT NULL,
+                    league     VARCHAR(20) NOT NULL,
+                    locked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    locked_by  INT NULL,
+                    UNIQUE KEY uq_season_league (season_id, league)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+
+            // Tentativa de inserção atômica — falha silenciosamente se já existe (UNIQUE)
+            $lockInsert = $pdo->prepare("INSERT IGNORE INTO season_points_lock (season_id, league, locked_by) VALUES (?, ?, ?)");
+            $lockInsert->execute([$seasonId, $league, $user['id'] ?? null]);
+            if ($lockInsert->rowCount() === 0) {
+                // Outro processo/admin já registrou — busca data para mensagem
+                $stmtLockedRow = $pdo->prepare("SELECT locked_at FROM season_points_lock WHERE season_id = ? AND league = ? LIMIT 1");
+                $stmtLockedRow->execute([$seasonId, $league]);
+                $lockedRow = $stmtLockedRow->fetch(PDO::FETCH_ASSOC);
+                $lockedAtStr = $lockedRow ? date('d/m/Y H:i', strtotime($lockedRow['locked_at'])) : '';
+                echo json_encode([
+                    'success'        => false,
+                    'already_locked' => true,
+                    'error'          => 'Pontos desta temporada já foram definidos' . ($lockedAtStr ? " em {$lockedAtStr}" : '') . '. Não é permitido registrar novamente.',
+                ]);
+                exit;
+            }
+            // ── Fim do lock atômico ───────────────────────────────────────────────
+
             // Buscar dados da temporada com sprint
             $stmt = $pdo->prepare("
-                SELECT s.*, sp.sprint_number 
-                FROM seasons s 
-                LEFT JOIN sprints sp ON s.sprint_id = sp.id 
+                SELECT s.*, sp.sprint_number
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
                 WHERE s.id = ?
             ");
             $stmt->execute([$seasonId]);
             $season = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!$season) {
                 throw new Exception('Temporada não encontrada');
             }
-            
+
             $sprintNumber = $season['sprint_number'] ?? 1;
             $seasonNumber = $season['season_number'] ?? 1;
 
@@ -480,23 +525,6 @@ try {
             $pdo->beginTransaction();
 
             try {
-                // Lock no registro da temporada para evitar corridas (duplo clique / 2 admins)
-                // e garantir que a checagem abaixo seja consistente.
-                $stmtSeasonLock = $pdo->prepare("SELECT id FROM seasons WHERE id = ? FOR UPDATE");
-                $stmtSeasonLock->execute([$seasonId]);
-
-                // Se já existir qualquer ponto registrado para esta temporada+liga, bloqueia.
-                $stmtAlready = $pdo->prepare("SELECT created_at FROM team_season_points WHERE season_id = ? AND league = ? ORDER BY created_at ASC LIMIT 1");
-                $stmtAlready->execute([$seasonId, $league]);
-                $already = $stmtAlready->fetch(PDO::FETCH_ASSOC);
-                if ($already) {
-                    $pdo->rollBack();
-                    echo json_encode([
-                        'success' => false,
-                        'error' => 'Pontos desta temporada já foram definidos e não podem ser alterados novamente.'
-                    ]);
-                    exit;
-                }
 
                 foreach ($teamPoints as $tp) {
                     $teamId = $tp['team_id'];
@@ -569,10 +597,14 @@ try {
                 
             } catch (Exception $e) {
                 $pdo->rollBack();
+                // Remove o lock para que possa tentar novamente em caso de erro inesperado
+                try {
+                    $pdo->prepare("DELETE FROM season_points_lock WHERE season_id = ? AND league = ?")->execute([$seasonId, $league]);
+                } catch (Exception $ignored) {}
                 throw $e;
             }
             break;
-            
+
         case 'get_season_points':
             $seasonId = $_REQUEST['season_id'] ?? null;
             $league = $_REQUEST['league'] ?? null;
