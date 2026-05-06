@@ -724,9 +724,54 @@ if ($method === 'POST') {
                     error_log("Erro ao salvar snapshot do draft: " . $e->getMessage());
                 }
                 
-                $pdo->commit();;
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
+
+                // 7. Salvar histórico de pontos por temporada (team_season_points)
+                // Feito fora da transação principal para não ser afetado por implicit commits de DDL
+                try {
+                    $stmtSzn = $pdo->prepare("
+                        SELECT s.season_number, COALESCE(sp.sprint_number, 1) AS sprint_number
+                        FROM seasons s
+                        LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                        WHERE s.id = ?
+                    ");
+                    $stmtSzn->execute([$seasonId]);
+                    $sznData = $stmtSzn->fetch(PDO::FETCH_ASSOC);
+                    $sprintNum = (int)($sznData['sprint_number'] ?? 1);
+                    $seasonNum = (int)($sznData['season_number'] ?? 1);
+
+                    $stmtTeamNameQ = $pdo->prepare("SELECT CONCAT(city, ' ', name) AS team_name FROM teams WHERE id = ?");
+                    $stmtUpsert = $pdo->prepare("
+                        INSERT INTO team_season_points (team_id, team_name, league, season_id, sprint_number, season_number, points)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE points = VALUES(points), team_name = VALUES(team_name), updated_at = NOW()
+                    ");
+                    foreach ($teamPoints as $teamId => $points) {
+                        if ($points <= 0) continue;
+                        $stmtTeamNameQ->execute([$teamId]);
+                        $tnRow = $stmtTeamNameQ->fetch(PDO::FETCH_ASSOC);
+                        $stmtUpsert->execute([
+                            $teamId,
+                            $tnRow ? $tnRow['team_name'] : 'Time Desconhecido',
+                            $league,
+                            $seasonId,
+                            $sprintNum,
+                            $seasonNum,
+                            $points
+                        ]);
+                    }
+
+                    // Ativar lock do formulário manual para esta temporada/liga
+                    $pdo->prepare("INSERT IGNORE INTO season_points_lock (season_id, league, locked_by) VALUES (?, ?, ?)")
+                        ->execute([$seasonId, $league, $user['id'] ?? null]);
+                } catch (Exception $histEx) {
+                    error_log("Erro ao salvar team_season_points: " . $histEx->getMessage());
+                }
+
                 echo json_encode([
-                    'success' => true, 
+                    'success' => true,
                     'message' => 'Playoffs finalizados! Pontos aplicados.',
                     'champion' => $champion,
                     'runner_up' => $runnerUp,
