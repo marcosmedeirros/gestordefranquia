@@ -161,11 +161,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .m-table tbody tr:hover { background: var(--panel-2); }
 
         /* Highlights da Tabela */
-        .rank-pos { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; width: 24px; }
+        .rank-pos { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; width: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
         .rank-pos.gold { color: var(--amber); font-size: 15px; }
         .rank-pos.silver { color: #94a3b8; font-size: 15px; }
         .rank-pos.bronze { color: #cd7c4a; font-size: 15px; }
-        .rank-shift { display: inline-flex; align-items: center; margin-left: 6px; font-size: 10px; font-weight: 700; }
+        .rank-shift { display: inline-flex; align-items: center; margin-left: 8px; font-size: 10px; font-weight: 700; }
         .rank-shift.up { color: #22c55e; }
         .rank-shift.down { color: #ef4444; }
         
@@ -285,6 +285,15 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             .podium-item { max-width: 130px; }
             .podium-logo { width: 40px; height: 40px; }
             .hide-mobile { display: none !important; }
+        }
+        @media (max-width: 600px) {
+            .m-table th, .m-table td { padding: 10px 12px; font-size: 12px; }
+            .rank-pos { font-size: 12px; }
+            .rank-pos.gold, .rank-pos.silver, .rank-pos.bronze { font-size: 13px; }
+            .rank-shift { font-size: 9px; margin-left: 6px; }
+            .team-name-cell { font-size: 13px; }
+            .team-gm-cell { font-size: 10px; }
+            .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
         @media (max-width: 480px) {
             .podium { display: none; }
