@@ -502,7 +502,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <div class="stat-pill-icon"><i class="bi bi-people-fill"></i></div>
                 <div>
                     <div class="stat-pill-val" id="total-players"><?= $playerCount ?></div>
-                    <div class="stat-pill-label">Jogadores</div>
+                    <div class="stat-pill-label">Jogadoresssss</div>
                 </div>
             </div>
             <div class="stat-pill">
