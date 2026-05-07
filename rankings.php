@@ -171,6 +171,14 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .row-me td { border-bottom-color: rgba(252,0,37,.1); }
         .row-me .rank-pos { color: var(--red); }
 
+        /* Destaques de subida/queda */
+        .row-top {
+            background: rgba(34,197,94,.08) !important;
+        }
+        .row-bottom {
+            background: rgba(239,68,68,.08) !important;
+        }
+
         .team-name-cell { font-weight: 700; font-size: 14px; display: block; }
         .team-gm-cell { font-size: 11px; color: var(--text-2); font-weight: 500; margin-top: 2px; }
         .league-badge { background: var(--panel-3); border: 1px solid var(--border-md); padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; color: var(--text-2); }
@@ -546,10 +554,20 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             }
 
             // Gerar tabela HTML Minimalista
+            const totalTeams = ranking.length;
             let rowsHtml = ranking.map((team, idx) => {
                 const isMyTeam = currentTeamId && Number(team.team_id) === currentTeamId;
                 const posClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '';
-                const rowClass = isMyTeam ? 'row-me' : '';
+                const isElite = currentLeague === 'ELITE';
+                const topLimit = isElite ? 1 : 4;
+                const bottomLimit = 4;
+                const isTop = idx < Math.min(topLimit, totalTeams);
+                const isBottom = idx >= Math.max(totalTeams - bottomLimit, 0);
+                const rowClass = [
+                    isMyTeam ? 'row-me' : '',
+                    isTop ? 'row-top' : '',
+                    isBottom ? 'row-bottom' : ''
+                ].filter(Boolean).join(' ');
 
                 return `
                 <tr class="${rowClass}">
