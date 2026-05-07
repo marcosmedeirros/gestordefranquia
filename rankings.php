@@ -575,10 +575,6 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 const bottomLimit = 4;
                 const isTop = idx < Math.min(topLimit, totalTeams);
                 const isBottom = idx >= Math.max(totalTeams - bottomLimit, 0);
-                const shift = Number(team.rank_delta || 0);
-                const shiftHtml = shift === 0
-                    ? ''
-                    : `<span class="rank-shift ${shift > 0 ? 'up' : 'down'}">${shift > 0 ? '+' + shift : shift}</span>`;
                 const rowClass = [
                     isMyTeam ? 'row-me' : '',
                     isTop ? 'row-top' : '',
@@ -587,7 +583,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
                 return `
                 <tr class="${rowClass}">
-                    <td><div class="rank-pos ${posClass}">${idx + 1}º${shiftHtml}</div></td>
+                    <td><div class="rank-pos ${posClass}">${idx + 1}º</div></td>
                     <td>
                         <span class="team-name-cell">${team.team_name}</span>
                         ${team.owner_name ? `<span class="team-gm-cell">GM: ${team.owner_name}</span>` : ''}
