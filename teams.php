@@ -1053,6 +1053,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             background: var(--panel-2) !important;
             border-radius: 0 0 var(--radius) var(--radius) !important;
         }
+        .player-cap-bonus {
+            background: rgba(34,197,94,.10);
+        }
 
         .table-dark {
             --bs-table-bg: transparent !important;
@@ -1985,8 +1988,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
                     ${players.map(p => {
                         const photoUrl = getPlayerPhoto(p);
+                        const isCapBonus = (Number(p.is_franchise_player) === 1)
+                            || (Number(p.drafted_by_team_id) === Number(team.id)
+                                && Number(p.was_traded || 0) === 0
+                                && Number(p.ovr || 0) >= 90);
                         return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+                    <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0">
                             <img src="${photoUrl}" alt="${p.name||''}"
                                  style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"
@@ -2040,6 +2047,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
             const logoSrc = team.photo_url || '/img/default-team.png';
 
+            const capBonus = Number(d.restricted_bonus || 0);
+            const capHtml = capBonus > 0
+                ? `${d.cap} <span style="font-size:12px;color:#22c55e;font-weight:800;margin-left:4px">+${capBonus}</span>`
+                : `${d.cap}`;
+
             content.innerHTML = `
                 <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                     <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
@@ -2052,7 +2064,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
-                    ${[['CAP',d.cap],['Jogadores',totalPlayers],['Trades',d.trades_count],['Títulos',titlesFmt]].map(([l,v],i) =>
+                    ${[['CAP',capHtml],['Jogadores',totalPlayers],['Trades',d.trades_count],['Títulos',titlesFmt]].map(([l,v],i) =>
                         `<div style="padding:12px 8px;text-align:center${i<3?';border-right:1px solid var(--border)':''}">
                             <div style="font-size:16px;font-weight:800;color:var(--red)">${v}</div>
                             <div style="font-size:10px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:.6px">${l}</div>

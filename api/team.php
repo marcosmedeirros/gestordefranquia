@@ -475,7 +475,7 @@ if ($method === 'GET') {
         if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
         $tid = (int)$teamRow['id'];
 
-        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id FROM players WHERE team_id = ? ORDER BY ovr DESC');
+        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id, drafted_by_team_id, was_traded, is_franchise_player FROM players WHERE team_id = ? ORDER BY ovr DESC');
         $stmtP->execute([$tid]);
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
         foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
@@ -484,6 +484,7 @@ if ($method === 'GET') {
         }
 
         $cap = topEightCap($pdo, $tid);
+        $capBonus = restrictedCapBonus($pdo, $tid);
 
         $stmtTCount = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
         $stmtTCount->execute([$tid, $tid]);
@@ -538,6 +539,7 @@ if ($method === 'GET') {
                 'conference' => $teamRow['conference'] ?? null,
             ],
             'cap'          => $cap,
+            'restricted_bonus' => $capBonus,
             'trades_count' => $tradesCount,
             'last_trades'  => $lastTrades,
             'roster'       => $roster,
