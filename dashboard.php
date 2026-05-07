@@ -119,6 +119,10 @@ try {
     if ($capLimits) { $capMin = $capLimits['cap_min'] ?? 0; $capMax = $capLimits['cap_max'] ?? 999; }
 } catch (Exception $e) {}
 
+$capBonus = restrictedCapBonus($pdo, (int)$team['id']);
+$capMaxBase = $capMax;
+$capMax = capMaxWithRestrictedBonus($pdo, (int)$team['id'], (int)$capMax);
+
 $capOk = $teamCap >= $capMin && $teamCap <= $capMax;
 
 $editalData = null; $hasEdital = false;

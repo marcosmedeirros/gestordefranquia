@@ -2012,8 +2012,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 && Number(p.was_traded || 0) === 0
                                 && Number(p.ovr || 0) >= 90)
                         );
+                        const rowStyle = isCapBonus ? 'background: rgba(34,197,94,.14);' : '';
                         return `
-                    <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+                    <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);${rowStyle}">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0">
                             <img src="${photoUrl}" alt="${p.name||''}"
                                  style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"

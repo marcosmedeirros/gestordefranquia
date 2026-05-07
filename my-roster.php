@@ -59,6 +59,10 @@ if ($team && !empty($team['league'])) {
     } catch (Exception $e) {}
 }
 
+$capBonus = $teamId ? restrictedCapBonus($pdo, (int)$teamId) : 0;
+$capMaxBase = $capMax;
+$capMax = $teamId ? capMaxWithRestrictedBonus($pdo, (int)$teamId, (int)$capMax) : $capMax;
+
 // ── Contagem de jogadores ────────────────────────────────
 $playerCount = 0;
 if ($teamId) {
@@ -510,6 +514,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <div>
                     <div class="stat-pill-val" id="cap-top8">—</div>
                     <div class="stat-pill-label">CAP <span id="cap-bonus-label" class="cap-bonus-label"></span></div>
+                    <div id="cap-range" style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px"></div>
                 </div>
             </div>
             <div class="stat-pill">

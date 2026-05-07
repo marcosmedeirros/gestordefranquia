@@ -643,11 +643,20 @@ function updateRosterStats() {
   const topEight = calculateCapTop8(allPlayers);
   const capMaxAdjusted = getCapMaxAdjusted(allPlayers);
   const bonus = getRestrictedBonus(allPlayers);
+  const capMin = Number(window.__CAP_MIN__);
   document.getElementById('total-players').textContent = totalPlayers;
   document.getElementById('cap-top8').textContent = Number.isFinite(capMaxAdjusted) ? `${topEight} / ${capMaxAdjusted}` : topEight;
   const bonusLabel = document.getElementById('cap-bonus-label');
   if (bonusLabel) {
     bonusLabel.textContent = bonus > 0 ? `+${bonus}` : '';
+  }
+  const capRangeEl = document.getElementById('cap-range');
+  if (capRangeEl) {
+    if (Number.isFinite(capMin) && Number.isFinite(capMaxAdjusted)) {
+      capRangeEl.textContent = `Min ${capMin} | Atual ${topEight} | Max ${capMaxAdjusted}`;
+    } else {
+      capRangeEl.textContent = `Atual ${topEight}`;
+    }
   }
 
   // Banner de aviso — jogadores Restricted OVR Cap
