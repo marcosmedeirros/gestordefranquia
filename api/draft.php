@@ -629,8 +629,19 @@ if ($method === 'POST') {
                 $pdo->beginTransaction();
                 $pdo->prepare('UPDATE draft_order SET team_id = ?, traded_from_team_id = ? WHERE id = ?')
                     ->execute([(int)$toTeamId, (int)$fromTeamId, (int)$pickId]);
+                $isCurrentPick = ($session['status'] ?? '') === 'in_progress'
+                    && (int)$pick['round'] === (int)$session['current_round']
+                    && (int)$pick['pick_position'] === (int)$session['current_pick'];
+                if ($isCurrentPick) {
+                    $pdo->prepare('UPDATE draft_sessions SET current_pick_started_at = NOW() WHERE id = ?')
+                        ->execute([(int)$draftSessionId]);
+                }
                 $pdo->commit();
                 echo json_encode(['success' => true, 'message' => 'Pick trocada com sucesso!']);
+                if ($isCurrentPick) {
+                    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+                    try { notifyNextPick($pdo, (int)$toTeamId, (int)$pick['round'], (int)$pick['pick_position']); } catch (Exception $e) {}
+                }
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Erro ao trocar pick: ' . $e->getMessage()]);
@@ -859,6 +870,8 @@ if ($method === 'POST') {
                 $next = $stmtNext->fetch(PDO::FETCH_ASSOC);
 
                 $nextTeamId = null;
+                $nextRound = null;
+                $nextPick = null;
                 if ($next) {
                     $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                         ->execute([(int)$next['round'], (int)$next['pick_position'], (int)$draftSessionId]);
@@ -948,6 +961,7 @@ if ($method === 'POST') {
                     }
                 }
 
+                $nextTeamId = null;
                 if (($session['status'] ?? '') === 'in_progress'
                     && (int)$pick['round'] === (int)$session['current_round']
                     && (int)$pick['pick_position'] === (int)$session['current_pick']) {
@@ -965,12 +979,18 @@ if ($method === 'POST') {
                         if ($nextRound > (int)$session['total_rounds']) {
                             $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([(int)$draftSessionId]);
                         } else {
-                            $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
+                            $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                                 ->execute([(int)$nextRound, (int)$nextPick, (int)$draftSessionId]);
+                            $stmtNextTeam = $pdo->prepare('SELECT team_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? LIMIT 1');
+                            $stmtNextTeam->execute([(int)$draftSessionId, (int)$nextRound, (int)$nextPick]);
+                            $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
                         }
                     } else {
-                        $pdo->prepare('UPDATE draft_sessions SET current_pick = ? WHERE id = ?')
+                        $pdo->prepare('UPDATE draft_sessions SET current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
                             ->execute([(int)$nextPick, (int)$draftSessionId]);
+                        $stmtNextTeam = $pdo->prepare('SELECT team_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ? LIMIT 1');
+                        $stmtNextTeam->execute([(int)$draftSessionId, (int)$nextRound, (int)$nextPick]);
+                        $nextTeamId = (int)($stmtNextTeam->fetchColumn() ?: 0);
                     }
                 }
 
@@ -979,6 +999,10 @@ if ($method === 'POST') {
                     ? 'Pick preenchida! Jogador já existia no elenco e não foi duplicado.'
                     : 'Pick preenchida!';
                 echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
+                if ($nextTeamId) {
+                    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+                    try { notifyNextPick($pdo, $nextTeamId, (int)$nextRound, (int)$nextPick); } catch (Exception $e) {}
+                }
             } catch (Exception $e) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
