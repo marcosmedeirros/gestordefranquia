@@ -1021,6 +1021,36 @@ try {
                 $grouped[$row['league']][] = $row;
             }
 
+            // Calcula movimento de posição com base na última temporada registrada
+            $prevSeasonPositions = [];
+            $leaguesToCheck = $league ? [$league] : array_keys($grouped);
+            foreach ($leaguesToCheck as $lg) {
+                $stmtSeason = $pdo->prepare('SELECT season_id FROM team_season_points WHERE league = ? ORDER BY season_id DESC LIMIT 1');
+                $stmtSeason->execute([$lg]);
+                $lastSeasonId = (int)($stmtSeason->fetchColumn() ?: 0);
+                if (!$lastSeasonId) {
+                    continue;
+                }
+
+                $stmtRank = $pdo->prepare('SELECT team_id, points FROM team_season_points WHERE league = ? AND season_id = ? ORDER BY points DESC, team_id ASC');
+                $stmtRank->execute([$lg, $lastSeasonId]);
+                $pos = 1;
+                foreach ($stmtRank->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    $prevSeasonPositions[$lg][(int)$row['team_id']] = $pos;
+                    $pos++;
+                }
+            }
+
+            foreach ($grouped as $lg => $rows) {
+                foreach ($rows as $idx => $row) {
+                    $currentPos = $idx + 1;
+                    $prevPos = $prevSeasonPositions[$lg][(int)$row['team_id']] ?? null;
+                    $row['rank_delta'] = $prevPos ? ($prevPos - $currentPos) : 0;
+                    $row['prev_position'] = $prevPos;
+                    $grouped[$lg][$idx] = $row;
+                }
+            }
+
             echo json_encode(['success' => true, 'ranking' => $grouped]);
             break;
 

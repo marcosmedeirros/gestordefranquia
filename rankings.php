@@ -165,6 +165,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .rank-pos.gold { color: var(--amber); font-size: 15px; }
         .rank-pos.silver { color: #94a3b8; font-size: 15px; }
         .rank-pos.bronze { color: #cd7c4a; font-size: 15px; }
+        .rank-shift { display: inline-flex; align-items: center; margin-left: 6px; font-size: 10px; font-weight: 700; }
+        .rank-shift.up { color: #22c55e; }
+        .rank-shift.down { color: #ef4444; }
         
         /* Destaque Time Atual */
         .row-me { background: var(--red-soft) !important; }
@@ -563,6 +566,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 const bottomLimit = 4;
                 const isTop = idx < Math.min(topLimit, totalTeams);
                 const isBottom = idx >= Math.max(totalTeams - bottomLimit, 0);
+                const shift = Number(team.rank_delta || 0);
+                const shiftHtml = shift === 0
+                    ? ''
+                    : `<span class="rank-shift ${shift > 0 ? 'up' : 'down'}">${shift > 0 ? '+' + shift : shift}</span>`;
                 const rowClass = [
                     isMyTeam ? 'row-me' : '',
                     isTop ? 'row-top' : '',
@@ -571,7 +578,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
                 return `
                 <tr class="${rowClass}">
-                    <td><div class="rank-pos ${posClass}">${idx + 1}º</div></td>
+                    <td><div class="rank-pos ${posClass}">${idx + 1}º${shiftHtml}</div></td>
                     <td>
                         <span class="team-name-cell">${team.team_name}</span>
                         ${team.owner_name ? `<span class="team-gm-cell">GM: ${team.owner_name}</span>` : ''}
