@@ -1720,7 +1720,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             if (!data.players.length) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-2)">Nenhum jogador</td></tr>';
             } else {
-                data.players.forEach(p => {
+                const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+                const starters = [];
+                const others = [];
+                data.players.forEach((p) => {
+                    if (String(p.role || '').toLowerCase() === 'titular') {
+                        starters.push(p);
+                    } else {
+                        others.push(p);
+                    }
+                });
+                starters.sort((a, b) => {
+                    const aPos = posOrder[String(a.position || '').toUpperCase()] ?? 99;
+                    const bPos = posOrder[String(b.position || '').toUpperCase()] ?? 99;
+                    if (aPos !== bPos) return aPos - bPos;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+                const sortedPlayers = starters.concat(others);
+                sortedPlayers.forEach(p => {
                     const photo = (p.foto_adicional || '').trim()
                         || (p.nba_player_id ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
                             : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=fc0025&rounded=true&bold=true`);
