@@ -1983,6 +1983,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
             };
             const isRiseLeague = String(team.league || '').toUpperCase() === 'RISE';
+            const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+            if (Array.isArray(roster['Titular'])) {
+                roster['Titular'].sort((a, b) => {
+                    const aPos = posOrder[String(a.position || '').toUpperCase()] ?? 99;
+                    const bPos = posOrder[String(b.position || '').toUpperCase()] ?? 99;
+                    if (aPos !== bPos) return aPos - bPos;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+            }
+
+            const isRiseLeague = String(team.league || '').toUpperCase().startsWith('RISE');
             const renderSection = (title, players) => {
                 if (!players || !players.length) return '';
                 return `<div style="margin-bottom:14px">
