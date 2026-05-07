@@ -385,6 +385,12 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             .stats-strip { grid-template-columns: 1fr 1fr; }
             .fgrid { grid-template-columns: 1fr; }
             .page-title { font-size: 24px; }
+            #editPlayerModal .modal-dialog { margin: .5rem; }
+            #editPlayerModal .modal-header,
+            #editPlayerModal .modal-footer { padding: 12px 14px; }
+            #editPlayerModal .modal-body { padding: 14px; max-height: calc(100vh - 170px); overflow-y: auto; }
+            #editPlayerModal .fgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+            #editPlayerModal .fgrid > * { grid-column: span 6 !important; }
         }
     </style>
 </head>
