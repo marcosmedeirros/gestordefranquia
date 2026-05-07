@@ -1982,7 +1982,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`;
                 return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
             };
-            const isRiseLeague = String(team.league || '').toUpperCase() === 'RISE';
             const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
             if (Array.isArray(roster['Titular'])) {
                 roster['Titular'].sort((a, b) => {
