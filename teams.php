@@ -1983,10 +1983,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
             };
             const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+            const normalizePos = (pos) => {
+                const raw = String(pos || '').toUpperCase().trim();
+                if (!raw) return '';
+                return raw.split(/[\s/]+/)[0] || '';
+            };
             if (Array.isArray(roster['Titular'])) {
                 roster['Titular'].sort((a, b) => {
-                    const aPos = posOrder[String(a.position || '').toUpperCase()] ?? 99;
-                    const bPos = posOrder[String(b.position || '').toUpperCase()] ?? 99;
+                    const aKey = normalizePos(a.position) || normalizePos(a.secondary_position);
+                    const bKey = normalizePos(b.position) || normalizePos(b.secondary_position);
+                    const aPos = posOrder[aKey] ?? 99;
+                    const bPos = posOrder[bKey] ?? 99;
                     if (aPos !== bPos) return aPos - bPos;
                     return String(a.name || '').localeCompare(String(b.name || ''));
                 });
@@ -2001,7 +2008,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         const photoUrl = getPlayerPhoto(p);
                         const isCapBonus = isRiseLeague && (
                             (Number(p.is_franchise_player) === 1)
-                            || (Number(p.drafted_by_team_id) === Number(team.id)
+                            || ((Number(p.drafted_by_team_id) === Number(team.id) || p.drafted_by_team_id == null)
                                 && Number(p.was_traded || 0) === 0
                                 && Number(p.ovr || 0) >= 90)
                         );
