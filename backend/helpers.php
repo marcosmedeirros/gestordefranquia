@@ -312,9 +312,10 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
     try {
         $leagueStmt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
         $leagueStmt->execute([$teamId]);
-        if ($leagueStmt->fetchColumn() !== 'RISE') return 0;
+        $league = strtoupper(trim((string)($leagueStmt->fetchColumn() ?? '')));
+        if ($league !== 'RISE') return 0;
 
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND (is_franchise_player = 1 OR (drafted_by_team_id = ? AND was_traded = 0 AND ovr >= 90))');
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND (is_franchise_player = 1 OR (drafted_by_team_id = ? AND COALESCE(was_traded, 0) = 0 AND ovr >= 90))');
         $stmt->execute([$teamId, $teamId]);
         return (int) $stmt->fetchColumn();
     } catch (Exception $e) {

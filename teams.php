@@ -1982,16 +1982,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                 if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`;
                 return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
             };
+            const isRiseLeague = String(team.league || '').toUpperCase() === 'RISE';
             const renderSection = (title, players) => {
                 if (!players || !players.length) return '';
                 return `<div style="margin-bottom:14px">
                     <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
                     ${players.map(p => {
                         const photoUrl = getPlayerPhoto(p);
-                        const isCapBonus = (Number(p.is_franchise_player) === 1)
+                        const isCapBonus = isRiseLeague && (
+                            (Number(p.is_franchise_player) === 1)
                             || (Number(p.drafted_by_team_id) === Number(team.id)
                                 && Number(p.was_traded || 0) === 0
-                                && Number(p.ovr || 0) >= 90);
+                                && Number(p.ovr || 0) >= 90)
+                        );
                         return `
                     <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0">
