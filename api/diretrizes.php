@@ -591,16 +591,17 @@ if ($method === 'POST') {
                 }
                 $isModelChoice = $technicalModel && $technicalModel !== 'FBA 14';
                 $modelChanged = $isModelChoice && $technicalModel !== $currentModel;
-                if ($isElite && $modelChanged && $changesUsed >= $changesLimit) {
-                    throw new Exception('Limite de mudanças do modelo técnico atingido (3 escolhas).');
-                }
 
                 // Verificar se já existe diretriz para este prazo
                 $stmtCheck = $pdo->prepare('SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ?');
                 $stmtCheck->execute([$team['id'], $deadlineId]);
                 $existing = $stmtCheck->fetch();
+                $isFirstSubmission = !$existing;
+                if ($isElite && $isFirstSubmission && $modelChanged && $changesUsed >= $changesLimit) {
+                    throw new Exception('Limite de mudanças do modelo técnico atingido (3 escolhas).');
+                }
 
-                $technicalModelChangedFlag = $modelChanged ? 1 : 0;
+                $technicalModelChangedFlag = ($isFirstSubmission && $modelChanged) ? 1 : 0;
 
                 if ($existing) {
                     $stmt = $pdo->prepare("
@@ -754,7 +755,7 @@ if ($method === 'POST') {
                 // Atualizar modelo técnico do time (contando mudanças)
                 $modelNotice = null;
                 $changesRemaining = max(0, $changesLimit - $changesUsed);
-                if ($isElite && $modelChanged) {
+                if ($isElite && $isFirstSubmission && $modelChanged) {
                     $changesUsed++;
                     $changesRemaining = max(0, $changesLimit - $changesUsed);
                     $stmtModel = $pdo->prepare('UPDATE teams SET technical_model_current = ?, technical_model_changes_used = ? WHERE id = ?');
@@ -773,7 +774,7 @@ if ($method === 'POST') {
                     'technical_model_changes_used' => $changesUsed,
                     'technical_model_changes_limit' => $changesLimit,
                     'technical_model_changes_remaining' => $changesRemaining,
-                    'technical_model_current' => $modelChanged ? $technicalModel : $currentModel
+                    'technical_model_current' => ($isFirstSubmission && $modelChanged) ? $technicalModel : $currentModel
                 ]);
             } catch (Exception $e) {
                 $pdo->rollBack();
