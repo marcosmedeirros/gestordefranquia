@@ -2744,13 +2744,17 @@ async function _leilaoDoSearch() {
     drop.innerHTML = players.map(p => {
       const ovr = p.ovr || p.overall || '—';
       const teamName = p.team_name || '';
-      return `<div onclick="_leilaoSelect(${p.id}, ${p.team_id || 0}, ${JSON.stringify(p.name)}, '${(p.position || '').replace(/'/g, "\\'")}', ${ovr === '—' ? 0 : ovr})"
+      return `<div
+        data-pid="${p.id}" data-tid="${p.team_id || 0}"
+        data-name="${escapeHtml(p.name)}" data-pos="${escapeHtml(p.position || '')}"
+        data-ovr="${ovr === '—' ? 0 : ovr}"
+        onclick="_leilaoSelectFromEl(this)"
         style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);
                display:flex;justify-content:space-between;align-items:center;transition:background .15s"
         onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''">
         <div>
-          <span style="font-weight:600;color:var(--text)">${p.name}</span>
-          <span style="color:var(--text-3);margin-left:6px;font-size:11px">${p.position || ''} · ${teamName}</span>
+          <span style="font-weight:600;color:var(--text)">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-3);margin-left:6px;font-size:11px">${escapeHtml(p.position || '')} · ${escapeHtml(teamName)}</span>
         </div>
         <span style="font-size:11px;color:var(--text-3)">OVR ${ovr}</span>
       </div>`;
@@ -2758,6 +2762,16 @@ async function _leilaoDoSearch() {
   } catch (e) {
     drop.innerHTML = `<div style="padding:10px;font-size:12px;color:#ef4444">${e.error || 'Erro na busca'}</div>`;
   }
+}
+
+function _leilaoSelectFromEl(el) {
+  _leilaoSelect(
+    parseInt(el.dataset.pid),
+    parseInt(el.dataset.tid),
+    el.dataset.name,
+    el.dataset.pos,
+    parseInt(el.dataset.ovr)
+  );
 }
 
 function _leilaoSelect(playerId, teamId, name, pos, ovr) {
