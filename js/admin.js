@@ -606,7 +606,7 @@ async function showLeague(league) {
   try {
     const [data, seasonData] = await Promise.all([
       api(`admin.php?action=teams&league=${league}`),
-      api(`seasons.php?action=list&league=${league}`).catch(() => ({ seasons: [] }))
+      api(`seasons.php?action=list_seasons&league=${league}`).catch(() => ({ seasons: [] }))
     ]);
     const teams = data.teams || [];
     const seasons = seasonData.seasons || [];
@@ -1383,86 +1383,138 @@ async function showConfig() {
 
   const _cfgLeague = appState.currentLeague || null;
   const _cfgBack = _cfgLeague ? `showLeague('${_cfgLeague}')` : 'showHome()';
-  const _cfgTitle = _cfgLeague ? `Configurações — ${_cfgLeague}` : 'Configurações das Ligas';
 
   const container = document.getElementById('mainContainer');
-  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="${_cfgBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="d-flex justify-content-between mb-3"><h4 class="text-white mb-0">${_cfgTitle}</h4>
-<button class="btn btn-orange" id="saveConfigBtn"><i class="bi bi-save2 me-1"></i>Salvar Tudo</button></div>
-<div id="configContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
+  container.innerHTML = `
+<div class="mb-4"><button class="btn btn-back" onclick="${_cfgBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+<div id="configContainer"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
 
   try {
-    const data = await api('admin.php?action=leagues');
-    const allLeagues = data.leagues || [];
+    const [cfgData, seasonData] = await Promise.all([
+      api('admin.php?action=leagues'),
+      _cfgLeague
+        ? api(`seasons.php?action=list_seasons&league=${_cfgLeague}`).catch(() => ({ seasons: [] }))
+        : Promise.resolve({ seasons: [] })
+    ]);
+    const allLeagues = cfgData.leagues || [];
     const filtered = _cfgLeague ? allLeagues.filter(lg => lg.league === _cfgLeague) : allLeagues;
+    const seasons = seasonData.seasons || [];
+    const currentSeason = seasons.find(s => s.status !== 'completed') || seasons[0] || null;
+    const seasonYear = currentSeason
+      ? (currentSeason.start_year && currentSeason.season_number
+          ? (parseInt(currentSeason.start_year) + parseInt(currentSeason.season_number) - 1)
+          : (currentSeason.year || '—'))
+      : '—';
+    const seasonNumber = currentSeason ? (parseInt(currentSeason.season_number) || '—') : '—';
+    const totalSeasons = seasons.length || '—';
+
     document.getElementById('configContainer').innerHTML = filtered.map(lg => `
-<div class="bg-dark-panel border-orange rounded p-4 mb-4">
-<div class="row mb-3">
-<div class="col-12"><h4 class="text-orange mb-1">${lg.league}</h4><small class="text-light-gray">${lg.team_count} ${lg.team_count === 1 ? 'time' : 'times'}</small></div>
-</div>
-<div class="row g-3 mb-3">
-<div class="col-md-3"><label class="form-label text-light-gray mb-1">CAP Mínimo</label>
-<input type="number" class="form-control bg-dark text-white border-orange" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min" /></div>
-<div class="col-md-3"><label class="form-label text-light-gray mb-1">CAP Máximo</label>
-<input type="number" class="form-control bg-dark text-white border-orange" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max" /></div>
-<div class="col-md-3"><label class="form-label text-light-gray mb-1">Máx. Trocas/Temporada</label>
-<input type="number" class="form-control bg-dark text-white border-orange" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" /></div>
-<div class="col-md-3 d-flex align-items-end"><div class="badge bg-gradient-orange fs-6 w-100 py-2">${lg.cap_min} - ${lg.cap_max} CAP</div></div>
-</div>
-<div class="row mb-3">
-<div class="col-md-6">
-<label class="form-label text-light-gray mb-2">Status das Trocas</label>
-<div class="d-flex gap-2">
-<button class="btn ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1" 
-  onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">
-<i class="bi bi-check-circle me-1"></i>Trocas Ativas
-</button>
-<button class="btn ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" 
-  onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">
-<i class="bi bi-x-circle me-1"></i>Trocas Bloqueadas
-</button>
-</div>
-<small class="text-light-gray mt-1 d-block">
-${(lg.trades_enabled ?? 1) == 1 ? '✅ Usuários podem propor e aceitar trades' : '🚫 Botão de trade desativado para esta liga'}
-</small>
-</div>
-</div>
-<div class="row mb-3">
-<div class="col-md-6">
-<label class="form-label text-light-gray mb-2">Status da Free Agency</label>
-<div class="d-flex gap-2">
-<button class="btn ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1" 
-  onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">
-<i class="bi bi-check-circle me-1"></i>FA Ativa
-</button>
-<button class="btn ${(lg.fa_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" 
-  onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">
-<i class="bi bi-x-circle me-1"></i>FA Bloqueada
-</button>
-</div>
-<small class="text-light-gray mt-1 d-block">
-${(lg.fa_enabled ?? 1) == 1 ? '✅ Usuários podem enviar propostas na FA' : '🚫 Botão de enviar proposta desativado na FA'}
-</small>
-</div>
-</div>
-<div class="row">
-<div class="col-12"><label class="form-label text-light-gray mb-1">Edital da Liga (PDF/Word)</label>
-<div class="input-group">
-<input type="file" class="form-control bg-dark text-white border-orange" id="edital_file_${lg.league}" accept=".pdf,.doc,.docx" />
-<button class="btn btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
-</div>
-${lg.edital_file ? `<div class="mt-2 d-flex align-items-center gap-2">
-<span class="text-success flex-grow-1"><i class="bi bi-file-earmark-check"></i> ${lg.edital_file}</span>
-<a href="/api/edital.php?action=download_edital&league=${lg.league}" class="btn btn-sm btn-outline-light" download target="_blank">
-<i class="bi bi-download me-1"></i>Baixar
-</a>
-<button class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')"><i class="bi bi-trash"></i></button>
-</div>` : '<small class="text-light-gray mt-1">Nenhum arquivo enviado</small>'}
-</div>
-</div>
+<div class="panel mb-4">
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+    <div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--red);margin-bottom:4px">Central da Liga</div>
+      <div style="font-size:30px;font-weight:900;color:var(--text);letter-spacing:-.5px;line-height:1">${lg.league}</div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px">${lg.team_count} ${lg.team_count === 1 ? 'time' : 'times'} cadastrados</div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+      <div style="text-align:center;min-width:48px">
+        <div style="font-size:22px;font-weight:800;color:var(--text)">${seasonYear}</div>
+        <div style="font-size:10px;color:var(--text-3);font-weight:500;margin-top:1px">Temp. ${seasonNumber}</div>
+      </div>
+      <div style="width:1px;height:36px;background:var(--border)"></div>
+      <div style="text-align:center;min-width:56px">
+        <div style="font-size:22px;font-weight:800;color:var(--red)">${seasonNumber}<span style="font-size:13px;font-weight:400;color:var(--text-3)">/${totalSeasons}</span></div>
+        <div style="font-size:10px;color:var(--text-3);font-weight:500;margin-top:1px">Temporadas</div>
+      </div>
+      <div style="width:1px;height:36px;background:var(--border)"></div>
+      <div style="text-align:center;min-width:60px">
+        <div style="font-size:16px;font-weight:700;color:var(--text)">${lg.cap_min}–${lg.cap_max}</div>
+        <div style="font-size:10px;color:var(--text-3);font-weight:500;margin-top:1px">CAP Range</div>
+      </div>
+    </div>
+    <button class="btn-orange" onclick="saveLeagueSettings()" style="align-self:flex-start">
+      <i class="bi bi-save2 me-1"></i>Salvar
+    </button>
+  </div>
+
+  <hr style="border-color:var(--border);margin:0 0 20px">
+
+  <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Regras e Limites</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">CAP Mínimo</div>
+      <input type="number" class="form-control" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min" />
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">CAP Máximo</div>
+      <input type="number" class="form-control" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max" />
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Máx. Trocas/Temp.</div>
+      <input type="number" class="form-control" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" />
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Status da Liga</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">
+    <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:32px;height:32px;border-radius:9px;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-arrow-left-right" style="color:#3b82f6;font-size:14px"></i>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Trades</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.trades_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}">${(lg.trades_enabled ?? 1) == 1 ? 'Ativas' : 'Bloqueadas'}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">
+          Ativas
+        </button>
+        <button class="btn ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">
+          Bloqueadas
+        </button>
+      </div>
+    </div>
+    <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:32px;height:32px;border-radius:9px;background:rgba(34,197,94,.12);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-coin" style="color:#22c55e;font-size:14px"></i>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Free Agency</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.fa_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}">${(lg.fa_enabled ?? 1) == 1 ? 'Ativa' : 'Bloqueada'}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">
+          Ativa
+        </button>
+        <button class="btn ${(lg.fa_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+          style="font-size:12px;padding:7px 10px"
+          onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">
+          Bloqueada
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Edital da Liga</div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="file" class="form-control" id="edital_file_${lg.league}" accept=".pdf,.doc,.docx" style="flex:1;min-width:180px" />
+    <button class="btn-orange" onclick="uploadEdital('${lg.league}')"><i class="bi bi-upload me-1"></i>Upload</button>
+  </div>
+  ${lg.edital_file ? `<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;background:rgba(37,198,119,.08);border:1px solid rgba(37,198,119,.2);border-radius:10px">
+    <i class="bi bi-file-earmark-check" style="color:#25c677;font-size:16px"></i>
+    <span style="font-size:12px;color:#25c677;flex:1">${lg.edital_file}</span>
+    <a href="/api/edital.php?action=download_edital&league=${lg.league}" class="btn btn-sm btn-outline-light" download target="_blank"><i class="bi bi-download me-1"></i>Baixar</a>
+    <button class="btn btn-sm btn-outline-danger" onclick="deleteEdital('${lg.league}')"><i class="bi bi-trash"></i></button>
+  </div>` : `<div style="font-size:12px;color:var(--text-3);margin-top:8px"><i class="bi bi-info-circle me-1"></i>Nenhum arquivo enviado</div>`}
+
 </div>`).join('');
-    
-    document.getElementById('saveConfigBtn').addEventListener('click', saveLeagueSettings);
   } catch (e) {}
 }
 

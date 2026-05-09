@@ -591,7 +591,7 @@ try {
             $params = $league ? [$league] : [];
             
             $stmt = $pdo->prepare("
-                SELECT s.*, sp.sprint_number,
+                SELECT s.*, sp.sprint_number, sp.start_year,
                        (SELECT COUNT(*) FROM draft_pool WHERE season_id = s.id) as draft_players_count
                 FROM seasons s
                 INNER JOIN sprints sp ON s.sprint_id = sp.id
