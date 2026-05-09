@@ -1000,6 +1000,7 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
                   <thead>
                     <tr style="border-bottom:1px solid var(--border)">
                       <th style="padding:10px 18px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700">#</th>
+                      <th style="padding:10px 18px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700">Ordem</th>
                       <th style="padding:10px 18px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700">Nome</th>
                       <th style="padding:10px 18px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700">Pos</th>
                       <th style="padding:10px 18px;color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700">OVR</th>
@@ -1011,6 +1012,11 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
                     ${available.map((p, idx) => `
                       <tr style="border-bottom:1px solid var(--border)">
                         <td style="padding:10px 18px;color:var(--text-3)">${idx + 1}</td>
+                        <td style="padding:8px 18px">
+                          <input type="number" min="1" value="${p.pick_hint || ''}" placeholder="—"
+                            style="width:60px;background:var(--panel-3);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-family:var(--font);font-size:12px;text-align:center"
+                            onchange="updatePickHint(${p.id}, this.value)">
+                        </td>
                         <td style="padding:10px 18px;color:var(--text);font-weight:600">${p.name}</td>
                         <td style="padding:10px 18px">
                           <span style="display:inline-flex;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red)">${p.position || 'N/A'}</span>
@@ -1134,12 +1140,15 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
                       </select>
                     </div>
                   </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
                     <div><label style="${lblStyle}">Idade</label>
                       <input type="number" style="${fldStyle}" name="age" min="18" max="40" required placeholder="Ex: 22">
                     </div>
                     <div><label style="${lblStyle}">OVR</label>
                       <input type="number" style="${fldStyle}" name="ovr" min="1" max="99" required placeholder="Ex: 78">
+                    </div>
+                    <div><label style="${lblStyle}">Ordem</label>
+                      <input type="number" style="${fldStyle}" name="pick_hint" min="1" placeholder="Ex: 1">
                     </div>
                   </div>
                   <button type="submit" class="btn-primary-red" style="width:100%;justify-content:center">
@@ -1165,6 +1174,7 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
   const secondaryPosition = formData.get('secondary_position');
       
       try {
+        const hintVal = formData.get('pick_hint');
         await api('seasons.php?action=add_draft_player', {
           method: 'POST',
           body: JSON.stringify({
@@ -1174,7 +1184,8 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
             position: formData.get('position'),
             secondary_position: secondaryPosition,
             ovr: formData.get('ovr'),
-            photo_url: null
+            photo_url: null,
+            pick_hint: hintVal !== '' ? hintVal : null,
           })
         });
         
@@ -1211,12 +1222,13 @@ $seasonDisplayYear = $seasonDisplayYear ?: (int)date('Y');
                   <div class="bc-head"><div class="bc-title"><i class="bi bi-info-circle"></i>Formato do CSV</div></div>
                   <div class="bc-body">
                     <p style="font-size:12px;color:var(--text-2);margin-bottom:10px">
-                      O arquivo deve ter as colunas: <code style="background:var(--panel-3);padding:2px 6px;border-radius:5px;color:var(--green);font-size:11px">nome,posicao,idade,ovr</code>
+                      O arquivo deve ter as colunas: <code style="background:var(--panel-3);padding:2px 6px;border-radius:5px;color:var(--green);font-size:11px">nome,posicao,idade,ovr,ordem</code>
+                      <span style="color:var(--text-3)"> (ordem é opcional)</span>
                     </p>
                     <div style="background:var(--panel-3);border-radius:8px;padding:10px 14px;margin-bottom:12px">
-                      <code style="font-size:11px;color:var(--text-2);white-space:pre;display:block">nome,posicao,idade,ovr
-LeBron James,SF,39,96
-Stephen Curry,PG,35,95</code>
+                      <code style="font-size:11px;color:var(--text-2);white-space:pre;display:block">nome,posicao,idade,ovr,ordem
+LeBron James,SF,39,96,1
+Stephen Curry,PG,35,95,2</code>
                     </div>
                     <button class="btn-outline-red" style="font-size:12px;padding:6px 14px" onclick="downloadCSVTemplate()">
                       <i class="bi bi-download"></i>Baixar Template
@@ -1296,8 +1308,19 @@ Stephen Curry,PG,35,95</code>
       }
     }
 
+    async function updatePickHint(playerId, value) {
+      try {
+        await api('seasons.php?action=update_draft_player', {
+          method: 'POST',
+          body: JSON.stringify({ player_id: playerId, pick_hint: value !== '' ? value : null })
+        });
+      } catch (e) {
+        alert('Erro ao salvar ordem: ' + (e.error || 'Desconhecido'));
+      }
+    }
+
     function downloadCSVTemplate() {
-      const csv = 'nome,posicao,idade,ovr\\nLeBron James,SF,39,96\\nStephen Curry,PG,35,95\\nKevin Durant,PF,35,94\\n';
+      const csv = 'nome,posicao,idade,ovr,ordem\\nLeBron James,SF,39,96,1\\nStephen Curry,PG,35,95,2\\nKevin Durant,PF,35,94,3\\n';
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

@@ -599,13 +599,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       transition: color var(--t) var(--ease);
     }
     .mock-queue-del:hover { color: var(--red); }
-    .mock-timer {
-      font-size: 11px; color: var(--text-2); margin-top: 10px;
-      padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 8px; display: flex; align-items: center; gap: 6px;
-    }
-    .mock-timer.urgent  { color: var(--amber); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.06); }
-    .mock-timer.expired { color: var(--red); border-color: var(--border-red); background: var(--red-soft); }
 
     /* ── Responsive ──────────────────────────────── */
     @media (max-width: 992px) {
@@ -723,6 +716,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <?php if ($isAdmin): ?>
         <button class="btn-ghost" onclick="openAddDraftPlayerModal()">
           <i class="bi bi-person-plus"></i> Adicionar jogador
+        </button>
+        <?php endif; ?>
+        <?php if ($isAdmin): ?>
+        <button class="btn-ghost" onclick="openAdminMocksModal()">
+          <i class="bi bi-eye-fill"></i>
+          <span>Ver Mocks</span>
         </button>
         <?php endif; ?>
         <button class="btn-ghost" onclick="toggleHistoryView()">
@@ -853,6 +852,23 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <button type="button" class="btn-red" onclick="submitTradePick()">
           <i class="bi bi-check2-circle"></i> Confirmar troca
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Admin — Ver Mocks dos Times -->
+<div class="modal fade" id="adminMocksModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title"><i class="bi bi-eye-fill me-2" style="color:var(--amber)"></i>Mocks dos Times</span>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="adminMocksBody">
+        <div style="display:flex;align-items:center;justify-content:center;padding:40px">
+          <div class="spinner-border" role="status" style="color:var(--red);width:1.8rem;height:1.8rem"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1154,7 +1170,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <div class="status-label" style="display:flex;align-items:center;gap:5px">
             <i class="bi bi-list-stars" style="color:var(--amber)"></i> Mock Draft
             <span tabindex="0" data-bs-toggle="tooltip" data-bs-placement="bottom"
-              title="Selecione até 8 jogadores em ordem de prioridade. Após 30 min na sua pick com auto-pick ativo, o sistema escolhe o primeiro disponível da fila. Se todos já forem selecionados, nada acontece."
+              title="Selecione até 8 jogadores em ordem de prioridade. Com auto-pick ativo, o sistema escolhe imediatamente o primeiro disponível da fila quando chegar sua vez. Se nenhum estiver disponível, aguarda você escolher."
               style="color:var(--text-3);cursor:help;line-height:1">
               <i class="bi bi-info-circle"></i>
             </span>
@@ -1742,9 +1758,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   // ── Mock Draft ──────────────────────────────────────
-  let mockQueue     = [];
-  let mockIsActive  = false;
-  let mockTimerInt  = null;
+  let mockQueue      = [];
+  let mockIsActive   = false;
   let mockAllPlayers = [];
 
   async function loadMockCard(session) {
@@ -1795,37 +1810,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <i class="bi bi-pencil"></i> Gerenciar fila
         </button>
       </div>
-      ${isMyTurn && session.current_pick_started_at ? `<div class="mock-timer" id="mockTimerDisplay" style="margin-top:8px"><i class="bi bi-clock"></i> …</div>` : ''}
     `;
-
-    if (isMyTurn && session.current_pick_started_at) {
-      startMockTimer(session.current_pick_started_at);
-    }
   }
 
-  function startMockTimer(startedAt) {
-    if (mockTimerInt) clearInterval(mockTimerInt);
-    function tick() {
-      const el = document.getElementById('mockTimerDisplay');
-      if (!el) { clearInterval(mockTimerInt); return; }
-      const startMs = new Date(startedAt.replace(' ', 'T')).getTime();
-      const elapsed  = (Date.now() - startMs) / 1000;
-      const remaining = 1800 - elapsed;
-      if (remaining <= 0) {
-        el.className = 'mock-timer expired';
-        el.innerHTML = mockIsActive
-          ? `<i class="bi bi-robot"></i> Auto-pick ativo — escolhendo primeiro disponível…`
-          : `<i class="bi bi-clock"></i> 30 min esgotados — faça sua pick!`;
-      } else {
-        const mins = Math.floor(remaining / 60);
-        const secs = Math.floor(remaining % 60);
-        el.className = remaining < 300 ? 'mock-timer urgent' : 'mock-timer';
-        el.innerHTML = `<i class="bi bi-clock"></i> Auto-pick em <strong>${mins}m${String(secs).padStart(2,'0')}s</strong>${mockIsActive ? ' <span style="color:var(--green)">(mock ativo)</span>' : ' (mock inativo)'}`;
-      }
-    }
-    tick();
-    mockTimerInt = setInterval(tick, 1000);
-  }
 
   async function toggleMock(isActive) {
     if (!currentDraftSession) return;
@@ -1954,6 +1941,47 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (result.autopicked) await loadDraft();
     } catch (e) {
       console.warn('check_autopick:', e);
+    }
+  }
+
+  async function openAdminMocksModal() {
+    const modal = new bootstrap.Modal(document.getElementById('adminMocksModal'));
+    const body  = document.getElementById('adminMocksBody');
+    body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:40px"><div class="spinner-border" role="status" style="color:var(--red);width:1.8rem;height:1.8rem"></div></div>';
+    modal.show();
+    if (!currentDraftSession) {
+      body.innerHTML = '<div style="padding:24px;color:var(--text-3);text-align:center">Nenhum draft ativo encontrado.</div>';
+      return;
+    }
+    try {
+      const data = await api(`draft-mock.php?action=admin_all_mocks&draft_session_id=${currentDraftSession.id}`);
+      const mocks = data.mocks || [];
+      if (!mocks.length) {
+        body.innerHTML = '<div style="padding:24px;color:var(--text-3);text-align:center;font-size:13px"><i class="bi bi-inbox" style="display:block;font-size:28px;margin-bottom:8px"></i>Nenhum time configurou mock ainda.</div>';
+        return;
+      }
+      body.innerHTML = mocks.map(m => `
+        <div style="margin-bottom:16px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--panel-3)">
+            <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${m.team_name}</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;${m.is_active ? 'background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)' : 'background:var(--panel-3);color:var(--text-3);border:1px solid var(--border)'}">
+              ${m.is_active ? 'Auto ON' : 'Auto OFF'}
+            </span>
+          </div>
+          ${m.queue.length ? `
+            <div>
+              ${m.queue.map((q, i) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);${q.draft_status === 'drafted' ? 'opacity:.4;text-decoration:line-through' : ''}">
+                  <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px;text-align:center">${i + 1}</span>
+                  <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${q.player_name}</span>
+                  <span style="font-size:11px;color:var(--text-2)">${q.position}</span>
+                  <span style="font-size:11px;font-weight:700;color:var(--red)">OVR ${q.ovr}</span>
+                  ${q.draft_status === 'drafted' ? '<span style="font-size:10px;color:var(--text-3)">Já draftado</span>' : ''}
+                </div>`).join('')}
+            </div>` : `<div style="padding:12px 14px;font-size:12px;color:var(--text-3)">Fila vazia</div>`}
+        </div>`).join('');
+    } catch (e) {
+      body.innerHTML = `<div style="padding:16px;color:#fca5a5">Erro: ${e.error || 'Desconhecido'}</div>`;
     }
   }
 

@@ -173,29 +173,12 @@ switch ($action) {
 
         $currentTeamId = (int)$currentPick['team_id'];
 
-        // Mock ativo?
+        // Mock ativo para o time atual?
         $stmtSettings = $pdo->prepare("SELECT is_active FROM draft_mock_settings WHERE team_id = ? AND draft_session_id = ?");
         $stmtSettings->execute([$currentTeamId, $draftSessionId]);
         $settings = $stmtSettings->fetch();
         if (empty($settings['is_active'])) {
             echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'mock_disabled']);
-            exit;
-        }
-
-        // 30 min transcorridos?
-        $startedAt = $session['current_pick_started_at'] ?? null;
-        if (!$startedAt) {
-            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'no_timer']);
-            exit;
-        }
-        $elapsed = time() - strtotime($startedAt);
-        if ($elapsed < 1800) {
-            echo json_encode([
-                'success'   => true,
-                'autopicked'=> false,
-                'reason'    => 'time_remaining',
-                'remaining' => 1800 - $elapsed,
-            ]);
             exit;
         }
 
@@ -269,7 +252,7 @@ switch ($action) {
                 if ($nextUserId) {
                     sendPushToUser($pdo, $nextUserId, [
                         'title'      => '🏀 É a sua vez no Draft!',
-                        'body'       => "Rodada {$next['round']} · Pick #{$next['pick_position']} — Você tem 30 min para escolher.",
+                        'body'       => "Rodada {$next['round']} · Pick #{$next['pick_position']} — É a sua vez!",
                         'url'        => '/drafts.php',
                         'primaryKey' => 'draft_pick_' . $nextTeamId . '_' . $next['round'] . '_' . $next['pick_position'],
                     ]);
@@ -281,6 +264,50 @@ switch ($action) {
             $pdo->rollBack();
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
+        break;
+
+    // ── GET: todos os mocks do draft (admin) ─────────
+    case 'admin_all_mocks':
+        if (!$isAdmin) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas administradores']); exit; }
+        $draftSessionId = (int)($_GET['draft_session_id'] ?? 0);
+        if (!$draftSessionId) { echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']); exit; }
+
+        $stmtLeague = $pdo->prepare('SELECT league FROM draft_sessions WHERE id = ?');
+        $stmtLeague->execute([$draftSessionId]);
+        $sessionLeague = $stmtLeague->fetchColumn();
+
+        $stmtTeams = $pdo->prepare('
+            SELECT t.id, TRIM(CONCAT(t.city," ",t.name)) AS team_name,
+                   COALESCE(ms.is_active, 0) AS is_active
+            FROM teams t
+            LEFT JOIN draft_mock_settings ms ON ms.team_id = t.id AND ms.draft_session_id = ?
+            WHERE t.league = ?
+            ORDER BY t.name ASC
+        ');
+        $stmtTeams->execute([$draftSessionId, $sessionLeague]);
+        $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+        $result = [];
+        foreach ($teams as $team) {
+            $stmtQ = $pdo->prepare('
+                SELECT mq.priority, dp.name AS player_name, dp.position, dp.ovr, dp.draft_status
+                FROM draft_mock_queue mq
+                JOIN draft_pool dp ON mq.player_id = dp.id
+                WHERE mq.team_id = ? AND mq.draft_session_id = ?
+                ORDER BY mq.priority ASC
+            ');
+            $stmtQ->execute([$team['id'], $draftSessionId]);
+            $queue = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($queue) || $team['is_active']) {
+                $result[] = [
+                    'team_id'   => (int)$team['id'],
+                    'team_name' => $team['team_name'],
+                    'is_active' => (bool)$team['is_active'],
+                    'queue'     => $queue,
+                ];
+            }
+        }
+        echo json_encode(['success' => true, 'mocks' => $result]);
         break;
 
     default:

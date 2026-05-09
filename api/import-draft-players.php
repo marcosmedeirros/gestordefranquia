@@ -70,6 +70,8 @@ try {
             $position = trim($data['posicao'] ?? $data['posição'] ?? $data['position'] ?? '');
             $age = (int)($data['idade'] ?? $data['age'] ?? 0);
             $ovr = (int)($data['ovr'] ?? $data['overall'] ?? 0);
+            $hintRaw = $data['ordem'] ?? $data['pick_hint'] ?? '';
+            $pickHint = ($hintRaw !== '' && (int)$hintRaw > 0) ? (int)$hintRaw : null;
             
             if (empty($name)) {
                 throw new Exception("Linha {$lineNumber}: Nome é obrigatório");
@@ -91,7 +93,8 @@ try {
                 'name' => $name,
                 'position' => $position,
                 'age' => $age,
-                'ovr' => $ovr
+                'ovr' => $ovr,
+                'pick_hint' => $pickHint,
             ];
         }
         
@@ -118,20 +121,17 @@ try {
         // Insere os jogadores no draft_pool da temporada
         $db->beginTransaction();
         
-        $stmt = $db->prepare("
-            INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status)
-            VALUES (?, ?, ?, ?, ?, 'available')
-        ");
-        
+        $hasPickHint = (bool)$db->query("SHOW COLUMNS FROM draft_pool LIKE 'pick_hint'")->fetch();
+        $insertSql = $hasPickHint
+            ? "INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status) VALUES (?, ?, ?, ?, ?, ?, 'available')"
+            : "INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status) VALUES (?, ?, ?, ?, ?, 'available')";
+        $stmt = $db->prepare($insertSql);
+
         $inserted = 0;
         foreach ($players as $player) {
-            $stmt->execute([
-                $seasonId,
-                $player['name'],
-                $player['position'],
-                $player['age'],
-                $player['ovr']
-            ]);
+            $params = [$seasonId, $player['name'], $player['position'], $player['age'], $player['ovr']];
+            if ($hasPickHint) $params[] = $player['pick_hint'];
+            $stmt->execute($params);
             $inserted++;
         }
         

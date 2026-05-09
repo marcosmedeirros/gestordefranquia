@@ -880,6 +880,11 @@ try {
                 $columns[] = 'weaknesses';
                 $values[] = $data['weaknesses'] ?? null;
             }
+            if (columnExists($pdo, 'draft_pool', 'pick_hint')) {
+                $columns[] = 'pick_hint';
+                $hint = isset($data['pick_hint']) && $data['pick_hint'] !== '' ? (int)$data['pick_hint'] : null;
+                $values[] = $hint && $hint > 0 ? $hint : null;
+            }
 
             $columnList = implode(', ', array_map(static fn($col) => "`{$col}`", $columns));
             $placeholders = implode(', ', array_fill(0, count($columns), '?'));
@@ -978,6 +983,18 @@ try {
             
             $pdo->commit();
             
+            echo json_encode(['success' => true]);
+            break;
+
+        // ========== ATUALIZAR PICK_HINT DE JOGADOR DO DRAFT (ADMIN) ==========
+        case 'update_draft_player':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $data = json_decode(file_get_contents('php://input'), true);
+            $playerId = (int)($data['player_id'] ?? 0);
+            if (!$playerId) throw new Exception('player_id é obrigatório');
+            $hint = isset($data['pick_hint']) && $data['pick_hint'] !== '' ? (int)$data['pick_hint'] : null;
+            $hint = ($hint && $hint > 0) ? $hint : null;
+            $pdo->prepare('UPDATE draft_pool SET pick_hint = ? WHERE id = ?')->execute([$hint, $playerId]);
             echo json_encode(['success' => true]);
             break;
 

@@ -23,6 +23,7 @@ $user = getUserSession();
 $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE draft_pool ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Buscar time do usuário
@@ -162,9 +163,9 @@ if ($method === 'GET') {
             }
 
             $stmt = $pdo->prepare(
-                "SELECT * FROM draft_pool 
+                "SELECT * FROM draft_pool
                  WHERE season_id = ? AND draft_status = 'available'
-                 ORDER BY ovr DESC, name ASC"
+                 ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC, name ASC"
             );
             $stmt->execute([$seasonId]);
             $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
