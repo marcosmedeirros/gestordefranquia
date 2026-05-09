@@ -255,72 +255,51 @@ async function confirmResetPassword(userId, userName) {
   }
 }
 
-async function init() { showHome(); }
+async function init() { showLeague(_leagues[0]); }
+
+// showHome() mantido para compatibilidade com botões "Voltar" nas sub-views
+function showHome() { showLeague(appState.currentLeague || _leagues[0]); }
 
 function updateBreadcrumb() {
   const breadcrumb = document.getElementById('breadcrumb');
   const breadcrumbContainer = document.getElementById('breadcrumbContainer');
   const pageTitle = document.getElementById('pageTitle');
-  
-  breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" onclick="showHome(); return false;">Admin</a></li>';
-  
-  if (appState.view === 'home') {
+
+  const leagueBack = appState.currentLeague || _leagues[0];
+  breadcrumb.innerHTML = `<li class="breadcrumb-item"><a href="#" onclick="showLeague('${leagueBack}'); return false;">${leagueBack}</a></li>`;
+
+  if (appState.view === 'league') {
     breadcrumbContainer.style.display = 'none';
-    pageTitle.textContent = 'Painel Administrativo';
+    pageTitle.textContent = `Liga ${appState.currentLeague}`;
   } else {
     breadcrumbContainer.style.display = 'block';
-    if (appState.view === 'league' && appState.currentLeague) {
-      breadcrumb.innerHTML += `<li class="breadcrumb-item active">${appState.currentLeague}</li>`;
-      pageTitle.textContent = `Liga ${appState.currentLeague}`;
-    } else if (appState.view === 'team' && appState.currentTeam) {
-      breadcrumb.innerHTML += `<li class="breadcrumb-item"><a href="#" onclick="showLeague('${appState.currentLeague}'); return false;">${appState.currentLeague}</a></li>`;
-      breadcrumb.innerHTML += `<li class="breadcrumb-item active">${appState.currentTeam.city} ${appState.currentTeam.name}</li>`;
-      pageTitle.textContent = `${appState.currentTeam.city} ${appState.currentTeam.name}`;
-    } else if (appState.view === 'trades') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Trades</li>';
-      pageTitle.textContent = 'Gerenciar Trades';
-    } else if (appState.view === 'config') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Configurações</li>';
-      pageTitle.textContent = 'Configurações das Ligas';
-    } else if (appState.view === 'seasons') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Temporadas</li>';
-      pageTitle.textContent = 'Gerenciar Temporadas';
-    } else if (appState.view === 'ranking') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>';
-      pageTitle.textContent = 'Rankings Globais';
-    } else if (appState.view === 'freeagency') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>';
-      pageTitle.textContent = 'Gerenciar Leilões';
-    } else if (appState.view === 'coins') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>';
-      pageTitle.textContent = 'Gerenciar Moedas';
-    } else if (appState.view === 'tapas') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>';
-      pageTitle.textContent = 'Gerenciar Tapas';
-    } else if (appState.view === 'userApprovals') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>';
-      pageTitle.textContent = 'Aprovar Usuários';
-    } else if (appState.view === 'halloffame') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>';
-      pageTitle.textContent = 'Hall da Fama';
-    } else if (appState.view === 'dispensas') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>';
-      pageTitle.textContent = 'Dispensas por Temporada';
-    } else if (appState.view === 'pontuacao') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>';
-      pageTitle.textContent = 'Pontuação por Temporada';
-    } else if (appState.view === 'gestao') {
-      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>';
-      pageTitle.textContent = 'Gestão de Usuários';
-    }
+    const labels = {
+      team:         () => { breadcrumb.innerHTML += `<li class="breadcrumb-item active">${appState.currentTeam?.city} ${appState.currentTeam?.name}</li>`; return `${appState.currentTeam?.city} ${appState.currentTeam?.name}`; },
+      trades:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Trades</li>'; return 'Gerenciar Trades'; },
+      config:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Configurações</li>'; return 'Configurações das Ligas'; },
+      seasons:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Temporadas</li>'; return 'Gerenciar Temporadas'; },
+      ranking:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>'; return 'Rankings Globais'; },
+      freeagency:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>'; return 'Gerenciar Leilões'; },
+      faadmin:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>'; return 'Free Agency'; },
+      coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
+      tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>'; return 'Gerenciar Tapas'; },
+      userApprovals:() => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>'; return 'Aprovar Usuários'; },
+      halloffame:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>'; return 'Hall da Fama'; },
+      dispensas:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>'; return 'Dispensas por Temporada'; },
+      pontuacao:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>'; return 'Pontuação por Temporada'; },
+      gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
+    };
+    const fn = labels[appState.view];
+    pageTitle.textContent = fn ? fn() : 'Painel Administrativo';
   }
 
-  // Atualiza o quicknav ativo
-  const map = { home: 'qnav-home', gestao: 'qnav-gestao' };
+  // Atualiza aba ativa do quicknav
   document.querySelectorAll('.admin-qnav-btn').forEach(b => b.classList.remove('active'));
-  const navBtnId = map[appState.view] || 'qnav-home';
-  const navBtn = document.getElementById(navBtnId);
-  if (navBtn) navBtn.classList.add('active');
+  const activeId = appState.view === 'gestao'
+    ? 'qnav-gestao'
+    : `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
+  const activeBtn = document.getElementById(activeId);
+  if (activeBtn) activeBtn.classList.add('active');
 }
 
 function escapeHtml(value) {
@@ -334,116 +313,8 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch]);
 }
 
-function filterAdminLeague(league) {
-  appState.adminLeagueFilter = league;
-  document.querySelectorAll('.league-tab-btn').forEach(btn => btn.classList.remove('active'));
-  const activeBtn = document.getElementById('ltab-' + league);
-  if (activeBtn) activeBtn.classList.add('active');
-  showHome();
-}
 
-async function showHome() {
-  appState.view = 'home';
-  updateBreadcrumb();
 
-  const visibleLeagues = appState.adminLeagueFilter
-    ? [appState.adminLeagueFilter]
-    : _leagues;
-
-  const leagueDescriptions = { ELITE: 'Liga Elite', NEXT: 'Liga Next', RISE: 'Liga Rise', ROOKIE: 'Liga Rookie' };
-
-  const leagueCards = visibleLeagues.map(lg => `
-    <div class="col-md-6 col-lg-3">
-      <div class="league-card" onclick="showLeague('${lg}')">
-        <h3>${lg}</h3>
-        <p class="text-light-gray mb-2">${leagueDescriptions[lg] || lg}</p>
-        <span class="badge bg-gradient-orange" id="${lg.toLowerCase()}-teams">Ver mais</span>
-      </div>
-    </div>`).join('');
-
-  const container = document.getElementById('mainContainer');
-  container.innerHTML = `
-<div class="row g-4 mb-4">
-  <div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-trophy-fill text-orange me-2"></i>Ligas</h3></div>
-  ${leagueCards}
-</div>
-<div class="row g-4">
-  <div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
-  <div class="col-md-6"><div class="action-card" onclick="showUserApprovals()"><i class="bi bi-person-check"></i><h4>Aprovar Usuários <span class="badge bg-danger" id="pending-users-count" style="display:none;">0</span></h4><p>Aprovar ou rejeitar novos cadastros</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showFreeAgency()"><i class="bi bi-hammer"></i><h4>Leilões</h4><p>Inicie, cancele e reverta leilões</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Crie temporadas e gerencie o draft</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showHallOfFame()"><i class="bi bi-award-fill"></i><h4>Hall da Fama</h4><p>Cadastre clubes e títulos</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anônimas</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div>
-  <div class="col-md-6"><div class="action-card" onclick="showPointsManagement()"><i class="bi bi-bar-chart-steps"></i><h4>Pontuação</h4><p>Cadastre e visualize pontuações por temporada e liga</p></div></div>
-</div>`;
-  container.innerHTML += `
-  <div class="row g-4 mt-1">
-    <div class="col-12">
-      <div class="bg-dark-panel border-orange rounded p-4">
-        <div class="d-flex flex-wrap align-items-center gap-3">
-          <h5 class="text-white mb-0"><i class="bi bi-clipboard-check me-2 text-orange"></i>Copiar elencos</h5>
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <label for="copyRosterLeague" class="text-light-gray">Liga</label>
-            <select id="copyRosterLeague" class="form-select form-select-sm" style="min-width: 140px;">
-              <option value="ELITE">ELITE</option>
-              <option value="NEXT">NEXT</option>
-              <option value="RISE">RISE</option>
-              <option value="ROOKIE">ROOKIE</option>
-            </select>
-            <button class="btn btn-sm btn-orange" type="button" id="copyRosterBtn">
-              <i class="bi bi-clipboard me-1"></i>Copiar elencos
-            </button>
-            <button class="btn btn-sm btn-outline-orange" type="button" id="copyPicksBtn">
-              <i class="bi bi-calendar2-check me-1"></i>Copiar picks
-            </button>
-          </div>
-        </div>
-        <small class="text-light-gray">Gera um texto com o elenco de todos os times da liga selecionada.</small>
-      </div>
-    </div>
-  </div>`;
-
-  
-  try {
-    const data = await api('admin.php?action=leagues');
-    (data.leagues || []).forEach(league => {
-      const el = document.getElementById(`${league.league.toLowerCase()}-teams`);
-      if (el) el.textContent = `${league.team_count} ${league.team_count === 1 ? 'time' : 'times'}`;
-    });
-  } catch (e) {}
-  
-  // Carregar contagem de usuários pendentes
-  try {
-    const approvalData = await api('user-approval.php');
-    const pendingCount = (approvalData.users || []).length;
-    const badge = document.getElementById('pending-users-count');
-    if (badge && pendingCount > 0) {
-      badge.textContent = pendingCount;
-      badge.style.display = 'inline-block';
-    }
-  } catch (e) {}
-
-  const copyBtn = document.getElementById('copyRosterBtn');
-  if (copyBtn) {
-    copyBtn.addEventListener('click', () => {
-      copyLeagueRosters();
-    });
-  }
-
-  const copyPicksBtn = document.getElementById('copyPicksBtn');
-  if (copyPicksBtn) {
-    copyPicksBtn.addEventListener('click', () => {
-      copyLeaguePicks();
-    });
-  }
-
-  ensureOuvidoriaModal();
-}
 
 async function loadOuvidoriaMessages() {
   const list = document.getElementById('ouvidoriaList');
@@ -665,7 +536,7 @@ function ensureCopyPicksModal() {
 }
 
 async function copyLeaguePicks() {
-  const league = document.getElementById('copyRosterLeague')?.value || 'ELITE';
+  const league = appState.currentLeague || document.getElementById('copyRosterLeague')?.value || 'ELITE';
   ensureCopyPicksModal();
   const textarea = document.getElementById('copyPicksTextarea');
   if (textarea) textarea.value = 'Carregando...';
@@ -681,7 +552,7 @@ async function copyLeaguePicks() {
 }
 
 async function copyLeagueRosters() {
-  const league = document.getElementById('copyRosterLeague')?.value || 'ELITE';
+  const league = appState.currentLeague || document.getElementById('copyRosterLeague')?.value || 'ELITE';
   ensureCopyRosterModal();
   const textarea = document.getElementById('copyRosterTextarea');
   if (textarea) {
@@ -709,36 +580,114 @@ async function showLeague(league) {
   appState.view = 'league';
   appState.currentLeague = league;
   updateBreadcrumb();
-  
+
   const container = document.getElementById('mainContainer');
-  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
+
   try {
     const data = await api(`admin.php?action=teams&league=${league}`);
     const teams = data.teams || [];
-  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="bg-dark-panel border-orange rounded p-3 mb-4">
-  <h5 class="text-white mb-2"><i class="bi bi-search me-2 text-orange"></i>Buscar jogador</h5>
-  <div class="d-flex flex-wrap gap-2">
-    <input type="text" id="leaguePlayerSearch" class="form-control bg-dark text-white border-orange" placeholder="Digite o nome do jogador" style="min-width: 240px;">
-    <button class="btn btn-outline-orange" id="leaguePlayerSearchBtn"><i class="bi bi-search me-1"></i>Pesquisar</button>
-  </div>
-  <div id="leaguePlayerSearchResults" class="mt-3 text-light-gray">Digite ao menos 2 letras para buscar.</div>
-</div>
-<div class="row g-3">${teams.map(t => `<div class="col-md-6 col-lg-4 col-xl-3"><div class="team-card" onclick="showTeam(${t.id})">
-<div class="d-flex align-items-center"><img src="${t.photo_url || '/img/default-team.png'}" class="team-logo me-3"><div class="flex-grow-1">
-<h5 class="mb-0">${t.city}</h5><h5 class="mb-0">${t.name}</h5><small class="text-muted">${t.owner_name}</small></div></div>
-<hr class="my-2" style="border-color:var(--fba-border);"><div class="d-flex justify-content-between flex-wrap gap-1">
-<small class="text-light-gray"><i class="bi bi-people-fill text-orange me-1"></i>${t.player_count}</small>
-<small class="text-light-gray"><i class="bi bi-star-fill text-orange me-1"></i>${t.cap_top8}</small>
-<small class="text-light-gray"><i class="bi bi-hand-index-thumb text-warning me-1"></i>${parseInt(t.tapas || 0)}</small>
-<small class="text-light-gray"><i class="bi bi-arrow-left-right text-info me-1"></i>${parseInt(t.trades_used || 0)}</small>
-<small class="text-light-gray"><i class="bi bi-person-dash text-success me-1"></i>${parseInt(t.waivers_used || 0)}</small>
-</div></div></div>`).join('')}</div>`;
+
+    const teamCards = teams.map(t => `
+      <div class="col-6 col-md-4 col-xl-3">
+        <div class="team-card" onclick="showTeam(${t.id})">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <img src="${escapeHtml(t.photo_url || '/img/default-team.png')}" class="team-logo" onerror="this.src='/img/default-team.png'">
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.2">${escapeHtml(t.city)}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.2">${escapeHtml(t.name)}</div>
+              <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)}</div>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between flex-wrap gap-1" style="font-size:11px">
+            <span style="color:var(--text-2)"><i class="bi bi-people-fill" style="color:var(--red)"></i> ${t.player_count}</span>
+            <span style="color:var(--text-2)"><i class="bi bi-star-fill" style="color:var(--red)"></i> ${t.cap_top8}</span>
+            <span style="color:var(--text-2)"><i class="bi bi-hand-index-thumb" style="color:#f59e0b"></i> ${parseInt(t.tapas||0)}</span>
+            <span style="color:var(--text-2)"><i class="bi bi-arrow-left-right" style="color:#3b82f6"></i> ${parseInt(t.trades_used||0)}</span>
+            <span style="color:var(--text-2)"><i class="bi bi-person-dash" style="color:#22c55e"></i> ${parseInt(t.waivers_used||0)}</span>
+          </div>
+        </div>
+      </div>`).join('');
+
+    const actions = [
+      { icon: 'bi-person-check-fill', label: 'Aprovar<br>Usuários',  fn: 'showUserApprovals()',    color: '#fc0025', bg: 'rgba(252,0,37,.12)',   badgeId: 'action-badge-approvals' },
+      { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
+      { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
+      { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
+      { icon: 'bi-calendar3',         label: 'Temporadas',           fn: 'showSeasonsManagement()', color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
+      { icon: 'bi-bar-chart-steps',   label: 'Pontuação',            fn: 'showPointsManagement()',  color: '#06b6d4', bg: 'rgba(6,182,212,.12)'  },
+      { icon: 'bi-person-dash-fill',  label: 'Dispensas',            fn: 'showDispensas()',         color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
+      { icon: 'bi-award-fill',        label: 'Hall da Fama',         fn: 'showHallOfFame()',        color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
+      { icon: 'bi-sliders',           label: 'Configurações',        fn: 'showConfig()',            color: '#94a3b8', bg: 'rgba(148,163,184,.12)'},
+      { icon: 'bi-hand-index-thumb',  label: 'Tapas',                fn: 'showTapas()',             color: '#f97316', bg: 'rgba(249,115,22,.12)' },
+      { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
+      { icon: 'bi-chat-left-dots-fill',label: 'Ouvidoria',           fn: 'showOuvidoriaModal()',    color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
+    ];
+
+    const actionTiles = actions.map(a => `
+      <button class="action-tile" onclick="${a.fn}">
+        <div class="action-tile-icon" style="background:${a.bg};color:${a.color}">
+          <i class="bi ${a.icon}"></i>
+        </div>
+        <div class="action-tile-label">${a.label}</div>
+        ${a.badgeId ? `<span class="action-tile-badge" id="${a.badgeId}" style="display:none">0</span>` : ''}
+      </button>`).join('');
+
+    container.innerHTML = `
+      <div class="league-hero">
+        <div>
+          <div class="league-hero-name">
+            <small>Liga</small>
+            ${league}
+          </div>
+        </div>
+        <div class="league-hero-stats">
+          <div class="league-hero-stat">
+            <div class="league-hero-stat-val">${teams.length}</div>
+            <div class="league-hero-stat-lbl">Times</div>
+          </div>
+        </div>
+        <div class="league-hero-tools">
+          <div class="league-search-wrap">
+            <input type="text" id="leaguePlayerSearch" placeholder="Buscar jogador…">
+            <button id="leaguePlayerSearchBtn"><i class="bi bi-search"></i></button>
+          </div>
+          <button class="btn-ghost" id="copyRosterBtn">
+            <i class="bi bi-clipboard"></i> Elencos
+          </button>
+          <button class="btn-ghost" id="copyPicksBtn">
+            <i class="bi bi-calendar2-check"></i> Picks
+          </button>
+        </div>
+      </div>
+
+      <div id="leaguePlayerSearchResults"></div>
+
+      <div class="action-grid">${actionTiles}</div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title" style="margin-bottom:0"><i class="bi bi-people-fill"></i> Times</div>
+          <span style="font-size:12px;color:var(--text-3)">${teams.length} cadastrados</span>
+        </div>
+        <div class="row g-2 mt-1">${teamCards || '<div class="col-12"><p class="empty-state">Nenhum time cadastrado.</p></div>'}</div>
+      </div>
+    `;
 
     setupLeaguePlayerSearch(league);
+    document.getElementById('copyRosterBtn')?.addEventListener('click', copyLeagueRosters);
+    document.getElementById('copyPicksBtn')?.addEventListener('click', copyLeaguePicks);
+
+    try {
+      const approvalData = await api('user-approval.php');
+      const count = (approvalData.users || []).length;
+      const badge = document.getElementById('action-badge-approvals');
+      if (badge && count > 0) { badge.textContent = count; badge.style.display = 'inline-flex'; }
+    } catch (e) {}
+
+    ensureOuvidoriaModal();
   } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times</div>';
+    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
   }
 }
 
@@ -746,38 +695,38 @@ function setupLeaguePlayerSearch(league) {
   const input = document.getElementById('leaguePlayerSearch');
   const button = document.getElementById('leaguePlayerSearchBtn');
   const results = document.getElementById('leaguePlayerSearchResults');
-  if (!input || !button || !results) return;
+  if (!input || !results) return;
 
   let debounceTimer = null;
 
   const runSearch = async () => {
     const term = (input.value || '').trim();
     if (term.length < 2) {
-      results.textContent = 'Digite ao menos 2 letras para buscar.';
+      results.innerHTML = '';
       return;
     }
-    results.innerHTML = '<div class="spinner-border text-orange" role="status" style="width: 1.5rem; height: 1.5rem;"></div>';
+    results.innerHTML = '<div class="search-results-panel"><div class="spinner-border" style="color:var(--red);width:1.25rem;height:1.25rem" role="status"></div></div>';
     try {
       const data = await api(`admin.php?action=search_players&league=${encodeURIComponent(league)}&query=${encodeURIComponent(term)}`);
       const players = data.players || [];
       if (!players.length) {
-        results.textContent = 'Nenhum jogador encontrado.';
+        results.innerHTML = '<div class="search-results-panel" style="color:var(--text-3)">Nenhum jogador encontrado.</div>';
         return;
       }
-      const html = players.map(p => {
+      const rows = players.map(p => {
         const ovr = p.ovr != null ? p.ovr : '-';
         const age = p.age != null ? p.age : '-';
-        return `<div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
-  <div>
-    <div class="text-white fw-semibold">${p.name}</div>
-    <div class="text-light-gray" style="font-size:12px">OVR ${ovr} · ${age} anos · ${p.position || '-'}</div>
-  </div>
-  <div class="text-light-gray" style="font-size:12px">${p.team_city || ''} ${p.team_name || ''}</div>
-</div>`;
+        return `<div class="search-result-row">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.name)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${p.position || '-'} · OVR ${ovr} · ${age} anos</div>
+          </div>
+          <div style="font-size:12px;color:var(--text-2);text-align:right">${escapeHtml((p.team_city||'') + ' ' + (p.team_name||''))}</div>
+        </div>`;
       }).join('');
-      results.innerHTML = html;
+      results.innerHTML = `<div class="search-results-panel">${rows}</div>`;
     } catch (e) {
-      results.textContent = e.error || 'Erro ao buscar jogadores.';
+      results.innerHTML = `<div class="search-results-panel" style="color:var(--red)">${e.error || 'Erro ao buscar.'}</div>`;
     }
   };
 
@@ -785,12 +734,9 @@ function setupLeaguePlayerSearch(league) {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(runSearch, 350);
   });
-  button.addEventListener('click', runSearch);
+  button?.addEventListener('click', runSearch);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      runSearch();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
   });
 }
 
@@ -2463,72 +2409,79 @@ function refreshAdminFreeAgency() {
   setFreeAgencyLeague(league);
 }
 
-async function showFreeAgency() {
-  appState.view = 'freeagency';
+async function showFAAdmin() {
+  appState.view = 'faadmin';
   updateBreadcrumb();
-  
+
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
-    
-    <div class="row mb-4">
-      <div class="col-12 d-flex flex-wrap gap-3 justify-content-between align-items-center">
-        <div class="d-flex gap-2 flex-wrap">
-          ${_leagues.map((lg, i) => `<button class="btn btn-outline-orange${i === 0 ? ' active' : ''}" onclick="setFreeAgencyLeague('${lg}')" id="btn-fa-${lg}">${lg}</button>`).join('')}
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-person-check-fill" style="color:var(--red);margin-right:8px;"></i>Solicitações Free Agency</div>
+        <div class="admin-sel">
+          <label for="faNewAdminLeague">Liga</label>
+          <select id="faNewAdminLeague" onchange="typeof carregarSolicitacoesNovaFA==='function'&&carregarSolicitacoesNovaFA()">
+            ${_leagues.map(lg => `<option value="${lg}"${lg === league ? ' selected' : ''}>${lg}</option>`).join('')}
+          </select>
         </div>
-        <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
-          <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
+      </div>
+      <div id="faNewAdminRequests"><p class="empty-state">Carregando...</p></div>
+    </div>
+  `;
+
+  if (typeof carregarSolicitacoesNovaFA === 'function') {
+    carregarSolicitacoesNovaFA();
+  }
+}
+
+async function showFreeAgency() {
+  appState.view = 'freeagency';
+  updateBreadcrumb();
+
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-hammer" style="color:var(--red);margin-right:8px;"></i>Leilões Ativos</div>
+        <button class="btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="loadActiveAuctions()">
+          <i class="bi bi-arrow-repeat"></i>
         </button>
       </div>
+      <div id="activeAuctionsContainer"><p class="empty-state">Carregando...</p></div>
     </div>
 
-    <!-- Seção de Leilões Ativos -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="bg-dark-panel border-orange rounded p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="text-white mb-0"><i class="bi bi-hammer text-orange me-2"></i>Leilões Ativos</h4>
-            <button class="btn btn-outline-orange btn-sm" onclick="loadActiveAuctions()">
-              <i class="bi bi-arrow-repeat"></i>
-            </button>
-          </div>
-          <div id="activeAuctionsContainer">
-            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row g-4">
+    <div class="row g-4" style="margin-top:0;">
       <div class="col-lg-6">
-        <div class="bg-dark-panel border-orange rounded p-4 h-100">
-          <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div class="panel h-100">
+          <div class="panel-header">
             <div>
-              <h4 class="text-white mb-1">Jogadores disponíveis</h4>
-              <small class="text-light-gray" id="faAvailableCount">--</small>
-            </div>
-            <div class="flex-grow-1" style="min-width:200px;">
-              <input type="text" class="form-control bg-dark text-white border-orange" id="faAvailableSearch" placeholder="Buscar por nome ou posição">
+              <div class="panel-title">Jogadores disponíveis</div>
+              <div class="panel-sub" id="faAvailableCount"></div>
             </div>
           </div>
-          <div id="faAvailableContainer" class="mt-3">
-            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
-          </div>
+          <input type="text" class="form-control" id="faAvailableSearch" placeholder="Buscar por nome ou posição" style="margin-bottom:12px;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;width:100%;">
+          <div id="faAvailableContainer"><p class="empty-state">Carregando...</p></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="bg-dark-panel border-orange rounded p-4 h-100">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="text-white mb-0">Propostas pendentes</h4>
-            <button class="btn btn-outline-orange btn-sm" onclick="refreshAdminFreeAgency()">
+        <div class="panel h-100">
+          <div class="panel-header">
+            <div class="panel-title">Propostas pendentes</div>
+            <button class="btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="refreshAdminFreeAgency()">
               <i class="bi bi-arrow-repeat"></i>
             </button>
           </div>
-          <div id="faOffersContainer">
-            <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
-          </div>
+          <div id="faOffersContainer"><p class="empty-state">Carregando...</p></div>
         </div>
       </div>
     </div>
@@ -2537,11 +2490,10 @@ async function showFreeAgency() {
   document.getElementById('faAvailableSearch')?.addEventListener('input', (event) => {
     renderAdminFreeAgents(event.target.value);
   });
-  
-  setFreeAgencyLeague(_leagues[0] || 'ELITE');
+
+  setFreeAgencyLeague(league);
   loadActiveAuctions();
-  
-  // Atualizar leilões a cada 30 segundos
+
   if (window.auctionInterval) clearInterval(window.auctionInterval);
   window.auctionInterval = setInterval(() => {
     if (appState.view === 'freeagency') {

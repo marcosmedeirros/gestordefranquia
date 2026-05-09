@@ -599,10 +599,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     data-bs-toggle="tab" data-bs-target="#fa-auction-admin" type="button" role="tab">
                 <i class="bi bi-hammer"></i> Leilão Admin
             </button>
-            <button class="tab-btn" id="fa-admin-tab"
-                    data-bs-toggle="tab" data-bs-target="#fa-admin" type="button" role="tab">
-                <i class="bi bi-shield-lock-fill"></i> FA Admin
-            </button>
             <?php endif; ?>
         </div>
 
@@ -848,123 +844,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                     </div>
                 </div>
             </div>
-
-            <!-- ─── Tab: FA Admin ─────────────────────── -->
-            <div class="tab-pane fade" id="fa-admin" role="tabpanel">
-
-                <!-- Solicitações FA -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Solicitações Free Agency</div>
-                        <div class="admin-sel">
-                            <label for="faNewAdminLeague">Liga</label>
-                            <select id="faNewAdminLeague">
-                                <option value="ALL">Todas</option>
-                                <?php foreach ($leagues_admin as $league): ?>
-                                    <option value="<?= htmlspecialchars($league['name']) ?>" <?= $league['name'] === $default_admin_league ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($league['name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="faNewAdminRequests">
-                        <p class="empty-state">Carregando...</p>
-                    </div>
-                </div>
-
-                <!-- Propostas pendentes (legacy) -->
-                <div class="panel legacy-fa">
-                    <div class="panel-header">
-                        <div class="panel-title">Propostas Pendentes</div>
-                        <div class="d-flex align-items-center gap-3 flex-wrap">
-                            <div class="admin-sel">
-                                <label for="adminLeagueSelect">Liga</label>
-                                <select id="adminLeagueSelect" onchange="onAdminLeagueChange()">
-                                    <option value="ALL">Todas</option>
-                                    <?php foreach ($leagues_admin as $league): ?>
-                                        <option value="<?= htmlspecialchars($league['name']) ?>"
-                                                data-league-id="<?= (int)$league['id'] ?>"
-                                                <?= $league['name'] === $default_admin_league ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($league['name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="form-check form-switch" style="margin:0;">
-                                <input class="form-check-input" type="checkbox" role="switch" id="faStatusToggle">
-                                <label class="form-check-label" for="faStatusToggle" style="font-size:12px;color:var(--text-2);">Propostas</label>
-                            </div>
-                            <span id="faStatusBadge" class="cbadge">-</span>
-                        </div>
-                    </div>
-                    <div id="adminOffersContainer">
-                        <p class="empty-state">Carregando...</p>
-                    </div>
-                </div>
-
-                <!-- Adicionar Free Agent (legacy) -->
-                <div class="panel legacy-fa">
-                    <div class="panel-header">
-                        <div class="panel-title">Adicionar Free Agent</div>
-                    </div>
-                    <div class="fgrid">
-                        <div class="field" style="grid-column: span 3;">
-                            <label for="faLeague">Liga</label>
-                            <select id="faLeague">
-                                <option value="">Selecione...</option>
-                                <?php foreach ($leagues as $league): ?>
-                                    <option value="<?= htmlspecialchars($league) ?>"><?= htmlspecialchars($league) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field" style="grid-column: span 4;">
-                            <label for="faPlayerName">Nome</label>
-                            <input type="text" id="faPlayerName" placeholder="Nome do jogador">
-                        </div>
-                        <div class="field" style="grid-column: span 2;">
-                            <label for="faPosition">Posição</label>
-                            <select id="faPosition">
-                                <option value="PG">PG</option>
-                                <option value="SG">SG</option>
-                                <option value="SF">SF</option>
-                                <option value="PF">PF</option>
-                                <option value="C">C</option>
-                            </select>
-                        </div>
-                        <div class="field" style="grid-column: span 3;">
-                            <label for="faSecondaryPosition">Pos. Secundária</label>
-                            <input type="text" id="faSecondaryPosition" placeholder="Opcional">
-                        </div>
-                        <div class="field" style="grid-column: span 2;">
-                            <label for="faAge">Idade</label>
-                            <input type="number" id="faAge" value="25">
-                        </div>
-                        <div class="field" style="grid-column: span 2;">
-                            <label for="faOvr">OVR</label>
-                            <input type="number" id="faOvr" value="70">
-                        </div>
-                        <div style="grid-column: span 2; align-self: end;">
-                            <button id="btnAddFreeAgent" class="btn-ghost" onclick="addFreeAgent()" style="width:100%;justify-content:center;padding:11px;">
-                                <i class="bi bi-plus-circle"></i> Adicionar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gerenciar (legacy) -->
-                <div class="panel legacy-fa">
-                    <div class="panel-title">Gerenciar Jogadores</div>
-                    <div id="adminFreeAgentsContainer" style="margin-top:14px;"><p class="empty-state">Carregando...</p></div>
-                </div>
-
-                <!-- Histórico contratações (legacy) -->
-                <div class="panel legacy-fa">
-                    <div class="panel-title">Histórico de Contratações FA</div>
-                    <div id="faContractsHistoryContainer" style="margin-top:14px;"><p class="empty-state">Carregando...</p></div>
-                </div>
-
-            </div><!-- /fa-admin -->
 
             <?php endif; ?>
 

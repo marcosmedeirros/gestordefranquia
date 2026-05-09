@@ -323,19 +323,102 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .admin-qnav-btn:hover { color: var(--text); }
         .admin-qnav-btn.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
 
-        /* ── League Tab Bar ───────────────────────────── */
-        .league-tab-bar {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-            padding: 14px 40px 0;
+        /* ── Panel components ────────────────────────── */
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
         }
-        .league-tab-btn {
+        .panel-sub { color: var(--text-2); font-size: 12px; margin-top: 2px; }
+        .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; font-size: 14px; }
+        .btn-ghost {
+            background: transparent; border: 1px solid var(--border); color: var(--text-2);
+            border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 500;
+            font-family: var(--font); cursor: pointer; transition: all var(--t) var(--ease);
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-ghost:hover { border-color: var(--border-red); color: var(--red); }
+        .admin-sel { display: flex; align-items: center; gap: 8px; }
+        .admin-sel label { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+        .admin-sel select {
             background: var(--panel-2); border: 1px solid var(--border);
-            color: var(--text-2); font-size: 12px; font-weight: 700;
-            font-family: var(--font); border-radius: 8px; padding: 6px 14px;
-            cursor: pointer; transition: all var(--t) var(--ease); letter-spacing: .05em;
+            border-radius: 8px; padding: 6px 10px; color: var(--text);
+            font-size: 13px; font-family: var(--font);
         }
-        .league-tab-btn:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
-        .league-tab-btn.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
+        /* ── League Landing Page ──────────────────────── */
+        .league-hero {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px 28px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 32px; flex-wrap: wrap;
+        }
+        .league-hero-name { font-size: 38px; font-weight: 900; letter-spacing: -1px; color: var(--text); line-height: 1; }
+        .league-hero-name small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--red); margin-bottom: 5px; }
+        .league-hero-stats { display: flex; gap: 32px; }
+        .league-hero-stat { display: flex; flex-direction: column; gap: 3px; }
+        .league-hero-stat-val { font-size: 24px; font-weight: 800; color: var(--text); line-height: 1; }
+        .league-hero-stat-lbl { font-size: 11px; color: var(--text-3); font-weight: 500; }
+        .league-hero-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .league-search-wrap {
+            display: flex; align-items: center;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: 10px; overflow: hidden;
+            transition: border-color var(--t) var(--ease);
+        }
+        .league-search-wrap:focus-within { border-color: var(--border-red); }
+        .league-search-wrap input {
+            background: transparent; border: none; outline: none;
+            padding: 8px 12px; font-size: 13px; color: var(--text);
+            font-family: var(--font); min-width: 185px;
+        }
+        .league-search-wrap input::placeholder { color: var(--text-3); }
+        .league-search-wrap button {
+            background: transparent; border: none; border-left: 1px solid var(--border);
+            color: var(--text-2); padding: 8px 12px; cursor: pointer; font-size: 14px;
+            transition: color var(--t) var(--ease);
+        }
+        .league-search-wrap button:hover { color: var(--red); }
+
+        /* ── Action Grid / Tiles ──────────────────────── */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+            gap: 10px; margin-bottom: 14px;
+        }
+        .action-tile {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 18px 16px;
+            display: flex; flex-direction: column; align-items: flex-start;
+            gap: 11px; cursor: pointer; position: relative; overflow: hidden;
+            transition: border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+            text-align: left; font-family: var(--font);
+        }
+        .action-tile:hover {
+            border-color: var(--border-red);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.14);
+        }
+        .action-tile-icon {
+            width: 40px; height: 40px; border-radius: 11px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .action-tile-label { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; }
+        .action-tile-badge {
+            position: absolute; top: 9px; right: 9px;
+            background: var(--red); color: #fff; font-size: 10px; font-weight: 700;
+            min-width: 18px; height: 18px; border-radius: 9px;
+            display: flex; align-items: center; justify-content: center; padding: 0 5px;
+        }
+        .search-results-panel {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 16px;
+            margin-bottom: 14px; font-size: 13px;
+        }
+        .search-result-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 0; border-bottom: 1px solid var(--border);
+        }
+        .search-result-row:last-child { border-bottom: none; }
 
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 992px) {
@@ -587,24 +670,15 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
     <main class="main" id="app-main">
 
     <nav class="admin-quicknav" id="adminQuicknav">
-        <button class="admin-qnav-btn active" id="qnav-home" onclick="showHome()">
-            <i class="bi bi-house-fill"></i> Início
+        <?php foreach ($adminLeagues as $lg): ?>
+        <button class="admin-qnav-btn" id="qnav-<?= strtolower(htmlspecialchars($lg)) ?>" onclick="showLeague('<?= htmlspecialchars($lg) ?>')">
+            <i class="bi bi-trophy-fill"></i> <?= htmlspecialchars($lg) ?>
         </button>
+        <?php endforeach; ?>
         <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
             <i class="bi bi-people-fill"></i> Gestão
         </button>
     </nav>
-
-    <?php if (!$isGlobalAdmin && count($adminLeagues) > 1): ?>
-    <div class="league-tab-bar" id="leagueTabBar">
-        <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0">Liga:</span>
-        <?php foreach ($adminLeagues as $lg): ?>
-        <button class="league-tab-btn" onclick="filterAdminLeague('<?= htmlspecialchars($lg) ?>')" id="ltab-<?= htmlspecialchars($lg) ?>">
-            <?= htmlspecialchars($lg) ?>
-        </button>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
 
     <div class="page-top">
         <div>
@@ -727,8 +801,22 @@ function showAlert(type, message) {
 <script>
 window.ADMIN_LEAGUES    = <?= json_encode(array_values($adminLeagues)) ?>;
 window.IS_GLOBAL_ADMIN  = <?= $isGlobalAdmin ? 'true' : 'false' ?>;
+/* variáveis necessárias para free-agency.js */
+const isAdmin          = <?= $isGlobalAdmin || !empty($adminLeagues) ? 'true' : 'false' ?>;
+const userLeague       = <?= $team ? "'" . addslashes($team['league'] ?? '') . "'" : 'null' ?>;
+const defaultAdminLeague = '<?= addslashes($adminLeagues[0] ?? '') ?>';
+const userTeamId       = <?= $team ? (int)$team['id'] : 'null' ?>;
+const userTeamName     = '<?= addslashes($team['name'] ?? '') ?>';
+const userMoedas       = 0;
+const userRosterCount  = 0;
+let   userPendingOffers= 0;
+const rosterLimit      = 15;
+const currentLeagueId  = null;
+const leagueIdByName   = {};
+const useNewFreeAgency = true;
 </script>
 <script src="/js/admin.js?v=<?= time() ?>"></script>
+<script src="/js/free-agency.js?v=<?= time() ?>"></script>
 <script src="/js/seasons.js?v=<?= time() ?>"></script>
 <script src="/js/pwa.js"></script>
 </div><!-- /.app -->
