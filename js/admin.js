@@ -304,6 +304,7 @@ function updateBreadcrumb() {
       dispensas:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>'; return 'Dispensas por Temporada'; },
       pontuacao:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>'; return 'Pontuação por Temporada'; },
       gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
+      draft:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Draft</li>'; return `Draft — ${appState.currentLeague || ''}`; },
     };
     const fn = labels[appState.view];
     pageTitle.textContent = fn ? fn() : 'Painel Administrativo';
@@ -637,6 +638,7 @@ async function showLeague(league) {
       { icon: 'bi-hand-index-thumb',  label: 'Tapas',                fn: 'showTapas()',             color: '#f97316', bg: 'rgba(249,115,22,.12)' },
       { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
+      { icon: 'bi-trophy-fill',              label: 'Draft',        fn: 'showAdminDraft()',        color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
     ];
 
     const actionTiles = actions.map(a => `
@@ -4086,6 +4088,413 @@ async function deletePtsMgmt(seasonId, league) {
     showPointsManagement(league);
   } catch (e) {
     showAlert('danger', e.error || 'Erro ao zerar pontuação');
+  }
+}
+
+// ── Draft Admin ──────────────────────────────────────────────────────
+
+async function showAdminDraft(league) {
+  league = league || appState.currentLeague;
+  appState.view = 'draft';
+  updateBreadcrumb();
+
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
+
+  const back = `<button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>`;
+
+  try {
+    const [seasonData, draftData] = await Promise.all([
+      api(`seasons.php?action=current_season&league=${league}`).catch(() => ({ season: null })),
+      api(`draft.php?action=active_draft&league=${league}`).catch(() => ({ draft: null }))
+    ]);
+
+    const season = seasonData.season;
+    const draft = draftData.draft;
+
+    if (!season) {
+      container.innerHTML = `
+        <div class="mb-4">${back}</div>
+        <div class="panel"><div style="padding:20px">
+          <p class="empty-state">Nenhuma temporada ativa para ${league}. Crie uma temporada primeiro em Temporadas.</p>
+        </div></div>`;
+      return;
+    }
+
+    let orderData = null;
+    if (draft) {
+      try { orderData = await api(`draft.php?action=draft_order&draft_session_id=${draft.id}`); } catch(e) {}
+    }
+
+    let availablePlayers = [];
+    if (draft && (draft.status === 'in_progress' || draft.status === 'setup')) {
+      try {
+        const pd = await api(`draft.php?action=available_players&season_id=${draft.season_id}`);
+        availablePlayers = pd.players || [];
+      } catch(e) {}
+    }
+
+    let leagueTeams = [];
+    if (draft && draft.status === 'setup') {
+      try {
+        const td = await api(`draft.php?action=league_teams&league=${league}`);
+        leagueTeams = td.teams || [];
+      } catch(e) {}
+    }
+
+    const order = orderData?.order || [];
+    const draftStatus = draft?.status || null;
+    const currentRound = draft?.current_round || 1;
+    const currentPick = draft?.current_pick || 1;
+
+    const statusMap = { setup: ['#f59e0b', 'Configurando'], in_progress: ['#22c55e', 'Em andamento'], completed: ['#94a3b8', 'Concluído'] };
+    const [statusColor, statusLabel] = draftStatus ? (statusMap[draftStatus] || ['#94a3b8', draftStatus]) : ['#94a3b8', 'Sem sessão'];
+
+    // Session panel
+    let sessionPanel = '';
+    if (!draft) {
+      sessionPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#a855f7"></i> Draft — ${escapeHtml(season.league)} T${escapeHtml(String(season.season_number))}</div>
+          </div>
+          <div style="padding:16px">
+            <p style="color:var(--text-2);font-size:13px;margin-bottom:12px">Nenhuma sessão de draft criada para esta temporada.</p>
+            <button class="btn-ghost" style="color:#a855f7" onclick="_adminDraftCreateSession('${league}', ${season.id})">
+              <i class="bi bi-plus-circle me-1"></i>Criar Sessão de Draft
+            </button>
+          </div>
+        </div>`;
+    } else {
+      const actionBtns = [];
+      if (draftStatus === 'setup') {
+        actionBtns.push(`<button class="btn-ghost" style="color:#22c55e" onclick="_adminDraftStart(${draft.id}, '${league}')"><i class="bi bi-play-fill me-1"></i>Iniciar Draft</button>`);
+        actionBtns.push(`<button class="btn-ghost" style="color:#ef4444;font-size:11px" onclick="_adminDraftDelete(${draft.id}, '${league}')"><i class="bi bi-trash me-1"></i>Excluir</button>`);
+      }
+      if (draftStatus === 'in_progress') {
+        actionBtns.push(`<button class="btn-ghost" style="color:#ef4444" onclick="_adminDraftFinalize(${draft.id}, '${league}')"><i class="bi bi-check2-all me-1"></i>Finalizar</button>`);
+      }
+      actionBtns.push(`<button class="btn-ghost" style="color:#a855f7" onclick="_adminDraftAddPlayerModal(${draft.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-plus me-1"></i>Adicionar Jogador</button>`);
+
+      const currentInfo = draftStatus === 'in_progress' ? `
+        <div style="padding:10px 16px;border-top:1px solid var(--panel-border);display:flex;gap:16px">
+          <span style="font-size:12px;color:var(--text-3)">Rodada: <strong style="color:var(--text)">${currentRound}</strong></span>
+          <span style="font-size:12px;color:var(--text-3)">Pick: <strong style="color:var(--text)">${currentPick}</strong></span>
+          <span style="font-size:12px;color:var(--text-3)">Rodadas: <strong style="color:var(--text)">${draft.total_rounds || 2}</strong></span>
+        </div>` : '';
+
+      sessionPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#a855f7"></i> Draft — ${escapeHtml(season.league)} T${escapeHtml(String(season.season_number))}</div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
+              ${actionBtns.join('')}
+            </div>
+          </div>
+          ${currentInfo}
+        </div>`;
+    }
+
+    // Draft order panel
+    let orderPanel = '';
+    if (draft && draftStatus !== 'completed') {
+      let orderContent = '';
+
+      if (draftStatus === 'setup') {
+        const round1 = order.filter(o => parseInt(o.round) === 1);
+        const teamsOptions = leagueTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city)} ${escapeHtml(t.name)}</option>`).join('');
+
+        const orderRows = round1.map((o, i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 8px;border-radius:6px;background:var(--panel-2);margin-bottom:5px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--text-3);width:18px;text-align:right;flex-shrink:0">${i + 1}.</span>
+              <span style="font-size:13px;color:var(--text)">${escapeHtml(o.team_city)} ${escapeHtml(o.team_name)}</span>
+            </div>
+            <button class="btn-ghost" style="padding:2px 7px;font-size:11px;color:#ef4444" onclick="_adminDraftRemoveFromOrder(${o.id}, ${draft.id}, '${league}')">
+              <i class="bi bi-x"></i>
+            </button>
+          </div>`).join('') || `<p style="font-size:13px;color:var(--text-3);text-align:center;padding:12px 0">Nenhum time adicionado ainda.</p>`;
+
+        orderContent = `
+          <div style="padding:12px 16px">
+            <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+              <select id="draftOrderTeamSelect" style="background:var(--panel-2);color:var(--text);border:1px solid var(--panel-border);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:160px">
+                <option value="">Selecione o time…</option>
+                ${teamsOptions}
+              </select>
+              <button class="btn-ghost" onclick="_adminDraftAddToOrder(${draft.id}, '${league}')" style="white-space:nowrap"><i class="bi bi-plus me-1"></i>Adicionar</button>
+              ${round1.length > 0 ? `<button class="btn-ghost" style="color:#ef4444;font-size:11px" onclick="_adminDraftClearOrder(${draft.id}, '${league}')"><i class="bi bi-trash me-1"></i>Limpar tudo</button>` : ''}
+            </div>
+            ${orderRows}
+          </div>`;
+
+      } else {
+        const rounds = [...new Set(order.map(o => parseInt(o.round)))].sort((a, b) => a - b);
+        const roundsHtml = rounds.map(r => {
+          const roundPicks = order.filter(o => parseInt(o.round) === r);
+          const pickRows = roundPicks.map(o => {
+            const isCurrent = r === currentRound && parseInt(o.pick_position) === currentPick && !o.picked_player_id;
+            const isDone = !!o.picked_player_id;
+            const rowBg = isCurrent ? 'background:rgba(168,85,247,.12);border-left:3px solid #a855f7;' : isDone ? 'opacity:.65;' : '';
+            return `
+              <div style="display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;background:var(--panel-2);margin-bottom:5px;${rowBg}">
+                <span style="font-size:11px;color:var(--text-3);text-align:right">${o.pick_position}.</span>
+                <div>
+                  <span style="font-size:13px;color:var(--text)">${escapeHtml(o.team_city)} ${escapeHtml(o.team_name)}</span>
+                  ${isDone ? `<br><span style="font-size:11px;color:#22c55e"><i class="bi bi-check me-1"></i>${escapeHtml(o.player_name || '')}${o.player_position ? ' · ' + o.player_position : ''}${o.player_ovr ? ' · OVR ' + o.player_ovr : ''}</span>` : ''}
+                  ${isCurrent ? `<br><span style="font-size:11px;color:#a855f7"><i class="bi bi-cursor-fill me-1"></i>Escolhendo agora…</span>` : ''}
+                </div>
+                ${!isDone ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="_adminDraftPickModal(${draft.id}, ${o.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-check me-1"></i>Pick</button>` : '<span></span>'}
+              </div>`;
+          }).join('');
+          return `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Rodada ${r}</div>${pickRows}</div>`;
+        }).join('');
+
+        orderContent = `<div style="padding:12px 16px">${roundsHtml || '<p style="color:var(--text-3);font-size:13px;text-align:center;padding:12px">Sem picks definidos.</p>'}</div>`;
+      }
+
+      const round1Count = order.filter(o => parseInt(o.round) === 1).length;
+      orderPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-list-ol" style="color:#94a3b8"></i> Ordem do Draft</div>
+            <span style="font-size:11px;color:var(--text-3)">${round1Count} time${round1Count !== 1 ? 's' : ''} · ${draft.total_rounds || 2} rodadas</span>
+          </div>
+          ${orderContent}
+        </div>`;
+    }
+
+    // Available players panel
+    let playersPanel = '';
+    if (draft && availablePlayers.length > 0) {
+      const playerRows = availablePlayers.slice(0, 60).map(p => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--panel-border)">
+          <div>
+            <span style="font-size:13px;color:var(--text)">${escapeHtml(p.name)}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:6px">${escapeHtml(p.position || '')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</span>
+          </div>
+        </div>`).join('');
+      const more = availablePlayers.length > 60 ? `<p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px">+${availablePlayers.length - 60} jogadores</p>` : '';
+
+      playersPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores</div>
+            <span style="font-size:11px;color:var(--text-3)">${availablePlayers.length} disponíveis</span>
+          </div>
+          <div style="padding:4px 16px 10px">${playerRows}${more}</div>
+        </div>`;
+    } else if (draft) {
+      playersPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores</div>
+          </div>
+          <div style="padding:16px"><p class="empty-state">Nenhum jogador no pool. Use "Adicionar Jogador" para incluir jogadores no draft.</p></div>
+        </div>`;
+    }
+
+    container.innerHTML = `
+      <div class="mb-4">${back}</div>
+      ${sessionPanel}
+      ${orderPanel}
+      ${playersPanel}`;
+
+  } catch(e) {
+    container.innerHTML = `
+      <div class="mb-4">${back}</div>
+      <div class="alert alert-danger">Erro ao carregar draft: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
+  }
+}
+
+async function _adminDraftCreateSession(league, seasonId) {
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'create_session', season_id: seasonId }) });
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao criar sessão de draft');
+  }
+}
+
+async function _adminDraftStart(draftSessionId, league) {
+  if (!confirm('Iniciar o draft? Verifique se a ordem dos times está definida antes de continuar.')) return;
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'start_draft', draft_session_id: draftSessionId }) });
+    showAlert('success', 'Draft iniciado!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao iniciar draft');
+  }
+}
+
+async function _adminDraftFinalize(draftSessionId, league) {
+  if (!confirm('Finalizar o draft? Isso marca o draft como concluído.')) return;
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: draftSessionId }) });
+    showAlert('success', 'Draft finalizado!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao finalizar draft');
+  }
+}
+
+async function _adminDraftDelete(draftSessionId, league) {
+  if (!confirm('Excluir esta sessão de draft? Todos os picks e a ordem serão removidos. Esta ação não pode ser desfeita.')) return;
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'delete_session', draft_session_id: draftSessionId }) });
+    showAlert('success', 'Sessão de draft excluída.');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao excluir sessão');
+  }
+}
+
+async function _adminDraftAddToOrder(draftSessionId, league) {
+  const sel = document.getElementById('draftOrderTeamSelect');
+  const teamId = sel?.value;
+  if (!teamId) { showAlert('warning', 'Selecione um time.'); return; }
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'add_to_order', draft_session_id: draftSessionId, team_id: parseInt(teamId) }) });
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao adicionar time à ordem');
+  }
+}
+
+async function _adminDraftRemoveFromOrder(pickId, draftSessionId, league) {
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'remove_from_order', pick_id: pickId, draft_session_id: draftSessionId }) });
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao remover time da ordem');
+  }
+}
+
+async function _adminDraftClearOrder(draftSessionId, league) {
+  if (!confirm('Limpar toda a ordem do draft?')) return;
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'clear_order', draft_session_id: draftSessionId }) });
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao limpar ordem');
+  }
+}
+
+async function _adminDraftAddPlayerModal(draftSessionId, seasonId, league) {
+  document.getElementById('adminDraftPlayerModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'adminDraftPlayerModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:420px;padding:0">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-person-plus" style="color:#a855f7"></i> Adicionar Jogador ao Draft</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('adminDraftPlayerModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px">
+        <div class="row g-2 mb-3">
+          <div class="col-12">
+            <label style="font-size:11px;color:var(--text-3)">Nome</label>
+            <input id="draftPlayerName" type="text" class="form-control form-control-sm" placeholder="Nome completo do jogador">
+          </div>
+          <div class="col-4">
+            <label style="font-size:11px;color:var(--text-3)">Posição</label>
+            <input id="draftPlayerPos" type="text" class="form-control form-control-sm" placeholder="PG, SG…">
+          </div>
+          <div class="col-4">
+            <label style="font-size:11px;color:var(--text-3)">OVR</label>
+            <input id="draftPlayerOvr" type="number" min="1" max="99" class="form-control form-control-sm" placeholder="75">
+          </div>
+          <div class="col-4">
+            <label style="font-size:11px;color:var(--text-3)">Idade</label>
+            <input id="draftPlayerAge" type="number" min="18" max="45" class="form-control form-control-sm" placeholder="22">
+          </div>
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button class="btn-ghost" onclick="document.getElementById('adminDraftPlayerModal').remove()">Cancelar</button>
+          <button class="btn-ghost" style="color:#a855f7" onclick="_adminDraftSubmitPlayer(${draftSessionId}, '${league}')">
+            <i class="bi bi-plus me-1"></i>Adicionar
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('draftPlayerName')?.focus();
+}
+
+async function _adminDraftSubmitPlayer(draftSessionId, league) {
+  const name = document.getElementById('draftPlayerName')?.value.trim();
+  const position = (document.getElementById('draftPlayerPos')?.value.trim() || '').toUpperCase();
+  const ovr = parseInt(document.getElementById('draftPlayerOvr')?.value || '0');
+  const age = parseInt(document.getElementById('draftPlayerAge')?.value || '0');
+
+  if (!name || !position || !ovr || !age) { showAlert('warning', 'Preencha todos os campos.'); return; }
+
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'add_draft_player', draft_session_id: draftSessionId, name, position, ovr, age }) });
+    document.getElementById('adminDraftPlayerModal')?.remove();
+    showAlert('success', 'Jogador adicionado ao pool!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao adicionar jogador');
+  }
+}
+
+async function _adminDraftPickModal(draftSessionId, pickId, seasonId, league) {
+  let players = [];
+  try {
+    const pd = await api(`draft.php?action=available_players&season_id=${seasonId}`);
+    players = pd.players || [];
+  } catch(e) {}
+
+  document.getElementById('adminDraftPickModal')?.remove();
+
+  const playerOptions = players.map(p =>
+    `<option value="${p.id}">${escapeHtml(p.name)} · ${escapeHtml(p.position || '?')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</option>`
+  ).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'adminDraftPickModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:440px;padding:0">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-person-check" style="color:#a855f7"></i> Fazer Pick</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('adminDraftPickModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px">
+        <div class="mb-3">
+          <label style="font-size:11px;color:var(--text-3);margin-bottom:4px;display:block">Jogador</label>
+          <select id="draftPickPlayerSelect" class="form-select form-select-sm" style="background:var(--panel-2);color:var(--text);border:1px solid var(--panel-border)">
+            <option value="">Selecione o jogador…</option>
+            ${playerOptions}
+          </select>
+          ${players.length === 0 ? '<p style="font-size:12px;color:#ef4444;margin-top:6px">Nenhum jogador disponível no pool. Adicione jogadores primeiro.</p>' : ''}
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button class="btn-ghost" onclick="document.getElementById('adminDraftPickModal').remove()">Cancelar</button>
+          <button class="btn-ghost" style="color:#22c55e" onclick="_adminDraftSubmitPick(${draftSessionId}, ${pickId}, '${league}')">
+            <i class="bi bi-check me-1"></i>Confirmar Pick
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function _adminDraftSubmitPick(draftSessionId, pickId, league) {
+  const playerId = document.getElementById('draftPickPlayerSelect')?.value;
+  if (!playerId) { showAlert('warning', 'Selecione um jogador.'); return; }
+
+  try {
+    await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'make_pick', draft_session_id: draftSessionId, pick_id: pickId, player_id: parseInt(playerId) }) });
+    document.getElementById('adminDraftPickModal')?.remove();
+    showAlert('success', 'Pick realizado com sucesso!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao fazer pick');
   }
 }
 
