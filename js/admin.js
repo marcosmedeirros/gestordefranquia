@@ -639,6 +639,8 @@ async function showLeague(league) {
       { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
       { icon: 'bi-trophy-fill',              label: 'Draft',        fn: 'showAdminDraft()',        color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
+      { icon: 'bi-coin',                     label: 'Moedas',       fn: 'showCoins()',             color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
+      { icon: 'bi-arrow-right-circle-fill',  label: 'Avançar<br>Temporada', fn: 'showAvancarTemporada()', color: '#10b981', bg: 'rgba(16,185,129,.12)' },
     ];
 
     const actionTiles = actions.map(a => `
@@ -771,61 +773,93 @@ function setupLeaguePlayerSearch(league) {
 async function showTeam(teamId) {
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
   try {
     const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
     appState.teamDetails = data.team;
     appState.currentTeam = data.team;
     appState.view = 'team';
     updateBreadcrumb();
-    
     const t = data.team;
-    container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showLeague('${t.league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="bg-dark-panel border-orange rounded p-4 mb-4"><div class="row align-items-center">
-<div class="col-md-2 text-center"><img src="${t.photo_url || '/img/default-team.png'}" class="img-fluid rounded-circle border border-orange" style="max-width:100px;"></div>
-<div class="col-md-6"><h2 class="text-white mb-2">${t.city} ${t.name}</h2><p class="text-light-gray mb-1"><strong>Proprietário:</strong> ${t.owner_name}</p>
-<p class="text-light-gray mb-0"><strong>Liga:</strong> <span class="badge bg-gradient-orange">${t.league}</span></p></div>
-<div class="col-md-4 text-end"><button class="btn btn-outline-orange mb-2 w-100" onclick="editTeam(${t.id})"><i class="bi bi-pencil-fill me-2"></i>Editar</button>
-<div class="bg-dark rounded p-3 mb-2"><h4 class="text-orange mb-0">${t.cap_top8}${t.restricted_bonus > 0 ? ` <small style="color:#f59e0b;font-size:.7em">+${t.restricted_bonus}</small>` : ''}</h4><small class="text-light-gray">CAP Top 8${t.restricted_bonus > 0 ? ` · <span style="color:#f59e0b">🏆 ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}</span>` : ''}</small></div>
-<div class="bg-dark rounded p-3 mb-2"><h4 class="text-warning mb-0">${parseInt(t.tapas || 0)}</h4><small class="text-light-gray">Tapas</small></div>
-<div class="bg-dark rounded p-3 mb-2 d-flex justify-content-between align-items-center">
-  <div><h4 class="text-info mb-0" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</h4><small class="text-light-gray">Trocas feitas</small></div>
-  <button class="btn btn-sm btn-outline-info" onclick="editTeamCounter(${t.id}, 'trades_used', ${parseInt(t.trades_used || 0)})"><i class="bi bi-pencil-fill"></i></button>
+    const ovrStyle = ovr => ovr >= 80
+      ? 'background:rgba(74,222,128,.15);color:#4ade80;border:1px solid rgba(74,222,128,.3)'
+      : ovr >= 70
+        ? 'background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)'
+        : 'background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.3)';
+    container.innerHTML = `
+<div class="mb-3"><button class="btn btn-back" onclick="showLeague('${t.league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+
+<div class="panel mb-3">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <img src="${t.photo_url || '/img/default-team.png'}" alt="logo"
+         style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--red)">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:20px;font-weight:700;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
+      <div style="font-size:13px;color:var(--text-3);margin-top:2px">${escapeHtml(t.owner_name)}</div>
+      <span class="badge bg-gradient-orange mt-1">${t.league}</span>
+    </div>
+    <button class="btn-ghost" onclick="editTeam(${t.id})"><i class="bi bi-pencil-fill me-1"></i>Editar</button>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+    <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:var(--red)">${t.cap_top8}${t.restricted_bonus > 0 ? ` <small style="color:#f59e0b;font-size:.65em">+${t.restricted_bonus}</small>` : ''}</div>
+      <div style="font-size:11px;color:var(--text-3)">CAP Top 8${t.restricted_bonus > 0 ? ` · ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}` : ''}</div>
+    </div>
+    <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:#f59e0b">${parseInt(t.tapas || 0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Tapas</div>
+    </div>
+    <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center;cursor:pointer" onclick="editTeamCounter(${t.id}, 'trades_used', ${parseInt(t.trades_used || 0)})">
+      <div style="font-size:20px;font-weight:700;color:#38bdf8" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Trocas feitas <i class="bi bi-pencil-fill" style="font-size:9px"></i></div>
+    </div>
+    <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center;cursor:pointer" onclick="editTeamCounter(${t.id}, 'waivers_used', ${parseInt(t.waivers_used || 0)})">
+      <div style="font-size:20px;font-weight:700;color:#4ade80" id="waiversUsedDisplay">${parseInt(t.waivers_used || 0)}</div>
+      <div style="font-size:11px;color:var(--text-3)">Dispensas feitas <i class="bi bi-pencil-fill" style="font-size:9px"></i></div>
+    </div>
+  </div>
 </div>
-<div class="bg-dark rounded p-3 d-flex justify-content-between align-items-center">
-  <div><h4 class="text-success mb-0" id="waiversUsedDisplay">${parseInt(t.waivers_used || 0)}</h4><small class="text-light-gray">Dispensas feitas</small></div>
-  <button class="btn btn-sm btn-outline-success" onclick="editTeamCounter(${t.id}, 'waivers_used', ${parseInt(t.waivers_used || 0)})"><i class="bi bi-pencil-fill"></i></button>
-</div></div></div></div>
-<ul class="nav nav-tabs mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#roster-tab">Elenco (${t.players.length})</button></li>
-<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#picks-tab">Picks (${t.picks ? t.picks.length : 0})</button></li></ul>
-<div class="tab-content">
-<div class="tab-pane fade show active" id="roster-tab">
-<div class="d-flex justify-content-between mb-3">
-<h5 class="text-white mb-0">Jogadores</h5>
-<button class="btn btn-sm btn-orange" onclick="addPlayer(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Jogador</button>
+
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-people-fill"></i> Elenco <span style="font-size:12px;color:var(--text-3);font-weight:400">(${t.players.length})</span></div>
+    <button class="btn-ghost" onclick="addPlayer(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+  </div>
+  ${t.players.length === 0
+    ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum jogador no elenco</div>'
+    : t.players.map(p => {
+        const isFE = t.league === 'RISE' && (Number(p.is_franchise_player) === 1 || (Number(p.was_traded) === 0 && Number(p.drafted_by_team_id) === t.id && Number(p.ovr) >= 90));
+        return `<div class="pun-card" style="display:flex;align-items:center;gap:12px${isFE ? ';border-left:3px solid rgba(245,158,11,.6)' : ''}">
+  <div style="flex:1;min-width:0">
+    <span style="font-weight:600;color:var(--text)">${escapeHtml(p.name)}</span>${isFE ? ' <span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Franquia</span>' : ''}
+    <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.position)} · ${p.age} anos · ${escapeHtml(p.role)}</div>
+  </div>
+  <span style="${ovrStyle(p.ovr)};border-radius:6px;padding:3px 8px;font-size:13px;font-weight:700">${p.ovr}</span>
+  <div style="display:flex;gap:6px">
+    <button class="btn-ghost" style="padding:5px 8px" onclick="editPlayer(${p.id})"><i class="bi bi-pencil-fill"></i></button>
+    <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button>
+  </div>
+</div>`;
+      }).join('')}
 </div>
-<div class="table-responsive"><table class="table table-dark table-hover">
-<thead><tr><th>Jogador</th><th>Pos</th><th>Idade</th><th>OVR</th><th>Papel</th><th>Ações</th></tr></thead>
-<tbody>${t.players.map(p => {
-  const isFE = t.league === 'RISE' && (Number(p.is_franchise_player) === 1 || (Number(p.was_traded) === 0 && Number(p.drafted_by_team_id) === t.id && Number(p.ovr) >= 90));
-  const rowStyle = isFE ? ' style="background:rgba(245,158,11,.08);border-left:3px solid rgba(245,158,11,.45)"' : '';
-  const fBadge = isFE ? ' <span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">🏆 Franquia</span>' : '';
-  return `<tr${rowStyle}><td><strong>${p.name}</strong>${fBadge}</td><td>${p.position}</td><td>${p.age}</td>
-<td><span class="badge ${p.ovr >= 80 ? 'bg-success' : p.ovr >= 70 ? 'bg-warning text-dark' : 'bg-secondary'}">${p.ovr}</span></td><td>${p.role}</td>
-<td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPlayer(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-<button class="btn btn-sm btn-outline-danger" onclick="deletePlayer(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`;
-}).join('')}</tbody></table></div>
-</div>
-<div class="tab-pane fade" id="picks-tab">
-<div class="d-flex justify-content-between mb-3">
-<h5 class="text-white mb-0">Picks</h5>
-<button class="btn btn-sm btn-orange" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar Pick</button>
-</div>
-${t.picks && t.picks.length > 0 ? `<div class="table-responsive"><table class="table table-dark"><thead><tr><th>Temporada</th><th>Rodada</th><th>Time Original</th><th>Ações</th></tr></thead>
-<tbody>${t.picks.map(p => `<tr><td>${p.season_year}</td><td>${p.round}ª${p.swap_type ? ` <span class="badge bg-secondary ms-1">${p.swap_type}</span>` : ''}</td><td>${p.city} ${p.team_name}</td>
-<td><button class="btn btn-sm btn-outline-orange me-1" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-<button class="btn btn-sm btn-outline-danger" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('')}</tbody></table></div>` : '<div class="text-center py-5 text-light-gray">Nenhum pick</div>'}
-</div></div>`;
+
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-calendar-check-fill"></i> Picks <span style="font-size:12px;color:var(--text-3);font-weight:400">(${t.picks ? t.picks.length : 0})</span></div>
+    <button class="btn-ghost" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+  </div>
+  ${!t.picks || t.picks.length === 0
+    ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
+    : t.picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
+  <div style="flex:1;min-width:0">
+    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.3);border-radius:6px;padding:2px 6px;font-size:11px">${escapeHtml(p.swap_type)}</span>` : ''}
+    <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.city)} ${escapeHtml(p.team_name)}</div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="btn-ghost" style="padding:5px 8px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
+    <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
+  </div>
+</div>`).join('')}
+</div>`;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar time</div>';
   }
@@ -2041,41 +2075,36 @@ async function showDirectives() {
         </button>
       </div>
       
-      <div class="card bg-dark-panel border-orange">
-        <div class="card-header bg-transparent border-orange">
-          <h5 class="text-white mb-0"><i class="bi bi-calendar-event me-2"></i>Prazos de Diretrizes</h5>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-calendar-event"></i> Prazos de Diretrizes</div>
         </div>
-        <div class="card-body">
-          ${deadlines.length === 0 ? 
-            '<p class="text-light-gray text-center py-4">Nenhum prazo configurado</p>' :
-            `<div class="table-responsive"><table class="table table-dark">
-              <thead><tr>
-                <th>Liga</th><th>Prazo (Horário de Brasília)</th><th>Descrição</th><th>Fase</th><th>Status</th><th>Envios</th><th>Ações</th>
-              </tr></thead>
-              <tbody>${deadlines.map(d => `
-                <tr>
-                  <td><span class="badge bg-gradient-orange">${d.league}</span></td>
-                  <td>${formatDeadlineDateTime(d.deadline_date_iso || d.deadline_date)}</td>
-                  <td>${d.description || '-'}</td>
-                  <td>${(d.phase || 'regular') === 'playoffs' ? '<span class="badge bg-danger">Playoffs</span>' : '<span class="badge bg-info">Regular</span>'}</td>
-                  <td>${d.is_active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>'}</td>
-                  <td><span class="badge bg-info">${d.submissions_count} time(s)</span></td>
-                  <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewDirectives(${d.id}, '${d.league}')" title="Ver diretrizes">
-                      <i class="bi bi-eye"></i> Ver
-                    </button>
-                    <button class="btn btn-sm btn-outline-${d.is_active ? 'warning' : 'success'}" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})" title="${d.is_active ? 'Desativar' : 'Ativar'}">
+        ${deadlines.length === 0
+          ? '<p class="empty-state">Nenhum prazo configurado.</p>'
+          : deadlines.map(d => {
+              const isPlayoffs = (d.phase || 'regular') === 'playoffs';
+              const phaseColor = isPlayoffs ? '#ef4444' : '#06b6d4';
+              const statusColor = d.is_active ? '#22c55e' : 'var(--text-3)';
+              return `
+              <div class="pun-card mb-2">
+                <div class="pun-card-head">
+                  <div>
+                    <div class="pun-card-title">${escapeHtml(d.description || 'Sem descrição')}</div>
+                    <div class="pun-card-sub">${formatDeadlineDateTime(d.deadline_date_iso || d.deadline_date)}</div>
+                  </div>
+                  <div class="d-flex align-items-center gap-2 flex-shrink-0 flex-wrap">
+                    <span class="pun-badge" style="background:${phaseColor}20;color:${phaseColor};border-color:${phaseColor}40">${isPlayoffs ? 'Playoffs' : 'Regular'}</span>
+                    <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${d.is_active ? 'Ativo' : 'Inativo'}</span>
+                    <span style="font-size:11px;color:#06b6d4">${d.submissions_count} time(s)</span>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="viewDirectives(${d.id}, '${d.league}')"><i class="bi bi-eye me-1"></i>Ver</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})">
                       <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDeadline(${d.id}, '${d.league}')" title="Excluir prazo">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </td>
-                </tr>
-              `).join('')}</tbody>
-            </table></div>`
-          }
-        </div>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444" onclick="deleteDeadline(${d.id}, '${d.league}')"><i class="bi bi-trash"></i></button>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
       </div>
     `;
   } catch (e) {
@@ -2517,10 +2546,7 @@ async function showPunicoes() {
               <div class="pun-field-label">Motivo</div>
               <select id="punicaoMotive" class="form-select"></select>
             </div>
-            <div>
-              <div class="pun-field-label">Liga</div>
-              <select id="punicaoLeague" class="form-select"></select>
-            </div>
+            <input type="hidden" id="punicaoLeague" value="${league}">
             <div>
               <div class="pun-field-label">Time</div>
               <select id="punicaoTeam" class="form-select"></select>
@@ -2589,18 +2615,13 @@ async function showPunicoes() {
       <div class="col-lg-8">
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-clock-history"></i> Histórico de punições</div>
-            <div class="d-flex gap-2 flex-wrap">
-              <div class="admin-sel">
-                <label>Liga</label>
-                <select id="punicaoHistoryLeague"></select>
-              </div>
-              <div class="admin-sel">
-                <label>Time</label>
-                <select id="punicaoHistoryTeam"><option value="">Todos os times</option></select>
-              </div>
+            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-clock-history"></i> Histórico de punições — ${league}</div>
+            <div class="admin-sel">
+              <label>Time</label>
+              <select id="punicaoHistoryTeam"><option value="">Todos os times</option></select>
             </div>
           </div>
+          <input type="hidden" id="punicaoHistoryLeague" value="${league}">
           <div id="punicoesList">
             <p class="empty-state">Selecione uma liga ou time para ver as punições.</p>
           </div>
@@ -2627,14 +2648,9 @@ async function showFAAdmin() {
 
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title"><i class="bi bi-person-check-fill" style="color:var(--red);margin-right:8px;"></i>Solicitações Free Agency</div>
-        <div class="admin-sel">
-          <label for="faNewAdminLeague">Liga</label>
-          <select id="faNewAdminLeague" onchange="typeof carregarSolicitacoesNovaFA==='function'&&carregarSolicitacoesNovaFA()">
-            ${_leagues.map(lg => `<option value="${lg}"${lg === league ? ' selected' : ''}>${lg}</option>`).join('')}
-          </select>
-        </div>
+        <div class="panel-title"><i class="bi bi-person-check-fill" style="color:var(--red);margin-right:8px;"></i>Solicitações Free Agency — ${league}</div>
       </div>
+      <input type="hidden" id="faNewAdminLeague" value="${league}">
       <div id="faNewAdminRequests"><p class="empty-state">Carregando...</p></div>
     </div>
   `;
@@ -3006,203 +3022,145 @@ function refreshAdminFreeAgency() {
 // ========== MOEDAS ==========
 let coinsLeague = 'ELITE';
 
-async function showCoins() {
+async function showCoins(league) {
+  league = league || appState.currentLeague || 'ELITE';
+  coinsLeague = league;
   appState.view = 'coins';
   updateBreadcrumb();
-  
+
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
-    <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
-    </div>
-    
-    <div class="row mb-4">
-      <div class="col-md-8">
-        <ul class="nav nav-tabs" id="coinsLeagueTabs">
-          <li class="nav-item">
-            <button class="nav-link ${coinsLeague === 'ELITE' ? 'active' : ''}" onclick="changeCoinsLeague('ELITE')">ELITE</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${coinsLeague === 'NEXT' ? 'active' : ''}" onclick="changeCoinsLeague('NEXT')">NEXT</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${coinsLeague === 'RISE' ? 'active' : ''}" onclick="changeCoinsLeague('RISE')">RISE</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${coinsLeague === 'ROOKIE' ? 'active' : ''}" onclick="changeCoinsLeague('ROOKIE')">ROOKIE</button>
-          </li>
-        </ul>
-      </div>
-      <div class="col-md-4 text-end">
-        <button class="btn btn-orange" onclick="openBulkCoinsModal()">
-          <i class="bi bi-people-fill me-2"></i>Distribuir para Liga
-        </button>
-      </div>
-    </div>
-    
-    <div id="coinsContainer">
-      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
-    </div>
-    
-    <!-- Modal Adicionar Moedas -->
-    <div class="modal fade" id="addCoinsModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark-panel border-orange">
-          <div class="modal-header border-orange">
-            <h5 class="modal-title text-white"><i class="bi bi-coin text-orange me-2"></i>Gerenciar Moedas</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="coinsTeamId">
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Time</label>
-              <input type="text" class="form-control bg-dark text-white" id="coinsTeamName" readonly>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Saldo Atual</label>
-              <div class="input-group">
-                <span class="input-group-text bg-dark text-orange border-orange"><i class="bi bi-coin"></i></span>
-                <input type="text" class="form-control bg-dark text-white" id="coinsCurrentBalance" readonly>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Operação</label>
-              <select class="form-select bg-dark text-white border-secondary" id="coinsOperation">
-                <option value="add">Adicionar</option>
-                <option value="remove">Remover</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Quantidade</label>
-              <input type="number" class="form-control bg-dark text-white border-secondary" id="coinsAmount" min="1" value="100">
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Motivo</label>
-              <input type="text" class="form-control bg-dark text-white border-secondary" id="coinsReason" placeholder="Ex: Prêmio de temporada">
-            </div>
-          </div>
-          <div class="modal-footer border-orange">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-orange" onclick="submitCoins()">Confirmar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Modal Distribuir em Massa -->
-    <div class="modal fade" id="bulkCoinsModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark-panel border-orange">
-          <div class="modal-header border-orange">
-            <h5 class="modal-title text-white"><i class="bi bi-people-fill text-orange me-2"></i>Distribuir Moedas</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="alert alert-info bg-dark border-orange text-white">
-              <i class="bi bi-info-circle me-2"></i>
-              Esta ação adicionará moedas para TODOS os times da liga selecionada.
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Liga</label>
-              <select class="form-select bg-dark text-white border-secondary" id="bulkCoinsLeague">
-                <option value="ELITE">ELITE</option>
-                <option value="NEXT">NEXT</option>
-                <option value="RISE">RISE</option>
-                <option value="ROOKIE">ROOKIE</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Quantidade por Time</label>
-              <input type="number" class="form-control bg-dark text-white border-secondary" id="bulkCoinsAmount" min="1" value="100">
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Motivo</label>
-              <input type="text" class="form-control bg-dark text-white border-secondary" id="bulkCoinsReason" placeholder="Ex: Início de temporada">
-            </div>
-          </div>
-          <div class="modal-footer border-orange">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-orange" onclick="submitBulkCoins()">Distribuir</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  loadCoinsTeams();
-}
+<div class="mb-3"><button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
 
-function changeCoinsLeague(league) {
-  coinsLeague = league;
-  showCoins();
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" style="margin-bottom:0"><i class="bi bi-coin" style="color:#f59e0b"></i> Moedas — ${league}</div>
+      <div class="panel-sub">Free Agency coins dos times da liga</div>
+    </div>
+    <button class="btn-ghost" onclick="openBulkCoinsModal()"><i class="bi bi-people-fill me-1"></i>Distribuir para Liga</button>
+  </div>
+  <div id="coinsContainer">
+    <div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div>
+  </div>
+</div>
+
+<div class="modal fade" id="addCoinsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-coin me-2" style="color:#f59e0b"></i>Gerenciar Moedas</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="coinsTeamId">
+        <div class="mb-3">
+          <label class="pun-field-label">Time</label>
+          <input type="text" class="form-control" id="coinsTeamName" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="pun-field-label">Saldo Atual</label>
+          <input type="text" class="form-control" id="coinsCurrentBalance" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="pun-field-label">Operação</label>
+          <select class="form-select" id="coinsOperation">
+            <option value="add">Adicionar</option>
+            <option value="remove">Remover</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="pun-field-label">Quantidade</label>
+          <input type="number" class="form-control" id="coinsAmount" min="1" value="100">
+        </div>
+        <div class="mb-3">
+          <label class="pun-field-label">Motivo</label>
+          <input type="text" class="form-control" id="coinsReason" placeholder="Ex: Prêmio de temporada">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-orange" onclick="submitCoins()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="bulkCoinsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-people-fill me-2" style="color:#f59e0b"></i>Distribuir Moedas</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="pun-card mb-3" style="border-left:3px solid #f59e0b;font-size:13px">
+          <i class="bi bi-info-circle me-2" style="color:#f59e0b"></i>Adicionará moedas para <strong>todos os times</strong> da liga <strong>${league}</strong>.
+        </div>
+        <input type="hidden" id="bulkCoinsLeague" value="${league}">
+        <div class="mb-3">
+          <label class="pun-field-label">Quantidade por Time</label>
+          <input type="number" class="form-control" id="bulkCoinsAmount" min="1" value="100">
+        </div>
+        <div class="mb-3">
+          <label class="pun-field-label">Motivo</label>
+          <input type="text" class="form-control" id="bulkCoinsReason" placeholder="Ex: Início de temporada">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-orange" onclick="submitBulkCoins()">Distribuir</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+  loadCoinsTeams();
 }
 
 async function loadCoinsTeams() {
   const container = document.getElementById('coinsContainer');
-  
+  if (!container) return;
   try {
     const data = await api(`admin.php?action=coins&league=${coinsLeague}`);
     const teams = data.teams || [];
-    
     if (teams.length === 0) {
-      container.innerHTML = '<div class="alert alert-info bg-dark border-orange text-white">Nenhum time encontrado nesta liga.</div>';
+      container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-3)">Nenhum time encontrado.</div>';
       return;
     }
-    
-    const totalCoins = teams.reduce((sum, t) => sum + parseInt(t.moedas), 0);
-    
+    const totalCoins = teams.reduce((sum, t) => sum + parseInt(t.moedas || 0), 0);
     container.innerHTML = `
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <div class="bg-dark-panel border-orange rounded p-3">
-            <h6 class="text-light-gray mb-1">Total de Moedas na Liga</h6>
-            <h3 class="text-orange mb-0"><i class="bi bi-coin me-2"></i>${totalCoins.toLocaleString()}</h3>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="bg-dark-panel border-orange rounded p-3">
-            <h6 class="text-light-gray mb-1">Times</h6>
-            <h3 class="text-white mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>${teams.length}</h3>
-          </div>
-        </div>
-      </div>
-      
-      <div class="table-responsive">
-        <table class="table table-dark table-hover">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Proprietário</th>
-              <th class="text-end">Moedas</th>
-              <th class="text-center">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${teams.map(t => `
-              <tr>
-                <td><strong>${t.city} ${t.name}</strong></td>
-                <td class="text-light-gray">${t.owner_name}</td>
-                <td class="text-end">
-                  <span class="badge ${parseInt(t.moedas) > 0 ? 'bg-success' : 'bg-secondary'} fs-6">
-                    <i class="bi bi-coin me-1"></i>${parseInt(t.moedas).toLocaleString()}
-                  </span>
-                </td>
-                <td class="text-center">
-                  <button class="btn btn-sm btn-success" onclick="openCoinsModal(${t.id}, '${t.city} ${t.name}', ${t.moedas})" title="Gerenciar moedas">
-                    <i class="bi bi-coin"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="showCoinsHistory(${t.id}, '${t.city} ${t.name}')" title="Ver histórico">
-                    <i class="bi bi-clock-history"></i>
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+  <div class="pun-card" style="flex:1;min-width:120px;padding:12px 16px;text-align:center">
+    <div style="font-size:20px;font-weight:700;color:#f59e0b"><i class="bi bi-coin me-1"></i>${totalCoins.toLocaleString()}</div>
+    <div style="font-size:11px;color:var(--text-3)">Total na liga</div>
+  </div>
+  <div class="pun-card" style="flex:1;min-width:120px;padding:12px 16px;text-align:center">
+    <div style="font-size:20px;font-weight:700;color:var(--text)">${teams.length}</div>
+    <div style="font-size:11px;color:var(--text-3)">Times</div>
+  </div>
+</div>
+${teams.map(t => {
+  const coins = parseInt(t.moedas || 0);
+  const coinStyle = coins > 0
+    ? 'background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)'
+    : 'background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.3)';
+  return `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
+  <div style="flex:1;min-width:0">
+    <span style="font-weight:600;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</span>
+    <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(t.owner_name || '')}</div>
+  </div>
+  <span style="${coinStyle};border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700">
+    <i class="bi bi-coin me-1"></i>${coins.toLocaleString()}
+  </span>
+  <div style="display:flex;gap:6px">
+    <button class="btn-ghost" style="padding:5px 10px" title="Gerenciar" onclick="openCoinsModal(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}', ${coins})"><i class="bi bi-coin"></i></button>
+    <button class="btn-ghost" style="padding:5px 10px" title="Histórico" onclick="showCoinsHistory(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}')"><i class="bi bi-clock-history"></i></button>
+  </div>
+</div>`;
+}).join('')}`;
   } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times: ' + (e.error || 'Desconhecido') + '</div>';
+    container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro: ${e.error || 'Desconhecido'}</div>`;
   }
 }
 
@@ -3218,10 +3176,8 @@ function openCoinsModal(teamId, teamName, currentBalance) {
 }
 
 function openBulkCoinsModal() {
-  document.getElementById('bulkCoinsLeague').value = coinsLeague;
   document.getElementById('bulkCoinsAmount').value = 100;
   document.getElementById('bulkCoinsReason').value = '';
-  
   new bootstrap.Modal(document.getElementById('bulkCoinsModal')).show();
 }
 
@@ -3272,10 +3228,8 @@ async function submitBulkCoins() {
     
     bootstrap.Modal.getInstance(document.getElementById('bulkCoinsModal'))?.hide();
     alert(result.message);
-    
-    // Atualizar para a liga que foi distribuída
     coinsLeague = league;
-    showCoins();
+    showCoins(league);
   } catch (e) {
     alert('Erro: ' + (e.error || 'Desconhecido'));
   }
@@ -3283,71 +3237,49 @@ async function submitBulkCoins() {
 
 async function showCoinsHistory(teamId, teamName) {
   const container = document.getElementById('coinsContainer');
-  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
+  if (!container) return;
+  container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div>';
   try {
     const data = await api(`admin.php?action=coins_log&team_id=${teamId}`);
     const logs = data.logs || [];
-    
-    let html = `
-      <div class="mb-3">
-        <button class="btn btn-back" onclick="loadCoinsTeams()"><i class="bi bi-arrow-left"></i> Voltar para lista</button>
-      </div>
-      <div class="bg-dark-panel border-orange rounded p-3 mb-3">
-        <h5 class="modal-title text-white"><i class="bi bi-coin text-orange me-2"></i>Histórico de Moedas: ${teamName}</h5>
-      </div>
-    `;
-    
-    if (logs.length === 0) {
-      html += '<div class="alert alert-info bg-dark border-orange text-white">Nenhum histórico encontrado.</div>';
-    } else {
-      html += `
-        <div class="table-responsive">
-          <table class="table table-dark table-hover">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th class="text-end">Alteração</th>
-                <th class="text-end">Saldo</th>
-                <th>Motivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${logs.map(log => {
-                const date = new Date(log.created_at);
-                const dateStr = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
-                const typeLabels = {
-                  'admin_add': '<span class="badge bg-success">Adição Admin</span>',
-                  'admin_remove': '<span class="badge bg-danger">Remoção Admin</span>',
-                  'admin_bulk': '<span class="badge bg-info">Distribuição</span>',
-                  'fa_bid': '<span class="badge bg-warning text-dark">Lance FA</span>',
-                  'fa_win': '<span class="badge bg-primary">Vitória FA</span>',
-                  'fa_refund': '<span class="badge bg-secondary">Reembolso FA</span>'
-                };
-                return `
-                  <tr>
-                    <td class="text-light-gray">${dateStr}</td>
-                    <td>${typeLabels[log.type] || log.type}</td>
-                    <td class="text-end">
-                      <span class="${parseInt(log.amount) >= 0 ? 'text-success' : 'text-danger'}">
-                        ${parseInt(log.amount) >= 0 ? '+' : ''}${parseInt(log.amount).toLocaleString()}
-                      </span>
-                    </td>
-                    <td class="text-end">${parseInt(log.balance_after).toLocaleString()}</td>
-                    <td class="text-light-gray">${log.reason || '-'}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-    
-    container.innerHTML = html;
+    const typeMap = {
+      admin_add:    { label: 'Adição Admin',   color: '#4ade80', bg: 'rgba(74,222,128,.15)',  border: 'rgba(74,222,128,.3)'  },
+      admin_remove: { label: 'Remoção Admin',  color: '#ef4444', bg: 'rgba(239,68,68,.15)',   border: 'rgba(239,68,68,.3)'   },
+      admin_bulk:   { label: 'Distribuição',   color: '#38bdf8', bg: 'rgba(56,189,248,.15)',  border: 'rgba(56,189,248,.3)'  },
+      fa_bid:       { label: 'Lance FA',       color: '#f59e0b', bg: 'rgba(245,158,11,.15)',  border: 'rgba(245,158,11,.3)'  },
+      fa_win:       { label: 'Vitória FA',     color: '#a855f7', bg: 'rgba(168,85,247,.15)',  border: 'rgba(168,85,247,.3)'  },
+      fa_refund:    { label: 'Reembolso FA',   color: '#94a3b8', bg: 'rgba(148,163,184,.15)', border: 'rgba(148,163,184,.3)' },
+    };
+    container.innerHTML = `
+<div class="mb-3">
+  <button class="btn btn-back" onclick="loadCoinsTeams()"><i class="bi bi-arrow-left"></i> Voltar</button>
+</div>
+<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">
+  <i class="bi bi-coin me-2" style="color:#f59e0b"></i>Histórico — ${escapeHtml(teamName)}
+</div>
+${logs.length === 0 ? '<div style="text-align:center;padding:32px;color:var(--text-3)">Nenhum histórico encontrado.</div>' :
+  logs.map(log => {
+    const date = new Date(log.created_at);
+    const dateStr = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    const t = typeMap[log.type] || { label: log.type, color: '#94a3b8', bg: 'rgba(148,163,184,.15)', border: 'rgba(148,163,184,.3)' };
+    const amt = parseInt(log.amount || 0);
+    const pos = amt >= 0;
+    return `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+      <span style="background:${t.bg};color:${t.color};border:1px solid ${t.border};border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px">${t.label}</span>
+      <span style="font-size:11px;color:var(--text-3)">${dateStr}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-3)">${escapeHtml(log.reason || '-')}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:14px;font-weight:700;color:${pos ? '#4ade80' : '#ef4444'}">${pos ? '+' : ''}${amt.toLocaleString()}</div>
+    <div style="font-size:11px;color:var(--text-3)">Saldo: ${parseInt(log.balance_after || 0).toLocaleString()}</div>
+  </div>
+</div>`;
+  }).join('')}`;
   } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar histórico: ' + (e.error || 'Desconhecido') + '</div>';
+    container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro: ${e.error || 'Desconhecido'}</div>`;
   }
 }
 
@@ -3605,7 +3537,7 @@ async function showUserApprovals() {
                         <i class="bi bi-person-fill text-white fs-4"></i>
                       </div>
                       <div class="ms-3 flex-grow-1">
-                        <h5 class="text-white mb-1">${user.username}</h5>
+                        <h5 class="text-white mb-1">${escapeHtml(user.name || user.username || user.email || 'Usuário')}</h5>
                         <p class="text-light-gray mb-0 small">
                           <i class="bi bi-clock me-1"></i>${dateStr}
                         </p>
@@ -3619,10 +3551,10 @@ async function showUserApprovals() {
                     </div>
                     
                     <div class="d-flex gap-2">
-                      <button class="btn btn-success flex-fill" onclick="approveUser(${user.id}, '${user.username}')">
+                      <button class="btn btn-success flex-fill" onclick="approveUser(${user.id}, '${escapeHtml(user.name || user.username || '')}')">
                         <i class="bi bi-check-circle me-1"></i>Aprovar
                       </button>
-                      <button class="btn btn-danger flex-fill" onclick="rejectUser(${user.id}, '${user.username}')">
+                      <button class="btn btn-danger flex-fill" onclick="rejectUser(${user.id}, '${escapeHtml(user.name || user.username || '')}')">
                         <i class="bi bi-x-circle me-1"></i>Rejeitar
                       </button>
                     </div>
@@ -3854,30 +3786,13 @@ function renderDispensasTable() {
           <span style="font-weight:700;font-size:14px;color:var(--red)"><i class="bi bi-shield-fill me-1"></i>${escapeHtml(team)}</span>
           <span class="badge bg-secondary">${players.length}</span>
         </div>
-        <table class="table table-dark table-sm mb-0" style="font-size:13px">
-          <thead>
-            <tr>
-              <th>Jogador</th>
-              <th>Pos.</th>
-              <th>OVR</th>
-              <th>Idade</th>
-              <th>Temporada</th>
-              <th>Data</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${players.map(w => `
-              <tr>
-                <td class="text-white fw-semibold">${escapeHtml(w.name || '-')}</td>
-                <td><span class="badge bg-secondary">${escapeHtml(w.position || '-')}</span></td>
-                <td><span class="badge bg-gradient-orange">${w.overall || '-'}</span></td>
-                <td>${w.age || '-'}</td>
-                <td>${w.season_year || '-'}</td>
-                <td class="text-light-gray">${w.waived_at ? new Date(w.waived_at).toLocaleDateString('pt-BR') : '-'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <div>
+          ${players.map(w => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(w.name || '-')}</span>
+              <span style="font-size:11px;color:var(--text-3)">${w.season_year || '-'}</span>
+            </div>`).join('')}
+        </div>
       </div>
     `;
   });
@@ -3954,76 +3869,71 @@ async function showPointsManagement(league) {
       }).join('');
 
       html += `
-      <div class="bg-dark-panel rounded mb-3" id="pts-season-${s.season_id}">
-        <div class="d-flex align-items-center justify-content-between px-3 py-2"
-             style="border-bottom:1px solid var(--border)">
-          <span style="font-weight:700;color:var(--text)">🏆 ${escapeHtml(title)}</span>
-          <div class="d-flex gap-2 align-items-center">
-            <span class="badge bg-gradient-orange" style="font-size:10px">Registrado</span>
-            <button class="btn btn-sm btn-outline-orange" style="padding:2px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
+      <div class="pun-card mb-2" id="pts-season-${s.season_id}">
+        <div class="pun-card-head">
+          <div>
+            <div class="pun-card-title"><i class="bi bi-trophy-fill" style="color:var(--red);margin-right:6px"></i>${escapeHtml(title)}</div>
+          </div>
+          <div class="d-flex gap-2 align-items-center flex-shrink-0">
+            <span class="pun-badge" style="background:rgba(34,197,94,.1);color:#22c55e;border-color:rgba(34,197,94,.3)">Registrado</span>
+            <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
               <i class="bi bi-pencil me-1"></i>Editar
             </button>
-            <button class="btn btn-sm" style="padding:2px 10px;font-size:11px;border:1px solid rgba(239,68,68,.3);color:#ef4444;background:rgba(239,68,68,.08)" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-              <i class="bi bi-trash3 me-1"></i>Zerar
+            <button class="btn-ghost" style="padding:3px 10px;font-size:11px;color:#ef4444" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <i class="bi bi-trash3"></i>
             </button>
           </div>
         </div>
-        <div id="pts-view-${s.season_id}">
-          <div class="table-responsive">
-            <table class="table table-dark table-sm mb-0">
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
+        <div id="pts-view-${s.season_id}" style="margin-top:8px">
+          ${(s.teams || []).map((t, ti) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text-3);width:20px;text-align:right">${ti + 1}°</span>
+                <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
+              </div>
+              <span style="font-size:13px;font-weight:700;color:var(--red)">${t.points} pts</span>
+            </div>`).join('')}
         </div>
-        <div id="pts-edit-form-${s.season_id}" style="display:none;padding:16px">
-          <div class="table-responsive">
-            <table class="table table-dark table-sm mb-3">
-              <thead><tr><th>Time</th><th>Pontos</th></tr></thead>
-              <tbody>${editInputs}</tbody>
-            </table>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-orange" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-              <i class="bi bi-save me-1"></i>Salvar Alterações
+        <div id="pts-edit-form-${s.season_id}" style="display:none;margin-top:12px">
+          ${leagueTeams.map(t => {
+            const pts = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
+              <input type="number" class="pts-edit-input" data-team-id="${t.team_id}" value="${pts ? pts.points : 0}" min="0"
+                style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
+            </div>`;
+          }).join('')}
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn-ghost" style="color:#22c55e" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <i class="bi bi-save me-1"></i>Salvar
             </button>
-            <button class="btn btn-sm btn-outline-orange" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
+            <button class="btn-ghost" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
           </div>
         </div>
       </div>`;
     } else {
       const teamInputs = leagueTeams.map(t => `
-        <tr>
-          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
-          <td>
-            <input type="number" class="form-control form-control-sm pts-mgmt-input"
-              data-team-id="${t.team_id}" value="0" min="0" style="max-width:100px">
-          </td>
-        </tr>`).join('');
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
+          <input type="number" class="pts-mgmt-input" data-team-id="${t.team_id}" value="0" min="0"
+            style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
+        </div>`).join('');
 
       html += `
-      <div class="bg-dark-panel rounded mb-3" id="pts-season-${s.season_id}">
-        <div class="d-flex align-items-center justify-content-between px-3 py-2"
-             style="border-bottom:1px solid var(--border)">
-          <span style="font-weight:700;color:var(--text)">📋 ${escapeHtml(title)}</span>
-          <button class="btn btn-sm btn-orange" onclick="togglePtsForm(${s.season_id})">
+      <div class="pun-card mb-2" id="pts-season-${s.season_id}">
+        <div class="pun-card-head">
+          <div class="pun-card-title"><i class="bi bi-clipboard-check" style="color:var(--text-3);margin-right:6px"></i>${escapeHtml(title)}</div>
+          <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="togglePtsForm(${s.season_id})">
             <i class="bi bi-plus-circle me-1"></i>Cadastrar Pontuação
           </button>
         </div>
-        <div id="pts-form-${s.season_id}" style="display:none;padding:16px">
-          <div class="table-responsive">
-            <table class="table table-dark table-sm mb-3">
-              <thead><tr><th>Time</th><th>Pontos</th></tr></thead>
-              <tbody>${teamInputs}</tbody>
-            </table>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-orange"
-              onclick="savePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+        <div id="pts-form-${s.season_id}" style="display:none;margin-top:12px">
+          ${teamInputs}
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn-ghost" style="color:#22c55e" onclick="savePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
               <i class="bi bi-save me-1"></i>Salvar
             </button>
-            <button class="btn btn-sm btn-outline-orange" onclick="togglePtsForm(${s.season_id})">
-              Cancelar
-            </button>
+            <button class="btn-ghost" onclick="togglePtsForm(${s.season_id})">Cancelar</button>
           </div>
         </div>
       </div>`;

@@ -666,7 +666,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="sb-section">Admin</div>
       <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
 
-      <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
       <?php endif; ?>
 
       <div class="sb-section">Conta</div>
@@ -1178,7 +1177,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (isAdmin && session.status === 'setup') {
       html += `
         <div class="info-note" style="margin-bottom:20px">
-          <strong>Admin:</strong> Configure a ordem do draft na página de <a href="/temporadas.php" style="color:var(--red)">Temporadas</a> e inicie quando estiver pronto.
+          <strong>Admin:</strong> Configure a ordem do draft na página de <strong>admin</strong> e inicie quando estiver pronto.
         </div>
       `;
     }

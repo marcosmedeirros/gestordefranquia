@@ -136,12 +136,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
-            <a href="/temporadas.php" class="<?= $currentPage === 'temporadas.php' ? 'active' : '' ?>">
-                <i class="bi bi-calendar3"></i>
-                Temporadas
-            </a>
-        </li>
-        <li>
             <a href="/games/bracketadmin.php" class="<?= $currentPage === 'bracketadmin.php' ? 'active' : '' ?>">
                 <i class="bi bi-diagram-3-fill"></i>
                 Admin Bracket

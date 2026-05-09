@@ -290,7 +290,6 @@ try {
             <div class="sb-section">Admin</div>
             <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
             <a href="/punicoes.php" class="active"><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
-            <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
 
             <div class="sb-section">Conta</div>
             <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
