@@ -462,6 +462,107 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             .sidebar.open { transform: translateX(0); }
             .topbar { display: flex; }
             .main { margin-left: 0; width: 100%; padding: 54px 16px 40px; }
+
+            /* Quick nav — scroll horizontal */
+            .admin-quicknav {
+                margin: 0 -16px;
+                padding: 0 6px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                justify-content: flex-start;
+            }
+            .admin-quicknav::-webkit-scrollbar { display: none; }
+            .admin-qnav-btn { padding: 10px 13px; font-size: 12px; flex-shrink: 0; }
+
+            /* Page header */
+            .page-top { margin-bottom: 14px; }
+            .page-title { font-size: 21px; }
+            .page-eyebrow { font-size: 10px; }
+
+            /* League hero — colapsa verticalmente */
+            .league-hero {
+                padding: 16px;
+                gap: 14px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .league-hero-name { font-size: 26px; letter-spacing: -.5px; }
+            .league-hero-stats { gap: 18px; flex-wrap: wrap; }
+            .league-hero-stat-val { font-size: 20px; }
+            .league-hero-tools {
+                margin-left: 0;
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .league-search-wrap { flex: 1; min-width: 0; }
+            .league-search-wrap input { min-width: 0; flex: 1; width: 100%; }
+
+            /* Action grid */
+            .action-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+            .action-tile { padding: 14px 12px; gap: 9px; }
+            .action-tile-icon { width: 36px; height: 36px; font-size: 16px; }
+            .action-tile-label { font-size: 11px; }
+
+            /* Panel */
+            .panel { padding: 16px 14px 18px; }
+            .panel-header { gap: 10px; }
+
+            /* Modais — ocupa a tela toda no mobile */
+            .modal-dialog { margin: 8px !important; max-width: calc(100% - 16px) !important; }
+            .modal-body { max-height: 70vh; overflow-y: auto; }
+            .modal-footer { flex-wrap: wrap; gap: 8px; }
+            .modal-footer .btn { flex: 1; min-width: 100px; }
+
+            /* iOS: impede zoom automático em inputs com font < 16px */
+            .form-control, .form-select,
+            input[type="number"], input[type="text"],
+            input[type="email"], textarea, select {
+                font-size: 16px !important;
+            }
+
+            /* Tabelas geradas dinamicamente */
+            #mainContainer .table { font-size: 12px; }
+            #mainContainer .table td,
+            #mainContainer .table th { padding: 7px 8px; white-space: nowrap; }
+
+            /* Admin selector */
+            .admin-sel { flex-wrap: wrap; }
+            .admin-sel select { flex: 1; min-width: 0; }
+
+            /* Touch targets mínimos */
+            .btn-orange, .btn-ghost, .btn-outline-orange, .btn-back { min-height: 40px; }
+
+            /* Nomes longos não quebram layout */
+            .team-card h5, .action-card h4 { word-break: break-word; }
+        }
+
+        @media (max-width: 480px) {
+            .main { padding: 54px 12px 32px; }
+            .admin-quicknav { margin: 0 -12px; }
+            .league-hero { padding: 14px 12px; gap: 12px; }
+            .league-hero-name { font-size: 22px; }
+            .league-hero-stats { gap: 14px; }
+            .league-hero-stat-val { font-size: 18px; }
+            .action-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 7px; }
+            .action-tile { padding: 12px 10px; }
+            .panel { padding: 14px 12px 16px; }
+
+            /* Panel header — empilha título e botão */
+            .panel-header { flex-direction: column; align-items: flex-start; }
+            .panel-header > *:last-child { align-self: stretch; }
+            .panel-header .btn-orange,
+            .panel-header .btn-ghost,
+            .panel-header > div[style*="flex"] { width: 100%; justify-content: center; }
+
+            /* Pun card — empilha cabeçalho */
+            .pun-card-head { flex-direction: column; gap: 6px; }
+
+            /* Sidebar team name longa */
+            .sb-team-name { word-break: break-word; }
+
+            /* Modais — mais altura em telas pequenas */
+            .modal-body { max-height: 78vh; }
         }
 
         /* ══════════════════════════════════════════════

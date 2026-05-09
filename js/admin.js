@@ -677,12 +677,12 @@ async function showLeague(league) {
             <div class="league-hero-stat-lbl">Times</div>
           </div>
           <div class="league-hero-stat">
-            <div class="league-hero-stat-val" style="color:var(--red)">${seasonNumber}<span style="font-size:13px;font-weight:400;color:var(--text-3)">/${totalSeasons}</span></div>
-            <div class="league-hero-stat-lbl">Temporadas</div>
-          </div>
-          <div class="league-hero-stat">
             <div class="league-hero-stat-val" style="font-size:15px;color:var(--text)">${seasonYear}</div>
             <div class="league-hero-stat-lbl">Temp. ${seasonNumber}</div>
+          </div>
+          <div class="league-hero-stat">
+            <div class="league-hero-stat-val" style="color:var(--red)">${seasonNumber}<span style="font-size:13px;font-weight:400;color:var(--text-3)">/${totalSeasons}</span></div>
+            <div class="league-hero-stat-lbl">Temporadas</div>
           </div>
         </div>
         <div class="league-hero-tools">
