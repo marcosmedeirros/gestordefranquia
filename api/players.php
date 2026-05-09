@@ -193,6 +193,17 @@ if (!function_exists('snapshotTradeItemsForPlayer')) {
                 error_log('[snapshotTradeItems] multi_trade_items failed: ' . $e->getMessage());
             }
         }
+
+        // Snapshot leilao_jogadores so auction history preserves the player name
+        if (playersTableExists($pdo, 'leilao_jogadores')) {
+            try {
+                $pdo->prepare(
+                    'UPDATE leilao_jogadores SET temp_name = COALESCE(temp_name, ?) WHERE player_id = ?'
+                )->execute([$name, (int)($playerRow['id'] ?? 0)]);
+            } catch (Exception $e) {
+                error_log('[snapshotTradeItems] leilao_jogadores failed: ' . $e->getMessage());
+            }
+        }
     }
 }
 

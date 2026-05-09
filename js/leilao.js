@@ -561,10 +561,13 @@ async function carregarHistoricoLeiloes() {
             const dateStr = item.data_fim
                 ? new Date(item.data_fim).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
                 : '';
+            const playerLabel = item.player_name
+                ? `<span style="font-weight:700;font-size:14px;color:var(--red);">${item.player_name}</span>`
+                : `<span style="font-weight:600;font-size:13px;color:var(--text-3);font-style:italic;">Jogador removido</span>`;
             return `
             <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-weight:700;font-size:14px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.player_name || '—'}</div>
+                    <div>${playerLabel}</div>
                     <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--text-2);flex-wrap:wrap;">
                         <span>${item.team_name}</span>
                         <i class="bi bi-arrow-right" style="color:var(--text-3);font-size:11px;"></i>

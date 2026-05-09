@@ -2193,6 +2193,11 @@ if ($method === 'DELETE') {
                              player_id = NULL
                          WHERE player_id = ?"
                     )->execute([$pr['name'], $pr['position'], $pr['age'], $pr['ovr'], $id]);
+                    try {
+                        $pdo->prepare(
+                            "UPDATE leilao_jogadores SET temp_name = COALESCE(temp_name, ?) WHERE player_id = ?"
+                        )->execute([$pr['name'], $id]);
+                    } catch (Exception $leilaoSnap) {}
                 }
             } catch (Exception $snapshotErr) {
                 error_log('[admin delete player] snapshot failed: ' . $snapshotErr->getMessage());

@@ -1274,12 +1274,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         try {
             $ovrCol = playerOvrColumn($pdo);
             $stmtOfferPlayers = $pdo->prepare(
-                "SELECT 
+                "SELECT
                           COALESCE(p.id, ti.player_id) AS id,
                           COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
-                    COALESCE(p.position, ti.player_position) AS position,
-                    COALESCE(p.age, ti.player_age) AS age,
-                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                    COALESCE(ti.player_position, p.position) AS position,
+                    COALESCE(ti.player_age, p.age) AS age,
+                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr
               FROM trade_items ti
               LEFT JOIN players p ON p.id = ti.player_id
                       WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NULL"
@@ -1311,12 +1311,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         try {
             $ovrCol = playerOvrColumn($pdo);
             $stmtRequestPlayers = $pdo->prepare(
-                "SELECT 
+                "SELECT
                           COALESCE(p.id, ti.player_id) AS id,
                           COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
-                    COALESCE(p.position, ti.player_position) AS position,
-                    COALESCE(p.age, ti.player_age) AS age,
-                    COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                    COALESCE(ti.player_position, p.position) AS position,
+                    COALESCE(ti.player_age, p.age) AS age,
+                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr
               FROM trade_items ti
               LEFT JOIN players p ON p.id = ti.player_id
                       WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NULL"
