@@ -314,7 +314,8 @@ function isFranchiseEligible(player) {
   const teamId = Number(window.__TEAM_ID__);
   if (teamId <= 0) return false;
   return Number(player.ovr) >= 90
-    && Number(player.drafted_season_number) > 1
+    && player.drafted_season_number != null
+    && Number(player.drafted_season_number) >= 1
     && Number(player.drafted_by_team_id) === teamId
     && Number(player.was_traded) === 0;
 }
