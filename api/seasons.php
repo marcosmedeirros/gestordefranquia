@@ -154,9 +154,9 @@ function ensureLeagueSprintDefaults(PDO $pdo): void
         $pdo->exec("
             INSERT INTO league_sprint_config (league, max_seasons) VALUES
             ('ELITE', 20),
-            ('NEXT', 21),
+            ('NEXT', 20),
             ('RISE', 15),
-            ('ROOKIE', 10)
+            ('ROOKIE', 15)
             ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons)
         ");
     } catch (Exception $e) {
@@ -592,9 +592,11 @@ try {
             
             $stmt = $pdo->prepare("
                 SELECT s.*, sp.sprint_number, sp.start_year,
+                       lsc.max_seasons as sprint_max_seasons,
                        (SELECT COUNT(*) FROM draft_pool WHERE season_id = s.id) as draft_players_count
                 FROM seasons s
                 INNER JOIN sprints sp ON s.sprint_id = sp.id
+                LEFT JOIN league_sprint_config lsc ON s.league = lsc.league
                 $where
                 ORDER BY s.id DESC
             ");

@@ -617,7 +617,7 @@ async function showLeague(league) {
           : (currentSeason.year || '—'))
       : '—';
     const seasonNumber = currentSeason ? (parseInt(currentSeason.season_number) || 1) : '—';
-    const totalSeasons = seasons.length || '—';
+    const totalSeasons = currentSeason?.sprint_max_seasons || seasons[0]?.sprint_max_seasons || '—';
 
     const teamCards = teams.map(t => `
       <div class="col-6 col-md-4 col-xl-3">
@@ -1557,37 +1557,60 @@ async function _loadLeagueConfigInline(league) {
     const lg = (data.leagues || []).find(l => l.league === league);
     if (!lg) return;
     section.style.display = '';
+    const tradesOn = (lg.trades_enabled ?? 1) == 1;
+    const faOn = (lg.fa_enabled ?? 1) == 1;
+    const badgeStyle = (on) => on
+      ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+      : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)';
     body.innerHTML = `
-      <div class="row g-3 align-items-end">
-        <div class="col-6 col-md-3">
-          <label class="form-label text-light-gray small mb-1">CAP Mínimo</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">CAP Mínimo</div>
           <input type="number" class="form-control form-control-sm" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min">
         </div>
-        <div class="col-6 col-md-3">
-          <label class="form-label text-light-gray small mb-1">CAP Máximo</label>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">CAP Máximo</div>
           <input type="number" class="form-control form-control-sm" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max">
         </div>
-        <div class="col-6 col-md-3">
-          <label class="form-label text-light-gray small mb-1">Máx. Trocas/Temp.</label>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Máx. Trocas/Temp.</div>
           <input type="number" class="form-control form-control-sm" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades">
         </div>
+        <div style="display:flex;align-items:flex-end">
+          <div style="background:var(--red-soft);border:1px solid var(--border-red);border-radius:10px;padding:8px 12px;width:100%;text-align:center">
+            <div style="font-size:14px;font-weight:700;color:var(--red)">${lg.cap_min}–${lg.cap_max}</div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:1px">CAP Range</div>
+          </div>
+        </div>
       </div>
-      <div class="row g-3 mt-1">
-        <div class="col-6 col-md-4">
-          <label class="form-label text-light-gray small mb-1">Trades</label>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+        <div style="background:var(--panel-3);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px">
+            <i class="bi bi-arrow-left-right" style="color:#3b82f6;font-size:13px"></i>
+            <span style="font-size:12px;font-weight:600;color:var(--text)">Trades</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;${badgeStyle(tradesOn)}">${tradesOn ? 'Ativas' : 'Bloqueadas'}</span>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-sm ${tradesOn ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+              style="font-size:11px;padding:5px 8px"
               onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">Ativas</button>
-            <button class="btn btn-sm ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+            <button class="btn btn-sm ${!tradesOn ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+              style="font-size:11px;padding:5px 8px"
               onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">Bloqueadas</button>
           </div>
         </div>
-        <div class="col-6 col-md-4">
-          <label class="form-label text-light-gray small mb-1">Free Agency</label>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+        <div style="background:var(--panel-3);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px">
+            <i class="bi bi-coin" style="color:#22c55e;font-size:13px"></i>
+            <span style="font-size:12px;font-weight:600;color:var(--text)">Free Agency</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;${badgeStyle(faOn)}">${faOn ? 'Ativa' : 'Bloqueada'}</span>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-sm ${faOn ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+              style="font-size:11px;padding:5px 8px"
               onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">Ativa</button>
-            <button class="btn btn-sm ${(lg.fa_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+            <button class="btn btn-sm ${!faOn ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+              style="font-size:11px;padding:5px 8px"
               onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">Bloqueada</button>
           </div>
         </div>
