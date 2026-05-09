@@ -68,3 +68,40 @@ function destroyUserSession() {
     session_destroy();
     $_SESSION = [];
 }
+
+function getAdminLeagues(PDO $pdo, int $userId): array {
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS league_admins (
+            user_id INT NOT NULL,
+            league  VARCHAR(20) NOT NULL,
+            PRIMARY KEY (user_id, league)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {}
+
+    $stmtUser = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
+    $stmtUser->execute([$userId]);
+    $userType = $stmtUser->fetchColumn();
+
+    if ($userType === 'admin') {
+        $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM league_admins WHERE user_id = ?");
+        $stmtCount->execute([$userId]);
+        if ((int)$stmtCount->fetchColumn() === 0) {
+            foreach (['ELITE', 'NEXT', 'RISE', 'ROOKIE'] as $l) {
+                try {
+                    $pdo->prepare("INSERT IGNORE INTO league_admins (user_id, league) VALUES (?, ?)")
+                        ->execute([$userId, $l]);
+                } catch (Exception $e) {}
+            }
+        }
+    }
+
+    $stmt = $pdo->prepare("SELECT league FROM league_admins WHERE user_id = ? ORDER BY league");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function isLeagueAdmin(PDO $pdo, int $userId, string $league): bool {
+    $stmt = $pdo->prepare("SELECT 1 FROM league_admins WHERE user_id = ? AND league = ? LIMIT 1");
+    $stmt->execute([$userId, strtoupper($league)]);
+    return (bool)$stmt->fetch();
+}

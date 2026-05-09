@@ -714,11 +714,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       </div>
       <div class="hero-actions">
         <?php if ($isAdmin): ?>
-        <button class="btn-ghost" onclick="openAddDraftPlayerModal()">
-          <i class="bi bi-person-plus"></i> Adicionar jogador
-        </button>
-        <?php endif; ?>
-        <?php if ($isAdmin): ?>
         <button class="btn-ghost" onclick="openAdminMocksModal()">
           <i class="bi bi-eye-fill"></i>
           <span>Ver Mocks</span>

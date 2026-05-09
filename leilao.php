@@ -60,11 +60,6 @@ $stmt->execute([$user_id]);
 $user = $stmt->fetch() ?: [];
 $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador');
 
-$leagues = [];
-if ($is_admin) {
-    $stmt = $pdo->query("SELECT id, name FROM leagues ORDER BY name");
-    $leagues = $stmt->fetchAll();
-}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -264,14 +259,9 @@ if ($is_admin) {
         </div>
 
         <div class="content">
-            <?php if (!empty($team_name) || $is_admin): ?>
+            <?php if (!empty($team_name)): ?>
             <div class="d-flex align-items-center gap-2 mb-4">
-                <?php if (!empty($team_name)): ?>
-                    <span class="badge-team"><?= htmlspecialchars($team_name) ?></span>
-                <?php endif; ?>
-                <?php if ($is_admin): ?>
-                    <span class="badge-admin"><i class="bi bi-shield-lock-fill me-1"></i>Admin</span>
-                <?php endif; ?>
+                <span class="badge-team"><?= htmlspecialchars($team_name) ?></span>
             </div>
             <?php endif; ?>
 
@@ -281,13 +271,6 @@ if ($is_admin) {
                         <i class="bi bi-hammer me-1"></i>Leilões ativos
                     </button>
                 </li>
-                <?php if ($is_admin): ?>
-                <li class="nav-item">
-                    <button class="nav-link" id="auction-admin-tab" data-bs-toggle="tab" data-bs-target="#auction-admin" type="button" role="tab">
-                        <i class="bi bi-shield-lock-fill me-1"></i>Admin
-                    </button>
-                </li>
-                <?php endif; ?>
             </ul>
 
             <div class="tab-content">
@@ -309,74 +292,6 @@ if ($is_admin) {
                     </div>
                 </div>
 
-                <!-- Admin -->
-                <?php if ($is_admin): ?>
-                <div class="tab-pane fade" id="auction-admin" role="tabpanel">
-                    <div class="panel-card">
-                        <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilão Admin</span></div>
-                        <div class="panel-card-body">
-                            <div class="row g-3 mb-4">
-                                <div class="col-md-4">
-                                    <label class="form-label">Liga</label>
-                                    <select id="selectLeague" class="form-select">
-                                        <option value="">Selecione...</option>
-                                        <?php foreach ($leagues as $league): ?>
-                                            <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>"><?= htmlspecialchars($league['name']) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="col-md-5 d-flex align-items-end gap-4 pb-1">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
-                                        <label class="form-check-label" for="auctionModeSearch">Buscar jogador</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
-                                        <label class="form-check-label" for="auctionModeCreate">Criar jogador</label>
-                                    </div>
-                                </div>
-                                <div class="col-md-3 d-flex align-items-end">
-                                    <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled><i class="bi bi-play-fill me-1"></i>Iniciar 20min</button>
-                                </div>
-                            </div>
-                            <div style="border-top:1px solid var(--border);padding-top:20px;">
-                                <div id="auctionSearchArea">
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-md-8">
-                                            <label class="form-label">Buscar jogador</label>
-                                            <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome...">
-                                        </div>
-                                        <div class="col-md-4 d-flex align-items-end">
-                                            <button class="btn btn-outline-orange w-100" id="auctionSearchBtn"><i class="bi bi-search me-1"></i>Buscar</button>
-                                        </div>
-                                    </div>
-                                    <div id="auctionPlayerResults" style="display:none;"></div>
-                                    <div id="auctionSelectedLabel" style="display:none;color:var(--text-2);font-size:13px;margin-top:8px;"></div>
-                                    <input type="hidden" id="auctionSelectedPlayerId">
-                                    <input type="hidden" id="auctionSelectedTeamId">
-                                </div>
-                                <div id="auctionCreateArea" style="display:none;">
-                                    <p style="color:var(--text-3);font-size:12px;margin-bottom:16px;">O jogador será criado no leilão sem time.</p>
-                                    <div class="row g-3">
-                                        <div class="col-md-4"><label class="form-label">Nome</label><input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome do jogador"></div>
-                                        <div class="col-md-2"><label class="form-label">Posição</label><select id="auctionPlayerPosition" class="form-select"><option value="PG">PG</option><option value="SG">SG</option><option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option></select></div>
-                                        <div class="col-md-2"><label class="form-label">Idade</label><input type="number" id="auctionPlayerAge" class="form-control" value="25"></div>
-                                        <div class="col-md-2"><label class="form-label">OVR</label><input type="number" id="auctionPlayerOvr" class="form-control" value="70"></div>
-                                        <div class="col-md-2 d-flex align-items-end"><button class="btn btn-orange w-100" type="button" id="btnCriarJogadorLeilao"><i class="bi bi-plus-circle me-1"></i>Criar</button></div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:10px;"><i class="bi bi-person-plus me-1" style="color:var(--red)"></i>Jogadores criados (sem time)</div>
-                                        <div id="auctionTempList" style="color:var(--text-3);font-size:13px;">Nenhum jogador criado.</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="border-top:1px solid var(--border);padding-top:20px;margin-top:20px;">
-                                <div id="adminLeiloesContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
     </main>

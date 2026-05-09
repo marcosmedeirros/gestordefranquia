@@ -4,11 +4,15 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 $user = getUserSession();
-if (($user['user_type'] ?? 'jogador') !== 'admin') {
+$pdo = db();
+
+$isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
+
+if (!$isGlobalAdmin && empty($adminLeagues)) {
     header('Location: /dashboard.php');
     exit;
 }
-$pdo = db();
 
 // ── Time do admin ─────────────────────────────────────
 $stmtTeam = $pdo->prepare('SELECT t.*, t.photo_url, t.city FROM teams t WHERE t.user_id = ? LIMIT 1');
@@ -305,6 +309,34 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         #adminToast.toast-info    { border-color: var(--border-md); }
         #adminToast.toast-info    i { color: #2196f3; }
 
+        /* ── Quick Nav ────────────────────────────────── */
+        .admin-quicknav {
+            display: flex; align-items: center; gap: 4px;
+            padding: 18px 40px 0; border-bottom: 1px solid var(--border); margin-bottom: 0;
+        }
+        .admin-qnav-btn {
+            background: transparent; border: none; border-bottom: 2px solid transparent;
+            color: var(--text-2); font-size: 13px; font-weight: 500; font-family: var(--font);
+            padding: 10px 16px; cursor: pointer; transition: all var(--t) var(--ease);
+            display: flex; align-items: center; gap: 7px; margin-bottom: -1px;
+        }
+        .admin-qnav-btn:hover { color: var(--text); }
+        .admin-qnav-btn.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
+
+        /* ── League Tab Bar ───────────────────────────── */
+        .league-tab-bar {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            padding: 14px 40px 0;
+        }
+        .league-tab-btn {
+            background: var(--panel-2); border: 1px solid var(--border);
+            color: var(--text-2); font-size: 12px; font-weight: 700;
+            font-family: var(--font); border-radius: 8px; padding: 6px 14px;
+            cursor: pointer; transition: all var(--t) var(--ease); letter-spacing: .05em;
+        }
+        .league-tab-btn:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
+        .league-tab-btn.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 992px) {
             .sidebar { transform: translateX(-260px); }
@@ -553,6 +585,27 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
     <!-- ── Main Content ──────────────────────────────── -->
     <main class="main" id="app-main">
+
+    <nav class="admin-quicknav" id="adminQuicknav">
+        <button class="admin-qnav-btn active" id="qnav-home" onclick="showHome()">
+            <i class="bi bi-house-fill"></i> Início
+        </button>
+        <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
+            <i class="bi bi-people-fill"></i> Gestão
+        </button>
+    </nav>
+
+    <?php if (!$isGlobalAdmin && count($adminLeagues) > 1): ?>
+    <div class="league-tab-bar" id="leagueTabBar">
+        <span style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0">Liga:</span>
+        <?php foreach ($adminLeagues as $lg): ?>
+        <button class="league-tab-btn" onclick="filterAdminLeague('<?= htmlspecialchars($lg) ?>')" id="ltab-<?= htmlspecialchars($lg) ?>">
+            <?= htmlspecialchars($lg) ?>
+        </button>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="page-top">
         <div>
             <div class="page-eyebrow">Administração</div>
@@ -671,6 +724,10 @@ function showAlert(type, message) {
 }
 </script>
 
+<script>
+window.ADMIN_LEAGUES    = <?= json_encode(array_values($adminLeagues)) ?>;
+window.IS_GLOBAL_ADMIN  = <?= $isGlobalAdmin ? 'true' : 'false' ?>;
+</script>
 <script src="/js/admin.js?v=<?= time() ?>"></script>
 <script src="/js/seasons.js?v=<?= time() ?>"></script>
 <script src="/js/pwa.js"></script>

@@ -184,7 +184,7 @@ async function createNewSeason(league) {
 async function showDraftManagement(seasonId, league) {
     seasonsState.currentLeague = league;
     const season = await loadCurrentSeason(league);
-    
+
     if (!season) {
         const container = document.getElementById('mainContainer');
         container.innerHTML = `
@@ -208,24 +208,28 @@ async function showDraftManagement(seasonId, league) {
                 <i class="bi bi-arrow-left"></i> Voltar
             </button>
         </div>
-        
+
         <div class="row g-3 mb-4">
-            <div class="col-md-8">
+            <div class="col-md-6">
                 <div class="card bg-dark-panel border-orange" style="border-radius: 15px;">
                     <div class="card-body">
-                        <h4 class="text-white mb-1">Draft - Temporada ${season.season_number}</h4>
+                        <h4 class="text-white mb-1">Draft — Temporada ${season.season_number}</h4>
                         <p class="text-light-gray mb-0">${league} | Sprint ${season.sprint_number || '?'} | Ano ${season.year}</p>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <button class="btn btn-orange w-100 h-100" onclick="showAddDraftPlayerModal(${season.id})" style="border-radius: 15px;">
-                    <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador ao Draft
+                    <i class="bi bi-plus-circle me-1"></i>Adicionar Jogador
+                </button>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-outline-orange w-100 h-100" onclick="showImportCSVModal(${season.id}, '${league}', ${season.season_number})" style="border-radius: 15px;">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar CSV
                 </button>
             </div>
         </div>
 
-        <!-- Nav Tabs -->
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
                 <a class="nav-link active" id="draft-tab" data-bs-toggle="tab" href="#draft-panel">
@@ -239,13 +243,10 @@ async function showDraftManagement(seasonId, league) {
             </li>
         </ul>
 
-        <!-- Tab Content -->
         <div class="tab-content">
             <div class="tab-pane fade show active" id="draft-panel">
                 <div id="draftPlayersContainer">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-orange"></div>
-                    </div>
+                    <div class="text-center py-4"><div class="spinner-border text-orange"></div></div>
                 </div>
             </div>
             <div class="tab-pane fade" id="history-panel">
@@ -255,7 +256,7 @@ async function showDraftManagement(seasonId, league) {
             </div>
         </div>
     `;
-    
+
     loadDraftPlayers(season.id);
 }
 
@@ -521,115 +522,102 @@ async function loadDraftPlayers(seasonId) {
 
 function renderDraftPlayers(players) {
     const available = players.filter(p => p.draft_status === 'available');
-    const drafted = players.filter(p => p.draft_status === 'drafted');
-    
-    const container = document.getElementById('draftPlayersContainer');
-    container.innerHTML = `
+    const drafted   = players.filter(p => p.draft_status === 'drafted');
+
+    const availableRows = available.map((p, idx) => `
+        <tr>
+            <td style="color:var(--text-3)">${idx + 1}</td>
+            <td>
+                <input type="number" min="1" value="${p.pick_hint || ''}" placeholder="—"
+                    style="width:58px;background:var(--panel-3);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center"
+                    onchange="updatePickHint(${p.id}, this.value)">
+            </td>
+            <td style="font-weight:600">${escapeHtml(p.name)}</td>
+            <td><span class="badge bg-gradient-orange">${p.position || '—'}</span></td>
+            <td><span class="badge bg-success">OVR ${p.ovr}</span></td>
+            <td style="color:var(--text-2)">${p.age} anos</td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteDraftPlayer(${p.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>`).join('') || `<tr><td colspan="7" class="text-center text-muted py-3">Nenhum jogador disponível</td></tr>`;
+
+    const draftedList = drafted.map(p => `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded" style="background:var(--panel-3)">
+            <div>
+                <div class="text-white small">${escapeHtml(p.name)}</div>
+                <div class="text-muted" style="font-size:.75rem">Pick #${p.draft_order || '—'}</div>
+            </div>
+            <span class="badge bg-success">${p.ovr}</span>
+        </div>`).join('') || '<p class="text-muted small">Nenhum ainda</p>';
+
+    document.getElementById('draftPlayersContainer').innerHTML = `
         <div class="row g-3">
-            <div class="col-md-8">
+            <div class="col-lg-8">
                 <div class="bg-dark-panel border-orange rounded p-4">
-                    <h5 class="text-white mb-3">
-                        <i class="bi bi-people-fill me-2 text-orange"></i>
-                        Disponíveis (${available.length})
-                    </h5>
-                    <div class="row g-3">
-                        ${available.map(p => `
-                            <div class="col-md-4">
-                                <div class="card bg-dark-panel border-orange h-100">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <span class="badge bg-orange">${p.position}</span>
-                                            <span class="badge bg-success">OVR ${p.ovr}</span>
-                                        </div>
-                                        <h6 class="text-white mb-1">${p.name}</h6>
-                                        <p class="text-light-gray small mb-2">${p.age} anos</p>
-                                        <div class="d-flex gap-1">
-                                            <button class="btn btn-sm btn-outline-warning flex-fill" onclick="editDraftPlayer(${p.id})">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger flex-fill" onclick="deleteDraftPlayer(${p.id})">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('') || '<p class="text-light-gray">Nenhum jogador disponível</p>'}
+                    <h5 class="text-white mb-3"><i class="bi bi-people-fill me-2 text-orange"></i>Disponíveis (${available.length})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover" style="font-size:13px">
+                            <thead>
+                                <tr>
+                                    <th>#</th><th>Ordem</th><th>Nome</th><th>Pos</th><th>OVR</th><th>Idade</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody>${availableRows}</tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="bg-dark-panel border-success rounded p-4">
-                    <h5 class="text-white mb-3">
-                        <i class="bi bi-check-circle-fill me-2 text-success"></i>
-                        Draftados (${drafted.length})
-                    </h5>
-                    ${drafted.map(p => `
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-dark rounded">
-                            <div>
-                                <div class="text-white small">${p.name}</div>
-                                <div class="text-light-gray" style="font-size: 0.75rem;">Pick #${p.draft_order}</div>
-                            </div>
-                            <span class="badge bg-success">${p.ovr}</span>
-                        </div>
-                    `).join('') || '<p class="text-light-gray small">Nenhum ainda</p>'}
+            <div class="col-lg-4">
+                <div class="bg-dark-panel rounded p-4" style="border:1px solid rgba(37,198,119,.3)">
+                    <h5 class="text-white mb-3"><i class="bi bi-check-circle-fill me-2 text-success"></i>Draftados (${drafted.length})</h5>
+                    ${draftedList}
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
 // ========== MODAL ADICIONAR JOGADOR ==========
 function showAddDraftPlayerModal(seasonId) {
     const modalHtml = `
         <div class="modal fade" id="addDraftPlayerModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog">
                 <div class="modal-content bg-dark-panel border-orange">
                     <div class="modal-header border-orange">
-                        <h5 class="modal-title text-white">Adicionar Jogador ao Draft</h5>
+                        <h5 class="modal-title text-white"><i class="bi bi-person-plus-fill text-orange me-2"></i>Adicionar Jogador ao Draft</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="formAddDraftPlayer">
                             <input type="hidden" name="season_id" value="${seasonId}">
                             <div class="row g-3">
-                                <div class="col-md-8">
+                                <div class="col-12">
                                     <label class="form-label text-light-gray">Nome</label>
                                     <input type="text" class="form-control bg-dark text-white border-orange" name="name" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label text-light-gray">Idade</label>
-                                    <input type="number" class="form-control bg-dark text-white border-orange" name="age" min="18" max="40" required>
-                                </div>
-                                <div class="col-md-6">
                                     <label class="form-label text-light-gray">Posição</label>
                                     <select class="form-select bg-dark text-white border-orange" name="position" required>
-                                        <option value="Armador">Armador</option>
-                                        <option value="Ala-Armador">Ala-Armador</option>
-                                        <option value="Ala">Ala</option>
-                                        <option value="Ala-Pivô">Ala-Pivô</option>
-                                        <option value="Pivô">Pivô</option>
+                                        <option value="">Selecione...</option>
+                                        <option value="PG">PG - Armador</option>
+                                        <option value="SG">SG - Ala-Armador</option>
+                                        <option value="SF">SF - Ala</option>
+                                        <option value="PF">PF - Ala-Pivô</option>
+                                        <option value="C">C - Pivô</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <label class="form-label text-light-gray">Idade</label>
+                                    <input type="number" class="form-control bg-dark text-white border-orange" name="age" min="18" max="50" required>
+                                </div>
+                                <div class="col-md-4">
                                     <label class="form-label text-light-gray">OVR</label>
-                                    <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="1" max="99" required>
+                                    <input type="number" class="form-control bg-dark text-white border-orange" name="ovr" min="40" max="99" required>
                                 </div>
                                 <div class="col-12">
-                                    <label class="form-label text-light-gray">URL da Foto</label>
-                                    <input type="url" class="form-control bg-dark text-white border-orange" name="photo_url" placeholder="https://...">
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label text-light-gray">Biografia</label>
-                                    <textarea class="form-control bg-dark text-white border-orange" name="bio" rows="2"></textarea>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label text-light-gray">Pontos Fortes</label>
-                                    <textarea class="form-control bg-dark text-white border-orange" name="strengths" rows="2"></textarea>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label text-light-gray">Pontos Fracos</label>
-                                    <textarea class="form-control bg-dark text-white border-orange" name="weaknesses" rows="2"></textarea>
+                                    <label class="form-label text-light-gray">Ordem de Pick <span class="text-muted">(opcional)</span></label>
+                                    <input type="number" class="form-control bg-dark text-white border-orange" name="pick_hint" min="1" placeholder="Ex: 1">
                                 </div>
                             </div>
                         </form>
@@ -640,34 +628,37 @@ function showAddDraftPlayerModal(seasonId) {
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-    
+        </div>`;
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     const modal = new bootstrap.Modal(document.getElementById('addDraftPlayerModal'));
     modal.show();
-    
-    document.getElementById('addDraftPlayerModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-    });
+    document.getElementById('addDraftPlayerModal').addEventListener('hidden.bs.modal', function() { this.remove(); });
 }
 
 async function submitDraftPlayer() {
     const form = document.getElementById('formAddDraftPlayer');
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
-    
+    const hintVal = formData.get('pick_hint');
+    const payload = {
+        season_id: formData.get('season_id'),
+        name: formData.get('name'),
+        position: formData.get('position'),
+        age: formData.get('age'),
+        ovr: formData.get('ovr'),
+        pick_hint: hintVal !== '' ? hintVal : null,
+    };
+
     try {
         await api('seasons.php?action=add_draft_player', {
             method: 'POST',
-            body: JSON.stringify(data)
+            body: JSON.stringify(payload)
         });
-        
         bootstrap.Modal.getInstance(document.getElementById('addDraftPlayerModal')).hide();
-        loadDraftPlayers(data.season_id);
-        alert('Jogador adicionado ao draft!');
+        loadDraftPlayers(payload.season_id);
+        showAlert('success', 'Jogador adicionado ao draft!');
     } catch (e) {
-        alert('Erro: ' + (e.error || 'Desconhecido'));
+        showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
     }
 }
 
@@ -771,8 +762,115 @@ function renderRanking(ranking) {
     `;
 }
 
+// ========== PICK HINT ==========
+async function updatePickHint(playerId, value) {
+    try {
+        await api('seasons.php?action=update_draft_player', {
+            method: 'POST',
+            body: JSON.stringify({ player_id: playerId, pick_hint: value !== '' ? value : null })
+        });
+    } catch (e) {
+        showAlert('danger', 'Erro ao salvar ordem: ' + (e.error || 'Desconhecido'));
+    }
+}
+
+// ========== IMPORTAR CSV ==========
+function showImportCSVModal(seasonId, league, seasonNumber) {
+    const modalHtml = `
+        <div class="modal fade" id="importCSVModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content bg-dark-panel border-orange">
+                    <div class="modal-header border-orange">
+                        <h5 class="modal-title text-white"><i class="bi bi-file-earmark-arrow-up text-orange me-2"></i>Importar Jogadores via CSV</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info mb-3">
+                            <strong>Temporada:</strong> ${escapeHtml(league)} — Temporada ${seasonNumber}
+                        </div>
+                        <div class="card bg-dark-panel border-orange mb-3">
+                            <div class="card-body">
+                                <h6 class="text-orange"><i class="bi bi-info-circle me-1"></i>Formato do CSV</h6>
+                                <p class="text-light-gray small mb-2">
+                                    Colunas: <code>nome, posicao, idade, ovr, ordem</code> <span class="text-muted">(ordem é opcional)</span>
+                                </p>
+                                <pre class="bg-dark p-2 rounded" style="font-size:11px;color:var(--text-2)">nome,posicao,idade,ovr,ordem
+LeBron James,SF,39,96,1
+Stephen Curry,PG,35,95,2</pre>
+                                <button class="btn btn-sm btn-outline-orange mt-2" onclick="downloadCSVTemplate()">
+                                    <i class="bi bi-download me-1"></i>Baixar Template
+                                </button>
+                            </div>
+                        </div>
+                        <form id="importCSVForm" onsubmit="submitImportCSV(event, ${seasonId})">
+                            <div class="mb-3">
+                                <label class="form-label text-light-gray">Selecione o arquivo CSV</label>
+                                <input type="file" id="csvFileInput" accept=".csv" required class="form-control bg-dark text-white border-orange">
+                            </div>
+                            <button type="submit" class="btn btn-orange w-100">
+                                <i class="bi bi-upload me-1"></i>Importar Jogadores
+                            </button>
+                        </form>
+                        <div id="importResult" class="mt-3" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('importCSVModal'));
+    modal.show();
+    document.getElementById('importCSVModal').addEventListener('hidden.bs.modal', function() { this.remove(); });
+}
+
+async function submitImportCSV(event, seasonId) {
+    event.preventDefault();
+    const fileInput = document.getElementById('csvFileInput');
+    const file = fileInput.files[0];
+    if (!file) { showAlert('danger', 'Selecione um arquivo CSV'); return; }
+
+    const formData = new FormData();
+    formData.append('csv_file', file);
+    formData.append('season_id', seasonId);
+
+    const resultDiv = document.getElementById('importResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Importando...</div>';
+
+    try {
+        const response = await fetch('/api/import-draft-players.php', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            resultDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('importCSVModal'))?.hide();
+                const league = seasonsState.currentLeague;
+                if (league) showDraftManagement(null, league);
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>${data.error || 'Erro desconhecido'}</div>`;
+        }
+    } catch (e) {
+        resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>${e.message || 'Erro'}</div>`;
+    }
+}
+
+function downloadCSVTemplate() {
+    const csv = 'nome,posicao,idade,ovr,ordem\nLeBron James,SF,39,96,1\nStephen Curry,PG,35,95,2\nKevin Durant,PF,35,94,3\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'template-draft-players.csv'; a.click();
+    window.URL.revokeObjectURL(url);
+}
+
 // Expor funções para o escopo global (necessário para onclick no HTML)
 window.showSeasonsManagement = showSeasonsManagement;
 window.createNewSeason = createNewSeason;
 window.showDraftManagement = showDraftManagement;
 window.deleteDraftPlayer = deleteDraftPlayer;
+window.updatePickHint = updatePickHint;
+window.showImportCSVModal = showImportCSVModal;
+window.submitImportCSV = submitImportCSV;
+window.downloadCSVTemplate = downloadCSVTemplate;
+window.submitDraftPlayer = submitDraftPlayer;

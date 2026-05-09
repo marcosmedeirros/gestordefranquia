@@ -20,12 +20,17 @@ const api = async (path, options = {}) => {
   return body;
 };
 
+const _leagues = window.ADMIN_LEAGUES && window.ADMIN_LEAGUES.length
+  ? window.ADMIN_LEAGUES
+  : ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
 let appState = {
   view: 'home',
   currentLeague: null,
   currentTeam: null,
   teamDetails: null,
-  currentFAleague: 'ELITE',
+  currentFAleague: _leagues[0] || 'ELITE',
+  adminLeagueFilter: null,
   tradeFilters: { league: 'ALL', status: 'all', teamId: '' }
 };
 let adminFreeAgents = [];
@@ -42,6 +47,212 @@ function updateTradeFilter(nextFilters = {}) {
     ...nextFilters
   };
   showTrades(appState.tradeFilters.status || 'all');
+}
+
+// ── Gestão de Usuários ────────────────────────────────────────────
+let _gestaoUsers = [];
+let _gestaoLeague = _leagues[0] || 'ELITE';
+
+async function showGestao(league) {
+  appState.view = 'gestao';
+  updateBreadcrumb();
+  if (league) _gestaoLeague = league;
+
+  const container = document.getElementById('mainContainer');
+  const leagueTabs = _leagues.map(lg => `
+    <button class="btn btn-sm ${lg === _gestaoLeague ? 'btn-orange' : 'btn-outline-orange'}"
+            onclick="showGestao('${lg}')">${lg}</button>`).join('');
+
+  container.innerHTML = `
+    <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="d-flex gap-2 flex-wrap">${leagueTabs}</div>
+      <button class="btn btn-sm btn-outline-orange" onclick="showGestao('${_gestaoLeague}')">
+        <i class="bi bi-arrow-repeat"></i>
+      </button>
+    </div>
+    <div id="gestaoTableContainer">
+      <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
+    </div>`;
+
+  try {
+    const data = await api(`admin.php?action=get_users&league=${_gestaoLeague}`);
+    _gestaoUsers = data.users || [];
+    renderGestaoTable(_gestaoUsers);
+  } catch (e) {
+    document.getElementById('gestaoTableContainer').innerHTML =
+      `<div class="alert alert-danger">Erro ao carregar usuários: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+function renderGestaoTable(users) {
+  const container = document.getElementById('gestaoTableContainer');
+  if (!users.length) {
+    container.innerHTML = '<div class="alert alert-info">Nenhum usuário nesta liga.</div>';
+    return;
+  }
+
+  const rows = users.map(u => {
+    const adminBadges = (u.admin_leagues || []).map(l =>
+      `<span class="badge bg-gradient-orange me-1" style="font-size:10px">${l}</span>`).join('') || '<span class="text-muted" style="font-size:12px">—</span>';
+    const teamPhoto = u.team_photo
+      ? `<img src="${escapeHtml(u.team_photo)}" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display='none'">`
+      : `<div style="width:30px;height:30px;border-radius:8px;background:var(--panel-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center"><i class="bi bi-people" style="font-size:14px;color:var(--text-3)"></i></div>`;
+    const teamName = u.team_city
+      ? `${escapeHtml(u.team_city)} ${escapeHtml(u.team_name || '')}`
+      : (u.team_name ? escapeHtml(u.team_name) : '<span class="text-muted">—</span>');
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:600">${escapeHtml(u.name)}</div>
+          <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
+        </td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            ${teamPhoto}
+            <span style="font-size:13px">${teamName}</span>
+          </div>
+        </td>
+        <td>${adminBadges}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-orange" onclick="openGestaoEdit(${u.id})">
+            <i class="bi bi-pencil-fill"></i>
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-dark table-hover" style="font-size:13px">
+        <thead>
+          <tr>
+            <th>Usuário</th>
+            <th>Time</th>
+            <th>Ligas Admin</th>
+            <th style="width:60px"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function openGestaoEdit(userId) {
+  const u = _gestaoUsers.find(x => x.id == userId);
+  if (!u) return;
+
+  const allLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+  const adminChecks = window.IS_GLOBAL_ADMIN ? allLeagues.map(l => `
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="checkbox" id="ck-${l}" value="${l}" ${(u.admin_leagues||[]).includes(l) ? 'checked' : ''}>
+      <label class="form-check-label" for="ck-${l}">${l}</label>
+    </div>`).join('') : '';
+
+  const resetBtn = window.IS_GLOBAL_ADMIN ? `
+    <button type="button" class="btn btn-outline-warning w-100 mt-2" onclick="confirmResetPassword(${u.id}, '${escapeHtml(u.name)}')">
+      <i class="bi bi-key-fill me-1"></i>Redefinir senha para fbabrasil123
+    </button>` : '';
+
+  const modalHtml = `
+    <div class="modal fade" id="gestaoEditModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-person-gear me-2" style="color:var(--red)"></i>Editar Usuário</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="gedit-user-id" value="${u.id}">
+            <input type="hidden" id="gedit-team-id" value="${u.team_id || ''}">
+
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Nome</label>
+              <input type="text" id="gedit-name" class="form-control" value="${escapeHtml(u.name)}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">E-mail</label>
+              <input type="email" id="gedit-email" class="form-control" value="${escapeHtml(u.email)}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Foto do Time (URL)</label>
+              <div class="d-flex gap-2">
+                <input type="url" id="gedit-team-photo" class="form-control" value="${escapeHtml(u.team_photo || '')}" placeholder="https://..." oninput="updateGestaoPhotoPreview()">
+                <img id="gedit-photo-preview" src="${escapeHtml(u.team_photo || '')}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;${u.team_photo ? '' : 'display:none'}" onerror="this.style.display='none'">
+              </div>
+            </div>
+            ${window.IS_GLOBAL_ADMIN ? `
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Ligas Admin</label>
+              <div class="d-flex flex-wrap gap-2 mt-1">${adminChecks}</div>
+            </div>` : ''}
+            ${resetBtn}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" onclick="saveGestaoUser()">
+              <i class="bi bi-save me-1"></i>Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  const modal = new bootstrap.Modal(document.getElementById('gestaoEditModal'));
+  modal.show();
+  document.getElementById('gestaoEditModal').addEventListener('hidden.bs.modal', function() { this.remove(); });
+}
+
+function updateGestaoPhotoPreview() {
+  const input = document.getElementById('gedit-team-photo');
+  const preview = document.getElementById('gedit-photo-preview');
+  if (!input || !preview) return;
+  const url = input.value.trim();
+  if (url) { preview.src = url; preview.style.display = ''; }
+  else { preview.style.display = 'none'; }
+}
+
+async function saveGestaoUser() {
+  const userId   = parseInt(document.getElementById('gedit-user-id').value);
+  const teamId   = parseInt(document.getElementById('gedit-team-id').value) || null;
+  const name     = document.getElementById('gedit-name').value.trim();
+  const email    = document.getElementById('gedit-email').value.trim();
+  const teamPhoto = document.getElementById('gedit-team-photo').value.trim();
+
+  try {
+    await api('admin.php?action=update_user', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto })
+    });
+
+    if (window.IS_GLOBAL_ADMIN) {
+      const leagues = Array.from(document.querySelectorAll('#gestaoEditModal .form-check-input:checked')).map(c => c.value);
+      await api('admin.php?action=set_user_league_admin', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId, leagues })
+      });
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('gestaoEditModal'))?.hide();
+    showAlert('success', 'Usuário atualizado!');
+    showGestao(_gestaoLeague);
+  } catch (e) {
+    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function confirmResetPassword(userId, userName) {
+  if (!confirm(`Redefinir a senha de "${userName}" para fbabrasil123?`)) return;
+  try {
+    await api('admin.php?action=reset_user_password', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId })
+    });
+    showAlert('success', `Senha de ${userName} redefinida!`);
+  } catch (e) {
+    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
 }
 
 async function init() { showHome(); }
@@ -98,8 +309,18 @@ function updateBreadcrumb() {
     } else if (appState.view === 'pontuacao') {
       breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>';
       pageTitle.textContent = 'Pontuação por Temporada';
+    } else if (appState.view === 'gestao') {
+      breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>';
+      pageTitle.textContent = 'Gestão de Usuários';
     }
   }
+
+  // Atualiza o quicknav ativo
+  const map = { home: 'qnav-home', gestao: 'qnav-gestao' };
+  document.querySelectorAll('.admin-qnav-btn').forEach(b => b.classList.remove('active'));
+  const navBtnId = map[appState.view] || 'qnav-home';
+  const navBtn = document.getElementById(navBtnId);
+  if (navBtn) navBtn.classList.add('active');
 }
 
 function escapeHtml(value) {
@@ -113,27 +334,53 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch]);
 }
 
+function filterAdminLeague(league) {
+  appState.adminLeagueFilter = league;
+  document.querySelectorAll('.league-tab-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById('ltab-' + league);
+  if (activeBtn) activeBtn.classList.add('active');
+  showHome();
+}
+
 async function showHome() {
   appState.view = 'home';
   updateBreadcrumb();
-  
+
+  const visibleLeagues = appState.adminLeagueFilter
+    ? [appState.adminLeagueFilter]
+    : _leagues;
+
+  const leagueDescriptions = { ELITE: 'Liga Elite', NEXT: 'Liga Next', RISE: 'Liga Rise', ROOKIE: 'Liga Rookie' };
+
+  const leagueCards = visibleLeagues.map(lg => `
+    <div class="col-md-6 col-lg-3">
+      <div class="league-card" onclick="showLeague('${lg}')">
+        <h3>${lg}</h3>
+        <p class="text-light-gray mb-2">${leagueDescriptions[lg] || lg}</p>
+        <span class="badge bg-gradient-orange" id="${lg.toLowerCase()}-teams">Ver mais</span>
+      </div>
+    </div>`).join('');
+
   const container = document.getElementById('mainContainer');
-  container.innerHTML = `<div class="row g-4 mb-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-trophy-fill text-orange me-2"></i>Ligas</h3></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ELITE')"><h3>ELITE</h3><p class="text-light-gray mb-2">Liga Elite</p><span class="badge bg-gradient-orange" id="elite-teams">Ver mais</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('NEXT')"><h3>NEXT</h3><p class="text-light-gray mb-2">Liga Next</p><span class="badge bg-gradient-orange" id="next-teams">Ver mais</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('RISE')"><h3>RISE</h3><p class="text-light-gray mb-2">Liga Rise</p><span class="badge bg-gradient-orange" id="rise-teams">Ver mais</span></div></div>
-<div class="col-md-6 col-lg-3"><div class="league-card" onclick="showLeague('ROOKIE')"><h3>ROOKIE</h3><p class="text-light-gray mb-2">Liga Rookie</p><span class="badge bg-gradient-orange" id="rookie-teams">Ver mais</span></div></div></div>
-<div class="row g-4"><div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
-<div class="col-md-6"><div class="action-card" onclick="showUserApprovals()"><i class="bi bi-person-check"></i><h4>Aprovar Usuários <span class="badge bg-danger" id="pending-users-count" style="display:none;">0</span></h4><p>Aprovar ou rejeitar novos cadastros</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showHallOfFame()"><i class="bi bi-award-fill"></i><h4>Hall da Fama</h4><p>Cadastre clubes e titulos</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Inicie temporadas e acompanhe o draft inicial</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anonimas</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div>
-<div class="col-md-6"><div class="action-card" onclick="showPointsManagement()"><i class="bi bi-bar-chart-steps"></i><h4>Pontuação</h4><p>Cadastre e visualize pontuações por temporada e liga</p></div></div></div>`;
+  container.innerHTML = `
+<div class="row g-4 mb-4">
+  <div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-trophy-fill text-orange me-2"></i>Ligas</h3></div>
+  ${leagueCards}
+</div>
+<div class="row g-4">
+  <div class="col-12"><h3 class="text-white mb-3"><i class="bi bi-gear-fill text-orange me-2"></i>Ações</h3></div>
+  <div class="col-md-6"><div class="action-card" onclick="showUserApprovals()"><i class="bi bi-person-check"></i><h4>Aprovar Usuários <span class="badge bg-danger" id="pending-users-count" style="display:none;">0</span></h4><p>Aprovar ou rejeitar novos cadastros</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showTrades()"><i class="bi bi-arrow-left-right"></i><h4>Trades</h4><p>Gerencie todas as trocas</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showFreeAgency()"><i class="bi bi-hammer"></i><h4>Leilões</h4><p>Inicie, cancele e reverta leilões</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showSeasonsManagement()"><i class="bi bi-calendar3"></i><h4>Temporadas</h4><p>Crie temporadas e gerencie o draft</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showHallOfFame()"><i class="bi bi-award-fill"></i><h4>Hall da Fama</h4><p>Cadastre clubes e títulos</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showConfig()"><i class="bi bi-sliders"></i><h4>Configurações</h4><p>Configure CAP e regras das ligas</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showDirectives()"><i class="bi bi-clipboard-check"></i><h4>Diretrizes</h4><p>Gerencie prazos e visualize diretrizes</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showTapas()"><i class="bi bi-hand-index-thumb"></i><h4>Tapas</h4><p>Defina os tapas de cada time</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showOuvidoriaModal()"><i class="bi bi-chat-left-dots"></i><h4>Ouvidoria</h4><p>Ver mensagens anônimas</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showDispensas()"><i class="bi bi-person-dash-fill"></i><h4>Dispensas</h4><p>Veja dispensas e aposentadorias por liga e temporada</p></div></div>
+  <div class="col-md-6"><div class="action-card" onclick="showPointsManagement()"><i class="bi bi-bar-chart-steps"></i><h4>Pontuação</h4><p>Cadastre e visualize pontuações por temporada e liga</p></div></div>
+</div>`;
   container.innerHTML += `
   <div class="row g-4 mt-1">
     <div class="col-12">
@@ -2229,10 +2476,7 @@ async function showFreeAgency() {
     <div class="row mb-4">
       <div class="col-12 d-flex flex-wrap gap-3 justify-content-between align-items-center">
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-orange active" onclick="setFreeAgencyLeague('ELITE')" id="btn-fa-ELITE">ELITE</button>
-          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('NEXT')" id="btn-fa-NEXT">NEXT</button>
-          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('RISE')" id="btn-fa-RISE">RISE</button>
-          <button class="btn btn-outline-orange" onclick="setFreeAgencyLeague('ROOKIE')" id="btn-fa-ROOKIE">ROOKIE</button>
+          ${_leagues.map((lg, i) => `<button class="btn btn-outline-orange${i === 0 ? ' active' : ''}" onclick="setFreeAgencyLeague('${lg}')" id="btn-fa-${lg}">${lg}</button>`).join('')}
         </div>
         <button class="btn btn-orange" onclick="openCreateFreeAgentModal()">
           <i class="bi bi-plus-circle me-1"></i>Novo Free Agent
@@ -2294,7 +2538,7 @@ async function showFreeAgency() {
     renderAdminFreeAgents(event.target.value);
   });
   
-  setFreeAgencyLeague('ELITE');
+  setFreeAgencyLeague(_leagues[0] || 'ELITE');
   loadActiveAuctions();
   
   // Atualizar leilões a cada 30 segundos
