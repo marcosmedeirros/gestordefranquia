@@ -477,8 +477,31 @@ if ($method === 'GET') {
 
         $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id, drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player FROM players WHERE team_id = ? ORDER BY ovr DESC');
         $stmtP->execute([$tid]);
+
+        // Para flag cap_bonus_eligible: busca nomes do draft inicial deste time
+        $initDraftNames = [];
+        try {
+            $stmtID = $pdo->prepare('SELECT name FROM initdraft_pool WHERE drafted_by_team_id = ? AND draft_status = "drafted"');
+            $stmtID->execute([$tid]);
+            foreach ($stmtID->fetchAll(PDO::FETCH_COLUMN) as $n) {
+                $initDraftNames[$n] = true;
+            }
+        } catch (Exception $e) {}
+
+        $isRiseTeam = str_starts_with(strtoupper($teamRow['league'] ?? ''), 'RISE');
+
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
         foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            if ($isRiseTeam) {
+                $franchise   = (int)($p['is_franchise_player'] ?? 0) === 1;
+                $sameTeam    = (int)($p['drafted_by_team_id'] ?? 0) === $tid;
+                $notTraded   = (int)($p['was_traded'] ?? 0) === 0;
+                $highOvr     = (int)($p['ovr'] ?? 0) >= 90;
+                $notInitDraft = !isset($initDraftNames[$p['name']]);
+                $p['cap_bonus_eligible'] = ($franchise || ($sameTeam && $notTraded && $highOvr && $notInitDraft)) ? 1 : 0;
+            } else {
+                $p['cap_bonus_eligible'] = 0;
+            }
             $role = isset($roster[$p['role']]) ? $p['role'] : 'Outro';
             $roster[$role][] = $p;
         }

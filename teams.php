@@ -2006,14 +2006,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
                     ${players.map(p => {
                         const photoUrl = getPlayerPhoto(p);
-                        const isCapBonus = isRiseLeague && (
-                            (Number(p.is_franchise_player) === 1)
-                            || (Number(p.drafted_by_team_id) === Number(team.id)
-                                && p.drafted_season_number != null
-                                && Number(p.drafted_season_number) >= 1
-                                && Number(p.was_traded || 0) === 0
-                                && Number(p.ovr || 0) >= 90)
-                        );
+                        const isCapBonus = Number(p.cap_bonus_eligible) === 1;
                         const rowStyle = isCapBonus ? 'background: rgba(34,197,94,.14);' : '';
                         return `
                     <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);${rowStyle}">

@@ -310,14 +310,7 @@ function isLoyalPlayer(player) {
 
 function isFranchiseEligible(player) {
   if (window.__LEAGUE__ !== 'RISE') return false;
-  if (Number(player.is_franchise_player) === 1) return true;
-  const teamId = Number(window.__TEAM_ID__);
-  if (teamId <= 0) return false;
-  return Number(player.ovr) >= 90
-    && player.drafted_season_number != null
-    && Number(player.drafted_season_number) >= 1
-    && Number(player.drafted_by_team_id) === teamId
-    && Number(player.was_traded) === 0;
+  return Number(player.cap_bonus_eligible) === 1;
 }
 
 function getRestrictedBonus(players) {
