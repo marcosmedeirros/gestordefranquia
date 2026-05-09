@@ -604,8 +604,21 @@ async function showLeague(league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
 
   try {
-    const data = await api(`admin.php?action=teams&league=${league}`);
+    const [data, seasonData] = await Promise.all([
+      api(`admin.php?action=teams&league=${league}`),
+      api(`seasons.php?action=list&league=${league}`).catch(() => ({ seasons: [] }))
+    ]);
     const teams = data.teams || [];
+    const seasons = seasonData.seasons || [];
+    const currentSeason = seasons.find(s => s.status !== 'completed') || seasons[0] || null;
+    const seasonYear = currentSeason
+      ? (currentSeason.start_year && currentSeason.season_number
+          ? (parseInt(currentSeason.start_year) + parseInt(currentSeason.season_number) - 1)
+          : (currentSeason.year || '—'))
+      : '—';
+    const totalPlayers = teams.reduce((s, t) => s + parseInt(t.player_count || 0), 0);
+    const rosterCapacity = teams.length * 15;
+    const fillPct = rosterCapacity > 0 ? Math.min(100, Math.round(totalPlayers / rosterCapacity * 100)) : 0;
 
     const teamCards = teams.map(t => `
       <div class="col-6 col-md-4 col-xl-3">
@@ -640,7 +653,6 @@ async function showLeague(league) {
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
       { icon: 'bi-trophy-fill',              label: 'Draft',        fn: 'showAdminDraft()',        color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
       { icon: 'bi-coin',                     label: 'Moedas',       fn: 'showCoins()',             color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-      { icon: 'bi-arrow-right-circle-fill',  label: 'Avançar<br>Temporada', fn: 'showAvancarTemporada()', color: '#10b981', bg: 'rgba(16,185,129,.12)' },
     ];
 
     const actionTiles = actions.map(a => `
@@ -665,6 +677,17 @@ async function showLeague(league) {
             <div class="league-hero-stat-val">${teams.length}</div>
             <div class="league-hero-stat-lbl">Times</div>
           </div>
+          <div class="league-hero-stat">
+            <div class="league-hero-stat-val" style="color:var(--red)">${seasonYear}</div>
+            <div class="league-hero-stat-lbl">Temporada</div>
+          </div>
+          <div class="league-hero-stat">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${totalPlayers}<span style="font-size:11px;font-weight:400;color:var(--text-3)"> / ${rosterCapacity}</span></div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:5px">Jogadores</div>
+            <div style="height:5px;background:var(--panel-3);border-radius:3px;width:110px">
+              <div style="height:100%;width:${fillPct}%;background:var(--red);border-radius:3px;transition:.4s"></div>
+            </div>
+          </div>
         </div>
         <div class="league-hero-tools">
           <div class="league-search-wrap">
@@ -676,6 +699,9 @@ async function showLeague(league) {
           </button>
           <button class="btn-ghost" id="copyPicksBtn">
             <i class="bi bi-calendar2-check"></i> Picks
+          </button>
+          <button class="btn-ghost" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="showAvancarTemporada('${league}')">
+            <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
           </button>
         </div>
       </div>
@@ -3038,7 +3064,10 @@ async function showCoins(league) {
       <div class="panel-title" style="margin-bottom:0"><i class="bi bi-coin" style="color:#f59e0b"></i> Moedas — ${league}</div>
       <div class="panel-sub">Free Agency coins dos times da liga</div>
     </div>
-    <button class="btn-ghost" onclick="openBulkCoinsModal()"><i class="bi bi-people-fill me-1"></i>Distribuir para Liga</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn-ghost" onclick="openBulkCoinsModal()"><i class="bi bi-people-fill me-1"></i>Distribuir para Liga</button>
+      <button class="btn-orange" onclick="saveAllCoins()"><i class="bi bi-save2 me-1"></i>Salvar</button>
+    </div>
   </div>
   <div id="coinsContainer">
     <div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div>
@@ -3132,7 +3161,7 @@ async function loadCoinsTeams() {
     container.innerHTML = `
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
   <div class="pun-card" style="flex:1;min-width:120px;padding:12px 16px;text-align:center">
-    <div style="font-size:20px;font-weight:700;color:#f59e0b"><i class="bi bi-coin me-1"></i>${totalCoins.toLocaleString()}</div>
+    <div style="font-size:20px;font-weight:700;color:#f59e0b"><i class="bi bi-coin me-1"></i><span data-coins-total>${totalCoins.toLocaleString()}</span></div>
     <div style="font-size:11px;color:var(--text-3)">Total na liga</div>
   </div>
   <div class="pun-card" style="flex:1;min-width:120px;padding:12px 16px;text-align:center">
@@ -3142,25 +3171,59 @@ async function loadCoinsTeams() {
 </div>
 ${teams.map(t => {
   const coins = parseInt(t.moedas || 0);
-  const coinStyle = coins > 0
-    ? 'background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)'
-    : 'background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.3)';
-  return `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
-  <div style="flex:1;min-width:0">
+  return `<div class="pun-card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <div style="flex:1;min-width:140px">
     <span style="font-weight:600;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</span>
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(t.owner_name || '')}</div>
   </div>
-  <span style="${coinStyle};border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700">
-    <i class="bi bi-coin me-1"></i>${coins.toLocaleString()}
-  </span>
-  <div style="display:flex;gap:6px">
-    <button class="btn-ghost" style="padding:5px 10px" title="Gerenciar" onclick="openCoinsModal(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}', ${coins})"><i class="bi bi-coin"></i></button>
-    <button class="btn-ghost" style="padding:5px 10px" title="Histórico" onclick="showCoinsHistory(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}')"><i class="bi bi-clock-history"></i></button>
+  <div style="display:flex;align-items:center;gap:6px">
+    <i class="bi bi-coin" style="color:#f59e0b;font-size:14px"></i>
+    <input type="number" min="0" value="${coins}" data-original="${coins}"
+           id="coins-input-${t.id}"
+           style="width:90px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text);font-size:13px;font-family:var(--font)">
+    <button class="btn-ghost" style="padding:5px 9px" title="Histórico" onclick="showCoinsHistory(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}')"><i class="bi bi-clock-history"></i></button>
   </div>
 </div>`;
 }).join('')}`;
   } catch (e) {
     container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro: ${e.error || 'Desconhecido'}</div>`;
+  }
+}
+
+async function saveAllCoins() {
+  const container = document.getElementById('coinsContainer');
+  if (!container) return;
+  const inputs = container.querySelectorAll('input[type="number"][data-original]');
+  const changes = [];
+  inputs.forEach(el => {
+    const newBalance = parseInt(el.value);
+    const originalBalance = parseInt(el.dataset.original || 0);
+    if (!isNaN(newBalance) && newBalance >= 0 && newBalance !== originalBalance) {
+      const teamId = el.id.replace('coins-input-', '');
+      changes.push({ el, teamId, newBalance, delta: newBalance - originalBalance });
+    }
+  });
+  if (changes.length === 0) { showAlert('info', 'Nenhuma alteração.'); return; }
+  try {
+    await Promise.all(changes.map(c =>
+      api('admin.php?action=coins', {
+        method: 'POST',
+        body: JSON.stringify({
+          team_id: c.teamId,
+          operation: c.delta > 0 ? 'add' : 'remove',
+          amount: Math.abs(c.delta),
+          reason: 'Ajuste administrativo'
+        })
+      })
+    ));
+    changes.forEach(c => { c.el.dataset.original = String(c.newBalance); });
+    let total = 0;
+    inputs.forEach(el => { total += parseInt(el.value || 0); });
+    const totalEl = container.querySelector('[data-coins-total]');
+    if (totalEl) totalEl.textContent = total.toLocaleString();
+    showAlert('success', `${changes.length} time(s) atualizados!`);
+  } catch (e) {
+    alert('Erro: ' + (e.error || 'Desconhecido'));
   }
 }
 
