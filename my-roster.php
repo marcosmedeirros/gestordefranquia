@@ -497,9 +497,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         </div>
         <?php else: ?>
 
-        <!-- Tag da franquia (definida pela IA) -->
-        <div id="franchise-tag-bar" style="display:none;margin-bottom:18px;"></div>
-
         <!-- Stats strip -->
         <div class="stats-strip">
             <div class="stat-pill">
@@ -922,6 +919,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260506"></script>
+<script src="/js/my-roster-v2.js?v=20260508"></script>
 </body>
 </html>

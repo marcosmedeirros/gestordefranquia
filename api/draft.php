@@ -774,6 +774,10 @@ if ($method === 'POST') {
                 exit;
             }
 
+            $stmtSeasonNum = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+            $stmtSeasonNum->execute([$session['season_id']]);
+            $draftSeasonNumber = (int)($stmtSeasonNum->fetchColumn() ?: 1);
+
             $currentPick = null;
 
             if ($isAdmin && $pickIdOverride) {
@@ -854,8 +858,8 @@ if ($method === 'POST') {
                     $duplicateRoster = true;
                 } else {
                     try {
-                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                            ->execute([(int)$targetTeamId, (int)$targetTeamId, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                            ->execute([(int)$targetTeamId, (int)$targetTeamId, $draftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
                     } catch (Exception $e) {
                         if (str_contains($e->getMessage(), 'unique_player_per_team')) {
                             $duplicateRoster = true;
@@ -939,6 +943,10 @@ if ($method === 'POST') {
                     throw new Exception('Sessão de draft não encontrada');
                 }
 
+                $stmtSeasonNum2 = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+                $stmtSeasonNum2->execute([$session['season_id']]);
+                $batchDraftSeasonNumber = (int)($stmtSeasonNum2->fetchColumn() ?: 1);
+
                 $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')->execute([(int)$playerId, (int)$pickId]);
 
                 $stmtTotalRound = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = ?');
@@ -951,8 +959,8 @@ if ($method === 'POST') {
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 try {
-                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                        ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $batchDraftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
                 } catch (Exception $e) {
                     if (str_contains($e->getMessage(), 'unique_player_per_team')) {
                         $duplicateRoster = true;

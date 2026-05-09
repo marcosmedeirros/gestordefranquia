@@ -299,6 +299,23 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
         if ($needsFranchise) {
             $pdo->exec("ALTER TABLE players ADD COLUMN is_franchise_player TINYINT(1) DEFAULT NULL AFTER was_traded");
         }
+
+        $needsDraftSeason = $pdo->query("SHOW COLUMNS FROM players LIKE 'drafted_season_number'")->rowCount() === 0;
+        if ($needsDraftSeason) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN drafted_season_number INT NULL AFTER drafted_by_team_id");
+            // Backfill: preenche drafted_season_number para players existentes via draft_pool → seasons
+            $pdo->exec("
+                UPDATE players p
+                INNER JOIN draft_pool dp
+                    ON dp.name = p.name
+                    AND dp.drafted_by_team_id = p.drafted_by_team_id
+                    AND dp.draft_status = 'drafted'
+                INNER JOIN seasons s ON s.id = dp.season_id
+                SET p.drafted_season_number = s.season_number
+                WHERE p.drafted_season_number IS NULL
+                  AND p.drafted_by_team_id IS NOT NULL
+            ");
+        }
     } catch (Exception $e) {
         error_log('[ensurePlayerRestrictionColumns] ' . $e->getMessage());
     }
@@ -316,7 +333,7 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
         if ($league === '') return 0;
         if (!str_starts_with($league, 'RISE')) return 0;
 
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND (is_franchise_player = 1 OR ((drafted_by_team_id = ? OR drafted_by_team_id IS NULL) AND COALESCE(was_traded, 0) = 0 AND ovr >= 90))');
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ? AND (is_franchise_player = 1 OR (drafted_by_team_id = ? AND drafted_season_number > 1 AND COALESCE(was_traded, 0) = 0 AND ovr >= 90))');
         $stmt->execute([$teamId, $teamId]);
         return (int) $stmt->fetchColumn();
     } catch (Exception $e) {

@@ -2008,7 +2008,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         const photoUrl = getPlayerPhoto(p);
                         const isCapBonus = isRiseLeague && (
                             (Number(p.is_franchise_player) === 1)
-                            || ((Number(p.drafted_by_team_id) === Number(team.id) || p.drafted_by_team_id == null)
+                            || (Number(p.drafted_by_team_id) === Number(team.id)
+                                && Number(p.drafted_season_number || 0) > 1
                                 && Number(p.was_traded || 0) === 0
                                 && Number(p.ovr || 0) >= 90)
                         );

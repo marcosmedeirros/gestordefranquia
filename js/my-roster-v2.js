@@ -314,7 +314,8 @@ function isFranchiseEligible(player) {
   const teamId = Number(window.__TEAM_ID__);
   if (teamId <= 0) return false;
   return Number(player.ovr) >= 90
-    && (player.drafted_by_team_id == null || Number(player.drafted_by_team_id) === teamId)
+    && Number(player.drafted_season_number) > 1
+    && Number(player.drafted_by_team_id) === teamId
     && Number(player.was_traded) === 0;
 }
 
@@ -711,7 +712,6 @@ async function loadPlayers() {
     currentSort = { field: 'role', ascending: true };
     renderPlayers(allPlayers);
     if (statusEl) statusEl.style.display = 'none';
-    checkAndApplyAiTag();
   } catch (err) {
     console.error('Erro ao carregar:', err);
     if (statusEl) {
