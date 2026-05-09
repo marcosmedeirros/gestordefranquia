@@ -1,314 +1,265 @@
-const api = async (path, options = {}) => {
-  const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+// Usa o helper api do admin.js se disponível, senão define o próprio
+const _pApi = (typeof api === 'function') ? api : async (path, opts = {}) => {
+  const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...opts });
   let body = {};
   try { body = await res.json(); } catch {}
   if (!res.ok || body.success === false) throw body;
   return body;
 };
 
-let punishmentCatalog = [];
-let motiveCatalog = [];
-const BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA']);
+const _notify = (type, msg) =>
+  typeof showAlert === 'function' ? showAlert(type, msg) : alert(msg);
 
-let currentLeague = '';
-let currentTeamId = '';
-let currentPicks = [];
+let _punCatalog = [];
+let _motiveCatalog = [];
+const _BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA']);
 
-const leagueSelect = document.getElementById('punicaoLeague');
-const teamSelect = document.getElementById('punicaoTeam');
-const typeSelect = document.getElementById('punicaoType');
-const motiveSelect = document.getElementById('punicaoMotive');
-const notesInput = document.getElementById('punicaoNotes');
-const pickSelect = document.getElementById('punicaoPick');
-const scopeSelect = document.getElementById('punicaoScope');
-const createdAtInput = document.getElementById('punicaoDate');
-const listContainer = document.getElementById('punicoesList');
-const submitBtn = document.getElementById('punicaoSubmit');
-const historyLeagueSelect = document.getElementById('punicaoHistoryLeague');
-const historyTeamSelect = document.getElementById('punicaoHistoryTeam');
+const _el = id => document.getElementById(id);
 
-const newMotiveInput = document.getElementById('newMotiveLabel');
-const newMotiveBtn = document.getElementById('newMotiveBtn');
-const newPunishmentInput = document.getElementById('newPunishmentLabel');
-const newPunishmentBtn = document.getElementById('newPunishmentBtn');
-
-const pickRow = document.getElementById('punicaoPickRow');
-const scopeRow = document.getElementById('punicaoScopeRow');
-
-function renderTypeOptions() {
-  if (!typeSelect) return;
-  typeSelect.innerHTML = '<option value="">Selecione...</option>' + punishmentCatalog.map(type => (
-    `<option value="${type.label}" data-effect-type="${type.effect_type}" data-requires-pick="${type.requires_pick}" data-requires-scope="${type.requires_scope}">${type.label}</option>`
-  )).join('');
+function _renderTypeOptions() {
+  const sel = _el('punicaoType');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecione...</option>' + _punCatalog.map(t =>
+    `<option value="${t.label}" data-effect-type="${t.effect_type}" data-requires-pick="${t.requires_pick}" data-requires-scope="${t.requires_scope}">${t.label}</option>`
+  ).join('');
 }
 
-function renderMotiveOptions() {
-  if (!motiveSelect) return;
-  motiveSelect.innerHTML = '<option value="">Selecione...</option>' + motiveCatalog.map(motive => (
-    `<option value="${motive.label}">${motive.label}</option>`
-  )).join('');
+function _renderMotiveOptions() {
+  const sel = _el('punicaoMotive');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecione...</option>' + _motiveCatalog.map(m =>
+    `<option value="${m.label}">${m.label}</option>`
+  ).join('');
 }
 
-function updateFormVisibility() {
-  const option = typeSelect?.selectedOptions?.[0];
+function _updateFormVisibility() {
+  const option = _el('punicaoType')?.selectedOptions?.[0];
   const effectType = option?.dataset?.effectType || '';
   const requiresPick = option?.dataset?.requiresPick === '1';
   const requiresScope = option?.dataset?.requiresScope === '1';
-  if (pickRow) {
-    pickRow.style.display = requiresPick || effectType === 'PERDA_PICK_ESPECIFICA' ? 'block' : 'none';
-  }
-  if (scopeRow) {
-    scopeRow.style.display = requiresScope || BAN_TYPES.has(effectType) ? 'block' : 'none';
-  }
+  const pickRow = _el('punicaoPickRow');
+  const scopeRow = _el('punicaoScopeRow');
+  if (pickRow) pickRow.style.display = requiresPick || effectType === 'PERDA_PICK_ESPECIFICA' ? '' : 'none';
+  if (scopeRow) scopeRow.style.display = requiresScope || _BAN_TYPES.has(effectType) ? '' : 'none';
 }
 
-async function loadCatalog() {
-  const data = await api('punicoes.php?action=catalog');
-  motiveCatalog = data.motives || [];
-  punishmentCatalog = data.types || [];
-  renderMotiveOptions();
-  renderTypeOptions();
-  updateFormVisibility();
+async function _loadCatalog() {
+  const data = await _pApi('punicoes.php?action=catalog');
+  _motiveCatalog = data.motives || [];
+  _punCatalog = data.types || [];
+  _renderMotiveOptions();
+  _renderTypeOptions();
+  _updateFormVisibility();
 }
 
-async function loadLeagues() {
-  const data = await api('punicoes.php?action=leagues');
-  const leagueOptions = (data.leagues || []).map(l => (
-    `<option value="${l}">${l}</option>`
-  )).join('');
-  leagueSelect.innerHTML = '<option value="">Selecione a liga...</option>' + leagueOptions;
-  if (historyLeagueSelect) {
-    historyLeagueSelect.innerHTML = '<option value="">Todas as ligas</option>' + leagueOptions;
-  }
+async function _loadLeagues(preselected) {
+  const data = await _pApi('punicoes.php?action=leagues');
+  const leagues = data.leagues || [];
+  const opts = leagues.map(l => `<option value="${l}"${l === preselected ? ' selected' : ''}>${l}</option>`).join('');
+  const form = _el('punicaoLeague');
+  const hist = _el('punicaoHistoryLeague');
+  if (form) form.innerHTML = '<option value="">Selecione a liga...</option>' + opts;
+  if (hist) hist.innerHTML = '<option value="">Todas as ligas</option>' + opts;
 }
 
-async function loadTeams(league, targetSelect = teamSelect, emptyLabel = 'Selecione o time...') {
-  if (!targetSelect) return;
-  if (!league) {
-    targetSelect.innerHTML = `<option value="">${emptyLabel}</option>`;
-    return;
-  }
-  const data = await api(`punicoes.php?action=teams&league=${league}`);
-  targetSelect.innerHTML = `<option value="">${emptyLabel}</option>` + (data.teams || []).map(t => (
+async function _loadTeams(league, targetId, emptyLabel = 'Selecione o time...') {
+  const sel = _el(targetId);
+  if (!sel) return;
+  if (!league) { sel.innerHTML = `<option value="">${emptyLabel}</option>`; return; }
+  const data = await _pApi(`punicoes.php?action=teams&league=${encodeURIComponent(league)}`);
+  sel.innerHTML = `<option value="">${emptyLabel}</option>` + (data.teams || []).map(t =>
     `<option value="${t.id}">${t.city} ${t.name}</option>`
-  )).join('');
+  ).join('');
 }
 
-async function loadPicks(teamId) {
-  currentPicks = [];
-  pickSelect.innerHTML = '<option value="">Selecione a pick...</option>';
-  if (!teamId) return;
-  const data = await api(`punicoes.php?action=picks&team_id=${teamId}`);
-  currentPicks = data.picks || [];
-  pickSelect.innerHTML = '<option value="">Selecione a pick...</option>' + currentPicks.map(p => (
+async function _loadPicks(teamId) {
+  const sel = _el('punicaoPick');
+  if (!sel) return;
+  if (!teamId) { sel.innerHTML = '<option value="">Selecione a pick...</option>'; return; }
+  const data = await _pApi(`punicoes.php?action=picks&team_id=${teamId}`);
+  sel.innerHTML = '<option value="">Selecione a pick...</option>' + (data.picks || []).map(p =>
     `<option value="${p.id}">${p.season_year} R${p.round}</option>`
-  )).join('');
+  ).join('');
 }
 
-function getTypeLabel(type) {
-  const match = punishmentCatalog.find(item => item.effect_type === type || item.label === type);
-  return match ? match.label : type;
+function _getTypeLabel(type) {
+  const m = _punCatalog.find(i => i.effect_type === type || i.label === type);
+  return m ? m.label : type;
 }
 
-async function loadPunishments({ teamId = '', league = '' } = {}) {
+window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
+  const container = _el('punicoesList');
+  if (!container) return;
   if (!teamId && !league) {
-    listContainer.innerHTML = '<div class="text-light-gray">Selecione uma liga ou time para ver as punições.</div>';
+    container.innerHTML = '<p class="empty-state">Selecione uma liga ou time para ver as punições.</p>';
     return;
   }
+  container.innerHTML = '<p class="empty-state">Carregando...</p>';
   const params = new URLSearchParams({ action: 'punishments' });
   if (teamId) params.append('team_id', teamId);
   if (league) params.append('league', league);
-  const data = await api(`punicoes.php?${params.toString()}`);
-  const rows = data.punishments || [];
-  if (!rows.length) {
-    listContainer.innerHTML = '<div class="text-light-gray">Nenhuma punição registrada.</div>';
-    return;
-  }
-  listContainer.innerHTML = `
-    <div class="table-responsive">
-      <table class="table table-dark table-hover align-middle">
-        <thead>
-          <tr>
-            <th>Motivo</th>
-            <th>Punição</th>
-            <th>Time</th>
-            <th>Data</th>
-            <th>Status</th>
-            <th class="text-end">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(p => {
-            const pickInfo = p.pick_id ? `Pick ${p.season_year || ''} R${p.round || ''}`.trim() : '';
-            const teamName = `${p.city || ''} ${p.name || ''}`.trim();
-            const leagueLabel = p.league || p.team_league || '-';
-            const statusLabel = p.reverted_at ? 'Revertida' : 'Ativa';
-            const motiveLabel = p.motive || '-';
-            const punishmentLabel = p.punishment_label || getTypeLabel(p.type);
-            return `
-              <tr>
-                <td>${motiveLabel}</td>
-                <td>
-                  <div>${punishmentLabel}</div>
-                  ${pickInfo ? `<small class="text-light-gray">${pickInfo}</small>` : ''}
-                </td>
-                <td>${teamName}<div class="text-light-gray small">${leagueLabel}</div></td>
-                <td class="text-light-gray small">${p.created_at}</td>
-                <td><span class="badge ${p.reverted_at ? 'bg-secondary' : 'bg-success'}">${statusLabel}</span></td>
-                <td class="text-end">
-                  ${p.reverted_at ? '' : `<button class="btn btn-sm btn-outline-warning" onclick="revertPunishment(${p.id})">Reverter</button>`}
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-async function submitPunishment() {
-  if (!currentTeamId) {
-    alert('Selecione um time.');
-    return;
-  }
-  const type = typeSelect.value;
-  if (!type) {
-    alert('Selecione a punição.');
-    return;
-  }
-  const payload = {
-    action: 'add',
-    team_id: Number(currentTeamId),
-    type: type,
-    motive: motiveSelect?.value || '',
-    punishment_label: typeSelect?.value || '',
-    effect_type: typeSelect?.selectedOptions?.[0]?.dataset?.effectType || type,
-    notes: notesInput.value.trim(),
-    season_scope: scopeSelect.value || 'current',
-    created_at: createdAtInput.value || ''
-  };
-  if (type === 'PERDA_PICK_ESPECIFICA') {
-    const pickId = Number(pickSelect.value || 0);
-    if (!pickId) {
-      alert('Selecione a pick a remover.');
+  try {
+    const data = await _pApi(`punicoes.php?${params}`);
+    const rows = data.punishments || [];
+    if (!rows.length) {
+      container.innerHTML = '<p class="empty-state">Nenhuma punição registrada.</p>';
       return;
     }
-    payload.pick_id = pickId;
+    container.innerHTML = rows.map(p => {
+      const pickInfo = p.pick_id ? ` · Pick ${p.season_year || ''} R${p.round || ''}` : '';
+      const teamName = `${p.city || ''} ${p.name || ''}`.trim();
+      const league = p.league || p.team_league || '-';
+      const reverted = !!p.reverted_at;
+      const punLabel = p.punishment_label || _getTypeLabel(p.type);
+      return `
+        <div class="pun-card${reverted ? ' pun-card-reverted' : ''}">
+          <div class="pun-card-head">
+            <div>
+              <div class="pun-card-title">${punLabel}</div>
+              <div class="pun-card-sub">${p.motive || '-'}${pickInfo}</div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+              <span class="pun-badge ${reverted ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : 'Ativa'}</span>
+              ${reverted ? '' : `<button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="revertPunishment(${p.id})">Reverter</button>`}
+            </div>
+          </div>
+          <div class="pun-card-meta">${teamName} · ${league} · ${p.created_at}</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<p class="empty-state" style="color:var(--red)">${e.error || 'Erro ao carregar.'}</p>`;
   }
+};
 
-  await api('punicoes.php', { method: 'POST', body: JSON.stringify(payload) });
-  notesInput.value = '';
-  pickSelect.value = '';
-  await loadPicks(currentTeamId);
-  await loadPunishments({
-    teamId: historyTeamSelect?.value || currentTeamId,
-    league: historyLeagueSelect?.value || ''
-  });
-  alert('Punição registrada!');
-}
-
-leagueSelect.addEventListener('change', async (e) => {
-  currentLeague = e.target.value;
-  currentTeamId = '';
-  await loadTeams(currentLeague);
-  listContainer.innerHTML = '<div class="text-light-gray">Selecione uma liga ou time para ver as punições.</div>';
-});
-
-teamSelect.addEventListener('change', async (e) => {
-  currentTeamId = e.target.value;
-  await loadPicks(currentTeamId);
-  if (historyTeamSelect) {
-    historyTeamSelect.value = currentTeamId;
-  }
-  await loadPunishments({
-    teamId: currentTeamId,
-    league: historyLeagueSelect?.value || currentLeague
-  });
-});
-
-if (historyLeagueSelect) {
-  historyLeagueSelect.addEventListener('change', async (e) => {
-    const league = e.target.value;
-    await loadTeams(league, historyTeamSelect, 'Todos os times');
-    await loadPunishments({
-      teamId: historyTeamSelect?.value || '',
-      league
+window.revertPunishment = async function(id) {
+  if (!confirm('Reverter esta punição?')) return;
+  try {
+    await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'revert', punishment_id: id }) });
+    await window.loadPunishments({
+      teamId: _el('punicaoHistoryTeam')?.value || '',
+      league: _el('punicaoHistoryLeague')?.value || ''
     });
+    _notify('success', 'Punição revertida.');
+  } catch (e) { alert(e.error || 'Erro ao reverter.'); }
+};
+
+window.initPunicoes = async function(preselectedLeague) {
+  let _curLeague = preselectedLeague || '';
+  let _curTeamId = '';
+
+  _el('punicaoLeague')?.addEventListener('change', async e => {
+    _curLeague = e.target.value;
+    _curTeamId = '';
+    await _loadTeams(_curLeague, 'punicaoTeam');
   });
-}
 
-if (historyTeamSelect) {
-  historyTeamSelect.addEventListener('change', async (e) => {
-    await loadPunishments({
-      teamId: e.target.value,
-      league: historyLeagueSelect?.value || ''
-    });
+  _el('punicaoTeam')?.addEventListener('change', async e => {
+    _curTeamId = e.target.value;
+    await _loadPicks(_curTeamId);
+    const ht = _el('punicaoHistoryTeam');
+    if (ht) ht.value = _curTeamId;
+    await window.loadPunishments({ teamId: _curTeamId, league: _el('punicaoHistoryLeague')?.value || _curLeague });
   });
-}
 
-typeSelect.addEventListener('change', updateFormVisibility);
-submitBtn.addEventListener('click', submitPunishment);
+  _el('punicaoHistoryLeague')?.addEventListener('change', async e => {
+    await _loadTeams(e.target.value, 'punicaoHistoryTeam', 'Todos os times');
+    await window.loadPunishments({ teamId: _el('punicaoHistoryTeam')?.value || '', league: e.target.value });
+  });
 
-async function createMotive() {
-  const label = newMotiveInput?.value.trim();
-  if (!label) {
-    alert('Informe o motivo.');
-    return;
+  _el('punicaoHistoryTeam')?.addEventListener('change', async e => {
+    await window.loadPunishments({ teamId: e.target.value, league: _el('punicaoHistoryLeague')?.value || '' });
+  });
+
+  _el('punicaoType')?.addEventListener('change', _updateFormVisibility);
+
+  _el('punicaoSubmit')?.addEventListener('click', async () => {
+    if (!_curTeamId) { alert('Selecione um time.'); return; }
+    const typeEl = _el('punicaoType');
+    const type = typeEl?.value;
+    if (!type) { alert('Selecione a punição.'); return; }
+    const payload = {
+      action: 'add',
+      team_id: Number(_curTeamId),
+      type,
+      motive: _el('punicaoMotive')?.value || '',
+      punishment_label: type,
+      effect_type: typeEl?.selectedOptions?.[0]?.dataset?.effectType || type,
+      notes: _el('punicaoNotes')?.value?.trim() || '',
+      season_scope: _el('punicaoScope')?.value || 'current',
+      created_at: _el('punicaoDate')?.value || ''
+    };
+    if (type === 'PERDA_PICK_ESPECIFICA') {
+      const pickId = Number(_el('punicaoPick')?.value || 0);
+      if (!pickId) { alert('Selecione a pick a remover.'); return; }
+      payload.pick_id = pickId;
+    }
+    try {
+      await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify(payload) });
+      const notes = _el('punicaoNotes');
+      if (notes) notes.value = '';
+      await _loadPicks(_curTeamId);
+      await window.loadPunishments({ teamId: _el('punicaoHistoryTeam')?.value || _curTeamId, league: _el('punicaoHistoryLeague')?.value || '' });
+      _notify('success', 'Punição registrada!');
+    } catch (e) { alert(e.error || 'Erro ao registrar.'); }
+  });
+
+  _el('newMotiveBtn')?.addEventListener('click', async () => {
+    const input = _el('newMotiveLabel');
+    const label = input?.value.trim();
+    if (!label) { alert('Informe o motivo.'); return; }
+    try {
+      await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
+      if (input) input.value = '';
+      await _loadCatalog();
+      _notify('success', 'Motivo cadastrado!');
+    } catch (e) { alert(e.error || 'Erro.'); }
+  });
+
+  _el('newPunishmentBtn')?.addEventListener('click', async () => {
+    const input = _el('newPunishmentLabel');
+    const label = input?.value.trim();
+    if (!label) { alert('Informe a consequência.'); return; }
+    const map = {
+      'aviso formal': 'AVISO_FORMAL',
+      'perda da pick 1º rodada': 'PERDA_PICK_1R', 'perda da pick 1a rodada': 'PERDA_PICK_1R',
+      'perda de pick específica': 'PERDA_PICK_ESPECIFICA', 'perda de pick especifica': 'PERDA_PICK_ESPECIFICA',
+      'trades bloqueadas por uma temporada': 'BAN_TRADES', 'trades sem picks': 'BAN_TRADES_PICKS',
+      'sem poder usar fa na temporada': 'BAN_FREE_AGENCY',
+      'rotacao automatica': 'ROTACAO_AUTOMATICA', 'rotação automatica': 'ROTACAO_AUTOMATICA', 'rotação automática': 'ROTACAO_AUTOMATICA'
+    };
+    const effectType = map[label.toLowerCase()] || 'AVISO_FORMAL';
+    try {
+      await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({
+        action: 'add_type', label, effect_type: effectType,
+        requires_pick: effectType === 'PERDA_PICK_ESPECIFICA',
+        requires_scope: ['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA'].includes(effectType)
+      })});
+      if (input) input.value = '';
+      await _loadCatalog();
+      _notify('success', 'Consequência cadastrada!');
+    } catch (e) { alert(e.error || 'Erro.'); }
+  });
+
+  await Promise.all([_loadCatalog(), _loadLeagues(preselectedLeague)]);
+  if (preselectedLeague) {
+    await _loadTeams(preselectedLeague, 'punicaoTeam');
+    const hl = _el('punicaoHistoryLeague');
+    if (hl) {
+      hl.value = preselectedLeague;
+      await _loadTeams(preselectedLeague, 'punicaoHistoryTeam', 'Todos os times');
+      await window.loadPunishments({ league: preselectedLeague });
+    }
   }
-  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'add_motive', label }) });
-  if (newMotiveInput) newMotiveInput.value = '';
-  await loadCatalog();
-}
+};
 
-async function createPunishment() {
-  const label = newPunishmentInput?.value.trim();
-  if (!label) {
-    alert('Informe a consequência.');
-    return;
+// Auto-init quando carregado diretamente na punicoes.php
+(function () {
+  function _tryAutoInit() {
+    if (_el('punicaoLeague')) window.initPunicoes();
   }
-  const normalized = label.toLowerCase();
-  const effectTypeMap = {
-    'aviso formal': 'AVISO_FORMAL',
-    'perda da pick 1º rodada': 'PERDA_PICK_1R',
-    'perda da pick 1a rodada': 'PERDA_PICK_1R',
-    'perda de pick específica': 'PERDA_PICK_ESPECIFICA',
-    'perda de pick especifica': 'PERDA_PICK_ESPECIFICA',
-    'trades bloqueadas por uma temporada': 'BAN_TRADES',
-    'trades sem picks': 'BAN_TRADES_PICKS',
-    'sem poder usar fa na temporada': 'BAN_FREE_AGENCY',
-    'rotacao automatica': 'ROTACAO_AUTOMATICA',
-    'rotação automatica': 'ROTACAO_AUTOMATICA',
-    'rotação automática': 'ROTACAO_AUTOMATICA'
-  };
-  const effectType = effectTypeMap[normalized] || 'AVISO_FORMAL';
-  await api('punicoes.php', {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'add_type',
-      label,
-      effect_type: effectType,
-      requires_pick: effectType === 'PERDA_PICK_ESPECIFICA',
-      requires_scope: ['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA'].includes(effectType)
-    })
-  });
-  if (newPunishmentInput) newPunishmentInput.value = '';
-  await loadCatalog();
-}
-
-async function revertPunishment(punishmentId) {
-  await api('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'revert', punishment_id: punishmentId }) });
-  await loadPunishments({
-    teamId: historyTeamSelect?.value || currentTeamId,
-    league: historyLeagueSelect?.value || currentLeague
-  });
-}
-
-newMotiveBtn?.addEventListener('click', createMotive);
-newPunishmentBtn?.addEventListener('click', createPunishment);
-
-loadCatalog();
-loadLeagues();
-if (historyTeamSelect) {
-  historyTeamSelect.innerHTML = '<option value="">Todos os times</option>';
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _tryAutoInit);
+  } else {
+    _tryAutoInit();
+  }
+})();

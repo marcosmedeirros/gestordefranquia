@@ -831,7 +831,7 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         }
     }
 
-    if (!empty($proposta['data_fim']) && strtotime($proposta['data_fim']) > time()) {
+    if (!$is_admin && !empty($proposta['data_fim']) && strtotime($proposta['data_fim']) > time()) {
         echo json_encode(['success' => false, 'error' => 'Leilao ainda esta em andamento']);
         return;
     }

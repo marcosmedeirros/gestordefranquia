@@ -281,6 +281,7 @@ function updateBreadcrumb() {
       ranking:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>'; return 'Rankings Globais'; },
       freeagency:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>'; return 'Gerenciar Leilões'; },
       faadmin:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>'; return 'Free Agency'; },
+      punicoes:     () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Punições</li>'; return 'Punições'; },
       coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
       tapas:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Tapas</li>'; return 'Gerenciar Tapas'; },
       userApprovals:() => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Aprovação de Usuários</li>'; return 'Aprovar Usuários'; },
@@ -614,7 +615,6 @@ async function showLeague(league) {
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-      { icon: 'bi-calendar3',         label: 'Temporadas',           fn: 'showSeasonsManagement()', color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
       { icon: 'bi-bar-chart-steps',   label: 'Pontuação',            fn: 'showPointsManagement()',  color: '#06b6d4', bg: 'rgba(6,182,212,.12)'  },
       { icon: 'bi-person-dash-fill',  label: 'Dispensas',            fn: 'showDispensas()',         color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
       { icon: 'bi-award-fill',        label: 'Hall da Fama',         fn: 'showHallOfFame()',        color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
@@ -622,6 +622,7 @@ async function showLeague(league) {
       { icon: 'bi-hand-index-thumb',  label: 'Tapas',                fn: 'showTapas()',             color: '#f97316', bg: 'rgba(249,115,22,.12)' },
       { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
       { icon: 'bi-chat-left-dots-fill',label: 'Ouvidoria',           fn: 'showOuvidoriaModal()',    color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
+      { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
     ];
 
     const actionTiles = actions.map(a => `
@@ -824,10 +825,12 @@ async function editTeamCounter(teamId, field, currentValue) {
 }
 
 async function showTrades() {
+  const _wasInTrades = appState.view === 'trades';
   appState.view = 'trades';
   appState.tradeFilters.status = 'accepted';
+  if (appState.currentLeague && !_wasInTrades) appState.tradeFilters.league = appState.currentLeague;
   updateBreadcrumb();
-  
+
   const container = document.getElementById('mainContainer');
   const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
   const teamFilter = appState.tradeFilters.teamId || '';
@@ -840,7 +843,8 @@ async function showTrades() {
     { value: 'ROOKIE', label: 'ROOKIE' }
   ];
 
-  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+  const _tradeBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="${_tradeBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
 <div class="d-flex justify-content-between mb-3 flex-wrap gap-2 align-items-start">
   <div>
     <h4 class="text-white mb-1">Filtrar</h4>
@@ -1060,10 +1064,13 @@ async function showHallOfFame() {
   appState.view = 'halloffame';
   updateBreadcrumb();
 
+  const _hofInitLeague = appState.currentLeague || hallOfFameLeague || 'ELITE';
+  const _hofBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
     <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-back" onclick="${_hofBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
     <div class="row g-4">
@@ -1081,10 +1088,7 @@ async function showHallOfFame() {
             <div class="mb-3">
               <label class="form-label text-light-gray">Liga</label>
               <select class="form-select bg-dark text-white border-orange" id="hofLeague">
-                <option value="ELITE">ELITE</option>
-                <option value="NEXT">NEXT</option>
-                <option value="RISE">RISE</option>
-                <option value="ROOKIE">ROOKIE</option>
+                ${_leagues.map(l => `<option value="${l}"${l === _hofInitLeague ? ' selected' : ''}>${l}</option>`).join('')}
               </select>
             </div>
             <div class="mb-3">
@@ -1121,7 +1125,7 @@ async function showHallOfFame() {
   });
   document.getElementById('hofAddBtn').addEventListener('click', submitHallOfFameEntry);
 
-  hallOfFameLeague = document.getElementById('hofLeague').value || 'ELITE';
+  hallOfFameLeague = document.getElementById('hofLeague').value || _hofInitLeague;
   loadHallOfFameTeams(hallOfFameLeague);
   loadHallOfFameList();
 }
@@ -1291,16 +1295,22 @@ async function toggleAdminTradeAccept(tradeId, checked) {
 async function showConfig() {
   appState.view = 'config';
   updateBreadcrumb();
-  
+
+  const _cfgLeague = appState.currentLeague || null;
+  const _cfgBack = _cfgLeague ? `showLeague('${_cfgLeague}')` : 'showHome()';
+  const _cfgTitle = _cfgLeague ? `Configurações — ${_cfgLeague}` : 'Configurações das Ligas';
+
   const container = document.getElementById('mainContainer');
-  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="d-flex justify-content-between mb-3"><h4 class="text-white mb-0">Configurações das Ligas</h4>
+  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="${_cfgBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+<div class="d-flex justify-content-between mb-3"><h4 class="text-white mb-0">${_cfgTitle}</h4>
 <button class="btn btn-orange" id="saveConfigBtn"><i class="bi bi-save2 me-1"></i>Salvar Tudo</button></div>
 <div id="configContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
-  
+
   try {
     const data = await api('admin.php?action=leagues');
-    document.getElementById('configContainer').innerHTML = (data.leagues || []).map(lg => `
+    const allLeagues = data.leagues || [];
+    const filtered = _cfgLeague ? allLeagues.filter(lg => lg.league === _cfgLeague) : allLeagues;
+    document.getElementById('configContainer').innerHTML = filtered.map(lg => `
 <div class="bg-dark-panel border-orange rounded p-4 mb-4">
 <div class="row mb-3">
 <div class="col-12"><h4 class="text-orange mb-1">${lg.league}</h4><small class="text-light-gray">${lg.team_count} ${lg.team_count === 1 ? 'time' : 'times'}</small></div>
@@ -1921,17 +1931,23 @@ function normalizeDirectivePlayerInfo(raw) {
 async function showDirectives() {
   appState.view = 'directives';
   updateBreadcrumb();
-  
+
+  const _dirLeague = appState.currentLeague || null;
+  const _dirBack = _dirLeague ? `showLeague('${_dirLeague}')` : 'showHome()';
+
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
+
   try {
-    const data = await api('diretrizes.php?action=list_deadlines_admin');
+    const apiUrl = _dirLeague
+      ? `diretrizes.php?action=list_deadlines_admin&league=${encodeURIComponent(_dirLeague)}`
+      : 'diretrizes.php?action=list_deadlines_admin';
+    const data = await api(apiUrl);
     const deadlines = data.deadlines || [];
-    
+
     container.innerHTML = `
       <div class="mb-4">
-        <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
         <button class="btn btn-orange float-end" onclick="showCreateDeadlineModal()">
           <i class="bi bi-plus-circle me-2"></i>Criar Prazo
         </button>
@@ -1993,10 +2009,7 @@ function showCreateDeadlineModal() {
           <div class="mb-3">
             <label class="form-label text-white">Liga</label>
             <select class="form-select bg-dark text-white border-orange" id="deadline-league">
-              <option value="ELITE">ELITE</option>
-              <option value="NEXT">NEXT</option>
-              <option value="RISE">RISE</option>
-              <option value="ROOKIE">ROOKIE</option>
+              ${_leagues.map(l => `<option value="${l}"${l === (appState.currentLeague || '') ? ' selected' : ''}>${l}</option>`).join('')}
             </select>
           </div>
           <div class="mb-3">
@@ -2392,21 +2405,125 @@ async function deleteDirective(directiveId, deadlineId, league) {
 }
 
 // ========== FREE AGENCY ADMIN ==========
-function setFreeAgencyLeague(league) {
-  appState.currentFAleague = league;
-  // Atualizar botões ativos
-  document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
-  const activeBtn = document.getElementById(`btn-fa-${league}`);
-  if (activeBtn) activeBtn.classList.add('active');
-  // Carregar dados
-  loadActiveAuctions();
-  loadAdminFreeAgents(league);
-  loadFreeAgencyOffers(league);
-}
 
-function refreshAdminFreeAgency() {
-  const league = appState.currentFAleague || 'ELITE';
-  setFreeAgencyLeague(league);
+async function showPunicoes() {
+  appState.view = 'punicoes';
+  updateBreadcrumb();
+
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-4">
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-plus-circle-fill"></i> Nova punição</div>
+          </div>
+          <div class="d-flex flex-column gap-3 mt-1">
+            <div>
+              <div class="pun-field-label">Motivo</div>
+              <select id="punicaoMotive" class="form-select"></select>
+            </div>
+            <div>
+              <div class="pun-field-label">Liga</div>
+              <select id="punicaoLeague" class="form-select"></select>
+            </div>
+            <div>
+              <div class="pun-field-label">Time</div>
+              <select id="punicaoTeam" class="form-select"></select>
+            </div>
+            <div>
+              <div class="pun-field-label">Consequência</div>
+              <select id="punicaoType" class="form-select"></select>
+            </div>
+            <div id="punicaoPickRow" style="display:none">
+              <div class="pun-field-label">Pick específica</div>
+              <select id="punicaoPick" class="form-select"></select>
+            </div>
+            <div id="punicaoScopeRow" style="display:none">
+              <div class="pun-field-label">Temporada</div>
+              <select id="punicaoScope" class="form-select">
+                <option value="current">Temporada atual</option>
+                <option value="next">Próxima temporada</option>
+              </select>
+            </div>
+            <div>
+              <div class="pun-field-label">Observações</div>
+              <textarea id="punicaoNotes" class="form-control" rows="3" placeholder="Detalhes ou contexto..."></textarea>
+            </div>
+            <div>
+              <div class="pun-field-label">Data da punição</div>
+              <input type="datetime-local" id="punicaoDate" class="form-control">
+            </div>
+            <button id="punicaoSubmit" class="btn-orange" style="width:100%;justify-content:center;padding:10px">
+              <i class="bi bi-check2-circle"></i> Registrar punição
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-tag-fill"></i> Cadastrar motivo</div>
+          </div>
+          <div class="d-flex flex-column gap-3 mt-1">
+            <div>
+              <div class="pun-field-label">Novo motivo</div>
+              <input type="text" id="newMotiveLabel" class="form-control" placeholder="Ex: Diretrizes erradas">
+            </div>
+            <button class="btn-ghost" style="width:100%;justify-content:center" id="newMotiveBtn">
+              <i class="bi bi-plus-circle"></i> Salvar motivo
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-lightning-fill"></i> Cadastrar consequência</div>
+          </div>
+          <div class="d-flex flex-column gap-3 mt-1">
+            <div>
+              <div class="pun-field-label">Nova consequência</div>
+              <input type="text" id="newPunishmentLabel" class="form-control" placeholder="Ex: Perda de pick específica">
+            </div>
+            <button class="btn-ghost" style="width:100%;justify-content:center" id="newPunishmentBtn">
+              <i class="bi bi-plus-circle"></i> Salvar consequência
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="col-lg-8">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title" style="margin-bottom:0"><i class="bi bi-clock-history"></i> Histórico de punições</div>
+            <div class="d-flex gap-2 flex-wrap">
+              <div class="admin-sel">
+                <label>Liga</label>
+                <select id="punicaoHistoryLeague"></select>
+              </div>
+              <div class="admin-sel">
+                <label>Time</label>
+                <select id="punicaoHistoryTeam"><option value="">Todos os times</option></select>
+              </div>
+            </div>
+          </div>
+          <div id="punicoesList">
+            <p class="empty-state">Selecione uma liga ou time para ver as punições.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (typeof window.initPunicoes === 'function') {
+    window.initPunicoes(league);
+  }
 }
 
 async function showFAAdmin() {
@@ -2417,7 +2534,7 @@ async function showFAAdmin() {
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
     <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
     <div class="panel">
@@ -2445,639 +2562,343 @@ async function showFreeAgency() {
 
   const league = appState.currentLeague || _leagues[0] || 'ELITE';
   const container = document.getElementById('mainContainer');
+
   container.innerHTML = `
     <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-lg-5">
+        <div class="panel h-100">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-search" style="color:#f59e0b;margin-right:8px"></i>Cadastrar Leilão</div>
+          </div>
+          <div style="position:relative;margin-bottom:12px">
+            <div class="d-flex gap-2">
+              <input id="leilaoSearchInput" type="text" class="form-control" placeholder="Buscar jogador da liga ${league}..."
+                style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;">
+              <button class="btn-ghost" style="padding:7px 14px;white-space:nowrap" onclick="_leilaoDoSearch()">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+            <div id="leilaoSearchDrop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;
+              background:var(--panel-3);border:1px solid var(--border-md);border-radius:var(--radius-sm);
+              max-height:220px;overflow-y:auto;margin-top:2px"></div>
+          </div>
+          <div id="leilaoSelectedInfo" style="display:none;padding:10px 14px;background:var(--panel-3);
+            border-radius:var(--radius-sm);border:1px solid var(--border-md);margin-bottom:12px">
+            <div id="leilaoSelectedName" style="font-weight:600;font-size:14px;color:var(--text)"></div>
+            <div id="leilaoSelectedSub" style="font-size:12px;color:var(--text-3);margin-top:2px"></div>
+          </div>
+          <button id="leilaoStartBtn" style="display:none;width:100%;padding:10px;font-size:13px;font-weight:600;
+            background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.3);
+            border-radius:var(--radius-sm);cursor:pointer" onclick="_leilaoStart()">
+            <i class="bi bi-hammer me-2"></i>Começar Leilão
+          </button>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="panel h-100">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-broadcast" style="color:#22c55e;margin-right:8px"></i>Leilões Ativos</div>
+            <button class="btn-ghost" style="padding:6px 10px;font-size:12px" onclick="_leilaoLoadActive()">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          </div>
+          <div id="leilaoAtivosContainer"><p class="empty-state">Carregando...</p></div>
+        </div>
+      </div>
     </div>
 
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title"><i class="bi bi-hammer" style="color:var(--red);margin-right:8px;"></i>Leilões Ativos</div>
-        <button class="btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="loadActiveAuctions()">
+        <div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3);margin-right:8px"></i>Histórico de Leilões</div>
+        <button class="btn-ghost" style="padding:6px 10px;font-size:12px" onclick="_leilaoLoadHistory()">
           <i class="bi bi-arrow-repeat"></i>
         </button>
       </div>
-      <div id="activeAuctionsContainer"><p class="empty-state">Carregando...</p></div>
-    </div>
-
-    <div class="row g-4" style="margin-top:0;">
-      <div class="col-lg-6">
-        <div class="panel h-100">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Jogadores disponíveis</div>
-              <div class="panel-sub" id="faAvailableCount"></div>
-            </div>
-          </div>
-          <input type="text" class="form-control" id="faAvailableSearch" placeholder="Buscar por nome ou posição" style="margin-bottom:12px;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;width:100%;">
-          <div id="faAvailableContainer"><p class="empty-state">Carregando...</p></div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="panel h-100">
-          <div class="panel-header">
-            <div class="panel-title">Propostas pendentes</div>
-            <button class="btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="refreshAdminFreeAgency()">
-              <i class="bi bi-arrow-repeat"></i>
-            </button>
-          </div>
-          <div id="faOffersContainer"><p class="empty-state">Carregando...</p></div>
-        </div>
-      </div>
+      <div id="leilaoHistoricoContainer"><p class="empty-state">Carregando...</p></div>
     </div>
   `;
 
-  document.getElementById('faAvailableSearch')?.addEventListener('input', (event) => {
-    renderAdminFreeAgents(event.target.value);
+  document.getElementById('leilaoSearchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') _leilaoDoSearch();
   });
 
-  setFreeAgencyLeague(league);
-  loadActiveAuctions();
+  _leilaoSearchResult = null;
+  await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
+}
 
-  if (window.auctionInterval) clearInterval(window.auctionInterval);
-  window.auctionInterval = setInterval(() => {
-    if (appState.view === 'freeagency') {
-      loadActiveAuctions();
-    } else {
-      clearInterval(window.auctionInterval);
+// ============================================
+// LEILÕES - GESTÃO ADMIN
+// ============================================
+
+let _leilaoSearchResult = null;
+let _leilaoAtivos = [];
+
+async function _leilaoDoSearch() {
+  const input = document.getElementById('leilaoSearchInput');
+  const drop = document.getElementById('leilaoSearchDrop');
+  const term = input?.value.trim();
+  if (!term || term.length < 2) return;
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
+  drop.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-3)">Buscando...</div>';
+  drop.style.display = 'block';
+  try {
+    const data = await api(`team.php?action=search_player&query=${encodeURIComponent(term)}&league=${encodeURIComponent(league)}`);
+    const players = data.players || [];
+    if (!players.length) {
+      drop.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-3)">Nenhum jogador encontrado nesta liga</div>';
+      return;
     }
-  }, 30000);
-}
-
-// ============================================
-// SISTEMA DE LEILÃO - FUNÇÕES
-// ============================================
-
-let activeAuctions = [];
-
-async function loadActiveAuctions() {
-  const container = document.getElementById('activeAuctionsContainer');
-  if (!container) return;
-  
-  const league = appState.currentFAleague || 'ELITE';
-  
-  try {
-    const data = await api(`free-agency.php?action=active_auctions&league=${league}`);
-    activeAuctions = data.auctions || [];
-    renderActiveAuctions();
+    drop.innerHTML = players.map(p => {
+      const ovr = p.ovr || p.overall || '—';
+      const teamName = p.team_name || '';
+      return `<div onclick="_leilaoSelect(${p.id}, ${p.team_id || 0}, ${JSON.stringify(p.name)}, '${(p.position || '').replace(/'/g, "\\'")}', ${ovr === '—' ? 0 : ovr})"
+        style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);
+               display:flex;justify-content:space-between;align-items:center;transition:background .15s"
+        onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''">
+        <div>
+          <span style="font-weight:600;color:var(--text)">${p.name}</span>
+          <span style="color:var(--text-3);margin-left:6px;font-size:11px">${p.position || ''} · ${teamName}</span>
+        </div>
+        <span style="font-size:11px;color:var(--text-3)">OVR ${ovr}</span>
+      </div>`;
+    }).join('');
   } catch (e) {
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar leilões: ${e.error || 'Desconhecido'}</div>`;
+    drop.innerHTML = `<div style="padding:10px;font-size:12px;color:#ef4444">${e.error || 'Erro na busca'}</div>`;
   }
 }
 
-function renderActiveAuctions() {
-  const container = document.getElementById('activeAuctionsContainer');
-  if (!container) return;
-  
-  if (!activeAuctions.length) {
-    container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Nenhum leilão ativo no momento. Use o botão "Iniciar Leilão" em um jogador para começar.</div>';
-    return;
-  }
-  
-  container.innerHTML = `
-    <div class="table-responsive">
-      <table class="table table-dark table-hover mb-0">
-        <thead>
-          <tr>
-            <th>Jogador</th>
-            <th>Pos</th>
-            <th>OVR</th>
-            <th>Idade</th>
-            <th>Lance Atual</th>
-            <th>Vencedor</th>
-            <th>Tempo</th>
-            <th>Status</th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${activeAuctions.map(auction => {
-            const isActive = auction.status === 'active';
-            const secondsRemaining = parseInt(auction.seconds_remaining) || 0;
-            const timeDisplay = isActive ? formatAuctionTime(secondsRemaining) : 'Encerrado';
-            const timeClass = secondsRemaining <= 60 ? 'text-danger' : (secondsRemaining <= 300 ? 'text-warning' : 'text-success');
-            const statusBadge = isActive 
-              ? '<span class="badge bg-success"><i class="bi bi-broadcast me-1"></i>Ativo</span>'
-              : '<span class="badge bg-secondary">Finalizado</span>';
-            
-            return `
-              <tr>
-                <td class="text-white fw-bold">${auction.player_name}</td>
-                <td>${auction.player_position}</td>
-                <td><span class="badge bg-secondary">${auction.player_ovr}</span></td>
-                <td>${auction.player_age}</td>
-                <td class="text-orange fw-bold">${auction.current_bid || 0} pts</td>
-                <td>${auction.winning_team_name || '<span class="text-muted">-</span>'}</td>
-                <td class="${timeClass} fw-bold">${timeDisplay}</td>
-                <td>${statusBadge}</td>
-                <td>
-                  ${isActive ? `
-                    <button class="btn btn-sm btn-success me-1" onclick="finalizeAuction(${auction.id})" title="Finalizar">
-                      <i class="bi bi-check-lg"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="cancelAuction(${auction.id})" title="Cancelar">
-                      <i class="bi bi-x-lg"></i>
-                    </button>
-                  ` : `
-                    <span class="text-muted small">-</span>
-                  `}
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
+function _leilaoSelect(playerId, teamId, name, pos, ovr) {
+  _leilaoSearchResult = { id: playerId, team_id: teamId, name, pos, ovr };
+  const drop = document.getElementById('leilaoSearchDrop');
+  if (drop) drop.style.display = 'none';
+  const inp = document.getElementById('leilaoSearchInput');
+  if (inp) inp.value = name;
+  const infoBox = document.getElementById('leilaoSelectedInfo');
+  const nameEl = document.getElementById('leilaoSelectedName');
+  const subEl = document.getElementById('leilaoSelectedSub');
+  const btn = document.getElementById('leilaoStartBtn');
+  if (infoBox) infoBox.style.display = 'block';
+  if (nameEl) nameEl.textContent = name;
+  if (subEl) subEl.textContent = `${pos} · OVR ${ovr}`;
+  if (btn) btn.style.display = 'block';
 }
 
-function formatAuctionTime(seconds) {
-  if (seconds <= 0) return 'Encerrado';
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-async function startAuction(freeAgentId, playerName) {
-  const duration = prompt(`Duração do leilão para ${playerName} (em minutos):`, '20');
-  if (!duration) return;
-  
-  const durationInt = parseInt(duration);
-  if (isNaN(durationInt) || durationInt < 1 || durationInt > 60) {
-    alert('Duração inválida. Use um valor entre 1 e 60 minutos.');
-    return;
-  }
-  
-  const league = appState.currentFAleague || 'ELITE';
-  
+async function _leilaoStart() {
+  if (!_leilaoSearchResult) return;
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
+  const leagueId = leagueIdByName[league];
+  if (!leagueId) { alert('ID da liga não encontrado.'); return; }
+  const btn = document.getElementById('leilaoStartBtn');
+  if (btn) btn.disabled = true;
   try {
-    const data = await api('free-agency.php', {
+    await api('leilao.php', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'start_auction',
-        free_agent_id: freeAgentId,
-        duration: durationInt,
-        min_bid: 1,
-        league: league
+        action: 'cadastrar',
+        player_id: _leilaoSearchResult.id,
+        team_id: _leilaoSearchResult.team_id || null,
+        league_id: leagueId
       })
     });
-    
-    alert(data.message || 'Leilão iniciado!');
-    loadActiveAuctions();
-    loadAdminFreeAgents(league);
+    _leilaoSearchResult = null;
+    const infoBox = document.getElementById('leilaoSelectedInfo');
+    const inp = document.getElementById('leilaoSearchInput');
+    if (infoBox) infoBox.style.display = 'none';
+    if (inp) inp.value = '';
+    if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+    showAlert('success', 'Leilão iniciado!');
+    await _leilaoLoadActive();
   } catch (e) {
+    if (btn) btn.disabled = false;
     alert(e.error || 'Erro ao iniciar leilão');
   }
 }
 
-async function finalizeAuction(auctionId) {
-  if (!confirm('Finalizar este leilão agora? O vencedor atual (se houver) receberá o jogador.')) return;
-  
-  try {
-    const data = await api('free-agency.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'finalize_auction',
-        auction_id: auctionId
-      })
-    });
-    
-    alert(data.message || 'Leilão finalizado!');
-    loadActiveAuctions();
-    loadAdminFreeAgents(appState.currentFAleague || 'ELITE');
-  } catch (e) {
-    alert(e.error || 'Erro ao finalizar leilão');
-  }
-}
-
-async function cancelAuction(auctionId) {
-  if (!confirm('Cancelar este leilão? Nenhum jogador será transferido.')) return;
-  
-  try {
-    const data = await api('free-agency.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'cancel_auction',
-        auction_id: auctionId
-      })
-    });
-    
-    alert(data.message || 'Leilão cancelado!');
-    loadActiveAuctions();
-  } catch (e) {
-    alert(e.error || 'Erro ao cancelar leilão');
-  }
-}
-
-async function processExpiredAuctions() {
-  const league = appState.currentFAleague || 'ELITE';
-  
-  try {
-    const data = await api('free-agency.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'process_expired_auctions',
-        league: league
-      })
-    });
-    
-    alert(data.message || 'Leilões processados!');
-    loadActiveAuctions();
-    loadAdminFreeAgents(league);
-  } catch (e) {
-    alert(e.error || 'Erro ao processar leilões');
-  }
-}
-
-async function loadAdminFreeAgents(league) {
-  const container = document.getElementById('faAvailableContainer');
+async function _leilaoLoadActive() {
+  const container = document.getElementById('leilaoAtivosContainer');
   if (!container) return;
-  container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
   try {
-  const data = await api(`admin.php?action=free_agents&league=${league}`);
-  adminFreeAgents = (data.free_agents || []).map(fa => ({ ...fa, id: Number(fa.id) }));
-    const countEl = document.getElementById('faAvailableCount');
-    if (countEl) {
-      const qty = adminFreeAgents.length;
-      countEl.textContent = `${qty} jogador${qty === 1 ? '' : 'es'}`;
-    }
-    const searchValue = document.getElementById('faAvailableSearch')?.value || '';
-    renderAdminFreeAgents(searchValue);
+    const data = await api('leilao.php?action=listar_admin');
+    _leilaoAtivos = (data.leiloes || []).filter(l => l.league_name === league && l.status === 'ativo');
+    _leilaoRenderActive();
   } catch (e) {
-    adminFreeAgents = [];
-    const countEl = document.getElementById('faAvailableCount');
-    if (countEl) countEl.textContent = '0 jogadores';
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar jogadores livres: ${e.error || 'Desconhecido'}</div>`;
+    container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar'}</p>`;
   }
 }
 
-function renderAdminFreeAgents(filterTerm = '') {
-  const container = document.getElementById('faAvailableContainer');
+function _leilaoRenderActive() {
+  const container = document.getElementById('leilaoAtivosContainer');
   if (!container) return;
-  if (!adminFreeAgents.length) {
-    container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Nenhum jogador disponível nesta liga.</div>';
+  if (!_leilaoAtivos.length) {
+    container.innerHTML = '<p class="empty-state">Nenhum leilão ativo nesta liga.</p>';
     return;
   }
-
-  const term = filterTerm.trim().toLowerCase();
-  const filtered = term ? adminFreeAgents.filter(fa => {
-    const haystack = `${fa.name} ${fa.position} ${fa.secondary_position || ''}`.toLowerCase();
-    return haystack.includes(term);
-  }) : adminFreeAgents;
-
-  if (filtered.length === 0) {
-    container.innerHTML = '<div class="alert alert-warning"><i class="bi bi-search"></i> Nenhum jogador encontrado com este filtro.</div>';
-    return;
-  }
-
-  // Verificar quais jogadores já tem leilão ativo
-  const auctionedPlayerIds = activeAuctions
-    .filter(a => a.status === 'active')
-    .map(a => parseInt(a.free_agent_id));
-
-  container.innerHTML = filtered.map(fa => {
-    const posDisplay = fa.secondary_position ? `${fa.position}/${fa.secondary_position}` : fa.position;
-    const origin = fa.original_team_name ? `<small class="text-light-gray d-block">Ex: ${fa.original_team_name}</small>` : '';
-    const pending = fa.pending_offers > 0 ? `<small class="text-warning d-block"><i class="bi bi-clock me-1"></i>${fa.pending_offers} proposta(s)</small>` : '';
-    const hasActiveAuction = auctionedPlayerIds.includes(fa.id);
-    
+  const now = Date.now() / 1000;
+  container.innerHTML = _leilaoAtivos.map(l => {
+    const ts = Number(l.data_fim_ts) || 0;
+    const secsLeft = ts - now;
+    const expired = ts > 0 && secsLeft <= 0;
+    const timeStr = ts === 0 ? '—' : expired ? 'Expirado' : _leilaoFmtTime(secsLeft);
+    const timeColor = expired ? '#ef4444' : secsLeft < 300 ? '#f59e0b' : '#22c55e';
     return `
-      <div class="fa-card mb-3">
-        <div class="d-flex justify-content-between align-items-start">
+      <div class="pun-card" style="margin-bottom:12px" id="leilao-card-${l.id}">
+        <div class="pun-card-head">
           <div>
-            <h5 class="text-white mb-1">${fa.name}</h5>
-            <div class="text-light-gray small">${posDisplay} | ${fa.age} anos</div>
-            ${origin}
-            ${pending}
-            ${hasActiveAuction ? '<small class="text-success d-block"><i class="bi bi-broadcast me-1"></i>Leilão ativo</small>' : ''}
-          </div>
-          <div class="text-end">
-            <span class="badge bg-secondary">OVR ${fa.ovr}</span>
-            <div class="d-flex flex-column gap-2 mt-2">
-              ${!hasActiveAuction ? `
-                <button class="btn btn-sm btn-orange" onclick="startAuction(${fa.id}, '${fa.name.replace(/'/g, "\\'")}')">
-                  <i class="bi bi-hammer"></i> Iniciar Leilão
-                </button>
-              ` : ''}
-              <button class="btn btn-sm btn-outline-light" onclick="openAssignFreeAgentModal(${fa.id})">
-                <i class="bi bi-check2-circle"></i> Definir Time
-              </button>
-              <button class="btn btn-sm btn-outline-danger" onclick="deleteFreeAgent(${fa.id})" title="Remover">
-                <i class="bi bi-trash"></i>
-              </button>
+            <div class="pun-card-title">${l.player_name}
+              <span style="font-size:11px;font-weight:400;color:var(--text-3)">&nbsp;${l.position || ''} · OVR ${l.ovr || '—'}</span>
             </div>
+            <div class="pun-card-sub">${l.team_name || 'Sem time'} · ${l.total_propostas || 0} proposta(s)</div>
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <span style="font-size:12px;font-weight:600;color:${timeColor}">${timeStr}</span>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px"
+              onclick="leilaoTogglePropostas(${l.id})"><i class="bi bi-list-ul me-1"></i>Propostas</button>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px;color:#ef4444"
+              onclick="leiaoCancelar(${l.id})" title="Cancelar leilão"><i class="bi bi-x-lg"></i></button>
           </div>
         </div>
-      </div>
-    `;
+        <div id="leilao-propostas-${l.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <p class="empty-state" style="font-size:12px">Carregando...</p>
+        </div>
+      </div>`;
   }).join('');
 }
 
-async function deleteFreeAgent(freeAgentId) {
-  if (!confirm('Remover este free agent da lista?')) return;
-  const league = appState.currentFAleague || 'ELITE';
+function _leilaoFmtTime(secs) {
+  if (secs <= 0) return 'Expirado';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+window.leilaoTogglePropostas = async function(leilaoId) {
+  const div = document.getElementById(`leilao-propostas-${leilaoId}`);
+  if (!div) return;
+  if (div.style.display !== 'none') { div.style.display = 'none'; return; }
+  div.style.display = 'block';
+  div.innerHTML = '<p class="empty-state" style="font-size:12px">Carregando...</p>';
   try {
-  await api(`admin.php?action=free_agent&id=${freeAgentId}`, { method: 'DELETE' });
-  alert('Free agent removido.');
-  refreshAdminFreeAgency();
-  } catch (e) {
-    alert(e.error || 'Erro ao remover free agent');
-  }
-}
-
-async function loadTeamsForFreeAgency(league) {
-  if (freeAgencyTeamsCache[league]) return freeAgencyTeamsCache[league];
-  const data = await api(`admin.php?action=free_agent_teams&league=${league}`);
-  const teams = data.teams || [];
-  freeAgencyTeamsCache[league] = teams;
-  return teams;
-}
-
-async function openAssignFreeAgentModal(freeAgentId) {
-  const league = appState.currentFAleague || 'ELITE';
-  const freeAgent = adminFreeAgents.find(fa => fa.id === freeAgentId);
-  if (!freeAgent) return;
-
-  const teams = await loadTeamsForFreeAgency(league);
-  if (teams.length === 0) {
-    alert('Nenhum time encontrado para esta liga.');
-    return;
-  }
-
-  const selectId = `assignTeamSelect-${freeAgentId}`;
-  const modalId = `assignFreeAgentModal-${freeAgentId}`;
-  const options = teams.map(team => `<option value="${team.id}">${team.city} ${team.name}</option>`).join('');
-
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.id = modalId;
-  modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark-panel">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-white">Definir destino - ${freeAgent.name}</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="text-light-gray mb-3">Selecione o time que receberá este jogador.</p>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Time</label>
-            <select class="form-select bg-dark text-white border-orange" id="${selectId}">
-              ${options}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" onclick="assignFreeAgent(${freeAgentId})">
-            <i class="bi bi-check2-circle me-1"></i>Confirmar
-          </button>
-        </div>
-      </div>
-    </div>`;
-
-  document.body.appendChild(modal);
-  const modalInstance = new bootstrap.Modal(modal);
-  modal.addEventListener('hidden.bs.modal', () => modal.remove());
-  modalInstance.show();
-}
-
-async function assignFreeAgent(freeAgentId) {
-  const league = appState.currentFAleague || 'ELITE';
-  const select = document.getElementById(`assignTeamSelect-${freeAgentId}`);
-  const teamId = parseInt(select?.value || '', 10);
-  if (!teamId) {
-    alert('Selecione um time válido.');
-    return;
-  }
-  try {
-    await api('admin.php?action=free_agent_assign', {
-      method: 'POST',
-      body: JSON.stringify({ free_agent_id: freeAgentId, team_id: teamId })
-    });
-    bootstrap.Modal.getInstance(document.getElementById(`assignFreeAgentModal-${freeAgentId}`))?.hide();
-    refreshAdminFreeAgency();
-  } catch (e) {
-    alert(e.error || 'Erro ao definir time');
-  }
-}
-
-async function loadFreeAgencyOffers(league) {
-  appState.currentFAleague = league;
-  // Atualizar botões ativos
-  document.querySelectorAll('[id^="btn-fa-"]').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`btn-fa-${league}`).classList.add('active');
-  
-  const container = document.getElementById('faOffersContainer');
-  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
-  try {
-  const data = await api(`admin.php?action=free_agent_offers&league=${league}`);
-    const players = data.players || [];
-    
-    if (players.length === 0) {
-      container.innerHTML = `
-        <div class="text-center py-5">
-          <i class="bi bi-person-x display-1 text-muted"></i>
-          <p class="text-light-gray mt-3">Nenhuma proposta pendente na liga ${league}</p>
-        </div>
-      `;
+    const data = await api(`leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
+    const propostas = data.propostas || [];
+    if (!propostas.length) {
+      div.innerHTML = '<p class="empty-state" style="font-size:12px">Nenhuma proposta ainda.</p>';
       return;
     }
-    
-    container.innerHTML = players.map(item => {
-      const player = item.player;
-      const offers = item.offers;
-      
+    div.innerHTML = propostas.map(p => {
+      const jogs = (p.jogadores || []).map(j => j.name).join(', ') || '—';
+      const picks = (p.picks || []).map(pk => `${pk.season_year} R${pk.round}`).join(', ') || '—';
+      const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
+      const sc = statusMap[p.status] || 'var(--text-3)';
       return `
-        <div class="card mb-4" style="background: var(--fba-panel); border: 1px solid var(--fba-border);">
-          <div class="card-header d-flex justify-content-between align-items-center" style="background: rgba(241,117,7,0.1); border-bottom: 1px solid var(--fba-border);">
-            <div>
-              <h5 class="mb-0 text-white">${player.name}</h5>
-              <small class="text-light-gray">
-                ${player.position} | OVR ${player.ovr} | ${player.age} anos
-                ${player.original_team ? `| Ex: ${player.original_team}` : ''}
-              </small>
+        <div style="padding:10px;background:var(--panel-2);border-radius:var(--radius-sm);
+          margin-bottom:8px;border:1px solid var(--border)">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--text)">${p.team_name}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px">Jogadores: ${jogs}</div>
+              <div style="font-size:11px;color:var(--text-3)">Picks: ${picks}</div>
+              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px">"${p.notas}"</div>` : ''}
             </div>
-            <span class="badge bg-orange">${offers.length} proposta(s)</span>
-          </div>
-          <div class="card-body">
-            <h6 class="text-orange mb-3">Times interessados:</h6>
-            <div class="row g-2">
-              ${offers.map(offer => `
-                <div class="col-md-6 col-lg-4">
-                  <div class="p-3 rounded" style="background: var(--fba-dark); border: 1px solid var(--fba-border);">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <div>
-                        <h6 class="mb-1 text-white">${offer.team_name}</h6>
-                        ${offer.notes ? `<small class="text-light-gray">${offer.notes}</small>` : ''}
-                      </div>
-                      <button class="btn btn-success btn-sm" onclick="approveFreeAgentOffer(${player.id}, ${offer.id}, ${offer.team_id})">
-                        <i class="bi bi-check-lg"></i> Aprovar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-            <div class="mt-3">
-              <button class="btn btn-outline-danger btn-sm" onclick="rejectAllOffers(${player.id}, '${league}')">
-                <i class="bi bi-x-lg"></i> Rejeitar Todas as Propostas
-              </button>
+            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+              <span style="font-size:10px;font-weight:600;color:${sc};text-transform:uppercase">${p.status}</span>
+              ${p.status === 'pendente' ? `
+                <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#22c55e;margin-left:6px"
+                  onclick="leilaoAceitar(${p.id},${leilaoId})">Aceitar</button>
+                <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#ef4444"
+                  onclick="leilaoRecusar(${p.id},${leilaoId})">Recusar</button>
+              ` : ''}
             </div>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
-    
   } catch (e) {
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar propostas: ${e.error || 'Desconhecido'}</div>`;
+    div.innerHTML = `<p class="empty-state" style="font-size:12px;color:#ef4444">${e.error || 'Erro'}</p>`;
   }
-}
+};
 
-async function approveFreeAgentOffer(playerId, offerId, teamId) {
-  if (!confirm('Aprovar esta contratação? O jogador será transferido para o time selecionado.')) return;
-  
+window.leilaoAceitar = async function(propostaId, leilaoId) {
+  if (!confirm('Aceitar esta proposta? O jogador será transferido.')) return;
   try {
-    await api('free-agency.php', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'approve',
-        offer_id: offerId
-      })
-    });
-    
-    alert('Contratação aprovada com sucesso!');
-    refreshAdminFreeAgency();
-  } catch (e) {
-    alert('Erro ao aprovar: ' + (e.error || 'Desconhecido'));
-  }
-}
+    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'aceitar_proposta', proposta_id: propostaId }) });
+    showAlert('success', 'Proposta aceita!');
+    await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
+  } catch (e) { alert(e.error || 'Erro ao aceitar'); }
+};
 
-async function rejectAllOffers(playerId, league) {
-  if (!confirm('Rejeitar TODAS as propostas para este jogador? Ele continuará disponível na Free Agency.')) return;
-  
+window.leilaoRecusar = async function(propostaId, leilaoId) {
+  if (!confirm('Recusar esta proposta?')) return;
   try {
-    await api('free-agency.php', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'reject_all',
-        free_agent_id: playerId
-      })
-    });
-    
-    alert('Todas as propostas foram rejeitadas.');
-    refreshAdminFreeAgency();
-  } catch (e) {
-    alert('Erro ao rejeitar: ' + (e.error || 'Desconhecido'));
-  }
-}
+    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'recusar_proposta', proposta_id: propostaId }) });
+    showAlert('success', 'Proposta recusada.');
+    await leilaoTogglePropostas(leilaoId);
+  } catch (e) { alert(e.error || 'Erro ao recusar'); }
+};
 
-function openCreateFreeAgentModal() {
-  const league = appState.currentFAleague || 'ELITE';
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.id = 'createFreeAgentModal';
-  modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark-panel">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-white">Novo Free Agent (${league})</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Nome</label>
-            <input type="text" class="form-control bg-dark text-white border-orange" id="faName" placeholder="Nome do jogador">
-          </div>
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label text-light-gray">Idade</label>
-              <input type="number" class="form-control bg-dark text-white border-orange" id="faAge" min="16" max="45" value="25">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label text-light-gray">OVR</label>
-              <input type="number" class="form-control bg-dark text-white border-orange" id="faOvr" min="40" max="99" value="70">
-            </div>
-          </div>
-          <div class="row g-3 mt-1">
-            <div class="col-md-6">
-              <label class="form-label text-light-gray">Posição</label>
-              <select class="form-select bg-dark text-white border-orange" id="faPosition">
-                <option value="PG">PG - Armador</option>
-                <option value="SG">SG - Ala-Armador</option>
-                <option value="SF">SF - Ala</option>
-                <option value="PF">PF - Ala-Pivô</option>
-                <option value="C">C - Pivô</option>
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label text-light-gray">Posição Secundária</label>
-              <select class="form-select bg-dark text-white border-orange" id="faSecondary">
-                <option value="">Nenhuma</option>
-                <option value="PG">PG - Armador</option>
-                <option value="SG">SG - Ala-Armador</option>
-                <option value="SF">SF - Ala</option>
-                <option value="PF">PF - Ala-Pivô</option>
-                <option value="C">C - Pivô</option>
-              </select>
-            </div>
-          </div>
-          <div class="mt-3">
-            <label class="form-label text-light-gray">Ex time (opcional)</label>
-            <input type="text" class="form-control bg-dark text-white border-orange" id="faOriginal" placeholder="Ex: Cidade Time">
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" onclick="submitCreateFreeAgent()">
-            <i class="bi bi-check2-circle me-1"></i>Cadastrar
-          </button>
-        </div>
-      </div>
-    </div>`;
-
-  document.body.appendChild(modal);
-  const modalInstance = new bootstrap.Modal(modal);
-  modal.addEventListener('hidden.bs.modal', () => modal.remove());
-  modalInstance.show();
-}
-
-async function submitCreateFreeAgent() {
-  const league = appState.currentFAleague || 'ELITE';
-  const payload = {
-    league,
-    name: document.getElementById('faName').value.trim(),
-    age: parseInt(document.getElementById('faAge').value, 10),
-    ovr: parseInt(document.getElementById('faOvr').value, 10),
-    position: document.getElementById('faPosition').value,
-    secondary_position: document.getElementById('faSecondary').value || null,
-    original_team_name: document.getElementById('faOriginal').value.trim()
-  };
-
-  if (!payload.name || !payload.age || !payload.ovr || !payload.position) {
-    alert('Preencha nome, idade, OVR e posição.');
-    return;
-  }
-
+window.leiaoCancelar = async function(leilaoId) {
+  if (!confirm('Cancelar este leilão? Todas as propostas serão recusadas.')) return;
   try {
-    await api('admin.php?action=free_agent', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    const modalEl = document.getElementById('createFreeAgentModal');
-    if (modalEl) {
-      bootstrap.Modal.getInstance(modalEl)?.hide();
+    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'cancelar', leilao_id: leilaoId }) });
+    showAlert('success', 'Leilão cancelado.');
+    await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
+  } catch (e) { alert(e.error || 'Erro ao cancelar'); }
+};
+
+async function _leilaoLoadHistory() {
+  const container = document.getElementById('leilaoHistoricoContainer');
+  if (!container) return;
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
+  const leagueId = leagueIdByName[league] || null;
+  try {
+    const url = leagueId ? `leilao.php?action=historico&league_id=${leagueId}` : 'leilao.php?action=historico';
+    const data = await api(url);
+    const leiloes = data.leiloes || [];
+    if (!leiloes.length) {
+      container.innerHTML = '<p class="empty-state">Nenhum leilão finalizado nesta liga.</p>';
+      return;
     }
-    alert('Free agent criado!');
-    refreshAdminFreeAgency();
+    container.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Jogador</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Time origem</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Vencedor</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leiloes.map(l => `
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;color:var(--text);font-weight:600">${l.player_name || '—'}</td>
+                <td style="padding:8px 12px;color:var(--text-3)">${l.team_name || '—'}</td>
+                <td style="padding:8px 12px;color:${l.winner_team_name ? '#22c55e' : 'var(--text-3)'}">
+                  ${l.winner_team_name || '<span style="color:var(--text-3)">Sem vencedor</span>'}
+                </td>
+                <td style="padding:8px 12px;color:var(--text-3)">${l.data_fim ? String(l.data_fim).split(' ')[0] : '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
   } catch (e) {
-    alert('Erro ao criar free agent: ' + (e.error || 'Desconhecido'));
+    container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar histórico'}</p>`;
   }
+}
+
+function setFreeAgencyLeague(league) {
+  appState.currentFAleague = league;
+}
+
+function refreshAdminFreeAgency() {
+  _leilaoLoadActive();
 }
 
 // ========== MOEDAS ==========
@@ -3432,30 +3253,25 @@ async function showCoinsHistory(teamId, teamName) {
 let tapasLeague = 'ELITE';
 
 async function showTapas() {
+  const _wasInTapas = appState.view === 'tapas';
+  if (appState.currentLeague && !_wasInTapas) tapasLeague = appState.currentLeague;
   appState.view = 'tapas';
   updateBreadcrumb();
+
+  const _tapasBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
 
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
     <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-back" onclick="${_tapasBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
-    
+
     <div class="row mb-4">
       <div class="col-md-8">
         <ul class="nav nav-tabs" id="tapasLeagueTabs">
-          <li class="nav-item">
-            <button class="nav-link ${tapasLeague === 'ELITE' ? 'active' : ''}" onclick="changeTapasLeague('ELITE')">ELITE</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${tapasLeague === 'NEXT' ? 'active' : ''}" onclick="changeTapasLeague('NEXT')">NEXT</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${tapasLeague === 'RISE' ? 'active' : ''}" onclick="changeTapasLeague('RISE')">RISE</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link ${tapasLeague === 'ROOKIE' ? 'active' : ''}" onclick="changeTapasLeague('ROOKIE')">ROOKIE</button>
-          </li>
+          ${_leagues.map(l => `<li class="nav-item">
+            <button class="nav-link ${tapasLeague === l ? 'active' : ''}" onclick="changeTapasLeague('${l}')">${l}</button>
+          </li>`).join('')}
         </ul>
       </div>
     </div>
@@ -3645,25 +3461,32 @@ async function submitTapas() {
 async function showUserApprovals() {
   appState.view = 'userApprovals';
   updateBreadcrumb();
-  
+
+  const _uaLeague = appState.currentLeague || null;
+  const _uaBack = _uaLeague ? `showLeague('${_uaLeague}')` : 'showHome()';
+
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-orange" role="status"></div></div>';
-  
+
   try {
     const data = await api('user-approval.php');
-    const users = data.users || [];
-    
+    const allUsers = data.users || [];
+    const users = _uaLeague
+      ? allUsers.filter(u => (u.league || '').toUpperCase() === _uaLeague)
+      : allUsers;
+
     let html = `
+      <div class="mb-4"><button class="btn btn-back" onclick="${_uaBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
       <div class="row">
         <div class="col-12">
           <h2 class="text-white mb-4">
             <i class="bi bi-person-check text-orange me-2"></i>
-            Aprovação de Usuários
+            Aprovação de Usuários${_uaLeague ? ` — ${_uaLeague}` : ''}
           </h2>
         </div>
       </div>
     `;
-    
+
     if (users.length === 0) {
       html += `
         <div class="alert alert-info">
@@ -3849,10 +3672,13 @@ async function showDispensas() {
   appState.view = 'dispensas';
   updateBreadcrumb();
 
+  const _dispLeague = appState.currentLeague || null;
+  const _dispBack = _dispLeague ? `showLeague('${_dispLeague}')` : 'showHome()';
+
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
     <div class="mb-4">
-      <button class="btn btn-back" onclick="showHome()"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-back" onclick="${_dispBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
     <div class="panel mb-4">
       <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Dispensas por Temporada</div>
@@ -3860,10 +3686,7 @@ async function showDispensas() {
         <div>
           <label class="form-label text-light-gray small mb-1">Liga</label>
           <select class="form-select form-select-sm" id="dispensasLeague" style="min-width:130px">
-            <option value="ELITE">ELITE</option>
-            <option value="NEXT">NEXT</option>
-            <option value="RISE">RISE</option>
-            <option value="ROOKIE">ROOKIE</option>
+            ${_leagues.map(l => `<option value="${l}"${l === (_dispLeague || '') ? ' selected' : ''}>${l}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -3979,18 +3802,23 @@ function renderDispensasTable() {
 // PONTUAÇÃO POR TEMPORADA
 // ══════════════════════════════════════════════
 
-async function showPointsManagement(league = 'ELITE') {
+async function showPointsManagement(league) {
+  league = league || appState.currentLeague || 'ELITE';
   appState.view = 'pontuacao';
   updateBreadcrumb();
   const container = document.getElementById('mainContainer');
 
-  const tabs = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(l =>
+  const _ptsBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+  const tabs = _leagues.map(l =>
     `<button class="btn btn-sm ${l === league ? 'btn-orange' : 'btn-outline-orange'} me-2 mb-2"
       onclick="showPointsManagement('${l}')">${l}</button>`
   ).join('');
 
   container.innerHTML = `
-    <div class="mb-4">${tabs}</div>
+    <div class="mb-4">
+      <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      ${tabs}
+    </div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;

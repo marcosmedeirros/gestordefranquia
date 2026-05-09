@@ -19,6 +19,15 @@ $stmtTeam = $pdo->prepare('SELECT t.*, t.photo_url, t.city FROM teams t WHERE t.
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
 
+// ── Liga IDs (para leilões) ────────────────────────────
+$leagueIdByNamePhp = [];
+try {
+    $stmtLeagues = $pdo->query('SELECT id, name FROM leagues');
+    foreach ($stmtLeagues->fetchAll(PDO::FETCH_ASSOC) as $lg) {
+        $leagueIdByNamePhp[$lg['name']] = (int)$lg['id'];
+    }
+} catch (Exception $e) {}
+
 // ── Temporada ─────────────────────────────────────────
 $currentSeason     = null;
 $seasonDisplayYear = null;
@@ -420,6 +429,33 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         }
         .search-result-row:last-child { border-bottom: none; }
 
+        /* ── Punições ─────────────────────────────────── */
+        .pun-field-label {
+            font-size: 11px; font-weight: 600; color: var(--text-2);
+            text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px;
+        }
+        .pun-card {
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 13px 15px; margin-bottom: 8px;
+            transition: border-color var(--t) var(--ease);
+        }
+        .pun-card:last-child { margin-bottom: 0; }
+        .pun-card:hover { border-color: var(--border-md); }
+        .pun-card-reverted { opacity: .55; }
+        .pun-card-head {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 12px; margin-bottom: 5px;
+        }
+        .pun-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+        .pun-card-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+        .pun-card-meta { font-size: 11px; color: var(--text-3); }
+        .pun-badge {
+            display: inline-flex; align-items: center; padding: 2px 9px;
+            border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
+        }
+        .pun-badge-on  { background: rgba(252,0,37,.1); border: 1px solid rgba(252,0,37,.2); color: var(--red); }
+        .pun-badge-off { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-3); }
+
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 992px) {
             .sidebar { transform: translateX(-260px); }
@@ -632,7 +668,6 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
             <div class="sb-section">Admin</div>
             <a href="/admin.php" class="active"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-            <a href="/punicoes.php"><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
             <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
 
             <div class="sb-section">Conta</div>
@@ -812,12 +847,13 @@ const userRosterCount  = 0;
 let   userPendingOffers= 0;
 const rosterLimit      = 15;
 const currentLeagueId  = null;
-const leagueIdByName   = {};
+const leagueIdByName   = <?= json_encode($leagueIdByNamePhp) ?>;
 const useNewFreeAgency = true;
 </script>
 <script src="/js/admin.js?v=<?= time() ?>"></script>
 <script src="/js/free-agency.js?v=<?= time() ?>"></script>
 <script src="/js/seasons.js?v=<?= time() ?>"></script>
+<script src="/js/punicoes.js?v=<?= time() ?>"></script>
 <script src="/js/pwa.js"></script>
 </div><!-- /.app -->
 </body>
