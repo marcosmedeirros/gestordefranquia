@@ -312,9 +312,9 @@ function isFranchiseEligible(player) {
   if (window.__LEAGUE__ !== 'RISE') return false;
   if (Number(player.is_franchise_player) === 1) return true;
   const teamId = Number(window.__TEAM_ID__);
-  return teamId > 0
-    && Number(player.ovr) >= 90
-    && Number(player.drafted_by_team_id) === teamId
+  if (teamId <= 0) return false;
+  return Number(player.ovr) >= 90
+    && (player.drafted_by_team_id == null || Number(player.drafted_by_team_id) === teamId)
     && Number(player.was_traded) === 0;
 }
 
@@ -645,19 +645,28 @@ function updateRosterStats() {
   const bonus = getRestrictedBonus(allPlayers);
   const capMin = Number(window.__CAP_MIN__);
   document.getElementById('total-players').textContent = totalPlayers;
-  document.getElementById('cap-top8').textContent = Number.isFinite(capMaxAdjusted) ? `${topEight} / ${capMaxAdjusted}` : topEight;
+  const capEl = document.getElementById('cap-top8');
+  if (capEl) {
+    const showFull = Number.isFinite(capMin) && Number.isFinite(capMaxAdjusted)
+      && capMin > 0 && Number(window.__CAP_MAX__) > 0;
+    if (showFull) {
+      capEl.style.fontSize = '14px';
+      capEl.innerHTML = `<span style="color:var(--text-3);font-weight:500">${capMin}</span>`
+        + ` <span style="color:var(--text-3)">/</span> `
+        + `${topEight}`
+        + ` <span style="color:var(--text-3)">/</span> `
+        + `<span style="color:var(--text-3);font-weight:500">${capMaxAdjusted}</span>`;
+    } else {
+      capEl.style.fontSize = '';
+      capEl.textContent = topEight;
+    }
+  }
   const bonusLabel = document.getElementById('cap-bonus-label');
   if (bonusLabel) {
     bonusLabel.textContent = bonus > 0 ? `+${bonus}` : '';
   }
   const capRangeEl = document.getElementById('cap-range');
-  if (capRangeEl) {
-    if (Number.isFinite(capMin) && Number.isFinite(capMaxAdjusted)) {
-      capRangeEl.textContent = `Min ${capMin} | Atual ${topEight} | Max ${capMaxAdjusted}`;
-    } else {
-      capRangeEl.textContent = `Atual ${topEight}`;
-    }
-  }
+  if (capRangeEl) capRangeEl.textContent = '';
 
   // Banner de aviso — jogadores Restricted OVR Cap
   const bannerEl = document.getElementById('franchise-bonus-banner');

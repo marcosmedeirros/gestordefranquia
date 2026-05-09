@@ -875,7 +875,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
-    window.__CAP_MAX__ = <?= (int)$capMax ?>;
+    window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
     window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;
