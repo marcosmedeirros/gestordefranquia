@@ -70,6 +70,14 @@ async function showGestao(league) {
         <i class="bi bi-arrow-repeat"></i>
       </button>
     </div>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showOuvidoriaModal()">
+        <i class="bi bi-chat-left-dots-fill" style="color:#8b5cf6"></i> Ouvidoria
+      </button>
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showHallOfFame()">
+        <i class="bi bi-award-fill" style="color:#eab308"></i> Hall da Fama
+      </button>
+    </div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -255,7 +263,14 @@ async function confirmResetPassword(userId, userName) {
   }
 }
 
-async function init() { showLeague(_leagues[0]); }
+async function init() {
+  if (window.location.hash === '#temporadas' && typeof showSeasonsManagement === 'function') {
+    history.replaceState(null, '', window.location.pathname);
+    showSeasonsManagement();
+  } else {
+    showLeague(_leagues[0]);
+  }
+}
 
 // showHome() mantido para compatibilidade com botões "Voltar" nas sub-views
 function showHome() { showLeague(appState.currentLeague || _leagues[0]); }
@@ -298,7 +313,9 @@ function updateBreadcrumb() {
   document.querySelectorAll('.admin-qnav-btn').forEach(b => b.classList.remove('active'));
   const activeId = appState.view === 'gestao'
     ? 'qnav-gestao'
-    : `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
+    : appState.view === 'seasons'
+      ? 'qnav-temporadas'
+      : `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
   const activeBtn = document.getElementById(activeId);
   if (activeBtn) activeBtn.classList.add('active');
 }
@@ -617,11 +634,8 @@ async function showLeague(league) {
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
       { icon: 'bi-bar-chart-steps',   label: 'Pontuação',            fn: 'showPointsManagement()',  color: '#06b6d4', bg: 'rgba(6,182,212,.12)'  },
       { icon: 'bi-person-dash-fill',  label: 'Dispensas',            fn: 'showDispensas()',         color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
-      { icon: 'bi-award-fill',        label: 'Hall da Fama',         fn: 'showHallOfFame()',        color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
-      { icon: 'bi-sliders',           label: 'Configurações',        fn: 'showConfig()',            color: '#94a3b8', bg: 'rgba(148,163,184,.12)'},
       { icon: 'bi-hand-index-thumb',  label: 'Tapas',                fn: 'showTapas()',             color: '#f97316', bg: 'rgba(249,115,22,.12)' },
       { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
-      { icon: 'bi-chat-left-dots-fill',label: 'Ouvidoria',           fn: 'showOuvidoriaModal()',    color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
     ];
 
@@ -666,6 +680,16 @@ async function showLeague(league) {
 
       <div class="action-grid">${actionTiles}</div>
 
+      <div id="leagueConfigInline" class="panel mb-3" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-sliders" style="color:#94a3b8"></i> Configurações</div>
+          <button class="btn-ghost" style="padding:6px 10px;font-size:12px" id="saveConfigInlineBtn">
+            <i class="bi bi-save2 me-1"></i>Salvar
+          </button>
+        </div>
+        <div id="leagueConfigInlineBody"></div>
+      </div>
+
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title" style="margin-bottom:0"><i class="bi bi-people-fill"></i> Times</div>
@@ -687,6 +711,7 @@ async function showLeague(league) {
     } catch (e) {}
 
     ensureOuvidoriaModal();
+    _loadLeagueConfigInline(league);
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
   }
@@ -844,24 +869,22 @@ async function showTrades() {
   ];
 
   const _tradeBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
-  container.innerHTML = `<div class="mb-4"><button class="btn btn-back" onclick="${_tradeBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-<div class="d-flex justify-content-between mb-3 flex-wrap gap-2 align-items-start">
-  <div>
-    <h4 class="text-white mb-1">Filtrar</h4>
-    <div class="d-flex flex-wrap gap-2">
-      <select class="form-select form-select-sm bg-dark text-white border-orange" style="min-width: 180px;" onchange="updateTradeFilter({ league: this.value })">
+  container.innerHTML = `
+<div class="mb-4"><button class="btn btn-back" onclick="${_tradeBack}"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-arrow-left-right"></i> Trades <span id="tradesCountBadge" style="font-size:12px;font-weight:400;color:var(--text-3)"></span></div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ league: this.value })">
         ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
-      <select class="form-select form-select-sm bg-dark text-white border-orange" id="adminTradeTeamFilter" style="min-width: 220px;" onchange="updateTradeFilter({ teamId: this.value })">
+      <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:160px" id="adminTradeTeamFilter" onchange="updateTradeFilter({ teamId: this.value })">
         <option value="">Todos os times</option>
       </select>
     </div>
   </div>
-  <div class="btn-group flex-wrap">
-    <button id="tradesTabAccepted" class="btn btn-outline-orange btn-sm active" type="button">Aceitas (0)</button>
-  </div>
 </div>
-<div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>`;
+<div id="tradesListContainer"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
   
   try {
     const teamUrl = leagueFilter && leagueFilter !== 'ALL'
@@ -903,8 +926,8 @@ async function showTrades() {
     const trades = data.trades || [];
     const tc = document.getElementById('tradesListContainer');
 
-    const tabAccepted = document.getElementById('tradesTabAccepted');
-    if (tabAccepted) tabAccepted.textContent = `Aceitas (${trades.length})`;
+    const badge = document.getElementById('tradesCountBadge');
+    if (badge) badge.textContent = `(${trades.length})`;
 
     const filteredTrades = trades;
     
@@ -923,17 +946,19 @@ async function showTrades() {
     };
 
     const renderTradeAssets = (players = [], picks = []) => {
-      const playerItems = players.map(p => `<li class="text-white mb-1"><i class="bi bi-person-fill text-orange"></i> ${formatAdminTradePlayer(p)}</li>`).join('');
+      const playerItems = players.map(p =>
+        `<div style="font-size:12px;color:var(--text);padding:2px 0"><i class="bi bi-person-fill" style="color:var(--red);margin-right:4px"></i>${formatAdminTradePlayer(p)}</div>`
+      ).join('');
       const pickItems = picks.map(pk => {
         const roundNumber = parseInt(pk.round, 10);
         const roundLabel = Number.isNaN(roundNumber) ? `${pk.round}ª rodada` : `${roundNumber}ª rodada`;
         const seasonLabel = pk.season_year ? `${pk.season_year}` : 'Temporada indefinida';
         const originalTeam = `${pk.city} ${pk.team_name}`;
-        const swapTag = pk.swap_type ? ` <span class="badge bg-secondary ms-1">${pk.swap_type}</span>` : '';
-        return `<li class="text-white mb-1"><i class="bi bi-ticket-detailed text-orange"></i> ${seasonLabel} ${roundLabel} - ${originalTeam}${swapTag}</li>`;
+        const swapTag = pk.swap_type ? ` <span style="font-size:10px;color:var(--text-3)">${pk.swap_type}</span>` : '';
+        return `<div style="font-size:12px;color:var(--text);padding:2px 0"><i class="bi bi-ticket-detailed" style="color:var(--red);margin-right:4px"></i>${seasonLabel} ${roundLabel} - ${originalTeam}${swapTag}</div>`;
       }).join('');
       const content = playerItems + pickItems;
-      return content ? `<ul class="list-unstyled mb-0">${content}</ul>` : '<p class="text-light-gray">Nada</p>';
+      return content || '<span style="font-size:12px;color:var(--text-3)">Nada</span>';
     };
 
     const formatMultiTradeItemDetail = (item) => {
@@ -957,70 +982,60 @@ async function showTrades() {
     };
 
     const renderMultiTradeCard = (tr) => {
-      const badge = {
-        pending: 'bg-warning text-dark',
-        accepted: 'bg-success',
-        cancelled: 'bg-secondary'
-      }[tr.status] || 'bg-secondary';
+      const statusColor = { pending: '#f59e0b', accepted: '#22c55e', cancelled: '#64748b' }[tr.status] || '#64748b';
+      const statusLabel = { pending: 'Pendente', accepted: 'Aceita', cancelled: 'Cancelada' }[tr.status] || tr.status;
 
       const teamMap = {};
       (tr.teams || []).forEach(team => {
         teamMap[team.id] = `${team.city} ${team.name}`;
       });
       const leagueLabel = tr.league || '-';
+      const isAccepted = Number(tr.is_in_game || 0) === 1;
 
-      const teamsList = (tr.teams || []).map(team => {
-        const label = teamMap[team.id] || `Time ${team.id}`;
-        return `<span class="badge bg-dark border border-secondary text-white">${label}</span>`;
-      }).join('');
+      const teamsLine = (tr.teams || []).map(t => teamMap[t.id] || `Time ${t.id}`).join(' · ');
 
-      // Group items by to_team_id
       const byTeam = {};
       (tr.items || []).forEach(item => {
         const toId = String(item.to_team_id);
         if (!byTeam[toId]) byTeam[toId] = [];
         byTeam[toId].push(item);
       });
-      const items = Object.keys(byTeam).length > 0
+      const itemsHtml = Object.keys(byTeam).length > 0
         ? Object.entries(byTeam).map(([toId, teamItems]) => {
             const toLabel = teamMap[toId] || `Time ${toId}`;
             const rows = teamItems.map(item => {
               const detail = formatMultiTradeItemDetail(item);
               const fromLabel = teamMap[String(item.from_team_id)];
-              const fromHtml = fromLabel
-                ? `<span class="text-light-gray small">de ${fromLabel}</span> <i class="bi bi-arrow-right text-secondary" style="font-size:10px"></i> `
-                : '';
-              return `<li class="text-white mb-1">${fromHtml}${detail}</li>`;
+              const fromHtml = fromLabel ? `<span style="color:var(--text-3);font-size:11px">de ${fromLabel} → </span>` : '';
+              return `<div style="font-size:12px;color:var(--text);padding:2px 0">${fromHtml}${detail}</div>`;
             }).join('');
-            return `<div class="mb-3"><div class="fw-bold text-orange mb-1">${toLabel} recebe:</div><ul class="list-unstyled ms-2 mb-0">${rows}</ul></div>`;
+            return `<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:2px">${toLabel} recebe:</div>${rows}</div>`;
           }).join('')
-        : '<div class="text-light-gray small">Nenhum item</div>';
+        : '<span style="color:var(--text-3);font-size:12px">Nenhum item</span>';
 
-      const acceptanceBadge = tr.status === 'pending'
-        ? `<span class="badge bg-info text-dark">Aceites ${tr.teams_accepted || 0}/${tr.teams_total || 0}</span>`
+      const pendingNote = tr.status === 'pending'
+        ? `<span style="font-size:11px;color:#06b6d4">Aceites: ${tr.teams_accepted || 0}/${tr.teams_total || 0}</span>`
         : '';
 
-      const isAccepted = Number(tr.is_in_game || 0) === 1;
-
-      return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}">
-<div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-  <div>
-    <h5 class="text-white mb-1">Trade múltipla</h5>
-    <small class="text-light-gray">${new Date(tr.created_at).toLocaleString('pt-BR')} | <span class="badge bg-gradient-orange">${leagueLabel}</span></small>
-  </div>
-  <div class="d-flex align-items-center gap-2">
-    ${acceptanceBadge}
-    <span class="badge ${badge}">${tr.status}</span>
-    <div class="form-check form-switch m-0">
-      <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)">
-      <label class="form-check-label text-light-gray">Ta no Game?</label>
+      return `<div class="pun-card${isAccepted ? ' pun-card-reverted' : ''}" data-trade-id="${tr.id}" style="margin-bottom:10px">
+  <div class="pun-card-head">
+    <div>
+      <div class="pun-card-title">Trade múltipla <span style="font-size:11px;font-weight:400;color:var(--text-3)">${leagueLabel}</span></div>
+      <div class="pun-card-sub">${teamsLine}</div>
     </div>
-    ${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
+    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+      ${pendingNote}
+      <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);cursor:pointer">
+        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)" style="width:14px;height:14px;cursor:pointer">
+        Game
+      </label>
+      ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
+    </div>
   </div>
-</div>
-<div class="mb-3 d-flex flex-wrap gap-2">${teamsList || '<span class="text-light-gray">Times</span>'}</div>
-<div class="mt-2">${items}</div>
-${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
+  <div style="margin-top:10px">${itemsHtml}</div>
+  ${tr.notes ? `<div class="pun-card-meta" style="margin-top:8px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
+  <div class="pun-card-meta">${new Date(tr.created_at).toLocaleString('pt-BR')}</div>
 </div>`;
     };
 
@@ -1028,29 +1043,41 @@ ${tr.notes ? `<div class="mt-3 p-2 bg-dark rounded"><small class="text-light-gra
       if (tr.is_multi) {
         return renderMultiTradeCard(tr);
       }
-      const badge = {
-        pending: 'bg-warning text-dark',
-        accepted: 'bg-success',
-        rejected: 'bg-danger',
-        cancelled: 'bg-secondary',
-        countered: 'bg-info'
-      }[tr.status] || 'bg-secondary';
+      const statusColor = { pending: '#f59e0b', accepted: '#22c55e', rejected: '#ef4444', cancelled: '#64748b', countered: '#06b6d4' }[tr.status] || '#64748b';
+      const statusLabel = { pending: 'Pendente', accepted: 'Aceita', rejected: 'Recusada', cancelled: 'Cancelada', countered: 'Counter' }[tr.status] || tr.status;
       const isAccepted = Number(tr.is_in_game || 0) === 1;
-      return `<div class="bg-dark-panel admin-check-card ${isAccepted ? 'is-accepted' : ''} rounded p-3 mb-3" data-trade-id="${tr.id}"><div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-<div><h5 class="text-white mb-1">${tr.from_city} ${tr.from_name} <i class="bi bi-arrow-right text-orange mx-2"></i> ${tr.to_city} ${tr.to_name}</h5>
-<small class="text-light-gray">${new Date(tr.created_at).toLocaleString('pt-BR')} | <span class="badge bg-gradient-orange">${tr.from_league}</span></small></div>
-<div class="d-flex align-items-center gap-2"><span class="badge ${badge}">${tr.status}</span>
-<div class="form-check form-switch m-0">
-  <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)">
-  <label class="form-check-label text-light-gray">Ta no Game?</label>
-</div>
-${tr.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
-${tr.status === 'accepted' ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}</div></div>
-    ${tr.notes ? `<div class="mb-3 p-2 bg-dark rounded"><small class="text-light-gray"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</small></div>` : ''}
-<div class="row"><div class="col-md-6"><h6 class="text-orange mb-2">${tr.from_city} ${tr.from_name} oferece:</h6>
-${renderTradeAssets(tr.offer_players || [], tr.offer_picks || [])}</div>
-<div class="col-md-6"><h6 class="text-orange mb-2">${tr.to_city} ${tr.to_name} oferece:</h6>
-${renderTradeAssets(tr.request_players || [], tr.request_picks || [])}</div></div></div>`;
+
+      const offerHtml = renderTradeAssets(tr.offer_players || [], tr.offer_picks || []);
+      const requestHtml = renderTradeAssets(tr.request_players || [], tr.request_picks || []);
+
+      return `<div class="pun-card${isAccepted ? ' pun-card-reverted' : ''}" data-trade-id="${tr.id}" style="margin-bottom:10px">
+  <div class="pun-card-head">
+    <div>
+      <div class="pun-card-title">${tr.from_city} ${tr.from_name} <i class="bi bi-arrow-right" style="color:var(--red);margin:0 4px"></i> ${tr.to_city} ${tr.to_name}</div>
+      <div class="pun-card-sub">${tr.from_league || '-'} · ${new Date(tr.created_at).toLocaleDateString('pt-BR')}</div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+      <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);cursor:pointer">
+        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)" style="width:14px;height:14px;cursor:pointer">
+        Game
+      </label>
+      ${tr.status === 'pending' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
+      ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertTrade(${tr.id})">Reverter</button>` : ''}
+    </div>
+  </div>
+  ${tr.notes ? `<div class="pun-card-meta" style="margin-top:6px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.from_city} ${tr.from_name} oferece:</div>
+      ${offerHtml}
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.to_city} ${tr.to_name} oferece:</div>
+      ${requestHtml}
+    </div>
+  </div>
+</div>`;
     }).join('');
   } catch (e) {
     document.getElementById('tradesListContainer').innerHTML = '<div class="alert alert-danger">Erro</div>';
@@ -1409,6 +1436,65 @@ async function saveLeagueSettings() {
     btn.innerHTML = '<i class="bi bi-save2 me-1"></i>Salvar';
     btn.disabled = false;
   }
+}
+
+async function _loadLeagueConfigInline(league) {
+  const section = document.getElementById('leagueConfigInline');
+  const body = document.getElementById('leagueConfigInlineBody');
+  if (!section || !body) return;
+  try {
+    const data = await api('admin.php?action=leagues');
+    const lg = (data.leagues || []).find(l => l.league === league);
+    if (!lg) return;
+    section.style.display = '';
+    body.innerHTML = `
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-md-3">
+          <label class="form-label text-light-gray small mb-1">CAP Mínimo</label>
+          <input type="number" class="form-control form-control-sm" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label text-light-gray small mb-1">CAP Máximo</label>
+          <input type="number" class="form-control form-control-sm" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label text-light-gray small mb-1">Máx. Trocas/Temp.</label>
+          <input type="number" class="form-control form-control-sm" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades">
+        </div>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-6 col-md-4">
+          <label class="form-label text-light-gray small mb-1">Trades</label>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+              onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">Ativas</button>
+            <button class="btn btn-sm ${(lg.trades_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+              onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">Bloqueadas</button>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <label class="form-label text-light-gray small mb-1">Free Agency</label>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
+              onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">Ativa</button>
+            <button class="btn btn-sm ${(lg.fa_enabled ?? 1) == 0 ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1"
+              onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">Bloqueada</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('saveConfigInlineBtn')?.addEventListener('click', async () => {
+      const inputs = body.querySelectorAll('input[data-league]');
+      const payload = { league };
+      inputs.forEach(inp => { payload[inp.dataset.field] = parseInt(inp.value); });
+      const btn = document.getElementById('saveConfigInlineBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      try {
+        await api('admin.php?action=league_settings', { method: 'PUT', body: JSON.stringify(payload) });
+        showAlert('success', 'Configurações salvas!');
+      } catch (e) { alert(e.error || 'Erro ao salvar'); }
+      finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save2 me-1"></i>Salvar'; } }
+    });
+  } catch (e) {}
 }
 
 function editTeam(teamId) {
@@ -3264,18 +3350,9 @@ async function showTapas() {
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back" onclick="${_tapasBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray ms-3" style="font-size:14px;font-weight:600">Tapas — ${tapasLeague}</span>
     </div>
 
-    <div class="row mb-4">
-      <div class="col-md-8">
-        <ul class="nav nav-tabs" id="tapasLeagueTabs">
-          ${_leagues.map(l => `<li class="nav-item">
-            <button class="nav-link ${tapasLeague === l ? 'active' : ''}" onclick="changeTapasLeague('${l}')">${l}</button>
-          </li>`).join('')}
-        </ul>
-      </div>
-    </div>
-    
     <div id="tapasContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>
@@ -3679,16 +3756,12 @@ async function showDispensas() {
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back" onclick="${_dispBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray ms-3" style="font-size:14px;font-weight:600">Dispensas — ${_dispLeague || 'Liga'}</span>
     </div>
     <div class="panel mb-4">
-      <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Dispensas por Temporada</div>
+      <div class="panel-title"><i class="bi bi-person-dash-fill"></i> Filtrar por Temporada</div>
       <div class="d-flex flex-wrap gap-3 align-items-end">
-        <div>
-          <label class="form-label text-light-gray small mb-1">Liga</label>
-          <select class="form-select form-select-sm" id="dispensasLeague" style="min-width:130px">
-            ${_leagues.map(l => `<option value="${l}"${l === (_dispLeague || '') ? ' selected' : ''}>${l}</option>`).join('')}
-          </select>
-        </div>
+        <input type="hidden" id="dispensasLeague" value="${_dispLeague || ''}">
         <div>
           <label class="form-label text-light-gray small mb-1">Temporada</label>
           <select class="form-select form-select-sm" id="dispensasSeason" style="min-width:130px">
@@ -3700,7 +3773,6 @@ async function showDispensas() {
     <div id="dispensasResult"></div>
   `;
 
-  document.getElementById('dispensasLeague').addEventListener('change', loadDispensas);
   document.getElementById('dispensasSeason').addEventListener('change', renderDispensasTable);
 
   await loadDispensas();
@@ -3809,15 +3881,11 @@ async function showPointsManagement(league) {
   const container = document.getElementById('mainContainer');
 
   const _ptsBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
-  const tabs = _leagues.map(l =>
-    `<button class="btn btn-sm ${l === league ? 'btn-orange' : 'btn-outline-orange'} me-2 mb-2"
-      onclick="showPointsManagement('${l}')">${l}</button>`
-  ).join('');
 
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      ${tabs}
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação — ${league}</span>
     </div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>

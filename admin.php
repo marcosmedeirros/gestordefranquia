@@ -668,7 +668,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
             <div class="sb-section">Admin</div>
             <a href="/admin.php" class="active"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-            <a href="/temporadas.php"><i class="bi bi-calendar3"></i> Temporadas</a>
+            <a href="#" onclick="showSeasonsManagement(); return false;"><i class="bi bi-calendar3"></i> Temporadas</a>
 
             <div class="sb-section">Conta</div>
             <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
@@ -712,6 +712,9 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         <?php endforeach; ?>
         <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
             <i class="bi bi-people-fill"></i> Gestão
+        </button>
+        <button class="admin-qnav-btn" id="qnav-temporadas" onclick="showSeasonsManagement()">
+            <i class="bi bi-calendar3"></i> Temporadas
         </button>
     </nav>
 
