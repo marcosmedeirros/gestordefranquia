@@ -17,6 +17,7 @@ let myPlayers = [];
 let targetTeamPlayers = [];
 let myPicks = [];
 let allLeagueTrades = []; // Armazenar trades da liga para busca
+const tradesById = new Map(); // cache seguro de trades por id
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
 const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -1172,6 +1173,11 @@ async function init() {
 
   const tradeModalEl = document.getElementById('proposeTradeModal');
   if (tradeModalEl) {
+    tradeModalEl.addEventListener('show.bs.modal', () => {
+      // Garante que o lado "offer" sempre mostra os dados mais recentes ao abrir
+      setAvailablePlayers('offer', myPlayers);
+      setAvailablePicks('offer', myPicks);
+    });
     tradeModalEl.addEventListener('hidden.bs.modal', () => {
       resetTradeFormState();
       clearCounterProposalState();
@@ -1668,6 +1674,7 @@ function createTradeCard(trade, type) {
   if (trade.is_multi) {
     return createMultiTradeCard(trade, type);
   }
+  tradesById.set(Number(trade.id), trade);
   const card = document.createElement('div');
   card.className = 'tc';
   card.dataset.tradeId = trade.id;
@@ -1738,7 +1745,7 @@ function createTradeCard(trade, type) {
           <button class="btn-r outline sm" onclick="respondTrade(${trade.id}, 'rejected')">
             <i class="bi bi-x-circle"></i>Rejeitar
           </button>
-          <button class="btn-r secondary sm" onclick="openCounterProposal(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+          <button class="btn-r secondary sm" onclick="openCounterProposal(${trade.id})">
             <i class="bi bi-arrow-repeat"></i>Contraproposta
           </button>
         </div>
@@ -1747,7 +1754,7 @@ function createTradeCard(trade, type) {
 
     ${trade.status === 'pending' && type === 'sent' ? `
       <div class="tc-actions">
-        <button class="btn-r secondary sm" onclick="openModifyTrade(${trade.id}, ${JSON.stringify(trade).replace(/"/g, '&quot;')})">
+        <button class="btn-r secondary sm" onclick="openModifyTrade(${trade.id})">
           <i class="bi bi-pencil"></i>Modificar
         </button>
         <button class="btn-r outline sm" onclick="respondTrade(${trade.id}, 'cancelled')">
@@ -1860,11 +1867,9 @@ async function toggleTradeReaction(tradeId, tradeType, encodedEmoji) {
 }
 
 // Abrir modal de contraproposta
-async function openCounterProposal(originalTradeId, originalTrade) {
-  // Decodificar o trade se vier como string
-  if (typeof originalTrade === 'string') {
-    originalTrade = JSON.parse(originalTrade.replace(/&quot;/g, '"'));
-  }
+async function openCounterProposal(originalTradeId) {
+  const originalTrade = tradesById.get(Number(originalTradeId));
+  if (!originalTrade) { alert('Dados da trade não encontrados. Recarregue a página.'); return; }
   
   // Preencher o modal com dados invertidos
   const targetSelect = document.getElementById('targetTeam');
@@ -1891,39 +1896,35 @@ async function openCounterProposal(originalTradeId, originalTrade) {
 }
 
 // Abrir modal para modificar trade (quem enviou)
-async function openModifyTrade(tradeId, trade) {
-  // Decodificar o trade se vier como string
-  if (typeof trade === 'string') {
-    trade = JSON.parse(trade.replace(/&quot;/g, '"'));
-  }
-  
-  // Primeiro, cancelar a trade atual
+async function openModifyTrade(tradeId) {
+  const trade = tradesById.get(Number(tradeId));
+  if (!trade) { alert('Dados da trade não encontrados. Recarregue a página.'); return; }
+
   if (!confirm('Para modificar, a proposta atual será cancelada e uma nova será criada. Continuar?')) {
     return;
   }
-  
+
   try {
     await api('trades.php', {
       method: 'PUT',
       body: JSON.stringify({ trade_id: tradeId, action: 'cancelled' })
     });
-    
-    // Preencher o modal com os dados da trade
+
+    // Recarregar meus assets para refletir possíveis mudanças
+    await loadMyAssets();
+
     document.getElementById('targetTeam').value = trade.to_team_id;
     await onTargetTeamChange({ target: document.getElementById('targetTeam') });
-    
-  prefillPlayerSelections('offer', trade.offer_players || []);
-  prefillPlayerSelections('request', trade.request_players || []);
+
+    prefillPlayerSelections('offer', trade.offer_players || []);
+    prefillPlayerSelections('request', trade.request_players || []);
     prefillPickSelections('offer', trade.offer_picks || []);
     prefillPickSelections('request', trade.request_picks || []);
-    
+
     document.getElementById('tradeNotes').value = trade.notes || '';
-    
-    // Abrir modal
-    const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
-    modal.show();
-    
-    // Atualizar listas
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('proposeTradeModal')).show();
+
     loadTrades('sent');
     loadTrades('history');
   } catch (err) {

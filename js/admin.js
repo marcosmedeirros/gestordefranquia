@@ -616,9 +616,8 @@ async function showLeague(league) {
           ? (parseInt(currentSeason.start_year) + parseInt(currentSeason.season_number) - 1)
           : (currentSeason.year || '—'))
       : '—';
-    const totalPlayers = teams.reduce((s, t) => s + parseInt(t.player_count || 0), 0);
-    const rosterCapacity = teams.length * 15;
-    const fillPct = rosterCapacity > 0 ? Math.min(100, Math.round(totalPlayers / rosterCapacity * 100)) : 0;
+    const seasonNumber = currentSeason ? (parseInt(currentSeason.season_number) || 1) : '—';
+    const totalSeasons = seasons.length || '—';
 
     const teamCards = teams.map(t => `
       <div class="col-6 col-md-4 col-xl-3">
@@ -678,15 +677,12 @@ async function showLeague(league) {
             <div class="league-hero-stat-lbl">Times</div>
           </div>
           <div class="league-hero-stat">
-            <div class="league-hero-stat-val" style="color:var(--red)">${seasonYear}</div>
-            <div class="league-hero-stat-lbl">Temporada</div>
+            <div class="league-hero-stat-val" style="color:var(--red)">${seasonNumber}<span style="font-size:13px;font-weight:400;color:var(--text-3)">/${totalSeasons}</span></div>
+            <div class="league-hero-stat-lbl">Temporadas</div>
           </div>
           <div class="league-hero-stat">
-            <div style="font-size:13px;font-weight:700;color:var(--text)">${totalPlayers}<span style="font-size:11px;font-weight:400;color:var(--text-3)"> / ${rosterCapacity}</span></div>
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:5px">Jogadores</div>
-            <div style="height:5px;background:var(--panel-3);border-radius:3px;width:110px">
-              <div style="height:100%;width:${fillPct}%;background:var(--red);border-radius:3px;transition:.4s"></div>
-            </div>
+            <div class="league-hero-stat-val" style="font-size:15px;color:var(--text)">${seasonYear}</div>
+            <div class="league-hero-stat-lbl">Temp. ${seasonNumber}</div>
           </div>
         </div>
         <div class="league-hero-tools">
