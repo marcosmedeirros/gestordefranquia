@@ -2075,6 +2075,55 @@ if ($method === 'POST') {
             }
             break;
 
+        case 'update_user':
+            $targetId = (int)($data['user_id'] ?? 0);
+            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
+
+            if (!$isGlobalAdminApi) {
+                $stmtChk = $pdo->prepare("SELECT league FROM users WHERE id = ?");
+                $stmtChk->execute([$targetId]);
+                $targetLeague = $stmtChk->fetchColumn();
+                if (!in_array($targetLeague, $apiAdminLeagues, true)) {
+                    http_response_code(403); echo json_encode(['success' => false, 'error' => 'Sem permissão']); exit;
+                }
+            }
+
+            $name  = trim((string)($data['name'] ?? ''));
+            $email = trim((string)($data['email'] ?? ''));
+            if ($name)  $pdo->prepare("UPDATE users SET name = ? WHERE id = ?")->execute([$name, $targetId]);
+            if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
+
+            if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
+                $pdo->prepare("UPDATE teams SET photo_url = ? WHERE id = ? AND user_id = ?")
+                    ->execute([trim((string)$data['team_photo']), (int)$data['team_id'], $targetId]);
+            }
+
+            echo json_encode(['success' => true]);
+            break;
+
+        case 'set_user_league_admin':
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
+            $targetId = (int)($data['user_id'] ?? 0);
+            $leagues  = array_values(array_filter(array_map('strtoupper', (array)($data['leagues'] ?? [])), fn($l) => in_array($l, $validLeagues, true)));
+            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
+
+            $pdo->prepare("DELETE FROM league_admins WHERE user_id = ?")->execute([$targetId]);
+            foreach ($leagues as $lg) {
+                $pdo->prepare("INSERT IGNORE INTO league_admins (user_id, league) VALUES (?, ?)")->execute([$targetId, $lg]);
+            }
+            echo json_encode(['success' => true, 'leagues' => $leagues]);
+            break;
+
+        case 'reset_user_password':
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
+            $targetId = (int)($data['user_id'] ?? 0);
+            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
+
+            $hash = password_hash('fbabrasil123', PASSWORD_DEFAULT);
+            $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$hash, $targetId]);
+            echo json_encode(['success' => true]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
@@ -2164,58 +2213,6 @@ if ($method === 'DELETE') {
             $stmt = $pdo->prepare('DELETE FROM picks WHERE id = ?');
             $stmt->execute([$id]);
             echo json_encode(['success' => true, 'message' => 'Pick deletado']);
-            break;
-
-        case 'update_user':
-            $data     = json_decode(file_get_contents('php://input'), true) ?? [];
-            $targetId = (int)($data['user_id'] ?? 0);
-            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
-
-            if (!$isGlobalAdminApi) {
-                $stmtChk = $pdo->prepare("SELECT league FROM users WHERE id = ?");
-                $stmtChk->execute([$targetId]);
-                $targetLeague = $stmtChk->fetchColumn();
-                if (!in_array($targetLeague, $apiAdminLeagues, true)) {
-                    http_response_code(403); echo json_encode(['success' => false, 'error' => 'Sem permissão']); exit;
-                }
-            }
-
-            $name  = trim((string)($data['name'] ?? ''));
-            $email = trim((string)($data['email'] ?? ''));
-            if ($name)  $pdo->prepare("UPDATE users SET name = ? WHERE id = ?")->execute([$name, $targetId]);
-            if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
-
-            if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
-                $pdo->prepare("UPDATE teams SET photo_url = ? WHERE id = ? AND user_id = ?")
-                    ->execute([trim((string)$data['team_photo']), (int)$data['team_id'], $targetId]);
-            }
-
-            echo json_encode(['success' => true]);
-            break;
-
-        case 'set_user_league_admin':
-            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
-            $data     = json_decode(file_get_contents('php://input'), true) ?? [];
-            $targetId = (int)($data['user_id'] ?? 0);
-            $leagues  = array_values(array_filter(array_map('strtoupper', (array)($data['leagues'] ?? [])), fn($l) => in_array($l, $validLeagues, true)));
-            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
-
-            $pdo->prepare("DELETE FROM league_admins WHERE user_id = ?")->execute([$targetId]);
-            foreach ($leagues as $lg) {
-                $pdo->prepare("INSERT IGNORE INTO league_admins (user_id, league) VALUES (?, ?)")->execute([$targetId, $lg]);
-            }
-            echo json_encode(['success' => true, 'leagues' => $leagues]);
-            break;
-
-        case 'reset_user_password':
-            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
-            $data     = json_decode(file_get_contents('php://input'), true) ?? [];
-            $targetId = (int)($data['user_id'] ?? 0);
-            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
-
-            $hash = password_hash('fbabrasil123', PASSWORD_DEFAULT);
-            $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$hash, $targetId]);
-            echo json_encode(['success' => true]);
             break;
 
         default:

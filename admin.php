@@ -311,7 +311,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
         /* ── Quick Nav ────────────────────────────────── */
         .admin-quicknav {
-            display: flex; align-items: center; gap: 4px;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
             padding: 18px 40px 0; border-bottom: 1px solid var(--border); margin-bottom: 0;
         }
         .admin-qnav-btn {

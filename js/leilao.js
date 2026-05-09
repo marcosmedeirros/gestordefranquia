@@ -550,23 +550,32 @@ async function carregarHistoricoLeiloes() {
         const response = await fetch(url);
         const data = await response.json();
 
-        if (!data.success || !data.leiloes?.length) {
-            container.innerHTML = '<p class="text-light-gray">Nenhum leilao finalizado.</p>';
+        const comprados = (data.leiloes || []).filter(l => l.winner_team_name);
+
+        if (!data.success || !comprados.length) {
+            container.innerHTML = '<p style="color:var(--text-3);font-size:13px;">Nenhum leilão concluído ainda.</p>';
             return;
         }
 
-        let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-        html += '<thead><tr><th>Jogador</th><th>Time Origem</th><th>Vencedor</th><th>Fim</th></tr></thead><tbody>';
-        data.leiloes.forEach(item => {
-            html += `<tr>
-                <td><strong class="text-orange">${item.player_name}</strong></td>
-                <td>${item.team_name}</td>
-                <td>${item.winner_team_name || '-'}</td>
-                <td>${item.data_fim || '-'}</td>
-            </tr>`;
-        });
-        html += '</tbody></table></div>';
-        container.innerHTML = html;
+        const cards = comprados.map(item => {
+            const dateStr = item.data_fim
+                ? new Date(item.data_fim).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+                : '';
+            return `
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;font-size:14px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.player_name || '—'}</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--text-2);flex-wrap:wrap;">
+                        <span>${item.team_name}</span>
+                        <i class="bi bi-arrow-right" style="color:var(--text-3);font-size:11px;"></i>
+                        <span style="color:var(--text);font-weight:600;">${item.winner_team_name}</span>
+                    </div>
+                </div>
+                ${dateStr ? `<div style="font-size:11px;color:var(--text-3);white-space:nowrap;flex-shrink:0;">${dateStr}</div>` : ''}
+            </div>`;
+        }).join('');
+
+        container.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
