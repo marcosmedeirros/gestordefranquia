@@ -214,29 +214,28 @@ if ($method === 'GET') {
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Computa cap_bonus_eligible para ligas RISE (usa initdraft_pool para identificar draft inicial)
+        // Computa cap_bonus_eligible para ligas RISE (draft_pool = draft de temporadas)
         if ($teamId) {
             try {
                 $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
                 $stmtLeague->execute([$teamId]);
                 $league = strtoupper(trim((string)($stmtLeague->fetchColumn() ?? '')));
                 $isRise = str_starts_with($league, 'RISE');
-                $initDraftNames = [];
+                $seasonDraftNames = [];
                 if ($isRise) {
-                    $stmtID = $pdo->prepare('SELECT name FROM initdraft_pool WHERE drafted_by_team_id = ? AND draft_status = "drafted"');
-                    $stmtID->execute([$teamId]);
-                    foreach ($stmtID->fetchAll(PDO::FETCH_COLUMN) as $n) {
-                        $initDraftNames[$n] = true;
+                    $stmtSD = $pdo->prepare('SELECT name FROM draft_pool WHERE drafted_by_team_id = ? AND draft_status = "drafted"');
+                    $stmtSD->execute([$teamId]);
+                    foreach ($stmtSD->fetchAll(PDO::FETCH_COLUMN) as $n) {
+                        $seasonDraftNames[$n] = true;
                     }
                 }
                 foreach ($players as &$p) {
                     if (!$isRise) { $p['cap_bonus_eligible'] = 0; continue; }
-                    $franchise   = (int)($p['is_franchise_player'] ?? 0) === 1;
-                    $sameTeam    = (int)($p['drafted_by_team_id'] ?? 0) === $teamId;
-                    $notTraded   = (int)($p['was_traded'] ?? 0) === 0;
-                    $highOvr     = (int)($p['ovr'] ?? 0) >= 90;
-                    $notInitDraft = !isset($initDraftNames[$p['name']]);
-                    $p['cap_bonus_eligible'] = ($franchise || ($sameTeam && $notTraded && $highOvr && $notInitDraft)) ? 1 : 0;
+                    $franchise       = (int)($p['is_franchise_player'] ?? 0) === 1;
+                    $notTraded       = (int)($p['was_traded'] ?? 0) === 0;
+                    $highOvr         = (int)($p['ovr'] ?? 0) >= 90;
+                    $fromSeasonDraft = isset($seasonDraftNames[$p['name']]);
+                    $p['cap_bonus_eligible'] = ($franchise || ($notTraded && $highOvr && $fromSeasonDraft)) ? 1 : 0;
                 }
                 unset($p);
             } catch (Exception $e) {}
