@@ -1890,6 +1890,12 @@ if ($method === 'POST') {
                 $logType = 'admin_add';
             }
 
+            // Garantir colunas que podem estar ausentes em instalações antigas
+            try {
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS balance_after INT NOT NULL DEFAULT 0");
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) NULL");
+            } catch (Exception $ignored) {}
+
             try {
                 $pdo->beginTransaction();
 
@@ -2035,6 +2041,12 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Quantidade deve ser maior que zero']);
                 exit;
             }
+
+            // Garantir colunas que podem estar ausentes em instalações antigas
+            try {
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS balance_after INT NOT NULL DEFAULT 0");
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) NULL");
+            } catch (Exception $ignored) {}
 
             try {
                 $pdo->beginTransaction();
