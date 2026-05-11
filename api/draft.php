@@ -755,6 +755,62 @@ if ($method === 'POST') {
             echo json_encode(['success' => true, 'message' => 'Jogador adicionado ao draft!']);
             break;
 
+        // ADMIN: Importar jogadores em lote via CSV
+        case 'import_draft_players':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            $players = $data['players'] ?? [];
+
+            if (!$draftSessionId || !is_array($players) || empty($players)) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ?');
+            $stmtSession->execute([(int)$draftSessionId]);
+            $session = $stmtSession->fetch(PDO::FETCH_ASSOC);
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Sessão não encontrada']);
+                exit;
+            }
+
+            $seasonId = (int)$session['season_id'];
+            $inserted = 0;
+            $errors = [];
+            $stmtInsert = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status) VALUES (?, ?, ?, ?, ?, "available")');
+
+            foreach ($players as $i => $p) {
+                $pName     = trim((string)($p['name'] ?? ''));
+                $pPosition = strtoupper(trim((string)($p['position'] ?? '')));
+                $pAge      = (int)($p['age'] ?? 0);
+                $pOvr      = (int)($p['ovr'] ?? 0);
+
+                if ($pName === '' || $pPosition === '' || $pAge <= 0 || $pOvr <= 0) {
+                    $errors[] = 'Linha ' . ($i + 2) . ': dados inválidos (nome=' . $pName . ', pos=' . $pPosition . ', age=' . $pAge . ', ovr=' . $pOvr . ')';
+                    continue;
+                }
+
+                try {
+                    $stmtInsert->execute([$seasonId, $pName, $pPosition, $pAge, $pOvr]);
+                    $inserted++;
+                } catch (Exception $ex) {
+                    $errors[] = 'Linha ' . ($i + 2) . ': ' . $ex->getMessage();
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'inserted' => $inserted,
+                'errors' => $errors,
+                'message' => "$inserted jogador(es) importado(s)" . (count($errors) ? ' com ' . count($errors) . ' erro(s).' : '.'),
+            ]);
+            break;
+
         // JOGADOR/ADMIN: Fazer pick
         case 'make_pick':
             $draftSessionId = $data['draft_session_id'] ?? null;

@@ -4376,32 +4376,51 @@ async function showAdminDraft(league) {
 
     // Available players panel
     let playersPanel = '';
-    if (draft && availablePlayers.length > 0) {
-      const playerRows = availablePlayers.slice(0, 60).map(p => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--panel-border)">
-          <div>
-            <span style="font-size:13px;color:var(--text)">${escapeHtml(p.name)}</span>
-            <span style="font-size:11px;color:var(--text-3);margin-left:6px">${escapeHtml(p.position || '')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</span>
-          </div>
-        </div>`).join('');
-      const more = availablePlayers.length > 60 ? `<p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px">+${availablePlayers.length - 60} jogadores</p>` : '';
+    if (draft) {
+      const draftSid = draft.id;
+      const draftSeasonId = draft.season_id;
+      const importBtns = `
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#94a3b8"
+            onclick="_adminDraftDownloadTemplate()">
+            <i class="bi bi-download me-1"></i>Modelo CSV
+          </button>
+          <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#a855f7"
+            onclick="_adminDraftImportModal(${draftSid}, ${draftSeasonId}, '${league}')">
+            <i class="bi bi-upload me-1"></i>Importar CSV
+          </button>
+        </div>`;
 
-      playersPanel = `
-        <div class="panel mb-3">
-          <div class="panel-header">
-            <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores</div>
-            <span style="font-size:11px;color:var(--text-3)">${availablePlayers.length} disponíveis</span>
-          </div>
-          <div style="padding:4px 16px 10px">${playerRows}${more}</div>
-        </div>`;
-    } else if (draft) {
-      playersPanel = `
-        <div class="panel mb-3">
-          <div class="panel-header">
-            <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores</div>
-          </div>
-          <div style="padding:16px"><p class="empty-state">Nenhum jogador no pool. Use "Adicionar Jogador" para incluir jogadores no draft.</p></div>
-        </div>`;
+      if (availablePlayers.length > 0) {
+        const playerRows = availablePlayers.slice(0, 60).map(p => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <span style="font-size:13px;color:var(--text)">${escapeHtml(p.name)}</span>
+              <span style="font-size:11px;color:var(--text-3);margin-left:6px">${escapeHtml(p.position || '')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</span>
+            </div>
+          </div>`).join('');
+        const more = availablePlayers.length > 60 ? `<p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px">+${availablePlayers.length - 60} jogadores</p>` : '';
+
+        playersPanel = `
+          <div class="panel mb-3">
+            <div class="panel-header" style="flex-wrap:wrap;gap:10px">
+              <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores
+                <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:6px">${availablePlayers.length} disponíveis</span>
+              </div>
+              ${importBtns}
+            </div>
+            <div style="padding:4px 16px 10px">${playerRows}${more}</div>
+          </div>`;
+      } else {
+        playersPanel = `
+          <div class="panel mb-3">
+            <div class="panel-header" style="flex-wrap:wrap;gap:10px">
+              <div class="panel-title"><i class="bi bi-people-fill" style="color:#94a3b8"></i> Pool de Jogadores</div>
+              ${importBtns}
+            </div>
+            <div style="padding:4px 16px 16px"><p class="empty-state" style="padding:16px 0">Nenhum jogador no pool. Use "Adicionar Jogador" ou importe um CSV.</p></div>
+          </div>`;
+      }
     }
 
     container.innerHTML = `
@@ -4604,6 +4623,187 @@ async function _adminDraftSubmitPick(draftSessionId, pickId, league) {
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao fazer pick');
+  }
+}
+
+// ── Draft CSV Import ────────────────────────────────────────────────────────
+
+function _adminDraftDownloadTemplate() {
+  const csv = 'name,position,ovr,age\nLeBron James,SF,97,39\nStephen Curry,PG,96,36\n';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'draft_pool_modelo.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function _adminDraftImportModal(draftSessionId, seasonId, league) {
+  document.getElementById('adminDraftImportModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'adminDraftImportModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:560px;padding:0">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-upload" style="color:#a855f7"></i> Importar Jogadores via CSV</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('adminDraftImportModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">
+          O CSV deve ter as colunas: <strong style="color:var(--text)">name, position, ovr, age</strong>. A primeira linha é o cabeçalho e será ignorada.
+          <button class="btn-ghost" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="_adminDraftDownloadTemplate()">
+            <i class="bi bi-download me-1"></i>Baixar modelo
+          </button>
+        </p>
+
+        <div id="draftImportDropzone"
+          style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:28px 16px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:12px"
+          onclick="document.getElementById('draftImportFileInput').click()"
+          ondragover="event.preventDefault();this.style.borderColor='#a855f7'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="_adminDraftHandleDrop(event,${draftSessionId},'${league}')">
+          <i class="bi bi-file-earmark-text" style="font-size:28px;color:var(--text-3)"></i>
+          <p style="font-size:13px;color:var(--text-2);margin-top:8px;margin-bottom:0">Arraste o arquivo CSV aqui ou clique para selecionar</p>
+          <p style="font-size:11px;color:var(--text-3);margin-top:4px">Apenas .csv</p>
+        </div>
+        <input type="file" id="draftImportFileInput" accept=".csv,text/csv" style="display:none"
+          onchange="_adminDraftFileSelected(this,${draftSessionId},'${league}')">
+
+        <div id="draftImportPreview" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+            Preview — <span id="draftImportCount">0</span> jogadores
+          </div>
+          <div id="draftImportTable" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+          <div class="d-flex gap-2 justify-content-end mt-3">
+            <button class="btn-ghost" onclick="document.getElementById('adminDraftImportModal').remove()">Cancelar</button>
+            <button class="btn-ghost" style="color:#a855f7" id="draftImportConfirmBtn"
+              onclick="_adminDraftConfirmImport(${draftSessionId},'${league}')">
+              <i class="bi bi-check-lg me-1"></i>Importar todos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+let _draftImportRows = [];
+
+function _adminDraftHandleDrop(event, draftSessionId, league) {
+  event.preventDefault();
+  document.getElementById('draftImportDropzone').style.borderColor = '';
+  const file = event.dataTransfer.files?.[0];
+  if (file) _adminDraftParseCSV(file, draftSessionId, league);
+}
+
+function _adminDraftFileSelected(input, draftSessionId, league) {
+  const file = input.files?.[0];
+  if (file) _adminDraftParseCSV(file, draftSessionId, league);
+}
+
+function _adminDraftParseCSV(file, draftSessionId, league) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { showAlert('warning', 'Arquivo vazio ou sem dados.'); return; }
+
+    // Detectar separador (vírgula ou ponto-e-vírgula)
+    const sep = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+
+    const nameIdx = headers.indexOf('name');
+    const posIdx  = headers.indexOf('position');
+    const ovrIdx  = headers.indexOf('ovr');
+    const ageIdx  = headers.indexOf('age');
+
+    if (nameIdx < 0 || posIdx < 0 || ovrIdx < 0 || ageIdx < 0) {
+      showAlert('danger', 'Cabeçalho inválido. Esperado: name, position, ovr, age');
+      return;
+    }
+
+    _draftImportRows = [];
+    const errRows = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g, ''));
+      const name = cols[nameIdx] || '';
+      const pos  = (cols[posIdx] || '').toUpperCase();
+      const ovr  = parseInt(cols[ovrIdx], 10);
+      const age  = parseInt(cols[ageIdx], 10);
+
+      if (!name || !pos || isNaN(ovr) || isNaN(age) || ovr <= 0 || age <= 0) {
+        errRows.push(i + 1);
+        continue;
+      }
+      _draftImportRows.push({ name, position: pos, ovr, age });
+    }
+
+    const preview = document.getElementById('draftImportPreview');
+    const countEl = document.getElementById('draftImportCount');
+    const tableEl = document.getElementById('draftImportTable');
+    if (!preview || !countEl || !tableEl) return;
+
+    if (_draftImportRows.length === 0) {
+      showAlert('warning', 'Nenhuma linha válida encontrada no CSV.');
+      return;
+    }
+
+    countEl.textContent = _draftImportRows.length;
+    const warnHtml = errRows.length
+      ? `<p style="font-size:11px;color:#f59e0b;margin-bottom:6px"><i class="bi bi-exclamation-triangle me-1"></i>${errRows.length} linha(s) inválida(s) ignorada(s) (linhas: ${errRows.slice(0, 5).join(', ')}${errRows.length > 5 ? '…' : ''})</p>`
+      : '';
+
+    tableEl.innerHTML = `
+      ${warnHtml}
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--panel-2)">
+            <th style="padding:7px 10px;text-align:left;color:var(--text-3);font-weight:500">Nome</th>
+            <th style="padding:7px 10px;color:var(--text-3);font-weight:500">Pos</th>
+            <th style="padding:7px 10px;color:var(--text-3);font-weight:500">OVR</th>
+            <th style="padding:7px 10px;color:var(--text-3);font-weight:500">Idade</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${_draftImportRows.slice(0, 50).map(p => `
+            <tr style="border-top:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text)">${escapeHtml(p.name)}</td>
+              <td style="padding:6px 10px;color:var(--text-3);text-align:center">${escapeHtml(p.position)}</td>
+              <td style="padding:6px 10px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
+              <td style="padding:6px 10px;color:var(--text-3);text-align:center">${p.age}</td>
+            </tr>`).join('')}
+          ${_draftImportRows.length > 50 ? `<tr><td colspan="4" style="padding:6px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length - 50} mais…</td></tr>` : ''}
+        </tbody>
+      </table>`;
+
+    preview.style.display = 'block';
+    document.getElementById('draftImportDropzone').style.display = 'none';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function _adminDraftConfirmImport(draftSessionId, league) {
+  if (!_draftImportRows.length) { showAlert('warning', 'Nenhum dado para importar.'); return; }
+
+  const btn = document.getElementById('draftImportConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importando...'; }
+
+  try {
+    const res = await api('draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'import_draft_players', draft_session_id: draftSessionId, players: _draftImportRows })
+    });
+    document.getElementById('adminDraftImportModal')?.remove();
+    _draftImportRows = [];
+    showAlert('success', res.message || `${res.inserted} jogador(es) importado(s)!`);
+    showAdminDraft(league);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Importar todos'; }
+    showAlert('danger', e.error || 'Erro ao importar jogadores');
   }
 }
 
