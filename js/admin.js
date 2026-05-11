@@ -2946,6 +2946,12 @@ async function _leilaoLoadActive() {
     const data = await api('leilao.php?action=listar_admin');
     _leilaoAtivos = (data.leiloes || []).filter(l => l.league_name === league && l.status === 'ativo');
     _leilaoRenderActive();
+    // Auto-abre propostas de leilões com pelo menos 1 proposta
+    for (const l of _leilaoAtivos) {
+      if (Number(l.total_propostas) > 0) {
+        leilaoTogglePropostas(l.id);
+      }
+    }
   } catch (e) {
     container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar'}</p>`;
   }
@@ -3083,34 +3089,82 @@ async function _leilaoLoadHistory() {
       container.innerHTML = '<p class="empty-state">Nenhum leilão finalizado nesta liga.</p>';
       return;
     }
-    container.innerHTML = `
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="border-bottom:1px solid var(--border)">
-              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Jogador</th>
-              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Time origem</th>
-              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Vencedor</th>
-              <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:500">Data</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${leiloes.map(l => `
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 12px;color:var(--text);font-weight:600">${l.player_name || '—'}</td>
-                <td style="padding:8px 12px;color:var(--text-3)">${l.team_name || '—'}</td>
-                <td style="padding:8px 12px;color:${l.winner_team_name ? '#22c55e' : 'var(--text-3)'}">
-                  ${l.winner_team_name || '<span style="color:var(--text-3)">Sem vencedor</span>'}
-                </td>
-                <td style="padding:8px 12px;color:var(--text-3)">${l.data_fim ? String(l.data_fim).split(' ')[0] : '—'}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
+    container.innerHTML = leiloes.map(l => {
+      const winnerHtml = l.winner_team_name
+        ? `<span style="color:#22c55e;font-weight:600">${escapeHtml(l.winner_team_name)}</span>`
+        : `<span style="color:var(--text-3)">Sem vencedor</span>`;
+      const dateStr = l.data_fim ? String(l.data_fim).split(' ')[0] : '—';
+      const nProp = Number(l.total_propostas) || 0;
+      return `
+        <div class="pun-card" style="margin-bottom:10px">
+          <div class="pun-card-head">
+            <div style="flex:1;min-width:0">
+              <div class="pun-card-title">${escapeHtml(l.player_name || '—')}
+                <span style="font-size:11px;font-weight:400;color:var(--text-3)">&nbsp;${escapeHtml(l.position || '')}${l.ovr ? ' · OVR ' + l.ovr : ''}</span>
+              </div>
+              <div class="pun-card-sub">
+                ${escapeHtml(l.team_name || '—')} · Vencedor: ${winnerHtml} · ${dateStr}
+                ${nProp > 0 ? `<span style="margin-left:6px;font-size:11px;color:var(--text-3)">${nProp} oferta(s)</span>` : ''}
+              </div>
+            </div>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0"
+              onclick="_leilaoToggleHistPropostas(${l.id}, this)">
+              <i class="bi bi-list-ul me-1"></i>Ver Ofertas
+            </button>
+          </div>
+          <div id="leilao-hist-propostas-${l.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>
+        </div>`;
+    }).join('');
   } catch (e) {
     container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar histórico'}</p>`;
   }
 }
+
+window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
+  const div = document.getElementById(`leilao-hist-propostas-${leilaoId}`);
+  if (!div) return;
+  if (div.style.display !== 'none') {
+    div.style.display = 'none';
+    if (btn) btn.innerHTML = '<i class="bi bi-list-ul me-1"></i>Ver Ofertas';
+    return;
+  }
+  div.style.display = 'block';
+  if (btn) btn.innerHTML = '<i class="bi bi-chevron-up me-1"></i>Fechar';
+  div.innerHTML = '<p class="empty-state" style="font-size:12px">Carregando...</p>';
+  try {
+    const data = await api(`leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
+    const propostas = data.propostas || [];
+    if (!propostas.length) {
+      div.innerHTML = '<p class="empty-state" style="font-size:12px">Nenhuma oferta registrada neste leilão.</p>';
+      return;
+    }
+    const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
+    div.innerHTML = propostas.map(p => {
+      const jogs = (p.jogadores || []).map(j => escapeHtml(j.name)).join(', ') || '—';
+      const picks = (p.picks || []).map(pk => `${pk.season_year} R${pk.round}`).join(', ') || '—';
+      const sc = statusMap[p.status] || 'var(--text-3)';
+      const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : 'var(--border)';
+      return `
+        <div style="padding:10px 12px;background:var(--panel-2);border-radius:var(--radius-sm);
+          margin-bottom:8px;border:1px solid ${borderColor}">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(p.team_name || '—')}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:3px">Jogadores: ${jogs}</div>
+              <div style="font-size:11px;color:var(--text-3)">Picks: ${picks}</div>
+              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px">"${escapeHtml(p.notas)}"</div>` : ''}
+            </div>
+            <span style="font-size:10px;font-weight:700;color:${sc};text-transform:uppercase;
+              flex-shrink:0;padding:3px 9px;background:${sc}18;border:1px solid ${sc}44;border-radius:999px">
+              ${p.status}
+            </span>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    div.innerHTML = `<p class="empty-state" style="font-size:12px;color:#ef4444">${e.error || 'Erro ao carregar ofertas'}</p>`;
+  }
+};
 
 function setFreeAgencyLeague(league) {
   appState.currentFAleague = league;
