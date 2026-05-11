@@ -963,13 +963,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // Salvar edição
   document.getElementById('btn-save-edit')?.addEventListener('click', async () => {
     const tagVal = (document.getElementById('edit-tag')?.value || '').trim().slice(0, 25);
+    const ageVal = parseInt(document.getElementById('edit-age').value, 10);
+    const ovrVal = parseInt(document.getElementById('edit-ovr').value, 10);
+
+    if (Number.isNaN(ageVal) || ageVal < 16 || ageVal > 50) {
+      alert('Idade inválida. Informe um valor entre 16 e 50.');
+      return;
+    }
+    if (Number.isNaN(ovrVal) || ovrVal < 40 || ovrVal > 99) {
+      alert('OVR inválido. Informe um valor entre 40 e 99.');
+      return;
+    }
+
     const data = {
       id: document.getElementById('edit-player-id').value,
       name: document.getElementById('edit-name').value,
-      age: document.getElementById('edit-age').value,
+      age: ageVal,
       position: document.getElementById('edit-position').value,
       secondary_position: document.getElementById('edit-secondary-position').value || null,
-      ovr: document.getElementById('edit-ovr').value,
+      ovr: ovrVal,
       role: document.getElementById('edit-role').value,
       available_for_trade: document.getElementById('edit-available').checked ? 1 : 0,
       player_tag: tagVal || null,
@@ -981,10 +993,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
       await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
-      bootstrap.Modal.getInstance(document.getElementById('editPlayerModal')).hide();
+      bootstrap.Modal.getInstance(document.getElementById('editPlayerModal'))?.hide();
       loadPlayers();
     } catch (err) {
-      alert('Erro ao salvar: ' + (err.error || 'Desconhecido'));
+      alert('Erro ao salvar: ' + (err.error || err.message || 'Desconhecido'));
     }
   });
 

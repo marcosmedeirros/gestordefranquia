@@ -1727,23 +1727,31 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 }
 
 async function savePlayerEdit(playerId) {
-  const data = { player_id: playerId, position: document.getElementById('editPlayerPosition').value,
-    secondary_position: document.getElementById('editPlayerSecondaryPosition')?.value || null,
-    age: parseInt(document.getElementById('editPlayerAge')?.value || '', 10),
-    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10), role: document.getElementById('editPlayerRole').value,
-    is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0 };
-  if (Number.isNaN(data.age)) {
-    delete data.age;
-  }
+  const secondaryPos = document.getElementById('editPlayerSecondaryPosition')?.value;
+  const data = {
+    player_id: playerId,
+    position: document.getElementById('editPlayerPosition').value,
+    secondary_position: (secondaryPos !== undefined) ? (secondaryPos || null) : undefined,
+    ovr: parseInt(document.getElementById('editPlayerOvr').value, 10),
+    role: document.getElementById('editPlayerRole').value,
+    is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0
+  };
+  const ageVal = parseInt(document.getElementById('editPlayerAge')?.value || '', 10);
+  if (!Number.isNaN(ageVal)) data.age = ageVal;
+  if (data.secondary_position === undefined) delete data.secondary_position;
+
   const teamId = document.getElementById('editPlayerTeam').value;
-  if (teamId) data.team_id = teamId;
-  
+  if (teamId) data.team_id = parseInt(teamId, 10) || teamId;
+
   try {
     await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify(data) });
-    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
+    bootstrap.Modal.getInstance(modalEl)?.hide();
     await showTeam(appState.currentTeam.id);
-    alert('Atualizado!');
-  } catch (e) { alert('Erro'); }
+    showAlert('success', 'Jogador atualizado!');
+  } catch (e) {
+    showAlert('danger', 'Erro ao salvar: ' + (e.error || e.message || 'Erro desconhecido'));
+  }
 }
 
 async function deletePlayer(playerId) {

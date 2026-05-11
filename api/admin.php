@@ -1271,12 +1271,11 @@ if ($method === 'PUT') {
         case 'player':
             // Atualizar jogador ou transferir para outro time
             $playerId = $data['player_id'] ?? null;
-            $teamId = $data['team_id'] ?? null;
-            $ovr = $data['ovr'] ?? null;
-            $role = $data['role'] ?? null;
+            $teamId   = array_key_exists('team_id', $data) ? $data['team_id'] : null;
+            $ovr      = $data['ovr'] ?? null;
+            $role     = $data['role'] ?? null;
             $position = $data['position'] ?? null;
-            $age = $data['age'] ?? null;
-            $secondaryPosition = $data['secondary_position'] ?? null;
+            $age      = $data['age'] ?? null;
             $isFranchisePlayer = array_key_exists('is_franchise_player', $data) ? $data['is_franchise_player'] : null;
 
             if (!$playerId) {
@@ -1286,36 +1285,43 @@ if ($method === 'PUT') {
             }
 
             $updates = [];
-            $params = [];
+            $params  = [];
 
             if ($teamId !== null) {
+                $newTeamId = (int)$teamId;
+                if ($newTeamId <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Time de destino inválido']);
+                    exit;
+                }
                 $updates[] = 'team_id = ?';
-                $params[] = $teamId;
+                $params[]  = $newTeamId;
             }
             if ($ovr !== null) {
                 $updates[] = 'ovr = ?';
-                $params[] = $ovr;
+                $params[]  = (int)$ovr;
             }
             if ($role !== null) {
                 $updates[] = 'role = ?';
-                $params[] = $role;
+                $params[]  = $role;
             }
             if ($position !== null) {
                 $updates[] = 'position = ?';
-                $params[] = $position;
+                $params[]  = $position;
             }
             if ($age !== null) {
                 $updates[] = 'age = ?';
-                $params[] = $age;
+                $params[]  = (int)$age;
             }
-            if ($secondaryPosition !== null) {
+            if (array_key_exists('secondary_position', $data)) {
                 $updates[] = 'secondary_position = ?';
-                $params[] = $secondaryPosition ?: null;
+                $params[]  = ($data['secondary_position'] !== null && $data['secondary_position'] !== '')
+                    ? $data['secondary_position'] : null;
             }
             if ($isFranchisePlayer !== null) {
                 ensurePlayerRestrictionColumns($pdo);
                 $updates[] = 'is_franchise_player = ?';
-                $params[] = $isFranchisePlayer === 1 || $isFranchisePlayer === '1' || $isFranchisePlayer === true ? 1 : 0;
+                $params[]  = ($isFranchisePlayer === 1 || $isFranchisePlayer === '1' || $isFranchisePlayer === true) ? 1 : 0;
             }
 
             if (empty($updates)) {
@@ -1326,10 +1332,15 @@ if ($method === 'PUT') {
 
             $params[] = $playerId;
             $sql = 'UPDATE players SET ' . implode(', ', $updates) . ' WHERE id = ?';
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
 
-            echo json_encode(['success' => true]);
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar jogador: ' . $e->getMessage()]);
+            }
             break;
 
         case 'cancel_trade':
