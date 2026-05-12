@@ -1380,6 +1380,88 @@ try {
                 }
             }
             
+            // 5. Salvar no season_history (histórico oficial: campeão, vice e prêmios individuais)
+            $stmtShCheck = $pdo->query("SHOW TABLES LIKE 'season_history'");
+            if (!$stmtShCheck->fetch()) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS season_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    season_id INT NOT NULL,
+                    league VARCHAR(20),
+                    sprint_number INT,
+                    season_number INT,
+                    year INT,
+                    champion_team_id INT NULL,
+                    runner_up_team_id INT NULL,
+                    mvp_player VARCHAR(100) NULL,
+                    mvp_team_id INT NULL,
+                    dpoy_player VARCHAR(100) NULL,
+                    dpoy_team_id INT NULL,
+                    mip_player VARCHAR(100) NULL,
+                    mip_team_id INT NULL,
+                    sixth_man_player VARCHAR(100) NULL,
+                    sixth_man_team_id INT NULL,
+                    roy_player VARCHAR(100) NULL,
+                    roy_team_id INT NULL,
+                    UNIQUE KEY unique_season_history (season_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+
+            // Garantir colunas ROY (compatibilidade com instalações antigas)
+            try {
+                $chkRoy = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+                if (!$chkRoy->fetch()) {
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_player VARCHAR(100) NULL AFTER sixth_man_team_id");
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_team_id INT NULL AFTER roy_player");
+                }
+            } catch (Exception $ignored) {}
+
+            $pdo->prepare("
+                INSERT INTO season_history
+                    (season_id, league, sprint_number, season_number, year,
+                     champion_team_id, runner_up_team_id,
+                     mvp_player, mvp_team_id,
+                     dpoy_player, dpoy_team_id,
+                     mip_player, mip_team_id,
+                     sixth_man_player, sixth_man_team_id,
+                     roy_player, roy_team_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    league              = VALUES(league),
+                    sprint_number       = VALUES(sprint_number),
+                    season_number       = VALUES(season_number),
+                    year                = VALUES(year),
+                    champion_team_id    = VALUES(champion_team_id),
+                    runner_up_team_id   = VALUES(runner_up_team_id),
+                    mvp_player          = VALUES(mvp_player),
+                    mvp_team_id         = VALUES(mvp_team_id),
+                    dpoy_player         = VALUES(dpoy_player),
+                    dpoy_team_id        = VALUES(dpoy_team_id),
+                    mip_player          = VALUES(mip_player),
+                    mip_team_id         = VALUES(mip_team_id),
+                    sixth_man_player    = VALUES(sixth_man_player),
+                    sixth_man_team_id   = VALUES(sixth_man_team_id),
+                    roy_player          = VALUES(roy_player),
+                    roy_team_id         = VALUES(roy_team_id)
+            ")->execute([
+                $seasonId,
+                $league,
+                $sprintNumber,
+                $seasonNumber,
+                (int)($seasonData['year'] ?? date('Y')),
+                $champion,
+                $runnerUp,
+                $input['mvp']       ?? null,
+                !empty($input['mvp_team_id'])       ? (int)$input['mvp_team_id']       : null,
+                $input['dpoy']      ?? null,
+                !empty($input['dpoy_team_id'])      ? (int)$input['dpoy_team_id']      : null,
+                $input['mip']       ?? null,
+                !empty($input['mip_team_id'])       ? (int)$input['mip_team_id']       : null,
+                $input['sixth_man'] ?? null,
+                !empty($input['sixth_man_team_id']) ? (int)$input['sixth_man_team_id'] : null,
+                $input['roy']       ?? null,
+                !empty($input['roy_team_id'])       ? (int)$input['roy_team_id']       : null,
+            ]);
+
             // Marcar temporada como completa
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
 
