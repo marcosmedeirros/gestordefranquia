@@ -518,10 +518,13 @@ function historicoLeiloes($pdo, $league_id) {
         $params[] = $league_id;
     }
     $ovrColumn = playerOvrColumn($pdo);
-    $sql = "SELECT l.id, l.data_fim, 
-                   COALESCE(l.temp_name, p.name) as player_name,
-                   COALESCE(t.name, 'Sem time') as team_name,
-                   tw.city as winner_city, tw.name as winner_name
+    $sql = "SELECT l.id, l.data_fim,
+                   COALESCE(l.temp_name, p.name) AS player_name,
+                   COALESCE(l.temp_position, p.position) AS position,
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) AS ovr,
+                   COALESCE(t.name, 'Sem time') AS team_name,
+                   tw.city AS winner_city, tw.name AS winner_name,
+                   (SELECT COUNT(*) FROM leilao_propostas lpc WHERE lpc.leilao_id = l.id) AS total_propostas
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
@@ -540,10 +543,14 @@ function historicoLeiloes($pdo, $league_id) {
             $winner = trim(($row['winner_city'] ?? '') . ' ' . $row['winner_name']);
         }
         return [
-            'player_name' => $row['player_name'],
-            'team_name' => $row['team_name'],
+            'id'               => (int)$row['id'],
+            'player_name'      => $row['player_name'],
+            'position'         => $row['position'] ?? '',
+            'ovr'              => $row['ovr'] ? (int)$row['ovr'] : null,
+            'team_name'        => $row['team_name'],
             'winner_team_name' => $winner,
-            'data_fim' => $row['data_fim']
+            'data_fim'         => $row['data_fim'],
+            'total_propostas'  => (int)$row['total_propostas'],
         ];
     }, $items);
 
