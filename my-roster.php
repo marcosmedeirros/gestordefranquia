@@ -72,6 +72,7 @@ if ($teamId) {
 }
 
 $canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
+$isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
 $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 ?>
 <!DOCTYPE html>
@@ -586,7 +587,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                                 <option value="Titular">Titular</option>
                                 <option value="Banco">Banco</option>
                                 <option value="Outro">Outro</option>
-                                <option value="G-League">G-League</option>
+                                <?php if ($isElite): ?><option value="G-League">G-League</option><?php endif; ?>
                             </select>
                         </div>
                         <div style="grid-column: span 4; display:flex; align-items:center; gap:10px; padding-top:18px;">
@@ -623,7 +624,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                         <option value="">Todas as funções</option>
                         <option value="Titular">Titular</option>
                         <option value="Banco">Banco</option>
-                        <option value="G-League">G-League</option>
+                        <?php if ($isElite): ?><option value="G-League">G-League</option><?php endif; ?>
                         <option value="Outro">Outro</option>
                     </select>
                     <!-- Sort -->
