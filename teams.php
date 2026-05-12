@@ -156,6 +156,17 @@ foreach ($teams as &$t) {
     $capResult = $capStmt->fetch();
     $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
     $t['restricted_bonus'] = restrictedCapBonus($pdo, (int)$t['id']);
+
+    // Sincroniza trades_used com o ciclo atual
+    $curCycle = (int)($t['current_cycle'] ?? 1);
+    $trCycle  = (int)($t['trades_cycle']  ?? 1);
+    if ($curCycle !== $trCycle) {
+        $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
+            ->execute([$curCycle, $t['id']]);
+        $t['trades_used'] = 0;
+    } else {
+        $t['trades_used'] = (int)($t['trades_used'] ?? 0);
+    }
 }
 unset($t);
 
@@ -1330,6 +1341,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <div class="team-stat-label">Jog.</div>
                         </div>
                         <div class="team-stat">
+                            <?php $tu = (int)($t['trades_used'] ?? 0); $atLimit = $tu >= $maxTrades; ?>
+                            <div class="team-stat-val<?= $atLimit ? ' red' : '' ?>"><?= $tu ?>/<span style="font-size:.75em;opacity:.7"><?= $maxTrades ?></span></div>
+                            <div class="team-stat-label">Trades</div>
+                        </div>
+                        <div class="team-stat">
                             <div class="team-stat-val yellow"><?= (int)($t['tapas'] ?? 0) ?></div>
                             <div class="team-stat-label">Tapas</div>
                         </div>
@@ -1382,6 +1398,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                     <div class="list-header-cell">Time</div>
                     <div class="list-header-cell sortable list-col-cap" id="listCapSort" style="justify-content:center;">CAP <span id="listCapSortLabel">↓</span></div>
                     <div class="list-header-cell" style="justify-content:center;">Jog.</div>
+                    <div class="list-header-cell" style="justify-content:center;">Trades</div>
                     <div class="list-header-cell list-col-tapas" style="justify-content:center;">Tapas</div>
                     <div class="list-header-cell list-col-punicoes" style="justify-content:center;">Pun.</div>
                     <div class="list-header-cell" style="justify-content:flex-end;">Ações</div>
@@ -1432,6 +1449,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <span class="badge-pill red"><?= (int)$t['cap_top8'] ?><?= $listBonus > 0 ? '<span style="font-size:.75em;color:#f59e0b;margin-left:3px">+' . $listBonus . '</span>' : '' ?></span>
                     </div>
                     <div class="list-cell" style="text-align:center"><?= (int)$t['total_players'] ?></div>
+                    <div class="list-cell" style="text-align:center">
+                        <?php $ltu = (int)($t['trades_used'] ?? 0); ?>
+                        <span style="font-weight:700;color:<?= $ltu >= $maxTrades ? 'var(--red)' : 'var(--text)' ?>"><?= $ltu ?></span><span style="color:var(--text-3);font-size:.85em">/<?= $maxTrades ?></span>
+                    </div>
                     <div class="list-cell list-col-tapas" style="text-align:center">
                         <span class="badge-pill yellow"><?= (int)($t['tapas'] ?? 0) ?></span>
                     </div>

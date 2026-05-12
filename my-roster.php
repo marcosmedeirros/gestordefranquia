@@ -45,38 +45,16 @@ $team   = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
 $teamId = $team ? (int)$team['id'] : null;
 
 // ── CAP limits ───────────────────────────────────────────
-$capMin    = 0;
-$capMax    = 999;
-$maxTrades = 10;
+$capMin = 0;
+$capMax = 999;
 if ($team && !empty($team['league'])) {
     try {
-        $stmtCap = $pdo->prepare('SELECT cap_min, cap_max, max_trades FROM league_settings WHERE league = ?');
+        $stmtCap = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
         $stmtCap->execute([$team['league']]);
         $capLimits = $stmtCap->fetch();
         if ($capLimits) {
-            $capMin    = (int)($capLimits['cap_min']    ?? 0);
-            $capMax    = (int)($capLimits['cap_max']    ?? 999);
-            $maxTrades = (int)($capLimits['max_trades'] ?? 10);
-        }
-    } catch (Exception $e) {}
-}
-
-// ── Trades ───────────────────────────────────────────────
-$tradesUsed = 0;
-if ($teamId) {
-    try {
-        $stmtTr = $pdo->prepare('SELECT current_cycle, trades_cycle, trades_used FROM teams WHERE id = ?');
-        $stmtTr->execute([$teamId]);
-        $trRow = $stmtTr->fetch(PDO::FETCH_ASSOC);
-        if ($trRow) {
-            $tradesUsed = (int)($trRow['trades_used'] ?? 0);
-            $curCycle   = (int)($trRow['current_cycle'] ?? 1);
-            $trCycle    = (int)($trRow['trades_cycle']  ?? 1);
-            if ($curCycle !== $trCycle) {
-                $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
-                    ->execute([$curCycle, $teamId]);
-                $tradesUsed = 0;
-            }
+            $capMin = (int)($capLimits['cap_min'] ?? 0);
+            $capMax = (int)($capLimits['cap_max'] ?? 999);
         }
     } catch (Exception $e) {}
 }
@@ -218,7 +196,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .page-sub     { color: var(--text-2); font-size: 14px; }
 
         /* ── Stats strip ───────────────────────────────── */
-        .stats-strip { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 14px; margin-bottom: 26px; }
+        .stats-strip { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 26px; }
         .stat-pill { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 18px; display: flex; gap: 12px; align-items: center; }
         .stat-pill-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--red); flex-shrink: 0; }
         .stat-pill-val   { font-weight: 700; font-size: 18px; font-family: var(--font); }
@@ -394,8 +372,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; font-size: 14px; }
 
         /* ── Responsive ────────────────────────────────── */
-        @media (max-width: 1280px) { .stats-strip { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-        @media (max-width: 700px)  { .stats-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        @media (max-width: 1100px) { .stats-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } }
         @media (max-width: 992px) {
             .sidebar { transform: translateX(-260px); }
             .sidebar.open { transform: translateX(0); }
@@ -409,7 +386,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             .roster-mobile-cards { display: none !important; }
         }
         @media (max-width: 560px) {
-            .stats-strip { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stats-strip { grid-template-columns: 1fr 1fr; }
             .fgrid { grid-template-columns: 1fr; }
             .page-title { font-size: 24px; }
             #editPlayerModal .modal-dialog { margin: .5rem; }
@@ -548,13 +525,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                 <div>
                     <div class="stat-pill-val" id="signings-count">— / —</div>
                     <div class="stat-pill-label">Contratações</div>
-                </div>
-            </div>
-            <div class="stat-pill">
-                <div class="stat-pill-icon"><i class="bi bi-arrow-left-right"></i></div>
-                <div>
-                    <div class="stat-pill-val<?= $tradesUsed >= $maxTrades ? ' text-danger' : '' ?>" id="trades-count"><?= $tradesUsed ?> / <?= $maxTrades ?></div>
-                    <div class="stat-pill-label">Trades</div>
                 </div>
             </div>
         </div>
