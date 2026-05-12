@@ -80,6 +80,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
+             t.trades_used,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count,
              (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_avg_ovr,
@@ -156,17 +157,7 @@ foreach ($teams as &$t) {
     $capResult = $capStmt->fetch();
     $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
     $t['restricted_bonus'] = restrictedCapBonus($pdo, (int)$t['id']);
-
-    // Sincroniza trades_used com o ciclo atual
-    $curCycle = (int)($t['current_cycle'] ?? 1);
-    $trCycle  = (int)($t['trades_cycle']  ?? 1);
-    if ($curCycle !== $trCycle) {
-        $pdo->prepare('UPDATE teams SET trades_used = 0, trades_cycle = ? WHERE id = ?')
-            ->execute([$curCycle, $t['id']]);
-        $t['trades_used'] = 0;
-    } else {
-        $t['trades_used'] = (int)($t['trades_used'] ?? 0);
-    }
+    $t['trades_used'] = (int)($t['trades_used'] ?? 0);
 }
 unset($t);
 
@@ -806,7 +797,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         /* Stats row inside card */
         .team-stats {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 0;
         }
 
@@ -925,7 +916,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-header {
             display: grid;
-            grid-template-columns: 1fr 80px 80px 80px 80px 160px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 160px;
             gap: 0;
             padding: 10px 18px;
             background: var(--panel-2);
@@ -948,7 +939,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-row {
             display: grid;
-            grid-template-columns: 1fr 80px 80px 80px 80px 160px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 160px;
             gap: 0;
             padding: 12px 18px;
             border: 1px solid var(--border);
@@ -1116,7 +1107,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             .footer-strip { margin: 0 16px 24px; }
             .teams-grid { grid-template-columns: 1fr; }
             .list-header, .list-row {
-                grid-template-columns: 1fr 60px 60px 120px;
+                grid-template-columns: 1fr 60px 55px 55px 120px;
             }
             .list-col-tapas, .list-col-punicoes { display: none; }
             .page-top { padding-top: 20px; }
