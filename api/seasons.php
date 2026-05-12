@@ -1353,6 +1353,32 @@ try {
 
             $pdo->prepare("UPDATE teams SET ranking_titles = COALESCE(ranking_titles, 0) + 1 WHERE id = ?")
                 ->execute([$champion]);
+
+            // Atualizar Hall da Fama: +1 título para o campeão
+            $stmtHofCheck = $pdo->prepare("SHOW TABLES LIKE 'hall_of_fame'");
+            $stmtHofCheck->execute();
+            if ($stmtHofCheck->rowCount() > 0) {
+                $stmtHofTeam = $pdo->prepare("
+                    SELECT CONCAT(t.city, ' ', t.name) AS team_name, u.name AS gm_name
+                    FROM teams t
+                    LEFT JOIN users u ON u.id = t.user_id
+                    WHERE t.id = ? LIMIT 1
+                ");
+                $stmtHofTeam->execute([$champion]);
+                $hofTeam = $stmtHofTeam->fetch(PDO::FETCH_ASSOC);
+
+                if ($hofTeam) {
+                    $stmtHofExists = $pdo->prepare("SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? LIMIT 1");
+                    $stmtHofExists->execute([$champion, $league]);
+                    if ($stmtHofExists->fetch()) {
+                        $pdo->prepare("UPDATE hall_of_fame SET titles = titles + 1 WHERE team_id = ? AND league = ?")
+                            ->execute([$champion, $league]);
+                    } else {
+                        $pdo->prepare("INSERT INTO hall_of_fame (team_id, team_name, league, gm_name, titles, is_active) VALUES (?, ?, ?, ?, 1, 1)")
+                            ->execute([$champion, $hofTeam['team_name'], $league, $hofTeam['gm_name'] ?? '']);
+                    }
+                }
+            }
             
             // Marcar temporada como completa
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
