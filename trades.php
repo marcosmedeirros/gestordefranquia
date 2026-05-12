@@ -721,6 +721,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                   </div>
                   <div style="font-size:12px;color:var(--text-2)">Atual: <span style="color:var(--text)" id="capMyCurrent">-</span></div>
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capMyProjected">-</span></div>
+                  <div style="font-size:12px;color:var(--text-2);margin-top:4px">Jogadores: <span style="color:var(--text)" id="capMyPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capMyPlayersProjected">-</span></div>
                 </div>
               </div>
               <div class="col-md-6">
@@ -731,6 +732,7 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
                   </div>
                   <div style="font-size:12px;color:var(--text-2)">Atual: <span style="color:var(--text)" id="capTargetCurrent">-</span></div>
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capTargetProjected">-</span></div>
+                  <div style="font-size:12px;color:var(--text-2);margin-top:4px">Jogadores: <span style="color:var(--text)" id="capTargetPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capTargetPlayersProjected">-</span></div>
                 </div>
               </div>
             </div>

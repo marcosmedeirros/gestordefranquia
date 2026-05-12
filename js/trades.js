@@ -138,9 +138,20 @@ function updateCapImpact() {
     el.textContent = `${delta > 0 ? '+' : ''}${delta}`;
   };
 
+  // Player counts
+  const myPlayersProjected = myPlayers.length - offerPlayers.length + requestPlayers.length;
+  const targetPlayersProjected = targetTeamPlayers.length
+    ? targetTeamPlayers.length - requestPlayers.length + offerPlayers.length
+    : null;
+
   if (capMyCurrentEl) capMyCurrentEl.textContent = formatCapValue(myCurrent);
   if (capMyProjectedEl) capMyProjectedEl.textContent = Number.isFinite(myProjected) ? formatCapValue(myProjected) : '-';
   applyDeltaBadge(capMyDeltaEl, myDelta);
+
+  const capMyPlayersEl = document.getElementById('capMyPlayers');
+  const capMyPlayersProjectedEl = document.getElementById('capMyPlayersProjected');
+  if (capMyPlayersEl) capMyPlayersEl.textContent = myPlayers.length;
+  if (capMyPlayersProjectedEl) capMyPlayersProjectedEl.textContent = myPlayersProjected;
 
   const targetTeamSelect = document.getElementById('targetTeam');
   if (capTargetLabel && targetTeamSelect) {
@@ -153,6 +164,11 @@ function updateCapImpact() {
     ? formatCapValue(targetProjected)
     : '-';
   applyDeltaBadge(capTargetDeltaEl, (targetTeamPlayers.length && Number.isFinite(targetDelta)) ? targetDelta : null);
+
+  const capTargetPlayersEl = document.getElementById('capTargetPlayers');
+  const capTargetPlayersProjectedEl = document.getElementById('capTargetPlayersProjected');
+  if (capTargetPlayersEl) capTargetPlayersEl.textContent = targetTeamPlayers.length || '-';
+  if (capTargetPlayersProjectedEl) capTargetPlayersProjectedEl.textContent = targetPlayersProjected !== null ? targetPlayersProjected : '-';
 }
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';

@@ -1271,7 +1271,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         : null;
                     $teamBonus = (int)($t['restricted_bonus'] ?? 0);
                     $effectiveCapMax = $capMax + $teamBonus;
-                    $capPct = $effectiveCapMax > 0 ? min(100, round(($t['cap_top8'] / $effectiveCapMax) * 100)) : 0;
+                    $capRange = $effectiveCapMax - $capMin;
+                    $capPct = $capRange > 0 ? min(100, max(0, round(($t['cap_top8'] - $capMin) / $capRange * 100))) : 0;
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
                 ?>
                 <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.04 ?>s">
