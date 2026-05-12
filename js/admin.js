@@ -3140,19 +3140,31 @@ window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
     }
     const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
     div.innerHTML = propostas.map(p => {
-      const jogs = (p.jogadores || []).map(j => escapeHtml(j.name)).join(', ') || '—';
-      const picks = (p.picks || []).map(pk => `${pk.season_year} R${pk.round}`).join(', ') || '—';
       const sc = statusMap[p.status] || 'var(--text-3)';
       const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : 'var(--border)';
+      const jogsHtml = (p.jogadores || []).length
+        ? (p.jogadores || []).map(j => {
+            const meta = [j.position, j.ovr ? `OVR ${j.ovr}` : null, j.age ? `${j.age} anos` : null].filter(Boolean).join(' · ');
+            return `<div style="display:flex;align-items:baseline;gap:6px">
+              <span style="color:#fff;font-weight:500">${escapeHtml(j.name)}</span>
+              ${meta ? `<span style="font-size:10px;color:var(--text-3)">${meta}</span>` : ''}
+            </div>`;
+          }).join('')
+        : '<span style="color:var(--text-3)">—</span>';
+      const picksHtml = (p.picks || []).length
+        ? (p.picks || []).map(pk => `<div style="color:#fff">${pk.season_year} R${pk.round}</div>`).join('')
+        : '<div style="color:var(--text-3)">—</div>';
       return `
         <div style="padding:10px 12px;background:var(--panel-2);border-radius:var(--radius-sm);
           margin-bottom:8px;border:1px solid ${borderColor}">
           <div class="d-flex justify-content-between align-items-start gap-2">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(p.team_name || '—')}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:3px">Jogadores: ${jogs}</div>
-              <div style="font-size:11px;color:var(--text-3)">Picks: ${picks}</div>
-              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px">"${escapeHtml(p.notas)}"</div>` : ''}
+              <div style="font-weight:700;font-size:13px;color:#fff;margin-bottom:6px">${escapeHtml(p.team_name || '—')}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Jogadores</div>
+              <div style="font-size:12px;margin-bottom:6px">${jogsHtml}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Picks</div>
+              <div style="font-size:12px;margin-bottom:${p.notas ? 6 : 0}px">${picksHtml}</div>
+              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic">"${escapeHtml(p.notas)}"</div>` : ''}
             </div>
             <span style="font-size:10px;font-weight:700;color:${sc};text-transform:uppercase;
               flex-shrink:0;padding:3px 9px;background:${sc}18;border:1px solid ${sc}44;border-radius:999px">
