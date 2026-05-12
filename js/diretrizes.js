@@ -463,6 +463,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Inicializar visibilidade dos checkboxes do banco
   updateBenchCheckboxesVisibility();
+
+  // Inicializar contador do banco (jogadores pré-marcados pelo PHP)
+  const benchCount = document.getElementById('bench-count');
+  if (benchCount) {
+    benchCount.textContent = document.querySelectorAll('.bench-player-checkbox:checked').length;
+  }
 });
 
 // Carregar diretriz existente
