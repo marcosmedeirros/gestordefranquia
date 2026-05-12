@@ -427,22 +427,28 @@ function propostasRecebidas($pdo, $team_id) {
 }
 
 function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
-    // Verificar se e dono do jogador ou admin
-    $stmt = $pdo->prepare("SELECT team_id FROM leilao_jogadores WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT team_id, status FROM leilao_jogadores WHERE id = ?");
     $stmt->execute([$leilao_id]);
     $leilao = $stmt->fetch();
-    
-    if (!$leilao || (!$is_admin && $leilao['team_id'] != $team_id)) {
+
+    $isOwner   = $leilao && $leilao['team_id'] == $team_id;
+    $isFinished = $leilao && $leilao['status'] === 'finalizado';
+
+    // Qualquer um pode ver a proposta aceita de leilões finalizados
+    if (!$leilao || (!$is_admin && !$isOwner && !$isFinished)) {
         echo json_encode(['success' => false, 'error' => 'Acesso negado']);
         return;
     }
-    
+
+    // Para não-donos em leilão finalizado: exibe só a proposta aceita
+    $onlyAccepted = $isFinished && !$is_admin && !$isOwner;
+
     $sql = "SELECT lp.*, t.name as team_name
             FROM leilao_propostas lp
             JOIN teams t ON lp.team_id = t.id
-            WHERE lp.leilao_id = ?
+            WHERE lp.leilao_id = ?" . ($onlyAccepted ? " AND lp.status = 'aceita'" : '') . "
             ORDER BY lp.created_at DESC";
-    
+
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$leilao_id]);
     $propostas = $stmt->fetchAll(PDO::FETCH_ASSOC);

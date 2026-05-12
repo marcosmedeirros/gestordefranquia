@@ -258,39 +258,19 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         </div>
 
         <div class="content">
-            <?php if (!empty($team_name)): ?>
-            <div class="d-flex align-items-center gap-2 mb-4">
-                <span class="badge-team"><?= htmlspecialchars($team_name) ?></span>
+            <div class="panel-card">
+                <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
+                <div class="panel-card-body"><div id="leiloesAtivosContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
+            </div>
+            <?php if ($team_id): ?>
+            <div class="panel-card">
+                <div class="panel-card-header"><i class="bi bi-inbox panel-card-icon"></i><span class="panel-card-title">Propostas Recebidas</span></div>
+                <div class="panel-card-body"><div id="propostasRecebidasContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
             </div>
             <?php endif; ?>
-
-            <ul class="nav nav-tabs mb-4" role="tablist">
-                <li class="nav-item">
-                    <button class="nav-link active" id="auction-active-tab" data-bs-toggle="tab" data-bs-target="#auction-active" type="button" role="tab">
-                        <i class="bi bi-hammer me-1"></i>Leilões ativos
-                    </button>
-                </li>
-            </ul>
-
-            <div class="tab-content">
-                <!-- Leilões Ativos -->
-                <div class="tab-pane fade show active" id="auction-active" role="tabpanel">
-                    <div class="panel-card">
-                        <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
-                        <div class="panel-card-body"><div id="leiloesAtivosContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
-                    </div>
-                    <?php if ($team_id): ?>
-                    <div class="panel-card">
-                        <div class="panel-card-header"><i class="bi bi-inbox panel-card-icon"></i><span class="panel-card-title">Propostas Recebidas</span></div>
-                        <div class="panel-card-body"><div id="propostasRecebidasContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
-                    </div>
-                    <?php endif; ?>
-                    <div class="panel-card">
-                        <div class="panel-card-header"><i class="bi bi-clock-history panel-card-icon"></i><span class="panel-card-title">Histórico de Leilões</span></div>
-                        <div class="panel-card-body"><div id="leiloesHistoricoContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
-                    </div>
-                </div>
-
+            <div class="panel-card">
+                <div class="panel-card-header"><i class="bi bi-clock-history panel-card-icon"></i><span class="panel-card-title">Histórico de Leilões</span></div>
+                <div class="panel-card-body"><div id="leiloesHistoricoContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
             </div>
         </div>
     </main>
