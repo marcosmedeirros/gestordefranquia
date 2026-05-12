@@ -337,6 +337,53 @@ if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'a
     exit;
 }
 
+/**
+ * Sincroniza team_season_points com a soma de pontos de team_ranking_points
+ * (regular_season + playoff + awards) para a temporada/liga indicada.
+ * Chamada após set_standings e save_history para manter o card "Pontuação" atualizado.
+ */
+function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $sprintNumber, int $seasonNumber): void {
+    $stmt = $pdo->prepare("
+        SELECT trp.team_id,
+               CONCAT(t.city, ' ', t.name) AS team_name,
+               SUM(
+                   COALESCE(trp.regular_season_points, 0) +
+                   COALESCE(trp.playoff_points,         0) +
+                   COALESCE(trp.awards_points,          0)
+               ) AS total_points
+        FROM team_ranking_points trp
+        LEFT JOIN teams t ON t.id = trp.team_id
+        WHERE trp.season_id = ? AND trp.league = ?
+        GROUP BY trp.team_id, t.city, t.name
+        HAVING total_points > 0
+    ");
+    $stmt->execute([$seasonId, $league]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($rows)) return;
+
+    $stmtUpsert = $pdo->prepare("
+        INSERT INTO team_season_points
+            (team_id, team_name, league, season_id, sprint_number, season_number, points)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            points      = VALUES(points),
+            team_name   = VALUES(team_name),
+            updated_at  = NOW()
+    ");
+    foreach ($rows as $row) {
+        $stmtUpsert->execute([
+            (int)$row['team_id'],
+            $row['team_name'] ?? 'Time Desconhecido',
+            $league,
+            $seasonId,
+            $sprintNumber,
+            $seasonNumber,
+            (int)$row['total_points'],
+        ]);
+    }
+}
+
 function ensurePlayerSeasonLogTable(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS player_season_log (
         id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -420,11 +467,19 @@ try {
             if (empty($standings)) throw new Exception('standings (array) é obrigatório');
 
             // Buscar liga da temporada
-            $stmtSeason = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtSeason = $pdo->prepare("
+                SELECT s.league, s.season_number,
+                       COALESCE(sp.sprint_number, 1) AS sprint_number
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.id = ?
+            ");
             $stmtSeason->execute([$seasonId]);
             $seasonRow = $stmtSeason->fetch(PDO::FETCH_ASSOC);
             if (!$seasonRow) throw new Exception('Temporada não encontrada');
-            $league = $seasonRow['league'];
+            $league       = $seasonRow['league'];
+            $seasonNumber = (int)($seasonRow['season_number'] ?? 1);
+            $sprintNumber = (int)($seasonRow['sprint_number'] ?? 1);
 
             // Garantir tabela season_standings
             $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
@@ -484,6 +539,10 @@ try {
                 }
 
                 $pdo->commit();
+
+                // Sincronizar team_season_points com o total acumulado
+                syncTeamSeasonPoints($pdo, $seasonId, $league, $sprintNumber, $seasonNumber);
+
                 echo json_encode(['success' => true, 'message' => 'Standings e pontos de temporada regular salvos']);
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -1157,12 +1216,20 @@ try {
             $pdo->beginTransaction();
             
             // 1. Buscar informações da Liga (necessário para a tabela team_ranking_points)
-            $stmtSeason = $pdo->prepare("SELECT league FROM seasons WHERE id = ?");
+            $stmtSeason = $pdo->prepare("
+                SELECT s.league, s.season_number, s.year,
+                       COALESCE(sp.sprint_number, 1) AS sprint_number
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.id = ?
+            ");
             $stmtSeason->execute([$seasonId]);
             $seasonData = $stmtSeason->fetch();
-            
+
             if (!$seasonData) throw new Exception('Temporada não encontrada');
-            $league = $seasonData['league'];
+            $league        = $seasonData['league'];
+            $seasonNumber  = (int)($seasonData['season_number'] ?? 1);
+            $sprintNumber  = (int)($seasonData['sprint_number'] ?? 1);
 
             // 2. Salvar Tabelas Auxiliares (Playoff Results e Awards)
             // (Mantemos essa parte pois ela alimenta a exibição visual do histórico)
@@ -1306,8 +1373,11 @@ try {
             snapshotPlayersForSeason($pdo, $seasonId, $league);
 
             $pdo->commit();
-            
-                echo json_encode(['success' => true, 'message' => 'Histórico salvo!']);
+
+            // Sincronizar team_season_points com total acumulado (regular + playoff + prêmios)
+            syncTeamSeasonPoints($pdo, $seasonId, $league, $sprintNumber, $seasonNumber);
+
+            echo json_encode(['success' => true, 'message' => 'Histórico salvo!']);
             break;
 
             // ========== DEFINIR PONTOS MANUAIS DA TEMPORADA (ADMIN) ==========
