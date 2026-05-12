@@ -1158,48 +1158,64 @@ async function showHallOfFame() {
       <button class="btn btn-back" onclick="${_hofBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
-    <div class="row g-4">
-      <div class="col-lg-5">
-        <div class="bg-dark-panel border-orange rounded p-4">
-          <h5 class="text-white mb-3"><i class="bi bi-award-fill text-orange me-2"></i>Adicionar no Hall da Fama</h5>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Tipo</label>
-            <select class="form-select bg-dark text-white border-orange" id="hofType">
-              <option value="active" selected>Ativo (liga + time)</option>
+    <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
+
+      <!-- Formulário -->
+      <div class="pun-card">
+        <div class="pun-card-head">
+          <div class="pun-card-title"><i class="bi bi-award-fill" style="color:var(--amber);margin-right:6px"></i>Adicionar no Hall da Fama</div>
+        </div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Tipo</div>
+            <select id="hofType" style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+              <option value="active">Ativo (liga + time)</option>
               <option value="inactive">Inativo (nome + GM)</option>
             </select>
           </div>
+
           <div id="hofActiveFields">
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Liga</label>
-              <select class="form-select bg-dark text-white border-orange" id="hofLeague">
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Liga</div>
+              <select id="hofLeague" style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
                 ${_leagues.map(l => `<option value="${l}"${l === _hofInitLeague ? ' selected' : ''}>${l}</option>`).join('')}
               </select>
             </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Time</label>
-              <select class="form-select bg-dark text-white border-orange" id="hofTeam"></select>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Time</div>
+              <select id="hofTeam" style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none"></select>
             </div>
           </div>
-          <div id="hofInactiveFields" style="display:none;">
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Nome do GM</label>
-              <input type="text" class="form-control bg-dark text-white border-orange" id="hofGmName" placeholder="Ex: John Doe">
-            </div>
+
+          <div id="hofInactiveFields" style="display:none">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Nome do GM</div>
+            <input type="text" id="hofGmName" placeholder="Ex: John Doe"
+              style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
           </div>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Titulos</label>
-            <input type="number" class="form-control bg-dark text-white border-orange" id="hofTitles" min="0" value="0">
+
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Títulos</div>
+            <input type="number" id="hofTitles" min="0" value="0"
+              style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
           </div>
-          <button class="btn btn-orange w-100" id="hofAddBtn"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+
+          <button id="hofAddBtn" class="btn-ghost" style="width:100%;justify-content:center;color:#22c55e;border-color:rgba(34,197,94,.3);padding:9px">
+            <i class="bi bi-plus-circle me-1"></i>Adicionar
+          </button>
         </div>
       </div>
-      <div class="col-lg-7">
-        <div class="bg-dark-panel border-orange rounded p-4">
-          <h5 class="text-white mb-3"><i class="bi bi-list-stars text-orange me-2"></i>Lista do Hall da Fama</h5>
-          <div id="hofList"><div class="text-center py-4"><div class="spinner-border text-orange"></div></div></div>
+
+      <!-- Lista -->
+      <div class="pun-card">
+        <div class="pun-card-head">
+          <div class="pun-card-title"><i class="bi bi-list-stars" style="color:var(--amber);margin-right:6px"></i>Lista do Hall da Fama</div>
+        </div>
+        <div id="hofList" style="padding:4px 0">
+          <div style="text-align:center;padding:32px"><div class="spinner-border" style="width:24px;height:24px;border-width:3px;border-color:var(--border-md);border-top-color:var(--red)"></div></div>
         </div>
       </div>
+
     </div>
   `;
 
@@ -1284,51 +1300,37 @@ async function loadHallOfFameList() {
     const data = await api('admin.php?action=hall_of_fame');
     const items = data.items || [];
     if (!items.length) {
-      container.innerHTML = '<div class="text-light-gray">Nenhum registro ainda.</div>';
+      container.innerHTML = '<p class="empty-state" style="padding:32px">Nenhum registro ainda.</p>';
       return;
     }
 
-    container.innerHTML = `
-      <div class="table-responsive">
-        <table class="table table-dark table-hover">
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Liga</th>
-              <th>Time</th>
-              <th>GM</th>
-              <th class="text-center" style="width: 120px;">Titulos</th>
-              <th class="text-center" style="width: 140px;">Acoes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item => `
-              <tr>
-                <td>${item.is_active ? 'Ativo' : 'Inativo'}</td>
-                <td>${item.league || '-'}</td>
-                <td><strong>${item.team_name || '-'}</strong></td>
-                <td>${item.gm_name || '-'}</td>
-                <td class="text-center">
-                  <input type="number" class="form-control form-control-sm bg-dark text-white border-orange" min="0" value="${item.titles || 0}" data-hof-title="${item.id}">
-                </td>
-                <td class="text-center">
-                  <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-sm btn-success" onclick="saveHallOfFameTitles(${item.id})">
-                      <i class="bi bi-save"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteHallOfFameEntry(${item.id})">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+    container.innerHTML = items.map(item => {
+      const isActive = item.is_active;
+      const sc = isActive ? '#22c55e' : 'var(--text-3)';
+      return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${escapeHtml(item.team_name || item.gm_name || '—')}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap">
+            ${item.league ? `<span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.2);border-radius:999px;padding:1px 7px">${item.league}</span>` : ''}
+            <span style="font-size:10px;font-weight:600;color:${sc}">${isActive ? 'Ativo' : 'Inativo'}</span>
+            ${item.gm_name && item.team_name ? `<span style="font-size:11px;color:var(--text-3)">GM: ${escapeHtml(item.gm_name)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <input type="number" min="0" value="${item.titles || 0}" data-hof-title="${item.id}"
+            style="width:64px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 8px;color:var(--amber);font-size:13px;font-weight:700;text-align:center;outline:none">
+          <button class="btn-ghost" style="padding:5px 8px;color:#22c55e" onclick="saveHallOfFameTitles(${item.id})" title="Salvar">
+            <i class="bi bi-floppy"></i>
+          </button>
+          <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deleteHallOfFameEntry(${item.id})" title="Remover">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
   } catch (e) {
-    container.innerHTML = '<div class="text-danger">Erro ao carregar lista.</div>';
+    container.innerHTML = '<p class="empty-state" style="padding:32px;color:#ef4444">Erro ao carregar lista.</p>';
   }
 }
 
