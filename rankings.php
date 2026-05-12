@@ -726,11 +726,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
                 const yearLabel   = s.year ? ` · ${s.year}` : '';
                 const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || 'Temporada';
-                const hasPoints = s.points > 0;
                 html += `
                 <div class="pts-row">
                     <div class="pts-team" style="flex:1">${title}</div>
-                    <div class="pts-val" style="color:${hasPoints ? 'var(--red)' : 'var(--text-3)'};font-weight:${hasPoints ? 800 : 400}">
+                    <div class="pts-val" style="color:var(--red);font-weight:800">
                         ${s.points} pts
                     </div>
                 </div>`;
