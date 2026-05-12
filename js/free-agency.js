@@ -1027,47 +1027,87 @@ async function carregarPropostasAdmin() {
             return;
         }
 
+        const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const priorityBadge = p => {
+            const cfg = { 1: ['#22c55e','Alta'], 2: ['#f59e0b','Média'], 3: ['#94a3b8','Baixa'] };
+            const [c, l] = cfg[p] || cfg[3];
+            return `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${c}18;border:1px solid ${c}44;color:${c};white-space:nowrap">P${p} ${l}</span>`;
+        };
+
         let html = '';
         data.players.forEach(group => {
             const player = group.player;
             const offers = group.offers || [];
 
-            html += '<div class="card bg-dark border border-secondary mb-3 text-white">';
-            html += '<div class="card-header bg-dark border-bottom border-secondary">';
-            html += `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            // Determinar sugestão de vencedor: maior lance, desempate por prioridade mais baixa
+            // Já chegam ordenados por amount DESC, priority ASC da API
+            const suggested = offers.find(o => o.team_coins >= o.amount && o.roster_count < 15) || offers[0] || null;
+
+            html += `<div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;margin-bottom:12px">`;
+
+            // Cabeçalho do jogador
+            html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
                 <div>
-                    <strong class="text-orange">${player.name}</strong>
-                    <span class="text-light-gray ms-2">${player.position}${player.secondary_position ? '/' + player.secondary_position : ''} • OVR ${player.ovr}</span>
+                    <div style="font-weight:700;font-size:15px;color:var(--text)">${esc(player.name)}</div>
+                    <div style="font-size:12px;color:var(--text-3);margin-top:2px">
+                        ${esc(player.position)}${player.secondary_position ? '/' + esc(player.secondary_position) : ''} &bull; OVR <strong style="color:var(--red)">${player.ovr}</strong>
+                        ${player.original_team ? ` &bull; ex: ${esc(player.original_team)}` : ''}
+                    </div>
                 </div>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <span class="badge bg-info">${offers.length} propostas</span>
-                    <button class="btn btn-sm btn-outline-danger" onclick="recusarTodasPropostas(${player.id})">
-                        <i class="bi bi-x-circle me-1"></i>Recusar todas
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25)">${offers.length} proposta${offers.length !== 1 ? 's' : ''}</span>
+                    <button onclick="recusarTodasPropostas(${player.id})"
+                        style="padding:4px 10px;background:transparent;border:1px solid rgba(239,68,68,.35);border-radius:7px;color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)">
+                        <i class="bi bi-x-lg me-1"></i>Recusar todas
                     </button>
                 </div>
             </div>`;
-            html += '</div>';
-            html += '<div class="card-body">';
-            if (player.original_team) {
-                html += `<div class="small text-light-gray mb-2">Dispensado por: ${player.original_team}</div>`;
+
+            // Lista de propostas
+            html += `<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">`;
+            offers.forEach((offer, idx) => {
+                const canAfford = offer.team_coins >= offer.amount;
+                const hasSpace  = offer.roster_count < 15;
+                const isSugg    = suggested && offer.id === suggested.id;
+                const borderColor = isSugg ? 'rgba(34,197,94,.4)' : 'var(--border)';
+                const warnCoins  = !canAfford ? `<span style="font-size:10px;color:#ef4444;font-weight:600"><i class="bi bi-exclamation-triangle me-1"></i>Moedas insuf. (${offer.team_coins} disponíveis)</span>` : '';
+                const warnRoster = !hasSpace  ? `<span style="font-size:10px;color:#ef4444;font-weight:600"><i class="bi bi-exclamation-triangle me-1"></i>Elenco cheio</span>` : '';
+
+                html += `<div style="background:var(--panel-2);border:1px solid ${borderColor};border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        ${priorityBadge(offer.priority)}
+                        <span style="font-size:13px;font-weight:600;color:var(--text)">${esc(offer.team_name)}</span>
+                        ${warnCoins}${warnRoster}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+                        <span style="font-size:14px;font-weight:700;color:${canAfford ? 'var(--text)' : '#ef4444'}">${offer.amount} <span style="font-size:11px;font-weight:400;color:var(--text-3)">moedas</span></span>
+                        ${isSugg ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:#22c55e;white-space:nowrap"><i class="bi bi-trophy-fill me-1"></i>Sugerido</span>` : ''}
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+
+            // Sugestão textual
+            if (suggested) {
+                const note = suggested.team_coins >= suggested.amount && suggested.roster_count < 15
+                    ? `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>Vencedor sugerido: <strong>${esc(suggested.team_name)}</strong> com ${suggested.amount} moedas (prioridade ${suggested.priority})`
+                    : `<i class="bi bi-exclamation-triangle me-1" style="color:#f59e0b"></i>Atenção: todos os lances têm restrições (moedas ou elenco). Revise antes de aprovar.`;
+                html += `<div style="font-size:12px;color:var(--text-2);padding:8px 10px;background:var(--panel-2);border-radius:7px;margin-bottom:12px">${note}</div>`;
             }
-            html += `<div class="row g-2 align-items-end">
-                <div class="col-md-8">
-                    <label for="offerSelect-${player.id}" class="form-label">Selecionar time</label>
-                    <select id="offerSelect-${player.id}" class="form-select form-select-sm">
-                        <option value="">Selecione...</option>
-                        ${offers.map(offer => `<option value="${offer.id}" data-team-id="${offer.team_id}">
-                            ${offer.team_name} - ${offer.amount} moedas
-                        </option>`).join('')}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <button class="btn btn-success w-100" onclick="aprovarProposta(${player.id})">
-                        <i class="bi bi-check-lg me-1"></i>Aprovar
-                    </button>
-                </div>
+
+            // Controles de aprovação
+            html += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <select id="offerSelect-${player.id}" style="flex:1;min-width:160px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;font-family:var(--font)">
+                    <option value="">Selecione...</option>
+                    ${offers.map(o => `<option value="${o.id}" ${suggested && o.id === suggested.id ? 'selected' : ''}>${esc(o.team_name)} — ${o.amount} moedas (P${o.priority})</option>`).join('')}
+                </select>
+                <button onclick="aprovarProposta(${player.id})"
+                    style="padding:8px 16px;background:#22c55e;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">
+                    <i class="bi bi-check-lg me-1"></i>Aprovar
+                </button>
             </div>`;
-            html += '</div></div>';
+
+            html += `</div>`;
         });
 
         container.innerHTML = html;
@@ -1357,9 +1397,8 @@ document.getElementById('btnConfirmOffer')?.addEventListener('click', async () =
     if (amount === 0) {
         if (!confirm('Cancelar sua proposta para este jogador?')) return;
     } else {
-        const pendingSlots = (rosterLimit - (userRosterCount + userPendingOffers));
-        if (pendingSlots <= 0) {
-            alert('Elenco cheio ou limite de propostas atingido.');
+        if (userRosterCount >= rosterLimit) {
+            alert('Elenco cheio (15 jogadores). Dispense um jogador antes de enviar propostas.');
             return;
         }
         if (amount > userMoedas) {

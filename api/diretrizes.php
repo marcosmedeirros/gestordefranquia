@@ -753,14 +753,27 @@ if ($method === 'POST') {
                 }
 
                 // Atualizar modelo técnico do time (contando mudanças)
+                // Regra: só conta mudança na PRIMEIRA submissão do prazo onde o modelo
+                // final enviado difere do modelo oficial anterior.
+                // Re-submissões (edições do mesmo prazo) atualizam technical_model_current
+                // sem consumir mudança — assim o próximo prazo parte do modelo correto.
                 $modelNotice = null;
                 $changesRemaining = max(0, $changesLimit - $changesUsed);
-                if ($isElite && $isFirstSubmission && $modelChanged) {
-                    $changesUsed++;
-                    $changesRemaining = max(0, $changesLimit - $changesUsed);
-                    $stmtModel = $pdo->prepare('UPDATE teams SET technical_model_current = ?, technical_model_changes_used = ? WHERE id = ?');
-                    $stmtModel->execute([$technicalModel, $changesUsed, $team['id']]);
-                    $modelNotice = 'Modelo técnico atualizado. Você perdeu 1 mudança.';
+                $newCurrentModel = $currentModel;
+                if ($isElite && $technicalModel) {
+                    if ($isFirstSubmission && $modelChanged) {
+                        $changesUsed++;
+                        $changesRemaining = max(0, $changesLimit - $changesUsed);
+                        $pdo->prepare('UPDATE teams SET technical_model_current = ?, technical_model_changes_used = ? WHERE id = ?')
+                            ->execute([$technicalModel, $changesUsed, $team['id']]);
+                        $modelNotice = 'Modelo técnico atualizado. Você perdeu 1 mudança.';
+                        $newCurrentModel = $technicalModel;
+                    } elseif ($technicalModel !== $currentModel) {
+                        // Edição do mesmo prazo: sincroniza o modelo atual sem contar mudança
+                        $pdo->prepare('UPDATE teams SET technical_model_current = ? WHERE id = ?')
+                            ->execute([$technicalModel, $team['id']]);
+                        $newCurrentModel = $technicalModel;
+                    }
                 }
 
                 // Salvar diretriz base do time para reutilização
@@ -774,7 +787,7 @@ if ($method === 'POST') {
                     'technical_model_changes_used' => $changesUsed,
                     'technical_model_changes_limit' => $changesLimit,
                     'technical_model_changes_remaining' => $changesRemaining,
-                    'technical_model_current' => ($isFirstSubmission && $modelChanged) ? $technicalModel : $currentModel
+                    'technical_model_current' => $newCurrentModel
                 ]);
             } catch (Exception $e) {
                 $pdo->rollBack();

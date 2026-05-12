@@ -747,15 +747,18 @@ function listAdminOffers(PDO $pdo, string $league): void
     }
 
     $secondarySelect = $secondaryColumn ? "fa.{$secondaryColumn}" : "NULL";
+    $hasPriority = columnExists($pdo, 'free_agent_offers', 'priority');
+    $prioritySelect = $hasPriority ? 'fao.priority' : '1';
     $stmt = $pdo->prepare("
-        SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, fao.status, fao.created_at,
+        SELECT fao.id, fao.free_agent_id, fao.team_id, fao.amount, ({$prioritySelect}) AS priority, fao.status, fao.created_at,
                fa.name AS player_name, fa.position, {$secondarySelect} AS secondary_position, fa.{$ovrColumn} AS ovr, fa.age, fa.original_team_name,
-               t.city AS team_city, t.name AS team_name
+               t.city AS team_city, t.name AS team_name, COALESCE(t.moedas, 0) AS team_coins,
+               (SELECT COUNT(*) FROM players WHERE team_id = fao.team_id) AS roster_count
         FROM free_agent_offers fao
         JOIN free_agents fa ON fao.free_agent_id = fa.id
         JOIN teams t ON fao.team_id = t.id
         WHERE {$where} AND fao.status = 'pending'
-        ORDER BY fa.name ASC, fao.created_at ASC
+        ORDER BY fa.name ASC, fao.amount DESC, ({$prioritySelect}) ASC, fao.created_at ASC
     ");
     $stmt->execute($params);
     $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -778,11 +781,14 @@ function listAdminOffers(PDO $pdo, string $league): void
             ];
         }
         $grouped[$faId]['offers'][] = [
-            'id' => $offer['id'],
-            'team_id' => $offer['team_id'],
-            'team_name' => trim(($offer['team_city'] ?? '') . ' ' . ($offer['team_name'] ?? '')),
-            'amount' => $offer['amount'],
-            'created_at' => $offer['created_at']
+            'id'           => $offer['id'],
+            'team_id'      => $offer['team_id'],
+            'team_name'    => trim(($offer['team_city'] ?? '') . ' ' . ($offer['team_name'] ?? '')),
+            'amount'       => (int)$offer['amount'],
+            'priority'     => (int)($offer['priority'] ?? 1),
+            'team_coins'   => (int)$offer['team_coins'],
+            'roster_count' => (int)$offer['roster_count'],
+            'created_at'   => $offer['created_at']
         ];
     }
 
@@ -1485,17 +1491,15 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($amount > 0 && !$existing) {
-        // Limite de elenco: jogadores atuais + ofertas pendentes n?o pode exceder 15
+        // Bloqueia só se o elenco já está literalmente cheio (sem vagas).
+        // O time pode enviar várias propostas simultâneas; a validação de quantos
+        // pode GANHAR é feita no momento da aprovação (approveOffer).
         $stmtRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
         $stmtRoster->execute([$teamId]);
         $rosterCount = (int)$stmtRoster->fetchColumn();
 
-        $stmtPend = $pdo->prepare('SELECT COUNT(*) FROM free_agent_offers WHERE team_id = ? AND status = "pending"');
-        $stmtPend->execute([$teamId]);
-        $pendingCount = (int)$stmtPend->fetchColumn();
-
-        if (($rosterCount + $pendingCount) >= 15) {
-            jsonError('Elenco cheio ou limite de propostas atingido (15 jogadores).');
+        if ($rosterCount >= 15) {
+            jsonError('Elenco cheio (15 jogadores). Dispense um jogador antes de enviar propostas.');
         }
     }
 
@@ -1625,12 +1629,34 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $stmtDelete->execute([(int)$offer['free_agent_id']]);
         }
 
+        // Rejeitar outras propostas para este mesmo free agent
         $stmtOffers = $pdo->prepare('
             UPDATE free_agent_offers
             SET status = CASE WHEN id = ? THEN "accepted" ELSE "rejected" END
             WHERE free_agent_id = ? AND status = "pending"
         ');
         $stmtOffers->execute([(int)$offer['id'], (int)$offer['free_agent_id']]);
+
+        // Calcular novo estado do time vencedor
+        $newCoins = (int)$offer['moedas'] - (int)$offer['amount'];
+        $stmtNewRoster = $pdo->prepare('SELECT COUNT(*) FROM players WHERE team_id = ?');
+        $stmtNewRoster->execute([(int)$offer['team_id']]);
+        $newRosterCount = (int)$stmtNewRoster->fetchColumn();
+
+        // Cancelar outras propostas deste time que ele não consegue mais ganhar:
+        // — elenco cheio (acaba de atingir 15) OU moedas insuficientes
+        if ($newRosterCount >= 15) {
+            // Elenco cheio: cancela todas as demais propostas pendentes do time
+            $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending"')
+                ->execute([(int)$offer['team_id']]);
+        } elseif ($newCoins < 0) {
+            // Moedas insuficientes: cancela propostas que custam mais do que sobrou
+            $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending" AND amount > 0')
+                ->execute([(int)$offer['team_id']]);
+        } else {
+            $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending" AND amount > ?')
+                ->execute([(int)$offer['team_id'], $newCoins]);
+        }
 
         $pdo->commit();
         jsonSuccess([

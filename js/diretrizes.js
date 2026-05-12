@@ -469,11 +469,17 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadExistingDirective() {
   const deadlineId = window.__DEADLINE_ID__;
   if (!deadlineId) return;
-  
+
   try {
     const data = await api(`diretrizes.php?action=my_directive&deadline_id=${deadlineId}`);
     if (data.directive) {
       applyDirectiveToForm(data.directive);
+      // Se já existe uma diretriz salva para este prazo, o modelo dela é a
+      // referência correta: mudança só conta se o valor final enviado for
+      // diferente do que está nessa diretriz (não do technical_model_current).
+      if (data.directive.technical_model) {
+        modelMeta = { ...modelMeta, currentModel: data.directive.technical_model };
+      }
     }
   } catch (err) {
     console.error('Erro ao carregar diretriz:', err);

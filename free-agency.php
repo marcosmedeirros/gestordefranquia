@@ -882,7 +882,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                 </div>
                 <div class="hint-box" style="margin-top:16px;">
                     <p>Moedas disponíveis: <strong id="moedasDisponiveis"><?= $team_moedas ?></strong></p>
-                    <p style="margin-top:4px;color:var(--text-3);">Informe 0 moedas para cancelar sua proposta.</p>
+                    <p style="margin-top:4px;">Vagas no elenco: <strong><?= 15 - $team_roster_count ?></strong>/15</p>
+                    <p style="margin-top:6px;color:var(--text-3);font-size:12px;">Você pode enviar várias propostas, mas só pode ganhar de acordo com suas vagas e moedas disponíveis. Informe 0 para cancelar.</p>
                 </div>
             </div>
             <div class="modal-footer" style="gap:10px;">
