@@ -1214,6 +1214,7 @@ try {
             }
 
             // DDL fora da transação (ALTER/CREATE causam commit implícito no MySQL)
+            ensurePlayerSeasonLogTable($pdo); // CREATE TABLE dentro de snapshotPlayersForSeason
             if (!columnExists($pdo, 'teams', 'ranking_titles')) {
                 $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
             }
@@ -1463,10 +1464,10 @@ try {
             // Marcar temporada como completa
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
 
-            // Snapshot automático dos jogadores ao encerrar a temporada
-            snapshotPlayersForSeason($pdo, $seasonId, $league);
-
             $pdo->commit();
+
+            // Fora da transação: snapshot usa CREATE TABLE IF NOT EXISTS (DDL = commit implícito)
+            snapshotPlayersForSeason($pdo, $seasonId, $league);
 
             // Sincronizar team_season_points com total acumulado (regular + playoff + prêmios)
             syncTeamSeasonPoints($pdo, $seasonId, $league, $sprintNumber, $seasonNumber);
