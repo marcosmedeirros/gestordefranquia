@@ -91,7 +91,25 @@ function parseSkillGrades(raw) {
 
 function normalizeSkillGrades(player) {
   const grades = parseSkillGrades(player?.player_skill_grades);
-  return { ...grades };
+  const columnGrades = {
+    in: player?.skill_in,
+    mid: player?.skill_mid,
+    pt3: player?.skill_3pt,
+    post_d: player?.skill_post_d,
+    per_d: player?.skill_per_d,
+    play: player?.skill_play,
+    reb: player?.skill_reb,
+    athl: player?.skill_athl,
+    iq: player?.skill_iq,
+    pot: player?.skill_pot,
+  };
+  const merged = { ...grades };
+  Object.entries(columnGrades).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      merged[key] = value;
+    }
+  });
+  return merged;
 }
 
 function buildSkillGradesHtml(grades) {
@@ -963,83 +981,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);
 
-  const uploadStatsBtn = document.getElementById('btn-upload-stats');
-  const uploadModalEl = document.getElementById('uploadStatsModal');
-  const uploadModal = uploadModalEl ? new bootstrap.Modal(uploadModalEl) : null;
-  const statsFileInput = document.getElementById('stats-file');
-  const statsProcessBtn = document.getElementById('btn-process-stats');
-  const statsSaveBtn = document.getElementById('btn-save-stats');
-  const statsStatusEl = document.getElementById('stats-upload-status');
-  const statsPreviewEl = document.getElementById('stats-upload-preview');
-  let pendingStatsFile = null;
-
-  uploadStatsBtn?.addEventListener('click', () => {
-    pendingSkillUpdates = [];
-    pendingStatsFile = null;
-    if (statsFileInput) statsFileInput.value = '';
-    if (statsPreviewEl) statsPreviewEl.textContent = 'Nenhum dado processado ainda.';
-    if (statsStatusEl) statsStatusEl.textContent = 'Envie a imagem com a lista de jogadores e colunas de habilidades.';
-    if (statsSaveBtn) statsSaveBtn.disabled = true;
-    uploadModal?.show();
-  });
-
-  statsFileInput?.addEventListener('change', (e) => {
-    pendingStatsFile = e.target.files?.[0] || null;
-    pendingSkillUpdates = [];
-    if (statsPreviewEl) statsPreviewEl.textContent = pendingStatsFile ? 'Arquivo pronto para processar.' : 'Nenhum arquivo selecionado.';
-    if (statsStatusEl) statsStatusEl.textContent = pendingStatsFile ? 'Clique em Processar para iniciar o OCR.' : 'Envie a imagem com a lista de jogadores e colunas de habilidades.';
-    if (statsSaveBtn) statsSaveBtn.disabled = true;
-  });
-
-  statsProcessBtn?.addEventListener('click', async () => {
-    if (!pendingStatsFile) {
-      alert('Selecione uma imagem primeiro.');
-      return;
-    }
-    if (!window.Tesseract) {
-      alert('OCR indisponivel no momento.');
-      return;
-    }
-    if (statsProcessBtn) statsProcessBtn.disabled = true;
-    try {
-      const result = await processStatsImage(pendingStatsFile, statsStatusEl, statsPreviewEl);
-      pendingSkillUpdates = result.updates || [];
-      if (statsSaveBtn) statsSaveBtn.disabled = pendingSkillUpdates.length === 0;
-    } catch (err) {
-      if (statsStatusEl) statsStatusEl.textContent = 'Falha ao processar imagem.';
-      alert('Erro no OCR: ' + (err.message || 'Desconhecido'));
-    } finally {
-      if (statsProcessBtn) statsProcessBtn.disabled = false;
-    }
-  });
-
-  statsSaveBtn?.addEventListener('click', async () => {
-    if (!pendingSkillUpdates.length) {
-      alert('Nenhum jogador reconhecido para salvar.');
-      return;
-    }
-    if (statsSaveBtn) statsSaveBtn.disabled = true;
-    try {
-      await api('players.php', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'bulk_update_skill_grades',
-          team_id: window.__TEAM_ID__,
-          updates: pendingSkillUpdates.map(item => ({
-            player_id: item.playerId,
-            skill_grades: item.grades,
-          }))
-        })
-      });
-      if (statsStatusEl) statsStatusEl.textContent = `Atualizado: ${pendingSkillUpdates.length} jogador(es).`;
-      uploadModal?.hide();
-      loadPlayers();
-    } catch (err) {
-      alert('Erro ao salvar stats: ' + (err.error || err.message || 'Desconhecido'));
-    } finally {
-      if (statsSaveBtn) statsSaveBtn.disabled = false;
-    }
-  });
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   document.getElementById('players-search')?.addEventListener('input', (e) => {
     currentSearch = (e.target.value || '').toLowerCase();

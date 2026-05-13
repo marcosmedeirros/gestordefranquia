@@ -834,7 +834,25 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	function normalizeSkillGrades(player) {
 		const grades = parseSkillGrades(player?.player_skill_grades);
-		return { ...grades };
+		const columnGrades = {
+			in: player?.skill_in,
+			mid: player?.skill_mid,
+			pt3: player?.skill_3pt,
+			post_d: player?.skill_post_d,
+			per_d: player?.skill_per_d,
+			play: player?.skill_play,
+			reb: player?.skill_reb,
+			athl: player?.skill_athl,
+			iq: player?.skill_iq,
+			pot: player?.skill_pot,
+		};
+		const merged = { ...grades };
+		Object.entries(columnGrades).forEach(([key, value]) => {
+			if (value !== null && value !== undefined && value !== '') {
+				merged[key] = value;
+			}
+		});
+		return merged;
 	}
 
 	function buildSkillGradesHtml(grades) {

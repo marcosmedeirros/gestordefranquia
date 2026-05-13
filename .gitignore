@@ -1,4 +1,5 @@
 vendor/
 backend/vapid-config.php
 backend/config.php
+backend/config.local.php
 games/core/wordlist5.php

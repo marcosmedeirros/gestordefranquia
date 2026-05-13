@@ -368,27 +368,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .modal-title   { font-size: 16px; font-weight: 600; font-family: var(--font); color: var(--text); }
         .modal-body    { padding: 20px; }
 
-        .stats-upload-panel {
-            border: 1px solid var(--border);
-            background: var(--panel-2);
-            border-radius: 12px;
-            padding: 14px;
-        }
-        .stats-upload-panel .field input {
-            background: var(--panel-3);
-        }
-        .stats-upload-status {
-            font-size: 12px;
-            color: var(--text-2);
-        }
-        .stats-upload-preview {
-            border: 1px dashed var(--border);
-            border-radius: 12px;
-            padding: 12px;
-            max-height: 240px;
-            overflow: auto;
-            background: var(--panel-3);
-        }
         .skill-grades-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -700,9 +679,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
                     </button>
-                    <button id="btn-upload-stats" class="btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#uploadStatsModal">
-                        <i class="bi bi-upload"></i> Enviar stats players
-                    </button>
                     <!-- Refresh -->
                     <button id="btn-refresh-players" class="btn-ghost" type="button">
                         <i class="bi bi-arrow-clockwise"></i>
@@ -926,41 +902,11 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     </div>
 </div>
 
-<!-- Modal: Enviar stats players -->
-<div class="modal fade" id="uploadStatsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-upload me-2" style="color:var(--red)"></i>Enviar stats players</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="stats-upload-panel">
-                    <div class="field" style="margin-bottom:10px;">
-                        <label for="stats-file">Imagem do elenco</label>
-                        <input type="file" id="stats-file" class="form-control" accept="image/*">
-                    </div>
-                    <div class="stats-upload-status" id="stats-upload-status">Envie a imagem com a lista de jogadores e colunas de habilidades.</div>
-                </div>
-                <div style="margin-top:14px;">
-                    <div style="font-size:11px;color:var(--text-2);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Prévia</div>
-                    <div class="stats-upload-preview" id="stats-upload-preview">Nenhum dado processado ainda.</div>
-                </div>
-            </div>
-            <div class="modal-footer" style="gap:10px;">
-                <button class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
-                <button class="btn-ghost" id="btn-process-stats"><i class="bi bi-magic"></i> Processar</button>
-                <button class="btn-red" id="btn-save-stats" disabled><i class="bi bi-save2"></i> Salvar</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- ══════════════════════════════════════
      SCRIPTS
 ══════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
@@ -1012,6 +958,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260513-3"></script>
+<script src="/js/my-roster-v2.js?v=20260513-4"></script>
 </body>
 </html>

@@ -12,7 +12,8 @@ function loadConfig(): array
         return $config;
     }
 
-    $configFile = __DIR__ . '/config.php';
+    $localConfigFile = __DIR__ . '/config.local.php';
+    $configFile = file_exists($localConfigFile) ? $localConfigFile : __DIR__ . '/config.php';
     if (!file_exists($configFile)) {
         http_response_code(500);
         echo json_encode(['error' => 'Config file missing.']);
