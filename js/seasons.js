@@ -169,9 +169,51 @@ async function createNewSeason(league) {
 }
 
 // ========== AVANÇAR TEMPORADA ==========
+function _formCacheKey(league, seasonId) {
+    return `avancar_${league}_${seasonId}`;
+}
+
+function _saveFormCache(league, seasonId) {
+    const form = document.getElementById('formAvancarTemporada');
+    if (!form) return;
+    const state = {};
+    form.querySelectorAll('[name]').forEach(el => {
+        if (el.tagName === 'SELECT' && el.multiple) {
+            state[el.name] = Array.from(el.selectedOptions).map(o => o.value);
+        } else {
+            state[el.name] = el.value;
+        }
+    });
+    localStorage.setItem(_formCacheKey(league, seasonId), JSON.stringify(state));
+}
+
+function _restoreFormCache(league, seasonId) {
+    const form = document.getElementById('formAvancarTemporada');
+    if (!form) return;
+    const raw = localStorage.getItem(_formCacheKey(league, seasonId));
+    if (!raw) return;
+    try {
+        const state = JSON.parse(raw);
+        Object.entries(state).forEach(([name, value]) => {
+            const el = form.querySelector(`[name="${name}"]`);
+            if (!el) return;
+            if (el.tagName === 'SELECT' && el.multiple) {
+                Array.from(el.options).forEach(opt => { opt.selected = value.includes(opt.value); });
+            } else {
+                el.value = value;
+            }
+        });
+    } catch (_) {}
+}
+
+function _clearFormCache(league, seasonId) {
+    localStorage.removeItem(_formCacheKey(league, seasonId));
+}
+
 async function showAvancarTemporada(league) {
     seasonsState.currentLeague = league;
     const season = await loadCurrentSeason(league);
+    if (season) seasonsState.currentSeasonId = season.id;
 
     const container = document.getElementById('mainContainer');
 
@@ -327,6 +369,9 @@ async function showAvancarTemporada(league) {
                 </form>
             </div>
         </div>`;
+
+    document.getElementById('formAvancarTemporada')
+        ?.addEventListener('change', () => _saveFormCache(league, season.id));
 }
 
 async function saveAndAdvanceSeason(event, seasonId, league) {
@@ -393,6 +438,7 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
             method: 'POST',
             body: JSON.stringify(payload)
         });
+        _clearFormCache(league, seasonId);
         btn.innerHTML = originalText;
         btn.disabled = false;
         await _doCreateNewSeason(league);
@@ -676,6 +722,10 @@ async function loadTeamsForStandings(league) {
                     teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
             }
         });
+
+        if (seasonsState.currentSeasonId) {
+            _restoreFormCache(league, seasonsState.currentSeasonId);
+        }
     } catch (e) {
         alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
     }
