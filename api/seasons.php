@@ -1212,7 +1212,43 @@ try {
             if (in_array($champion, $allEliminated) || in_array($runnerUp, $allEliminated)) {
                 throw new Exception('Não inclua campeão ou vice nas fases de eliminados');
             }
-            
+
+            // DDL fora da transação (ALTER/CREATE causam commit implícito no MySQL)
+            if (!columnExists($pdo, 'teams', 'ranking_titles')) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
+            }
+            $stmtShCheck = $pdo->query("SHOW TABLES LIKE 'season_history'");
+            if (!$stmtShCheck->fetch()) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS season_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    season_id INT NOT NULL,
+                    league VARCHAR(20),
+                    sprint_number INT,
+                    season_number INT,
+                    year INT,
+                    champion_team_id INT NULL,
+                    runner_up_team_id INT NULL,
+                    mvp_player VARCHAR(100) NULL,
+                    mvp_team_id INT NULL,
+                    dpoy_player VARCHAR(100) NULL,
+                    dpoy_team_id INT NULL,
+                    mip_player VARCHAR(100) NULL,
+                    mip_team_id INT NULL,
+                    sixth_man_player VARCHAR(100) NULL,
+                    sixth_man_team_id INT NULL,
+                    roy_player VARCHAR(100) NULL,
+                    roy_team_id INT NULL,
+                    UNIQUE KEY unique_season_history (season_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+            try {
+                $chkRoy = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+                if (!$chkRoy->fetch()) {
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_player VARCHAR(100) NULL AFTER sixth_man_team_id");
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_team_id INT NULL AFTER roy_player");
+                }
+            } catch (Exception $ignored) {}
+
             $pdo->beginTransaction();
             
             // 1. Buscar informações da Liga (necessário para a tabela team_ranking_points)
@@ -1347,10 +1383,6 @@ try {
             }
 
             // 4. Somar +1 título ao time campeão.
-            if (!columnExists($pdo, 'teams', 'ranking_titles')) {
-                $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
-            }
-
             $pdo->prepare("UPDATE teams SET ranking_titles = COALESCE(ranking_titles, 0) + 1 WHERE id = ?")
                 ->execute([$champion]);
 
@@ -1381,40 +1413,6 @@ try {
             }
             
             // 5. Salvar no season_history (histórico oficial: campeão, vice e prêmios individuais)
-            $stmtShCheck = $pdo->query("SHOW TABLES LIKE 'season_history'");
-            if (!$stmtShCheck->fetch()) {
-                $pdo->exec("CREATE TABLE IF NOT EXISTS season_history (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    season_id INT NOT NULL,
-                    league VARCHAR(20),
-                    sprint_number INT,
-                    season_number INT,
-                    year INT,
-                    champion_team_id INT NULL,
-                    runner_up_team_id INT NULL,
-                    mvp_player VARCHAR(100) NULL,
-                    mvp_team_id INT NULL,
-                    dpoy_player VARCHAR(100) NULL,
-                    dpoy_team_id INT NULL,
-                    mip_player VARCHAR(100) NULL,
-                    mip_team_id INT NULL,
-                    sixth_man_player VARCHAR(100) NULL,
-                    sixth_man_team_id INT NULL,
-                    roy_player VARCHAR(100) NULL,
-                    roy_team_id INT NULL,
-                    UNIQUE KEY unique_season_history (season_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            }
-
-            // Garantir colunas ROY (compatibilidade com instalações antigas)
-            try {
-                $chkRoy = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
-                if (!$chkRoy->fetch()) {
-                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_player VARCHAR(100) NULL AFTER sixth_man_team_id");
-                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_team_id INT NULL AFTER roy_player");
-                }
-            } catch (Exception $ignored) {}
-
             $pdo->prepare("
                 INSERT INTO season_history
                     (season_id, league, sprint_number, season_number, year,
