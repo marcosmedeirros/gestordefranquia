@@ -334,12 +334,15 @@ if ($method === 'POST') {
         }
         ensurePlayerSkillGradesColumn($pdo);
         ensureSkillGradeColumns($pdo);
-        $stmtUpd = $pdo->prepare('UPDATE players SET player_skill_grades = ?, skill_in = ?, skill_mid = ?, skill_3pt = ?, skill_post_d = ?, skill_per_d = ?, skill_play = ?, skill_reb = ?, skill_athl = ?, skill_iq = ?, skill_pot = ? WHERE id = ? AND team_id = ?');
+        $stmtUpd = $pdo->prepare('UPDATE players SET player_skill_grades = ?, skill_in = ?, skill_mid = ?, skill_3pt = ?, skill_post_d = ?, skill_per_d = ?, skill_play = ?, skill_reb = ?, skill_athl = ?, skill_iq = ?, skill_pot = ?, age = COALESCE(?, age), ovr = COALESCE(?, ovr) WHERE id = ? AND team_id = ?');
         $updated = 0;
+        $updatedIds = [];
+        $itemResults = [];
         foreach ($updates as $item) {
             $playerId = (int)($item['player_id'] ?? 0);
             $grades = $item['skill_grades'] ?? null;
             if (!$playerId || (!is_array($grades) && $grades !== null)) {
+                $itemResults[] = ['player_id' => $playerId, 'status' => 'skipped'];
                 continue;
             }
             $json = $grades === null ? null : json_encode($grades);
@@ -348,6 +351,8 @@ if ($method === 'POST') {
                 $val = $grades[$key] ?? null;
                 return $val !== '' ? $val : null;
             };
+            $age = isset($item['age']) && is_numeric($item['age']) ? (int)$item['age'] : null;
+            $ovr = isset($item['ovr']) && is_numeric($item['ovr']) ? (int)$item['ovr'] : null;
             $stmtUpd->execute([
                 $json,
                 $gradeVal('in'),
@@ -360,14 +365,36 @@ if ($method === 'POST') {
                 $gradeVal('athl'),
                 $gradeVal('iq'),
                 $gradeVal('pot'),
+                $age,
+                $ovr,
                 $playerId,
                 $teamId
             ]);
-            if ($stmtUpd->rowCount() > 0) {
-                $updated += 1;
+            $affected = $stmtUpd->rowCount();
+            $matched = null;
+            if ($affected === 0) {
+                $chk = $pdo->prepare('SELECT COUNT(*) FROM players WHERE id = ? AND team_id = ?');
+                $chk->execute([$playerId, $teamId]);
+                $matched = (int)$chk->fetchColumn();
             }
+            if ($affected > 0) {
+                $updated += 1;
+                $updatedIds[] = $playerId;
+            }
+            $itemResults[] = [
+                'player_id' => $playerId,
+                'age' => $age,
+                'ovr' => $ovr,
+                'affected' => $affected,
+                'matched' => $matched,
+            ];
         }
-        jsonResponse(200, ['updated' => $updated, 'total' => count($updates)]);
+        jsonResponse(200, [
+            'updated' => $updated,
+            'total' => count($updates),
+            'updated_ids' => $updatedIds,
+            'items' => $itemResults,
+        ]);
     }
     $teamId = (int) ($body['team_id'] ?? 0);
     $name = trim($body['name'] ?? '');

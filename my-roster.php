@@ -368,43 +368,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .modal-title   { font-size: 16px; font-weight: 600; font-family: var(--font); color: var(--text); }
         .modal-body    { padding: 20px; }
 
-        .skill-grades-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-            gap: 10px;
-        }
-        .skill-grade-item {
-            background: var(--panel-2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 8px 10px;
-            text-align: center;
-        }
-        .skill-grade-label {
-            font-size: 10px;
-            color: var(--text-3);
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            font-weight: 700;
-        }
-        .skill-grade-value {
-            font-size: 16px;
-            font-weight: 800;
-            margin-top: 4px;
-        }
-        .skill-edit-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 10px;
-        }
-        .skill-edit-grid select {
-            background: var(--panel-3);
-            border: 1px solid var(--border);
-            color: var(--text);
-            border-radius: 8px;
-            padding: 6px 8px;
-            font-size: 12px;
-        }
+
         .btn-close-white { filter: invert(1); }
 
         /* Empty state */
@@ -743,6 +707,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     </div>
 </div>
 
+
 <!-- Modal: Editar Jogador -->
 <div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -958,6 +923,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260513-4"></script>
+<script src="/js/my-roster-v2.js?v=20260513-11"></script>
 </body>
 </html>

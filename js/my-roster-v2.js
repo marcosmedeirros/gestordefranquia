@@ -177,15 +177,21 @@ function buildPlayerLookup(players) {
   return lookup;
 }
 
+function cleanGradeToken(token) {
+  const match = String(token || '').toUpperCase().match(/[ABCDF][+-]?/);
+  return match ? match[0] : '';
+}
+
 function isGradeToken(token) {
-  return /^[ABCDF][+-]?$/.test(String(token || '').toUpperCase());
+  return cleanGradeToken(token) !== '';
 }
 
 function extractSkillRowFromTokens(tokens) {
   const gradeTokens = [];
   tokens.forEach((token, idx) => {
-    if (isGradeToken(token)) {
-      gradeTokens.push({ idx, token: String(token).toUpperCase() });
+    const cleanToken = cleanGradeToken(token);
+    if (cleanToken) {
+      gradeTokens.push({ idx, token: cleanToken });
     }
   });
   if (gradeTokens.length < 6) return null;
@@ -205,10 +211,21 @@ function extractSkillRowFromTokens(tokens) {
   if (posIndex < 0) return null;
 
   const pos = (headerTokens[posIndex] || '').toUpperCase();
+  const numericTokens = headerTokens
+    .slice(posIndex + 1)
+    .map(t => {
+      const match = String(t).match(/(\d{2,3})/);
+      return match ? match[1] : null;
+    })
+    .filter(Boolean);
+  const age = numericTokens[0] ? parseInt(numericTokens[0], 10) : null;
+  const ovr = numericTokens[1] ? parseInt(numericTokens[1], 10) : null;
   const name = headerTokens.slice(0, posIndex).join(' ').trim();
   if (!name) return null;
   return {
     name,
+    age,
+    ovr,
     grades: {
       in: skillTokens[0],
       mid: skillTokens[1],
@@ -884,58 +901,6 @@ function copyPlayerSummary(btn) {
   });
 }
 
-function renderStatsPreview(container, rows, unmatched) {
-  if (!container) return;
-  if (!rows.length) {
-    container.textContent = 'Nenhum jogador reconhecido.';
-    return;
-  }
-  const summary = rows.map(row => {
-    const grades = row.grades || {};
-    const skillText = SKILL_GRADE_EDIT_FIELDS.map(field => `${field.label}:${grades[field.key] || '-'}`).join(' ');
-    return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
-      <strong style="color:var(--text);">${row.playerName}</strong>
-      <div style="color:var(--text-2);margin-top:4px;">${skillText}</div>
-    </div>`;
-  }).join('');
-  const unmatchedHtml = unmatched.length
-    ? `<div style="margin-top:10px;color:var(--text-3);font-size:11px;">Nao encontrados: ${unmatched.join(', ')}</div>`
-    : '';
-  container.innerHTML = `${summary}${unmatchedHtml}`;
-}
-
-async function processStatsImage(file, statusEl, previewEl) {
-  if (!file || !window.Tesseract) return { updates: [], unmatched: [] };
-  if (statusEl) statusEl.textContent = 'Processando imagem...';
-  const result = await Tesseract.recognize(file, 'eng', {
-    logger: (m) => {
-      if (!statusEl) return;
-      if (m.status === 'recognizing text') {
-        statusEl.textContent = `OCR: ${(m.progress * 100).toFixed(0)}%`;
-      }
-    }
-  });
-  const rows = extractSkillRowsFromText(result?.data?.text || '');
-  const lookup = buildPlayerLookup(allPlayers);
-  const updates = [];
-  const unmatched = [];
-  rows.forEach(row => {
-    const key = normalizePlayerName(row.name);
-    const player = lookup.get(key) || lookup.get(key.replace(/\./g, ''));
-    if (!player) {
-      unmatched.push(row.name);
-      return;
-    }
-    updates.push({
-      playerId: player.id,
-      playerName: player.name,
-      grades: row.grades,
-    });
-  });
-  renderStatsPreview(previewEl, updates, unmatched);
-  if (statusEl) statusEl.textContent = `Reconhecidos: ${updates.length}. Nao encontrados: ${unmatched.length}.`;
-  return { updates, unmatched };
-}
 
 async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
@@ -980,6 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-ai-analysis')?.addEventListener('click', generateAIAnalysis);
 
   document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);
+
 
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   document.getElementById('players-search')?.addEventListener('input', (e) => {
@@ -1281,9 +1247,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (titleEl) titleEl.textContent = player.name || 'Detalhes';
       const transfers = Array.isArray(data.transfers) ? data.transfers : [];
       const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
-      const skillGrades = normalizeSkillGrades(player);
-      const skillGradesHtml = buildSkillGradesHtml(skillGrades);
-      const skillEditorHtml = buildSkillGradesEditorHtml(skillGrades);
 
       const latestDelta = seasonLog.length >= 2
         ? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
@@ -1337,17 +1300,6 @@ document.addEventListener('DOMContentLoaded', () => {
           ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
             .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
         </div>
-        <div style="padding:16px 22px;border-bottom:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas de Habilidades</div>
-          ${skillGradesHtml}
-          <div style="margin-top:14px;">
-            <div style="font-size:11px;color:var(--text-2);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Editar notas</div>
-            ${skillEditorHtml}
-            <div style="margin-top:12px;display:flex;justify-content:flex-end;">
-              <button class="btn-ghost btn-save-skill-grades" type="button">Salvar notas</button>
-            </div>
-          </div>
-        </div>
         <div style="padding:16px 22px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
           ${seasonLogHtml}
@@ -1356,23 +1308,6 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
           ${transferHtml}
         </div>`;
-      if (content) {
-        const saveBtn = content.querySelector('.btn-save-skill-grades');
-        if (saveBtn) {
-          saveBtn.addEventListener('click', async () => {
-            const editor = content.querySelector('.skill-edit-grid');
-            const updatedGrades = collectSkillGradesFromEditor(editor, skillGrades);
-            try {
-              await api('players.php', { method: 'PUT', body: JSON.stringify({ id: player.id, skill_grades: updatedGrades }) });
-              const refreshed = normalizeSkillGrades({ ...player, player_skill_grades: updatedGrades });
-              const gradeWrap = content.querySelector('.skill-grades-grid');
-              if (gradeWrap) gradeWrap.outerHTML = buildSkillGradesHtml(refreshed);
-            } catch (err) {
-              alert('Erro ao salvar notas: ' + (err.error || err.message || 'Desconhecido'));
-            }
-          });
-        }
-      }
     } catch (err) {
       if (content) content.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>';
     }
