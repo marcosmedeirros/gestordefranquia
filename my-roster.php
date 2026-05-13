@@ -700,7 +700,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
                     </button>
-                    <button id="btn-upload-stats" class="btn-ghost" type="button">
+                    <button id="btn-upload-stats" class="btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#uploadStatsModal">
                         <i class="bi bi-upload"></i> Enviar stats players
                     </button>
                     <!-- Refresh -->
@@ -1012,6 +1012,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260510"></script>
+<script src="/js/my-roster-v2.js?v=20260513-1"></script>
 </body>
 </html>
