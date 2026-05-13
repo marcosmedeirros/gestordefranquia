@@ -357,6 +357,11 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
         return;
     }
 
+    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
+        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
+        return s ? (s.value || null) : null;
+    }).filter(Boolean);
+
     const payload = {
         season_id: seasonId,
         champion,
@@ -364,6 +369,8 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
         first_round_losses: firstRound,
         second_round_losses: secondRound,
         conference_final_losses: confFinal,
+        standings_leste: getRankList('leste'),
+        standings_oeste: getRankList('oeste'),
         mvp: form.mvp_player_name.value || null,
         mvp_team_id: form.mvp_team_id.value || null,
         dpoy: form.dpoy_player_name.value || null,
@@ -626,42 +633,43 @@ async function loadTeamsForStandings(league) {
     try {
         const data = await api(`admin.php?action=teams&league=${league}`);
         const teams = data.teams || [];
-        
+
+        const leste = teams.filter(t => t.conference === 'LESTE');
+        const oeste = teams.filter(t => t.conference === 'OESTE');
+
+        const makeSlots = (conf, confTeams) => {
+            const opts = '<option value="">—</option>' +
+                confTeams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
+            return Array.from({length: 8}, (_, i) => `
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="text-light-gray fw-bold" style="width:28px;text-align:right">${i + 1}°</span>
+                    <select class="form-select form-select-sm bg-dark text-white border-orange"
+                            name="${conf}_rank_${i + 1}" style="border-radius:10px">${opts}</select>
+                </div>`).join('');
+        };
+
         const container = document.getElementById('standingsContainer');
         container.innerHTML = `
-            <div class="table-responsive">
-                <table class="table table-dark">
-                    <thead>
-                        <tr>
-                            <th>Posição</th>
-                            <th>Time</th>
-                            <th>V</th>
-                            <th>D</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${teams.map((t, idx) => `
-                            <tr>
-                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="position_${t.id}" value="${idx + 1}" min="1" style="width: 70px; border-radius: 10px;"></td>
-                                <td>${t.city} ${t.name}</td>
-                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="wins_${t.id}" value="0" min="0" style="width: 70px; border-radius: 10px;"></td>
-                                <td><input type="number" class="form-control form-control-sm bg-dark text-white" name="losses_${t.id}" value="0" min="0" style="width: 70px; border-radius: 10px;"></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <h6 class="text-orange mb-2"><i class="bi bi-geo-alt me-1"></i>Conferência Leste</h6>
+                    ${makeSlots('leste', leste)}
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-orange mb-2"><i class="bi bi-geo-alt me-1"></i>Conferência Oeste</h6>
+                    ${makeSlots('oeste', oeste)}
+                </div>
+            </div>`;
 
         // Popular selects de premiações
         const selects = document.querySelectorAll('select[name$="_team_id"]');
         selects.forEach(select => {
-            select.innerHTML = '<option value="">Selecione...</option>' + 
+            select.innerHTML = '<option value="">Selecione...</option>' +
                 teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
         });
 
         // Popular multi-selects de eliminados por fase
-        ['first_round_losses','second_round_losses','conference_final_losses'].forEach(name => {
+        ['first_round_losses', 'second_round_losses', 'conference_final_losses'].forEach(name => {
             const select = document.querySelector(`select[name="${name}"]`);
             if (select) {
                 select.innerHTML = '<option value="">Selecione...</option>' +
@@ -708,6 +716,11 @@ function saveSeasonHistory(event, seasonId) {
         return;
     }
 
+    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
+        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
+        return s ? (s.value || null) : null;
+    }).filter(Boolean);
+
     const payload = {
         season_id: seasonId,
         champion,
@@ -715,6 +728,8 @@ function saveSeasonHistory(event, seasonId) {
         first_round_losses: firstRound,
         second_round_losses: secondRound,
         conference_final_losses: confFinal,
+        standings_leste: getRankList('leste'),
+        standings_oeste: getRankList('oeste'),
         mvp: form.mvp_player_name.value || null,
         mvp_team_id: form.mvp_team_id.value || null,
         dpoy: form.dpoy_player_name.value || null,
