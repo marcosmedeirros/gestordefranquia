@@ -168,6 +168,215 @@ async function createNewSeason(league) {
     }
 }
 
+// ========== PLAYOFF BRACKET ==========
+let _bracket = null;
+
+function generateBracket(league) {
+    const form = document.getElementById('formAvancarTemporada');
+    const tById = seasonsState.teamsById || {};
+    const getSeeds = (conf) => Array.from({length: 8}, (_, i) => {
+        const el = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
+        return el?.value ? tById[String(el.value)] : null;
+    }).filter(Boolean);
+    const leste = getSeeds('leste'), oeste = getSeeds('oeste');
+    if (leste.length < 8 || oeste.length < 8) {
+        alert('Selecione os 8 times de cada conferência antes de gerar o playoff.');
+        return;
+    }
+    // 1v8 e 4v5 → R2 topo; 2v7 e 3v6 → R2 baixo
+    const initConf = (s) => ({
+        r1: [
+            {t1: s[0], t2: s[7], w: null, s1: 1, s2: 8},
+            {t1: s[3], t2: s[4], w: null, s1: 4, s2: 5},
+            {t1: s[1], t2: s[6], w: null, s1: 2, s2: 7},
+            {t1: s[2], t2: s[5], w: null, s1: 3, s2: 6},
+        ],
+        r2: [null, null], cf: null, winner: null,
+    });
+    _bracket = {leste: initConf(leste), oeste: initConf(oeste), final: null};
+    _renderBracket(league);
+    _saveBracketCache(league, seasonsState.currentSeasonId);
+}
+
+function _setBracketWinner(conf, round, idx, winId) {
+    const b = _bracket;
+    if (!b) return;
+    winId = String(winId);
+    if (round === 'final') {
+        if (b.final) b.final.w = (b.final.w === winId) ? null : winId;
+    } else {
+        const m = round === 'cf' ? b[conf].cf : b[conf][round][idx];
+        if (!m) return;
+        m.w = (m.w === winId) ? null : winId;
+        _rebuildConf(conf);
+        _rebuildFinal();
+    }
+    _renderBracket(seasonsState.currentLeague);
+    _saveBracketCache(seasonsState.currentLeague, seasonsState.currentSeasonId);
+}
+
+function _rebuildConf(conf) {
+    const c = _bracket[conf], t = seasonsState.teamsById;
+    const wOf = (arr, i) => { const m = arr[i]; return m?.w ? t[m.w] : null; };
+    c.r2[0] = _mkMatchup(c.r2[0], wOf(c.r1, 0), wOf(c.r1, 1));
+    c.r2[1] = _mkMatchup(c.r2[1], wOf(c.r1, 2), wOf(c.r1, 3));
+    c.cf = _mkMatchup(c.cf, wOf(c.r2, 0), wOf(c.r2, 1));
+    c.winner = c.cf?.w ? t[c.cf.w] : null;
+}
+
+function _rebuildFinal() {
+    const b = _bracket, lw = b.leste.winner, ow = b.oeste.winner;
+    b.final = (lw && ow) ? _mkMatchup(b.final, lw, ow) : null;
+}
+
+function _mkMatchup(existing, t1, t2) {
+    if (!t1 || !t2) return null;
+    if (existing?.t1 && existing?.t2) {
+        const same = [String(existing.t1.id), String(existing.t2.id)].sort().join();
+        const neo  = [String(t1.id), String(t2.id)].sort().join();
+        if (same === neo) return existing;
+    }
+    return {t1, t2, w: null};
+}
+
+function _renderBracket(league) {
+    const container = document.getElementById('playoffBracketContainer');
+    if (!container || !_bracket) return;
+    const b = _bracket, t = seasonsState.teamsById;
+    const tn = (team) => team ? `${team.city} ${team.name}` : 'Aguardando...';
+    const champion = b.final?.w ? t[b.final.w] : null;
+
+    const mkCard = (conf, round, idx) => {
+        const m = round === 'cf' ? b[conf]?.cf : (round === 'final' ? b.final : b[conf]?.[round]?.[idx]);
+        if (!m) return `<div class="bk-empty"><i class="bi bi-three-dots text-muted"></i></div>`;
+        const {t1, t2, w, s1, s2} = m;
+        const btn = (team, seed) => {
+            if (!team) return `<div class="bk-team bk-tbd"><span class="bk-seed">?</span>Aguardando...</div>`;
+            const tid = String(team.id);
+            const cls = w === tid ? 'bk-team bk-win' : (w ? 'bk-team bk-loss' : 'bk-team');
+            const clickArg = round === 'final'
+                ? `null,'final',0,${team.id}`
+                : round === 'cf' ? `'${conf}','cf',0,${team.id}`
+                : `'${conf}','${round}',${idx},${team.id}`;
+            const sdg = seed ? `<span class="bk-seed">${seed}</span>` : `<span class="bk-seed" style="visibility:hidden">0</span>`;
+            return `<div class="${cls}" onclick="_setBracketWinner(${clickArg})">${sdg}${tn(team)}</div>`;
+        };
+        return `<div class="bk-matchup">${btn(t1, s1)}${btn(t2, s2)}</div>`;
+    };
+
+    const lc = (conf) => ({
+        r1a: mkCard(conf,'r1',0), r1b: mkCard(conf,'r1',1),
+        r1c: mkCard(conf,'r1',2), r1d: mkCard(conf,'r1',3),
+        r2a: mkCard(conf,'r2',0), r2b: mkCard(conf,'r2',1),
+        cf:  mkCard(conf,'cf',0),
+    });
+    const le = lc('leste'), oe = lc('oeste');
+    const fn = mkCard(null,'final',0);
+
+    container.innerHTML = `
+<style>
+.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}
+.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}
+.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}
+.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}
+.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}
+.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}
+.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-team:last-child{border-bottom:none}
+.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}
+.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}
+.bk-loss{opacity:.28;cursor:default}
+.bk-tbd{color:#383838;cursor:default;font-style:italic}
+.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}
+.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}
+.bk-sp{flex:1}
+.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}
+</style>
+<div class="d-flex justify-content-between align-items-center mb-2" style="font-size:12px">
+    <span class="text-orange fw-bold"><i class="bi bi-geo-alt me-1"></i>Conferência Leste</span>
+    <span class="text-orange fw-bold"><i class="bi bi-trophy me-1"></i>Grande Final</span>
+    <span class="text-orange fw-bold">Conferência Oeste<i class="bi bi-geo-alt ms-1"></i></span>
+</div>
+<div class="bk-wrap">
+    <div class="bk-col">
+        <div class="bk-col-label">1ª Rodada</div>
+        ${le.r1a}<div class="bk-sp" style="max-height:6px"></div>
+        ${le.r1b}<div class="bk-sp"></div>
+        ${le.r1c}<div class="bk-sp" style="max-height:6px"></div>
+        ${le.r1d}
+    </div>
+    <div class="bk-col">
+        <div class="bk-col-label">2ª Rodada</div>
+        <div class="bk-sp" style="max-height:30px"></div>
+        ${le.r2a}
+        <div class="bk-sp"></div>
+        ${le.r2b}
+        <div class="bk-sp" style="max-height:30px"></div>
+    </div>
+    <div class="bk-col">
+        <div class="bk-col-label">Final de Conf.</div>
+        <div class="bk-sp"></div>${le.cf}<div class="bk-sp"></div>
+    </div>
+    <div class="bk-col-mid">
+        <div class="bk-col-label">Final</div>
+        ${fn}
+        ${champion ? `<div class="bk-champ"><div style="font-size:9px;color:#888;margin-bottom:2px">CAMPEÃO</div><div style="color:#ff6b00;font-weight:700;font-size:12px">${tn(champion)}</div></div>` : ''}
+    </div>
+    <div class="bk-col">
+        <div class="bk-col-label">Final de Conf.</div>
+        <div class="bk-sp"></div>${oe.cf}<div class="bk-sp"></div>
+    </div>
+    <div class="bk-col">
+        <div class="bk-col-label">2ª Rodada</div>
+        <div class="bk-sp" style="max-height:30px"></div>
+        ${oe.r2a}
+        <div class="bk-sp"></div>
+        ${oe.r2b}
+        <div class="bk-sp" style="max-height:30px"></div>
+    </div>
+    <div class="bk-col">
+        <div class="bk-col-label">1ª Rodada</div>
+        ${oe.r1a}<div class="bk-sp" style="max-height:6px"></div>
+        ${oe.r1b}<div class="bk-sp"></div>
+        ${oe.r1c}<div class="bk-sp" style="max-height:6px"></div>
+        ${oe.r1d}
+    </div>
+</div>
+<div class="mt-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:11px" onclick="generateBracket('${league}')">
+        <i class="bi bi-arrow-clockwise me-1"></i>Regerar chaveamento
+    </button>
+</div>`;
+}
+
+function _collectBracketPayload() {
+    const b = _bracket;
+    if (!b?.final?.w) return null;
+    const loser = (m) => {
+        if (!m?.w || !m.t1 || !m.t2) return null;
+        return String(m.t1.id) === m.w ? String(m.t2.id) : String(m.t1.id);
+    };
+    return {
+        champion: b.final.w,
+        runner_up: loser(b.final),
+        first_round_losses: [...b.leste.r1, ...b.oeste.r1].map(loser).filter(Boolean),
+        second_round_losses: [...(b.leste.r2||[]), ...(b.oeste.r2||[])].map(loser).filter(Boolean),
+        conference_final_losses: [loser(b.leste.cf), loser(b.oeste.cf)].filter(Boolean),
+    };
+}
+
+function _saveBracketCache(league, seasonId) {
+    if (league && seasonId) localStorage.setItem(`bk_${league}_${seasonId}`, JSON.stringify(_bracket));
+}
+function _restoreBracketCache(league, seasonId) {
+    if (!league || !seasonId) return false;
+    const raw = localStorage.getItem(`bk_${league}_${seasonId}`);
+    try { _bracket = JSON.parse(raw); return !!_bracket; } catch (_) { return false; }
+}
+function _clearBracketCache(league, seasonId) {
+    if (league && seasonId) localStorage.removeItem(`bk_${league}_${seasonId}`);
+}
+
 // ========== AVANÇAR TEMPORADA ==========
 function _formCacheKey(league, seasonId) {
     return `avancar_${league}_${seasonId}`;
@@ -268,43 +477,15 @@ async function showAvancarTemporada(league) {
                         </button>
                     </div>
 
-                    <h6 class="text-orange mb-3">2. Resultados dos Playoffs</h6>
-                    <div class="mb-3">
-                        <label class="form-label text-light-gray">Campeão</label>
-                        <select class="form-select bg-dark text-white border-orange" name="champion_team_id" required style="border-radius:15px">
-                            <option value="">Selecione o campeão...</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label text-light-gray">Vice-Campeão</label>
-                        <select class="form-select bg-dark text-white border-orange" name="runnerup_team_id" required style="border-radius:15px">
-                            <option value="">Selecione o vice...</option>
-                        </select>
+                    <h6 class="text-orange mb-3">2. Playoffs</h6>
+                    <div id="playoffBracketContainer" class="mb-4">
+                        <p class="text-muted small mb-2">Carregue os times e preencha a classificação acima, depois gere o chaveamento.</p>
+                        <button type="button" class="btn btn-sm btn-outline-orange" onclick="generateBracket('${league}')">
+                            <i class="bi bi-diagram-3 me-1"></i>Gerar Chaveamento
+                        </button>
                     </div>
 
-                    <h6 class="text-orange mb-3">3. Eliminados por Fase (apenas perdedores)</h6>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <label class="form-label text-light-gray">1ª Rodada (1 ponto)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="first_round_losses" multiple style="border-radius:12px;min-height:120px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-light-gray">2ª Rodada (3 pontos)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="second_round_losses" multiple style="border-radius:12px;min-height:120px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-light-gray">Final de Conferência (6 pontos)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="conference_final_losses" multiple style="border-radius:12px;min-height:120px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <h6 class="text-orange mb-3">4. Premiações</h6>
+                    <h6 class="text-orange mb-3">3. Premiações</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label text-light-gray">MVP (Time)</label>
@@ -377,28 +558,10 @@ async function showAvancarTemporada(league) {
 async function saveAndAdvanceSeason(event, seasonId, league) {
     event.preventDefault();
     const form = event.target;
-    const getMulti = (name) => {
-        const select = form.querySelector(`select[name="${name}"]`);
-        if (!select) return [];
-        return Array.from(select.selectedOptions).map(o => o.value).filter(Boolean);
-    };
 
-    const champion = form.champion_team_id.value;
-    const runnerUp = form.runnerup_team_id.value;
-    const firstRound = getMulti('first_round_losses');
-    const secondRound = getMulti('second_round_losses');
-    const confFinal = getMulti('conference_final_losses');
-
-    if (!champion || !runnerUp) { alert('Selecione campeão e vice.'); return; }
-    if (champion === runnerUp) { alert('Campeão e vice não podem ser iguais.'); return; }
-
-    const allEliminated = [...firstRound, ...secondRound, ...confFinal];
-    if (new Set(allEliminated).size !== allEliminated.length) {
-        alert('Um time não pode aparecer em mais de uma fase eliminada.');
-        return;
-    }
-    if (allEliminated.includes(champion) || allEliminated.includes(runnerUp)) {
-        alert('Não inclua campeão ou vice nas listas de eliminados.');
+    const playoff = _collectBracketPayload();
+    if (!playoff) {
+        alert('Complete o chaveamento dos playoffs: selecione o campeão da Grande Final antes de salvar.');
         return;
     }
 
@@ -409,11 +572,11 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
 
     const payload = {
         season_id: seasonId,
-        champion,
-        runner_up: runnerUp,
-        first_round_losses: firstRound,
-        second_round_losses: secondRound,
-        conference_final_losses: confFinal,
+        champion: playoff.champion,
+        runner_up: playoff.runner_up,
+        first_round_losses: playoff.first_round_losses,
+        second_round_losses: playoff.second_round_losses,
+        conference_final_losses: playoff.conference_final_losses,
         standings_leste: getRankList('leste'),
         standings_oeste: getRankList('oeste'),
         mvp: form.mvp_player_name.value || null,
@@ -439,6 +602,7 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
             body: JSON.stringify(payload)
         });
         _clearFormCache(league, seasonId);
+        _clearBracketCache(league, seasonId);
         btn.innerHTML = originalText;
         btn.disabled = false;
         await _doCreateNewSeason(league);
@@ -679,6 +843,7 @@ async function loadTeamsForStandings(league) {
     try {
         const data = await api(`admin.php?action=teams&league=${league}`);
         const teams = data.teams || [];
+        seasonsState.teamsById = Object.fromEntries(teams.map(t => [String(t.id), t]));
 
         const leste = teams.filter(t => t.conference === 'LESTE');
         const oeste = teams.filter(t => t.conference === 'OESTE');
@@ -725,6 +890,9 @@ async function loadTeamsForStandings(league) {
 
         if (seasonsState.currentSeasonId) {
             _restoreFormCache(league, seasonsState.currentSeasonId);
+            if (_restoreBracketCache(league, seasonsState.currentSeasonId)) {
+                _renderBracket(league);
+            }
         }
     } catch (e) {
         alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
