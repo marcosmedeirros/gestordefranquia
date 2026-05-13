@@ -167,22 +167,22 @@ function buildPlayerLookup(players) {
 }
 
 function isGradeToken(token) {
-  return /^[ABCDF][+-]?$/.test(token);
+  return /^[ABCDF][+-]?$/.test(String(token || '').toUpperCase());
 }
 
 function extractSkillRowFromTokens(tokens) {
-  let gradeCount = 0;
-  let firstGradeIndex = -1;
-  for (let i = tokens.length - 1; i >= 0; i -= 1) {
-    if (isGradeToken(tokens[i])) {
-      gradeCount += 1;
-      firstGradeIndex = i;
-      if (gradeCount === 10) break;
+  const gradeTokens = [];
+  tokens.forEach((token, idx) => {
+    if (isGradeToken(token)) {
+      gradeTokens.push({ idx, token: String(token).toUpperCase() });
     }
-  }
-  if (gradeCount < 10 || firstGradeIndex < 0) return null;
-  const skillTokens = tokens.slice(firstGradeIndex).filter(isGradeToken).slice(0, 10).map(t => t.toUpperCase());
-  if (skillTokens.length < 10) return null;
+  });
+  if (gradeTokens.length < 6) return null;
+  const lastGrades = gradeTokens.slice(-10);
+  const firstGradeIndex = lastGrades[0]?.idx ?? -1;
+  if (firstGradeIndex < 0) return null;
+  const skillTokens = lastGrades.map(item => item.token);
+  while (skillTokens.length < 10) skillTokens.push('-');
 
   const headerTokens = tokens.slice(0, firstGradeIndex).filter(Boolean);
   const upperHeader = headerTokens.map(t => t.toUpperCase());
