@@ -43,6 +43,19 @@ if (!function_exists('playersColumnExists')) {
     }
 }
 
+if (!function_exists('ensurePlayerSkillGradesColumn')) {
+    function ensurePlayerSkillGradesColumn(PDO $pdo): void
+    {
+        try {
+            if (!playersColumnExists($pdo, 'players', 'player_skill_grades')) {
+                $pdo->exec("ALTER TABLE players ADD COLUMN player_skill_grades TEXT NULL");
+            }
+        } catch (Exception $e) {
+            // ignore migration errors
+        }
+    }
+}
+
 if (!function_exists('resolveSeasonYear')) {
     function resolveSeasonYear(PDO $pdo, string $league): ?int
     {
@@ -263,6 +276,49 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $body = readJsonBody();
+    $action = $body['action'] ?? null;
+    if ($action === 'bulk_update_skill_grades') {
+        $sessionUser = getUserSession();
+        if (!isset($sessionUser['id'])) {
+            jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+        }
+        $teamId = (int)($body['team_id'] ?? 0);
+        if (!$teamId) {
+            $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+            $stmtTeam->execute([(int)$sessionUser['id']]);
+            $teamId = (int)($stmtTeam->fetchColumn() ?? 0);
+        }
+        if (!$teamId) {
+            jsonResponse(404, ['error' => 'Time não encontrado.']);
+        }
+        $teamOwner = $pdo->prepare('SELECT user_id FROM teams WHERE id = ?');
+        $teamOwner->execute([$teamId]);
+        $ownerId = (int)($teamOwner->fetchColumn() ?? 0);
+        if ($ownerId !== (int)$sessionUser['id']) {
+            jsonResponse(403, ['error' => 'Sem permissão para alterar este time.']);
+        }
+
+        $updates = $body['updates'] ?? [];
+        if (!is_array($updates)) {
+            jsonResponse(422, ['error' => 'Formato inválido para updates.']);
+        }
+        ensurePlayerSkillGradesColumn($pdo);
+        $stmtUpd = $pdo->prepare('UPDATE players SET player_skill_grades = ? WHERE id = ? AND team_id = ?');
+        $updated = 0;
+        foreach ($updates as $item) {
+            $playerId = (int)($item['player_id'] ?? 0);
+            $grades = $item['skill_grades'] ?? null;
+            if (!$playerId || (!is_array($grades) && $grades !== null)) {
+                continue;
+            }
+            $json = $grades === null ? null : json_encode($grades);
+            $stmtUpd->execute([$json, $playerId, $teamId]);
+            if ($stmtUpd->rowCount() > 0) {
+                $updated += 1;
+            }
+        }
+        jsonResponse(200, ['updated' => $updated, 'total' => count($updates)]);
+    }
     $teamId = (int) ($body['team_id'] ?? 0);
     $name = trim($body['name'] ?? '');
     $age = (int) ($body['age'] ?? 0);
@@ -384,6 +440,17 @@ if ($method === 'PUT') {
     $playerTagCopy = isset($body['player_tag_copy'])
         ? (int)((bool)$body['player_tag_copy'])
         : (int)($player['player_tag_copy'] ?? 0);
+    $skillGrades = null;
+    if (array_key_exists('skill_grades', $body)) {
+        $rawGrades = $body['skill_grades'];
+        if (is_array($rawGrades) || is_object($rawGrades)) {
+            $skillGrades = json_encode($rawGrades);
+        } elseif ($rawGrades === null) {
+            $skillGrades = null;
+        } elseif (is_string($rawGrades)) {
+            $skillGrades = $rawGrades;
+        }
+    }
 
     if ($hasFotoAdicionalField && $fotoAdicional && str_starts_with($fotoAdicional, 'data:image/')) {
         try {
@@ -467,11 +534,18 @@ if ($method === 'PUT') {
             $pdo->exec("ALTER TABLE players ADD COLUMN player_tag_copy TINYINT(1) NOT NULL DEFAULT 0");
             $hasPlayerTag = true;
         }
+        $checkCol5 = $pdo->query("SHOW COLUMNS FROM players LIKE 'player_skill_grades'");
+        $hasSkillGrades = $checkCol5->rowCount() > 0;
+        if (!$hasSkillGrades) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN player_skill_grades TEXT NULL");
+            $hasSkillGrades = true;
+        }
     } catch (Exception $e) {
         $hasSecondaryPosition = false;
         $hasSeasonsInLeague = false;
         $hasFotoAdicional = false;
         $hasPlayerTag = false;
+        $hasSkillGrades = false;
     }
 
     // Construir UPDATE dinamicamente
@@ -496,6 +570,9 @@ if ($method === 'PUT') {
         $fields['player_tag']       = $playerTag;
         $fields['player_tag_color'] = $playerTagColor;
         $fields['player_tag_copy']  = $playerTagCopy;
+    }
+    if ($hasSkillGrades && array_key_exists('skill_grades', $body)) {
+        $fields['player_skill_grades'] = $skillGrades;
     }
 
     $setClause = implode(', ', array_map(fn($col) => $col . ' = ?', array_keys($fields)));

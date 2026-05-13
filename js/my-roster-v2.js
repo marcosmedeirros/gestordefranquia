@@ -50,6 +50,190 @@ function normalizeRoleKey(role) {
   return 'Outro';
 }
 
+const SKILL_GRADE_FIELDS = [
+  { key: 'pos', label: 'POS' },
+  { key: 'age', label: 'AGE' },
+  { key: 'rating', label: 'RATING' },
+  { key: 'in', label: 'IN' },
+  { key: 'mid', label: 'MID' },
+  { key: 'pt3', label: '3PT' },
+  { key: 'post_d', label: 'POST D' },
+  { key: 'per_d', label: 'PER D' },
+  { key: 'play', label: 'PLAY' },
+  { key: 'reb', label: 'REB' },
+  { key: 'athl', label: 'ATHL' },
+  { key: 'iq', label: 'IQ' },
+  { key: 'pot', label: 'POT' },
+];
+
+const SKILL_GRADE_EDIT_FIELDS = [
+  { key: 'in', label: 'IN' },
+  { key: 'mid', label: 'MID' },
+  { key: 'pt3', label: '3PT' },
+  { key: 'post_d', label: 'POST D' },
+  { key: 'per_d', label: 'PER D' },
+  { key: 'play', label: 'PLAY' },
+  { key: 'reb', label: 'REB' },
+  { key: 'athl', label: 'ATHL' },
+  { key: 'iq', label: 'IQ' },
+  { key: 'pot', label: 'POT' },
+];
+
+const GRADE_OPTIONS = ['-', 'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+
+function parseSkillGrades(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSkillGrades(player) {
+  const grades = parseSkillGrades(player?.player_skill_grades);
+  const normalized = { ...grades };
+  if (!normalized.pos && player?.position) normalized.pos = player.position;
+  if (!normalized.age && player?.age != null) normalized.age = String(player.age);
+  if (!normalized.rating && player?.ovr != null) normalized.rating = String(player.ovr);
+  return normalized;
+}
+
+function buildSkillGradesHtml(grades) {
+  return `
+    <div class="skill-grades-grid">
+      ${SKILL_GRADE_FIELDS.map(field => {
+        const value = grades[field.key] || '-';
+        return `<div class="skill-grade-item">
+          <div class="skill-grade-label">${field.label}</div>
+          <div class="skill-grade-value">${value}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function buildSkillGradesEditorHtml(grades) {
+  return `
+    <div class="skill-edit-grid">
+      ${SKILL_GRADE_EDIT_FIELDS.map(field => {
+        const value = grades[field.key] || '-';
+        return `<label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-2);">
+          <span style="text-transform:uppercase;letter-spacing:.08em;font-weight:700;">${field.label}</span>
+          <select data-skill-key="${field.key}">
+            ${GRADE_OPTIONS.map(opt => `<option value="${opt}"${opt === value ? ' selected' : ''}>${opt}</option>`).join('')}
+          </select>
+        </label>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function collectSkillGradesFromEditor(container, baseGrades) {
+  const nextGrades = { ...baseGrades };
+  if (!container) return nextGrades;
+  container.querySelectorAll('[data-skill-key]').forEach(sel => {
+    const key = sel.getAttribute('data-skill-key');
+    if (!key) return;
+    nextGrades[key] = sel.value;
+  });
+  return nextGrades;
+}
+
+function normalizePlayerName(name) {
+  return (name || '')
+    .toString()
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildPlayerLookup(players) {
+  const lookup = new Map();
+  players.forEach(p => {
+    const full = normalizePlayerName(p.name);
+    if (full) lookup.set(full, p);
+    const parts = full.split(' ').filter(Boolean);
+    if (parts.length >= 2) {
+      const initialLast = `${parts[0][0]} ${parts[parts.length - 1]}`.trim();
+      lookup.set(initialLast, p);
+    }
+  });
+  return lookup;
+}
+
+function isGradeToken(token) {
+  return /^[ABCDF][+-]?$/.test(token);
+}
+
+function extractSkillRowFromTokens(tokens) {
+  let gradeCount = 0;
+  let firstGradeIndex = -1;
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    if (isGradeToken(tokens[i])) {
+      gradeCount += 1;
+      firstGradeIndex = i;
+      if (gradeCount === 10) break;
+    }
+  }
+  if (gradeCount < 10 || firstGradeIndex < 0) return null;
+  const skillTokens = tokens.slice(firstGradeIndex).filter(isGradeToken).slice(0, 10).map(t => t.toUpperCase());
+  if (skillTokens.length < 10) return null;
+
+  const headerTokens = tokens.slice(0, firstGradeIndex).filter(Boolean);
+  const upperHeader = headerTokens.map(t => t.toUpperCase());
+  let posIndex = -1;
+  ['PG', 'SG', 'SF', 'PF', 'C'].forEach(pos => {
+    const found = upperHeader.lastIndexOf(pos);
+    if (found > posIndex) posIndex = found;
+  });
+  if (posIndex < 0) return null;
+
+  const pos = (headerTokens[posIndex] || '').toUpperCase();
+  const numericTokens = headerTokens.slice(posIndex + 1).filter(t => /^\d+$/.test(t));
+  const age = numericTokens[0] || '';
+  const rating = numericTokens[1] || '';
+
+  const name = headerTokens.slice(0, posIndex).join(' ').trim();
+  if (!name) return null;
+  return {
+    name,
+    grades: {
+      pos,
+      age,
+      rating,
+      in: skillTokens[0],
+      mid: skillTokens[1],
+      pt3: skillTokens[2],
+      post_d: skillTokens[3],
+      per_d: skillTokens[4],
+      play: skillTokens[5],
+      reb: skillTokens[6],
+      athl: skillTokens[7],
+      iq: skillTokens[8],
+      pot: skillTokens[9],
+    }
+  };
+}
+
+function extractSkillRowsFromText(text) {
+  const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  lines.forEach(line => {
+    if (/player name|view list|detailed|tendency|badge|player list/i.test(line)) return;
+    const cleanLine = line.replace(/[|]/g, ' ').replace(/[^A-Za-z0-9+\-\. ]+/g, ' ').trim();
+    const tokens = cleanLine.split(/\s+/).filter(Boolean);
+    if (tokens.length < 10) return;
+    const row = extractSkillRowFromTokens(tokens);
+    if (row) rows.push(row);
+  });
+  return rows;
+}
+
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
 const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
@@ -134,6 +318,7 @@ let currentSearch = '';
 let currentRoleFilter = '';
 let editPhotoFile = null;
 let pendingWaivePlayerId = null;
+let pendingSkillUpdates = [];
 
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
@@ -695,6 +880,59 @@ function copyPlayerSummary(btn) {
   });
 }
 
+function renderStatsPreview(container, rows, unmatched) {
+  if (!container) return;
+  if (!rows.length) {
+    container.textContent = 'Nenhum jogador reconhecido.';
+    return;
+  }
+  const summary = rows.map(row => {
+    const grades = row.grades || {};
+    const skillText = SKILL_GRADE_EDIT_FIELDS.map(field => `${field.label}:${grades[field.key] || '-'}`).join(' ');
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <strong style="color:var(--text);">${row.playerName}</strong>
+      <div style="color:var(--text-2);margin-top:4px;">${skillText}</div>
+    </div>`;
+  }).join('');
+  const unmatchedHtml = unmatched.length
+    ? `<div style="margin-top:10px;color:var(--text-3);font-size:11px;">Nao encontrados: ${unmatched.join(', ')}</div>`
+    : '';
+  container.innerHTML = `${summary}${unmatchedHtml}`;
+}
+
+async function processStatsImage(file, statusEl, previewEl) {
+  if (!file || !window.Tesseract) return { updates: [], unmatched: [] };
+  if (statusEl) statusEl.textContent = 'Processando imagem...';
+  const result = await Tesseract.recognize(file, 'eng', {
+    logger: (m) => {
+      if (!statusEl) return;
+      if (m.status === 'recognizing text') {
+        statusEl.textContent = `OCR: ${(m.progress * 100).toFixed(0)}%`;
+      }
+    }
+  });
+  const rows = extractSkillRowsFromText(result?.data?.text || '');
+  const lookup = buildPlayerLookup(allPlayers);
+  const updates = [];
+  const unmatched = [];
+  rows.forEach(row => {
+    const key = normalizePlayerName(row.name);
+    const player = lookup.get(key) || lookup.get(key.replace(/\./g, ''));
+    if (!player) {
+      unmatched.push(row.name);
+      return;
+    }
+    updates.push({
+      playerId: player.id,
+      playerName: player.name,
+      grades: row.grades,
+    });
+  });
+  renderStatsPreview(previewEl, updates, unmatched);
+  if (statusEl) statusEl.textContent = `Reconhecidos: ${updates.length}. Nao encontrados: ${unmatched.length}.`;
+  return { updates, unmatched };
+}
+
 async function loadPlayers() {
   const teamId = window.__TEAM_ID__;
   const statusEl = document.getElementById('players-status');
@@ -738,6 +976,84 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-ai-analysis')?.addEventListener('click', generateAIAnalysis);
 
   document.getElementById('btn-refresh-players')?.addEventListener('click', loadPlayers);
+
+  const uploadStatsBtn = document.getElementById('btn-upload-stats');
+  const uploadModalEl = document.getElementById('uploadStatsModal');
+  const uploadModal = uploadModalEl ? new bootstrap.Modal(uploadModalEl) : null;
+  const statsFileInput = document.getElementById('stats-file');
+  const statsProcessBtn = document.getElementById('btn-process-stats');
+  const statsSaveBtn = document.getElementById('btn-save-stats');
+  const statsStatusEl = document.getElementById('stats-upload-status');
+  const statsPreviewEl = document.getElementById('stats-upload-preview');
+  let pendingStatsFile = null;
+
+  uploadStatsBtn?.addEventListener('click', () => {
+    pendingSkillUpdates = [];
+    pendingStatsFile = null;
+    if (statsFileInput) statsFileInput.value = '';
+    if (statsPreviewEl) statsPreviewEl.textContent = 'Nenhum dado processado ainda.';
+    if (statsStatusEl) statsStatusEl.textContent = 'Envie a imagem com a lista de jogadores e colunas de habilidades.';
+    if (statsSaveBtn) statsSaveBtn.disabled = true;
+    uploadModal?.show();
+  });
+
+  statsFileInput?.addEventListener('change', (e) => {
+    pendingStatsFile = e.target.files?.[0] || null;
+    pendingSkillUpdates = [];
+    if (statsPreviewEl) statsPreviewEl.textContent = pendingStatsFile ? 'Arquivo pronto para processar.' : 'Nenhum arquivo selecionado.';
+    if (statsStatusEl) statsStatusEl.textContent = pendingStatsFile ? 'Clique em Processar para iniciar o OCR.' : 'Envie a imagem com a lista de jogadores e colunas de habilidades.';
+    if (statsSaveBtn) statsSaveBtn.disabled = true;
+  });
+
+  statsProcessBtn?.addEventListener('click', async () => {
+    if (!pendingStatsFile) {
+      alert('Selecione uma imagem primeiro.');
+      return;
+    }
+    if (!window.Tesseract) {
+      alert('OCR indisponivel no momento.');
+      return;
+    }
+    if (statsProcessBtn) statsProcessBtn.disabled = true;
+    try {
+      const result = await processStatsImage(pendingStatsFile, statsStatusEl, statsPreviewEl);
+      pendingSkillUpdates = result.updates || [];
+      if (statsSaveBtn) statsSaveBtn.disabled = pendingSkillUpdates.length === 0;
+    } catch (err) {
+      if (statsStatusEl) statsStatusEl.textContent = 'Falha ao processar imagem.';
+      alert('Erro no OCR: ' + (err.message || 'Desconhecido'));
+    } finally {
+      if (statsProcessBtn) statsProcessBtn.disabled = false;
+    }
+  });
+
+  statsSaveBtn?.addEventListener('click', async () => {
+    if (!pendingSkillUpdates.length) {
+      alert('Nenhum jogador reconhecido para salvar.');
+      return;
+    }
+    if (statsSaveBtn) statsSaveBtn.disabled = true;
+    try {
+      await api('players.php', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'bulk_update_skill_grades',
+          team_id: window.__TEAM_ID__,
+          updates: pendingSkillUpdates.map(item => ({
+            player_id: item.playerId,
+            skill_grades: item.grades,
+          }))
+        })
+      });
+      if (statsStatusEl) statsStatusEl.textContent = `Atualizado: ${pendingSkillUpdates.length} jogador(es).`;
+      uploadModal?.hide();
+      loadPlayers();
+    } catch (err) {
+      alert('Erro ao salvar stats: ' + (err.error || err.message || 'Desconhecido'));
+    } finally {
+      if (statsSaveBtn) statsSaveBtn.disabled = false;
+    }
+  });
   document.getElementById('sort-select')?.addEventListener('change', (e) => sortPlayers(e.target.value));
   document.getElementById('players-search')?.addEventListener('input', (e) => {
     currentSearch = (e.target.value || '').toLowerCase();
@@ -1038,6 +1354,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (titleEl) titleEl.textContent = player.name || 'Detalhes';
       const transfers = Array.isArray(data.transfers) ? data.transfers : [];
       const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
+      const skillGrades = normalizeSkillGrades(player);
+      const skillGradesHtml = buildSkillGradesHtml(skillGrades);
+      const skillEditorHtml = buildSkillGradesEditorHtml(skillGrades);
 
       const latestDelta = seasonLog.length >= 2
         ? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
@@ -1091,6 +1410,17 @@ document.addEventListener('DOMContentLoaded', () => {
           ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
             .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
         </div>
+        <div style="padding:16px 22px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas de Habilidades</div>
+          ${skillGradesHtml}
+          <div style="margin-top:14px;">
+            <div style="font-size:11px;color:var(--text-2);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Editar notas</div>
+            ${skillEditorHtml}
+            <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+              <button class="btn-ghost btn-save-skill-grades" type="button">Salvar notas</button>
+            </div>
+          </div>
+        </div>
         <div style="padding:16px 22px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
           ${seasonLogHtml}
@@ -1099,6 +1429,26 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
           ${transferHtml}
         </div>`;
+      if (content) {
+        const saveBtn = content.querySelector('.btn-save-skill-grades');
+        if (saveBtn) {
+          saveBtn.addEventListener('click', async () => {
+            const editor = content.querySelector('.skill-edit-grid');
+            const updatedGrades = collectSkillGradesFromEditor(editor, skillGrades);
+            updatedGrades.pos = updatedGrades.pos || player.position;
+            updatedGrades.age = updatedGrades.age || String(player.age ?? '');
+            updatedGrades.rating = updatedGrades.rating || String(player.ovr ?? '');
+            try {
+              await api('players.php', { method: 'PUT', body: JSON.stringify({ id: player.id, skill_grades: updatedGrades }) });
+              const refreshed = normalizeSkillGrades({ ...player, player_skill_grades: updatedGrades });
+              const gradeWrap = content.querySelector('.skill-grades-grid');
+              if (gradeWrap) gradeWrap.outerHTML = buildSkillGradesHtml(refreshed);
+            } catch (err) {
+              alert('Erro ao salvar notas: ' + (err.error || err.message || 'Desconhecido'));
+            }
+          });
+        }
+      }
     } catch (err) {
       if (content) content.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>';
     }

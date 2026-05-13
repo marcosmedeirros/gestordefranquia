@@ -411,6 +411,43 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.modal-title { font-family: var(--font-display); }
 		.modal-body h6 { color: var(--red); }
 		.modal-body .card-mini { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+		.skill-grades-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+			gap: 10px;
+		}
+		.skill-grade-item {
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			padding: 8px 10px;
+			text-align: center;
+		}
+		.skill-grade-label {
+			font-size: 10px;
+			color: var(--text-3);
+			text-transform: uppercase;
+			letter-spacing: .08em;
+			font-weight: 700;
+		}
+		.skill-grade-value {
+			font-size: 16px;
+			font-weight: 800;
+			margin-top: 4px;
+		}
+		.skill-edit-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+			gap: 10px;
+		}
+		.skill-edit-grid select {
+			background: var(--panel-3);
+			border: 1px solid var(--border);
+			color: var(--text);
+			border-radius: 8px;
+			padding: 6px 8px;
+			font-size: 12px;
+		}
 
 		/* ── Mobile list view ───────────────────────── */
 		.mpl-item {
@@ -756,6 +793,98 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		});
 	}
 
+	const SKILL_GRADE_FIELDS = [
+		{ key: 'pos', label: 'POS' },
+		{ key: 'age', label: 'AGE' },
+		{ key: 'rating', label: 'RATING' },
+		{ key: 'in', label: 'IN' },
+		{ key: 'mid', label: 'MID' },
+		{ key: 'pt3', label: '3PT' },
+		{ key: 'post_d', label: 'POST D' },
+		{ key: 'per_d', label: 'PER D' },
+		{ key: 'play', label: 'PLAY' },
+		{ key: 'reb', label: 'REB' },
+		{ key: 'athl', label: 'ATHL' },
+		{ key: 'iq', label: 'IQ' },
+		{ key: 'pot', label: 'POT' },
+	];
+
+	const SKILL_GRADE_EDIT_FIELDS = [
+		{ key: 'in', label: 'IN' },
+		{ key: 'mid', label: 'MID' },
+		{ key: 'pt3', label: '3PT' },
+		{ key: 'post_d', label: 'POST D' },
+		{ key: 'per_d', label: 'PER D' },
+		{ key: 'play', label: 'PLAY' },
+		{ key: 'reb', label: 'REB' },
+		{ key: 'athl', label: 'ATHL' },
+		{ key: 'iq', label: 'IQ' },
+		{ key: 'pot', label: 'POT' },
+	];
+
+	const GRADE_OPTIONS = ['-', 'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+
+	function parseSkillGrades(raw) {
+		if (!raw) return {};
+		if (typeof raw === 'object') return raw;
+		try {
+			const parsed = JSON.parse(raw);
+			return parsed && typeof parsed === 'object' ? parsed : {};
+		} catch {
+			return {};
+		}
+	}
+
+	function normalizeSkillGrades(player) {
+		const grades = parseSkillGrades(player?.player_skill_grades);
+		const normalized = { ...grades };
+		if (!normalized.pos && player?.position) normalized.pos = player.position;
+		if (!normalized.age && player?.age != null) normalized.age = String(player.age);
+		if (!normalized.rating && player?.ovr != null) normalized.rating = String(player.ovr);
+		return normalized;
+	}
+
+	function buildSkillGradesHtml(grades) {
+		return `
+			<div class="skill-grades-grid">
+				${SKILL_GRADE_FIELDS.map(field => {
+					const value = grades[field.key] || '-';
+					return `<div class="skill-grade-item">
+						<div class="skill-grade-label">${field.label}</div>
+						<div class="skill-grade-value">${value}</div>
+					</div>`;
+				}).join('')}
+			</div>
+		`;
+	}
+
+	function buildSkillGradesEditorHtml(grades) {
+		return `
+			<div class="skill-edit-grid">
+				${SKILL_GRADE_EDIT_FIELDS.map(field => {
+					const value = grades[field.key] || '-';
+					return `<label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-2);">
+						<span style="text-transform:uppercase;letter-spacing:.08em;font-weight:700;">${field.label}</span>
+						<select data-skill-key="${field.key}">
+							${GRADE_OPTIONS.map(opt => `<option value="${opt}"${opt === value ? ' selected' : ''}>${opt}</option>`).join('')}
+						</select>
+					</label>`;
+				}).join('')}
+			</div>
+		`;
+	}
+
+	function collectSkillGradesFromEditor(container, baseGrades) {
+		const nextGrades = { ...baseGrades };
+		if (!container) return nextGrades;
+		container.querySelectorAll('[data-skill-key]').forEach(sel => {
+			const key = sel.getAttribute('data-skill-key');
+			if (!key) return;
+			nextGrades[key] = sel.value;
+		});
+		return nextGrades;
+	}
+
 	function isFranchiseEligible(p) {
 		if (p.league !== 'RISE') return false;
 		if (Number(p.is_franchise_player) === 1) return true;
@@ -991,6 +1120,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			if (titleEl) titleEl.textContent = player.name || 'Detalhes';
 			const transfers = Array.isArray(data.transfers) ? data.transfers : [];
 			const seasonLog = Array.isArray(data.season_log) ? data.season_log : [];
+			const skillGrades = normalizeSkillGrades(player);
+			const skillGradesHtml = buildSkillGradesHtml(skillGrades);
+			const skillEditorHtml = buildSkillGradesEditorHtml(skillGrades);
 
 			const latestDelta = seasonLog.length >= 2
 				? (parseInt(seasonLog[seasonLog.length-1].ovr)||0) - (parseInt(seasonLog[seasonLog.length-2].ovr)||0)
@@ -1044,6 +1176,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
 						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
 				</div>
+				<div style="padding:16px 22px;border-bottom:1px solid var(--border)">
+					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas de Habilidades</div>
+					${skillGradesHtml}
+					<div style="margin-top:14px;">
+						<div style="font-size:11px;color:var(--text-2);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:8px;">Editar notas</div>
+						${skillEditorHtml}
+						<div style="margin-top:12px;display:flex;justify-content:flex-end;">
+							<button class="btn-outline info btn-save-skill-grades" type="button">Salvar notas</button>
+						</div>
+					</div>
+				</div>
 				<div style="padding:16px 22px">
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
 					${seasonLogHtml}
@@ -1052,6 +1195,33 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Transferências</div>
 					${transferHtml}
 				</div>`;
+			if (content) {
+				const saveBtn = content.querySelector('.btn-save-skill-grades');
+				if (saveBtn) {
+					saveBtn.addEventListener('click', async () => {
+						const editor = content.querySelector('.skill-edit-grid');
+						const updatedGrades = collectSkillGradesFromEditor(editor, skillGrades);
+						updatedGrades.pos = updatedGrades.pos || player.position;
+						updatedGrades.age = updatedGrades.age || String(player.age ?? '');
+						updatedGrades.rating = updatedGrades.rating || String(player.ovr ?? '');
+						try {
+							await fetch('/api/players.php', {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ id: player.id, skill_grades: updatedGrades })
+							}).then(async (resSave) => {
+								const bodySave = await resSave.json().catch(() => ({}));
+								if (!resSave.ok) throw bodySave;
+							});
+							const refreshed = normalizeSkillGrades({ ...player, player_skill_grades: updatedGrades });
+							const gradeWrap = content.querySelector('.skill-grades-grid');
+							if (gradeWrap) gradeWrap.outerHTML = buildSkillGradesHtml(refreshed);
+						} catch (err) {
+							alert('Erro ao salvar notas: ' + (err?.error || err?.message || 'Desconhecido'));
+						}
+					});
+				}
+			}
 		} catch (err) {
 			if (content) content.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar detalhes.</div>';
 		}
