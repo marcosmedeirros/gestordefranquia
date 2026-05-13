@@ -47,19 +47,18 @@ function applyDirectiveToForm(d) {
   if (!d) return;
   currentDirective = d;
 
-  // Preencher titulares
+  // Preencher titulares (só sobrescreve se o jogador ainda existe no elenco)
   for (let i = 1; i <= 5; i++) {
     const select = document.querySelector(`select[name="starter_${i}_id"]`);
-    if (select && d[`starter_${i}_id`]) {
-      select.value = d[`starter_${i}_id`];
+    const savedId = d[`starter_${i}_id`];
+    if (select && savedId) {
+      const exists = Array.from(select.options).some(o => String(o.value) === String(savedId));
+      if (exists) select.value = savedId;
     }
   }
 
   // Atualizar visibilidade dos checkboxes (esconder titulares)
   updateBenchCheckboxesVisibility();
-
-  // Limpar e preencher banco
-  document.querySelectorAll('.bench-player-checkbox').forEach(cb => { cb.checked = false; });
 
   const starterIds = [];
   for (let i = 1; i <= 5; i++) {
@@ -68,9 +67,9 @@ function applyDirectiveToForm(d) {
   }
 
   let benchIds = [];
-  if (Array.isArray(d.bench_players)) {
+  if (Array.isArray(d.bench_players) && d.bench_players.length > 0) {
     benchIds = d.bench_players.map(id => parseInt(id)).filter(id => !isNaN(id));
-  } else if (d.player_minutes) {
+  } else if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
     Object.keys(d.player_minutes).forEach(playerId => {
       const id = parseInt(playerId);
       if (!starterIds.includes(id)) benchIds.push(id);
@@ -80,6 +79,11 @@ function applyDirectiveToForm(d) {
       const bid = parseInt(d[`bench_${i}_id`]);
       if (!isNaN(bid) && bid > 0) benchIds.push(bid);
     }
+  }
+
+  // Só limpa e reaplicar banco se há dados salvos; senão mantém pré-seleção do PHP
+  if (benchIds.length > 0) {
+    document.querySelectorAll('.bench-player-checkbox').forEach(cb => { cb.checked = false; });
   }
 
   benchIds.forEach(id => {
