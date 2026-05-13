@@ -382,6 +382,28 @@ function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $spri
             (int)$row['total_points'],
         ]);
     }
+
+    // Recalcula teams.ranking_points como soma de TODAS as temporadas do time.
+    // Idempotente: pode chamar N vezes, resultado sempre correto.
+    recalcTeamsRankingPoints($pdo, $league);
+}
+
+/**
+ * Recalcula teams.ranking_points como acumulado histórico de team_season_points.
+ * Seguro para chamar múltiplas vezes — nunca duplica pontos.
+ */
+function recalcTeamsRankingPoints(PDO $pdo, string $league): void {
+    if (!columnExists($pdo, 'teams', 'ranking_points')) return;
+    // Recalcula como soma acumulada de todas as temporadas do time (idempotente).
+    $pdo->prepare("
+        UPDATE teams t
+        SET t.ranking_points = COALESCE((
+            SELECT SUM(tsp.points)
+            FROM team_season_points tsp
+            WHERE tsp.team_id = t.id
+        ), 0)
+        WHERE t.league = ?
+    ")->execute([$league]);
 }
 
 function ensurePlayerSeasonLogTable(PDO $pdo): void {

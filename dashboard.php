@@ -1427,9 +1427,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const startersMap = {};
         positions.forEach(p => startersMap[p] = null);
         const fmt = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
-        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` [${p.player_tag}]` : '';
-        const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtTag(p)}` : `${label}: -`;
-        const fmtPlayer = p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtTag(p)}`;
+        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
+        const fmtLine = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
 
         rosterData.filter(p => p.role === 'Titular').forEach(p => { if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p; });
         const bench   = rosterData.filter(p => p.role === 'Banco');
