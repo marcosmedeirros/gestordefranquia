@@ -794,9 +794,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	}
 
 	const SKILL_GRADE_FIELDS = [
-		{ key: 'pos', label: 'POS' },
-		{ key: 'age', label: 'AGE' },
-		{ key: 'rating', label: 'RATING' },
 		{ key: 'in', label: 'IN' },
 		{ key: 'mid', label: 'MID' },
 		{ key: 'pt3', label: '3PT' },
@@ -837,11 +834,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	function normalizeSkillGrades(player) {
 		const grades = parseSkillGrades(player?.player_skill_grades);
-		const normalized = { ...grades };
-		if (!normalized.pos && player?.position) normalized.pos = player.position;
-		if (!normalized.age && player?.age != null) normalized.age = String(player.age);
-		if (!normalized.rating && player?.ovr != null) normalized.rating = String(player.ovr);
-		return normalized;
+		return { ...grades };
 	}
 
 	function buildSkillGradesHtml(grades) {
@@ -1201,9 +1194,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					saveBtn.addEventListener('click', async () => {
 						const editor = content.querySelector('.skill-edit-grid');
 						const updatedGrades = collectSkillGradesFromEditor(editor, skillGrades);
-						updatedGrades.pos = updatedGrades.pos || player.position;
-						updatedGrades.age = updatedGrades.age || String(player.age ?? '');
-						updatedGrades.rating = updatedGrades.rating || String(player.ovr ?? '');
 						try {
 							await fetch('/api/players.php', {
 								method: 'PUT',

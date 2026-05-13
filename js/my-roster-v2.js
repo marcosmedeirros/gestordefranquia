@@ -51,9 +51,6 @@ function normalizeRoleKey(role) {
 }
 
 const SKILL_GRADE_FIELDS = [
-  { key: 'pos', label: 'POS' },
-  { key: 'age', label: 'AGE' },
-  { key: 'rating', label: 'RATING' },
   { key: 'in', label: 'IN' },
   { key: 'mid', label: 'MID' },
   { key: 'pt3', label: '3PT' },
@@ -94,11 +91,7 @@ function parseSkillGrades(raw) {
 
 function normalizeSkillGrades(player) {
   const grades = parseSkillGrades(player?.player_skill_grades);
-  const normalized = { ...grades };
-  if (!normalized.pos && player?.position) normalized.pos = player.position;
-  if (!normalized.age && player?.age != null) normalized.age = String(player.age);
-  if (!normalized.rating && player?.ovr != null) normalized.rating = String(player.ovr);
-  return normalized;
+  return { ...grades };
 }
 
 function buildSkillGradesHtml(grades) {
@@ -194,18 +187,11 @@ function extractSkillRowFromTokens(tokens) {
   if (posIndex < 0) return null;
 
   const pos = (headerTokens[posIndex] || '').toUpperCase();
-  const numericTokens = headerTokens.slice(posIndex + 1).filter(t => /^\d+$/.test(t));
-  const age = numericTokens[0] || '';
-  const rating = numericTokens[1] || '';
-
   const name = headerTokens.slice(0, posIndex).join(' ').trim();
   if (!name) return null;
   return {
     name,
     grades: {
-      pos,
-      age,
-      rating,
       in: skillTokens[0],
       mid: skillTokens[1],
       pt3: skillTokens[2],
@@ -1435,9 +1421,6 @@ document.addEventListener('DOMContentLoaded', () => {
           saveBtn.addEventListener('click', async () => {
             const editor = content.querySelector('.skill-edit-grid');
             const updatedGrades = collectSkillGradesFromEditor(editor, skillGrades);
-            updatedGrades.pos = updatedGrades.pos || player.position;
-            updatedGrades.age = updatedGrades.age || String(player.age ?? '');
-            updatedGrades.rating = updatedGrades.rating || String(player.ovr ?? '');
             try {
               await api('players.php', { method: 'PUT', body: JSON.stringify({ id: player.id, skill_grades: updatedGrades }) });
               const refreshed = normalizeSkillGrades({ ...player, player_skill_grades: updatedGrades });
