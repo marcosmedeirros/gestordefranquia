@@ -570,6 +570,7 @@ function renderPlayersMobileCards(players) {
       </div>
       <div class="roster-mobile-actions mt-3">
         <button class="btn btn-outline-info btn-sm btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
+        <button class="btn btn-outline-secondary btn-sm btn-copy-player" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
         <button class="btn btn-outline-light btn-sm btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-outline-warning btn-sm btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
         ${canRetire ? `<button class="btn btn-outline-danger btn-sm btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
@@ -621,6 +622,7 @@ function renderPlayersTable(players) {
       </td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-info btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
+        <button class="btn btn-sm btn-outline-secondary btn-copy-player" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
         <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
         ${canRetire ? `<button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
@@ -678,6 +680,19 @@ function updateRosterStats() {
       bannerEl.style.display = 'none';
     }
   }
+}
+
+function copyPlayerSummary(btn) {
+  const text = `${btn.dataset.copyName} - ${btn.dataset.copyOvr} | ${btn.dataset.copyAge}y`;
+  navigator.clipboard.writeText(text).then(() => {
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = 'bi bi-clipboard-check';
+      setTimeout(() => {
+        icon.className = 'bi bi-clipboard';
+      }, 1500);
+    }
+  });
 }
 
 async function loadPlayers() {
@@ -818,6 +833,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('players-table-body')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.classList.contains('btn-copy-player')) {
+      copyPlayerSummary(btn);
+      return;
+    }
     if (btn.classList.contains('btn-details-player')) {
       openPlayerDetails(parseInt(btn.dataset.id, 10));
       return;
@@ -889,6 +908,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('players-mobile-cards')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.classList.contains('btn-copy-player')) {
+      copyPlayerSummary(btn);
+      return;
+    }
     if (btn.classList.contains('btn-details-player')) {
       openPlayerDetails(parseInt(btn.dataset.id, 10));
       return;

@@ -744,6 +744,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return 'ovr-base';
 	}
 
+	function copyPlayerSummary(btn) {
+		const text = `${btn.dataset.copyName} - ${btn.dataset.copyOvr} | ${btn.dataset.copyAge}y`;
+		navigator.clipboard.writeText(text).then(() => {
+			const icon = btn.querySelector('i');
+			if (icon) { icon.className = 'bi bi-clipboard-check'; setTimeout(() => icon.className = 'bi bi-clipboard', 1500); }
+		});
+	}
+
 	function isFranchiseEligible(p) {
 		if (p.league !== 'RISE') return false;
 		if (Number(p.is_franchise_player) === 1) return true;
@@ -776,6 +784,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					</div>
 					<div class="mpl-actions">
 						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
+						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}"><i class="bi bi-clipboard"></i></button>
 						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
 					</div>
 				</div>
@@ -810,6 +819,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div class="player-card-actions">
 					${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-light-gray">Sem contato</span>'}
 					<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i> Detalhes</button>
+					<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}"><i class="bi bi-clipboard"></i> Copiar</button>
 					<a class="btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i> Trocar</a>
 				</div>
 			</div>
@@ -891,6 +901,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								</td>
 								<td>
 									<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i> Detalhes</button>
+									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}"><i class="bi bi-clipboard"></i> Copiar</button>
 									<a class="btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i> Trocar</a>
 								</td>
 							</tr>
