@@ -276,22 +276,10 @@ foreach ($availableModules as $m) $labelByKey[$m['key']] = $m['label'];
         .form-label { color: var(--text-2); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
         .form-control-color { width: 46px !important; padding: 4px !important; }
 
-        /* URL display box */
-        .url-box { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; }
-        .url-box .url-label { color: var(--text-3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
-        .url-box .url-value { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-        .url-box a.url-value { color: var(--red); text-decoration: none; }
-        .url-box a.url-value:hover { text-decoration: underline; }
-
         /* Flash alert */
         .flash { border-radius: var(--radius-sm); padding: 12px 16px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
         .flash.success { background: rgba(34,197,94,.10); border: 1px solid rgba(34,197,94,.25); color: var(--green); }
         .flash.danger { background: var(--red-soft); border: 1px solid var(--border-red); color: var(--red); }
-
-        /* Toggle switch label */
-        .enabled-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .enabled-label { font-size: 14px; font-weight: 600; color: var(--text); }
-        .enabled-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
 
         /* Save button */
         .btn-save { background: var(--red); border: none; color: #fff; font-family: var(--font); font-size: 13px; font-weight: 700; padding: 10px 28px; border-radius: var(--radius-sm); cursor: pointer; transition: filter var(--t) var(--ease); }
@@ -312,6 +300,20 @@ foreach ($availableModules as $m) $labelByKey[$m['key']] = $m['label'];
             .topbar { display: flex; }
             .page-hero, .content { padding-left: 16px; padding-right: 16px; }
             .page-hero { padding-top: 18px; }
+        }
+        @media (max-width: 640px) {
+            .page-title { font-size: 20px; }
+            .page-sub { font-size: 12px; }
+            .bc-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .btn-ghost-sm { padding: 8px 12px; font-size: 13px; }
+            .module-item { padding: 10px 12px; }
+            .btn-save, .btn-outline { width: 100%; justify-content: center; }
+            .d-flex.justify-content-end { flex-direction: column-reverse; }
+        }
+        @media (max-width: 400px) {
+            .content { padding: 16px 12px 32px; }
+            .page-hero { padding-left: 12px; padding-right: 12px; }
+            .bc-body { padding: 14px 12px; }
         }
 
         a { color: inherit; }
@@ -424,33 +426,17 @@ foreach ($availableModules as $m) $labelByKey[$m['key']] = $m['label'];
             <form method="post">
                 <div class="d-flex flex-column gap-3">
 
-                    <!-- Enabled + URL -->
-                    <div class="bc">
-                        <div class="bc-head">
-                            <div class="bc-title"><i class="bi bi-toggle-on"></i> Visibilidade</div>
+                    <!-- Enabled -->
+                    <div style="display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;">
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="public_enabled" name="public_enabled"
+                                   style="width:40px;height:22px;cursor:pointer"
+                                   <?= $isEnabled ? 'checked' : '' ?>>
                         </div>
-                        <div class="bc-body d-flex flex-column gap-3">
-                            <div class="enabled-row">
-                                <div>
-                                    <div class="enabled-label">Página pública ativa</div>
-                                    <div class="enabled-sub">Quando ativo, qualquer pessoa com o link pode ver a página do seu time.</div>
-                                </div>
-                                <div class="form-check form-switch m-0">
-                                    <input class="form-check-input" type="checkbox" role="switch"
-                                           id="public_enabled" name="public_enabled"
-                                           style="width:44px;height:24px"
-                                           <?= $isEnabled ? 'checked' : '' ?>>
-                                </div>
-                            </div>
-                            <div class="url-box">
-                                <span class="url-label">Link</span>
-                                <?php if ($publicUrl): ?>
-                                    <a class="url-value" href="<?= htmlspecialchars($publicUrl) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($publicUrl) ?></a>
-                                <?php else: ?>
-                                    <span class="url-value" style="color:var(--text-3)">/times/(slug gerado ao salvar)</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
+                        <label for="public_enabled" style="font-size:13px;font-weight:600;color:var(--text);cursor:pointer;margin:0">
+                            Página pública ativa
+                        </label>
                     </div>
 
                     <!-- Colors -->
