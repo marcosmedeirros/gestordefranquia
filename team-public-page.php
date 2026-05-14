@@ -318,6 +318,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
         .mode-tab{padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel-2);color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease);display:flex;align-items:center;gap:6px;}
         .mode-tab:hover{border-color:var(--border-md);color:var(--text);}
         .mode-tab.active{background:var(--red-soft);border-color:var(--red);color:var(--red);}
+        .mode-hidden{display:none!important;}
         .custom-html-area{width:100%;min-height:320px;resize:vertical;font-family:monospace;font-size:13px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:14px;color:var(--text);outline:none;transition:border-color var(--t);line-height:1.6;}
         .custom-html-area:focus{border-color:var(--red);}
 
@@ -473,7 +474,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                     </div>
 
                     <!-- Seção modular (cores + fonte + módulos) -->
-                    <div id="modularSection" class="d-flex flex-column gap-3" <?= $publicMode==='custom'?'style="display:none!important"':'' ?>>
+                    <div id="modularSection" class="d-flex flex-column gap-3 <?= $publicMode==='custom'?'mode-hidden':'' ?>">
 
                     <!-- Cores -->
                     <div class="bc">
@@ -590,7 +591,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                     </div><!-- /modularSection -->
 
                     <!-- Seção personalizada -->
-                    <div id="customSection" <?= $publicMode==='modular'?'style="display:none"':'' ?>>
+                    <div id="customSection" class="<?= $publicMode==='modular'?'mode-hidden':'' ?>">
                         <div class="bc">
                             <div class="bc-head">
                                 <div class="bc-title"><i class="bi bi-code-slash"></i> HTML do Site</div>
@@ -861,8 +862,8 @@ document.querySelectorAll('.mode-tab').forEach(btn => {
         modeInput.value = mode;
         document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        modularSection.style.display = mode === 'modular' ? '' : 'none';
-        customSection.style.display  = mode === 'custom'  ? '' : 'none';
+        modularSection.classList.toggle('mode-hidden', mode !== 'modular');
+        customSection.classList.toggle('mode-hidden',  mode !== 'custom');
     });
 });
 
