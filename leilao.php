@@ -169,6 +169,50 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .list-group-item:hover { background: var(--panel-3); }
         /* alert info */
         .info-box { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 12px 16px; font-size: 13px; color: var(--text-2); margin-bottom: 16px; }
+        /* Mobile: tables & proposals */
+        @media (max-width: 768px) {
+            .leilao-page .table-responsive {
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                background: var(--panel);
+                padding: 8px;
+            }
+            .leilao-page .table-responsive table {
+                min-width: 0;
+                border-collapse: separate;
+                border-spacing: 0 10px;
+            }
+            .leilao-page .table-responsive thead { display: none; }
+            .leilao-page .table-responsive tbody tr {
+                display: block;
+                background: var(--panel-2);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                padding: 10px 12px;
+            }
+            .leilao-page .table-responsive tbody td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 6px 0;
+                border: none;
+                font-size: 13px;
+            }
+            .leilao-page .table-responsive tbody td::before {
+                content: attr(data-label);
+                font-size: 10px;
+                letter-spacing: .6px;
+                text-transform: uppercase;
+                color: var(--text-3);
+                font-weight: 700;
+            }
+            .leilao-page .auction-proposal-card {
+                padding: 14px 14px !important;
+                border-radius: var(--radius-sm) !important;
+                box-shadow: 0 10px 26px rgba(0,0,0,.18);
+            }
+        }
         @media (max-width: 992px) {
             :root { --sidebar-w: 0px; }
             .sidebar { transform: translateX(-260px); }
@@ -180,7 +224,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         }
     </style>
 </head>
-<body>
+<body class="leilao-page">
 <div class="app">
 
     <!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->

@@ -56,7 +56,7 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
       </div>` : '';
 
     return `
-      <div style="background:var(--panel-2);border:1px solid ${borderColor};border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px">
+      <div class="auction-proposal-card" style="background:var(--panel-2);border:1px solid ${borderColor};border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
           <div style="font-weight:600;font-size:14px;color:var(--text)">${_esc(p.team_name||'—')}</div>
           ${_statusBadge(p.status)}
@@ -69,6 +69,21 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
         ${actionHtml}
       </div>`;
   }).join('');
+}
+
+function _applyLeilaoTableLabels(root = document) {
+  const tables = root.querySelectorAll('.table-responsive table, table.table');
+  tables.forEach((table) => {
+    const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach((tr) => {
+      Array.from(tr.children).forEach((cell, idx) => {
+        if (cell.tagName !== 'TD') return;
+        if (!cell.dataset.label) {
+          cell.dataset.label = headers[idx] || '';
+        }
+      });
+    });
+  });
 }
 
 // ── Modal de propostas (único ponto de abertura) ──────────────────────────────
@@ -223,6 +238,7 @@ async function carregarLeiloesAtivos() {
     }).join('');
 
     container.innerHTML = banner + `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">${cards}</div>`;
+    _applyLeilaoTableLabels(container);
     iniciarCronometros();
   } catch (e) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">Erro ao carregar: ${_esc(e.message||'')}</p>`;
@@ -278,6 +294,7 @@ async function carregarHistoricoLeiloes() {
     }).join('');
 
     container.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${cards}</div>`;
+    _applyLeilaoTableLabels(container);
   } catch (e) {
     container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar histórico.</p>';
   }
@@ -340,6 +357,7 @@ async function carregarPropostasRecebidas() {
     }).join('');
 
     container.innerHTML = cards;
+    _applyLeilaoTableLabels(container);
   } catch (e) {
     container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar propostas.</p>';
   }
@@ -533,6 +551,7 @@ async function carregarLeiloesAdmin() {
     }).join('');
 
     container.innerHTML = cards;
+    _applyLeilaoTableLabels(container);
   } catch (e) {
     container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar leilões.</p>';
   }
@@ -580,6 +599,7 @@ async function carregarPendentesCriados() {
     }).join('');
 
     container.innerHTML = cards;
+    _applyLeilaoTableLabels(container);
   } catch (e) {
     container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar jogadores criados.</p>';
   }
@@ -875,4 +895,5 @@ document.addEventListener('DOMContentLoaded', function () {
     carregarPendentesCriados();
     setupAdminEvents();
   }
+  _applyLeilaoTableLabels();
 });
