@@ -148,6 +148,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Minha Conta
             </a>
         </li>
+        <li>
+            <a href="/team-public-page.php" class="<?= $currentPage === 'team-public-page.php' ? 'active' : '' ?>">
+                <i class="bi bi-globe2"></i>
+                Página do Time
+            </a>
+        </li>
     </ul>
 
     <hr style="border-color: var(--fba-border);">
