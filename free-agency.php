@@ -545,6 +545,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
             <div class="sb-section">Conta</div>
             <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
+            <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
         </nav>
 
         <button class="sb-theme-toggle" type="button" id="themeToggle">

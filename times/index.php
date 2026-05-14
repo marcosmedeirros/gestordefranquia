@@ -295,7 +295,7 @@ function ovrColor(int $ovr): string {
             display:inline-flex;flex-direction:column;
             background:var(--c1);border:1px solid var(--pb);border-radius:var(--rs);padding:8px 12px;
             transition:border-color var(--t) var(--ease),transform var(--t) var(--ease);
-            min-width:80px;position:relative;overflow:hidden;
+            width:140px;flex:0 0 140px;position:relative;overflow:hidden;
         }
         .pick-tag::before { content:'';position:absolute;top:0;left:0;width:3px;bottom:0;background:linear-gradient(180deg,var(--p),var(--s)); }
         .pick-tag:hover { border-color:var(--p);transform:translateY(-1px); }
@@ -437,7 +437,7 @@ function ovrColor(int $ovr): string {
             <div class="stat-card">
                 <div class="stat-icon"><i class="bi bi-trophy-fill"></i></div>
                 <div class="stat-val accent"><?= $championships ?></div>
-                <div class="stat-label">Títulos</div>
+                <div class="stat-label">Informações</div>
             </div>
             <?php endif; ?>
             <?php if (in_array('ranking',$modules)): ?>

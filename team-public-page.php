@@ -37,7 +37,7 @@ if (!$team) { http_response_code(404); echo "Time não encontrado."; exit; }
 $fixedModules = [
     ['key'=>'roster',  'label'=>'Elenco (Jogadores)'],
     ['key'=>'lineup',  'label'=>'Escalação (Titulares)'],
-    ['key'=>'titles',  'label'=>'Títulos'],
+    ['key'=>'titles',  'label'=>'Informações'],
     ['key'=>'picks',   'label'=>'Picks 1ª Rodada'],
     ['key'=>'ranking', 'label'=>'Posição no Ranking'],
     ['key'=>'ai_avgs', 'label'=>'Médias IA (Idade/OVR)'],
@@ -244,15 +244,17 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
         .bc-body{padding:18px;}
 
         /* Module list */
-        .module-item{display:flex;gap:10px;align-items:center;padding:10px 13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);transition:border-color var(--t) var(--ease);}
+        .module-item{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);transition:border-color var(--t) var(--ease);overflow:hidden;}
         .module-item:hover{border-color:var(--border-md);}
         .module-item.dragging{opacity:.5;border-color:var(--red);}
         .module-item.is-block{border-left:3px solid var(--red);}
+        .module-item-row{display:flex;gap:10px;align-items:center;padding:10px 13px;}
+        .module-item.is-block .module-item-row{cursor:pointer;user-select:none;}
         .module-handle{cursor:grab;color:var(--text-3);font-size:16px;flex-shrink:0;}
         .module-handle:active{cursor:grabbing;}
 
         /* Block editor inline */
-        .block-editor{display:none;border-top:1px solid var(--border);padding:14px;background:var(--panel-3);}
+        .block-editor{display:none;border-top:1px solid var(--border);padding:14px;background:var(--panel-3);-webkit-user-drag:none;}
         .block-editor.open{display:block;}
         .block-editor textarea{width:100%;min-height:140px;resize:vertical;font-family:monospace;font-size:12px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:10px;color:var(--text);outline:none;transition:border-color var(--t);}
         .block-editor textarea:focus{border-color:var(--red);}
@@ -443,7 +445,6 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                             <div class="bc-title"><i class="bi bi-grid-fill"></i> Módulos e Blocos</div>
                             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                                 <span style="font-size:11px;color:var(--text-3)">Arraste para ordenar</span>
-                                <button type="button" class="btn-ghost-sm" id="addAllModules">+ Fixos faltantes</button>
                                 <button type="button" class="btn-ghost-sm" id="addBlock" style="color:var(--red);border-color:var(--border-red)">+ Novo bloco HTML</button>
                             </div>
                         </div>
@@ -459,45 +460,46 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                                     $blockData = ($bid && isset($blockMap[$bid])) ? $blockMap[$bid] : null;
                                 ?>
                                 <div class="module-item <?= $isBlock?'is-block':'' ?>" draggable="true" data-key="<?= htmlspecialchars($k) ?>">
-                                    <div class="module-handle"><i class="bi bi-grip-vertical"></i></div>
-                                    <div class="flex-grow-1">
-                                        <div class="form-check m-0">
-                                            <input class="form-check-input module-check" type="checkbox" checked id="mod_<?= htmlspecialchars($k) ?>">
-                                            <label class="form-check-label" for="mod_<?= htmlspecialchars($k) ?>"
-                                                   style="font-size:13px;color:var(--text)">
-                                                <?= htmlspecialchars($label) ?>
-                                            </label>
+                                    <div class="module-item-row">
+                                        <div class="module-handle"><i class="bi bi-grip-vertical"></i></div>
+                                        <div class="flex-grow-1">
+                                            <div class="form-check m-0">
+                                                <input class="form-check-input module-check" type="checkbox" checked id="mod_<?= htmlspecialchars($k) ?>">
+                                                <label class="form-check-label" for="mod_<?= htmlspecialchars($k) ?>"
+                                                       style="font-size:13px;color:var(--text)">
+                                                    <?= htmlspecialchars($label) ?>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-1 align-items-center">
+                                            <?php if ($isBlock): ?>
+                                            <button type="button" class="btn-icon edit-block" data-bid="<?= htmlspecialchars($bid??'') ?>" title="Editar bloco"><i class="bi bi-pencil"></i></button>
+                                            <button type="button" class="btn-icon del delete-block" data-bid="<?= htmlspecialchars($bid??'') ?>" title="Excluir bloco"><i class="bi bi-trash"></i></button>
+                                            <?php else: ?>
+                                            <button type="button" class="btn-ghost-sm move-up" title="Subir" style="padding:5px 8px"><i class="bi bi-arrow-up"></i></button>
+                                            <button type="button" class="btn-ghost-sm move-down" title="Descer" style="padding:5px 8px"><i class="bi bi-arrow-down"></i></button>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
-                                    <div class="d-flex gap-1 align-items-center">
-                                        <?php if ($isBlock): ?>
-                                        <button type="button" class="btn-icon edit-block" data-bid="<?= htmlspecialchars($bid??'') ?>" title="Editar bloco"><i class="bi bi-pencil"></i></button>
-                                        <button type="button" class="btn-icon del delete-block" data-bid="<?= htmlspecialchars($bid??'') ?>" title="Excluir bloco"><i class="bi bi-trash"></i></button>
-                                        <?php else: ?>
-                                        <button type="button" class="btn-ghost-sm move-up" title="Subir" style="padding:5px 8px"><i class="bi bi-arrow-up"></i></button>
-                                        <button type="button" class="btn-ghost-sm move-down" title="Descer" style="padding:5px 8px"><i class="bi bi-arrow-down"></i></button>
-                                        <?php endif; ?>
+                                    <?php if ($isBlock && $blockData): ?>
+                                    <div class="block-editor" id="editor_<?= htmlspecialchars($bid) ?>">
+                                        <div class="row g-2">
+                                            <div class="col-12">
+                                                <label class="form-label">Título do bloco</label>
+                                                <input type="text" class="form-control form-control-sm block-label-input"
+                                                       data-bid="<?= htmlspecialchars($bid) ?>"
+                                                       value="<?= htmlspecialchars($blockData['label']??'') ?>"
+                                                       placeholder="Ex: Apresentação, Patrocinadores...">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label">Conteúdo HTML/Texto</label>
+                                                <textarea class="block-html-input" data-bid="<?= htmlspecialchars($bid) ?>"
+                                                          placeholder="Cole seu HTML aqui ou escreva o que quiser..."><?= htmlspecialchars($blockData['html']??'') ?></textarea>
+                                            </div>
+                                        </div>
                                     </div>
+                                    <?php endif; ?>
                                 </div>
-                                <?php if ($isBlock && $blockData): ?>
-                                <!-- Editor inline do bloco -->
-                                <div class="block-editor" id="editor_<?= htmlspecialchars($bid) ?>">
-                                    <div class="row g-2">
-                                        <div class="col-12">
-                                            <label class="form-label">Título do bloco</label>
-                                            <input type="text" class="form-control form-control-sm block-label-input"
-                                                   data-bid="<?= htmlspecialchars($bid) ?>"
-                                                   value="<?= htmlspecialchars($blockData['label']??'') ?>"
-                                                   placeholder="Ex: Apresentação, Patrocinadores...">
-                                        </div>
-                                        <div class="col-12">
-                                            <label class="form-label">Conteúdo HTML</label>
-                                            <textarea class="block-html-input" data-bid="<?= htmlspecialchars($bid) ?>"
-                                                      placeholder="Cole seu HTML aqui..."><?= htmlspecialchars($blockData['html']??'') ?></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endif; ?>
                                 <?php endforeach; ?>
                             </div>
                         </div>
@@ -581,49 +583,48 @@ function serializeBlocks() {
     });
 }
 
-// ── Build module item HTML ─────────────────────────────────
-function buildModuleItem(key, label, isBlock, bid) {
+// ── Build module item HTML (editor nested inside for blocks) ──
+function buildModuleItem(key, label, isBlock, bid, blockLabel, blockHtml) {
     const div = document.createElement('div');
     div.className = 'module-item' + (isBlock?' is-block':'');
     div.setAttribute('draggable','true');
     div.setAttribute('data-key', key);
+    const safeLabel = (blockLabel||'').replace(/"/g,'&quot;');
+    const safeHtml  = (blockHtml||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     div.innerHTML = `
-        <div class="module-handle"><i class="bi bi-grip-vertical"></i></div>
-        <div class="flex-grow-1">
-            <div class="form-check m-0">
-                <input class="form-check-input module-check" type="checkbox" checked id="mod_${key}">
-                <label class="form-check-label" for="mod_${key}" style="font-size:13px;color:var(--text)">${label}</label>
+        <div class="module-item-row">
+            <div class="module-handle"><i class="bi bi-grip-vertical"></i></div>
+            <div class="flex-grow-1">
+                <div class="form-check m-0">
+                    <input class="form-check-input module-check" type="checkbox" checked id="mod_${key}">
+                    <label class="form-check-label" for="mod_${key}" style="font-size:13px;color:var(--text)">${label}</label>
+                </div>
+            </div>
+            <div class="d-flex gap-1 align-items-center">
+                ${isBlock ? `
+                    <button type="button" class="btn-icon edit-block" data-bid="${bid}" title="Editar"><i class="bi bi-pencil"></i></button>
+                    <button type="button" class="btn-icon del delete-block" data-bid="${bid}" title="Excluir"><i class="bi bi-trash"></i></button>
+                ` : `
+                    <button type="button" class="btn-ghost-sm move-up" style="padding:5px 8px"><i class="bi bi-arrow-up"></i></button>
+                    <button type="button" class="btn-ghost-sm move-down" style="padding:5px 8px"><i class="bi bi-arrow-down"></i></button>
+                `}
             </div>
         </div>
-        <div class="d-flex gap-1 align-items-center">
-            ${isBlock ? `
-                <button type="button" class="btn-icon edit-block" data-bid="${bid}" title="Editar"><i class="bi bi-pencil"></i></button>
-                <button type="button" class="btn-icon del delete-block" data-bid="${bid}" title="Excluir"><i class="bi bi-trash"></i></button>
-            ` : `
-                <button type="button" class="btn-ghost-sm move-up" style="padding:5px 8px"><i class="bi bi-arrow-up"></i></button>
-                <button type="button" class="btn-ghost-sm move-down" style="padding:5px 8px"><i class="bi bi-arrow-down"></i></button>
-            `}
-        </div>
-    `;
-    return div;
-}
-
-function buildBlockEditor(bid, label, html) {
-    const div = document.createElement('div');
-    div.className = 'block-editor open';
-    div.id = 'editor_' + bid;
-    div.innerHTML = `
-        <div class="row g-2">
-            <div class="col-12">
-                <label class="form-label">Título do bloco</label>
-                <input type="text" class="form-control form-control-sm block-label-input" data-bid="${bid}"
-                       value="${label.replace(/"/g,'&quot;')}" placeholder="Ex: Apresentação...">
-            </div>
-            <div class="col-12">
-                <label class="form-label">Conteúdo HTML</label>
-                <textarea class="block-html-input" data-bid="${bid}" placeholder="Cole seu HTML aqui...">${html.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+        ${isBlock ? `
+        <div class="block-editor" id="editor_${bid}">
+            <div class="row g-2">
+                <div class="col-12">
+                    <label class="form-label">Título do bloco</label>
+                    <input type="text" class="form-control form-control-sm block-label-input" data-bid="${bid}"
+                           value="${safeLabel}" placeholder="Ex: Apresentação, Patrocinadores...">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Conteúdo HTML/Texto</label>
+                    <textarea class="block-html-input" data-bid="${bid}" placeholder="Cole seu HTML aqui ou escreva o que quiser...">${safeHtml}</textarea>
+                </div>
             </div>
         </div>
+        ` : ''}
     `;
     return div;
 }
@@ -664,13 +665,24 @@ modulesList.addEventListener('click', e => {
         serializeModules(); return;
     }
 
-    // Edit block
+    // Edit block button (pencil icon)
     const editBtn = e.target.closest('.edit-block');
     if (editBtn) {
-        const bid = editBtn.dataset.bid;
-        const editor = document.getElementById('editor_'+bid);
+        const item = editBtn.closest('.module-item');
+        const editor = item?.querySelector('.block-editor');
         if (editor) editor.classList.toggle('open');
         return;
+    }
+
+    // Toggle editor by clicking anywhere on the block row (not buttons/inputs/labels)
+    const row = e.target.closest('.module-item-row');
+    if (row && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('label')) {
+        const item = row.closest('.module-item');
+        if (item?.classList.contains('is-block')) {
+            const editor = item.querySelector('.block-editor');
+            if (editor) editor.classList.toggle('open');
+            return;
+        }
     }
 
     // Delete block
@@ -679,11 +691,8 @@ modulesList.addEventListener('click', e => {
         if (!confirm('Excluir este bloco?')) return;
         const bid = delBtn.dataset.bid;
         blocks = blocks.filter(b => b.id !== bid);
-        // Remove item + editor from DOM
         const item = modulesList.querySelector(`[data-key="block_${bid}"]`);
-        const editor = document.getElementById('editor_'+bid);
-        if (item)   item.remove();
-        if (editor) editor.remove();
+        if (item) item.remove(); // editor is nested inside, removed automatically
         serializeModules();
         serializeBlocks();
     }
@@ -695,29 +704,20 @@ document.getElementById('addBlock').addEventListener('click', () => {
     const newBlock = {id: bid, label: '', html: '', active: true};
     blocks.push(newBlock);
 
-    const item   = buildModuleItem('block_'+bid, '📄 Bloco sem título', true, bid);
-    const editor = buildBlockEditor(bid, '', '');
+    const item = buildModuleItem('block_'+bid, '📄 Bloco sem título', true, bid, '', '');
+    // Open editor by default for new blocks
+    item.querySelector('.block-editor')?.classList.add('open');
     modulesList.appendChild(item);
-    modulesList.appendChild(editor);
 
     serializeModules();
     serializeBlocks();
-    editor.querySelector('.block-label-input')?.focus();
-});
-
-// ── Add all missing fixed modules ─────────────────────────
-document.getElementById('addAllModules').addEventListener('click', () => {
-    const existing = new Set(Array.from(modulesList.querySelectorAll('.module-item')).map(el=>el.getAttribute('data-key')));
-    for (const m of allFixedModules) {
-        if (existing.has(m.key)) continue;
-        modulesList.appendChild(buildModuleItem(m.key, m.label, false, null));
-    }
-    serializeModules();
+    item.querySelector('.block-label-input')?.focus();
 });
 
 // ── Drag and drop ──────────────────────────────────────────
 let dragEl = null;
 modulesList.addEventListener('dragstart', e => {
+    if (e.target.closest('.block-editor')) { e.preventDefault(); return; }
     const item = e.target.closest('.module-item');
     if (!item) return;
     dragEl = item;
