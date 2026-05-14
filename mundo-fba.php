@@ -680,19 +680,19 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         }
         .power-rank {
             position:absolute; top:10px; right:10px; font-size:11px; font-weight:800;
-            color:var(--text-3); background:var(--panel-3); border:1px solid var(--border);
+            color:var(--text); background:var(--panel-3); border:1px solid var(--border);
             padding:3px 6px; border-radius:8px;
         }
-        .power-rank.gold { color:#f59e0b; border-color:rgba(245,158,11,.25); }
-        .power-rank.silver { color:#94a3b8; }
-        .power-rank.bronze { color:#c97b3b; }
+        .power-rank.gold { color:var(--text); border-color:rgba(245,158,11,.25); }
+        .power-rank.silver { color:var(--text); }
+        .power-rank.bronze { color:var(--text); }
         .power-head { display:flex; align-items:center; gap:10px; }
         .power-logo { width:38px; height:38px; border-radius:9px; object-fit:cover; border:1px solid var(--border-md); background:var(--panel-3); flex-shrink:0; }
         .power-name { font-size:13px; font-weight:700; color:var(--text); }
         .power-owner { font-size:11px; color:var(--text-2); }
         .power-score {
             margin-top:8px; font-size:20px; font-weight:900; color:var(--red);
-            letter-spacing:.3px;
+            letter-spacing:.3px; text-align:center;
         }
         .power-score span { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:var(--text); display:block; margin-top:2px; }
         .power-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
