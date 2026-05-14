@@ -988,7 +988,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-actions {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             justify-content: flex-end;
         }
 
