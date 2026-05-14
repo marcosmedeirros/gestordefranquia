@@ -25,6 +25,21 @@ function sortByTeamName(list, getName, direction) {
     return sorted;
 }
 
+function _applyFaTableLabels(root = document) {
+    const tables = root.querySelectorAll('.table-responsive table, table.table');
+    tables.forEach((table) => {
+        const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+            Array.from(tr.children).forEach((cell, idx) => {
+                if (cell.tagName !== 'TD') return;
+                if (!cell.dataset.label) {
+                    cell.dataset.label = headers[idx] || '';
+                }
+            });
+        });
+    });
+}
+
 window.toggleFaHistoryTeamSort = function() {
     faHistoryTeamSort = faHistoryTeamSort === 'asc' ? 'desc' : 'asc';
     if (isNewFaEnabled) {
@@ -181,6 +196,7 @@ function initNewFreeAgency() {
             });
         }
     }
+
 }
 
 async function openFaApprovedModal() {
@@ -407,6 +423,7 @@ async function carregarMinhasPropostasNovaFA() {
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        _applyFaTableLabels(container);
         carregarLimitesNovaFA();
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar propostas.</p>';
@@ -473,6 +490,7 @@ async function carregarHistoricoNovaFA() {
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        _applyFaTableLabels(container);
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
@@ -755,6 +773,7 @@ function renderWaiversList(waivers) {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
+    _applyFaTableLabels(container);
 }
 
 let freeAgentsCache = [];
@@ -842,6 +861,7 @@ async function carregarHistoricoFA() {
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        _applyFaTableLabels(container);
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
@@ -980,6 +1000,7 @@ async function carregarFreeAgentsAdmin() {
 
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        _applyFaTableLabels(container);
     } catch (error) {
         console.error('Erro:', error);
         container.innerHTML = '<p class="text-danger">Erro ao carregar.</p>';
@@ -1150,6 +1171,7 @@ async function carregarHistoricoContratacoes() {
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
+        _applyFaTableLabels(container);
     } catch (error) {
         container.innerHTML = '<p class="text-danger">Erro ao carregar historico.</p>';
     }
