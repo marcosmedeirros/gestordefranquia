@@ -224,10 +224,10 @@ function ovrColor(int $ovr): string {
         }
         .hero-name {
             font-size: clamp(20px,5vw,34px); font-weight: 900; letter-spacing:-.03em; line-height:1.05;
-            background: linear-gradient(110deg, var(--tx) 30%, var(--p) 80%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            color: var(--p);
         }
         .hero-city { font-size: 13px; color: var(--tx2); margin-top: 5px; }
+        .hero-city i { color: var(--s); }
         .hero-pills { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
         .pill { display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:11px;font-weight:600;background:var(--c2);border:1px solid var(--bd2);color:var(--tx2); }
         .pill.accent { background:var(--ps2);border-color:var(--pb);color:var(--p); }
@@ -243,7 +243,7 @@ function ovrColor(int $ovr): string {
             color: var(--p);
         }
         .section-title i { font-size:14px; }
-        .section-count { font-size:11px;font-weight:600;background:var(--c2);border:1px solid var(--bd);padding:2px 9px;border-radius:999px;color:var(--tx3); }
+        .section-count { font-size:11px;font-weight:600;background:color-mix(in srgb,var(--s) 14%,transparent);border:1px solid color-mix(in srgb,var(--s) 30%,transparent);padding:2px 9px;border-radius:999px;color:var(--s); }
 
         /* STAT CARDS */
         .stats-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px; }
@@ -258,7 +258,7 @@ function ovrColor(int $ovr): string {
         .stat-val { font-size:28px;font-weight:900;line-height:1;color:var(--tx); }
         .stat-val.accent { color:var(--p); }
         .stat-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx2);margin-top:4px; }
-        .stat-sub { font-size:11px;color:var(--tx3);margin-top:2px; }
+        .stat-sub { font-size:11px;color:var(--s);margin-top:2px; }
 
         /* STARTERS */
         .starters-strip { display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;justify-content:center;flex-wrap:wrap; }
@@ -301,7 +301,7 @@ function ovrColor(int $ovr): string {
         .pick-tag:hover { border-color:var(--p);transform:translateY(-1px); }
         .pick-tag-top { display:flex;align-items:baseline;gap:4px;padding-left:8px; }
         .pick-year { font-size:10px;font-weight:700;color:var(--tx3); }
-        .pick-round { font-size:15px;font-weight:900;color:var(--tx); }
+        .pick-round { font-size:15px;font-weight:900;color:var(--s); }
         .pick-origin { font-size:11px;color:var(--tx2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;padding-left:8px; }
         .pick-own-label { color:var(--p);font-weight:700; }
 
