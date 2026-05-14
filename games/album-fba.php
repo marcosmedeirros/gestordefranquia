@@ -91,7 +91,7 @@ $teams = [
     .fba-tabs-wrap {
       background: var(--panel); border-bottom: 1px solid var(--border);
       padding: 10px 20px 0; overflow-x: auto;
-      display: flex; gap: 2px; scrollbar-width: none;
+      display: flex; gap: 2px; justify-content: center; scrollbar-width: none;
     }
     .fba-tabs-wrap::-webkit-scrollbar { display: none; }
     .fba-tab {
@@ -247,8 +247,6 @@ $teams = [
   <!-- Tab bar -->
   <div class="fba-tabs-wrap">
     <button onclick="switchTab('album')"   id="tab-album"   class="fba-tab active-tab"><span class="tab-dot"></span>Meu Álbum</button>
-    <button onclick="switchTab('team')"    id="tab-team"    class="fba-tab"><span class="tab-dot"></span>Meu Time</button>
-    <button onclick="switchTab('ranking')" id="tab-ranking" class="fba-tab"><span class="tab-dot"></span>Ranking</button>
     <button onclick="switchTab('market')"  id="tab-market"  class="fba-tab"><span class="tab-dot"></span>Mercado</button>
     <button onclick="switchTab('trades')"  id="tab-trades"  class="fba-tab"><span class="tab-dot"></span>Trocas</button>
     <button onclick="switchTab('store')"   id="tab-store"   class="fba-tab"><span class="tab-dot"></span>Pacotes</button>

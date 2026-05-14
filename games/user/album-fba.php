@@ -210,8 +210,6 @@ if (!isset($_SESSION['user_id'])) {
   <!-- Tab bar -->
   <div class="fba-tabs-wrap">
     <button onclick="switchTab('album')"   id="tab-album"   class="fba-tab active-tab"><span class="tab-dot"></span>Meu Álbum</button>
-    <button onclick="switchTab('team')"    id="tab-team"    class="fba-tab"><span class="tab-dot"></span>Meu Time</button>
-    <button onclick="switchTab('ranking')" id="tab-ranking" class="fba-tab"><span class="tab-dot"></span>Ranking</button>
     <button onclick="switchTab('store')"   id="tab-store"   class="fba-tab"><span class="tab-dot"></span>Pacotes</button>
     <button onclick="switchTab('admin')"   id="tab-admin"   class="fba-tab hidden"><span class="tab-dot"></span>Admin</button>
   </div>
