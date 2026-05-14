@@ -625,7 +625,7 @@ if ($method === 'GET') {
                     COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
                  FROM trade_items ti
                  LEFT JOIN players p ON p.id = ti.player_id
-                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.player_id IS NOT NULL");
+                 WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NULL");
                 $stmtOfferPlayers->execute([$trade['id']]);
                 $trade['offer_players'] = $stmtOfferPlayers->fetchAll(PDO::FETCH_ASSOC);
                 
@@ -646,7 +646,7 @@ if ($method === 'GET') {
                     COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
                  FROM trade_items ti
                  LEFT JOIN players p ON p.id = ti.player_id
-                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.player_id IS NOT NULL");
+                 WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NULL");
                 $stmtRequestPlayers->execute([$trade['id']]);
                 $trade['request_players'] = $stmtRequestPlayers->fetchAll(PDO::FETCH_ASSOC);
                 
