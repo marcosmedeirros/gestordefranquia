@@ -107,8 +107,10 @@ async function bootstrap() {
 }
 
 function switchTab(tab) {
-    const all = ['album', 'team', 'ranking', 'market', 'trades', 'store'];
-    if (state.user?.is_admin) all.push('admin');
+    const tabButtons = Array.from(document.querySelectorAll('.fba-tab'));
+    const all = tabButtons
+        .map((btn) => (btn.id || '').replace('tab-', '').trim())
+        .filter(Boolean);
     all.forEach((t) => {
         const section = document.getElementById('section-' + t);
         if (section) {
@@ -118,7 +120,7 @@ function switchTab(tab) {
             section.setAttribute('aria-hidden', 'true');
         }
         const b = document.getElementById('tab-' + t);
-        if (b) b.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-zinc-900 text-zinc-300 font-bold fba-title hover:bg-zinc-800';
+        if (b) b.classList.remove('active-tab');
     });
     const activeSection = document.getElementById('section-' + tab);
     if (activeSection) {
@@ -128,7 +130,7 @@ function switchTab(tab) {
         activeSection.setAttribute('aria-hidden', 'false');
     }
     const active = document.getElementById('tab-' + tab);
-    if (active) active.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-red-700 font-bold fba-title text-white';
+    if (active) active.classList.add('active-tab');
     if (tab === 'album') renderAlbum();
     if (tab === 'team') renderCourt();
     if (tab === 'ranking') renderRanking();

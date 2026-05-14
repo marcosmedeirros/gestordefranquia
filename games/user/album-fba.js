@@ -56,16 +56,18 @@ async function bootstrap() {
 }
 
 function switchTab(tab) {
-    const all = ['album', 'team', 'ranking', 'store'];
-    if (state.user?.is_admin) all.push('admin');
+    const tabButtons = Array.from(document.querySelectorAll('.fba-tab'));
+    const all = tabButtons
+        .map((btn) => (btn.id || '').replace('tab-', '').trim())
+        .filter(Boolean);
     all.forEach((t) => {
         document.getElementById('section-' + t)?.classList.add('hidden');
         const b = document.getElementById('tab-' + t);
-        if (b) b.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-slate-800 text-slate-400 font-bold fba-title hover:bg-slate-700';
+        if (b) b.classList.remove('active-tab');
     });
     document.getElementById('section-' + tab)?.classList.remove('hidden');
     const active = document.getElementById('tab-' + tab);
-    if (active) active.className = 'px-4 md:px-6 py-2 rounded-t-lg bg-blue-600 font-bold fba-title text-white';
+    if (active) active.classList.add('active-tab');
     if (tab === 'album') renderAlbum();
     if (tab === 'team') renderCourt();
     if (tab === 'ranking') renderRanking();
