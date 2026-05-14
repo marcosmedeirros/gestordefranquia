@@ -7,12 +7,32 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-// Garante coluna public_blocks
-try {
-    $pdo->query("SELECT public_blocks FROM teams LIMIT 0");
-} catch (PDOException $e) {
+// Garante colunas public_blocks e public_font
+try { $pdo->query("SELECT public_blocks FROM teams LIMIT 0"); } catch (PDOException $e) {
     try { $pdo->exec("ALTER TABLE teams ADD COLUMN public_blocks MEDIUMTEXT NULL"); } catch (PDOException $e2) {}
 }
+try { $pdo->query("SELECT public_font FROM teams LIMIT 0"); } catch (PDOException $e) {
+    try { $pdo->exec("ALTER TABLE teams ADD COLUMN public_font VARCHAR(60) NULL"); } catch (PDOException $e2) {}
+}
+try { $pdo->query("SELECT public_mode FROM teams LIMIT 0"); } catch (PDOException $e) {
+    try { $pdo->exec("ALTER TABLE teams ADD COLUMN public_mode VARCHAR(20) NULL DEFAULT 'modular'"); } catch (PDOException $e2) {}
+}
+try { $pdo->query("SELECT public_custom_html FROM teams LIMIT 0"); } catch (PDOException $e) {
+    try { $pdo->exec("ALTER TABLE teams ADD COLUMN public_custom_html MEDIUMTEXT NULL"); } catch (PDOException $e2) {}
+}
+
+$availableFonts = [
+    'Poppins'    => 'Poppins:wght@300;400;500;600;700;800;900',
+    'Inter'      => 'Inter:wght@300;400;500;600;700;800;900',
+    'Montserrat' => 'Montserrat:wght@300;400;500;600;700;800;900',
+    'Oswald'     => 'Oswald:wght@300;400;500;600;700',
+    'Bebas Neue' => 'Bebas+Neue',
+    'Raleway'    => 'Raleway:wght@300;400;500;600;700;800;900',
+    'Barlow'     => 'Barlow:wght@300;400;500;600;700;800;900',
+    'Rubik'      => 'Rubik:wght@300;400;500;600;700;800;900',
+    'DM Sans'    => 'DM+Sans:wght@300;400;500;600;700;800;900',
+    'Nunito'     => 'Nunito:wght@300;400;500;600;700;800;900',
+];
 
 function isValidHexColor(?string $c): bool {
     if ($c === null) return false;
@@ -61,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $publicEnabled = isset($_POST['public_enabled']) ? 1 : 0;
     $primary   = trim((string)($_POST['public_primary_color'] ?? ''));
     $secondary = trim((string)($_POST['public_secondary_color'] ?? ''));
+    $fontIn       = trim((string)($_POST['public_font'] ?? 'Poppins'));
+    $fontSave     = array_key_exists($fontIn, $availableFonts) ? $fontIn : 'Poppins';
+    $modeSave     = (string)($_POST['public_mode'] ?? 'modular') === 'custom' ? 'custom' : 'modular';
+    $customHtmlSave = (string)($_POST['public_custom_html'] ?? '');
 
     // Processar blocos submetidos
     $blocksIn  = $_POST['blocks'] ?? [];
@@ -107,8 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $blocksSave    = $savedBlocks ? json_encode($savedBlocks, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) : null;
 
     try {
-        $pdo->prepare('UPDATE teams SET public_enabled=?,public_slug=?,public_primary_color=?,public_secondary_color=?,public_modules=?,public_blocks=? WHERE id=? LIMIT 1')
-            ->execute([$publicEnabled,$candidate,$primarySave,$secondarySave,$modulesSave,$blocksSave,(int)$team['id']]);
+        $pdo->prepare('UPDATE teams SET public_enabled=?,public_slug=?,public_primary_color=?,public_secondary_color=?,public_modules=?,public_blocks=?,public_font=?,public_mode=?,public_custom_html=? WHERE id=? LIMIT 1')
+            ->execute([$publicEnabled,$candidate,$primarySave,$secondarySave,$modulesSave,$blocksSave,$fontSave,$modeSave,$customHtmlSave,(int)$team['id']]);
         $stmtTeam->execute([$user['id']]);
         $team = $stmtTeam->fetch() ?: $team;
         // Re-read blocks
@@ -151,6 +175,11 @@ if (!isValidHexColor($primaryValue))   $primaryValue   = '#fc0025';
 $secondaryValue = $team['public_secondary_color'] ?? '#ff2a44';
 if (!isValidHexColor($secondaryValue)) $secondaryValue = '#ff2a44';
 $isEnabled = (int)($team['public_enabled'] ?? 0) === 1;
+$selectedFont = $team['public_font'] ?? 'Poppins';
+if (!array_key_exists($selectedFont, $availableFonts)) $selectedFont = 'Poppins';
+$publicMode   = $team['public_mode'] ?? 'modular';
+if (!in_array($publicMode, ['modular','custom'])) $publicMode = 'modular';
+$customHtmlValue = (string)($team['public_custom_html'] ?? '');
 
 $labelByKey = array_column($availableModules, 'label', 'key');
 
@@ -169,7 +198,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Inter:wght@700&family=Montserrat:wght@700&family=Oswald:wght@700&family=Bebas+Neue&family=Raleway:wght@700&family=Barlow:wght@700&family=Rubik:wght@700&family=DM+Sans:wght@700&family=Nunito:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
@@ -283,6 +312,24 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
         .btn-icon{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;transition:all var(--t) var(--ease);flex-shrink:0;}
         .btn-icon:hover{background:var(--red-soft);border-color:var(--red);color:var(--red);}
         .btn-icon.del:hover{background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444;}
+
+        /* Mode selector */
+        .mode-tabs{display:flex;gap:6px;flex-wrap:wrap;}
+        .mode-tab{padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel-2);color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease);display:flex;align-items:center;gap:6px;}
+        .mode-tab:hover{border-color:var(--border-md);color:var(--text);}
+        .mode-tab.active{background:var(--red-soft);border-color:var(--red);color:var(--red);}
+        .custom-html-area{width:100%;min-height:320px;resize:vertical;font-family:monospace;font-size:13px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:14px;color:var(--text);outline:none;transition:border-color var(--t);line-height:1.6;}
+        .custom-html-area:focus{border-color:var(--red);}
+
+        /* Font picker */
+        .font-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;}
+        .font-option{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--panel-2);transition:all var(--t) var(--ease);user-select:none;}
+        .font-option:hover{border-color:var(--border-md);background:var(--panel-3);}
+        .font-option.selected{border-color:var(--red);background:rgba(252,0,37,.08);}
+        .font-option input{display:none;}
+        .font-preview{font-size:28px;font-weight:700;color:var(--text);line-height:1;}
+        .font-name{font-size:10px;font-weight:600;color:var(--text-2);text-align:center;letter-spacing:.3px;}
+        .font-option.selected .font-name{color:var(--red);}
 
         /* Responsive */
         @media(max-width:992px){
@@ -411,6 +458,23 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                         </label>
                     </div>
 
+                    <!-- Modo -->
+                    <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <span style="font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;">Modo da página</span>
+                        <div class="mode-tabs">
+                            <button type="button" class="mode-tab <?= $publicMode==='modular'?'active':'' ?>" data-mode="modular">
+                                <i class="bi bi-grid-fill"></i> Modular
+                            </button>
+                            <button type="button" class="mode-tab <?= $publicMode==='custom'?'active':'' ?>" data-mode="custom">
+                                <i class="bi bi-code-slash"></i> Site personalizado
+                            </button>
+                        </div>
+                        <input type="hidden" name="public_mode" id="publicModeInput" value="<?= htmlspecialchars($publicMode) ?>">
+                    </div>
+
+                    <!-- Seção modular (cores + fonte + módulos) -->
+                    <div id="modularSection" class="d-flex flex-column gap-3" <?= $publicMode==='custom'?'style="display:none!important"':'' ?>>
+
                     <!-- Cores -->
                     <div class="bc">
                         <div class="bc-head">
@@ -435,6 +499,24 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                                 <div class="col-12">
                                     <div style="height:32px;border-radius:var(--radius-sm);background:linear-gradient(90deg,<?= htmlspecialchars($primaryValue) ?>,<?= htmlspecialchars($secondaryValue) ?>)" id="colorPreview"></div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fonte -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-title"><i class="bi bi-fonts"></i> Fonte da Página</div>
+                        </div>
+                        <div class="bc-body">
+                            <div class="font-grid">
+                                <?php foreach ($availableFonts as $fname => $fparam): ?>
+                                <label class="font-option <?= $selectedFont===$fname?'selected':'' ?>">
+                                    <input type="radio" name="public_font" value="<?= htmlspecialchars($fname) ?>" <?= $selectedFont===$fname?'checked':'' ?>>
+                                    <span class="font-preview" style="font-family:'<?= htmlspecialchars($fname) ?>'">Aa</span>
+                                    <span class="font-name"><?= htmlspecialchars($fname) ?></span>
+                                </label>
+                                <?php endforeach; ?>
                             </div>
                         </div>
                     </div>
@@ -501,6 +583,25 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                                     <?php endif; ?>
                                 </div>
                                 <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    </div><!-- /modularSection -->
+
+                    <!-- Seção personalizada -->
+                    <div id="customSection" <?= $publicMode==='modular'?'style="display:none"':'' ?>>
+                        <div class="bc">
+                            <div class="bc-head">
+                                <div class="bc-title"><i class="bi bi-code-slash"></i> HTML do Site</div>
+                                <span style="font-size:11px;color:var(--text-3)">Cole o HTML completo da sua página</span>
+                            </div>
+                            <div class="bc-body">
+                                <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">
+                                    As variáveis CSS <code style="background:var(--panel-3);padding:1px 5px;border-radius:4px;font-size:11px">--p</code> (cor primária) e <code style="background:var(--panel-3);padding:1px 5px;border-radius:4px;font-size:11px">--s</code> (secundária) estão disponíveis no seu HTML.
+                                </p>
+                                <textarea name="public_custom_html" id="customHtmlArea" class="custom-html-area"
+                                          placeholder="<!DOCTYPE html>&#10;<html>&#10;  ...&#10;</html>"><?= htmlspecialchars($customHtmlValue) ?></textarea>
                             </div>
                         </div>
                     </div>
@@ -747,6 +848,30 @@ document.getElementById('mainForm').addEventListener('submit', () => {
         const b=blocks.find(x=>x.id===el.dataset.bid); if(b) b.html=el.value;
     });
     serializeBlocks();
+});
+
+// ── Mode selector ──────────────────────────────────────────
+const modularSection = document.getElementById('modularSection');
+const customSection  = document.getElementById('customSection');
+const modeInput      = document.getElementById('publicModeInput');
+
+document.querySelectorAll('.mode-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        modeInput.value = mode;
+        document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        modularSection.style.display = mode === 'modular' ? '' : 'none';
+        customSection.style.display  = mode === 'custom'  ? '' : 'none';
+    });
+});
+
+// ── Font picker ────────────────────────────────────────────
+document.querySelectorAll('input[name="public_font"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        document.querySelectorAll('.font-option').forEach(o => o.classList.remove('selected'));
+        radio.closest('.font-option').classList.add('selected');
+    });
 });
 
 // ── Init ───────────────────────────────────────────────────

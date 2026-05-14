@@ -45,12 +45,47 @@ if (!$modules) $modules = $knownKeys;
 
 $primary   = $team['public_primary_color']   ?: '#fc0025';
 $secondary = $team['public_secondary_color'] ?: '#ff2a44';
+
+$_fonts = ['Poppins'=>'Poppins:wght@300;400;500;600;700;800;900','Inter'=>'Inter:wght@300;400;500;600;700;800;900','Montserrat'=>'Montserrat:wght@300;400;500;600;700;800;900','Oswald'=>'Oswald:wght@300;400;500;600;700','Bebas Neue'=>'Bebas+Neue','Raleway'=>'Raleway:wght@300;400;500;600;700;800;900','Barlow'=>'Barlow:wght@300;400;500;600;700;800;900','Rubik'=>'Rubik:wght@300;400;500;600;700;800;900','DM Sans'=>'DM+Sans:wght@300;400;500;600;700;800;900','Nunito'=>'Nunito:wght@300;400;500;600;700;800;900'];
+$selectedFont = $team['public_font'] ?? 'Poppins';
+if (!array_key_exists($selectedFont, $_fonts)) $selectedFont = 'Poppins';
+$fontGoogleUrl = 'https://fonts.googleapis.com/css2?family=' . $_fonts[$selectedFont] . '&display=swap';
 $teamId    = (int)$team['id'];
 $league    = (string)($team['league'] ?? '');
 $teamCity  = (string)($team['city'] ?? '');
 $teamName  = (string)($team['name'] ?? '');
 $teamLogo  = $team['photo_url'] ?: '/img/default-team.png';
 $teamDisplayName = trim($teamCity . ' ' . $teamName);
+
+// Modo personalizado: renderiza o HTML do usuário e sai antes das queries pesadas
+$publicMode = $team['public_mode'] ?? 'modular';
+$customHtml = (string)($team['public_custom_html'] ?? '');
+if ($publicMode === 'custom' && $customHtml !== '') {
+    header('Content-Type: text/html; charset=UTF-8');
+?><!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="<?= htmlspecialchars($primary) ?>">
+    <title><?= htmlspecialchars($teamDisplayName) ?> — FBA</title>
+    <link href="<?= htmlspecialchars($fontGoogleUrl) ?>" rel="stylesheet">
+    <style>
+        :root{--p:<?= htmlspecialchars($primary) ?>;--s:<?= htmlspecialchars($secondary) ?>;--f:'<?= htmlspecialchars($selectedFont) ?>',system-ui,sans-serif;}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:var(--f);}
+        .fba-top-bar{height:4px;background:linear-gradient(90deg,var(--p),var(--s),var(--p));background-size:200%;animation:fbaBarShift 4s linear infinite;}
+        @keyframes fbaBarShift{0%{background-position:0%}100%{background-position:200%}}
+    </style>
+</head>
+<body>
+<div class="fba-top-bar"></div>
+<?= $customHtml ?>
+</body>
+</html>
+<?php
+    exit;
+}
 
 // Players
 $players = $starters = [];
@@ -140,7 +175,7 @@ function ovrColor(int $ovr): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta name="theme-color" content="<?= htmlspecialchars($primary) ?>">
     <title><?= htmlspecialchars($teamDisplayName) ?> — FBA</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="<?= htmlspecialchars($fontGoogleUrl) ?>" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
@@ -149,7 +184,7 @@ function ovrColor(int $ovr): string {
             --ps:  color-mix(in srgb, var(--p) 12%, transparent);
             --ps2: color-mix(in srgb, var(--p) 20%, transparent);
             --pb:  color-mix(in srgb, var(--p) 35%, transparent);
-            --f:   'Poppins', system-ui, sans-serif;
+            --f:   '<?= htmlspecialchars($selectedFont) ?>', system-ui, sans-serif;
             --r:   14px;
             --rs:  10px;
             --ease: cubic-bezier(.2,.8,.2,1);
