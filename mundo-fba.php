@@ -319,7 +319,8 @@ foreach ($leagueOrder as $league) {
 
         $hasFranchise = $maxOvr >= 89;
         $youthFactor = $avgAge > 0 ? max(0, 30 - $avgAge) : 0;
-        $score = ($avgOvr * 1.6) + ($maxOvr * 0.6) + ($youthFactor * 0.8);
+        $agePenalty = $avgAge > 32 ? ($avgAge - 32) * 1.8 : 0;
+        $score = ($avgOvr * 1.6) + ($maxOvr * 0.6) + ($youthFactor * 0.8) - $agePenalty;
         if ($hasFranchise) $score += 2.0;
         if ($count < 5) $score -= (5 - $count) * 1.2;
         if ($championTeamId && (int)$t['id'] === $championTeamId) $score += 5.0;
@@ -348,16 +349,6 @@ foreach ($leagueOrder as $league) {
     usort($powerRanking, static fn($a, $b) => $b['score'] <=> $a['score']);
 
     $powerSummary = null;
-    if (!empty($powerRanking)) {
-        $top = $powerRanking[0];
-        $second = $powerRanking[1] ?? null;
-        $third = $powerRanking[2] ?? null;
-        $summary = 'O power ranking considera apenas o quinteto titular (OVR medio, idade media e teto de estrela), com bonus para campeao e vice da ultima temporada.';
-        $summary .= ' Lidera ' . $top['team_name'] . ' com OVR medio ' . $top['avg_ovr'] . ' e idade media ' . $top['avg_age'] . ' anos.';
-        if ($second) $summary .= ' Na cola vem ' . $second['team_name'] . '.';
-        if ($third) $summary .= ' Fechando o top 3: ' . $third['team_name'] . '.';
-        $powerSummary = $summary;
-    }
 
     $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary');
 }
@@ -682,7 +673,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
 
         /* ── Power ranking ────────────────────────────────── */
         .power-wrap { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
-        .power-summary { color:var(--text-2); font-size:13px; margin-bottom:14px; }
         .power-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; }
         .power-card {
             background:var(--panel-2); border:1px solid var(--border);
@@ -700,15 +690,19 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .power-logo { width:38px; height:38px; border-radius:9px; object-fit:cover; border:1px solid var(--border-md); background:var(--panel-3); flex-shrink:0; }
         .power-name { font-size:13px; font-weight:700; color:var(--text); }
         .power-owner { font-size:11px; color:var(--text-2); }
+        .power-score {
+            margin-top:8px; font-size:20px; font-weight:900; color:var(--red);
+            letter-spacing:.3px;
+        }
+        .power-score span { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:var(--text); display:block; margin-top:2px; }
         .power-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
         .power-badge { font-size:10px; font-weight:700; border-radius:999px; padding:2px 8px; border:1px solid var(--border); color:var(--text-2); background:var(--panel-3); }
         .power-badge.champ { color:#f59e0b; border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.08); }
         .power-badge.runner { color:#94a3b8; border-color:rgba(148,163,184,.35); background:rgba(148,163,184,.08); }
         .power-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
         .power-metric { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:6px 8px; text-align:center; }
-        .power-metric .val { font-size:12px; font-weight:800; color:var(--text); }
-        .power-metric .lbl { font-size:9px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); }
-        .power-tag { margin-top:10px; font-size:11px; color:var(--text-2); }
+        .power-metric .val { font-size:12px; font-weight:800; color:var(--red); }
+        .power-metric .lbl { font-size:9px; letter-spacing:.6px; text-transform:uppercase; color:var(--text); }
 
         /* ── Empty state ────────────────────────────────────── */
         .empty-state {
@@ -962,15 +956,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             </div>
             <?php else: ?>
             <div class="power-wrap">
-                <?php if (!empty($d['powerSummary'])): ?>
-                <p class="power-summary"><?= htmlspecialchars($d['powerSummary']) ?></p>
-                <?php endif; ?>
                 <div class="power-grid">
-                    <?php foreach (array_slice($d['powerRanking'], 0, 10) as $idx => $pr):
+                    <?php foreach ($d['powerRanking'] as $idx => $pr):
                         $rankNum = $idx + 1;
                         $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
-                        $tag = $pr['ai_tag'] ?? null;
-                        $tagMeta = $tag && isset($aiTagMeta[$tag]) ? $aiTagMeta[$tag] : null;
                     ?>
                     <div class="power-card">
                         <div class="power-rank <?= $rankClass ?>">#<?= $rankNum ?></div>
@@ -983,13 +972,16 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                 <div class="power-owner"><?= htmlspecialchars($pr['owner_name'] ?? '') ?></div>
                             </div>
                         </div>
+                        <div class="power-score">
+                            <?= htmlspecialchars((string)$pr['score']) ?>
+                            <span>Score</span>
+                        </div>
                         <div class="power-badges">
                             <?php if (!empty($pr['is_champion'])): ?>
                                 <span class="power-badge champ">Campeao</span>
                             <?php elseif (!empty($pr['is_runner_up'])): ?>
                                 <span class="power-badge runner">Vice</span>
                             <?php endif; ?>
-                            <span class="power-badge">Score <?= htmlspecialchars((string)$pr['score']) ?></span>
                         </div>
                         <div class="power-metrics">
                             <div class="power-metric">
@@ -1005,11 +997,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                 <div class="lbl">Idade</div>
                             </div>
                         </div>
-                        <?php if ($tagMeta): ?>
-                        <div class="power-tag">IA: <?= htmlspecialchars($tagMeta['label']) ?> · <?= htmlspecialchars($tagMeta['desc']) ?></div>
-                        <?php elseif ($tag): ?>
-                        <div class="power-tag">IA: <?= htmlspecialchars($tag) ?></div>
-                        <?php endif; ?>
                     </div>
                     <?php endforeach; ?>
                 </div>
