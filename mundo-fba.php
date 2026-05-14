@@ -54,12 +54,42 @@ $awardLabels = [
     'conf_champ_oeste'  => 'Conf. Oeste',
 ];
 
+$aiTagMeta = [
+    'Contending' => ['label' => 'Contending', 'desc' => 'Candidato ao titulo. Janela de contenda aberta.'],
+    'Buying'     => ['label' => 'Buying',     'desc' => 'Time competitivo buscando reforcos para o playoff.'],
+    'Selling'    => ['label' => 'Selling',    'desc' => 'Time em transicao, buscando ativos futuros.'],
+    'Rebuilding' => ['label' => 'Rebuilding', 'desc' => 'Time em reconstrucao com foco em jovens.'],
+];
+
 function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?string {
     if ($avgOvr === null || $avgOvr < 1) return null;
     if ($avgOvr >= 86 && ($maxOvr ?? 0) >= 89) return 'Contending';
     if ($avgOvr >= 82) return 'Buying';
     if (($avgAge ?? 25) >= 31 || $avgOvr < 78) return 'Rebuilding';
     return 'Selling';
+}
+
+function buildTop5Stats(array $starters): array {
+    $list = array_values(array_filter($starters));
+    if (!$list) {
+        return ['count' => 0, 'avg_ovr' => 0, 'avg_age' => 0, 'max_ovr' => 0];
+    }
+    usort($list, static fn($a, $b) => (int)($b['ovr'] ?? 0) - (int)($a['ovr'] ?? 0));
+    $top = array_slice($list, 0, 5);
+    $count = count($top);
+    $sumOvr = 0;
+    $sumAge = 0;
+    $maxOvr = 0;
+    foreach ($top as $p) {
+        $ovr = (int)($p['ovr'] ?? 0);
+        $age = (int)($p['age'] ?? 0);
+        $sumOvr += $ovr;
+        $sumAge += $age;
+        if ($ovr > $maxOvr) $maxOvr = $ovr;
+    }
+    $avgOvr = $count ? round($sumOvr / $count, 1) : 0;
+    $avgAge = $count ? round($sumAge / $count, 1) : 0;
+    return ['count' => $count, 'avg_ovr' => $avgOvr, 'avg_age' => $avgAge, 'max_ovr' => $maxOvr];
 }
 
 $leagueOrder = ['ELITE', 'NEXT', 'RISE'];
@@ -152,6 +182,7 @@ foreach ($leagueOrder as $league) {
 
     // Campeão e vice — busca em season_history (fonte principal) e playoff_results como fallback
     $champion = null; $runnerUp = null;
+    $championTeamId = null; $runnerUpTeamId = null;
     try {
         $s = $pdo->prepare("
             SELECT sh.champion_team_id, sh.runner_up_team_id, sh.year AS hist_year,
@@ -169,10 +200,12 @@ foreach ($leagueOrder as $league) {
         $s->execute([$league]);
         $sh = $s->fetch(PDO::FETCH_ASSOC);
         if ($sh && $sh['champion_team_id']) {
+            $championTeamId = (int)$sh['champion_team_id'];
             $champion = ['city'=>$sh['champ_city'],'team_name'=>$sh['champ_name'],'team_photo'=>$sh['team_photo_c'],'owner_name'=>$sh['champ_owner']];
             if (!$seasonYear && !empty($sh['hist_year'])) $seasonYear = (int)$sh['hist_year'];
         }
         if ($sh && $sh['runner_up_team_id']) {
+            $runnerUpTeamId = (int)$sh['runner_up_team_id'];
             $runnerUp = ['city'=>$sh['ru_city'],'team_name'=>$sh['ru_name'],'team_photo'=>$sh['team_photo_r'],'owner_name'=>$sh['ru_owner']];
         }
     } catch (Exception $e) {}
@@ -188,8 +221,11 @@ foreach ($leagueOrder as $league) {
             ");
             $s->execute([$lastSeason['id']]);
             foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-                if ($r['position'] === 'champion') $champion = $r;
-                else $runnerUp = $r;
+                if ($r['position'] === 'champion') {
+                    $champion = $r;
+                } else {
+                    $runnerUp = $r;
+                }
             }
         } catch (Exception $e) {}
     }
@@ -272,7 +308,58 @@ foreach ($leagueOrder as $league) {
         $ranking = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {}
 
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons');
+    // Power ranking (quinteto, idade, campeao/vice e tag IA)
+    $powerRanking = [];
+    foreach ($teams as $t) {
+        $stats = buildTop5Stats($t['starters'] ?? []);
+        $avgOvr = $stats['avg_ovr'];
+        $avgAge = $stats['avg_age'];
+        $maxOvr = $stats['max_ovr'];
+        $count = $stats['count'];
+
+        $hasFranchise = $maxOvr >= 89;
+        $youthFactor = $avgAge > 0 ? max(0, 30 - $avgAge) : 0;
+        $score = ($avgOvr * 1.6) + ($maxOvr * 0.6) + ($youthFactor * 0.8);
+        if ($hasFranchise) $score += 2.0;
+        if ($count < 5) $score -= (5 - $count) * 1.2;
+        if ($championTeamId && (int)$t['id'] === $championTeamId) $score += 5.0;
+        if ($runnerUpTeamId && (int)$t['id'] === $runnerUpTeamId) $score += 3.0;
+
+        $aiTag = $t['team_tag'] ?? null;
+        if (!$aiTag) {
+            $aiTag = computeAiTagPHP($avgOvr ?: null, $maxOvr ?: null, $avgAge ?: null);
+        }
+
+        $powerRanking[] = [
+            'team_id' => (int)$t['id'],
+            'team_name' => trim(($t['city'] ?? '') . ' ' . ($t['name'] ?? '')),
+            'team_photo' => $t['team_photo'] ?? null,
+            'owner_name' => $t['owner_name'] ?? null,
+            'score' => round($score, 1),
+            'avg_ovr' => $avgOvr,
+            'avg_age' => $avgAge,
+            'max_ovr' => $maxOvr,
+            'starters_count' => $count,
+            'ai_tag' => $aiTag,
+            'is_champion' => $championTeamId && (int)$t['id'] === $championTeamId,
+            'is_runner_up' => $runnerUpTeamId && (int)$t['id'] === $runnerUpTeamId,
+        ];
+    }
+    usort($powerRanking, static fn($a, $b) => $b['score'] <=> $a['score']);
+
+    $powerSummary = null;
+    if (!empty($powerRanking)) {
+        $top = $powerRanking[0];
+        $second = $powerRanking[1] ?? null;
+        $third = $powerRanking[2] ?? null;
+        $summary = 'O power ranking considera apenas o quinteto titular (OVR medio, idade media e teto de estrela), com bonus para campeao e vice da ultima temporada.';
+        $summary .= ' Lidera ' . $top['team_name'] . ' com OVR medio ' . $top['avg_ovr'] . ' e idade media ' . $top['avg_age'] . ' anos.';
+        if ($second) $summary .= ' Na cola vem ' . $second['team_name'] . '.';
+        if ($third) $summary .= ' Fechando o top 3: ' . $third['team_name'] . '.';
+        $powerSummary = $summary;
+    }
+
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -593,6 +680,36 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .rk-titles { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:#f59e0b; }
         .ranking-wrap { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
 
+        /* ── Power ranking ────────────────────────────────── */
+        .power-wrap { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+        .power-summary { color:var(--text-2); font-size:13px; margin-bottom:14px; }
+        .power-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; }
+        .power-card {
+            background:var(--panel-2); border:1px solid var(--border);
+            border-radius:var(--radius-sm); padding:12px 14px; position:relative;
+        }
+        .power-rank {
+            position:absolute; top:10px; right:10px; font-size:11px; font-weight:800;
+            color:var(--text-3); background:var(--panel-3); border:1px solid var(--border);
+            padding:3px 6px; border-radius:8px;
+        }
+        .power-rank.gold { color:#f59e0b; border-color:rgba(245,158,11,.25); }
+        .power-rank.silver { color:#94a3b8; }
+        .power-rank.bronze { color:#c97b3b; }
+        .power-head { display:flex; align-items:center; gap:10px; }
+        .power-logo { width:38px; height:38px; border-radius:9px; object-fit:cover; border:1px solid var(--border-md); background:var(--panel-3); flex-shrink:0; }
+        .power-name { font-size:13px; font-weight:700; color:var(--text); }
+        .power-owner { font-size:11px; color:var(--text-2); }
+        .power-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+        .power-badge { font-size:10px; font-weight:700; border-radius:999px; padding:2px 8px; border:1px solid var(--border); color:var(--text-2); background:var(--panel-3); }
+        .power-badge.champ { color:#f59e0b; border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.08); }
+        .power-badge.runner { color:#94a3b8; border-color:rgba(148,163,184,.35); background:rgba(148,163,184,.08); }
+        .power-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+        .power-metric { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:6px 8px; text-align:center; }
+        .power-metric .val { font-size:12px; font-weight:800; color:var(--text); }
+        .power-metric .lbl { font-size:9px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-3); }
+        .power-tag { margin-top:10px; font-size:11px; color:var(--text-2); }
+
         /* ── Empty state ────────────────────────────────────── */
         .empty-state {
             text-align:center; padding:40px 20px; color:var(--text-3);
@@ -830,6 +947,72 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
                 </div>
                 <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php /* ── Power Ranking ── */ ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
+                <i class="bi bi-activity" style="color:<?= $col ?>"></i>
+                POWER RANKING
+            </div>
+            <?php if (empty($d['powerRanking'])): ?>
+            <div class="empty-state">
+                <i class="bi bi-bar-chart"></i>
+                <p>Sem dados suficientes para gerar o power ranking.</p>
+            </div>
+            <?php else: ?>
+            <div class="power-wrap">
+                <?php if (!empty($d['powerSummary'])): ?>
+                <p class="power-summary"><?= htmlspecialchars($d['powerSummary']) ?></p>
+                <?php endif; ?>
+                <div class="power-grid">
+                    <?php foreach (array_slice($d['powerRanking'], 0, 10) as $idx => $pr):
+                        $rankNum = $idx + 1;
+                        $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
+                        $tag = $pr['ai_tag'] ?? null;
+                        $tagMeta = $tag && isset($aiTagMeta[$tag]) ? $aiTagMeta[$tag] : null;
+                    ?>
+                    <div class="power-card">
+                        <div class="power-rank <?= $rankClass ?>">#<?= $rankNum ?></div>
+                        <div class="power-head">
+                            <img class="power-logo"
+                                 src="<?= htmlspecialchars(getTeamPhoto($pr['team_photo'] ?? null)) ?>"
+                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <div>
+                                <div class="power-name"><?= htmlspecialchars($pr['team_name']) ?></div>
+                                <div class="power-owner"><?= htmlspecialchars($pr['owner_name'] ?? '') ?></div>
+                            </div>
+                        </div>
+                        <div class="power-badges">
+                            <?php if (!empty($pr['is_champion'])): ?>
+                                <span class="power-badge champ">Campeao</span>
+                            <?php elseif (!empty($pr['is_runner_up'])): ?>
+                                <span class="power-badge runner">Vice</span>
+                            <?php endif; ?>
+                            <span class="power-badge">Score <?= htmlspecialchars((string)$pr['score']) ?></span>
+                        </div>
+                        <div class="power-metrics">
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['avg_ovr']) ?></div>
+                                <div class="lbl">OVR Medio</div>
+                            </div>
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['max_ovr']) ?></div>
+                                <div class="lbl">Max OVR</div>
+                            </div>
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['avg_age']) ?></div>
+                                <div class="lbl">Idade</div>
+                            </div>
+                        </div>
+                        <?php if ($tagMeta): ?>
+                        <div class="power-tag">IA: <?= htmlspecialchars($tagMeta['label']) ?> · <?= htmlspecialchars($tagMeta['desc']) ?></div>
+                        <?php elseif ($tag): ?>
+                        <div class="power-tag">IA: <?= htmlspecialchars($tag) ?></div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
             <?php endif; ?>
 
