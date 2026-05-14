@@ -988,8 +988,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-actions {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             justify-content: flex-end;
+            padding-left: 12px;
         }
 
         .badge-pill {
