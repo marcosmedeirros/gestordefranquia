@@ -80,7 +80,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
-             t.trades_used,
+             t.trades_used, t.public_enabled, t.public_slug,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count,
              (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_avg_ovr,
@@ -1374,6 +1374,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                             <i class="bi bi-whatsapp"></i>
                         </a>
                         <?php endif; ?>
+                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
+                        <a class="btn-action" href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública">
+                            <i class="bi bi-globe2"></i>
+                        </a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -1464,6 +1469,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                         <?php if ($hasContact): ?>
                         <a class="btn-action green" style="flex:initial;padding:0 10px;" href="<?= htmlspecialchars($waLink) ?>" target="_blank" rel="noopener">
                             <i class="bi bi-whatsapp"></i>
+                        </a>
+                        <?php endif; ?>
+                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
+                        <a class="btn-action" style="flex:initial;padding:0 10px;" href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública">
+                            <i class="bi bi-globe2"></i>
                         </a>
                         <?php endif; ?>
                     </div>
