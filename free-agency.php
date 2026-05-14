@@ -399,6 +399,46 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .table-dark tbody td { border-bottom-color: var(--border); }
         .table-responsive { overflow-x: auto; }
 
+        /* Mobile: tables as cards */
+        @media (max-width: 768px) {
+            .free-agency-page .table-responsive {
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                background: var(--panel);
+                padding: 8px;
+            }
+            .free-agency-page .table-responsive table {
+                min-width: 0;
+                border-collapse: separate;
+                border-spacing: 0 10px;
+            }
+            .free-agency-page .table-responsive thead { display: none; }
+            .free-agency-page .table-responsive tbody tr {
+                display: block;
+                background: var(--panel-2);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                padding: 10px 12px;
+            }
+            .free-agency-page .table-responsive tbody td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 6px 0;
+                border: none;
+                font-size: 13px;
+            }
+            .free-agency-page .table-responsive tbody td::before {
+                content: attr(data-label);
+                font-size: 10px;
+                letter-spacing: .6px;
+                text-transform: uppercase;
+                color: var(--text-3);
+                font-weight: 700;
+            }
+        }
+
         /* Bootstrap card usado no JS do admin */
         .card.bg-dark {
             background: var(--panel-2) !important;
@@ -452,7 +492,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         }
     </style>
 </head>
-<body>
+<body class="free-agency-page">
 <div class="app">
 
     <!-- ══════════════════════════════════════
