@@ -695,7 +695,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             letter-spacing:.3px; text-align:center;
         }
         .power-score span { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:var(--text); display:block; margin-top:2px; }
-        .power-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+        .power-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; justify-content:center; }
         .power-badge { font-size:10px; font-weight:700; border-radius:999px; padding:2px 8px; border:1px solid var(--border); color:var(--text-2); background:var(--panel-3); }
         .power-badge.champ { color:#f59e0b; border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.08); }
         .power-badge.runner { color:#94a3b8; border-color:rgba(148,163,184,.35); background:rgba(148,163,184,.08); }
