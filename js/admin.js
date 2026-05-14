@@ -77,6 +77,9 @@ async function showGestao(league) {
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showHallOfFame()">
         <i class="bi bi-award-fill" style="color:#eab308"></i> Hall da Fama
       </button>
+      <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
+        <i class="bi bi-newspaper" style="color:#fc0025"></i> The Pathetic
+      </a>
     </div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>

@@ -154,6 +154,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Página do Time
             </a>
         </li>
+        <li>
+            <a href="/thepathetic.php" class="<?= $currentPage === 'thepathetic.php' ? 'active' : '' ?>">
+                <i class="bi bi-newspaper"></i>
+                The Pathetic
+            </a>
+        </li>
     </ul>
 
     <hr style="border-color: var(--fba-border);">

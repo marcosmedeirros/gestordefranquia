@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
@@ -129,6 +129,7 @@ foreach ($leagueOrder as $league) {
     try {
         $s = $pdo->prepare("
             SELECT t.id, t.city, t.name, t.photo_url AS team_photo, t.team_tag,
+                   t.public_enabled, t.public_slug,
                    u.name AS owner_name,
                    (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_avg_ovr,
                    (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_max_ovr,
@@ -774,6 +775,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         <a href="/mundo-fba.php" class="active"><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
         <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
 
         <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
         <div class="sb-section">Admin</div>
@@ -944,6 +946,100 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             </div>
             <?php endif; ?>
 
+            <?php /* ── Times ── */ ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
+                <i class="bi bi-list-ol" style="color:<?= $col ?>"></i>
+                Times
+            </div>
+
+            <?php if (empty($d['teams'])): ?>
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <p>Nenhum time cadastrado nesta liga.</p>
+            </div>
+            <?php else: ?>
+            <div class="teams-list">
+                <?php foreach ($d['teams'] as $rank => $t):
+                    $rankNum = $rank + 1;
+                    $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
+                    $rowId = 'team-' . $league . '-' . $t['id'];
+                ?>
+                <div class="team-row" id="<?= $rowId ?>">
+                    <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
+                        <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
+                        <img class="team-logo"
+                             src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
+                             alt="<?= htmlspecialchars($t['name']) ?>"
+                             onerror="this.src='/img/default-team.png'">
+                        <div class="team-info">
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                <?php
+                                $tagColors  = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
+                                $tagLabels  = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                $rawMfTag   = $t['team_tag'] ?? null;
+                                if (!$rawMfTag) $rawMfTag = computeAiTagPHP(
+                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
+                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
+                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
+                                );
+                                $mfTag = strtolower($rawMfTag ?? '');
+                                if ($mfTag && isset($tagColors[$mfTag])):
+                                    $tc = $tagColors[$mfTag];
+                                ?>
+                                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid <?= $tc ?>;color:<?= $tc ?>;background:<?= $tc ?>22;white-space:nowrap"><?= $tagLabels[$mfTag] ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
+                        </div>
+                        <div class="team-cap">
+                            <div class="cap-val"><?= $t['cap_top8'] ?></div>
+                            <div class="cap-lbl">CAP</div>
+                        </div>
+                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
+                        <a href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública" onclick="event.stopPropagation()" style="color:var(--text-2);font-size:15px;padding:0 6px;display:flex;align-items:center">
+                            <i class="bi bi-globe2"></i>
+                        </a>
+                        <?php endif; ?>
+                        <div class="team-toggle"><i class="bi bi-chevron-down"></i></div>
+                    </div>
+                    <div class="starters-wrap">
+                        <table class="starters-table">
+                            <thead>
+                                <tr>
+                                    <th>POS</th>
+                                    <th>Jogador</th>
+                                    <th>OVR</th>
+                                    <th>Idade</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (['PG','SG','SF','PF','C'] as $pos):
+                                    $p = $t['starters'][$pos] ?? null;
+                                    if ($p):
+                                        $ovr = (int)$p['ovr'];
+                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 85 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
+                                ?>
+                                <tr>
+                                    <td><span class="pos-badge"><?= $pos ?></span></td>
+                                    <td style="font-weight:600;color:var(--text)"><?= htmlspecialchars($p['name']) ?></td>
+                                    <td><span class="ovr-badge <?= $ovrClass ?>"><?= $ovr ?></span></td>
+                                    <td style="color:var(--text-2)"><?= htmlspecialchars($p['age'] ?? '—') ?></td>
+                                </tr>
+                                <?php else: ?>
+                                <tr class="empty-row">
+                                    <td><span class="pos-badge"><?= $pos ?></span></td>
+                                    <td colspan="3" style="color:var(--text-3);font-style:italic">Vaga em aberto</td>
+                                </tr>
+                                <?php endif; endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
             <?php /* ── Power Ranking ── */ ?>
             <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
                 <i class="bi bi-activity" style="color:<?= $col ?>"></i>
@@ -1000,95 +1096,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
                     <?php endforeach; ?>
                 </div>
-            </div>
-            <?php endif; ?>
-
-            <?php /* ── Ranking de times por CAP ── */ ?>
-            <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
-                <i class="bi bi-list-ol" style="color:<?= $col ?>"></i>
-                TIMES · RANKING POR CAP
-            </div>
-
-            <?php if (empty($d['teams'])): ?>
-            <div class="empty-state">
-                <i class="bi bi-people"></i>
-                <p>Nenhum time cadastrado nesta liga.</p>
-            </div>
-            <?php else: ?>
-            <div class="teams-list">
-                <?php foreach ($d['teams'] as $rank => $t):
-                    $rankNum = $rank + 1;
-                    $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
-                    $rowId = 'team-' . $league . '-' . $t['id'];
-                ?>
-                <div class="team-row" id="<?= $rowId ?>">
-                    <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
-                        <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
-                        <img class="team-logo"
-                             src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
-                             alt="<?= htmlspecialchars($t['name']) ?>"
-                             onerror="this.src='/img/default-team.png'">
-                        <div class="team-info">
-                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                                <?php
-                                $tagColors  = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
-                                $tagLabels  = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
-                                $rawMfTag   = $t['team_tag'] ?? null;
-                                if (!$rawMfTag) $rawMfTag = computeAiTagPHP(
-                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
-                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
-                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
-                                );
-                                $mfTag = strtolower($rawMfTag ?? '');
-                                if ($mfTag && isset($tagColors[$mfTag])):
-                                    $tc = $tagColors[$mfTag];
-                                ?>
-                                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid <?= $tc ?>;color:<?= $tc ?>;background:<?= $tc ?>22;white-space:nowrap"><?= $tagLabels[$mfTag] ?></span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
-                        </div>
-                        <div class="team-cap">
-                            <div class="cap-val"><?= $t['cap_top8'] ?></div>
-                            <div class="cap-lbl">CAP</div>
-                        </div>
-                        <div class="team-toggle"><i class="bi bi-chevron-down"></i></div>
-                    </div>
-                    <div class="starters-wrap">
-                        <table class="starters-table">
-                            <thead>
-                                <tr>
-                                    <th>POS</th>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (['PG','SG','SF','PF','C'] as $pos):
-                                    $p = $t['starters'][$pos] ?? null;
-                                    if ($p):
-                                        $ovr = (int)$p['ovr'];
-                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 85 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
-                                ?>
-                                <tr>
-                                    <td><span class="pos-badge"><?= $pos ?></span></td>
-                                    <td style="font-weight:600;color:var(--text)"><?= htmlspecialchars($p['name']) ?></td>
-                                    <td><span class="ovr-badge <?= $ovrClass ?>"><?= $ovr ?></span></td>
-                                    <td style="color:var(--text-2)"><?= htmlspecialchars($p['age'] ?? '—') ?></td>
-                                </tr>
-                                <?php else: ?>
-                                <tr class="empty-row">
-                                    <td><span class="pos-badge"><?= $pos ?></span></td>
-                                    <td colspan="3" style="color:var(--text-3);font-style:italic">Vaga em aberto</td>
-                                </tr>
-                                <?php endif; endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <?php endforeach; ?>
             </div>
             <?php endif; ?>
 

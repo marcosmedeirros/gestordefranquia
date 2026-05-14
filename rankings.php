@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 requireAuth();
@@ -346,6 +346,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
 
             <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
             <div class="sb-section">Admin</div>

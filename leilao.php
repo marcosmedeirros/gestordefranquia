@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once 'backend/config.php';
 require_once 'backend/db.php';
@@ -259,6 +259,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
 
             <?php if ($is_admin): ?>
             <div class="sb-section">Admin</div>

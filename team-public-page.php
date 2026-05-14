@@ -389,6 +389,8 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
             <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
             <?php if(($user['user_type']??'jogador')==='admin'): ?>
             <div class="sb-section">Admin</div>
             <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
