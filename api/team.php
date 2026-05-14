@@ -13,6 +13,12 @@ function teamColumnExists(PDO $pdo, string $column): bool {
     return (bool) $stmt->fetch();
 }
 
+function playersColumnExists(PDO $pdo, string $column): bool {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM players LIKE ?");
+    $stmt->execute([$column]);
+    return (bool) $stmt->fetch();
+}
+
 function appendPhoneFields(array &$row): void {
     $rawPhone = $row['owner_phone'] ?? '';
     $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
@@ -140,9 +146,13 @@ if ($method === 'GET') {
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        try {
+                $hasBadgesCount = playersColumnExists($pdo, 'badges_count');
+                $badgesSelect = $hasBadgesCount ? ', p.badges_count' : ', NULL as badges_count';
+
+                try {
             $stmt = $pdo->prepare("
-                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
+                                    {$badgesSelect},
                   p.was_traded, p.drafted_by_team_id,
                   COALESCE(p.player_tag, NULL) as player_tag,
                   COALESCE(p.player_tag_color, NULL) as player_tag_color,
@@ -158,7 +168,8 @@ if ($method === 'GET') {
             ");
         } catch (Exception $e) {
             $stmt = $pdo->prepare("
-                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position,
+                                SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
+                                    {$badgesSelect},
                   p.was_traded, p.drafted_by_team_id,
                   t.id as team_id, t.city, t.name as team_name, t.league,
                   u.phone as owner_phone

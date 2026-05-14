@@ -499,6 +499,9 @@ if ($method === 'PUT') {
     $secondaryPosition = array_key_exists('secondary_position', $body)
         ? trim((string)$body['secondary_position'])
         : ($player['secondary_position'] ?? '');
+    $badgesCount = array_key_exists('badges_count', $body)
+        ? (is_numeric($body['badges_count']) ? (int)$body['badges_count'] : null)
+        : ($player['badges_count'] ?? null);
     $seasonsInLeague = isset($body['seasons_in_league']) ? (int)$body['seasons_in_league'] : (int)($player['seasons_in_league'] ?? 0);
     $role = isset($body['role']) ? $body['role'] : $player['role'];
     $ovr = isset($body['ovr']) ? (int)$body['ovr'] : (int)$player['ovr'];
@@ -624,6 +627,12 @@ if ($method === 'PUT') {
             $pdo->exec("ALTER TABLE players ADD COLUMN player_skill_grades TEXT NULL");
             $hasSkillGrades = true;
         }
+        $checkCol6 = $pdo->query("SHOW COLUMNS FROM players LIKE 'badges_count'");
+        $hasBadgesCount = $checkCol6->rowCount() > 0;
+        if (!$hasBadgesCount) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN badges_count INT NULL");
+            $hasBadgesCount = true;
+        }
         $skillCols = ensureSkillGradeColumns($pdo);
         $hasSkillGradeColumns = !empty($skillCols);
     } catch (Exception $e) {
@@ -632,6 +641,7 @@ if ($method === 'PUT') {
         $hasFotoAdicional = false;
         $hasPlayerTag = false;
         $hasSkillGrades = false;
+        $hasBadgesCount = false;
         $hasSkillGradeColumns = false;
     }
 
@@ -646,6 +656,9 @@ if ($method === 'PUT') {
     ];
     if ($hasSecondaryPosition) {
         $fields['secondary_position'] = $secondaryPosition ?: null;
+    }
+    if ($hasBadgesCount) {
+        $fields['badges_count'] = $badgesCount !== null ? max(0, (int)$badgesCount) : null;
     }
     if ($hasSeasonsInLeague) {
         $fields['seasons_in_league'] = $seasonsInLeague;

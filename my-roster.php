@@ -757,6 +757,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                         </select>
                     </div>
                     <div class="field" style="grid-column: span 2;">
+                        <label for="edit-badges-count">Badges</label>
+                        <input type="number" id="edit-badges-count" min="0" placeholder="Opcional">
+                    </div>
+                    <div class="field" style="grid-column: span 2;">
                         <label for="edit-ovr">OVR</label>
                         <input type="number" id="edit-ovr" min="40" max="99" required>
                     </div>

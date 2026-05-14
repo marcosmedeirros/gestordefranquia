@@ -634,6 +634,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<th>Idade</th>
 							<th>Posicao</th>
 							<th>Posicao Sec.</th>
+							<th>Badges</th>
 							<th>Time</th>
 							<th>Contato</th>
 							<th class="col-actions">Acoes</th>
@@ -882,7 +883,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			<div class="mpl-item">
 				<div class="mpl-main">
 					<div class="mpl-name">${p.name}${franchiseBadge}${tagBadge}</div>
-					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · ${teamName}</div>
+					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
 				</div>
 				<div class="mpl-right">
 					<div style="text-align:right">
@@ -921,6 +922,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div class="player-card-stat"><strong>${p.age ?? '-'}</strong>Idade</div>
 					<div class="player-card-stat"><strong>${p.position ?? '-'}</strong>Posicao</div>
 					<div class="player-card-stat"><strong>${p.secondary_position ?? '-'}</strong>Posicao Sec.</div>
+					<div class="player-card-stat"><strong>${p.badges_count ?? 0}</strong>Badges</div>
 					<div class="player-card-stat"><strong>${p.team_name ?? '-'}</strong>Time</div>
 				</div>
 				<div class="player-card-actions">
@@ -1002,6 +1004,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								<td>${p.age ?? '-'}</td>
 								<td>${p.position ?? '-'}</td>
 								<td>${p.secondary_position ?? '-'}</td>
+								<td>${p.badges_count ?? 0}</td>
 								<td>${teamName || '-'}</td>
 								<td>
 									${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-light-gray">Sem contato</span>'}

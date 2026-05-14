@@ -1079,6 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
+        document.getElementById('edit-badges-count').value = (player.badges_count ?? '') === null ? '' : (player.badges_count ?? '');
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
@@ -1158,6 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-age').value = player.age;
         document.getElementById('edit-position').value = player.position;
         document.getElementById('edit-secondary-position').value = player.secondary_position || '';
+        document.getElementById('edit-badges-count').value = (player.badges_count ?? '') === null ? '' : (player.badges_count ?? '');
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
@@ -1207,12 +1209,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const badgesValRaw = document.getElementById('edit-badges-count')?.value;
+    const badgesValNum = badgesValRaw === '' || badgesValRaw === null || typeof badgesValRaw === 'undefined'
+      ? null
+      : parseInt(badgesValRaw, 10);
+
     const data = {
       id: document.getElementById('edit-player-id').value,
       name: document.getElementById('edit-name').value,
       age: ageVal,
       position: document.getElementById('edit-position').value,
       secondary_position: document.getElementById('edit-secondary-position').value || null,
+      badges_count: Number.isNaN(badgesValNum) ? null : badgesValNum,
       ovr: ovrVal,
       role: document.getElementById('edit-role').value,
       available_for_trade: document.getElementById('edit-available').checked ? 1 : 0,
