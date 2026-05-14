@@ -8,6 +8,16 @@ require_once __DIR__ . '/db.php';
 
 function runMigrations() {
     $pdo = db();
+
+    $slugify = function (string $name): string {
+        $s = trim($name);
+        if ($s === '') return '';
+        $s = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+        $s = strtolower($s);
+        $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+        $s = trim($s ?? '', '-');
+        return $s ?: '';
+    };
     
     // Array de migrações com nome único para rastrear execução
     $migrations = [
@@ -847,6 +857,75 @@ function runMigrations() {
             $hasCurrentCycle = $pdo->query("SHOW COLUMNS FROM teams LIKE 'current_cycle'")->fetch();
             if (!$hasCurrentCycle) {
                 $pdo->exec("ALTER TABLE teams ADD COLUMN current_cycle INT NOT NULL DEFAULT 1 AFTER league");
+            }
+
+            $hasPublicEnabled = $pdo->query("SHOW COLUMNS FROM teams LIKE 'public_enabled'")->fetch();
+            if (!$hasPublicEnabled) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN public_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER photo_url");
+            }
+
+            $hasPublicSlug = $pdo->query("SHOW COLUMNS FROM teams LIKE 'public_slug'")->fetch();
+            if (!$hasPublicSlug) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN public_slug VARCHAR(160) NULL AFTER public_enabled");
+            }
+
+            $hasPrimary = $pdo->query("SHOW COLUMNS FROM teams LIKE 'public_primary_color'")->fetch();
+            if (!$hasPrimary) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN public_primary_color VARCHAR(7) NULL AFTER public_slug");
+            }
+
+            $hasSecondary = $pdo->query("SHOW COLUMNS FROM teams LIKE 'public_secondary_color'")->fetch();
+            if (!$hasSecondary) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN public_secondary_color VARCHAR(7) NULL AFTER public_primary_color");
+            }
+
+            $hasModules = $pdo->query("SHOW COLUMNS FROM teams LIKE 'public_modules'")->fetch();
+            if (!$hasModules) {
+                $pdo->exec("ALTER TABLE teams ADD COLUMN public_modules TEXT NULL AFTER public_secondary_color");
+            }
+
+            // Unique index for slug (best-effort; may fail if duplicates exist temporarily).
+            try {
+                $stmtIdx = $pdo->prepare("
+                    SELECT 1
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'teams'
+                      AND INDEX_NAME = 'uniq_teams_public_slug'
+                    LIMIT 1
+                ");
+                $stmtIdx->execute();
+                if (!$stmtIdx->fetchColumn()) {
+                    $pdo->exec("ALTER TABLE teams ADD UNIQUE KEY uniq_teams_public_slug (public_slug)");
+                }
+            } catch (PDOException $e) {
+                $errors[] = "ajuste_teams_public_slug_index: " . $e->getMessage();
+            }
+
+            // Populate missing slugs (keep them stable once set)
+            try {
+                $stmtMissing = $pdo->query("SELECT id, name, public_slug FROM teams WHERE public_slug IS NULL OR public_slug = ''");
+                $missing = $stmtMissing ? $stmtMissing->fetchAll(PDO::FETCH_ASSOC) : [];
+                if ($missing) {
+                    $stmtExists = $pdo->prepare("SELECT id FROM teams WHERE public_slug = ? LIMIT 1");
+                    $stmtUpdate = $pdo->prepare("UPDATE teams SET public_slug = ? WHERE id = ?");
+                    foreach ($missing as $row) {
+                        $base = $slugify((string)($row['name'] ?? ''));
+                        if ($base === '') $base = 'time-' . (int)$row['id'];
+                        $candidate = $base;
+                        $i = 2;
+                        while (true) {
+                            $stmtExists->execute([$candidate]);
+                            $foundId = $stmtExists->fetchColumn();
+                            if (!$foundId || (int)$foundId === (int)$row['id']) break;
+                            $candidate = $base . '-' . $i;
+                            $i++;
+                        }
+                        $stmtUpdate->execute([$candidate, (int)$row['id']]);
+                    }
+                }
+            } catch (PDOException $e) {
+                $errors[] = "ajuste_teams_public_slug_populate: " . $e->getMessage();
             }
         }
     } catch (PDOException $e) {

@@ -56,6 +56,9 @@ AddDefaultCharset UTF-8
 
     # Compatibilidade: links antigos de reset com /games/auth/...
     RewriteRule ^games/auth/resetar\.php$ /auth/resetar.php [L,R=301]
+
+    # Páginas públicas de times: /times/{slug}
+    RewriteRule ^times/([^/]+)/?$ /times/index.php?slug=$1 [L,QSA]
 </IfModule>
 
 # Proteção de arquivos
