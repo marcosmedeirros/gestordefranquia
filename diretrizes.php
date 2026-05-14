@@ -85,15 +85,6 @@ try {
 $playerCount  = count($players);
 $gleagueSlots = $playerCount >= 15 ? 2 : ($playerCount >= 14 ? 1 : 0);
 
-// Pré-seleção de titulares por posição (primeiro Titular de cada posição)
-$posSlots     = ['PG', 'SG', 'SF', 'PF', 'C'];
-$preStarters  = []; // pos => player_id
-foreach ($players as $p) {
-    $pos = $p['position'];
-    if ($p['role'] === 'Titular' && in_array($pos, $posSlots, true) && !isset($preStarters[$pos])) {
-        $preStarters[$pos] = (int)$p['id'];
-    }
-}
 
 // Temporada para limite de minutos
 $seasonStatus = null;
@@ -493,14 +484,13 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                             $positions = ['PG', 'SG', 'SF', 'PF', 'C'];
                             for ($i = 1; $i <= 5; $i++):
                                 $pos = $positions[$i - 1];
-                                $preId = $preStarters[$pos] ?? null;
                             ?>
                             <div class="col-md-4 col-sm-6">
                                 <label class="field-label">Titular <?= $pos ?></label>
                                 <select class="form-select" name="starter_<?= $i ?>_id" required>
                                     <option value="">Selecione...</option>
                                     <?php foreach ($players as $p): ?>
-                                    <option value="<?= $p['id'] ?>" data-ovr="<?= $p['ovr'] ?>"<?= $preId === (int)$p['id'] ? ' selected' : '' ?>>
+                                    <option value="<?= $p['id'] ?>" data-ovr="<?= $p['ovr'] ?>">
                                         <?= htmlspecialchars($p['name']) ?> (<?= $p['ovr'] ?>/<?= htmlspecialchars($p['age'] ?? '?') ?>) — <?= $p['position'] ?>
                                     </option>
                                     <?php endforeach; ?>
@@ -520,12 +510,10 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                     <div class="sc-body">
                         <p style="font-size:12px;color:var(--text-2);margin-bottom:16px">Cada jogador selecionado deve jogar no mínimo 5 minutos.</p>
                         <div class="row g-2" id="bench-players-container">
-                            <?php foreach ($players as $p):
-                                if ($p['role'] === 'Titular') continue;
-                            ?>
+                            <?php foreach ($players as $p): ?>
                             <div class="col-md-4 col-sm-6">
                                 <label class="bench-item bench-player-item">
-                                    <input class="bench-player-checkbox" type="checkbox" name="bench_players[]" value="<?= $p['id'] ?>" id="bench_<?= $p['id'] ?>"<?= $p['role'] === 'Banco' ? ' checked' : '' ?>>
+                                    <input class="bench-player-checkbox" type="checkbox" name="bench_players[]" value="<?= $p['id'] ?>" id="bench_<?= $p['id'] ?>">
                                     <div>
                                         <div class="bench-item-name"><?= htmlspecialchars($p['name']) ?></div>
                                         <div class="bench-item-meta"><?= $p['position'] ?> · OVR <?= $p['ovr'] ?> · <?= htmlspecialchars($p['age'] ?? '?') ?> anos</div>
