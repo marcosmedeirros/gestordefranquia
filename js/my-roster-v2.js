@@ -11,12 +11,12 @@ const api = async (path, options = {}) => {
 };
 
 function getOvrColor(ovr) {
-  if (ovr >= 95) return '#00ff00';
-  if (ovr >= 89) return '#00dd00';
-  if (ovr >= 84) return '#ffff00';
-  if (ovr >= 79) return '#ffd700';
-  if (ovr >= 72) return '#ff9900';
-  return '#ff4444';
+  if (ovr >= 95) return '#16a34a';
+  if (ovr >= 89) return '#22c55e';
+  if (ovr >= 84) return '#ca8a04';
+  if (ovr >= 79) return '#d97706';
+  if (ovr >= 72) return '#ea580c';
+  return '#dc2626';
 }
 
 function getPlayerPhotoUrl(player) {
@@ -670,7 +670,7 @@ function renderPlayers(players) {
           <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
             <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
             <div class="text-center">
-              <h6 class="text-white mb-1 fw-bold" style="font-size: 1.05rem;">${p.name}</h6>
+              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem; color:var(--text);">${p.name}</h6>
               <div class="d-flex justify-content-center gap-2 flex-wrap small">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
                 ${loyalBadge}${tagBadgeStarter}
@@ -762,7 +762,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="text-white fw-bold">${p.name} ${loyalBadge}${franchiseBadge}${tagBadgeMobile}</div>
+            <div class="fw-bold" style="color:var(--text);">${p.name} ${loyalBadge}${franchiseBadge}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>

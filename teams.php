@@ -916,8 +916,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-header {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 160px;
-            gap: 0;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 200px;
+            gap: 0 8px;
             padding: 10px 18px;
             background: var(--panel-2);
             border: 1px solid var(--border);
@@ -939,8 +939,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
         .list-row {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 160px;
-            gap: 0;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 200px;
+            gap: 0 8px;
             padding: 12px 18px;
             border: 1px solid var(--border);
             border-top: none;
@@ -990,7 +990,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             display: flex;
             gap: 4px;
             justify-content: flex-end;
-            padding-left: 12px;
         }
 
         .badge-pill {
@@ -1108,7 +1107,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             .footer-strip { margin: 0 16px 24px; }
             .teams-grid { grid-template-columns: 1fr; }
             .list-header, .list-row {
-                grid-template-columns: 1fr 60px 55px 55px 120px;
+                grid-template-columns: 1fr 60px 55px 55px 160px;
             }
             .list-col-tapas, .list-col-punicoes { display: none; }
             .page-top { padding-top: 20px; }
