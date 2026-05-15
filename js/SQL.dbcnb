@@ -1,0 +1,13 @@
+cells:
+  - kind: 2
+    languageId: sql
+    value: "SELECT teams.name, teams.ranking_points, teams.id\r
+
+      FROM teams WHERE league = 'ELITE' ORDER BY teams.ranking_points DESC"
+    metadata: {}
+metadata:
+  conn:
+    id: 9fTa4HoSs_sYB9ZwoVzUR
+    name: FBA Local
+  database: fba
+  schema: ""

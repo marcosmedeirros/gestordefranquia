@@ -1425,15 +1425,24 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     `).join('');
   }
 
-  function initRound2AdminPanel(round2PicksRaw) {
+  async function initRound2AdminPanel(round2PicksRaw) {
     if (!currentDraftSession) return;
     const teamSelect = document.getElementById('round2TeamSelect');
     const playerSelect = document.getElementById('round2PlayerSelect');
     const playersList = document.getElementById('round2PlayersList');
     if (!teamSelect || !playerSelect || !playersList) return;
+    teamSelect.innerHTML = '<option value="">Carregando times…</option>';
+    const league = currentDraftSession.league || userLeague;
+    const teamsById = new Map();
+    try {
+      const data = await api(`draft.php?action=league_teams&league=${encodeURIComponent(league)}`);
+      (data.teams || []).forEach(t => teamsById.set(String(t.id), `${t.city} ${t.name}`));
+    } catch (e) {
+      // fallback: apenas os times que já têm picks no round2
+      round2PicksRaw.forEach(p => teamsById.set(String(p.team_id), `${p.team_city} ${p.team_name}`));
+    }
     teamSelect.innerHTML = '<option value="">Selecione o time…</option>';
-    const teamMap = new Map(round2PicksRaw.map(p => [String(p.team_id), `${p.team_city} ${p.team_name}`]));
-    Array.from(teamMap.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, label]) => {
+    Array.from(teamsById.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, label]) => {
       const opt = document.createElement('option'); opt.value = id; opt.textContent = label; teamSelect.appendChild(opt);
     });
     refreshRound2Players();
