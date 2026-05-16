@@ -700,9 +700,7 @@ async function showRegistroPontuacao(league) {
     _regPtsAllTeams = allTeams;
 
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
-    const backFn = (typeof showLeague === 'function' && window.appState?.currentLeague)
-        ? `showLeague('${league}')`
-        : 'showSeasonsManagement()';
+    const backFn = `showLeague('${league}')`;
 
     // Restore or init row state
     _regPtsRows = [];

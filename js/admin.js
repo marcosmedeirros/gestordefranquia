@@ -650,7 +650,7 @@ async function showLeague(league) {
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
       { icon: 'bi-bar-chart-steps',         label: 'Histórico de<br>Pontuação',  fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
-      { icon: 'bi-clipboard-data-fill',     label: 'Registro de<br>Pontuação',  fn: 'showRegistroPontuacao()',   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
+      { icon: 'bi-clipboard-data-fill',     label: 'Registro de<br>Pontuação',  fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
