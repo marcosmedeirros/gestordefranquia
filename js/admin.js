@@ -670,7 +670,7 @@ async function showLeague(league) {
       </button>`).join('');
 
     const activeDraft = draftData?.draft;
-    const draftCard = (activeDraft && ['setup', 'in_progress'].includes(activeDraft.status)) ? (() => {
+    const draftCard = (activeDraft && ['setup', 'in_progress'].includes(activeDraft.status) && !currentSeason) ? (() => {
       const isRunning = activeDraft.status === 'in_progress';
       const statusColor = isRunning ? '#22c55e' : '#f59e0b';
       const statusBg = isRunning ? 'rgba(34,197,94,.1)' : 'rgba(245,158,11,.1)';
