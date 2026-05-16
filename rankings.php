@@ -595,7 +595,6 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     <td style="text-align: center; color: var(--text-2); font-weight: 600;">${team.total_titles || 0}</td>
                     <td style="text-align: center; color: var(--red); font-weight: 800; font-size: 15px;">
                         ${team.total_points || 0}
-                        ${(team.last_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px;opacity:.85">${team.last_delta}</span>` : ''}
                     </td>
                     <td style="text-align:center">
                         <button class="hbadge" style="padding:4px 8px;font-size:11px;gap:4px"
