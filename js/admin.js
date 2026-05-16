@@ -4536,7 +4536,7 @@ async function _adminDraftClearOrder(draftSessionId, league) {
 
 async function _adminDraftDeletePlayer(playerId, league) {
   try {
-    await api('seasons.php', { method: 'POST', body: JSON.stringify({ action: 'delete_draft_player', player_id: playerId }) });
+    await api('seasons.php?action=delete_draft_player', { method: 'POST', body: JSON.stringify({ player_id: playerId }) });
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao excluir jogador');
@@ -4546,7 +4546,7 @@ async function _adminDraftDeletePlayer(playerId, league) {
 async function _adminDraftClearPool(seasonId, league) {
   if (!confirm('Apagar todos os jogadores disponíveis do pool? Esta ação não pode ser desfeita.')) return;
   try {
-    await api('seasons.php', { method: 'POST', body: JSON.stringify({ action: 'clear_draft_pool', season_id: seasonId }) });
+    await api('seasons.php?action=clear_draft_pool', { method: 'POST', body: JSON.stringify({ season_id: seasonId }) });
     showAlert('success', 'Pool de jogadores limpo.');
     showAdminDraft(league);
   } catch(e) {

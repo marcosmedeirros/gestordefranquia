@@ -57,7 +57,7 @@ async function showSeasonsManagement() {
                    <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
                </button>`
             : `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
-                   <i class="bi bi-play-circle me-1"></i>Iniciar Sprint
+                   <i class="bi bi-play-circle me-1"></i>Criar Sprint
                </button>`;
 
         return `
