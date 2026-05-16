@@ -1240,7 +1240,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         <div class="page-top">
             <div>
                 <div class="page-eyebrow">Liga · <?= $currentSeasonYear ?></div>
-                <h1 class="page-title">Times da Liga!</h1>
+                <h1 class="page-title">Times da Liga!!</h1>
                 <p class="page-sub"><?= $teamsCount ?> franquias · temporada <?= $currentSeasonYear ?></p>
             </div>
         </div>
