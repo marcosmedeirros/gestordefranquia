@@ -163,7 +163,7 @@ let _bracket = null;
 
 function generateBracket(league) {
     try {
-        const form = document.getElementById('formAvancarTemporada');
+        const form = document.getElementById('formAvancarTemporada') || document.getElementById('formRegistroPontuacao');
         if (!form) {
             showAlert('danger', 'Formulário não encontrado. Recarregue a página.');
             return;
@@ -749,18 +749,24 @@ async function showRegistroPontuacao(league) {
         </div>` : `
         <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
 
-            <!-- 1. Pontuação Individual (FIRST) -->
+            <!-- 1. Premiações -->
             <div class="panel mb-3">
-                <div class="panel-header">
-                    <div class="panel-title"><i class="bi bi-star-fill" style="color:#f59e0b"></i> 1. Pontuação Individual dos Times</div>
-                    <button type="button" class="btn-ghost" onclick="_regPtsAddRow()">
-                        <i class="bi bi-plus-circle me-1"></i> Adicionar Time
-                    </button>
+                <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 1. Premiações</div>
+                <div style="font-size:12px;color:var(--text-3);margin-top:4px">MVP, DPOY, MIP e ROY valem 1 ponto cada.${league === 'ELITE' ? ' NBA Cup vale 2 pontos.' : ''}</div>
+                <div class="row g-3" style="margin-top:8px">
+                    <div class="col-md-6"><label style="${lblStyle}">MVP (Time)</label><select name="mvp_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MVP (Jogador)</label><input type="text" name="mvp_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Time)</label><select name="dpoy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Jogador)</label><input type="text" name="dpoy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MIP (Time)</label><select name="mip_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MIP (Jogador)</label><input type="text" name="mip_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">ROY (Time)</label><select name="roy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">ROY (Jogador)</label><input type="text" name="roy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    ${league === 'ELITE' ? `
+                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Campeão)</label><select name="nba_cup_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Pontos)</label><input type="text" value="2" readonly style="${inpStyle}"></div>
+                    ` : ''}
                 </div>
-                <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">
-                    Selecione o time, o jogador destaque e informe os pontos ganhos nesta temporada. Os pontos são somados ao acumulado do time.
-                </div>
-                <div id="regPtsRowsContainer"></div>
             </div>
 
             <!-- 2. Classificação -->
@@ -781,23 +787,6 @@ async function showRegistroPontuacao(league) {
                     <button type="button" class="btn-ghost" onclick="generateBracket('${league}')">
                         <i class="bi bi-diagram-3 me-1"></i> Gerar Chaveamento
                     </button>
-                </div>
-            </div>
-
-            <!-- 4. Premiações -->
-            <div class="panel mb-3">
-                <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 4. Premiações</div>
-                <div class="row g-3" style="margin-top:4px">
-                    <div class="col-md-6"><label style="${lblStyle}">MVP (Time)</label><select name="mvp_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MVP (Jogador)</label><input type="text" name="mvp_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Time)</label><select name="dpoy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Jogador)</label><input type="text" name="dpoy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MIP (Time)</label><select name="mip_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MIP (Jogador)</label><input type="text" name="mip_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">6th Man (Time)</label><select name="sixth_man_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">6th Man (Jogador)</label><input type="text" name="sixth_man_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">ROY (Time)</label><select name="roy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">ROY (Jogador)</label><input type="text" name="roy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
                 </div>
             </div>
 
@@ -850,14 +839,6 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         return s ? (s.value || null) : null;
     }).filter(Boolean);
 
-    // Collect individual team points from dynamic rows
-    const teamPoints = _regPtsRows
-        .filter(r => r.teamId)
-        .map(r => ({
-            team_id: parseInt(r.teamId, 10),
-            points:  parseInt(r.points, 10) || 0
-        }));
-
     const payload = {
         season_id: seasonId,
         champion: playoff.champion,
@@ -873,10 +854,9 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         dpoy_team_id: form.dpoy_team_id?.value || null,
         mip: form.mip_player_name?.value || null,
         mip_team_id: form.mip_team_id?.value || null,
-        sixth_man: form.sixth_man_player_name?.value || null,
-        sixth_man_team_id: form.sixth_man_team_id?.value || null,
         roy: form.roy_player_name?.value || null,
-        roy_team_id: form.roy_team_id?.value || null
+        roy_team_id: form.roy_team_id?.value || null,
+        nba_cup_team_id: form.nba_cup_team_id?.value || null
     };
 
     const btn = form.querySelector('button[type="submit"]');
@@ -889,12 +869,6 @@ async function saveRegistroPontuacao(event, seasonId, league) {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        if (teamPoints.length > 0) {
-            await api('history-points.php', {
-                method: 'POST',
-                body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints })
-            });
-        }
         // Clear all caches for this session
         if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
         _clearFormCache(league, seasonId);
