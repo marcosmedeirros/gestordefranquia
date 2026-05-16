@@ -700,7 +700,7 @@ async function showRegistroPontuacao(league) {
     _regPtsAllTeams = allTeams;
 
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
-    const backFn = `showLeague('${league}')`;
+    const backFn = 'showHome()';
 
     // Restore or init row state
     _regPtsRows = [];
@@ -790,6 +790,20 @@ async function showRegistroPontuacao(league) {
                 </div>
             </div>
 
+            <!-- 4. Pontuação Individual dos Times -->
+            <div class="panel mb-3">
+                <div class="panel-header">
+                    <div class="panel-title"><i class="bi bi-star-fill" style="color:#f59e0b"></i> 4. Pontuação Individual dos Times</div>
+                    <button type="button" class="btn-ghost" onclick="_regPtsAddRow()">
+                        <i class="bi bi-plus-circle me-1"></i> Adicionar Time
+                    </button>
+                </div>
+                <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">
+                    Selecione o time, o jogador destaque e informe os pontos ganhos nesta temporada. Esses pontos serão somados ao total atual do time.
+                </div>
+                <div id="regPtsRowsContainer"></div>
+            </div>
+
             <!-- Submit -->
             <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <button type="submit" class="btn btn-orange" style="border-radius:15px">
@@ -859,6 +873,15 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         nba_cup_team_id: form.nba_cup_team_id?.value || null
     };
 
+    const teamPointsByTeam = {};
+    _regPtsRows
+        .filter(r => r.teamId)
+        .forEach(r => {
+            const teamId = String(r.teamId);
+            const pts = parseInt(r.points, 10) || 0;
+            teamPointsByTeam[teamId] = (teamPointsByTeam[teamId] || 0) + pts;
+        });
+
     const btn = form.querySelector('button[type="submit"]');
     const originalText = btn.innerHTML;
     btn.disabled = true;
@@ -869,6 +892,26 @@ async function saveRegistroPontuacao(event, seasonId, league) {
             method: 'POST',
             body: JSON.stringify(payload)
         });
+        const teamIds = Object.keys(teamPointsByTeam);
+        if (teamIds.length > 0) {
+            let currentPointsByTeam = {};
+            try {
+                const current = await api(`history-points.php?action=get_teams_for_points&season_id=${seasonId}&league=${encodeURIComponent(league)}`);
+                (current.teams || []).forEach(t => {
+                    currentPointsByTeam[String(t.id)] = parseInt(t.current_points || '0', 10) || 0;
+                });
+            } catch (_) {}
+
+            const team_points = teamIds.map(teamId => ({
+                team_id: parseInt(teamId, 10),
+                points: (currentPointsByTeam[teamId] || 0) + teamPointsByTeam[teamId]
+            }));
+
+            await api('history-points.php', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
+            });
+        }
         // Clear all caches for this session
         if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
         _clearFormCache(league, seasonId);
@@ -877,7 +920,7 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         btn.innerHTML = originalText;
         btn.disabled = false;
         showAlert('success', 'Pontuação registrada com sucesso!');
-        setTimeout(() => showLeague(league), 1200);
+        setTimeout(() => showHome(), 1200);
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = originalText;
