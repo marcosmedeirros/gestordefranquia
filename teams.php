@@ -83,6 +83,7 @@ $stmt = $pdo->prepare('
              t.trades_used, t.public_enabled, t.public_slug,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL) as punicoes_count,
+             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.type = \'AVISO_TRADE\' AND tp.reverted_at IS NULL) as avisos_count,
              (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_avg_ovr,
              (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_max_ovr,
              (SELECT AVG(p.age) FROM players p WHERE p.team_id = t.id) as avg_age
@@ -169,6 +170,14 @@ $teamsCount = count($teams);
 $averageCapTop8 = $teamsCount > 0 ? round($totalCapTop8 / $teamsCount, 1) : 0;
 
 $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
+
+function getSerasaScore(int $avisos): array {
+    if ($avisos <= 2) return ['label' => 'Excelente', 'cls' => 'serasa-verde'];
+    if ($avisos <= 4) return ['label' => 'Bom',       'cls' => 'serasa-azul'];
+    if ($avisos <= 6) return ['label' => 'Regular',   'cls' => 'serasa-amarelo'];
+    if ($avisos <= 8) return ['label' => 'Ruim',      'cls' => 'serasa-laranja'];
+    return                   ['label' => 'Péssimo',   'cls' => 'serasa-vermelho'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1147,6 +1156,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
         .team-card, .list-row {
             animation: fadeUp .35s var(--ease) both;
         }
+
+        /* FBA SERASA score badge */
+        .serasa-badge {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 20px;
+            font-size: 10px; font-weight: 700; border: 1px solid;
+            margin-top: 4px; letter-spacing: .02em;
+        }
+        .serasa-verde    { color: #22c55e; border-color: rgba(34,197,94,.35);  background: rgba(34,197,94,.10);  }
+        .serasa-azul     { color: #3b82f6; border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.10); }
+        .serasa-amarelo  { color: #eab308; border-color: rgba(234,179,8,.35);  background: rgba(234,179,8,.10);  }
+        .serasa-laranja  { color: #f97316; border-color: rgba(249,115,22,.35); background: rgba(249,115,22,.10); }
+        .serasa-vermelho { color: #ef4444; border-color: rgba(239,68,68,.35);  background: rgba(239,68,68,.10);  }
     </style>
 </head>
 <body>
@@ -1321,6 +1343,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
                                 <?= $tagLabels[$tag] ?? htmlspecialchars($rawTag) ?>
                             </div>
                             <?php endif; ?>
+                            <?php
+                            $avisos = (int)($t['avisos_count'] ?? 0);
+                            $score  = getSerasaScore($avisos);
+                            ?>
+                            <div class="serasa-badge <?= $score['cls'] ?>" title="FBA SERASA · <?= $avisos ?> aviso<?= $avisos !== 1 ? 's' : '' ?> de trade">
+                                <i class="bi bi-shield-check" style="font-size:9px"></i>
+                                <?= $score['label'] ?><?= $avisos > 0 ? ' <span style="opacity:.65">(' . $avisos . ')</span>' : '' ?>
+                            </div>
                         </div>
                     </div>
 

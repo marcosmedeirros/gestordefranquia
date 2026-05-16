@@ -115,6 +115,7 @@ function ensurePunishmentsCatalog(PDO $pdo): void
 
     $defaultTypes = [
         ['Aviso formal', 'AVISO_FORMAL', 0, 0],
+        ['Aviso de trade (SERASA)', 'AVISO_TRADE', 0, 0],
         ['Perda da Pick 1º rodada', 'PERDA_PICK_1R', 0, 0],
         ['Perda de pick especifica', 'PERDA_PICK_ESPECIFICA', 1, 0],
         ['Trades bloqueadas por uma temporada', 'BAN_TRADES', 0, 1],
