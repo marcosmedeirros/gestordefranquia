@@ -173,14 +173,29 @@ let _bracket = null;
 
 function generateBracket(league) {
     const form = document.getElementById('formAvancarTemporada');
+    if (!form) {
+        if (typeof showAlert === 'function') showAlert('danger', 'Formulário não encontrado. Recarregue a página.');
+        else alert('Formulário não encontrado. Recarregue a página.');
+        return;
+    }
     const tById = seasonsState.teamsById || {};
+    if (!Object.keys(tById).length) {
+        if (typeof showAlert === 'function') showAlert('warning', 'Carregue os times da liga antes de gerar o chaveamento.');
+        else alert('Carregue os times da liga antes de gerar o chaveamento.');
+        return;
+    }
     const getSeeds = (conf) => Array.from({length: 8}, (_, i) => {
         const el = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
         return el?.value ? tById[String(el.value)] : null;
     }).filter(Boolean);
     const leste = getSeeds('leste'), oeste = getSeeds('oeste');
     if (leste.length < 8 || oeste.length < 8) {
-        alert('Selecione os 8 times de cada conferência antes de gerar o playoff.');
+        const parts = [];
+        if (leste.length < 8) parts.push(`Leste: ${leste.length}/8`);
+        if (oeste.length < 8) parts.push(`Oeste: ${oeste.length}/8`);
+        const msg = `Selecione os 8 times de cada conferência. (${parts.join(' · ')})`;
+        if (typeof showAlert === 'function') showAlert('warning', msg);
+        else alert(msg);
         return;
     }
     // 1v8 e 4v5 → R2 topo; 2v7 e 3v6 → R2 baixo
@@ -196,6 +211,7 @@ function generateBracket(league) {
     _bracket = {leste: initConf(leste), oeste: initConf(oeste), final: null};
     _renderBracket(league);
     _saveBracketCache(league, seasonsState.currentSeasonId);
+    document.getElementById('playoffBracketContainer')?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 function _setBracketWinner(conf, round, idx, winId) {
