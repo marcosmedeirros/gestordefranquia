@@ -28,13 +28,52 @@ function promptStartYear(defaultYear) {
 
 // ========== TELA PRINCIPAL DE TEMPORADAS ==========
 async function showSeasonsManagement() {
-    console.log('showSeasonsManagement chamada!'); // Debug
-    
-    // Atualizar breadcrumb
     appState.view = 'seasons';
     updateBreadcrumb();
-    
+
     const container = document.getElementById('mainContainer');
+    container.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>`;
+
+    const leagues = [
+        { name: 'ELITE',  label: '20 temporadas por sprint' },
+        { name: 'NEXT',   label: '15 temporadas por sprint' },
+        { name: 'RISE',   label: '10 temporadas por sprint' },
+        { name: 'ROOKIE', label: '10 temporadas por sprint' },
+    ];
+
+    const results = await Promise.allSettled(
+        leagues.map(l => api(`seasons.php?action=current_season&league=${l.name}`))
+    );
+
+    const leagueCards = leagues.map((l, i) => {
+        const season = results[i].status === 'fulfilled' ? results[i].value?.season : null;
+        const hasSprint = !!season;
+        const seasonInfo = season
+            ? `Sprint ${season.sprint_number || '?'} · T${season.season_number || '?'} · ${season.year || ''}`
+            : 'Sem sprint ativo';
+
+        const mainBtn = hasSprint
+            ? `<button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
+                   <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
+               </button>`
+            : `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
+                   <i class="bi bi-play-circle me-1"></i>Iniciar Sprint
+               </button>`;
+
+        return `
+            <div class="col-md-6 col-lg-3">
+                <div class="league-card" style="cursor:default">
+                    <h3>${l.name}</h3>
+                    <p class="text-light-gray mb-1">${l.label}</p>
+                    <p class="mb-3" style="font-size:11px;color:${hasSprint ? '#ff6b00' : '#666'}">${seasonInfo}</p>
+                    ${mainBtn}
+                    <button class="btn btn-sm btn-outline-secondary w-100" onclick="showPointsManagement('${l.name}')">
+                        <i class="bi bi-bar-chart-steps me-1"></i>Pontuação
+                    </button>
+                </div>
+            </div>`;
+    }).join('');
+
     container.innerHTML = `
         <div class="row g-4 mb-4">
             <div class="col-12">
@@ -43,52 +82,9 @@ async function showSeasonsManagement() {
                     Gerenciar Temporadas
                 </h3>
             </div>
-            
-            <!-- ELITE -->
-            <div class="col-md-6 col-lg-3">
-                <div class="league-card" style="cursor: default;">
-                    <h3>ELITE</h3>
-                    <p class="text-light-gray mb-2">20 temporadas por sprint</p>
-                    <button class="btn btn-sm btn-outline-orange w-100" onclick="showAvancarTemporada('ELITE')">
-                        <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
-                    </button>
-                </div>
-            </div>
-
-            <!-- NEXT -->
-            <div class="col-md-6 col-lg-3">
-                <div class="league-card" style="cursor: default;">
-                    <h3>NEXT</h3>
-                    <p class="text-light-gray mb-2">15 temporadas por sprint</p>
-                    <button class="btn btn-sm btn-outline-orange w-100" onclick="showAvancarTemporada('NEXT')">
-                        <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
-                    </button>
-                </div>
-            </div>
-
-            <!-- RISE -->
-            <div class="col-md-6 col-lg-3">
-                <div class="league-card" style="cursor: default;">
-                    <h3>RISE</h3>
-                    <p class="text-light-gray mb-2">10 temporadas por sprint</p>
-                    <button class="btn btn-sm btn-outline-orange w-100" onclick="showAvancarTemporada('RISE')">
-                        <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
-                    </button>
-                </div>
-            </div>
-
-            <!-- ROOKIE -->
-            <div class="col-md-6 col-lg-3">
-                <div class="league-card" style="cursor: default;">
-                    <h3>ROOKIE</h3>
-                    <p class="text-light-gray mb-2">10 temporadas por sprint</p>
-                    <button class="btn btn-sm btn-outline-orange w-100" onclick="showAvancarTemporada('ROOKIE')">
-                        <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
-                    </button>
-                </div>
-            </div>
+            ${leagueCards}
         </div>
-        
+
         <div class="row g-4">
             <div class="col-12">
                 <h3 class="text-white mb-3">
@@ -99,9 +95,7 @@ async function showSeasonsManagement() {
             <div class="col-md-4">
                 <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
-                        <h5 class="text-orange mb-2">
-                            <i class="bi bi-calendar-check"></i> Temporadas
-                        </h5>
+                        <h5 class="text-orange mb-2"><i class="bi bi-calendar-check"></i> Temporadas</h5>
                         <p class="text-light-gray mb-0">Cada liga possui um número específico de temporadas por sprint (ciclo).</p>
                     </div>
                 </div>
@@ -109,9 +103,7 @@ async function showSeasonsManagement() {
             <div class="col-md-4">
                 <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
-                        <h5 class="text-orange mb-2">
-                            <i class="bi bi-people"></i> Picks Automáticas
-                        </h5>
+                        <h5 class="text-orange mb-2"><i class="bi bi-people"></i> Picks Automáticas</h5>
                         <p class="text-light-gray mb-0">Ao criar uma temporada, são geradas automaticamente 2 picks (1ª e 2ª rodada) para cada time.</p>
                     </div>
                 </div>
@@ -119,9 +111,7 @@ async function showSeasonsManagement() {
             <div class="col-md-4">
                 <div class="card bg-dark-panel border-orange">
                     <div class="card-body">
-                        <h5 class="text-orange mb-2">
-                            <i class="bi bi-bar-chart"></i> Ranking Acumulativo
-                        </h5>
+                        <h5 class="text-orange mb-2"><i class="bi bi-bar-chart"></i> Ranking Acumulativo</h5>
                         <p class="text-light-gray mb-0">Os pontos do ranking são acumulativos e nunca resetam. Use "Rankings" no menu para visualizar.</p>
                     </div>
                 </div>
