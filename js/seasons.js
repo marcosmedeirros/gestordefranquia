@@ -376,13 +376,139 @@ function _clearBracketCache(league, seasonId) {
     if (league && seasonId) localStorage.removeItem(`bk_${league}_${seasonId}`);
 }
 
+// ========== REGISTRO DE PONTUAÇÃO — estado ==========
+let _regPtsRows = [];
+let _regPtsAllTeams = [];
+let _regPtsTeamPlayersCache = {};
+let _regPtsCacheKey = '';
+let _regPtsLeague = '';
+let _regPtsSeasonId = null;
+
+function _regPtsSaveCache() {
+    if (!_regPtsCacheKey) return;
+    const form = document.getElementById('formRegistroPontuacao');
+    const formState = {};
+    if (form) {
+        form.querySelectorAll('[name]').forEach(el => {
+            if (!el.dataset.regRow) formState[el.name] = el.value;
+        });
+    }
+    localStorage.setItem(_regPtsCacheKey, JSON.stringify({
+        rows: _regPtsRows,
+        form: formState,
+        playersCache: _regPtsTeamPlayersCache
+    }));
+}
+
+function _regPtsLoadCache() {
+    if (!_regPtsCacheKey) return null;
+    const raw = localStorage.getItem(_regPtsCacheKey);
+    try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; }
+}
+
+function _regPtsRender() {
+    const container = document.getElementById('regPtsRowsContainer');
+    if (!container) return;
+    const usedTeamIds = new Set(_regPtsRows.map(r => r.teamId).filter(Boolean));
+
+    const teamOpts = (currentId) =>
+        '<option value="">Selecione o time...</option>' +
+        _regPtsAllTeams.map(t => {
+            const sid = String(t.id);
+            const sel = sid === String(currentId) ? 'selected' : '';
+            const dis = usedTeamIds.has(sid) && sid !== String(currentId) ? 'disabled style="color:#555"' : '';
+            return `<option value="${t.id}" ${sel} ${dis}>${escapeHtml(t.city + ' ' + t.name)}</option>`;
+        }).join('');
+
+    const playerOpts = (teamId, currentPlayerId) => {
+        const players = teamId ? (_regPtsTeamPlayersCache[String(teamId)] || []) : [];
+        if (!players.length) return '<option value="">— selecione um time primeiro —</option>';
+        return '<option value="">Jogador (opcional)</option>' +
+            players.map(p => {
+                const sel = String(p.id) === String(currentPlayerId) ? 'selected' : '';
+                return `<option value="${p.id}" ${sel}>${escapeHtml(p.name)} · ${p.position || '—'} · OVR ${p.ovr || '—'}</option>`;
+            }).join('');
+    };
+
+    const inputStyle = 'background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px';
+
+    container.innerHTML = _regPtsRows.map((row, idx) => `
+        <div class="pun-card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:var(--text-3);min-width:22px;text-align:right">${idx + 1}°</span>
+            <select style="flex:2;min-width:140px;${inputStyle}" onchange="_regPtsOnTeamChange(${idx})">
+                ${teamOpts(row.teamId)}
+            </select>
+            <select style="flex:2;min-width:180px;${inputStyle}" onchange="_regPtsOnPlayerChange(${idx})">
+                ${playerOpts(row.teamId, row.playerId)}
+            </select>
+            <input type="number" value="${row.points || 0}" min="0" placeholder="Pts"
+                   style="width:80px;${inputStyle};text-align:center"
+                   onchange="_regPtsOnPointsChange(${idx}, this.value)">
+            <button type="button" class="btn-ghost" style="padding:6px 10px;color:#ef4444;border-color:rgba(239,68,68,.3)"
+                    onclick="_regPtsRemoveRow(${idx})">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>`).join('') ||
+        '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhum time adicionado. Clique em "+ Adicionar Time" para começar.</div>';
+}
+
+async function _regPtsOnTeamChange(rowIdx) {
+    const container = document.getElementById('regPtsRowsContainer');
+    if (!container) return;
+    const cards = container.querySelectorAll('.pun-card');
+    const card = cards[rowIdx];
+    if (!card) return;
+    const teamSel = card.querySelector('select');
+    const teamId = teamSel?.value || '';
+    _regPtsRows[rowIdx].teamId = teamId;
+    _regPtsRows[rowIdx].playerId = '';
+    if (teamId && !_regPtsTeamPlayersCache[teamId]) {
+        try {
+            const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
+            _regPtsTeamPlayersCache[teamId] = data.team?.players || [];
+        } catch (_) {
+            _regPtsTeamPlayersCache[teamId] = [];
+        }
+    }
+    _regPtsRender();
+    _regPtsSaveCache();
+}
+
+function _regPtsOnPlayerChange(rowIdx) {
+    const container = document.getElementById('regPtsRowsContainer');
+    if (!container) return;
+    const cards = container.querySelectorAll('.pun-card');
+    const card = cards[rowIdx];
+    if (!card) return;
+    const sels = card.querySelectorAll('select');
+    _regPtsRows[rowIdx].playerId = sels[1]?.value || '';
+    _regPtsSaveCache();
+}
+
+function _regPtsOnPointsChange(rowIdx, value) {
+    if (_regPtsRows[rowIdx]) _regPtsRows[rowIdx].points = parseInt(value, 10) || 0;
+    _regPtsSaveCache();
+}
+
+function _regPtsRemoveRow(rowIdx) {
+    _regPtsRows.splice(rowIdx, 1);
+    _regPtsRender();
+    _regPtsSaveCache();
+}
+
+function _regPtsAddRow() {
+    _regPtsRows.push({ teamId: '', playerId: '', points: 0 });
+    _regPtsRender();
+    _regPtsSaveCache();
+}
+
 // ========== AVANÇAR TEMPORADA ==========
 function _formCacheKey(league, seasonId) {
     return `avancar_${league}_${seasonId}`;
 }
 
 function _saveFormCache(league, seasonId) {
-    const form = document.getElementById('formAvancarTemporada');
+    const form = document.getElementById('formAvancarTemporada') || document.getElementById('formRegistroPontuacao');
     if (!form) return;
     const state = {};
     form.querySelectorAll('[name]').forEach(el => {
@@ -396,7 +522,7 @@ function _saveFormCache(league, seasonId) {
 }
 
 function _restoreFormCache(league, seasonId) {
-    const form = document.getElementById('formAvancarTemporada');
+    const form = document.getElementById('formAvancarTemporada') || document.getElementById('formRegistroPontuacao');
     if (!form) return;
     const raw = localStorage.getItem(_formCacheKey(league, seasonId));
     if (!raw) return;
@@ -543,6 +669,7 @@ async function _confirmAdvanceSeason(seasonId, league) {
 async function showRegistroPontuacao(league) {
     league = league || (window.appState?.currentLeague) || seasonsState.currentLeague || 'ELITE';
     seasonsState.currentLeague = league;
+    _regPtsLeague = league;
 
     const container = document.getElementById('mainContainer');
     container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
@@ -551,119 +678,165 @@ async function showRegistroPontuacao(league) {
 
     if (!season) {
         container.innerHTML = `
-            <div class="mb-4"><button class="btn btn-back" onclick="showSeasonsManagement()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
-            <div class="alert alert-info" style="border-radius:15px">
-                <i class="bi bi-info-circle me-2"></i>Nenhuma temporada ativa para ${league}.
-            </div>`;
+            <div class="mb-3"><button class="btn-ghost" onclick="showSeasonsManagement()"><i class="bi bi-arrow-left me-1"></i> Voltar</button></div>
+            <div class="panel"><p style="color:var(--text-2);margin:0"><i class="bi bi-info-circle me-2"></i>Nenhuma temporada ativa para ${league}.</p></div>`;
         return;
     }
 
     seasonsState.currentSeasonId = season.id;
+    _regPtsSeasonId = season.id;
+    _regPtsCacheKey = `reg_pts_v2_${league}_${season.id}`;
 
-    let alreadyRegistered = false;
+    let histRegistered = false;
     try {
         const hist = await api(`seasons.php?action=check_season_history&season_id=${season.id}`);
-        alreadyRegistered = !!hist.registered;
+        histRegistered = !!hist.registered;
     } catch (_) {}
 
-    let leagueTeams = [];
+    let allTeams = [];
     try {
-        const ptsData = await api(`history-points.php?action=get_league_seasons_overview&league=${league}`);
-        leagueTeams = ptsData.league_teams || [];
+        const teamsData = await api(`admin.php?action=teams&league=${league}`);
+        allTeams = teamsData.teams || [];
+        seasonsState.teamsById = Object.fromEntries(allTeams.map(t => [String(t.id), t]));
     } catch (_) {}
+    _regPtsAllTeams = allTeams;
 
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
     const backFn = (typeof showLeague === 'function' && window.appState?.currentLeague)
         ? `showLeague('${league}')`
         : 'showSeasonsManagement()';
 
-    const alreadyBadge = alreadyRegistered
-        ? `<span style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3);border-radius:999px;font-size:11px;font-weight:700;padding:2px 10px">
-               <i class="bi bi-check-circle me-1"></i>Já registrado — pode reeditar
+    // Restore or init row state
+    _regPtsRows = [];
+    _regPtsTeamPlayersCache = {};
+    const cached = _regPtsLoadCache();
+    if (cached) {
+        _regPtsRows = cached.rows || [];
+        _regPtsTeamPlayersCache = cached.playersCache || {};
+    }
+    if (!_regPtsRows.length) {
+        _regPtsRows = [{ teamId: '', playerId: '', points: 0 }];
+    }
+
+    const lockedBadge = histRegistered
+        ? `<span style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px">
+               <i class="bi bi-lock-fill me-1"></i>Já registrado
            </span>`
         : '';
 
-    const teamPointInputs = leagueTeams.map(t => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
-            <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
-            <input type="number" class="pts-reg-input" data-team-id="${t.team_id}" value="0" min="0"
-                style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
-        </div>`).join('');
+    const selStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
+    const inpStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
+    const lblStyle = 'font-size:12px;color:var(--text-2);margin-bottom:6px;display:block';
+    const awardTeamOpts = '<option value="">Selecione...</option>' +
+        allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
 
     container.innerHTML = `
-        <div class="mb-4">
-            <button class="btn btn-back" onclick="${backFn}"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <div class="mb-3">
+            <button class="btn-ghost" onclick="${backFn}"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
         </div>
-        <div class="row g-3 mb-4">
-            <div class="col-12">
-                <div class="card bg-dark-panel border-orange" style="border-radius:15px">
-                    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <div>
-                            <h4 class="text-white mb-1">
-                                <i class="bi bi-clipboard-data-fill text-orange me-2"></i>
-                                Registro de Pontuação — ${league}
-                            </h4>
-                            <p class="text-light-gray mb-0">Temporada: <strong class="text-orange">${seasonLabel}</strong></p>
-                        </div>
-                        ${alreadyBadge}
-                    </div>
+
+        <div class="panel mb-3">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title"><i class="bi bi-clipboard-data-fill"></i> Registro de Pontuação — ${league}</div>
+                    <div class="panel-sub">Temporada: ${seasonLabel}</div>
+                </div>
+                ${lockedBadge}
+            </div>
+        </div>
+
+        ${histRegistered ? `
+        <div class="panel" style="border-color:rgba(239,68,68,.3)">
+            <p style="color:#ef4444;margin:0"><i class="bi bi-lock-fill me-2"></i>
+                A pontuação desta temporada já foi registrada. Não é possível registrar novamente.
+            </p>
+        </div>` : `
+        <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
+
+            <!-- 1. Pontuação Individual (FIRST) -->
+            <div class="panel mb-3">
+                <div class="panel-header">
+                    <div class="panel-title"><i class="bi bi-star-fill" style="color:#f59e0b"></i> 1. Pontuação Individual dos Times</div>
+                    <button type="button" class="btn-ghost" onclick="_regPtsAddRow()">
+                        <i class="bi bi-plus-circle me-1"></i> Adicionar Time
+                    </button>
+                </div>
+                <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">
+                    Selecione o time, o jogador destaque e informe os pontos ganhos nesta temporada. Os pontos são somados ao acumulado do time.
+                </div>
+                <div id="regPtsRowsContainer"></div>
+            </div>
+
+            <!-- 2. Classificação -->
+            <div class="panel mb-3">
+                <div class="panel-title"><i class="bi bi-list-ol"></i> 2. Classificação da Temporada Regular</div>
+                <div id="standingsContainer" style="margin-top:12px">
+                    <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">
+                        <i class="bi bi-download me-1"></i> Carregar Times
+                    </button>
                 </div>
             </div>
-        </div>
-        <div class="card bg-dark-panel border-orange" style="border-radius:15px">
-            <div class="card-body">
-                <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
-                    <h6 class="text-orange mb-3">1. Classificação da Temporada Regular</h6>
-                    <div class="mb-4" id="standingsContainer">
-                        <button type="button" class="btn btn-sm btn-outline-orange" onclick="loadTeamsForStandings('${league}')">
-                            <i class="bi bi-download me-1"></i>Carregar Times da Liga
-                        </button>
-                    </div>
-                    <h6 class="text-orange mb-3">2. Playoffs</h6>
-                    <div id="playoffBracketContainer" class="mb-4">
-                        <p class="text-muted small mb-2">Carregue os times e preencha a classificação acima, depois gere o chaveamento.</p>
-                        <button type="button" class="btn btn-sm btn-outline-orange" onclick="generateBracket('${league}')">
-                            <i class="bi bi-diagram-3 me-1"></i>Gerar Chaveamento
-                        </button>
-                    </div>
-                    <h6 class="text-orange mb-3">3. Premiações</h6>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6"><label class="form-label text-light-gray">MVP (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="mvp_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">MVP (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="mvp_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">DPOY (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="dpoy_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">DPOY (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="dpoy_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">MIP (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="mip_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">MIP (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="mip_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">6th Man (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="sixth_man_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">6th Man (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="sixth_man_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">ROY (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="roy_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
-                        <div class="col-md-6"><label class="form-label text-light-gray">ROY (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="roy_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
-                    </div>
-                    ${leagueTeams.length > 0 ? `
-                    <h6 class="text-orange mb-3">4. Pontuação Individual dos Times</h6>
-                    <div class="mb-4">${teamPointInputs}</div>` : ''}
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-orange" style="border-radius:15px">
-                            <i class="bi bi-save me-1"></i>Registrar Pontuação
-                        </button>
-                        <button type="button" class="btn btn-outline-orange" onclick="${backFn}" style="border-radius:15px">Cancelar</button>
-                    </div>
-                </form>
-            </div>
-        </div>`;
 
+            <!-- 3. Playoffs -->
+            <div class="panel mb-3">
+                <div class="panel-title"><i class="bi bi-diagram-3"></i> 3. Playoffs</div>
+                <div id="playoffBracketContainer" style="margin-top:12px">
+                    <p style="font-size:13px;color:var(--text-3);margin-bottom:10px">Carregue os times e preencha a classificação primeiro, depois gere o chaveamento.</p>
+                    <button type="button" class="btn-ghost" onclick="generateBracket('${league}')">
+                        <i class="bi bi-diagram-3 me-1"></i> Gerar Chaveamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. Premiações -->
+            <div class="panel mb-3">
+                <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 4. Premiações</div>
+                <div class="row g-3" style="margin-top:4px">
+                    <div class="col-md-6"><label style="${lblStyle}">MVP (Time)</label><select name="mvp_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MVP (Jogador)</label><input type="text" name="mvp_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Time)</label><select name="dpoy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Jogador)</label><input type="text" name="dpoy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MIP (Time)</label><select name="mip_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">MIP (Jogador)</label><input type="text" name="mip_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">6th Man (Time)</label><select name="sixth_man_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">6th Man (Jogador)</label><input type="text" name="sixth_man_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">ROY (Time)</label><select name="roy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">ROY (Jogador)</label><input type="text" name="roy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-orange" style="border-radius:15px">
+                    <i class="bi bi-save me-1"></i> Registrar Pontuação
+                </button>
+                <button type="button" class="btn-ghost" onclick="${backFn}">Cancelar</button>
+            </div>
+        </form>`}
+    `;
+
+    // Render dynamic rows
+    _regPtsRender();
+
+    // Restore award/player-name fields from form cache
+    if (cached?.form) {
+        const form = document.getElementById('formRegistroPontuacao');
+        if (form) {
+            Object.entries(cached.form).forEach(([name, value]) => {
+                const el = form.querySelector(`[name="${name}"]`);
+                if (el) el.value = value;
+            });
+        }
+    }
+
+    // Attach save-on-change for awards inputs
     document.getElementById('formRegistroPontuacao')
-        ?.addEventListener('change', () => _saveFormCache(league, season.id));
+        ?.addEventListener('change', _regPtsSaveCache);
+
+    // Restore bracket cache if available
+    if (_restoreBracketCache(league, season.id)) {
+        _renderBracket(league);
+    }
 }
 
 async function saveRegistroPontuacao(event, seasonId, league) {
@@ -681,10 +854,13 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         return s ? (s.value || null) : null;
     }).filter(Boolean);
 
-    const teamPoints = Array.from(form.querySelectorAll('.pts-reg-input')).map(inp => ({
-        team_id: parseInt(inp.dataset.teamId, 10),
-        points:  parseInt(inp.value || '0', 10)
-    }));
+    // Collect individual team points from dynamic rows
+    const teamPoints = _regPtsRows
+        .filter(r => r.teamId)
+        .map(r => ({
+            team_id: parseInt(r.teamId, 10),
+            points:  parseInt(r.points, 10) || 0
+        }));
 
     const payload = {
         season_id: seasonId,
@@ -695,14 +871,14 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         conference_final_losses: playoff.conference_final_losses,
         standings_leste: getRankList('leste'),
         standings_oeste: getRankList('oeste'),
-        mvp: form.mvp_player_name.value || null,
-        mvp_team_id: form.mvp_team_id.value || null,
-        dpoy: form.dpoy_player_name.value || null,
-        dpoy_team_id: form.dpoy_team_id.value || null,
-        mip: form.mip_player_name.value || null,
-        mip_team_id: form.mip_team_id.value || null,
-        sixth_man: form.sixth_man_player_name.value || null,
-        sixth_man_team_id: form.sixth_man_team_id.value || null,
+        mvp: form.mvp_player_name?.value || null,
+        mvp_team_id: form.mvp_team_id?.value || null,
+        dpoy: form.dpoy_player_name?.value || null,
+        dpoy_team_id: form.dpoy_team_id?.value || null,
+        mip: form.mip_player_name?.value || null,
+        mip_team_id: form.mip_team_id?.value || null,
+        sixth_man: form.sixth_man_player_name?.value || null,
+        sixth_man_team_id: form.sixth_man_team_id?.value || null,
         roy: form.roy_player_name?.value || null,
         roy_team_id: form.roy_team_id?.value || null
     };
@@ -723,8 +899,11 @@ async function saveRegistroPontuacao(event, seasonId, league) {
                 body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints })
             });
         }
+        // Clear all caches for this session
+        if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
         _clearFormCache(league, seasonId);
         _clearBracketCache(league, seasonId);
+        _regPtsRows = [];
         btn.innerHTML = originalText;
         btn.disabled = false;
         showAlert('success', 'Pontuação registrada com sucesso!');
@@ -738,7 +917,11 @@ async function saveRegistroPontuacao(event, seasonId, league) {
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = originalText;
-        alert('Erro ao salvar: ' + (e.error || 'Desconhecido'));
+        if (e?.already_locked) {
+            alert('Esta temporada já teve a pontuação registrada. Não é permitido registrar novamente.');
+        } else {
+            alert('Erro ao salvar: ' + (e?.error || 'Desconhecido'));
+        }
     }
 }
 
@@ -1539,3 +1722,8 @@ window.showImportCSVModal = showImportCSVModal;
 window.submitImportCSV = submitImportCSV;
 window.downloadCSVTemplate = downloadCSVTemplate;
 window.submitDraftPlayer = submitDraftPlayer;
+window._regPtsOnTeamChange = _regPtsOnTeamChange;
+window._regPtsOnPlayerChange = _regPtsOnPlayerChange;
+window._regPtsOnPointsChange = _regPtsOnPointsChange;
+window._regPtsRemoveRow = _regPtsRemoveRow;
+window._regPtsAddRow = _regPtsAddRow;
