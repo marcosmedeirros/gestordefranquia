@@ -552,19 +552,31 @@ async function showAvancarTemporada(league) {
     const season = await loadCurrentSeason(league);
 
     if (!season) {
+        // Nenhum sprint ativo — mostrar formulário de criação
         container.innerHTML = `
-            <div class="mb-4">
-                <button class="btn btn-back" onclick="showSeasonsManagement()">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </button>
+            <div class="mb-3">
+                <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
             </div>
-            <div class="alert alert-info" style="border-radius:15px">
-                <i class="bi bi-info-circle me-2"></i>
-                Nenhuma temporada ativa para ${league}. Crie a primeira temporada diretamente.
-            </div>
-            <button class="btn btn-orange mt-3" onclick="_doCreateNewSeason('${league}')">
-                <i class="bi bi-plus-circle me-1"></i>Criar Primeira Temporada
-            </button>`;
+            <div class="panel">
+                <div class="panel-title"><i class="bi bi-play-circle-fill" style="color:#f97316"></i> Criar Sprint — ${league}</div>
+                <p style="color:var(--text-2);font-size:13px;margin-bottom:20px">
+                    Defina o ano inicial do sprint. As picks serão configuradas automaticamente para todos os times.
+                    Após criar, você será direcionado para configurar o Draft Inicial.
+                </p>
+                <form id="formCriarSprint" onsubmit="_submitCriarSprint(event, '${league}')">
+                    <div style="margin-bottom:16px">
+                        <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:6px">Ano inicial do sprint</label>
+                        <input type="number" name="start_year" value="${new Date().getFullYear()}" min="1900" max="2100"
+                               style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:15px;width:160px">
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <button type="submit" class="btn-orange">
+                            <i class="bi bi-plus-circle me-1"></i> Criar Sprint
+                        </button>
+                        <button type="button" class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
+                    </div>
+                </form>
+            </div>`;
         return;
     }
 
@@ -582,25 +594,21 @@ async function showAvancarTemporada(league) {
 
     if (!histRegistered) {
         container.innerHTML = `
-            <div class="mb-4">
-                <button class="btn btn-back" onclick="showSeasonsManagement()">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </button>
+            <div class="mb-3">
+                <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
             </div>
-            <div class="card bg-dark-panel border-orange" style="border-radius:15px">
-                <div class="card-body">
-                    <h4 class="text-white mb-2">
-                        <i class="bi bi-arrow-right-circle text-orange me-2"></i>
-                        Avançar Temporada — ${league}
-                    </h4>
-                    <p class="text-light-gray mb-3">Temporada atual: <strong class="text-orange">${seasonLabel}</strong></p>
-                    <div class="alert alert-warning mb-3" style="border-radius:10px">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        A pontuação desta temporada ainda não foi registrada. Registre os resultados antes de avançar.
-                    </div>
-                    <button class="btn btn-orange" onclick="showRegistroPontuacao('${league}')">
-                        <i class="bi bi-clipboard-data-fill me-1"></i>Ir para Registro de Pontuação
+            <div class="panel">
+                <div class="panel-title"><i class="bi bi-arrow-right-circle" style="color:#f97316"></i> Avançar Temporada — ${league}</div>
+                <p style="color:var(--text-2);font-size:13px;margin-bottom:12px">Temporada atual: <strong style="color:var(--red)">${seasonLabel}</strong></p>
+                <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#f59e0b">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    A pontuação desta temporada ainda não foi registrada. Registre os resultados antes de avançar.
+                </div>
+                <div style="display:flex;gap:10px">
+                    <button class="btn-orange" onclick="showRegistroPontuacao('${league}')">
+                        <i class="bi bi-clipboard-data-fill me-1"></i> Ir para Registro de Pontuação
                     </button>
+                    <button class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
                 </div>
             </div>`;
         return;
@@ -608,30 +616,20 @@ async function showAvancarTemporada(league) {
 
     // Histórico registrado — mostrar confirmação de avanço
     container.innerHTML = `
-        <div class="mb-4">
-            <button class="btn btn-back" onclick="showSeasonsManagement()">
-                <i class="bi bi-arrow-left"></i> Voltar
-            </button>
+        <div class="mb-3">
+            <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
         </div>
-        <div class="card bg-dark-panel border-orange" style="border-radius:15px">
-            <div class="card-body">
-                <h4 class="text-white mb-2">
-                    <i class="bi bi-arrow-right-circle text-orange me-2"></i>
-                    Avançar Temporada — ${league}
-                </h4>
-                <p class="text-light-gray mb-1">Temporada atual: <strong class="text-orange">${seasonLabel}</strong></p>
-                <p class="text-light-gray mb-3">
-                    <span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>Pontuação registrada.</span>
-                    Avançar criará a próxima temporada do sprint.
-                </p>
-                <div class="d-flex gap-2 flex-wrap">
-                    <button class="btn btn-orange" style="border-radius:15px" onclick="_confirmAdvanceSeason(${season.id}, '${league}')">
-                        <i class="bi bi-arrow-right-circle me-1"></i>Confirmar e Avançar
-                    </button>
-                    <button class="btn btn-outline-orange" style="border-radius:15px" onclick="showSeasonsManagement()">
-                        Cancelar
-                    </button>
-                </div>
+        <div class="panel">
+            <div class="panel-title"><i class="bi bi-arrow-right-circle" style="color:#10b981"></i> Avançar Temporada — ${league}</div>
+            <p style="color:var(--text-2);font-size:13px;margin-bottom:4px">Temporada atual: <strong style="color:var(--red)">${seasonLabel}</strong></p>
+            <p style="color:#22c55e;font-size:13px;margin-bottom:16px">
+                <i class="bi bi-check-circle-fill me-1"></i>Pontuação registrada. Avançar criará a próxima temporada do sprint.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="btn-orange" onclick="_confirmAdvanceSeason(${season.id}, '${league}')">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Confirmar e Avançar
+                </button>
+                <button class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
             </div>
         </div>`;
 }
@@ -660,7 +658,7 @@ async function _confirmAdvanceSeason(seasonId, league) {
         _clearBracketCache(league, seasonId);
         seasonsState._advancingSeason = null;
         showAlert('success', data.message || 'Temporada avançada com sucesso!');
-        showSeasonsManagement();
+        showLeague(league);
     } catch (e) {
         showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
     }
@@ -907,13 +905,7 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         btn.innerHTML = originalText;
         btn.disabled = false;
         showAlert('success', 'Pontuação registrada com sucesso!');
-        setTimeout(() => {
-            if (typeof showLeague === 'function' && window.appState?.currentLeague) {
-                showLeague(window.appState.currentLeague);
-            } else {
-                showSeasonsManagement();
-            }
-        }, 1200);
+        setTimeout(() => showLeague(league), 1200);
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -980,6 +972,38 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
         alert('Erro ao salvar histórico: ' + (e.error || 'Desconhecido'));
         btn.disabled = false;
         btn.innerHTML = originalText;
+    }
+}
+
+async function _submitCriarSprint(event, league) {
+    event.preventDefault();
+    const form = event.target;
+    const startYear = parseInt(form.start_year.value, 10);
+    if (!startYear || startYear < 1900 || startYear > 2200) {
+        alert('Ano inválido. Informe um número como 2025.');
+        return;
+    }
+    const btn = form.querySelector('button[type="submit"]');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Criando...';
+    try {
+        const data = await api('seasons.php?action=create_season', {
+            method: 'POST',
+            body: JSON.stringify({ league, season_year: startYear, start_year: startYear })
+        });
+        showAlert('success', data.message || 'Sprint criado com sucesso!');
+        setTimeout(() => {
+            if (typeof showAdminDraft === 'function') {
+                showAdminDraft(league);
+            } else {
+                showLeague(league);
+            }
+        }, 800);
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+        alert('Erro ao criar sprint: ' + (e?.error || 'Desconhecido'));
     }
 }
 
@@ -1727,3 +1751,4 @@ window._regPtsOnPlayerChange = _regPtsOnPlayerChange;
 window._regPtsOnPointsChange = _regPtsOnPointsChange;
 window._regPtsRemoveRow = _regPtsRemoveRow;
 window._regPtsAddRow = _regPtsAddRow;
+window._submitCriarSprint = _submitCriarSprint;

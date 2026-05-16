@@ -607,9 +607,10 @@ async function showLeague(league) {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
 
   try {
-    const [data, seasonData] = await Promise.all([
+    const [data, seasonData, draftData] = await Promise.all([
       api(`admin.php?action=teams&league=${league}`),
-      api(`seasons.php?action=list_seasons&league=${league}`).catch(() => ({ seasons: [] }))
+      api(`seasons.php?action=list_seasons&league=${league}`).catch(() => ({ seasons: [] })),
+      api(`draft.php?action=active_draft&league=${league}`).catch(() => ({ draft: null }))
     ]);
     const teams = data.teams || [];
     const seasons = seasonData.seasons || [];
@@ -668,6 +669,32 @@ async function showLeague(league) {
         ${a.badgeId ? `<span class="action-tile-badge" id="${a.badgeId}" style="display:none">0</span>` : ''}
       </button>`).join('');
 
+    const activeDraft = draftData?.draft;
+    const draftCard = (activeDraft && ['setup', 'in_progress'].includes(activeDraft.status)) ? (() => {
+      const isRunning = activeDraft.status === 'in_progress';
+      const statusColor = isRunning ? '#22c55e' : '#f59e0b';
+      const statusBg = isRunning ? 'rgba(34,197,94,.1)' : 'rgba(245,158,11,.1)';
+      const statusLabel = isRunning ? 'Em andamento' : 'Configurando';
+      const sub = isRunning
+        ? `Rodada ${activeDraft.current_round || 1} · Pick ${activeDraft.current_pick || 1}`
+        : 'Aguardando configuração da ordem de picks';
+      return `
+      <div class="panel mb-3" style="border-color:rgba(168,85,247,.35)">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#a855f7"></i> Draft Inicial — ${league}</div>
+            <div class="panel-sub">${sub}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="pun-badge" style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}40">${statusLabel}</span>
+            <button class="btn-ghost" style="color:#a855f7;border-color:rgba(168,85,247,.3)" onclick="showAdminDraft('${league}')">
+              <i class="bi bi-arrow-right-circle me-1"></i> Gerenciar Draft
+            </button>
+          </div>
+        </div>
+      </div>`;
+    })() : '';
+
     container.innerHTML = `
       <div class="league-hero">
         <div>
@@ -713,6 +740,8 @@ async function showLeague(league) {
       </div>
 
       <div id="leaguePlayerSearchResults"></div>
+
+      ${draftCard}
 
       <div class="action-grid">${actionTiles}</div>
 
