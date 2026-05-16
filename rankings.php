@@ -15,12 +15,14 @@ $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 $userLeague = strtoupper($team['league'] ?? $user['league'] ?? 'ELITE');
 $currentTeamId = (int)($team['id'] ?? 0);
 $currentSeason = null;
+$currentSeasonId = null;
 $currentSeasonYear = (int)date('Y');
 if (!empty($team['league'])) {
     try {
-        $stmtSeason = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year, sp.sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
+        $stmtSeason = $pdo->prepare('SELECT s.id AS season_id, s.season_number, s.year, sp.start_year, sp.sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
         $stmtSeason->execute([$team['league']]);
         $currentSeason = $stmtSeason->fetch();
+        $currentSeasonId = $currentSeason ? (int)($currentSeason['season_id'] ?? 0) : null;
         if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season_number'])) {
             $currentSeasonYear = (int)$currentSeason['start_year'] + (int)$currentSeason['season_number'] - 1;
         } elseif ($currentSeason && isset($currentSeason['year'])) {
@@ -530,6 +532,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
+    const currentSeasonId = <?= $currentSeasonId ? (int)$currentSeasonId : 'null' ?>;
 
     function updateActiveButton() {
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -592,7 +595,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     <td style="text-align: center; color: var(--text-2); font-weight: 600;">${team.total_titles || 0}</td>
                     <td style="text-align: center; color: var(--red); font-weight: 800; font-size: 15px;">
                         ${team.total_points || 0}
-                        ${(team.last_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px;opacity:.85">+${team.last_delta}</span>` : ''}
+                        ${(team.last_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px;opacity:.85">${team.last_delta}</span>` : ''}
                     </td>
                     <td style="text-align:center">
                         <button class="hbadge" style="padding:4px 8px;font-size:11px;gap:4px"
@@ -650,13 +653,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
             const seasons = data.seasons || [];
-            if (!seasons.length) {
+            const filtered = currentSeasonId
+                ? seasons.filter(s => parseInt(s.season_id || 0, 10) !== currentSeasonId)
+                : seasons;
+            if (!filtered.length) {
                 ptsHistoryBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma pontuação registrada ainda.</div>';
                 return;
             }
 
             let html = '';
-            seasons.forEach((s, si) => {
+            filtered.forEach((s, si) => {
                 const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
                 const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
                 const yearLabel   = s.year ? ` · ${s.year}` : '';
@@ -711,18 +717,21 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
             const seasons = data.seasons || [];
-            if (!seasons.length) {
+            const filtered = currentSeasonId
+                ? seasons.filter(s => parseInt(s.season_id || 0, 10) !== currentSeasonId)
+                : seasons;
+            if (!filtered.length) {
                 teamLogBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma temporada encontrada.</div>';
                 return;
             }
 
-            const total = seasons.reduce((acc, s) => acc + (s.points || 0), 0);
+            const total = filtered.reduce((acc, s) => acc + (s.points || 0), 0);
             let html = `<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
                 <span style="font-size:12px;color:var(--text-3)">Total acumulado</span>
                 <span style="font-weight:800;color:var(--red);font-size:16px">${total} pts</span>
             </div>`;
 
-            seasons.forEach((s) => {
+            filtered.forEach((s) => {
                 const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
                 const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
                 const yearLabel   = s.year ? ` · ${s.year}` : '';
