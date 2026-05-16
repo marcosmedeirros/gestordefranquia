@@ -427,7 +427,8 @@ if ($method === 'GET') {
                     COALESCE(t.waivers_used, 0) as waivers_used,
                     u.name as owner_name, u.email as owner_email,
                     d.name as division_name,
-                    (SELECT COUNT(*) FROM players WHERE team_id = t.id) as player_count
+                    (SELECT COUNT(*) FROM players WHERE team_id = t.id) as player_count,
+                    (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.type = 'AVISO_TRADE' AND tp.reverted_at IS NULL) as avisos_count
                 FROM teams t
                 JOIN users u ON t.user_id = u.id
                 LEFT JOIN divisions d ON t.division_id = d.id

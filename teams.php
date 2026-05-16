@@ -925,7 +925,7 @@ function getSerasaScore(int $avisos): array {
 
         .list-header {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 200px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 90px 200px;
             gap: 0 8px;
             padding: 10px 18px;
             background: var(--panel-2);
@@ -948,7 +948,7 @@ function getSerasaScore(int $avisos): array {
 
         .list-row {
             display: grid;
-            grid-template-columns: 1fr 80px 60px 65px 80px 80px 200px;
+            grid-template-columns: 1fr 80px 60px 65px 80px 80px 90px 200px;
             gap: 0 8px;
             padding: 12px 18px;
             border: 1px solid var(--border);
@@ -1118,7 +1118,7 @@ function getSerasaScore(int $avisos): array {
             .list-header, .list-row {
                 grid-template-columns: 1fr 60px 55px 55px 160px;
             }
-            .list-col-tapas, .list-col-punicoes { display: none; }
+            .list-col-tapas, .list-col-punicoes, .list-col-serasa { display: none; }
             .page-top { padding-top: 20px; }
         }
 
@@ -1429,6 +1429,7 @@ function getSerasaScore(int $avisos): array {
                     <div class="list-header-cell" style="justify-content:center;">Trades</div>
                     <div class="list-header-cell list-col-tapas" style="justify-content:center;">Tapas</div>
                     <div class="list-header-cell list-col-punicoes" style="justify-content:center;">Pun.</div>
+                    <div class="list-header-cell list-col-serasa" style="justify-content:center;">SERASA</div>
                     <div class="list-header-cell" style="justify-content:flex-end;">Ações</div>
                 </div>
                 <?php foreach ($teams as $i => $t):
@@ -1486,6 +1487,10 @@ function getSerasaScore(int $avisos): array {
                     </div>
                     <div class="list-cell list-col-punicoes" style="text-align:center">
                         <span class="badge-pill gray"><?= (int)($t['punicoes_count'] ?? 0) ?></span>
+                    </div>
+                    <?php $lAvisos = (int)($t['avisos_count'] ?? 0); $lScore = getSerasaScore($lAvisos); ?>
+                    <div class="list-cell list-col-serasa" style="text-align:center">
+                        <span class="serasa-badge <?= $lScore['cls'] ?>" style="font-size:9px;padding:1px 5px"><?= $lScore['label'] ?></span>
                     </div>
                     <div class="list-actions">
                         <button class="btn-action info" style="flex:initial;padding:0 10px;" onclick="openTeamDetail(<?= $t['id'] ?>)">

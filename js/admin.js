@@ -648,13 +648,15 @@ async function showLeague(league) {
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-      { icon: 'bi-bar-chart-steps',   label: 'Pontuação',            fn: 'showPointsManagement()',  color: '#06b6d4', bg: 'rgba(6,182,212,.12)'  },
-      { icon: 'bi-person-dash-fill',  label: 'Dispensas',            fn: 'showDispensas()',         color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
-      { icon: 'bi-hand-index-thumb',  label: 'Tapas',                fn: 'showTapas()',             color: '#f97316', bg: 'rgba(249,115,22,.12)' },
-      { icon: 'bi-clipboard-check',   label: 'Diretrizes',           fn: 'showDirectives()',        color: '#14b8a6', bg: 'rgba(20,184,166,.12)' },
-      { icon: 'bi-exclamation-triangle-fill', label: 'Punições',    fn: 'showPunicoes()',          color: '#f43f5e', bg: 'rgba(244,63,94,.12)'  },
-      { icon: 'bi-trophy-fill',              label: 'Draft',        fn: 'showAdminDraft()',        color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
-      { icon: 'bi-coin',                     label: 'Moedas',       fn: 'showCoins()',             color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
+      { icon: 'bi-bar-chart-steps',         label: 'Histórico de<br>Pontuação',  fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
+      { icon: 'bi-clipboard-data-fill',     label: 'Registro de<br>Pontuação',  fn: 'showRegistroPontuacao()',   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
+      { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
+      { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
+      { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
+      { icon: 'bi-clipboard-check',         label: 'Diretrizes',                fn: 'showDirectives()',          color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
+      { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
+      { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
     ];
 
     const actionTiles = actions.map(a => `
@@ -699,9 +701,14 @@ async function showLeague(league) {
           <button class="btn-ghost" id="copyPicksBtn">
             <i class="bi bi-calendar2-check"></i> Picks
           </button>
-          <button class="btn-ghost" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="showAvancarTemporada('${league}')">
-            <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
-          </button>
+          ${currentSeason
+            ? `<button class="btn-ghost" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="showAvancarTemporada('${league}')">
+                 <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
+               </button>`
+            : `<button class="btn-ghost" style="color:#f97316;border-color:rgba(249,115,22,.3)" onclick="showAvancarTemporada('${league}')">
+                 <i class="bi bi-play-circle-fill me-1"></i>Criar Sprint
+               </button>`
+          }
         </div>
       </div>
 
@@ -4214,6 +4221,65 @@ async function deletePtsMgmt(seasonId, league) {
     showPointsManagement(league);
   } catch (e) {
     showAlert('danger', e.error || 'Erro ao zerar pontuação');
+  }
+}
+
+// ── FBA SERASA Admin ─────────────────────────────────────────────────
+
+async function showSerasaAdmin() {
+  const league = appState.currentLeague || 'ELITE';
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
+
+  try {
+    const data = await api(`admin.php?action=teams&league=${league}`);
+    const teams = (data.teams || []).slice().sort((a, b) => (parseInt(b.avisos_count||0)) - (parseInt(a.avisos_count||0)));
+
+    const getScore = (n) => {
+      if (n <= 2) return { label: 'Excelente', color: '#22c55e', bg: 'rgba(34,197,94,.10)',  border: 'rgba(34,197,94,.3)'  };
+      if (n <= 4) return { label: 'Bom',       color: '#3b82f6', bg: 'rgba(59,130,246,.10)', border: 'rgba(59,130,246,.3)' };
+      if (n <= 6) return { label: 'Regular',   color: '#eab308', bg: 'rgba(234,179,8,.10)',  border: 'rgba(234,179,8,.3)'  };
+      if (n <= 8) return { label: 'Ruim',      color: '#f97316', bg: 'rgba(249,115,22,.10)', border: 'rgba(249,115,22,.3)' };
+      return              { label: 'Péssimo',  color: '#ef4444', bg: 'rgba(239,68,68,.10)',  border: 'rgba(239,68,68,.3)'  };
+    };
+
+    const rows = teams.map(t => {
+      const n = parseInt(t.avisos_count || 0);
+      const s = getScore(n);
+      return `
+        <div class="pun-card" style="display:flex;align-items:center;gap:12px;padding:10px 14px">
+          <img src="${escapeHtml(t.photo_url || '/img/default-team.png')}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)" onerror="this.src='/img/default-team.png'">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span style="font-size:11px;color:var(--text-3)">${n} aviso${n !== 1 ? 's' : ''}</span>
+            <span style="padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${s.color};background:${s.bg};border:1px solid ${s.border}">${s.label}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const legend = [
+      ['#22c55e','rgba(34,197,94,.3)','Excelente (0–2)'],
+      ['#3b82f6','rgba(59,130,246,.3)','Bom (3–4)'],
+      ['#eab308','rgba(234,179,8,.3)','Regular (5–6)'],
+      ['#f97316','rgba(249,115,22,.3)','Ruim (7–8)'],
+      ['#ef4444','rgba(239,68,68,.3)','Péssimo (9+)'],
+    ].map(([c, b, l]) => `<span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:${c};background:${c}1a;border:1px solid ${b}">${l}</span>`).join('');
+
+    container.innerHTML = `
+      <div class="mb-4"><button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-shield-check" style="color:#8b5cf6"></i> FBA SERASA — ${league}</div>
+          <span style="font-size:12px;color:var(--text-3)">${teams.length} times</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${legend}</div>
+        <div>${rows || '<p class="empty-state">Nenhum time encontrado.</p>'}</div>
+      </div>`;
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
   }
 }
 

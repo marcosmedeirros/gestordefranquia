@@ -420,10 +420,10 @@ function _clearFormCache(league, seasonId) {
 
 async function showAvancarTemporada(league) {
     seasonsState.currentLeague = league;
-    const season = await loadCurrentSeason(league);
-    if (season) seasonsState.currentSeasonId = season.id;
-
     const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+
+    const season = await loadCurrentSeason(league);
 
     if (!season) {
         container.innerHTML = `
@@ -442,40 +442,183 @@ async function showAvancarTemporada(league) {
         return;
     }
 
+    seasonsState.currentSeasonId = season.id;
+    seasonsState._advancingSeason = season;
+
+    // Verificar se o histórico de pontuação já foi registrado
+    let histRegistered = false;
+    try {
+        const hist = await api(`seasons.php?action=check_season_history&season_id=${season.id}`);
+        histRegistered = !!hist.registered;
+    } catch (_) {}
+
+    const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
+
+    if (!histRegistered) {
+        container.innerHTML = `
+            <div class="mb-4">
+                <button class="btn btn-back" onclick="showSeasonsManagement()">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </button>
+            </div>
+            <div class="card bg-dark-panel border-orange" style="border-radius:15px">
+                <div class="card-body">
+                    <h4 class="text-white mb-2">
+                        <i class="bi bi-arrow-right-circle text-orange me-2"></i>
+                        Avançar Temporada — ${league}
+                    </h4>
+                    <p class="text-light-gray mb-3">Temporada atual: <strong class="text-orange">${seasonLabel}</strong></p>
+                    <div class="alert alert-warning mb-3" style="border-radius:10px">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        A pontuação desta temporada ainda não foi registrada. Registre os resultados antes de avançar.
+                    </div>
+                    <button class="btn btn-orange" onclick="showRegistroPontuacao('${league}')">
+                        <i class="bi bi-clipboard-data-fill me-1"></i>Ir para Registro de Pontuação
+                    </button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    // Histórico registrado — mostrar confirmação de avanço
     container.innerHTML = `
         <div class="mb-4">
             <button class="btn btn-back" onclick="showSeasonsManagement()">
                 <i class="bi bi-arrow-left"></i> Voltar
             </button>
         </div>
+        <div class="card bg-dark-panel border-orange" style="border-radius:15px">
+            <div class="card-body">
+                <h4 class="text-white mb-2">
+                    <i class="bi bi-arrow-right-circle text-orange me-2"></i>
+                    Avançar Temporada — ${league}
+                </h4>
+                <p class="text-light-gray mb-1">Temporada atual: <strong class="text-orange">${seasonLabel}</strong></p>
+                <p class="text-light-gray mb-3">
+                    <span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>Pontuação registrada.</span>
+                    Avançar criará a próxima temporada do sprint.
+                </p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-orange" style="border-radius:15px" onclick="_confirmAdvanceSeason(${season.id}, '${league}')">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Confirmar e Avançar
+                    </button>
+                    <button class="btn btn-outline-orange" style="border-radius:15px" onclick="showSeasonsManagement()">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>`;
+}
 
+async function _confirmAdvanceSeason(seasonId, league) {
+    const season = seasonsState._advancingSeason;
+    if (!season) { showAlert('danger', 'Dados da temporada não encontrados. Recarregue a página.'); return; }
+
+    const startYear = resolveStartYear(season) ?? promptStartYear(new Date().getFullYear());
+    if (!startYear) return;
+
+    const nextNum = Number(season.season_number) + 1;
+    const nextYear = startYear + nextNum - 1;
+
+    if (!confirm(`Criar Temporada ${String(nextNum).padStart(2,'0')} para a liga ${league} (ano ${nextYear})?`)) return;
+
+    try {
+        await api('seasons.php?action=advance_season', {
+            method: 'POST',
+            body: JSON.stringify({ season_id: seasonId })
+        });
+        const data = await api('seasons.php?action=create_season', {
+            method: 'POST',
+            body: JSON.stringify({ league, season_year: nextYear, start_year: startYear })
+        });
+        _clearBracketCache(league, seasonId);
+        seasonsState._advancingSeason = null;
+        showAlert('success', data.message || 'Temporada avançada com sucesso!');
+        showSeasonsManagement();
+    } catch (e) {
+        showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+    }
+}
+
+async function showRegistroPontuacao(league) {
+    league = league || (window.appState?.currentLeague) || seasonsState.currentLeague || 'ELITE';
+    seasonsState.currentLeague = league;
+
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+
+    const season = await loadCurrentSeason(league);
+
+    if (!season) {
+        container.innerHTML = `
+            <div class="mb-4"><button class="btn btn-back" onclick="showSeasonsManagement()"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+            <div class="alert alert-info" style="border-radius:15px">
+                <i class="bi bi-info-circle me-2"></i>Nenhuma temporada ativa para ${league}.
+            </div>`;
+        return;
+    }
+
+    seasonsState.currentSeasonId = season.id;
+
+    let alreadyRegistered = false;
+    try {
+        const hist = await api(`seasons.php?action=check_season_history&season_id=${season.id}`);
+        alreadyRegistered = !!hist.registered;
+    } catch (_) {}
+
+    let leagueTeams = [];
+    try {
+        const ptsData = await api(`history-points.php?action=get_league_seasons_overview&league=${league}`);
+        leagueTeams = ptsData.league_teams || [];
+    } catch (_) {}
+
+    const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
+    const backFn = (typeof showLeague === 'function' && window.appState?.currentLeague)
+        ? `showLeague('${league}')`
+        : 'showSeasonsManagement()';
+
+    const alreadyBadge = alreadyRegistered
+        ? `<span style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3);border-radius:999px;font-size:11px;font-weight:700;padding:2px 10px">
+               <i class="bi bi-check-circle me-1"></i>Já registrado — pode reeditar
+           </span>`
+        : '';
+
+    const teamPointInputs = leagueTeams.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
+            <input type="number" class="pts-reg-input" data-team-id="${t.team_id}" value="0" min="0"
+                style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
+        </div>`).join('');
+
+    container.innerHTML = `
+        <div class="mb-4">
+            <button class="btn btn-back" onclick="${backFn}"><i class="bi bi-arrow-left"></i> Voltar</button>
+        </div>
         <div class="row g-3 mb-4">
             <div class="col-12">
                 <div class="card bg-dark-panel border-orange" style="border-radius:15px">
-                    <div class="card-body">
-                        <h4 class="text-white mb-1">
-                            <i class="bi bi-arrow-right-circle text-orange me-2"></i>
-                            Avançar Temporada — ${league}
-                        </h4>
-                        <p class="text-light-gray mb-0">
-                            Temporada atual: <strong class="text-orange">T${season.season_number}</strong> · Ano ${season.year}
-                            &nbsp;→&nbsp; Preencha os resultados abaixo para registrar o histórico e criar a próxima temporada.
-                        </p>
+                    <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h4 class="text-white mb-1">
+                                <i class="bi bi-clipboard-data-fill text-orange me-2"></i>
+                                Registro de Pontuação — ${league}
+                            </h4>
+                            <p class="text-light-gray mb-0">Temporada: <strong class="text-orange">${seasonLabel}</strong></p>
+                        </div>
+                        ${alreadyBadge}
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="card bg-dark-panel border-orange" style="border-radius:15px">
             <div class="card-body">
-                <form id="formAvancarTemporada" onsubmit="saveAndAdvanceSeason(event, ${season.id}, '${league}')">
+                <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
                     <h6 class="text-orange mb-3">1. Classificação da Temporada Regular</h6>
                     <div class="mb-4" id="standingsContainer">
                         <button type="button" class="btn btn-sm btn-outline-orange" onclick="loadTeamsForStandings('${league}')">
                             <i class="bi bi-download me-1"></i>Carregar Times da Liga
                         </button>
                     </div>
-
                     <h6 class="text-orange mb-3">2. Playoffs</h6>
                     <div id="playoffBracketContainer" class="mb-4">
                         <p class="text-muted small mb-2">Carregue os times e preencha a classificação acima, depois gere o chaveamento.</p>
@@ -483,75 +626,120 @@ async function showAvancarTemporada(league) {
                             <i class="bi bi-diagram-3 me-1"></i>Gerar Chaveamento
                         </button>
                     </div>
-
                     <h6 class="text-orange mb-3">3. Premiações</h6>
                     <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">MVP (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="mvp_team_id" style="border-radius:15px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">MVP (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="mvp_player_name" placeholder="Nome do jogador" style="border-radius:15px">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">DPOY (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="dpoy_team_id" style="border-radius:15px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">DPOY (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="dpoy_player_name" placeholder="Nome do jogador" style="border-radius:15px">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">MIP (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="mip_team_id" style="border-radius:15px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">MIP (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="mip_player_name" placeholder="Nome do jogador" style="border-radius:15px">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">6th Man (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="sixth_man_team_id" style="border-radius:15px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">6th Man (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="sixth_man_player_name" placeholder="Nome do jogador" style="border-radius:15px">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">ROY (Time)</label>
-                            <select class="form-select bg-dark text-white border-orange" name="roy_team_id" style="border-radius:15px">
-                                <option value="">Selecione...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-light-gray">ROY (Jogador)</label>
-                            <input type="text" class="form-control bg-dark text-white border-orange" name="roy_player_name" placeholder="Nome do jogador" style="border-radius:15px">
-                        </div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">MVP (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="mvp_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">MVP (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="mvp_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">DPOY (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="dpoy_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">DPOY (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="dpoy_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">MIP (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="mip_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">MIP (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="mip_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">6th Man (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="sixth_man_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">6th Man (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="sixth_man_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">ROY (Time)</label>
+                            <select class="form-select bg-dark text-white border-orange" name="roy_team_id" style="border-radius:15px"><option value="">Selecione...</option></select></div>
+                        <div class="col-md-6"><label class="form-label text-light-gray">ROY (Jogador)</label>
+                            <input type="text" class="form-control bg-dark text-white border-orange" name="roy_player_name" placeholder="Nome do jogador" style="border-radius:15px"></div>
                     </div>
-
+                    ${leagueTeams.length > 0 ? `
+                    <h6 class="text-orange mb-3">4. Pontuação Individual dos Times</h6>
+                    <div class="mb-4">${teamPointInputs}</div>` : ''}
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-orange" style="border-radius:15px">
-                            <i class="bi bi-arrow-right-circle me-1"></i>Salvar e Avançar Temporada
+                            <i class="bi bi-save me-1"></i>Registrar Pontuação
                         </button>
-                        <button type="button" class="btn btn-outline-orange" onclick="showSeasonsManagement()" style="border-radius:15px">
-                            Cancelar
-                        </button>
+                        <button type="button" class="btn btn-outline-orange" onclick="${backFn}" style="border-radius:15px">Cancelar</button>
                     </div>
                 </form>
             </div>
         </div>`;
 
-    document.getElementById('formAvancarTemporada')
+    document.getElementById('formRegistroPontuacao')
         ?.addEventListener('change', () => _saveFormCache(league, season.id));
+}
+
+async function saveRegistroPontuacao(event, seasonId, league) {
+    event.preventDefault();
+    const form = event.target;
+
+    const playoff = _collectBracketPayload();
+    if (!playoff) {
+        alert('Complete o chaveamento dos playoffs: selecione o campeão da Grande Final antes de salvar.');
+        return;
+    }
+
+    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
+        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
+        return s ? (s.value || null) : null;
+    }).filter(Boolean);
+
+    const teamPoints = Array.from(form.querySelectorAll('.pts-reg-input')).map(inp => ({
+        team_id: parseInt(inp.dataset.teamId, 10),
+        points:  parseInt(inp.value || '0', 10)
+    }));
+
+    const payload = {
+        season_id: seasonId,
+        champion: playoff.champion,
+        runner_up: playoff.runner_up,
+        first_round_losses: playoff.first_round_losses,
+        second_round_losses: playoff.second_round_losses,
+        conference_final_losses: playoff.conference_final_losses,
+        standings_leste: getRankList('leste'),
+        standings_oeste: getRankList('oeste'),
+        mvp: form.mvp_player_name.value || null,
+        mvp_team_id: form.mvp_team_id.value || null,
+        dpoy: form.dpoy_player_name.value || null,
+        dpoy_team_id: form.dpoy_team_id.value || null,
+        mip: form.mip_player_name.value || null,
+        mip_team_id: form.mip_team_id.value || null,
+        sixth_man: form.sixth_man_player_name.value || null,
+        sixth_man_team_id: form.sixth_man_team_id.value || null,
+        roy: form.roy_player_name?.value || null,
+        roy_team_id: form.roy_team_id?.value || null
+    };
+
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+
+    try {
+        await api('seasons.php?action=register_pontuacao', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (teamPoints.length > 0) {
+            await api('history-points.php', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints })
+            });
+        }
+        _clearFormCache(league, seasonId);
+        _clearBracketCache(league, seasonId);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        showAlert('success', 'Pontuação registrada com sucesso!');
+        setTimeout(() => {
+            if (typeof showLeague === 'function' && window.appState?.currentLeague) {
+                showLeague(window.appState.currentLeague);
+            } else {
+                showSeasonsManagement();
+            }
+        }, 1200);
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('Erro ao salvar: ' + (e.error || 'Desconhecido'));
+    }
 }
 
 async function saveAndAdvanceSeason(event, seasonId, league) {
@@ -1339,6 +1527,9 @@ function downloadCSVTemplate() {
 // Expor funções para o escopo global (necessário para onclick no HTML)
 window.showSeasonsManagement = showSeasonsManagement;
 window.showAvancarTemporada = showAvancarTemporada;
+window._confirmAdvanceSeason = _confirmAdvanceSeason;
+window.showRegistroPontuacao = showRegistroPontuacao;
+window.saveRegistroPontuacao = saveRegistroPontuacao;
 window.saveAndAdvanceSeason = saveAndAdvanceSeason;
 window.createNewSeason = createNewSeason;
 window.showDraftManagement = showDraftManagement;

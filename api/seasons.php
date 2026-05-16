@@ -329,7 +329,7 @@ ensureLeagueSprintDefaults($pdo);
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
-                 'adjust_picks', 'run_picks'];
+                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -1503,6 +1503,130 @@ try {
             syncTeamSeasonPoints($pdo, $seasonId, $league, $sprintNumber, $seasonNumber);
 
             echo json_encode(['success' => true, 'message' => 'Histórico salvo!']);
+            break;
+
+        // ========== VERIFICAR SE HISTÓRICO FOI REGISTRADO ==========
+        case 'check_season_history':
+            $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            $stmtChk = $pdo->prepare("SELECT id FROM season_history WHERE season_id = ? LIMIT 1");
+            $stmtChk->execute([$seasonId]);
+            echo json_encode(['success' => true, 'registered' => (bool)$stmtChk->fetch()]);
+            break;
+
+        // ========== REGISTRAR PONTUAÇÃO (SEM AVANÇAR TEMPORADA) ==========
+        case 'register_pontuacao':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : null;
+            $champion = isset($input['champion']) ? (int)$input['champion'] : null;
+            $runnerUp = isset($input['runner_up']) ? (int)$input['runner_up'] : null;
+
+            $firstRound  = isset($input['first_round_losses'])       && is_array($input['first_round_losses'])       ? array_map('intval', array_filter($input['first_round_losses']))       : [];
+            $secondRound = isset($input['second_round_losses'])      && is_array($input['second_round_losses'])      ? array_map('intval', array_filter($input['second_round_losses']))      : [];
+            $confFinal   = isset($input['conference_final_losses'])  && is_array($input['conference_final_losses'])  ? array_map('intval', array_filter($input['conference_final_losses']))  : [];
+
+            if (!$seasonId || !$champion || !$runnerUp) throw new Exception('Dados incompletos: season_id, champion e runner_up são obrigatórios');
+
+            $allEliminated = array_merge($firstRound, $secondRound, $confFinal);
+            if (count(array_unique($allEliminated)) !== count($allEliminated)) throw new Exception('Um time não pode ser marcado em mais de uma fase eliminada');
+            if (in_array($champion, $allEliminated) || in_array($runnerUp, $allEliminated)) throw new Exception('Não inclua campeão ou vice nas fases de eliminados');
+
+            ensurePlayerSeasonLogTable($pdo);
+            if (!columnExists($pdo, 'teams', 'ranking_titles')) $pdo->exec("ALTER TABLE teams ADD COLUMN ranking_titles INT NOT NULL DEFAULT 0");
+            $stmtShCheck = $pdo->query("SHOW TABLES LIKE 'season_history'");
+            if (!$stmtShCheck->fetch()) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS season_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY, season_id INT NOT NULL, league VARCHAR(20),
+                    sprint_number INT, season_number INT, year INT,
+                    champion_team_id INT NULL, runner_up_team_id INT NULL,
+                    mvp_player VARCHAR(100) NULL, mvp_team_id INT NULL,
+                    dpoy_player VARCHAR(100) NULL, dpoy_team_id INT NULL,
+                    mip_player VARCHAR(100) NULL, mip_team_id INT NULL,
+                    sixth_man_player VARCHAR(100) NULL, sixth_man_team_id INT NULL,
+                    roy_player VARCHAR(100) NULL, roy_team_id INT NULL,
+                    UNIQUE KEY unique_season_history (season_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            }
+            try {
+                $chkRoy = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'roy_player'");
+                if (!$chkRoy->fetch()) {
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_player VARCHAR(100) NULL AFTER sixth_man_team_id");
+                    $pdo->exec("ALTER TABLE season_history ADD COLUMN roy_team_id INT NULL AFTER roy_player");
+                }
+            } catch (Exception $ignored) {}
+
+            $pdo->beginTransaction();
+            $stmtSeason2 = $pdo->prepare("SELECT s.league, s.season_number, s.year, COALESCE(sp.sprint_number, 1) AS sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?");
+            $stmtSeason2->execute([$seasonId]);
+            $seasonData2 = $stmtSeason2->fetch();
+            if (!$seasonData2) throw new Exception('Temporada não encontrada');
+            $league2       = $seasonData2['league'];
+            $seasonNumber2 = (int)($seasonData2['season_number'] ?? 1);
+            $sprintNumber2 = (int)($seasonData2['sprint_number'] ?? 1);
+
+            $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?")->execute([$seasonId]);
+            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?")->execute([$seasonId]);
+
+            $stmtPO2 = $pdo->prepare("INSERT INTO playoff_results (season_id, team_id, position) VALUES (?, ?, ?)");
+            $stmtPO2->execute([$seasonId, $champion, 'champion']);
+            $stmtPO2->execute([$seasonId, $runnerUp, 'runner_up']);
+            foreach ($firstRound  as $tid) $stmtPO2->execute([$seasonId, $tid, 'first_round']);
+            foreach ($secondRound as $tid) $stmtPO2->execute([$seasonId, $tid, 'second_round']);
+            foreach ($confFinal   as $tid) $stmtPO2->execute([$seasonId, $tid, 'conference_final']);
+
+            $stmtAw2 = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?, ?, ?, ?)");
+            $awardsMap2 = [];
+            foreach (['mvp', 'dpoy', 'mip', 'sixth_man', 'roy'] as $atype) {
+                $tKey = $atype . '_team_id';
+                if (!empty($input[$atype]) && !empty($input[$tKey])) {
+                    $tId2 = (int)$input[$tKey];
+                    $stmtAw2->execute([$seasonId, $tId2, ($atype === 'sixth_man' ? '6th_man' : $atype), $input[$atype]]);
+                    $awardsMap2[$tId2] = ($awardsMap2[$tId2] ?? 0) + 1;
+                }
+            }
+
+            $teamStats2 = [];
+            $initT2 = function($tid) use (&$teamStats2) {
+                if (!isset($teamStats2[$tid])) $teamStats2[$tid] = ['playoff_champion'=>0,'playoff_runner_up'=>0,'playoff_conference_finals'=>0,'playoff_second_round'=>0,'playoff_first_round'=>0,'playoff_points'=>0,'awards_count'=>0,'awards_points'=>0];
+            };
+            $initT2($champion); $teamStats2[$champion]['playoff_champion'] = 1; $teamStats2[$champion]['playoff_points'] = 13;
+            $initT2($runnerUp); $teamStats2[$runnerUp]['playoff_runner_up'] = 1; $teamStats2[$runnerUp]['playoff_points'] = 8;
+            foreach ($confFinal   as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_conference_finals'] = 1; $teamStats2[$tid]['playoff_points'] = 6; }
+            foreach ($secondRound as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_second_round'] = 1;      $teamStats2[$tid]['playoff_points'] = 3; }
+            foreach ($firstRound  as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_first_round'] = 1;       $teamStats2[$tid]['playoff_points'] = 1; }
+            foreach ($awardsMap2  as $tid => $cnt) { $initT2($tid); $teamStats2[$tid]['awards_count'] = $cnt; $teamStats2[$tid]['awards_points'] = $cnt; }
+
+            $stmtRk2 = $pdo->prepare("INSERT INTO team_ranking_points (team_id,season_id,league,playoff_champion,playoff_runner_up,playoff_conference_finals,playoff_second_round,playoff_first_round,playoff_points,awards_count,awards_points) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE playoff_champion=VALUES(playoff_champion),playoff_runner_up=VALUES(playoff_runner_up),playoff_conference_finals=VALUES(playoff_conference_finals),playoff_second_round=VALUES(playoff_second_round),playoff_first_round=VALUES(playoff_first_round),playoff_points=VALUES(playoff_points),awards_count=VALUES(awards_count),awards_points=VALUES(awards_points)");
+            foreach ($teamStats2 as $tid => $s2) $stmtRk2->execute([$tid,$seasonId,$league2,$s2['playoff_champion'],$s2['playoff_runner_up'],$s2['playoff_conference_finals'],$s2['playoff_second_round'],$s2['playoff_first_round'],$s2['playoff_points'],$s2['awards_count'],$s2['awards_points']]);
+
+            $pdo->prepare("UPDATE teams SET ranking_titles = COALESCE(ranking_titles,0)+1 WHERE id = ?")->execute([$champion]);
+
+            $pdo->prepare("INSERT INTO season_history (season_id,league,sprint_number,season_number,year,champion_team_id,runner_up_team_id,mvp_player,mvp_team_id,dpoy_player,dpoy_team_id,mip_player,mip_team_id,sixth_man_player,sixth_man_team_id,roy_player,roy_team_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE league=VALUES(league),sprint_number=VALUES(sprint_number),season_number=VALUES(season_number),year=VALUES(year),champion_team_id=VALUES(champion_team_id),runner_up_team_id=VALUES(runner_up_team_id),mvp_player=VALUES(mvp_player),mvp_team_id=VALUES(mvp_team_id),dpoy_player=VALUES(dpoy_player),dpoy_team_id=VALUES(dpoy_team_id),mip_player=VALUES(mip_player),mip_team_id=VALUES(mip_team_id),sixth_man_player=VALUES(sixth_man_player),sixth_man_team_id=VALUES(sixth_man_team_id),roy_player=VALUES(roy_player),roy_team_id=VALUES(roy_team_id)")->execute([$seasonId,$league2,$sprintNumber2,$seasonNumber2,(int)($seasonData2['year']??date('Y')),$champion,$runnerUp,$input['mvp']??null,!empty($input['mvp_team_id'])?(int)$input['mvp_team_id']:null,$input['dpoy']??null,!empty($input['dpoy_team_id'])?(int)$input['dpoy_team_id']:null,$input['mip']??null,!empty($input['mip_team_id'])?(int)$input['mip_team_id']:null,$input['sixth_man']??null,!empty($input['sixth_man_team_id'])?(int)$input['sixth_man_team_id']:null,$input['roy']??null,!empty($input['roy_team_id'])?(int)$input['roy_team_id']:null]);
+
+            $pdo->commit();
+            syncTeamSeasonPoints($pdo, $seasonId, $league2, $sprintNumber2, $seasonNumber2);
+            echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
+            break;
+
+        // ========== AVANÇAR TEMPORADA (MARCAR COMO COMPLETA) ==========
+        case 'advance_season':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true);
+            $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            $stmtAdv = $pdo->prepare("SELECT id, league FROM seasons WHERE id = ? LIMIT 1");
+            $stmtAdv->execute([$seasonId]);
+            $advSeason = $stmtAdv->fetch(PDO::FETCH_ASSOC);
+            if (!$advSeason) throw new Exception('Temporada não encontrada');
+            // Verificar se histórico foi registrado
+            $stmtHistCheck = $pdo->prepare("SELECT id FROM season_history WHERE season_id = ? LIMIT 1");
+            $stmtHistCheck->execute([$seasonId]);
+            if (!$stmtHistCheck->fetch()) throw new Exception('Registre a pontuação antes de avançar a temporada');
+            $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
+            snapshotPlayersForSeason($pdo, $seasonId, $advSeason['league']);
+            echo json_encode(['success' => true, 'message' => 'Temporada marcada como concluída']);
             break;
 
             // ========== DEFINIR PONTOS MANUAIS DA TEMPORADA (ADMIN) ==========

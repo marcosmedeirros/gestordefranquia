@@ -21,6 +21,17 @@ const tradesById = new Map(); // cache seguro de trades por id
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
 const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
+function _fmtTradeDate(createdAt, status) {
+  const d = new Date(createdAt);
+  const date = d.toLocaleDateString('pt-BR');
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const over24 = status === 'pending' && (Date.now() - d.getTime()) > 864e5;
+  const timeHtml = over24
+    ? `<span style="color:#ef4444;font-weight:600">${time} <i class="bi bi-exclamation-triangle-fill" title="Mais de 24h sem resposta" style="font-size:9px"></i></span>`
+    : `<span style="color:var(--text-3)">${time}</span>`;
+  return `${date} ${timeHtml}`;
+}
+
 
 const pickState = {
   offer: { available: [], selected: [] },
@@ -1578,7 +1589,7 @@ function createMultiTradeCard(trade, type) {
     <div class="tc-header">
       <div>
         <div class="tc-title">Trade múltipla</div>
-        <div class="tc-date">${new Date(trade.created_at).toLocaleDateString('pt-BR')}</div>
+        <div class="tc-date">${_fmtTradeDate(trade.created_at, trade.status)}</div>
       </div>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         ${acceptanceBadge}
@@ -1718,7 +1729,7 @@ function createTradeCard(trade, type) {
     <div class="tc-header">
       <div>
         <div class="tc-title">${fromTeam} <i class="bi bi-arrow-right" style="color:var(--red)"></i> ${toTeam}</div>
-        <div class="tc-date">${new Date(trade.created_at).toLocaleDateString('pt-BR')}</div>
+        <div class="tc-date">${_fmtTradeDate(trade.created_at, trade.status)}</div>
       </div>
       <div>${statusBadge}</div>
     </div>
