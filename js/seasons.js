@@ -68,7 +68,7 @@ async function showSeasonsManagement() {
                     <p class="mb-3" style="font-size:11px;color:${hasSprint ? '#ff6b00' : '#666'}">${seasonInfo}</p>
                     ${mainBtn}
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="showPointsManagement('${l.name}')">
-                        <i class="bi bi-bar-chart-steps me-1"></i>Pontuação
+                        <i class="bi bi-bar-chart-steps me-1"></i>Histórico Pontuação
                     </button>
                 </div>
             </div>`;
