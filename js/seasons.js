@@ -172,46 +172,48 @@ async function createNewSeason(league) {
 let _bracket = null;
 
 function generateBracket(league) {
-    const form = document.getElementById('formAvancarTemporada');
-    if (!form) {
-        if (typeof showAlert === 'function') showAlert('danger', 'Formulário não encontrado. Recarregue a página.');
-        else alert('Formulário não encontrado. Recarregue a página.');
-        return;
+    try {
+        const form = document.getElementById('formAvancarTemporada');
+        if (!form) {
+            showAlert('danger', 'Formulário não encontrado. Recarregue a página.');
+            return;
+        }
+        const tById = seasonsState.teamsById || {};
+        if (!Object.keys(tById).length) {
+            showAlert('warning', 'Carregue os times da liga antes de gerar o chaveamento.');
+            return;
+        }
+        const getSeeds = (conf) => Array.from({length: 8}, (_, i) => {
+            const el = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
+            return el?.value ? tById[String(el.value)] : null;
+        }).filter(Boolean);
+        const leste = getSeeds('leste'), oeste = getSeeds('oeste');
+        if (leste.length < 8 || oeste.length < 8) {
+            const parts = [];
+            if (leste.length < 8) parts.push(`Leste: ${leste.length}/8`);
+            if (oeste.length < 8) parts.push(`Oeste: ${oeste.length}/8`);
+            showAlert('warning', `Selecione os 8 times de cada conferência. (${parts.join(' · ')})`);
+            return;
+        }
+        // 1v8 e 4v5 → R2 topo; 2v7 e 3v6 → R2 baixo
+        const initConf = (s) => ({
+            r1: [
+                {t1: s[0], t2: s[7], w: null, s1: 1, s2: 8},
+                {t1: s[3], t2: s[4], w: null, s1: 4, s2: 5},
+                {t1: s[1], t2: s[6], w: null, s1: 2, s2: 7},
+                {t1: s[2], t2: s[5], w: null, s1: 3, s2: 6},
+            ],
+            r2: [null, null], cf: null, winner: null,
+        });
+        _bracket = {leste: initConf(leste), oeste: initConf(oeste), final: null};
+        _renderBracket(league);
+        try { _saveBracketCache(league, seasonsState.currentSeasonId); } catch (_) {}
+        const bracketEl = document.getElementById('playoffBracketContainer');
+        if (bracketEl) bracketEl.scrollIntoView({behavior: 'smooth', block: 'start'});
+    } catch (e) {
+        console.error('generateBracket error:', e);
+        showAlert('danger', 'Erro ao gerar chaveamento: ' + (e.message || 'erro desconhecido'));
     }
-    const tById = seasonsState.teamsById || {};
-    if (!Object.keys(tById).length) {
-        if (typeof showAlert === 'function') showAlert('warning', 'Carregue os times da liga antes de gerar o chaveamento.');
-        else alert('Carregue os times da liga antes de gerar o chaveamento.');
-        return;
-    }
-    const getSeeds = (conf) => Array.from({length: 8}, (_, i) => {
-        const el = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
-        return el?.value ? tById[String(el.value)] : null;
-    }).filter(Boolean);
-    const leste = getSeeds('leste'), oeste = getSeeds('oeste');
-    if (leste.length < 8 || oeste.length < 8) {
-        const parts = [];
-        if (leste.length < 8) parts.push(`Leste: ${leste.length}/8`);
-        if (oeste.length < 8) parts.push(`Oeste: ${oeste.length}/8`);
-        const msg = `Selecione os 8 times de cada conferência. (${parts.join(' · ')})`;
-        if (typeof showAlert === 'function') showAlert('warning', msg);
-        else alert(msg);
-        return;
-    }
-    // 1v8 e 4v5 → R2 topo; 2v7 e 3v6 → R2 baixo
-    const initConf = (s) => ({
-        r1: [
-            {t1: s[0], t2: s[7], w: null, s1: 1, s2: 8},
-            {t1: s[3], t2: s[4], w: null, s1: 4, s2: 5},
-            {t1: s[1], t2: s[6], w: null, s1: 2, s2: 7},
-            {t1: s[2], t2: s[5], w: null, s1: 3, s2: 6},
-        ],
-        r2: [null, null], cf: null, winner: null,
-    });
-    _bracket = {leste: initConf(leste), oeste: initConf(oeste), final: null};
-    _renderBracket(league);
-    _saveBracketCache(league, seasonsState.currentSeasonId);
-    document.getElementById('playoffBracketContainer')?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 function _setBracketWinner(conf, round, idx, winId) {
@@ -255,7 +257,16 @@ function _mkMatchup(existing, t1, t2) {
     return {t1, t2, w: null};
 }
 
+function _ensureBracketStyles() {
+    if (document.getElementById('bk-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'bk-styles';
+    s.textContent = `.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bk-team:last-child{border-bottom:none}.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}.bk-loss{opacity:.28;cursor:default}.bk-tbd{color:#383838;cursor:default;font-style:italic}.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}.bk-sp{flex:1}.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}`;
+    document.head.appendChild(s);
+}
+
 function _renderBracket(league) {
+    _ensureBracketStyles();
     const container = document.getElementById('playoffBracketContainer');
     if (!container || !_bracket) return;
     const b = _bracket, t = seasonsState.teamsById;
@@ -290,24 +301,6 @@ function _renderBracket(league) {
     const fn = mkCard(null,'final',0);
 
     container.innerHTML = `
-<style>
-.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}
-.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}
-.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}
-.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}
-.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}
-.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}
-.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bk-team:last-child{border-bottom:none}
-.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}
-.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}
-.bk-loss{opacity:.28;cursor:default}
-.bk-tbd{color:#383838;cursor:default;font-style:italic}
-.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}
-.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}
-.bk-sp{flex:1}
-.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}
-</style>
 <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:12px">
     <span class="text-orange fw-bold"><i class="bi bi-geo-alt me-1"></i>Conferência Leste</span>
     <span class="text-orange fw-bold"><i class="bi bi-trophy me-1"></i>Grande Final</span>
@@ -911,7 +904,7 @@ async function loadTeamsForStandings(league) {
             }
         }
     } catch (e) {
-        alert('Erro ao carregar times: ' + (e.error || 'Desconhecido'));
+        showAlert('danger', 'Erro ao carregar times: ' + (e.message || e.error || 'Desconhecido'));
     }
 }
 

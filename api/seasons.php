@@ -326,8 +326,8 @@ $pdo = db();
 ensureLeagueSprintDefaults($pdo);
 
 // ==================== ADMIN ONLY ACTIONS ====================
-$adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player', 
-                 'update_draft_player', 'delete_draft_player', 'assign_draft_pick', 
+$adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
+                 'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks'];
 
@@ -1100,6 +1100,14 @@ try {
             $stmtDelete->execute([$playerId]);
 
             echo json_encode(['success' => true, 'message' => 'Jogador removido do draft']);
+            break;
+
+        case 'clear_draft_pool':
+            $payload = json_decode(file_get_contents('php://input'), true);
+            $seasonId = isset($payload['season_id']) ? (int)$payload['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+            $pdo->prepare("DELETE FROM draft_pool WHERE season_id = ? AND draft_status = 'available'")->execute([$seasonId]);
+            echo json_encode(['success' => true, 'message' => 'Pool limpo']);
             break;
 
         // ========== BUSCAR RANKING GLOBAL ==========

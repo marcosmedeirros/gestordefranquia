@@ -4406,6 +4406,10 @@ async function showAdminDraft(league) {
             onclick="_adminDraftImportModal(${draftSid}, ${draftSeasonId}, '${league}')">
             <i class="bi bi-upload me-1"></i>Importar CSV
           </button>
+          ${availablePlayers.length > 0 ? `<button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#ef4444"
+            onclick="_adminDraftClearPool(${draftSeasonId}, '${league}')">
+            <i class="bi bi-trash me-1"></i>Apagar todos
+          </button>` : ''}
         </div>`;
 
       if (availablePlayers.length > 0) {
@@ -4415,6 +4419,10 @@ async function showAdminDraft(league) {
               <span style="font-size:13px;color:var(--text)">${escapeHtml(p.name)}</span>
               <span style="font-size:11px;color:var(--text-3);margin-left:6px">${escapeHtml(p.position || '')} · OVR ${p.ovr || '-'} · ${p.age || '-'}a</span>
             </div>
+            <button class="btn-ghost" style="padding:3px 7px;color:#ef4444;flex-shrink:0" title="Excluir jogador"
+              onclick="_adminDraftDeletePlayer(${p.id}, '${league}')">
+              <i class="bi bi-trash" style="font-size:13px"></i>
+            </button>
           </div>`).join('');
         const more = availablePlayers.length > 60 ? `<p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px">+${availablePlayers.length - 60} jogadores</p>` : '';
 
@@ -4523,6 +4531,26 @@ async function _adminDraftClearOrder(draftSessionId, league) {
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao limpar ordem');
+  }
+}
+
+async function _adminDraftDeletePlayer(playerId, league) {
+  try {
+    await api('seasons.php', { method: 'POST', body: JSON.stringify({ action: 'delete_draft_player', player_id: playerId }) });
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao excluir jogador');
+  }
+}
+
+async function _adminDraftClearPool(seasonId, league) {
+  if (!confirm('Apagar todos os jogadores disponíveis do pool? Esta ação não pode ser desfeita.')) return;
+  try {
+    await api('seasons.php', { method: 'POST', body: JSON.stringify({ action: 'clear_draft_pool', season_id: seasonId }) });
+    showAlert('success', 'Pool de jogadores limpo.');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao limpar pool');
   }
 }
 
