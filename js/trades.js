@@ -28,7 +28,7 @@ function _fmtTradeDate(createdAt, status) {
   const over24 = status === 'pending' && (Date.now() - d.getTime()) > 864e5;
   const timeHtml = over24
     ? `<span style="color:#ef4444;font-weight:600">${time} <i class="bi bi-exclamation-triangle-fill" title="Mais de 24h sem resposta" style="font-size:9px"></i></span>`
-    : `<span style="color:var(--text-3)">${time}</span>`;
+    : `<span style="color:var(--text-2)">${time}</span>`;
   return `${date} ${timeHtml}`;
 }
 

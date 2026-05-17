@@ -364,7 +364,8 @@ $tradeCount = (int)($team['trades_used'] ?? 0);
     /* Trade cards */
     .tc { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
     .tc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .tc-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .tc-header > div:first-child { flex: 1; min-width: 0; }
+    .tc-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; overflow-wrap: break-word; word-break: break-word; }
     .tc-date { font-size: 12px; color: var(--text-2); }
     .tc-side-title { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
     .tc-item { font-size: 13px; color: var(--text); padding: 3px 0; display: flex; align-items: center; gap: 6px; }
