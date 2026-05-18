@@ -47,6 +47,7 @@ function ensureNewFaTables(PDO $pdo): void
             request_id INT NOT NULL,
             team_id INT NOT NULL,
             amount INT NOT NULL DEFAULT 0,
+            priority TINYINT NOT NULL DEFAULT 2,
             status ENUM('pending','accepted','rejected') DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_request_team (request_id, team_id),
@@ -55,6 +56,9 @@ function ensureNewFaTables(PDO $pdo): void
             CONSTRAINT fk_fa_request_offers_request FOREIGN KEY (request_id) REFERENCES fa_requests(id) ON DELETE CASCADE,
             CONSTRAINT fk_fa_request_offers_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Adiciona coluna priority se ainda não existe (migration automática)
+        $pdo->exec("ALTER TABLE fa_request_offers ADD COLUMN IF NOT EXISTS priority TINYINT NOT NULL DEFAULT 2 AFTER amount");
     } catch (Exception $e) {
         error_log('[free-agency] ensureNewFaTables: ' . $e->getMessage());
     }
