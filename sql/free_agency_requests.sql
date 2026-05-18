@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS fa_request_offers (
     request_id INT NOT NULL,
     team_id INT NOT NULL,
     amount INT NOT NULL DEFAULT 0,
+    priority TINYINT NOT NULL DEFAULT 2,
     status ENUM('pending','accepted','rejected') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_request_team (request_id, team_id),

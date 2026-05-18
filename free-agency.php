@@ -692,7 +692,15 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                 <label for="faNewOffer">Moedas</label>
                                 <input type="number" id="faNewOffer" value="1" min="1">
                             </div>
-                            <div style="grid-column: span 9;">
+                            <div class="field" style="grid-column: span 3;">
+                                <label for="faNewPriority">Prioridade</label>
+                                <select id="faNewPriority">
+                                    <option value="1">🟢 Alta</option>
+                                    <option value="2" selected>🟡 Média</option>
+                                    <option value="3">⚪ Baixa</option>
+                                </select>
+                            </div>
+                            <div style="grid-column: span 6;">
                                 <div class="hint-box">
                                     <p><strong>Atenção:</strong> Informe o nome exatamente como aparece no vídeo (ex: LeBron James, não L. James). Se o jogador já existir na FA, sua proposta será agrupada com as demais.</p>
                                 </div>

@@ -32,9 +32,10 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
     return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma proposta recebida ainda.</p>';
   }
   return propostas.map(p => {
-    const jogs = (p.jogadores || []).map(j =>
-      `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-3)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}</span></span>`
-    ).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
+    const jogs = (p.jogadores || []).map(j => {
+      const age = j.age ? ` · ${j.age} anos` : '';
+      return `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
+    }).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
 
     const picks = (p.picks || []).map(pk =>
       `<span style="display:inline-flex;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||pk.round_num||'?'}</span>`
@@ -476,6 +477,7 @@ async function aceitarProposta(propostaId) {
       bootstrap.Modal.getInstance(document.getElementById('modalVerPropostas'))?.hide();
       carregarLeiloesAtivos();
       carregarPropostasRecebidas();
+      carregarHistoricoLeiloes();
       if (isAdmin) carregarLeiloesAdmin();
     } else {
       alert('Erro: ' + (data.error || 'Erro desconhecido'));

@@ -991,8 +991,9 @@ function listAdminFaRequests(PDO $pdo, string $league): void
     $allLeagues = strtoupper(trim($league)) === 'ALL';
     $sql = '
         SELECT r.id AS request_id, r.player_name, r.position, r.secondary_position, r.ovr, r.age, r.season_year,
-               o.id AS offer_id, o.amount, o.created_at, o.team_id,
-               t.city AS team_city, t.name AS team_name
+               o.id AS offer_id, o.amount, o.priority, o.created_at, o.team_id,
+               t.city AS team_city, t.name AS team_name, COALESCE(t.moedas, 0) AS team_coins,
+               (SELECT COUNT(*) FROM players WHERE team_id = o.team_id) AS roster_count
         FROM fa_requests r
         JOIN fa_request_offers o ON o.request_id = r.id AND o.status = "pending"
         JOIN teams t ON o.team_id = t.id
@@ -1001,7 +1002,7 @@ function listAdminFaRequests(PDO $pdo, string $league): void
     if (!$allLeagues) {
         $sql .= ' AND r.league = ?';
     }
-    $sql .= ' ORDER BY o.amount DESC, o.created_at ASC';
+    $sql .= ' ORDER BY o.amount DESC, o.priority ASC, o.created_at ASC';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($allLeagues ? [] : [$league]);
@@ -1024,13 +1025,15 @@ function listAdminFaRequests(PDO $pdo, string $league): void
                 'offers' => []
             ];
         }
-        $remaining = max(0, 3 - getTeamFaWins($pdo, (int)$row['team_id']));
         $grouped[$requestId]['offers'][] = [
             'id' => (int)$row['offer_id'],
+            'team_id' => (int)$row['team_id'],
             'team_name' => trim(($row['team_city'] ?? '') . ' ' . ($row['team_name'] ?? '')),
             'amount' => (int)$row['amount'],
-            'created_at' => $row['created_at'],
-            'remaining_signings' => $remaining
+            'priority' => (int)($row['priority'] ?? 2),
+            'team_coins' => (int)$row['team_coins'],
+            'roster_count' => (int)$row['roster_count'],
+            'created_at' => $row['created_at']
         ];
     }
 
@@ -1130,12 +1133,14 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
         $requestId = (int)$pdo->lastInsertId();
     }
 
+    $priority = max(1, min(3, (int)($body['priority'] ?? 2)));
+
     $stmtUpsert = $pdo->prepare('
-        INSERT INTO fa_request_offers (request_id, team_id, amount, status, created_at)
-        VALUES (?, ?, ?, "pending", NOW())
-        ON DUPLICATE KEY UPDATE amount = VALUES(amount), status = "pending"
+        INSERT INTO fa_request_offers (request_id, team_id, amount, priority, status, created_at)
+        VALUES (?, ?, ?, ?, "pending", NOW())
+        ON DUPLICATE KEY UPDATE amount = VALUES(amount), priority = VALUES(priority), status = "pending"
     ');
-    $stmtUpsert->execute([$requestId, $teamId, $amount]);
+    $stmtUpsert->execute([$requestId, $teamId, $amount, $priority]);
 
     jsonSuccess(['request_id' => (int)$requestId]);
 }
