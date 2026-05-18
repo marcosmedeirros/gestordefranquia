@@ -82,14 +82,6 @@ const formatTradePickDisplay = (pick) => {
     display += ' - Draft atual';
   }
   
-  // Se a pick foi trocada (team_id != original_team_id), mostrar "via"
-  if (pick.team_id && pick.original_team_id && pick.team_id != pick.original_team_id) {
-    // Mostrar quem enviou a pick (last_owner)
-    if (pick.last_owner_city && pick.last_owner_name) {
-      display += ` <span class="text-info">via ${pick.last_owner_city} ${pick.last_owner_name}</span>`;
-    }
-  }
-
   return display;
 };
 
@@ -350,9 +342,8 @@ const updateMultiItemOptions = async (row, keepItemSelection = false) => {
   } else {
     itemSelect.innerHTML = '<option value="">Selecione a pick</option>' + list.map((pick) => {
       const summary = buildPickSummary(pick);
-      const via = summary.via ? ` ? ${summary.via}` : '';
       const meta = summary.meta ? ` ${summary.meta}` : '';
-      return `<option value="${pick.id}">${summary.title}${meta} (${summary.origin}${via})</option>`;
+      return `<option value="${pick.id}">${summary.title}${meta} (${summary.origin})</option>`;
     }).join('');
   }
 
@@ -529,9 +520,7 @@ const buildPickSummary = (pick) => {
   const origin = pick.original_team_city && pick.original_team_name
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || 'Time');
-  const via = pick.last_owner_city && pick.last_owner_name
-    ? `via ${pick.last_owner_city} ${pick.last_owner_name}`
-    : '';
+  const via = '';
   const metaParts = [];
   if (pickNumber && isCurrentDraft) {
     metaParts.push(`${year} R${round}`);
