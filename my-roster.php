@@ -388,16 +388,24 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         @media (min-width: 993px) {
             .roster-mobile-cards { display: none !important; }
         }
+        @media (max-width: 768px) {
+            #editPlayerModal .modal-dialog { margin: .5rem; max-width: calc(100vw - 1rem); }
+            #editPlayerModal .modal-header,
+            #editPlayerModal .modal-footer { padding: 12px 14px; }
+            #editPlayerModal .modal-body { padding: 14px; max-height: calc(100vh - 170px); overflow-y: auto; }
+            #editPlayerModal .fgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+            #editPlayerModal .fgrid > * { grid-column: span 2 !important; }
+            #editPlayerModal .fgrid > [style*="span 6"],
+            #editPlayerModal .fgrid > [style*="span 12"] { grid-column: span 4 !important; }
+        }
         @media (max-width: 560px) {
             .stats-strip { grid-template-columns: 1fr 1fr; }
             .fgrid { grid-template-columns: 1fr; }
             .page-title { font-size: 24px; }
-            #editPlayerModal .modal-dialog { margin: .5rem; }
-            #editPlayerModal .modal-header,
-            #editPlayerModal .modal-footer { padding: 12px 14px; }
-            #editPlayerModal .modal-body { padding: 14px; max-height: calc(100vh - 170px); overflow-y: auto; }
-            #editPlayerModal .fgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
-            #editPlayerModal .fgrid > * { grid-column: span 6 !important; }
+            #editPlayerModal .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            #editPlayerModal .fgrid > * { grid-column: span 1 !important; }
+            #editPlayerModal .fgrid > [style*="span 6"],
+            #editPlayerModal .fgrid > [style*="span 12"] { grid-column: span 2 !important; }
         }
     </style>
 </head>
