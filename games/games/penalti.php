@@ -85,8 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'registrar_conquista') {
         $slug = $body['slug'] ?? '';
         if (!in_array($slug, $validSlugs)) { echo json_encode(['ok'=>false]); exit; }
+        $stmtChk = $pdo->prepare("SELECT id FROM penalti_conquistas WHERE id_usuario=? AND team_slug=?");
+        $stmtChk->execute([$user_id, $slug]);
+        $jaConquistou = (bool)$stmtChk->fetch();
         $pdo->prepare("INSERT IGNORE INTO penalti_conquistas (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
-        echo json_encode(['ok'=>true]); exit;
+        $newMoedas = null;
+        if (!$jaConquistou) {
+            $pdo->prepare("UPDATE usuarios SET pontos=pontos+500 WHERE id=?")->execute([$user_id]);
+            $s = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+            $s->execute([$user_id]);
+            $newMoedas = (int)($s->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
+        }
+        echo json_encode(['ok'=>true,'moedas'=>$newMoedas,'primeira_vez'=>!$jaConquistou]); exit;
     }
 
     echo json_encode(['ok'=>false,'msg'=>'Ação inválida']); exit;
@@ -102,6 +112,7 @@ try {
     $s->execute([$user_id]);
     $desbloqueados = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
 } catch(PDOException $e) {}
+if (!in_array('gremio', $desbloqueados)) $desbloqueados[] = 'gremio';
 try {
     $s = $pdo->prepare("SELECT team_slug FROM penalti_conquistas WHERE id_usuario=?");
     $s->execute([$user_id]);
@@ -1162,10 +1173,17 @@ async function registrarConquista(slug) {
       : `Você venceu a Copa Pênaltis! (${totalConq}/16 conquistas)`;
   showScreen('sc-champ');
   try {
-    await fetch(window.location.href, {
+    const r = await fetch(window.location.href, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'registrar_conquista', slug})
     });
+    const d = await r.json();
+    if (d.primeira_vez && d.moedas !== null) {
+      userMoedas = d.moedas;
+      updateCoinDisplay(userMoedas);
+      const sub = document.getElementById('champ-sub');
+      if (sub) sub.innerHTML += '<br><span style="color:var(--amber);font-weight:700">+500 🪙 moedas ganhas!</span>';
+    }
   } catch(e) {}
 }
 
