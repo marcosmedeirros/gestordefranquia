@@ -4,55 +4,56 @@ require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 
+// diff: 1=Iniciante 2=Médio 3=Difícil 4=Elite
 $TIMES = [
-  ['slug'=>'brasil',    'name'=>'Brasil',            'badge'=>'BRA','color'=>'#FFD700','dark'=>'#009c3b',
-   'shirt'=>'#FFD700','shirt2'=>'#009c3b',
-   'gk'=>'Taffarel',         'gk_def'=>8,  'player'=>'Pelé',            'player_shot'=>10],
-  ['slug'=>'alemanha',  'name'=>'Alemanha',          'badge'=>'GER','color'=>'#dddddd','dark'=>'#333333',
-   'shirt'=>'#dddddd','shirt2'=>'#333333',
-   'gk'=>'Oliver Kahn',      'gk_def'=>10, 'player'=>'F. Beckenbauer',  'player_shot'=>9],
-  ['slug'=>'italia',    'name'=>'Itália',            'badge'=>'ITA','color'=>'#0057A8','dark'=>'#003d7a',
-   'shirt'=>'#0057A8','shirt2'=>'#ffffff',
-   'gk'=>'G. Buffon',        'gk_def'=>10, 'player'=>'Paolo Maldini',   'player_shot'=>8],
-  ['slug'=>'argentina', 'name'=>'Argentina',         'badge'=>'ARG','color'=>'#74ACDF','dark'=>'#3a87c8',
-   'shirt'=>'#74ACDF','shirt2'=>'#ffffff',
-   'gk'=>'S. Goycochea',     'gk_def'=>7,  'player'=>'Diego Maradona',  'player_shot'=>10],
-  ['slug'=>'franca',    'name'=>'França',            'badge'=>'FRA','color'=>'#003DA5','dark'=>'#001f7a',
-   'shirt'=>'#003DA5','shirt2'=>'#ffffff',
-   'gk'=>'Hugo Lloris',      'gk_def'=>8,  'player'=>'Zinedine Zidane', 'player_shot'=>9],
-  ['slug'=>'uruguai',   'name'=>'Uruguai',           'badge'=>'URU','color'=>'#5EB6E4','dark'=>'#2a9de0',
-   'shirt'=>'#5EB6E4','shirt2'=>'#ffffff',
-   'gk'=>'F. Muslera',       'gk_def'=>7,  'player'=>'Luis Suárez',     'player_shot'=>8],
-  ['slug'=>'inglaterra','name'=>'Inglaterra',        'badge'=>'ENG','color'=>'#f0f0f0','dark'=>'#cc0000',
-   'shirt'=>'#f0f0f0','shirt2'=>'#cc0000',
-   'gk'=>'Gordon Banks',     'gk_def'=>9,  'player'=>'Bobby Charlton',  'player_shot'=>8],
-  ['slug'=>'espanha',   'name'=>'Espanha',           'badge'=>'ESP','color'=>'#AA151B','dark'=>'#8a0613',
-   'shirt'=>'#AA151B','shirt2'=>'#F1BF00',
-   'gk'=>'Iker Casillas',    'gk_def'=>9,  'player'=>'Andrés Iniesta',  'player_shot'=>8],
-  ['slug'=>'holanda',   'name'=>'Holanda',           'badge'=>'NED','color'=>'#F36C21','dark'=>'#cc4400',
-   'shirt'=>'#F36C21','shirt2'=>'#ffffff',
-   'gk'=>'E. van der Sar',   'gk_def'=>8,  'player'=>'Johan Cruyff',    'player_shot'=>9],
-  ['slug'=>'portugal',  'name'=>'Portugal',          'badge'=>'POR','color'=>'#D20000','dark'=>'#006600',
-   'shirt'=>'#D20000','shirt2'=>'#006600',
-   'gk'=>'Vítor Baía',       'gk_def'=>7,  'player'=>'C. Ronaldo',      'player_shot'=>9],
-  ['slug'=>'belgica',   'name'=>'Bélgica',           'badge'=>'BEL','color'=>'#EF3340','dark'=>'#b31525',
-   'shirt'=>'#EF3340','shirt2'=>'#000000',
-   'gk'=>'T. Courtois',      'gk_def'=>9,  'player'=>'Eden Hazard',     'player_shot'=>8],
-  ['slug'=>'croacia',   'name'=>'Croácia',           'badge'=>'CRO','color'=>'#CC2222','dark'=>'#991111',
-   'shirt'=>'#CC2222','shirt2'=>'#ffffff',
-   'gk'=>'D. Livaković',     'gk_def'=>8,  'player'=>'Luka Modrić',     'player_shot'=>8],
-  ['slug'=>'mexico',    'name'=>'México',            'badge'=>'MEX','color'=>'#006847','dark'=>'#00432d',
-   'shirt'=>'#006847','shirt2'=>'#ffffff',
-   'gk'=>'Jorge Campos',     'gk_def'=>7,  'player'=>'Hugo Sánchez',    'player_shot'=>7],
-  ['slug'=>'colombia',  'name'=>'Colômbia',          'badge'=>'COL','color'=>'#FCD116','dark'=>'#c9a800',
-   'shirt'=>'#FCD116','shirt2'=>'#003087',
-   'gk'=>'René Higuita',     'gk_def'=>7,  'player'=>'C. Valderrama',   'player_shot'=>7],
-  ['slug'=>'suecia',    'name'=>'Suécia',            'badge'=>'SWE','color'=>'#006AA7','dark'=>'#004d7a',
-   'shirt'=>'#FECC02','shirt2'=>'#006AA7',
-   'gk'=>'Thomas Ravelli',   'gk_def'=>7,  'player'=>'Z. Ibrahimović',  'player_shot'=>8],
-  ['slug'=>'tcheca',    'name'=>'Rep. Tcheca',       'badge'=>'CZE','color'=>'#D7141A','dark'=>'#9e0d10',
-   'shirt'=>'#D7141A','shirt2'=>'#ffffff',
-   'gk'=>'Petr Čech',        'gk_def'=>9,  'player'=>'Pavel Nedvěd',    'player_shot'=>7],
+  ['slug'=>'brasil',    'name'=>'Brasil',       'badge'=>'BRA','color'=>'#FFD700','dark'=>'#009c3b',
+   'shirt'=>'#FFD700','shirt2'=>'#009c3b', 'diff'=>1,
+   'gk'=>'Taffarel',        'gk_def'=>6, 'player'=>'Pelé',           'player_shot'=>6],
+  ['slug'=>'alemanha',  'name'=>'Alemanha',     'badge'=>'GER','color'=>'#dddddd','dark'=>'#333333',
+   'shirt'=>'#dddddd','shirt2'=>'#333333', 'diff'=>1,
+   'gk'=>'Oliver Kahn',     'gk_def'=>6, 'player'=>'F. Beckenbauer', 'player_shot'=>7],
+  ['slug'=>'italia',    'name'=>'Itália',       'badge'=>'ITA','color'=>'#0057A8','dark'=>'#003d7a',
+   'shirt'=>'#0057A8','shirt2'=>'#ffffff', 'diff'=>1,
+   'gk'=>'G. Buffon',       'gk_def'=>7, 'player'=>'Paolo Maldini',  'player_shot'=>6],
+  ['slug'=>'argentina', 'name'=>'Argentina',    'badge'=>'ARG','color'=>'#74ACDF','dark'=>'#3a87c8',
+   'shirt'=>'#74ACDF','shirt2'=>'#ffffff', 'diff'=>1,
+   'gk'=>'S. Goycochea',    'gk_def'=>6, 'player'=>'Diego Maradona', 'player_shot'=>7],
+  ['slug'=>'franca',    'name'=>'França',       'badge'=>'FRA','color'=>'#003DA5','dark'=>'#001f7a',
+   'shirt'=>'#003DA5','shirt2'=>'#ffffff', 'diff'=>2,
+   'gk'=>'Hugo Lloris',     'gk_def'=>7, 'player'=>'Z. Zidane',      'player_shot'=>7],
+  ['slug'=>'uruguai',   'name'=>'Uruguai',      'badge'=>'URU','color'=>'#5EB6E4','dark'=>'#2a9de0',
+   'shirt'=>'#5EB6E4','shirt2'=>'#ffffff', 'diff'=>2,
+   'gk'=>'F. Muslera',      'gk_def'=>7, 'player'=>'Luis Suárez',    'player_shot'=>7],
+  ['slug'=>'espanha',   'name'=>'Espanha',      'badge'=>'ESP','color'=>'#AA151B','dark'=>'#8a0613',
+   'shirt'=>'#AA151B','shirt2'=>'#F1BF00', 'diff'=>2,
+   'gk'=>'Iker Casillas',   'gk_def'=>7, 'player'=>'A. Iniesta',     'player_shot'=>8],
+  ['slug'=>'inglaterra','name'=>'Inglaterra',   'badge'=>'ENG','color'=>'#f0f0f0','dark'=>'#cc0000',
+   'shirt'=>'#f0f0f0','shirt2'=>'#cc0000', 'diff'=>2,
+   'gk'=>'Gordon Banks',    'gk_def'=>7, 'player'=>'B. Charlton',    'player_shot'=>8],
+  ['slug'=>'holanda',   'name'=>'Holanda',      'badge'=>'NED','color'=>'#F36C21','dark'=>'#cc4400',
+   'shirt'=>'#F36C21','shirt2'=>'#ffffff', 'diff'=>3,
+   'gk'=>'E. van der Sar',  'gk_def'=>8, 'player'=>'Johan Cruyff',   'player_shot'=>7],
+  ['slug'=>'portugal',  'name'=>'Portugal',     'badge'=>'POR','color'=>'#D20000','dark'=>'#006600',
+   'shirt'=>'#D20000','shirt2'=>'#006600', 'diff'=>3,
+   'gk'=>'Vítor Baía',      'gk_def'=>8, 'player'=>'C. Ronaldo',     'player_shot'=>8],
+  ['slug'=>'croacia',   'name'=>'Croácia',      'badge'=>'CRO','color'=>'#CC2222','dark'=>'#991111',
+   'shirt'=>'#CC2222','shirt2'=>'#ffffff', 'diff'=>3,
+   'gk'=>'D. Livaković',    'gk_def'=>8, 'player'=>'Luka Modrić',    'player_shot'=>8],
+  ['slug'=>'belgica',   'name'=>'Bélgica',      'badge'=>'BEL','color'=>'#EF3340','dark'=>'#b31525',
+   'shirt'=>'#EF3340','shirt2'=>'#000000', 'diff'=>3,
+   'gk'=>'T. Courtois',     'gk_def'=>8, 'player'=>'Eden Hazard',    'player_shot'=>9],
+  ['slug'=>'suecia',    'name'=>'Suécia',       'badge'=>'SWE','color'=>'#006AA7','dark'=>'#004d7a',
+   'shirt'=>'#FECC02','shirt2'=>'#006AA7', 'diff'=>4,
+   'gk'=>'T. Ravelli',      'gk_def'=>9, 'player'=>'Z. Ibrahimović', 'player_shot'=>8],
+  ['slug'=>'mexico',    'name'=>'México',       'badge'=>'MEX','color'=>'#006847','dark'=>'#00432d',
+   'shirt'=>'#006847','shirt2'=>'#ffffff', 'diff'=>4,
+   'gk'=>'Jorge Campos',    'gk_def'=>9, 'player'=>'Hugo Sánchez',   'player_shot'=>8],
+  ['slug'=>'colombia',  'name'=>'Colômbia',     'badge'=>'COL','color'=>'#FCD116','dark'=>'#c9a800',
+   'shirt'=>'#FCD116','shirt2'=>'#003087', 'diff'=>4,
+   'gk'=>'René Higuita',    'gk_def'=>9, 'player'=>'C. Valderrama',  'player_shot'=>9],
+  ['slug'=>'tcheca',    'name'=>'Rep. Tcheca',  'badge'=>'CZE','color'=>'#D7141A','dark'=>'#9e0d10',
+   'shirt'=>'#D7141A','shirt2'=>'#ffffff', 'diff'=>4,
+   'gk'=>'Petr Čech',       'gk_def'=>9, 'player'=>'Pavel Nedvěd',   'player_shot'=>9],
 ];
 
 // Auto-create tables
@@ -128,7 +129,7 @@ try {
     $s->execute([$user_id]);
     $desbloqueados = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
 } catch(PDOException $e) {}
-if (!in_array('tcheca', $desbloqueados)) $desbloqueados[] = 'tcheca';
+if (!in_array('brasil', $desbloqueados)) $desbloqueados[] = 'brasil';
 try {
     $s = $pdo->prepare("SELECT team_slug FROM penalti_conquistas WHERE id_usuario=?");
     $s->execute([$user_id]);
@@ -275,7 +276,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .match-top{background:linear-gradient(135deg,var(--panel2),var(--panel3));padding:10px 14px;display:flex;align-items:center;gap:10px}
 .mt-team{flex:1;text-align:center}
 .mt-name{font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mt-attrs{font-size:9px;color:var(--text3);margin-top:2px;line-height:1.5}
+.mt-attrs{font-size:10px;color:var(--text);margin-top:3px;line-height:1.6;font-weight:500}
 .mt-score{font-size:32px;font-weight:900;color:#fff;letter-spacing:3px;min-width:80px;text-align:center;font-variant-numeric:tabular-nums}
 .mt-round{font-size:10px;color:var(--text3);text-align:center}
 .dots-row{display:flex;align-items:center;gap:6px;padding:6px 14px 4px}
@@ -368,6 +369,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 
 /* ── SHIRT SVG in card ── */
 .camp-shirt{margin:3px auto 3px;display:block}
+
+/* ── DIFFICULTY BADGE ── */
+.diff-badge{display:inline-flex;align-items:center;gap:2px;font-size:7px;font-weight:800;letter-spacing:.3px;padding:2px 5px;border-radius:4px;margin-top:3px}
+.diff-1{background:rgba(34,197,94,.18);color:#22c55e}
+.diff-2{background:rgba(245,158,11,.18);color:#f59e0b}
+.diff-3{background:rgba(249,115,22,.18);color:#f97316}
+.diff-4{background:rgba(239,68,68,.18);color:#ef4444}
 
 /* ── MISC ── */
 .hidden{display:none!important}
@@ -633,6 +641,13 @@ const DESBLOQUEADOS = new Set(<?= json_encode($desbloqueados) ?>);
 const CONQUISTAS    = new Set(<?= json_encode($conquistas_arr) ?>);
 let   userMoedas    = <?= $moedas ?>;
 
+// ── DIFICULDADE ──────────────────────────────────────────────────────────────
+const DIFF_LABEL = ['','Iniciante','Médio','Difícil','Elite'];
+const DIFF_STARS = ['','★','★★','★★★','★★★★'];
+function diffBadge(d) {
+  return `<div class="diff-badge diff-${d}">${DIFF_STARS[d]} ${DIFF_LABEL[d]}</div>`;
+}
+
 // ── SHIRT ICON (mini SVG para os cards) ──────────────────────────────────────
 function shirtIcon(c1, c2) {
   return `<svg class="camp-shirt" width="34" height="32" viewBox="0 0 34 32" xmlns="http://www.w3.org/2000/svg">
@@ -705,7 +720,8 @@ function renderCampaign() {
       return `<div class="camp-card locked" style="border-color:${borderColor}" onclick="abrirModalCompra('${t.slug}')">
         ${shirtSvg}
         <div class="camp-name">${t.name}</div>
-        <div class="camp-lock">🔒</div>
+        ${diffBadge(t.diff)}
+        <div class="camp-lock" style="margin-top:3px">🔒</div>
         <div class="camp-price">1.000 🪙</div>
       </div>`;
     }
@@ -714,13 +730,15 @@ function renderCampaign() {
         <div class="camp-trophy">🏆</div>
         ${shirtSvg}
         <div class="camp-name">${t.name}</div>
-        <div class="camp-conquered-lbl">Campeão!</div>
+        ${diffBadge(t.diff)}
+        <div class="camp-conquered-lbl" style="margin-top:2px">Campeão!</div>
       </div>`;
     }
     return `<div class="camp-card unlocked" style="border-color:${borderColor}" onclick="startGame(TIMES.find(x=>x.slug==='${t.slug}'))">
       ${shirtSvg}
       <div class="camp-name">${t.name}</div>
-      <div class="camp-play-btn">▶ JOGAR</div>
+      ${diffBadge(t.diff)}
+      <div class="camp-play-btn" style="margin-top:3px">▶ JOGAR</div>
     </div>`;
   }).join('');
 
