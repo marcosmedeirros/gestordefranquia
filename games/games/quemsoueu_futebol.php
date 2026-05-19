@@ -1,9 +1,11 @@
 <?php
-/**
- * quemsoueu_futebol.php — Quem Sou Eu? Futebol
- * Adivinhe o jogador de futebol em até 8 tentativas.
- * Incluído por games/games/index.php — $pdo e $_SESSION já disponíveis.
- */
+session_start();
+require '../core/conexao.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../auth/login.php");
+    exit;
+}
 
 $user_id        = (int)$_SESSION['user_id'];
 $hoje           = date('Y-m-d');
