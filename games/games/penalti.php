@@ -5,38 +5,54 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit;
 $user_id = (int)$_SESSION['user_id'];
 
 $TIMES = [
-  ['slug'=>'flamengo',     'name'=>'Flamengo',      'badge'=>'FLA','color'=>'#e30613','dark'=>'#9e0000',
-   'gk'=>'Julio César',    'gk_def'=>8,  'player'=>'Zico',        'player_shot'=>10],
-  ['slug'=>'corinthians',  'name'=>'Corinthians',   'badge'=>'COR','color'=>'#555','dark'=>'#222',
-   'gk'=>'Cássio',         'gk_def'=>9,  'player'=>'Sócrates',    'player_shot'=>8],
-  ['slug'=>'palmeiras',    'name'=>'Palmeiras',     'badge'=>'PAL','color'=>'#006b3c','dark'=>'#004a29',
-   'gk'=>'Marcos',         'gk_def'=>9,  'player'=>'Ademir',      'player_shot'=>7],
-  ['slug'=>'saopaulo',     'name'=>'São Paulo',     'badge'=>'SPF','color'=>'#cc0000','dark'=>'#900',
-   'gk'=>'Rogério Ceni',   'gk_def'=>10, 'player'=>'Rogério Ceni','player_shot'=>9],
-  ['slug'=>'santos',       'name'=>'Santos',        'badge'=>'SAN','color'=>'#777','dark'=>'#444',
-   'gk'=>'Gilmar',         'gk_def'=>9,  'player'=>'Pelé',        'player_shot'=>10],
-  ['slug'=>'vasco',        'name'=>'Vasco',         'badge'=>'VAS','color'=>'#222','dark'=>'#000',
-   'gk'=>'C. Germano',     'gk_def'=>7,  'player'=>'R. Dinamite', 'player_shot'=>8],
-  ['slug'=>'fluminense',   'name'=>'Fluminense',    'badge'=>'FLU','color'=>'#8b0000','dark'=>'#600',
-   'gk'=>'Castilho',       'gk_def'=>8,  'player'=>'Rivelino',    'player_shot'=>9],
-  ['slug'=>'botafogo',     'name'=>'Botafogo',      'badge'=>'BOT','color'=>'#444','dark'=>'#111',
-   'gk'=>'Jefferson',      'gk_def'=>8,  'player'=>'Garrincha',   'player_shot'=>10],
-  ['slug'=>'atleticmg',    'name'=>'Atlético MG',   'badge'=>'CAM','color'=>'#1a1a1a','dark'=>'#000',
-   'gk'=>'Victor',         'gk_def'=>8,  'player'=>'Reinaldo',    'player_shot'=>8],
-  ['slug'=>'cruzeiro',     'name'=>'Cruzeiro',      'badge'=>'CRU','color'=>'#1a3a8f','dark'=>'#0d1f5c',
-   'gk'=>'Fábio',          'gk_def'=>9,  'player'=>'Tostão',      'player_shot'=>9],
-  ['slug'=>'gremio',       'name'=>'Grêmio',        'badge'=>'GRE','color'=>'#3c6eb4','dark'=>'#1a3a8f',
-   'gk'=>'Danrlei',        'gk_def'=>7,  'player'=>'R. Gaúcho',   'player_shot'=>8],
-  ['slug'=>'internacional','name'=>'Internacional', 'badge'=>'INT','color'=>'#cc0000','dark'=>'#900',
-   'gk'=>'Manga',          'gk_def'=>8,  'player'=>'Falcão',      'player_shot'=>10],
-  ['slug'=>'athleticpr',   'name'=>'Athletico PR',  'badge'=>'CAP','color'=>'#c00','dark'=>'#800',
-   'gk'=>'Santos',         'gk_def'=>6,  'player'=>'Alex Mineiro','player_shot'=>7],
-  ['slug'=>'bahia',        'name'=>'Bahia',         'badge'=>'BAH','color'=>'#1a3a8f','dark'=>'#0d1f5c',
-   'gk'=>'R. Passos',      'gk_def'=>6,  'player'=>'Bobô',        'player_shot'=>7],
-  ['slug'=>'fortaleza',    'name'=>'Fortaleza',     'badge'=>'FOR','color'=>'#e87722','dark'=>'#b35500',
-   'gk'=>'João Leite',     'gk_def'=>7,  'player'=>'Clodoaldo',   'player_shot'=>7],
-  ['slug'=>'ceara',        'name'=>'Ceará',         'badge'=>'CEA','color'=>'#2a2a2a','dark'=>'#000',
-   'gk'=>'Adílson',        'gk_def'=>6,  'player'=>'S. Alves',    'player_shot'=>6],
+  ['slug'=>'brasil',    'name'=>'Brasil',            'badge'=>'BRA','color'=>'#FFD700','dark'=>'#009c3b',
+   'shirt'=>'#FFD700','shirt2'=>'#009c3b',
+   'gk'=>'Taffarel',         'gk_def'=>8,  'player'=>'Pelé',            'player_shot'=>10],
+  ['slug'=>'alemanha',  'name'=>'Alemanha',          'badge'=>'GER','color'=>'#dddddd','dark'=>'#333333',
+   'shirt'=>'#dddddd','shirt2'=>'#333333',
+   'gk'=>'Oliver Kahn',      'gk_def'=>10, 'player'=>'F. Beckenbauer',  'player_shot'=>9],
+  ['slug'=>'italia',    'name'=>'Itália',            'badge'=>'ITA','color'=>'#0057A8','dark'=>'#003d7a',
+   'shirt'=>'#0057A8','shirt2'=>'#ffffff',
+   'gk'=>'G. Buffon',        'gk_def'=>10, 'player'=>'Paolo Maldini',   'player_shot'=>8],
+  ['slug'=>'argentina', 'name'=>'Argentina',         'badge'=>'ARG','color'=>'#74ACDF','dark'=>'#3a87c8',
+   'shirt'=>'#74ACDF','shirt2'=>'#ffffff',
+   'gk'=>'S. Goycochea',     'gk_def'=>7,  'player'=>'Diego Maradona',  'player_shot'=>10],
+  ['slug'=>'franca',    'name'=>'França',            'badge'=>'FRA','color'=>'#003DA5','dark'=>'#001f7a',
+   'shirt'=>'#003DA5','shirt2'=>'#ffffff',
+   'gk'=>'Hugo Lloris',      'gk_def'=>8,  'player'=>'Zinedine Zidane', 'player_shot'=>9],
+  ['slug'=>'uruguai',   'name'=>'Uruguai',           'badge'=>'URU','color'=>'#5EB6E4','dark'=>'#2a9de0',
+   'shirt'=>'#5EB6E4','shirt2'=>'#ffffff',
+   'gk'=>'F. Muslera',       'gk_def'=>7,  'player'=>'Luis Suárez',     'player_shot'=>8],
+  ['slug'=>'inglaterra','name'=>'Inglaterra',        'badge'=>'ENG','color'=>'#f0f0f0','dark'=>'#cc0000',
+   'shirt'=>'#f0f0f0','shirt2'=>'#cc0000',
+   'gk'=>'Gordon Banks',     'gk_def'=>9,  'player'=>'Bobby Charlton',  'player_shot'=>8],
+  ['slug'=>'espanha',   'name'=>'Espanha',           'badge'=>'ESP','color'=>'#AA151B','dark'=>'#8a0613',
+   'shirt'=>'#AA151B','shirt2'=>'#F1BF00',
+   'gk'=>'Iker Casillas',    'gk_def'=>9,  'player'=>'Andrés Iniesta',  'player_shot'=>8],
+  ['slug'=>'holanda',   'name'=>'Holanda',           'badge'=>'NED','color'=>'#F36C21','dark'=>'#cc4400',
+   'shirt'=>'#F36C21','shirt2'=>'#ffffff',
+   'gk'=>'E. van der Sar',   'gk_def'=>8,  'player'=>'Johan Cruyff',    'player_shot'=>9],
+  ['slug'=>'portugal',  'name'=>'Portugal',          'badge'=>'POR','color'=>'#D20000','dark'=>'#006600',
+   'shirt'=>'#D20000','shirt2'=>'#006600',
+   'gk'=>'Vítor Baía',       'gk_def'=>7,  'player'=>'C. Ronaldo',      'player_shot'=>9],
+  ['slug'=>'belgica',   'name'=>'Bélgica',           'badge'=>'BEL','color'=>'#EF3340','dark'=>'#b31525',
+   'shirt'=>'#EF3340','shirt2'=>'#000000',
+   'gk'=>'T. Courtois',      'gk_def'=>9,  'player'=>'Eden Hazard',     'player_shot'=>8],
+  ['slug'=>'croacia',   'name'=>'Croácia',           'badge'=>'CRO','color'=>'#CC2222','dark'=>'#991111',
+   'shirt'=>'#CC2222','shirt2'=>'#ffffff',
+   'gk'=>'D. Livaković',     'gk_def'=>8,  'player'=>'Luka Modrić',     'player_shot'=>8],
+  ['slug'=>'mexico',    'name'=>'México',            'badge'=>'MEX','color'=>'#006847','dark'=>'#00432d',
+   'shirt'=>'#006847','shirt2'=>'#ffffff',
+   'gk'=>'Jorge Campos',     'gk_def'=>7,  'player'=>'Hugo Sánchez',    'player_shot'=>7],
+  ['slug'=>'colombia',  'name'=>'Colômbia',          'badge'=>'COL','color'=>'#FCD116','dark'=>'#c9a800',
+   'shirt'=>'#FCD116','shirt2'=>'#003087',
+   'gk'=>'René Higuita',     'gk_def'=>7,  'player'=>'C. Valderrama',   'player_shot'=>7],
+  ['slug'=>'suecia',    'name'=>'Suécia',            'badge'=>'SWE','color'=>'#006AA7','dark'=>'#004d7a',
+   'shirt'=>'#FECC02','shirt2'=>'#006AA7',
+   'gk'=>'Thomas Ravelli',   'gk_def'=>7,  'player'=>'Z. Ibrahimović',  'player_shot'=>8],
+  ['slug'=>'tcheca',    'name'=>'Rep. Tcheca',       'badge'=>'CZE','color'=>'#D7141A','dark'=>'#9e0d10',
+   'shirt'=>'#D7141A','shirt2'=>'#ffffff',
+   'gk'=>'Petr Čech',        'gk_def'=>9,  'player'=>'Pavel Nedvěd',    'player_shot'=>7],
 ];
 
 // Auto-create tables
@@ -112,7 +128,7 @@ try {
     $s->execute([$user_id]);
     $desbloqueados = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
 } catch(PDOException $e) {}
-if (!in_array('gremio', $desbloqueados)) $desbloqueados[] = 'gremio';
+if (!in_array('tcheca', $desbloqueados)) $desbloqueados[] = 'tcheca';
 try {
     $s = $pdo->prepare("SELECT team_slug FROM penalti_conquistas WHERE id_usuario=?");
     $s->execute([$user_id]);
@@ -142,8 +158,8 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#fc0025">
-<title>Copa Pênaltis</title>
+<meta name="theme-color" content="#c8001e">
+<title>Copa do Mundo 2026 · Pênaltis</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -340,6 +356,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .hall-date{font-size:10px;color:var(--text3);white-space:nowrap}
 .hall-empty{padding:16px;text-align:center;font-size:11px;color:var(--text3);font-style:italic}
 
+/* ── WC 2026 HERO ── */
+.wc-hero{background:linear-gradient(160deg,#0a0f1e 0%,#0d1a2e 40%,#14091a 100%);padding:18px 14px 14px;position:relative;overflow:hidden;border-bottom:1px solid rgba(255,215,0,.12)}
+.wc-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(252,0,37,.08),transparent 60%),radial-gradient(ellipse at 20% 50%,rgba(0,80,255,.07),transparent 60%)}
+.wc-host-flags{display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,.4);font-weight:600;letter-spacing:.5px;margin-bottom:8px}
+.wc-eyebrow{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,215,0,.6);margin-bottom:3px}
+.wc-title{font-size:22px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-.5px}
+.wc-title span{color:#FFD700}
+.wc-sub{font-size:10px;color:rgba(255,255,255,.4);margin-top:3px;letter-spacing:.3px}
+.wc-trophy{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:54px;opacity:.18;filter:drop-shadow(0 0 20px rgba(255,215,0,.4))}
+
+/* ── SHIRT SVG in card ── */
+.camp-shirt{margin:3px auto 3px;display:block}
+
 /* ── MISC ── */
 .hidden{display:none!important}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
@@ -352,7 +381,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 
 <div class="topbar">
   <a href="../games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
-  <div class="topbar-title">Copa <span>Pênaltis</span></div>
+  <div class="topbar-title">🏆 <span>Copa do Mundo 2026</span></div>
   <div class="topbar-chip"><i class="bi bi-coin"></i><span id="coins-display"><?= number_format($moedas,0,',','.') ?></span></div>
   <div class="topbar-chip" style="border-color:rgba(255,215,0,.2);color:var(--gold)"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i><span id="mob-conq"><?= count($conquistas_arr) ?>/16</span></div>
 </div>
@@ -361,11 +390,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 
 <!-- ══ CAMPANHA ══ -->
 <div class="screen active" id="sc-start">
+
+  <!-- Hero WC 2026 -->
+  <div class="wc-hero">
+    <div class="wc-trophy">🏆</div>
+    <div class="wc-host-flags">🇺🇸 EUA &nbsp;·&nbsp; 🇨🇦 Canadá &nbsp;·&nbsp; 🇲🇽 México</div>
+    <div class="wc-eyebrow">FIFA World Cup™</div>
+    <div class="wc-title">Copa do Mundo <span>2026</span></div>
+    <div class="wc-sub">Pênaltis · 16 Seleções · Modo Campanha</div>
+  </div>
+
   <div class="camp-header">
     <div>
-      <div class="camp-title">Campanha</div>
+      <div class="camp-title">Seleções</div>
       <div class="camp-progress">
-        <strong id="conq-count"><?= count($conquistas_arr) ?></strong> de 16 conquistados 🏆
+        <strong id="conq-count"><?= count($conquistas_arr) ?></strong> de 16 seleções conquistadas 🏆
       </div>
     </div>
   </div>
@@ -380,7 +419,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
   <div class="mystery-card">
     <div class="mystery-q">?</div>
     <div class="mystery-title">Conquista Secreta</div>
-    <div class="mystery-sub">Vença o campeonato com todos os 16 times<br>para descobrir o que te aguarda...</div>
+    <div class="mystery-sub">Vença o campeonato com todas as 16 seleções<br>para descobrir o que te aguarda...</div>
     <div class="mystery-locks">🔒 🔒 🔒</div>
   </div>
 
@@ -459,15 +498,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
       <svg id="kicker-svg" class="kicker-svg" viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg">
         <ellipse cx="35" cy="88" rx="16" ry="3" fill="rgba(0,0,0,.3)"/>
         <circle id="kick-ball" cx="44" cy="80" r="6" fill="white" stroke="#333" stroke-width="1"/>
-        <line x1="32" y1="62" x2="25" y2="82" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
+        <line id="kick-leg-l" x1="32" y1="62" x2="25" y2="82" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
         <g id="kick-leg">
-          <line x1="38" y1="62" x2="46" y2="80" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
-          <line x1="46" y1="80" x2="50" y2="82" stroke="#cc0000" stroke-width="4" stroke-linecap="round"/>
+          <line id="kick-leg-r" x1="38" y1="62" x2="46" y2="80" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
+          <line id="kick-boot" x1="46" y1="80" x2="50" y2="82" stroke="#cc0000" stroke-width="4" stroke-linecap="round"/>
         </g>
-        <rect x="26" y="36" width="18" height="28" rx="6" fill="#cc0000"/>
-        <text x="35" y="54" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle" font-weight="bold">10</text>
-        <line x1="28" y1="42" x2="18" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
-        <line x1="42" y1="42" x2="52" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
+        <rect id="kick-shirt" x="26" y="36" width="18" height="28" rx="6" fill="#cc0000"/>
+        <text id="kick-number" x="35" y="54" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle" font-weight="bold">10</text>
+        <line id="kick-arm-l" x1="28" y1="42" x2="18" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
+        <line id="kick-arm-r" x1="42" y1="42" x2="52" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
         <rect x="31" y="30" width="8" height="8" rx="3" fill="#ffcc99"/>
         <circle cx="35" cy="22" r="12" fill="#ffcc99"/>
         <ellipse cx="35" cy="13" rx="11" ry="5" fill="#3a2000"/>
@@ -594,6 +633,28 @@ const DESBLOQUEADOS = new Set(<?= json_encode($desbloqueados) ?>);
 const CONQUISTAS    = new Set(<?= json_encode($conquistas_arr) ?>);
 let   userMoedas    = <?= $moedas ?>;
 
+// ── SHIRT ICON (mini SVG para os cards) ──────────────────────────────────────
+function shirtIcon(c1, c2) {
+  return `<svg class="camp-shirt" width="34" height="32" viewBox="0 0 34 32" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="7,4 0,10 4,14 4,30 30,30 30,14 34,10 27,4 22,4 22,7 12,7 12,4" fill="${c1}" stroke="${c2}" stroke-width="1.2"/>
+    <line x1="12" y1="4" x2="12" y2="7" stroke="${c2}" stroke-width="1"/>
+    <line x1="22" y1="4" x2="22" y2="7" stroke="${c2}" stroke-width="1"/>
+    <text x="17" y="22" font-size="7" fill="${c2}" text-anchor="middle" font-weight="800" opacity=".85">10</text>
+  </svg>`;
+}
+
+// ── TROCAR COR DO KICKER ─────────────────────────────────────────────────────
+function applyKickerColors(shirt, shirt2) {
+  const s = shirt  || '#cc0000';
+  const p = shirt2 || '#1a1a8f';
+  document.getElementById('kick-shirt').setAttribute('fill', s);
+  document.getElementById('kick-arm-l').setAttribute('stroke', s);
+  document.getElementById('kick-arm-r').setAttribute('stroke', s);
+  document.getElementById('kick-boot').setAttribute('stroke', s);
+  document.getElementById('kick-leg-l').setAttribute('stroke', p);
+  document.getElementById('kick-leg-r').setAttribute('stroke', p);
+}
+
 // ── TIMING ───────────────────────────────────────────────────────────────────
 const RESULT_DELAY = 600;
 const AUTO_NEXT    = 2000;
@@ -634,14 +695,15 @@ const KEEPER_X = {0:-80,1:-15,2:55,3:-80,4:-15,5:55};
 function renderCampaign() {
   const grid = document.getElementById('camp-grid');
   grid.innerHTML = TIMES.map(t => {
-    const locked     = !DESBLOQUEADOS.has(t.slug);
-    const conquered  = CONQUISTAS.has(t.slug);
-    const badgeStyle = `background:${t.color}22;color:${t.color};border:1px solid ${t.color}55`;
+    const locked      = !DESBLOQUEADOS.has(t.slug);
+    const conquered   = CONQUISTAS.has(t.slug);
+    const badgeStyle  = `background:${t.color}22;color:${t.color};border:1px solid ${t.color}55`;
     const borderColor = conquered ? 'var(--gold)' : locked ? 'var(--border)' : t.color + '55';
+    const shirtSvg    = shirtIcon(t.shirt || t.color, t.shirt2 || '#fff');
 
     if (locked) {
       return `<div class="camp-card locked" style="border-color:${borderColor}" onclick="abrirModalCompra('${t.slug}')">
-        <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+        ${shirtSvg}
         <div class="camp-name">${t.name}</div>
         <div class="camp-lock">🔒</div>
         <div class="camp-price">1.000 🪙</div>
@@ -650,16 +712,14 @@ function renderCampaign() {
     if (conquered) {
       return `<div class="camp-card conquered" style="border-color:var(--gold)" onclick="startGame(TIMES.find(x=>x.slug==='${t.slug}'))">
         <div class="camp-trophy">🏆</div>
-        <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+        ${shirtSvg}
         <div class="camp-name">${t.name}</div>
         <div class="camp-conquered-lbl">Campeão!</div>
-        <div class="camp-players">🧤 ${t.gk}<br>⚽ ${t.player}</div>
       </div>`;
     }
     return `<div class="camp-card unlocked" style="border-color:${borderColor}" onclick="startGame(TIMES.find(x=>x.slug==='${t.slug}'))">
-      <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+      ${shirtSvg}
       <div class="camp-name">${t.name}</div>
-      <div class="camp-players">🧤 ${t.gk}<br>⚽ ${t.player}</div>
       <div class="camp-play-btn">▶ JOGAR</div>
     </div>`;
   }).join('');
@@ -845,6 +905,7 @@ function updateMatchUI() {
   document.getElementById('mt-score-o').textContent   = 0;
   document.getElementById('dots-lbl-u').textContent   = userTeam.badge;
   document.getElementById('dots-lbl-o').textContent   = cur.opp.badge;
+  applyKickerColors(userTeam.shirt || userTeam.color, userTeam.shirt2 || userTeam.dark);
 }
 
 function initDots() {
@@ -1169,8 +1230,8 @@ async function registrarConquista(slug) {
   const totalConq = CONQUISTAS.size;
   document.getElementById('champ-sub').textContent =
     totalConq >= 16
-      ? '🏆 Você conquistou todos os 16 times! Acesse a campanha para ver sua recompensa.'
-      : `Você venceu a Copa Pênaltis! (${totalConq}/16 conquistas)`;
+      ? '🏆 Você conquistou todas as 16 seleções! Acesse a campanha para ver sua recompensa.'
+      : `Você venceu a Copa Pênaltis! (${totalConq}/16 seleções)`;
   showScreen('sc-champ');
   try {
     const r = await fetch(window.location.href, {
