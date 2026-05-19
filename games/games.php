@@ -437,6 +437,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
     <a href="games/blackjack.php"              class="game-card"><span class="game-icon">🃏</span><div class="game-title">Blackjack</div><div class="game-sub">Chegue a 21</div></a>
     <a href="games/index.php?game=tigrinho"    class="game-card"><span class="game-icon">🐯</span><div class="game-title">Tigrinho</div><div class="game-sub">Fortune Tiger</div></a>
+    <a href="games/penalti.php"                class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">🥅</span><div class="game-title">Copa Pênaltis</div><div class="game-sub">Campanha · 16 times</div></a>
     <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 

@@ -827,6 +827,12 @@ function updateDot(side,kickRound,result) {
   el.className=result==='goal'?'dot dot-scored':'dot dot-missed';
   el.textContent=result==='goal'?'⚽':'✕';
 }
+function shouldEndEarly() {
+  const m=state.cur; if (m.sd) return false;
+  const userDone=Math.ceil(m.kickIdx/2), oppDone=Math.floor(m.kickIdx/2);
+  const maxUser=m.uGoals+(5-userDone), maxOpp=m.oGoals+(5-oppDone);
+  return maxUser<m.oGoals || maxOpp<m.uGoals;
+}
 
 // ── CLICK NA ZONA ─────────────────────────────────────────────────────────────
 function handleZone(zone) {
@@ -851,6 +857,8 @@ function handleZone(zone) {
     animateShoot(oppZone,keepZone,result,false);
   }
 
+  m.kickIdx++;
+
   setTimeout(()=>{
     updateDot(userShooting?'user':'opp', kickRound, result);
     if (userShooting) {
@@ -860,18 +868,24 @@ function handleZone(zone) {
       if (result==='goal') { addGoal('opp'); showToast('😬 Gol deles!','type-fail'); setStatus('😬 Gol do adversário!','fail'); }
       else { showToast('🧤 Defendeu!','type-goal'); setStatus('🧤 Você defendeu!','ok'); }
     }
-  }, RESULT_DELAY);
-
-  m.kickIdx++;
-  if (m.kickIdx>=10) { setTimeout(finishMatch, RESULT_DELAY+1400); }
-  else {
-    setTimeout(()=>{
+    const earlyEnd=shouldEndEarly();
+    if (m.kickIdx>=10 || earlyEnd) {
+      if (earlyEnd && m.kickIdx<10) {
+        const lead=m.uGoals>m.oGoals;
+        setTimeout(()=>setStatus(
+          lead ? `✅ ${m.opp.name} não consegue mais virar — fim de jogo!`
+               : `❌ Você não consegue mais virar — fim de jogo!`,
+          lead?'ok':'fail'
+        ), 400);
+      }
+      setTimeout(finishMatch, 1400);
+    } else {
       const skipBtn=document.getElementById('btn-next-kick');
       skipBtn.classList.remove('hidden');
       const autoTimer=setTimeout(()=>{ skipBtn.classList.add('hidden'); nextKick(); }, AUTO_NEXT);
       skipBtn.onclick=()=>{ clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
-    }, RESULT_DELAY+50);
-  }
+    }
+  }, RESULT_DELAY);
 }
 
 // ── ANIMAÇÕES ────────────────────────────────────────────────────────────────
