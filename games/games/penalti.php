@@ -96,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $desbloqueados   = [];
 $conquistas_arr  = [];
 $moedas          = 0;
+$hall_fama       = [];
 try {
     $s = $pdo->prepare("SELECT team_slug FROM penalti_desbloqueados WHERE id_usuario=?");
     $s->execute([$user_id]);
@@ -110,6 +111,18 @@ try {
     $s = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
     $s->execute([$user_id]);
     $moedas = (int)($s->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
+} catch(PDOException $e) {}
+try {
+    $s = $pdo->query(
+        "SELECT u.nome, MAX(pc.conquistado_em) AS completado_em
+         FROM penalti_conquistas pc
+         JOIN usuarios u ON u.id = pc.id_usuario
+         GROUP BY pc.id_usuario, u.nome
+         HAVING COUNT(*) >= 16
+         ORDER BY completado_em ASC
+         LIMIT 5"
+    );
+    $hall_fama = $s ? $s->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch(PDOException $e) {}
 ?>
 <!DOCTYPE html>
@@ -295,6 +308,19 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 .modal-balance{font-size:11px;color:var(--text3);margin-bottom:18px}
 .modal-btns{display:flex;gap:10px}
 
+/* ── HALL DA FAMA ── */
+.hall-card{margin:0 14px 24px;background:var(--panel);border:1px solid rgba(255,215,0,.18);border-radius:14px;overflow:hidden}
+.hall-hdr{background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,153,0,.05));padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,215,0,.12)}
+.hall-hdr-icon{font-size:16px}
+.hall-hdr-title{font-size:12px;font-weight:800;color:var(--gold);flex:1;letter-spacing:.4px}
+.hall-hdr-sub{font-size:10px;color:var(--text3)}
+.hall-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04)}
+.hall-row:last-child{border-bottom:none}
+.hall-pos{font-size:15px;width:22px;text-align:center;flex-shrink:0}
+.hall-name{flex:1;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hall-date{font-size:10px;color:var(--text3);white-space:nowrap}
+.hall-empty{padding:16px;text-align:center;font-size:11px;color:var(--text3);font-style:italic}
+
 /* ── MISC ── */
 .hidden{display:none!important}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
@@ -335,6 +361,27 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
     <div class="mystery-title">Conquista Secreta</div>
     <div class="mystery-sub">Vença o campeonato com todos os 16 times<br>para descobrir o que te aguarda...</div>
     <div class="mystery-locks">🔒 🔒 🔒</div>
+  </div>
+
+  <!-- Hall da Fama -->
+  <div class="hall-card">
+    <div class="hall-hdr">
+      <span class="hall-hdr-icon">👑</span>
+      <span class="hall-hdr-title">Hall da Fama</span>
+      <span class="hall-hdr-sub">Primeiros a conquistar os 16 times</span>
+    </div>
+    <?php if (empty($hall_fama)): ?>
+      <div class="hall-empty">Nenhum campeão ainda — seja o primeiro!</div>
+    <?php else: ?>
+      <?php $medals = ['🥇','🥈','🥉','🏅','🏅']; ?>
+      <?php foreach ($hall_fama as $i => $row): ?>
+        <div class="hall-row">
+          <span class="hall-pos"><?= $medals[$i] ?></span>
+          <span class="hall-name"><?= htmlspecialchars($row['nome']) ?></span>
+          <span class="hall-date"><?= date('d/m/Y', strtotime($row['completado_em'])) ?></span>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
   </div>
 </div>
 
