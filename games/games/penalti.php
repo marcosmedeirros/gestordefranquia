@@ -201,10 +201,8 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 .dots-row{display:flex;align-items:center;gap:6px;padding:6px 14px 4px}
 .dots-label{font-size:10px;color:var(--text3);min-width:28px;font-weight:700}
 .dot{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:.2s}
-.dot.goal-u{background:var(--green);border-color:var(--green)}
-.dot.save-u{background:rgba(239,68,68,.3);border-color:var(--red)}
-.dot.goal-o{background:var(--red);border-color:var(--red)}
-.dot.save-o{background:rgba(34,197,94,.2);border-color:var(--green)}
+.dot.dot-scored{background:var(--green);border-color:var(--green)}
+.dot.dot-missed{background:rgba(239,68,68,.3);border-color:var(--red)}
 .dot.pending{opacity:.25}
 
 /* STATUS */
@@ -829,14 +827,8 @@ function addGoal(side) {
 function updateDot(side, kickRound, result) {
   const el = document.getElementById(`dots-${side}-${kickRound}`);
   if (!el) return;
-  el.classList.remove('pending');
-  if (side === 'user') {
-    el.className = result === 'goal' ? 'dot goal-u' : 'dot save-u';
-    el.textContent = result === 'goal' ? '⚽' : '✕';
-  } else {
-    el.className = result === 'goal' ? 'dot goal-o' : 'dot save-o';
-    el.textContent = result === 'goal' ? '⚽' : '✕';
-  }
+  el.className = result === 'goal' ? 'dot dot-scored' : 'dot dot-missed';
+  el.textContent = result === 'goal' ? '⚽' : '✕';
 }
 
 function prepKick() {
