@@ -2,6 +2,8 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+$_cfg = require __DIR__ . '/backend/config.php';
+$bdlApiKey = $_cfg['app']['bdl_api_key'] ?? '';
 requireAuth();
 
 $user = getUserSession();
@@ -887,6 +889,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
+    window.__BDL_KEY__  = <?= json_encode($bdlApiKey) ?>;
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
     window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;

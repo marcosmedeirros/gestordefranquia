@@ -345,7 +345,7 @@ const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, sign
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
 // --- NBA REAL SPOILER (balldontlie.io) ---
-const BDL_API_KEY = ''; // ← Cole aqui sua chave gratuita de api.balldontlie.io
+const BDL_API_KEY = (typeof window !== 'undefined' && window.__BDL_KEY__) || '';
 const BDL_BASE_URL = 'https://api.balldontlie.io/nba/v1';
 
 async function getRealSpoiler(playerName) {
