@@ -148,59 +148,17 @@ try {
 }
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 
-/* ── SIDEBAR ── */
-.page-layout{display:flex;min-height:100vh}
-.sidebar{width:240px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;overflow-y:auto}
-.page-content{flex:1;margin-left:240px;min-width:0;display:flex;flex-direction:column}
-.sb-header{display:flex;align-items:center;gap:10px;padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
-.sb-logo{width:30px;height:30px;border-radius:8px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
-.sb-brand{font-weight:800;font-size:13px;color:var(--text);flex:1}
-.sb-brand span{color:var(--brand)}
-.sb-close{display:none;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:4px}
-.sb-user{padding:14px;border-bottom:1px solid var(--border)}
-.sb-avatar{width:40px;height:40px;border-radius:50%;background:var(--brand-soft);border:2px solid var(--border-brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--brand);margin-bottom:8px}
-.sb-user-name{font-size:13px;font-weight:700;color:#fff}
-.sb-user-role{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.sb-stats{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:row;gap:6px}
-.sb-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:4px;padding:8px 4px;background:var(--panel2);border-radius:8px;border:1px solid var(--border)}
-.sb-stat i{font-size:13px;color:var(--brand)}
-.sb-stat-val{font-size:12px;font-weight:700;color:var(--text);line-height:1.2}
-.sb-stat-label{font-size:9px;color:var(--text3)}
-.sb-nav{flex:1;padding:8px 0;overflow-y:auto}
-.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);padding:8px 14px 4px}
-.sb-link{display:flex;align-items:center;gap:10px;padding:9px 14px;text-decoration:none;font-size:12px;font-weight:500;color:var(--text2);transition:all var(--t) var(--ease);border-left:3px solid transparent}
-.sb-link i{width:16px;text-align:center;font-size:13px}
-.sb-link:hover{background:var(--panel2);color:var(--text);border-left-color:var(--border2)}
-.sb-link.active{background:var(--brand-soft);color:var(--brand);border-left-color:var(--brand);font-weight:700}
-.sb-footer{padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
-.sb-logout{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);text-decoration:none;font-family:var(--font);font-size:12px;font-weight:600;transition:all var(--t) var(--ease)}
-.sb-logout:hover{background:var(--brand-soft);border-color:var(--border-brand);color:var(--brand)}
-/* ── MOBILE BAR ── */
-.mob-bar{display:none;align-items:center;gap:12px;height:52px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
-.mob-ham{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0}
-.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
-.mob-title span{color:var(--brand)}
-.mob-chips{display:flex;align-items:center;gap:6px}
-.mob-chip{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
-.mob-chip i{font-size:11px}
-.mob-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:14px;text-decoration:none;transition:all var(--t) var(--ease)}
-.mob-back:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(2px)}
-@media(max-width:768px){
-  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease)}
-  .sidebar.open{transform:translateX(0)}
-  .page-content{margin-left:0}
-  .mob-bar{display:flex}
-  .sb-close{display:flex;align-items:center;justify-content:center}
-  .sb-overlay.open{display:block}
-}
-
-/* ── GAME WRAP ── */
-.game-wrap{flex:1;display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px}
-@media(max-width:768px){.game-wrap{padding:12px 0 60px}}
+/* ── TOPBAR ── */
+.topbar{position:sticky;top:0;z-index:200;height:52px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 16px}
+.topbar-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:15px;text-decoration:none;transition:all var(--t) var(--ease);flex-shrink:0}
+.topbar-back:hover{background:var(--brand-soft);border-color:var(--border-brand);color:var(--brand)}
+.topbar-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
+.topbar-title span{color:var(--brand)}
+.topbar-chip{display:flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--text2);flex-shrink:0}
+.topbar-chip i{font-size:10px;color:var(--amber)}
 
 /* ── SCREENS ── */
-.screen{display:none;width:100%;max-width:540px;padding:0 0 20px}
+.screen{display:none;max-width:540px;margin:0 auto;padding:0 0 80px}
 .screen.active{display:block}
 
 /* ── CAMPAIGN ── */
@@ -380,61 +338,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 </style>
 </head>
 <body>
-<div class="page-layout">
-<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
 
-<aside class="sidebar" id="sidebar">
-  <div class="sb-header">
-    <div class="sb-logo">FBA</div>
-    <span class="sb-brand">FBA <span>Games</span></span>
-    <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
-  </div>
-  <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome'] ?? 'U', 0, 1)) ?></div>
-    <div class="sb-user-name"><?= htmlspecialchars($usuario['nome'] ?? '') ?></div>
-    <div class="sb-user-role">Jogador</div>
-  </div>
-  <div class="sb-stats">
-    <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
-      <div class="sb-stat-val" id="sb-coins-val"><?= number_format($moedas,0,',','.') ?></div>
-      <div class="sb-stat-label">Moedas</div>
-    </div>
-    <div class="sb-stat">
-      <i class="bi bi-trophy-fill" style="color:var(--gold)"></i>
-      <div class="sb-stat-val" id="sb-conq-val"><?= count($conquistas_arr) ?>/16</div>
-      <div class="sb-stat-label">Conquistas</div>
-    </div>
-    <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
-      <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0,0,',','.') ?></div>
-      <div class="sb-stat-label">FBA Pts</div>
-    </div>
-  </div>
-  <nav class="sb-nav">
-    <div class="sb-nav-section">Menu</div>
-    <a href="../games.php" class="sb-link"><i class="bi bi-joystick"></i>Games</a>
-    <a href="../../index.php" class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <?php if (!empty($usuario['is_admin'])): ?>
-    <div class="sb-nav-section">Admin</div>
-    <a href="../admin/controlegames.php" class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
-    <?php endif; ?>
-  </nav>
-  <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
-  </div>
-</aside>
-
-<div class="page-content">
-<div class="mob-bar">
-  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
-  <span class="mob-title">Copa <span>Pênaltis</span></span>
-  <div class="mob-chips">
-    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><span id="coins-display"><?= number_format($moedas,0,',','.') ?></span></span>
-    <span class="mob-chip"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i><span id="mob-conq"><?= count($conquistas_arr) ?>/16</span></span>
-  </div>
-  <a href="../games.php" class="mob-back"><i class="bi bi-arrow-left"></i></a>
+<div class="topbar">
+  <a href="../games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
+  <div class="topbar-title">Copa <span>Pênaltis</span></div>
+  <div class="topbar-chip"><i class="bi bi-coin"></i><span id="coins-display"><?= number_format($moedas,0,',','.') ?></span></div>
+  <div class="topbar-chip" style="border-color:rgba(255,215,0,.2);color:var(--gold)"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i><span id="mob-conq"><?= count($conquistas_arr) ?>/16</span></div>
 </div>
+
 <div class="game-wrap">
 
 <!-- ══ CAMPANHA ══ -->
@@ -666,7 +577,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 <div class="goal-toast" id="goal-toast"></div>
 
 </div><!-- /game-wrap -->
-
 <script>
 const TIMES         = <?= json_encode(array_values($TIMES)) ?>;
 const DESBLOQUEADOS = new Set(<?= json_encode($desbloqueados) ?>);
@@ -1271,26 +1181,17 @@ function shuffle(arr) {
 }
 function updateCoinDisplay(val) {
   document.getElementById('coins-display').textContent = val.toLocaleString('pt-BR');
-  const sb = document.getElementById('sb-coins-val');
-  if (sb) sb.textContent = val.toLocaleString('pt-BR');
 }
 function updateConqDisplay() {
   const total = CONQUISTAS.size;
   document.getElementById('conq-count').textContent = total;
   document.getElementById('camp-bar').style.width = (total/16*100)+'%';
-  const sb = document.getElementById('sb-conq-val');
-  if (sb) sb.textContent = total+'/16';
   const mob = document.getElementById('mob-conq');
   if (mob) mob.textContent = total+'/16';
 }
 
-function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sbOverlay').classList.add('open'); document.body.style.overflow='hidden'; }
-function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sbOverlay').classList.remove('open'); document.body.style.overflow=''; }
-
 // ── INIT ──────────────────────────────────────────────────────────────────────
 renderCampaign();
 </script>
-</div><!-- /page-content -->
-</div><!-- /page-layout -->
 </body>
 </html>
