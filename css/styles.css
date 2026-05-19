@@ -834,7 +834,8 @@ img.broken-image {
 	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat !important;
 }
 
-.team-logo {
+.team-logo[src=""],
+.team-logo:not([src]) {
 	background: var(--fba-black) url('/img/default-team.png') center/cover no-repeat;
 }
 

@@ -2121,8 +2121,30 @@ if ($method === 'POST') {
             if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
 
             if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
-                $pdo->prepare("UPDATE teams SET photo_url = ? WHERE id = ? AND user_id = ?")
-                    ->execute([trim((string)$data['team_photo']), (int)$data['team_id'], $targetId]);
+                $rawPhoto = trim((string)$data['team_photo']);
+                if (str_starts_with($rawPhoto, 'data:image/')) {
+                    try {
+                        $commaPos = strpos($rawPhoto, ',');
+                        $meta     = substr($rawPhoto, 0, $commaPos);
+                        $b64      = substr($rawPhoto, $commaPos + 1);
+                        $ext = 'png';
+                        if (preg_match('/data:image\/(jpeg|jpg)/i', $meta)) $ext = 'jpg';
+                        elseif (preg_match('/data:image\/webp/i', $meta)) $ext = 'webp';
+                        $binary = base64_decode($b64);
+                        if ($binary === false) throw new Exception('decode fail');
+                        $dirFs = __DIR__ . '/../img/teams';
+                        if (!is_dir($dirFs)) @mkdir($dirFs, 0775, true);
+                        $filename = 'team-' . (int)$data['team_id'] . '-' . time() . '.' . $ext;
+                        if (file_put_contents($dirFs . '/' . $filename, $binary) === false) throw new Exception('write fail');
+                        $rawPhoto = '/img/teams/' . $filename;
+                    } catch (Exception $e) {
+                        $rawPhoto = '';
+                    }
+                }
+                if ($rawPhoto !== '') {
+                    $pdo->prepare("UPDATE teams SET photo_url = ? WHERE id = ? AND user_id = ?")
+                        ->execute([$rawPhoto, (int)$data['team_id'], $targetId]);
+                }
             }
 
             echo json_encode(['success' => true]);

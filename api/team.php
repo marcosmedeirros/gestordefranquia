@@ -781,7 +781,7 @@ if ($method === 'PUT') {
     $userId = (int) $sessionUser['id'];
 
     // Buscar time do usuário
-    $stmt = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, league, conference, photo_url, custom_header, use_custom_header FROM teams WHERE user_id = ? LIMIT 1');
     $stmt->execute([$userId]);
     $team = $stmt->fetch();
     if (!$team) {

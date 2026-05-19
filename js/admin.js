@@ -186,10 +186,22 @@ function openGestaoEdit(userId) {
               <input type="email" id="gedit-email" class="form-control" value="${escapeHtml(u.email)}">
             </div>
             <div class="mb-3">
-              <label class="form-label text-light-gray">Foto do Time (URL)</label>
-              <div class="d-flex gap-2">
-                <input type="url" id="gedit-team-photo" class="form-control" value="${escapeHtml(u.team_photo || '')}" placeholder="https://..." oninput="updateGestaoPhotoPreview()">
-                <img id="gedit-photo-preview" src="${escapeHtml(u.team_photo || '')}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;${u.team_photo ? '' : 'display:none'}" onerror="this.style.display='none'">
+              <label class="form-label text-light-gray">Logo do Time</label>
+              <div class="d-flex align-items-center gap-3">
+                <div style="width:60px;height:60px;border-radius:10px;background:var(--panel-3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+                  <img id="gedit-photo-preview" src="${escapeHtml(u.team_photo || '')}"
+                       style="width:100%;height:100%;object-fit:cover;${u.team_photo ? '' : 'display:none'}"
+                       onerror="this.style.display='none'">
+                  <i class="bi bi-image" id="gedit-photo-placeholder" style="font-size:22px;color:var(--text-3);${u.team_photo ? 'display:none' : ''}"></i>
+                </div>
+                <div>
+                  <label class="btn-ghost" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:7px 13px;font-size:12px">
+                    <i class="bi bi-upload"></i> Enviar nova logo
+                    <input type="file" id="gedit-team-photo-file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onGestaoPhotoChange(this)">
+                  </label>
+                  <input type="hidden" id="gedit-team-photo" value="${escapeHtml(u.team_photo || '')}">
+                  <div id="gedit-photo-name" style="font-size:11px;color:var(--text-3);margin-top:4px">${u.team_photo ? 'Logo atual salva' : 'Sem logo'}</div>
+                </div>
               </div>
             </div>
             ${window.IS_GLOBAL_ADMIN ? `
@@ -215,13 +227,21 @@ function openGestaoEdit(userId) {
   document.getElementById('gestaoEditModal').addEventListener('hidden.bs.modal', function() { this.remove(); });
 }
 
-function updateGestaoPhotoPreview() {
-  const input = document.getElementById('gedit-team-photo');
-  const preview = document.getElementById('gedit-photo-preview');
-  if (!input || !preview) return;
-  const url = input.value.trim();
-  if (url) { preview.src = url; preview.style.display = ''; }
-  else { preview.style.display = 'none'; }
+function onGestaoPhotoChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = e.target.result;
+    document.getElementById('gedit-team-photo').value = data;
+    const preview = document.getElementById('gedit-photo-preview');
+    if (preview) { preview.src = data; preview.style.display = ''; }
+    const ph = document.getElementById('gedit-photo-placeholder');
+    if (ph) ph.style.display = 'none';
+    const nameEl = document.getElementById('gedit-photo-name');
+    if (nameEl) nameEl.textContent = file.name;
+  };
+  reader.readAsDataURL(file);
 }
 
 async function saveGestaoUser() {
