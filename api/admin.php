@@ -1622,6 +1622,9 @@ if ($method === 'PUT') {
             $seasonYear = $data['season_year'] ?? null;
             $round = $data['round'] ?? null;
             $notes = $data['notes'] ?? null;
+            $swapTypeRaw = isset($data['swap_type']) ? trim((string)$data['swap_type']) : null;
+            $swapType = ($swapTypeRaw !== null && $swapTypeRaw !== '') ? strtoupper($swapTypeRaw) : null;
+            if ($swapType !== null && !in_array($swapType, ['SW', 'SB'])) $swapType = null;
 
             if (!$teamId || !$originalTeamId || !$seasonYear || !$round) {
                 http_response_code(400);
@@ -1632,11 +1635,11 @@ if ($method === 'PUT') {
             if ($pickId) {
                 // Atualizar pick existente
                 $stmt = $pdo->prepare('
-                    UPDATE picks 
-                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
+                    UPDATE picks
+                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, swap_type = ?, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $teamId, $pickId]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $swapType, $teamId, $pickId]);
             } else {
                 // Reutilizar pick existente com mesma origem/ano/rodada ou criar um novo
                 $stmtExisting = $pdo->prepare('

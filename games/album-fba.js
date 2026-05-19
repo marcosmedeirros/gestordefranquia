@@ -540,7 +540,7 @@ function renderMarketMine() {
     if (!mineList) return;
     const mine = Array.isArray(state.market.myListings) ? state.market.myListings : [];
     if (!mine.length) {
-        mineList.innerHTML = '<div class="text-zinc-400">Voce nao tem cartas a venda.</div>';
+        mineList.innerHTML = '<div class="col-span-full" style="color:var(--text-2);font-size:13px;padding:8px 0">Você não tem cartas à venda.</div>';
         return;
     }
     mineList.innerHTML = mine.map((item) => `
@@ -580,7 +580,7 @@ function renderMarketListings() {
     if (!list) return;
     const rows = filteredMarketListings();
     if (!rows.length) {
-        list.innerHTML = '<div class="text-zinc-400">Nenhuma carta encontrada com esses filtros.</div>';
+        list.innerHTML = '<div class="col-span-full text-center py-8 text-zinc-400">Nenhuma carta encontrada com esses filtros.</div>';
         return;
     }
     list.innerHTML = rows.map((item) => {
@@ -656,7 +656,9 @@ async function refreshMarketState() {
 }
 
 async function renderMarket() {
+    const list = document.getElementById('market-list');
     const fb = document.getElementById('market-feedback');
+    if (list) list.innerHTML = '<div class="col-span-full text-center py-8 text-zinc-400">Carregando mercado...</div>';
     try {
         await refreshMarketState();
         renderMarketCollectionFilter();
@@ -666,6 +668,7 @@ async function renderMarket() {
         document.getElementById('coin-count').innerText = state.user.coins || 0;
         if (fb) fb.textContent = '';
     } catch (err) {
+        if (list) list.innerHTML = `<div class="col-span-full text-center py-8 text-red-400">Erro ao carregar mercado. ${err.message || 'Tente novamente.'}</div>`;
         if (fb) fb.textContent = err.message || 'Erro ao carregar mercado.';
     }
 }

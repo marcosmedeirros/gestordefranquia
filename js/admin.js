@@ -910,14 +910,16 @@ async function showTeam(teamId) {
   </div>
   ${!t.picks || t.picks.length === 0
     ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
-    : t.picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
+    : t.picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
   <div style="flex:1;min-width:0">
-    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.3);border-radius:6px;padding:2px 6px;font-size:11px">${escapeHtml(p.swap_type)}</span>` : ''}
+    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${escapeHtml(p.swap_type)}</span>` : ''}
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.city)} ${escapeHtml(p.team_name)}</div>
   </div>
-  <div style="display:flex;gap:6px">
-    <button class="btn-ghost" style="padding:5px 8px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
-    <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
+  <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+    <button class="btn-ghost" style="padding:3px 7px;font-size:11px;font-weight:700;min-width:32px;${p.swap_type ? 'color:var(--red);border-color:rgba(252,0,37,.25)' : 'color:var(--text-3)'}" onclick="quickSwapType(${p.id})" title="Tipo de swap">${p.swap_type ? escapeHtml(p.swap_type) : 'SW'}</button>
+    <button class="btn-ghost" style="padding:5px 7px" onclick="movePick(${p.id})" title="Mover para outro time"><i class="bi bi-arrow-left-right"></i></button>
+    <button class="btn-ghost" style="padding:5px 7px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
+    <button class="btn-ghost" style="padding:5px 7px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
   </div>
 </div>`).join('')}
 </div>`;
@@ -1974,7 +1976,7 @@ async function saveNewPick(teamId) {
 function editPick(pickId) {
   const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
   if (!p) return;
-  
+
   const modal = document.createElement('div');
   modal.className = 'modal fade';
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
@@ -1986,56 +1988,73 @@ function editPick(pickId) {
 <select class="form-select bg-dark text-white border-orange" id="editPickRound">
 <option value="1" ${p.round == 1 ? 'selected' : ''}>1ª Rodada</option>
 <option value="2" ${p.round == 2 ? 'selected' : ''}>2ª Rodada</option></select></div>
-<div class="mb-3"><label class="form-label text-light-gray">Time Original</label>
+<div class="mb-3"><label class="form-label text-light-gray">Time Original (da pick)</label>
 <select class="form-select bg-dark text-white border-orange" id="editPickOriginalTeam">
 <option value="">Carregando...</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Dono atual — mover pick</label>
+<select class="form-select bg-dark text-white border-orange" id="editPickOwnerTeam">
+<option value="">Carregando...</option></select></div>
+<div class="mb-3"><label class="form-label text-light-gray">Tipo de Swap</label>
+<select class="form-select bg-dark text-white border-orange" id="editPickSwapType">
+<option value="" ${!p.swap_type ? 'selected' : ''}>Nenhum</option>
+<option value="SW" ${p.swap_type === 'SW' ? 'selected' : ''}>SW — Swap</option>
+<option value="SB" ${p.swap_type === 'SB' ? 'selected' : ''}>SB — Swap Back</option>
+</select></div>
 <div class="mb-3"><label class="form-label text-light-gray">Observações (opcional)</label>
 <textarea class="form-control bg-dark text-white border-orange" id="editPickNotes" rows="2">${p.notes || ''}</textarea></div>
 </div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="savePickEdit(${pickId})">Salvar</button></div></div></div>`;
-  
+
   document.body.appendChild(modal);
-  
-  // Carregar times para seleção
+
   api('admin.php?action=teams').then(data => {
-    const select = modal.querySelector('#editPickOriginalTeam');
-    select.innerHTML = '';
+    const origSelect = modal.querySelector('#editPickOriginalTeam');
+    const ownerSelect = modal.querySelector('#editPickOwnerTeam');
+    origSelect.innerHTML = '';
+    ownerSelect.innerHTML = '';
     data.teams.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.id;
-      opt.textContent = `${t.city} ${t.name} (${t.league})`;
-      if (t.id == p.original_team_id) opt.selected = true;
-      select.appendChild(opt);
+      const opt1 = document.createElement('option');
+      opt1.value = t.id;
+      opt1.textContent = `${t.city} ${t.name} (${t.league})`;
+      if (t.id == p.original_team_id) opt1.selected = true;
+      origSelect.appendChild(opt1);
+
+      const opt2 = opt1.cloneNode(true);
+      if (t.id == p.team_id) opt2.selected = true;
+      ownerSelect.appendChild(opt2);
     });
   });
-  
+
   new bootstrap.Modal(modal).show();
   modal.addEventListener('hidden.bs.modal', () => modal.remove());
 }
 
 async function savePickEdit(pickId) {
+  const ownerTeamId = parseInt(document.getElementById('editPickOwnerTeam')?.value || 0);
+  const swapType = document.getElementById('editPickSwapType')?.value || null;
   const data = {
     pick_id: pickId,
-    team_id: appState.currentTeam.id,
+    team_id: ownerTeamId || appState.currentTeam.id,
     original_team_id: parseInt(document.getElementById('editPickOriginalTeam').value),
     season_year: parseInt(document.getElementById('editPickYear').value),
     round: document.getElementById('editPickRound').value,
+    swap_type: swapType || null,
     notes: document.getElementById('editPickNotes').value.trim() || null
   };
-  
+
   if (!data.original_team_id) {
     alert('Selecione o time original!');
     return;
   }
-  
+
   try {
     await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify(data) });
-    bootstrap.Modal.getInstance(document.querySelector('.modal')).hide();
+    bootstrap.Modal.getInstance(document.querySelector('.modal.show'))?.hide();
     await showTeam(appState.currentTeam.id);
-    alert('Pick atualizado!');
-  } catch (e) { 
-    alert('Erro ao atualizar pick: ' + (e.error || 'Desconhecido')); 
+    showAlert('success', 'Pick atualizado!');
+  } catch (e) {
+    alert('Erro ao atualizar pick: ' + (e.error || 'Desconhecido'));
   }
 }
 
@@ -2044,8 +2063,107 @@ async function deletePick(pickId) {
   try {
     await api(`admin.php?action=pick&id=${pickId}`, { method: 'DELETE' });
     await showTeam(appState.currentTeam.id);
-    alert('Pick deletado!');
+    showAlert('success', 'Pick deletado!');
   } catch (e) { alert('Erro ao deletar pick!'); }
+}
+
+function quickSwapType(pickId) {
+  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
+  if (!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog modal-sm"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white" style="font-size:14px">Swap — ${p.season_year} R${p.round}</h5>
+<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="d-flex flex-column gap-2">
+<button type="button" class="btn ${!p.swap_type ? 'btn-orange' : 'btn-secondary'}" onclick="applySwapType(${pickId}, '')">Nenhum</button>
+<button type="button" class="btn ${p.swap_type === 'SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SW')">SW — Swap</button>
+<button type="button" class="btn ${p.swap_type === 'SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SB')">SB — Swap Back</button>
+</div></div></div></div>`;
+  document.body.appendChild(modal);
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function applySwapType(pickId, swapType) {
+  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
+  if (!p) return;
+  try {
+    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
+      pick_id: pickId,
+      team_id: p.team_id,
+      original_team_id: p.original_team_id,
+      season_year: p.season_year,
+      round: p.round,
+      swap_type: swapType || null,
+      notes: p.notes || null
+    })});
+    const openModal = document.querySelector('.modal.show');
+    if (openModal) bootstrap.Modal.getInstance(openModal)?.hide();
+    await showTeam(appState.currentTeam.id);
+    showAlert('success', swapType ? `Tipo definido como ${swapType}` : 'Swap type removido');
+  } catch (e) {
+    alert('Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+function movePick(pickId) {
+  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
+  if (!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Mover Pick — ${p.season_year} R${p.round}</h5>
+<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<p style="font-size:13px;color:var(--text-2);margin-bottom:12px">Pick original: <strong>${escapeHtml(p.city || '')} ${escapeHtml(p.team_name || '')}</strong></p>
+<div class="mb-3"><label class="form-label text-light-gray">Mover para o time</label>
+<select class="form-select bg-dark text-white border-orange" id="movePickDestTeam">
+<option value="">Carregando...</option></select></div>
+</div>
+<div class="modal-footer border-orange">
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="applyMovePick(${pickId})">Mover</button>
+</div></div></div>`;
+  document.body.appendChild(modal);
+  api('admin.php?action=teams').then(data => {
+    const select = modal.querySelector('#movePickDestTeam');
+    select.innerHTML = '';
+    data.teams.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name} (${t.league})`;
+      if (t.id == p.team_id) opt.selected = true;
+      select.appendChild(opt);
+    });
+  });
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function applyMovePick(pickId) {
+  const p = appState.teamDetails.picks.find(pk => pk.id == pickId);
+  if (!p) return;
+  const destTeamId = parseInt(document.getElementById('movePickDestTeam').value);
+  if (!destTeamId) { alert('Selecione o time destino!'); return; }
+  try {
+    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
+      pick_id: pickId,
+      team_id: destTeamId,
+      original_team_id: p.original_team_id,
+      season_year: p.season_year,
+      round: p.round,
+      swap_type: p.swap_type || null,
+      notes: p.notes || null
+    })});
+    const openModal = document.querySelector('.modal.show');
+    if (openModal) bootstrap.Modal.getInstance(openModal)?.hide();
+    await showTeam(appState.currentTeam.id);
+    showAlert('success', 'Pick movida com sucesso!');
+  } catch (e) {
+    alert('Erro ao mover pick: ' + (e.error || 'Desconhecido'));
+  }
 }
 
 // Função para upload de edital
