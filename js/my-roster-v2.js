@@ -511,20 +511,15 @@ async function generateAIAnalysis() {
     }
   }
 
-  // Spoilers NBA reais para jogadores < 25 anos (fetch paralelo + cache 30 dias)
+  // Spoilers NBA reais para jogadores < 25 anos (sequencial com delay para evitar rate limit)
   if (BDL_API_KEY) {
     const youngForSpoiler = allPlayers.filter(p => Number(p.age) < 25);
-    if (youngForSpoiler.length > 0) {
-      const spoilerResults = await Promise.all(
-        youngForSpoiler.map(talent =>
-          getRealSpoiler(talent.name).then(spoiler => ({ talent, spoiler }))
-        )
-      );
-      spoilerResults.forEach(({ talent, spoiler }) => {
-        if (spoiler) {
-          strengths.push(`<strong>🔮 Spoiler NBA — ${talent.name} (${talent.age} anos):</strong> ${spoiler.note}`);
-        }
-      });
+    for (const talent of youngForSpoiler) {
+      const spoiler = await getRealSpoiler(talent.name);
+      if (spoiler) {
+        strengths.push(`<strong>🔮 Spoiler NBA — ${talent.name} (${talent.age} anos):</strong> ${spoiler.note}`);
+      }
+      await new Promise(r => setTimeout(r, 500));
     }
   }
 
