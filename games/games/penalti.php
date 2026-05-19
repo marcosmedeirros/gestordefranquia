@@ -251,6 +251,20 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 .section-pad{padding:14px}
 .ko-phase-hdr{padding:14px 14px 8px;font-size:16px;font-weight:800;color:#fff}
 .ko-phase-sub{padding:0 14px 12px;font-size:11px;color:var(--text3)}
+
+/* score bump */
+.mt-score span{display:inline-block}
+.score-bump{animation:sBump .5s cubic-bezier(.36,.07,.19,.97) forwards}
+@keyframes sBump{0%{transform:scale(1);color:#fff}35%{transform:scale(1.8);color:var(--green)}65%{transform:scale(.88);color:var(--green)}100%{transform:scale(1);color:#fff}}
+.score-bump-opp{animation:sBumpR .5s cubic-bezier(.36,.07,.19,.97) forwards}
+@keyframes sBumpR{0%{transform:scale(1);color:#fff}35%{transform:scale(1.8);color:var(--red)}65%{transform:scale(.88);color:var(--red)}100%{transform:scale(1);color:#fff}}
+
+/* goal toast */
+.goal-toast{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) scale(0);background:rgba(10,14,23,.93);border-radius:18px;padding:14px 32px;font-size:28px;font-weight:900;z-index:500;pointer-events:none;opacity:0;transition:transform .18s ease,opacity .18s ease;text-align:center;border:2px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);white-space:nowrap}
+.goal-toast.show{transform:translate(-50%,-50%) scale(1);opacity:1}
+.goal-toast.type-goal{border-color:rgba(34,197,94,.5);color:var(--green)}
+.goal-toast.type-save{border-color:rgba(59,130,246,.5);color:#60a5fa}
+.goal-toast.type-fail{border-color:rgba(239,68,68,.5);color:var(--red)}
 </style>
 </head>
 <body>
@@ -512,6 +526,9 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
   </div>
 </div>
 
+<!-- ══ TOAST ══ -->
+<div class="goal-toast" id="goal-toast"></div>
+
 <!-- ══ OVERLAY ELIMINADO ══ -->
 <div class="result-overlay hidden" id="ov-elim">
   <div class="result-box">
@@ -523,22 +540,21 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 </div>
 
 <script>
-// ── DADOS ─────────────────────────────────────────────────────────────────────
 const TIMES = <?= json_encode(array_values($TIMES)) ?>;
 
-// ── SETOR: 3 colunas (esq / cen / dir) ───────────────────────────────────────
-// Zonas 0,3 = esq(0) | Zonas 1,4 = cen(1) | Zonas 2,5 = dir(2)
+// ── TIMING ────────────────────────────────────────────────────────────────────
+const RESULT_DELAY  = 600;  // ms após o kick para mostrar resultado
+const AUTO_NEXT     = 2000; // ms antes de avançar automaticamente
+
+// ── SETOR ────────────────────────────────────────────────────────────────────
 function sector(z) { return z % 3; }
 
-// Goleiro "lê" o setor do user ou chuta aleatório
 function keeperDive(userZone, tier, koBoost = 0) {
   const readChance = Math.min(0.60, (tier === 1 ? 0.42 : tier === 2 ? 0.26 : 0.14) + koBoost * 0.07);
   const sec = Math.random() < readChance ? sector(userZone) : Math.floor(Math.random() * 3);
-  // Retorna zona concreta naquele setor (top ou bottom)
   return sec + (Math.random() < 0.5 ? 0 : 3);
 }
 
-// Adversário escolhe zona para chutar — tier mais alto prefere cantos
 function aiShootZone(tier, koBoost = 0) {
   const cornerBias = Math.min(0.82, (tier === 1 ? 0.68 : tier === 2 ? 0.52 : 0.36) + koBoost * 0.06);
   const side = Math.random() < cornerBias ? (Math.random() < 0.5 ? 0 : 2) : 1;
@@ -746,7 +762,6 @@ function startMatch(opp, isKO, koBoost = 0) {
     opp, isKO, koBoost,
     uGoals: 0, oGoals: 0,
     kickIdx: 0,   // 0-9: par=user chuta, ímpar=opp chuta
-    dotsU: [], dotsO: [],
     locked: false,
     sd: false, sdPhase: 0, sdUserScored: null,
   };
@@ -784,27 +799,44 @@ function initDots() {
   });
 }
 
-function setDot(side, kickRound, result) {
-  const id = `dots-${side}-${kickRound}`;
-  const el = document.getElementById(id);
+// ── TOAST ────────────────────────────────────────────────────────────────────
+let _toastT = null;
+function showToast(text, type) {
+  const el = document.getElementById('goal-toast');
+  if (!el) return;
+  if (_toastT) clearTimeout(_toastT);
+  el.textContent = text;
+  el.className = `goal-toast show ${type}`;
+  _toastT = setTimeout(() => el.classList.remove('show'), 1100);
+}
+
+// ── PLACAR ───────────────────────────────────────────────────────────────────
+function addGoal(side) {
+  const cur = state.cur;
+  if (side === 'user') cur.uGoals++;
+  else cur.oGoals++;
+  const elId = side === 'user' ? 'mt-score-u' : 'mt-score-o';
+  const cls  = side === 'user' ? 'score-bump' : 'score-bump-opp';
+  const el   = document.getElementById(elId);
+  el.textContent = side === 'user' ? cur.uGoals : cur.oGoals;
+  el.classList.remove('score-bump', 'score-bump-opp');
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 500);
+}
+
+// ── DOTS (visual only) ───────────────────────────────────────────────────────
+function updateDot(side, kickRound, result) {
+  const el = document.getElementById(`dots-${side}-${kickRound}`);
   if (!el) return;
   el.classList.remove('pending');
   if (side === 'user') {
     el.className = result === 'goal' ? 'dot goal-u' : 'dot save-u';
     el.textContent = result === 'goal' ? '⚽' : '✕';
-    state.cur.dotsU[kickRound] = result;
   } else {
     el.className = result === 'goal' ? 'dot goal-o' : 'dot save-o';
-    el.textContent = result === 'goal' ? '⚽' : '✕';  // ✕ = user salvou, fundo verde distingue
-    state.cur.dotsO[kickRound] = result;
+    el.textContent = result === 'goal' ? '⚽' : '✕';
   }
-  // Placar sempre derivado dos dots — única fonte de verdade
-  const uG = state.cur.dotsU.filter(r => r === 'goal').length;
-  const oG = state.cur.dotsO.filter(r => r === 'goal').length;
-  state.cur.uGoals = uG;
-  state.cur.oGoals = oG;
-  document.getElementById('mt-score-u').textContent = uG;
-  document.getElementById('mt-score-o').textContent = oG;
 }
 
 function prepKick() {
@@ -832,7 +864,7 @@ function prepKick() {
   moveKeeper(4); // centro
 }
 
-// ── CLICK NA ZONA ──────────────────────────────────────────────────────────────
+// ── CLICK NA ZONA ────────────────────────────────────────────────────────────
 function handleZone(zone) {
   const m = state.cur;
   if (m.locked) return;
@@ -841,38 +873,58 @@ function handleZone(zone) {
   if (m.sd) { handleSD(zone); return; }
 
   const userShooting = m.kickIdx % 2 === 0;
-  const kickRound = Math.floor(m.kickIdx / 2);
+  const kickRound    = Math.floor(m.kickIdx / 2);
 
+  let result, keepZone;
   if (userShooting) {
-    const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
-    const saved = sector(zone) === sector(keepZone);
-    const result = saved ? 'save' : 'goal';
+    keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
+    result   = sector(zone) === sector(keepZone) ? 'save' : 'goal';
     animateShoot(zone, keepZone, result, true);
-    setDot('user', kickRound, result); // atualiza placar via dots
-    if (result === 'goal') setStatus('⚽ GOL! Você marcou!', 'ok');
-    else setStatus('🧤 Defendido! O goleiro foi no lado certo.', 'fail');
   } else {
     const oppZone = aiShootZone(m.opp.tier, m.koBoost);
-    const saved = sector(zone) === sector(oppZone);
-    const result = saved ? 'save' : 'goal';
-    const keepZone = saved ? oppZone : zone;
+    result   = sector(zone) === sector(oppZone) ? 'save' : 'goal';
+    keepZone = result === 'save' ? oppZone : zone;
     animateShoot(oppZone, keepZone, result, false);
-    setDot('opp', kickRound, result); // atualiza placar via dots
-    if (result === 'save') setStatus('🧤 Você defendeu! Lado certo!', 'ok');
-    else setStatus('😬 Gol do adversário! Lado errado.', 'fail');
   }
+
+  // Resultado sincronizado com a animação da bola (~600 ms)
+  setTimeout(() => {
+    if (userShooting) {
+      updateDot('user', kickRound, result);
+      if (result === 'goal') {
+        addGoal('user');
+        showToast('⚽ GOL!', 'type-goal');
+        setStatus('⚽ GOL! Você marcou!', 'ok');
+      } else {
+        showToast('🧤 Defendido', 'type-save');
+        setStatus('🧤 Defendido! O goleiro foi no lado certo.', 'fail');
+      }
+    } else {
+      updateDot('opp', kickRound, result);
+      if (result === 'goal') {
+        addGoal('opp');
+        showToast('😬 Gol deles!', 'type-fail');
+        setStatus('😬 Gol do adversário! Você foi pro lado errado.', 'fail');
+      } else {
+        showToast('🧤 Defendeu!', 'type-goal');
+        setStatus('🧤 Você defendeu! Lado certo!', 'ok');
+      }
+    }
+  }, RESULT_DELAY);
 
   m.kickIdx++;
   if (m.kickIdx >= 10) {
-    setTimeout(finishMatch, 1900);
+    setTimeout(finishMatch, RESULT_DELAY + 1400);
   } else {
-    const skipBtn = document.getElementById('btn-next-kick');
-    skipBtn.classList.remove('hidden');
-    const autoTimer = setTimeout(() => {
-      skipBtn.classList.add('hidden');
-      nextKick();
-    }, 1900);
-    skipBtn.onclick = () => { clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
+    setTimeout(() => {
+      const skipBtn = document.getElementById('btn-next-kick');
+      skipBtn.classList.remove('hidden');
+      const autoTimer = setTimeout(() => {
+        skipBtn.classList.add('hidden');
+        nextKick();
+      }, AUTO_NEXT);
+      skipBtn.onclick = () => { clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
+    }, RESULT_DELAY + 50);
   }
 }
 
@@ -969,10 +1021,9 @@ function nextKick() {
   state.cur.locked = false;
   document.getElementById('btn-next-kick').classList.add('hidden');
   resetZoneBtns();
-  highlightZone(0, 'save'); // limpa
-  document.getElementById('zone-hl') && document.getElementById('zone-hl').setAttribute('width','0');
+  const hl = document.getElementById('zone-hl');
+  if (hl) hl.setAttribute('width','0');
   moveKeeper(4);
-  // Bola no chão volta
   const kb = document.getElementById('kick-ball');
   if (kb) kb.setAttribute('opacity','1');
   prepKick();
@@ -1007,41 +1058,52 @@ function handleSD(zone) {
   const m = state.cur;
 
   if (m.sdPhase === 0) {
-    // User chuta — goleiro lê por setor
     const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
     const saved = sector(zone) === sector(keepZone);
     m.sdUserScored = !saved;
     animateShoot(zone, keepZone, saved ? 'save' : 'goal', true);
-    if (m.sdUserScored) setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
-    else setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
+    setTimeout(() => {
+      if (m.sdUserScored) {
+        showToast('⚽ GOL!', 'type-goal');
+        setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
+      } else {
+        showToast('🧤 Defendido', 'type-save');
+        setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
+      }
+    }, RESULT_DELAY);
     m.sdPhase = 1;
     setTimeout(() => {
       resetZoneBtns();
       moveKeeper(4);
       prepKick();
       m.locked = false;
-    }, 900);
+    }, RESULT_DELAY + 900);
   } else {
-    // User defende — adversário chuta por setor
     const oppZone = aiShootZone(m.opp.tier, m.koBoost);
     const saved = sector(zone) === sector(oppZone);
     const scored = !saved;
     const keepZone = saved ? oppZone : zone;
     animateShoot(oppZone, keepZone, scored ? 'goal' : 'save', false);
-    const userWins = m.sdUserScored && !scored;
+    const userWins  = m.sdUserScored && !scored;
     const userLoses = !m.sdUserScored && scored;
-    if (!scored) setStatus('🧤 Você defendeu!', 'ok');
-    else setStatus('😬 Gol do adversário!', 'fail');
     setTimeout(() => {
-      if (userWins) { m.uGoals++; showResult(true, false); }
-      else if (userLoses) { m.oGoals++; showResult(false, false); }
-      else {
-        // Nova rodada morte súbita
-        m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
-        resetZoneBtns(); moveKeeper(4); prepKick();
-        setStatus('Continua! Nova rodada.', 'neutral');
+      if (!scored) {
+        showToast('🧤 Defendeu!', 'type-goal');
+        setStatus('🧤 Você defendeu!', 'ok');
+      } else {
+        showToast('😬 Gol deles!', 'type-fail');
+        setStatus('😬 Gol do adversário!', 'fail');
       }
-    }, 900);
+      setTimeout(() => {
+        if (userWins) { addGoal('user'); showResult(true, false); }
+        else if (userLoses) { addGoal('opp'); showResult(false, false); }
+        else {
+          m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
+          resetZoneBtns(); moveKeeper(4); prepKick();
+          setStatus('Nova rodada!', 'neutral');
+        }
+      }, 500);
+    }, RESULT_DELAY);
   }
 }
 
