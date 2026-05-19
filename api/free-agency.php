@@ -58,7 +58,10 @@ function ensureNewFaTables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         // Adiciona coluna priority se ainda não existe (migration automática)
-        $pdo->exec("ALTER TABLE fa_request_offers ADD COLUMN IF NOT EXISTS priority TINYINT NOT NULL DEFAULT 2 AFTER amount");
+        $hasPriority = $pdo->query("SHOW COLUMNS FROM fa_request_offers LIKE 'priority'")->fetch();
+        if (!$hasPriority) {
+            $pdo->exec("ALTER TABLE fa_request_offers ADD COLUMN priority TINYINT NOT NULL DEFAULT 2 AFTER amount");
+        }
     } catch (Exception $e) {
         error_log('[free-agency] ensureNewFaTables: ' . $e->getMessage());
     }
