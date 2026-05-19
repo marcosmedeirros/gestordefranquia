@@ -5,65 +5,112 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit;
 $user_id = (int)$_SESSION['user_id'];
 
 $TIMES = [
-  ['name'=>'Flamengo',             'tier'=>1,'badge'=>'FLA','color'=>'#e30613','dark'=>'#9e0000'],
-  ['name'=>'Corinthians',          'tier'=>1,'badge'=>'COR','color'=>'#1a1a1a','dark'=>'#000'],
-  ['name'=>'Palmeiras',            'tier'=>1,'badge'=>'PAL','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'São Paulo',            'tier'=>1,'badge'=>'SPF','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Santos',               'tier'=>1,'badge'=>'SAN','color'=>'#555','dark'=>'#222'],
-  ['name'=>'Vasco da Gama',        'tier'=>1,'badge'=>'VAS','color'=>'#222','dark'=>'#000'],
-  ['name'=>'Fluminense',           'tier'=>1,'badge'=>'FLU','color'=>'#8b0000','dark'=>'#600'],
-  ['name'=>'Botafogo',             'tier'=>1,'badge'=>'BOT','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Atlético Mineiro',     'tier'=>1,'badge'=>'CAM','color'=>'#1a1a1a','dark'=>'#000'],
-  ['name'=>'Cruzeiro',             'tier'=>1,'badge'=>'CRU','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Grêmio',               'tier'=>1,'badge'=>'GRE','color'=>'#3c6eb4','dark'=>'#1a3a8f'],
-  ['name'=>'Internacional',        'tier'=>2,'badge'=>'INT','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Athletico PR',         'tier'=>2,'badge'=>'CAP','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Coritiba',             'tier'=>2,'badge'=>'COT','color'=>'#1a6b2c','dark'=>'#0d4a1e'],
-  ['name'=>'Bahia',                'tier'=>2,'badge'=>'BAH','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Vitória',              'tier'=>2,'badge'=>'VIT','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Sport Recife',         'tier'=>2,'badge'=>'SPT','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Náutico',              'tier'=>2,'badge'=>'NAU','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Santa Cruz',           'tier'=>2,'badge'=>'SCR','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Ceará',                'tier'=>2,'badge'=>'CEA','color'=>'#1a1a1a','dark'=>'#000'],
-  ['name'=>'Fortaleza',            'tier'=>2,'badge'=>'FOR','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Goiás',                'tier'=>2,'badge'=>'GOI','color'=>'#1a6b2c','dark'=>'#0d4a1e'],
-  ['name'=>'Atlético GO',          'tier'=>2,'badge'=>'ACG','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Guarani',              'tier'=>2,'badge'=>'GUA','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Ponte Preta',          'tier'=>2,'badge'=>'PON','color'=>'#1a1a1a','dark'=>'#000'],
-  ['name'=>'Portuguesa',           'tier'=>2,'badge'=>'POR','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'América MG',           'tier'=>2,'badge'=>'AME','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Chapecoense',          'tier'=>2,'badge'=>'CHA','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Avaí',                 'tier'=>2,'badge'=>'AVA','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Figueirense',          'tier'=>2,'badge'=>'FIG','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Paraná Clube',         'tier'=>2,'badge'=>'PAR','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Juventude',            'tier'=>2,'badge'=>'JUV','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Remo',                 'tier'=>3,'badge'=>'REM','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Paysandu',             'tier'=>3,'badge'=>'PAY','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'CSA',                  'tier'=>3,'badge'=>'CSA','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'CRB',                  'tier'=>3,'badge'=>'CRB','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'ABC',                  'tier'=>3,'badge'=>'ABC','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'América RN',           'tier'=>3,'badge'=>'AMR','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Sampaio Corrêa',       'tier'=>3,'badge'=>'SAM','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Moto Club',            'tier'=>3,'badge'=>'MOT','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Treze',                'tier'=>3,'badge'=>'TRE','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Campinense',           'tier'=>3,'badge'=>'CPS','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Botafogo-PB',          'tier'=>3,'badge'=>'BPB','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Confiança',            'tier'=>3,'badge'=>'CON','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Sergipe',              'tier'=>3,'badge'=>'SER','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Joinville',            'tier'=>3,'badge'=>'JOI','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Criciúma',             'tier'=>3,'badge'=>'CRI','color'=>'#f5a800','dark'=>'#b37800'],
-  ['name'=>'Operário PR',          'tier'=>3,'badge'=>'OPE','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Londrina',             'tier'=>3,'badge'=>'LON','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Vila Nova',            'tier'=>3,'badge'=>'VNO','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Brasil de Pelotas',    'tier'=>3,'badge'=>'BPE','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Caxias',               'tier'=>3,'badge'=>'CAX','color'=>'#cc0000','dark'=>'#900'],
-  ['name'=>'Ypiranga-RS',          'tier'=>3,'badge'=>'YPI','color'=>'#f5a800','dark'=>'#b37800'],
-  ['name'=>'São Bento',            'tier'=>3,'badge'=>'SBE','color'=>'#1a3a8f','dark'=>'#0d1f5c'],
-  ['name'=>'Ferroviária',          'tier'=>3,'badge'=>'FER','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'XV de Piracicaba',     'tier'=>3,'badge'=>'XVP','color'=>'#006b3c','dark'=>'#004a29'],
-  ['name'=>'Bangu',                'tier'=>3,'badge'=>'BAN','color'=>'#333','dark'=>'#111'],
-  ['name'=>'Madureira',            'tier'=>3,'badge'=>'MAD','color'=>'#f5a800','dark'=>'#b37800'],
+  ['slug'=>'flamengo',     'name'=>'Flamengo',      'badge'=>'FLA','color'=>'#e30613','dark'=>'#9e0000',
+   'gk'=>'Julio César',    'gk_def'=>8,  'player'=>'Zico',        'player_shot'=>10],
+  ['slug'=>'corinthians',  'name'=>'Corinthians',   'badge'=>'COR','color'=>'#555','dark'=>'#222',
+   'gk'=>'Cássio',         'gk_def'=>9,  'player'=>'Sócrates',    'player_shot'=>8],
+  ['slug'=>'palmeiras',    'name'=>'Palmeiras',     'badge'=>'PAL','color'=>'#006b3c','dark'=>'#004a29',
+   'gk'=>'Marcos',         'gk_def'=>9,  'player'=>'Ademir',      'player_shot'=>7],
+  ['slug'=>'saopaulo',     'name'=>'São Paulo',     'badge'=>'SPF','color'=>'#cc0000','dark'=>'#900',
+   'gk'=>'Rogério Ceni',   'gk_def'=>10, 'player'=>'Rogério Ceni','player_shot'=>9],
+  ['slug'=>'santos',       'name'=>'Santos',        'badge'=>'SAN','color'=>'#777','dark'=>'#444',
+   'gk'=>'Gilmar',         'gk_def'=>9,  'player'=>'Pelé',        'player_shot'=>10],
+  ['slug'=>'vasco',        'name'=>'Vasco',         'badge'=>'VAS','color'=>'#222','dark'=>'#000',
+   'gk'=>'C. Germano',     'gk_def'=>7,  'player'=>'R. Dinamite', 'player_shot'=>8],
+  ['slug'=>'fluminense',   'name'=>'Fluminense',    'badge'=>'FLU','color'=>'#8b0000','dark'=>'#600',
+   'gk'=>'Castilho',       'gk_def'=>8,  'player'=>'Rivelino',    'player_shot'=>9],
+  ['slug'=>'botafogo',     'name'=>'Botafogo',      'badge'=>'BOT','color'=>'#444','dark'=>'#111',
+   'gk'=>'Jefferson',      'gk_def'=>8,  'player'=>'Garrincha',   'player_shot'=>10],
+  ['slug'=>'atleticmg',    'name'=>'Atlético MG',   'badge'=>'CAM','color'=>'#1a1a1a','dark'=>'#000',
+   'gk'=>'Victor',         'gk_def'=>8,  'player'=>'Reinaldo',    'player_shot'=>8],
+  ['slug'=>'cruzeiro',     'name'=>'Cruzeiro',      'badge'=>'CRU','color'=>'#1a3a8f','dark'=>'#0d1f5c',
+   'gk'=>'Fábio',          'gk_def'=>9,  'player'=>'Tostão',      'player_shot'=>9],
+  ['slug'=>'gremio',       'name'=>'Grêmio',        'badge'=>'GRE','color'=>'#3c6eb4','dark'=>'#1a3a8f',
+   'gk'=>'Danrlei',        'gk_def'=>7,  'player'=>'R. Gaúcho',   'player_shot'=>8],
+  ['slug'=>'internacional','name'=>'Internacional', 'badge'=>'INT','color'=>'#cc0000','dark'=>'#900',
+   'gk'=>'Manga',          'gk_def'=>8,  'player'=>'Falcão',      'player_shot'=>10],
+  ['slug'=>'athleticpr',   'name'=>'Athletico PR',  'badge'=>'CAP','color'=>'#c00','dark'=>'#800',
+   'gk'=>'Santos',         'gk_def'=>6,  'player'=>'Alex Mineiro','player_shot'=>7],
+  ['slug'=>'bahia',        'name'=>'Bahia',         'badge'=>'BAH','color'=>'#1a3a8f','dark'=>'#0d1f5c',
+   'gk'=>'R. Passos',      'gk_def'=>6,  'player'=>'Bobô',        'player_shot'=>7],
+  ['slug'=>'fortaleza',    'name'=>'Fortaleza',     'badge'=>'FOR','color'=>'#e87722','dark'=>'#b35500',
+   'gk'=>'João Leite',     'gk_def'=>7,  'player'=>'Clodoaldo',   'player_shot'=>7],
+  ['slug'=>'ceara',        'name'=>'Ceará',         'badge'=>'CEA','color'=>'#2a2a2a','dark'=>'#000',
+   'gk'=>'Adílson',        'gk_def'=>6,  'player'=>'S. Alves',    'player_shot'=>6],
 ];
+
+// Auto-create tables
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS penalti_desbloqueados (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        team_slug VARCHAR(50) NOT NULL,
+        desbloqueado_em DATETIME DEFAULT NOW(),
+        UNIQUE KEY uk_pd (id_usuario, team_slug)
+    ) DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS penalti_conquistas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        team_slug VARCHAR(50) NOT NULL,
+        conquistado_em DATETIME DEFAULT NOW(),
+        UNIQUE KEY uk_pc (id_usuario, team_slug)
+    ) DEFAULT CHARSET=utf8mb4");
+} catch(PDOException $e) {}
+
+// AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $action = $body['action'] ?? '';
+    $validSlugs = array_column($TIMES, 'slug');
+
+    if ($action === 'comprar_time') {
+        $slug = $body['slug'] ?? '';
+        if (!in_array($slug, $validSlugs)) { echo json_encode(['ok'=>false,'msg'=>'Time inválido']); exit; }
+        $stmt = $pdo->prepare("SELECT id FROM penalti_desbloqueados WHERE id_usuario=? AND team_slug=?");
+        $stmt->execute([$user_id, $slug]);
+        if ($stmt->fetch()) { echo json_encode(['ok'=>true,'already'=>true]); exit; }
+        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+        $stmt->execute([$user_id]);
+        $u = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ((int)($u['pontos'] ?? 0) < 1000) { echo json_encode(['ok'=>false,'msg'=>'Moedas insuficientes']); exit; }
+        $pdo->prepare("UPDATE usuarios SET pontos=pontos-1000 WHERE id=?")->execute([$user_id]);
+        $pdo->prepare("INSERT IGNORE INTO penalti_desbloqueados (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
+        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+        $stmt->execute([$user_id]);
+        $newM = (int)($stmt->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
+        echo json_encode(['ok'=>true,'moedas'=>$newM]); exit;
+    }
+
+    if ($action === 'registrar_conquista') {
+        $slug = $body['slug'] ?? '';
+        if (!in_array($slug, $validSlugs)) { echo json_encode(['ok'=>false]); exit; }
+        $pdo->prepare("INSERT IGNORE INTO penalti_conquistas (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
+        echo json_encode(['ok'=>true]); exit;
+    }
+
+    echo json_encode(['ok'=>false,'msg'=>'Ação inválida']); exit;
+}
+
+// Load user data
+$desbloqueados   = [];
+$conquistas_arr  = [];
+$moedas          = 0;
+try {
+    $s = $pdo->prepare("SELECT team_slug FROM penalti_desbloqueados WHERE id_usuario=?");
+    $s->execute([$user_id]);
+    $desbloqueados = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
+} catch(PDOException $e) {}
+try {
+    $s = $pdo->prepare("SELECT team_slug FROM penalti_conquistas WHERE id_usuario=?");
+    $s->execute([$user_id]);
+    $conquistas_arr = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
+} catch(PDOException $e) {}
+try {
+    $s = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+    $s->execute([$user_id]);
+    $moedas = (int)($s->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
+} catch(PDOException $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -85,44 +132,58 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 /* ── HEADER ── */
 .hdr{background:linear-gradient(135deg,#1a2a5e,#0d1a3a);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #2a4a8f;position:sticky;top:0;z-index:100}
 .hdr-logo{font-size:24px}
-.hdr-title{font-size:15px;font-weight:800;color:#fff}
-.hdr-sub{font-size:10px;color:#7a9acc}
-.btn-back{margin-left:auto;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.hdr-title{font-size:15px;font-weight:800;color:#fff;flex:1}
+.hdr-coins{display:flex;align-items:center;gap:5px;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--gold)}
+.btn-back{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:5px;white-space:nowrap}
 
 /* ── SCREENS ── */
 .screen{display:none;max-width:540px;margin:0 auto;padding:0 0 80px}
 .screen.active{display:block}
 
-/* ── START ── */
-.start-hero{background:linear-gradient(180deg,#0d1a3a 0%,#1a2a5e 50%,#0d3a1a 100%);padding:32px 20px 24px;text-align:center;position:relative;overflow:hidden}
-.start-hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
-.hero-icon{font-size:64px;margin-bottom:10px;display:block;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
-.hero-title{font-size:26px;font-weight:900;color:#fff;margin-bottom:4px;text-shadow:0 2px 8px rgba(0,0,0,.5)}
-.hero-sub{font-size:13px;color:#aac4ee;margin-bottom:20px}
+/* ── CAMPAIGN ── */
+.camp-header{padding:16px 14px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.camp-title{font-size:17px;font-weight:800;color:#fff}
+.camp-progress{font-size:11px;color:var(--text2)}
+.camp-progress strong{color:var(--gold)}
+.camp-bar-wrap{padding:0 14px 14px}
+.camp-bar-bg{background:var(--panel2);border-radius:99px;height:6px;overflow:hidden}
+.camp-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),#ff9900);transition:width .5s ease}
 
-/* ── BOTÕES ── */
+.camp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 14px 14px}
+@media(max-width:400px){.camp-grid{grid-template-columns:repeat(3,1fr)}}
+.camp-card{border-radius:12px;padding:10px 6px 8px;cursor:pointer;text-align:center;border:2px solid;transition:.15s;position:relative;overflow:hidden}
+.camp-card:hover{transform:translateY(-2px)}
+.camp-card.locked{background:var(--panel);border-color:var(--border);filter:grayscale(1);opacity:.6}
+.camp-card.locked:hover{opacity:.8;filter:grayscale(.7)}
+.camp-card.unlocked{background:var(--panel)}
+.camp-card.conquered{background:var(--panel)}
+.camp-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;font-size:9px;font-weight:800;margin-bottom:4px;letter-spacing:.3px}
+.camp-name{font-size:9px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:4px}
+.camp-price{font-size:9px;color:var(--gold);font-weight:700;margin-bottom:3px}
+.camp-lock{font-size:14px;color:var(--text3)}
+.camp-trophy{position:absolute;top:4px;right:4px;font-size:12px}
+.camp-players{font-size:8px;color:var(--text3);line-height:1.6}
+.camp-conquered-lbl{font-size:9px;color:var(--gold);font-weight:700}
+.camp-play-btn{display:inline-block;margin-top:4px;font-size:8px;font-weight:700;color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:4px;padding:2px 6px}
+
+/* Mystery reward */
+.mystery-card{margin:0 14px 20px;background:linear-gradient(135deg,#0d1a3a,#1a0d3a);border:1px solid rgba(255,215,0,.25);border-radius:14px;padding:20px 16px;text-align:center;position:relative;overflow:hidden}
+.mystery-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(255,215,0,.07),transparent 70%)}
+.mystery-q{font-size:52px;font-weight:900;color:rgba(255,215,0,.5);line-height:1;margin-bottom:6px;text-shadow:0 0 30px rgba(255,215,0,.3)}
+.mystery-title{font-size:13px;font-weight:800;color:var(--gold);margin-bottom:6px;letter-spacing:.5px}
+.mystery-sub{font-size:11px;color:var(--text3);line-height:1.6}
+.mystery-locks{font-size:13px;letter-spacing:4px;margin-top:8px;opacity:.4}
+
+/* ── BUTTONS ── */
 .btn{border:none;border-radius:12px;padding:13px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%;transition:.15s;letter-spacing:.3px}
 .btn-primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.4)}
 .btn-primary:hover{filter:brightness(1.1)}
 .btn-success{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;box-shadow:0 4px 14px rgba(22,163,74,.4)}
 .btn-danger{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff}
 .btn-ghost{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text)}
+.btn-gold{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 4px 14px rgba(217,119,6,.4)}
 .btn-ghost:hover{background:rgba(255,255,255,.12)}
 .btn-sm{padding:8px 16px;font-size:12px;border-radius:8px;width:auto}
-
-/* ── TEAM PICKER ── */
-.tier-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:16px 16px 8px;display:flex;align-items:center;gap:8px}
-.tier-label::after{content:'';flex:1;height:1px;background:var(--border)}
-.tier-1-lbl{color:#ffd700}
-.tier-2-lbl{color:#aaa}
-.tier-3-lbl{color:#cd7f32}
-.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 8px}
-.team-card{background:var(--panel);border:2px solid var(--border);border-radius:12px;padding:10px 6px;cursor:pointer;text-align:center;transition:.15s;position:relative;overflow:hidden}
-.team-card:hover{transform:translateY(-2px);border-color:var(--border2)}
-.team-card.selected{border-color:var(--amber)!important}
-.tc-badge{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;font-size:10px;font-weight:800;margin-bottom:4px;letter-spacing:.3px}
-.tc-name{font-size:10px;font-weight:600;color:var(--text);line-height:1.2}
-.tc-diff{font-size:9px;color:var(--text3);margin-top:2px}
 
 /* ── GROUPS SCREEN ── */
 .groups-wrap{padding:12px}
@@ -141,91 +202,62 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 .g-pts{font-size:12px;font-weight:700;color:var(--amber);min-width:22px;text-align:right}
 .g-saldo{font-size:10px;color:var(--text3);min-width:28px;text-align:center}
 .g-pld{font-size:10px;color:var(--text3);min-width:18px;text-align:center}
-
 .match-live-feed{background:var(--panel3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2);min-height:32px}
 .live-result{animation:fadeIn .3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-
 .classif{display:inline-block;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px}
 .classif.q{background:rgba(34,197,94,.2);color:var(--green)}
 .classif.e{background:rgba(239,68,68,.15);color:var(--red)}
 
-/* ── ESTÁDIO / CAMPO ── */
-.stadium{background:linear-gradient(180deg,#1a5c1a 0%,#2d8a2d 40%,#3aa03a 60%,#2d8a2d 100%);position:relative;overflow:hidden;border-radius:14px 14px 0 0;user-select:none}
-.stadium-bg{width:100%;display:block}
-
-/* Campo com perspectiva */
+/* ── FIELD ── */
 .field-scene{position:relative;width:100%;background:linear-gradient(180deg,#87CEEB 0%,#b0e0ff 30%,#4a8a4a 30.1%,#3a7a3a 60%,#2d6a2d 100%);overflow:hidden;border-radius:14px 14px 0 0}
 .crowd{width:100%;height:30px;background:linear-gradient(90deg,#b44,#48b,#4b8,#b84,#84b,#4bb,#bb4,#b44);opacity:.7;position:relative}
 .crowd::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(0,0,0,.15) 0px,rgba(0,0,0,.15) 2px,transparent 2px,transparent 8px)}
 .sky{height:20px;background:linear-gradient(180deg,#1a3a6a,#2a5a9a)}
 .grass-top{height:8px;background:#3a8a3a;border-bottom:2px solid rgba(255,255,255,.3)}
-
-/* GOL SVG */
 .goal-container{position:relative;max-width:320px;margin:0 auto;padding:8px 10px 0}
 .goal-svg{width:100%;display:block;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
-
-/* KICKER */
 .kicker-container{position:relative;max-width:320px;margin:-10px auto 0;height:90px;display:flex;align-items:flex-end;justify-content:center}
 .kicker-svg{width:70px;height:90px;display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
 .kicker-svg.kick-anim{animation:kickAnim .35s ease forwards}
-@keyframes kickAnim{
-  0%{transform:translateY(0) rotate(0deg)}
-  30%{transform:translateY(-6px) rotate(-5deg)}
-  60%{transform:translateY(-4px) rotate(3deg)}
-  100%{transform:translateY(0) rotate(0deg)}
-}
+@keyframes kickAnim{0%{transform:translateY(0) rotate(0deg)}30%{transform:translateY(-6px) rotate(-5deg)}60%{transform:translateY(-4px) rotate(3deg)}100%{transform:translateY(0) rotate(0deg)}}
 
-/* BALL animation */
-.ball-fly{position:absolute;transition:all .32s cubic-bezier(.2,0,.5,1);pointer-events:none;font-size:18px;z-index:10}
-
-/* ZONA BUTTONS */
-.zone-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;padding:8px 12px 10px;max-width:380px;margin:0 auto}
-.zone-btn{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:10px;height:52px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;overflow:hidden}
-.zone-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4);transform:scale(1.03)}
-.zone-btn.hit-goal{border-color:var(--green)!important;background:rgba(34,197,94,.25)!important;animation:goalFlash .4s ease}
-.zone-btn.hit-save{border-color:var(--red)!important;background:rgba(239,68,68,.2)!important}
-@keyframes goalFlash{0%,100%{opacity:1}50%{opacity:.6}}
-.zone-icon{font-size:16px}
-.zone-lbl{font-size:8px;color:rgba(255,255,255,.5)}
-
-/* MATCH PANEL */
+/* ── MATCH PANEL ── */
 .match-panel{background:var(--panel);padding:0;border-radius:0 0 14px 14px;overflow:hidden}
 .match-top{background:linear-gradient(135deg,var(--panel2),var(--panel3));padding:10px 14px;display:flex;align-items:center;gap:10px}
 .mt-team{flex:1;text-align:center}
 .mt-name{font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-attrs{font-size:9px;color:var(--text3);margin-top:2px;line-height:1.5}
 .mt-score{font-size:32px;font-weight:900;color:#fff;letter-spacing:3px;min-width:80px;text-align:center;font-variant-numeric:tabular-nums}
 .mt-round{font-size:10px;color:var(--text3);text-align:center}
-
-/* DOTS de pênalti */
 .dots-row{display:flex;align-items:center;gap:6px;padding:6px 14px 4px}
 .dots-label{font-size:10px;color:var(--text3);min-width:28px;font-weight:700}
 .dot{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:.2s}
 .dot.dot-scored{background:var(--green);border-color:var(--green)}
 .dot.dot-missed{background:rgba(239,68,68,.3);border-color:var(--red)}
 .dot.pending{opacity:.25}
-
-/* STATUS */
 .status-bar{text-align:center;padding:6px 12px 2px;font-size:13px;font-weight:700;min-height:28px}
-.s-ok{color:var(--green)}
-.s-fail{color:var(--red)}
-.s-neutral{color:var(--amber)}
-.s-info{color:var(--blue)}
-
-/* PHASE TAG */
+.s-ok{color:var(--green)}.s-fail{color:var(--red)}.s-neutral{color:var(--amber)}.s-info{color:var(--blue)}
 .phase-tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
 .phase-tag.shoot{background:rgba(245,158,11,.2);color:var(--amber)}
 .phase-tag.defend{background:rgba(59,130,246,.2);color:var(--blue)}
 .phase-tag.sd{background:rgba(239,68,68,.2);color:var(--red)}
 
-/* OVERLAY RESULTADO */
+/* ── ZONES ── */
+.zone-grid{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;padding:8px 12px 10px;max-width:380px;margin:0 auto}
+.zone-btn{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:10px;height:52px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;overflow:hidden}
+.zone-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4);transform:scale(1.03)}
+.zone-btn.hit-goal{border-color:var(--green)!important;background:rgba(34,197,94,.25)!important;animation:goalFlash .4s ease}
+.zone-btn.hit-save{border-color:var(--red)!important;background:rgba(239,68,68,.2)!important}
+@keyframes goalFlash{0%,100%{opacity:1}50%{opacity:.6}}
+.zone-icon{font-size:16px}.zone-lbl{font-size:8px;color:rgba(255,255,255,.5)}
+
+/* ── RESULT / KO / CHAMP ── */
 .result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
 .result-box{background:var(--panel);border:1px solid var(--border2);border-radius:20px;padding:28px 22px;max-width:360px;width:100%;text-align:center}
 .result-big-icon{font-size:58px;margin-bottom:8px}
 .result-title{font-size:22px;font-weight:900;margin-bottom:4px}
 .result-score-display{font-size:28px;font-weight:800;margin:10px 0;color:#fff}
-
-/* KNOCKOUT BRACKET */
 .ko-wrap{padding:12px}
 .ko-match{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
 .ko-match.user-match{border-color:rgba(245,158,11,.5)}
@@ -235,96 +267,78 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
 .ko-name{flex:1;font-size:12px;font-weight:600}
 .ko-tier{font-size:9px;color:var(--text3)}
 .user-lbl{font-size:9px;font-weight:700;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:4px}
-
-/* CHAMPION */
 .champ-screen{text-align:center;padding:40px 20px}
 .champ-icon{font-size:72px;margin-bottom:12px;display:block;animation:bounce2 .8s ease infinite alternate}
 @keyframes bounce2{from{transform:translateY(0)}to{transform:translateY(-12px)}}
 
-/* MISC */
-.hidden{display:none!important}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
-.px{padding:0 14px}
-.mb12{margin-bottom:12px}
-.section-pad{padding:14px}
-.ko-phase-hdr{padding:14px 14px 8px;font-size:16px;font-weight:800;color:#fff}
-.ko-phase-sub{padding:0 14px 12px;font-size:11px;color:var(--text3)}
-
-/* score bump */
+/* ── SCORE ANIMATION ── */
 .mt-score span{display:inline-block}
 .score-bump{animation:sBump .5s cubic-bezier(.36,.07,.19,.97) forwards}
 @keyframes sBump{0%{transform:scale(1);color:#fff}35%{transform:scale(1.8);color:var(--green)}65%{transform:scale(.88);color:var(--green)}100%{transform:scale(1);color:#fff}}
 .score-bump-opp{animation:sBumpR .5s cubic-bezier(.36,.07,.19,.97) forwards}
 @keyframes sBumpR{0%{transform:scale(1);color:#fff}35%{transform:scale(1.8);color:var(--red)}65%{transform:scale(.88);color:var(--red)}100%{transform:scale(1);color:#fff}}
 
-/* goal toast */
+/* ── TOAST ── */
 .goal-toast{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%) scale(0);background:rgba(10,14,23,.93);border-radius:18px;padding:14px 32px;font-size:28px;font-weight:900;z-index:500;pointer-events:none;opacity:0;transition:transform .18s ease,opacity .18s ease;text-align:center;border:2px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);white-space:nowrap}
 .goal-toast.show{transform:translate(-50%,-50%) scale(1);opacity:1}
 .goal-toast.type-goal{border-color:rgba(34,197,94,.5);color:var(--green)}
 .goal-toast.type-save{border-color:rgba(59,130,246,.5);color:#60a5fa}
 .goal-toast.type-fail{border-color:rgba(239,68,68,.5);color:var(--red)}
+
+/* ── MODAL COMPRA ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--panel);border:1px solid var(--border2);border-radius:20px;padding:24px 20px;max-width:320px;width:100%;text-align:center}
+.modal-badge{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin:0 auto 12px}
+.modal-team-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
+.modal-attrs{font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.8}
+.modal-price{font-size:22px;font-weight:900;color:var(--gold);margin-bottom:4px}
+.modal-balance{font-size:11px;color:var(--text3);margin-bottom:18px}
+.modal-btns{display:flex;gap:10px}
+
+/* ── MISC ── */
+.hidden{display:none!important}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.px{padding:0 14px}.mb12{margin-bottom:12px}.section-pad{padding:14px}
+.ko-phase-hdr{padding:14px 14px 8px;font-size:16px;font-weight:800;color:#fff}
+.ko-phase-sub{padding:0 14px 12px;font-size:11px;color:var(--text3)}
 </style>
 </head>
 <body>
 
 <div class="hdr">
   <div class="hdr-logo">⚽</div>
-  <div>
-    <div class="hdr-title">Copa Pênaltis</div>
-    <div class="hdr-sub" id="hdr-phase">Fase de Grupos · Mata-Mata</div>
-  </div>
-  <a href="../games.php" class="btn-back btn-sm"><i class="bi bi-arrow-left"></i> Sair</a>
+  <div class="hdr-title">Copa Pênaltis</div>
+  <div class="hdr-coins" id="hdr-coins"><i class="bi bi-coin"></i><span id="coins-display"><?= number_format($moedas,0,',','.') ?></span></div>
+  <a href="../games.php" class="btn-back btn-sm"><i class="bi bi-arrow-left"></i></a>
 </div>
 
-<!-- ══ TELA 1: INÍCIO ══ -->
+<!-- ══ CAMPANHA ══ -->
 <div class="screen active" id="sc-start">
-  <div class="start-hero">
-    <span class="hero-icon">🏆</span>
-    <div class="hero-title">Copa Pênaltis</div>
-    <div class="hero-sub">Fase de Grupos · Oitavas · Quartas · Semi · Final</div>
-  </div>
-  <div class="section-pad">
-    <div class="card mb12">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.7px">Como jogar</div>
-      <div style="font-size:12px;color:var(--text2);line-height:2">
-        <div>⚽ Fase de grupos — 3 jogos, 4 times por grupo</div>
-        <div>🏅 Classificam os 2 melhores de cada grupo</div>
-        <div>⚔️ Mata-mata até a Final</div>
-        <div>🦵 Escolha a zona para <b>chutar</b></div>
-        <div>🧤 Escolha a zona para <b>defender</b></div>
-        <div>💀 Empate no mata-mata = morte súbita</div>
+  <div class="camp-header">
+    <div>
+      <div class="camp-title">Campanha</div>
+      <div class="camp-progress">
+        <strong id="conq-count"><?= count($conquistas_arr) ?></strong> de 16 conquistados 🏆
       </div>
     </div>
-    <button class="btn btn-primary" onclick="showScreen('sc-team')">
-      <i class="bi bi-controller"></i> Escolher Time & Jogar
-    </button>
+  </div>
+  <div class="camp-bar-wrap">
+    <div class="camp-bar-bg">
+      <div class="camp-bar-fill" id="camp-bar" style="width:<?= round(count($conquistas_arr)/16*100) ?>%"></div>
+    </div>
+  </div>
+  <div class="camp-grid" id="camp-grid"></div>
+
+  <!-- Recompensa misteriosa -->
+  <div class="mystery-card">
+    <div class="mystery-q">?</div>
+    <div class="mystery-title">Conquista Secreta</div>
+    <div class="mystery-sub">Vença o campeonato com todos os 16 times<br>para descobrir o que te aguarda...</div>
+    <div class="mystery-locks">🔒 🔒 🔒</div>
   </div>
 </div>
 
-<!-- ══ TELA 2: ESCOLHER TIME ══ -->
-<div class="screen" id="sc-team">
-  <div class="section-pad" style="padding-bottom:0">
-    <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:4px">Escolha seu time</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Times Tier 1 enfrentam adversários mais difíceis</div>
-  </div>
-
-  <div class="tier-label tier-1-lbl">⭐ Tier 1 — Grandes</div>
-  <div class="team-grid" id="tg-1"></div>
-
-  <div class="tier-label tier-2-lbl">🥈 Tier 2 — Médios</div>
-  <div class="team-grid" id="tg-2"></div>
-
-  <div class="tier-label tier-3-lbl">🥉 Tier 3 — Menores</div>
-  <div class="team-grid" id="tg-3"></div>
-
-  <div class="section-pad">
-    <button class="btn btn-success" id="btn-confirm-team" onclick="confirmTeam()" disabled>
-      <i class="bi bi-play-fill"></i> Confirmar Time
-    </button>
-  </div>
-</div>
-
-<!-- ══ TELA 3: GRUPOS ══ -->
+<!-- ══ GRUPOS ══ -->
 <div class="screen" id="sc-groups">
   <div class="groups-wrap">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -336,107 +350,68 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
         <div class="live-dot"></div>AO VIVO
       </div>
     </div>
-
     <div class="match-live-feed" id="live-feed">Aguardando início dos jogos...</div>
-
     <div class="all-groups" id="all-groups"></div>
-
     <button class="btn btn-primary" id="btn-play-group" onclick="playNextGroupMatch()">
       <i class="bi bi-play-fill"></i> Jogar Jogo 1 de 3
     </button>
   </div>
 </div>
 
-<!-- ══ TELA 4: PARTIDA ══ -->
+<!-- ══ PARTIDA ══ -->
 <div class="screen" id="sc-match">
-
-  <!-- CAMPO/ESTÁDIO -->
   <div class="field-scene">
     <div class="sky"></div>
     <div class="crowd"></div>
     <div class="grass-top"></div>
-
-    <!-- GOL -->
     <div class="goal-container">
       <svg class="goal-svg" viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg">
-        <!-- Fundo rede -->
-        <defs>
-          <pattern id="net" width="12" height="12" patternUnits="userSpaceOnUse">
-            <path d="M 12 0 L 0 0 0 12" fill="none" stroke="rgba(255,255,255,.15)" stroke-width=".8"/>
-          </pattern>
-        </defs>
-        <!-- Gramado perspectiva -->
+        <defs><pattern id="net" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M 12 0 L 0 0 0 12" fill="none" stroke="rgba(255,255,255,.15)" stroke-width=".8"/></pattern></defs>
         <polygon points="0,130 320,130 280,90 40,90" fill="#2d7a2d" opacity=".4"/>
-        <!-- Rede fundo -->
         <rect x="52" y="14" width="216" height="76" fill="url(#net)"/>
-        <!-- Posts -->
         <rect x="48" y="10" width="8" height="80" rx="3" fill="#ddd"/>
         <rect x="264" y="10" width="8" height="80" rx="3" fill="#ddd"/>
         <rect x="48" y="10" width="224" height="8" rx="3" fill="#ddd"/>
-        <!-- Divisões de zona (linhas guia) -->
         <line x1="121" y1="18" x2="121" y2="90" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
         <line x1="196" y1="18" x2="196" y2="90" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
         <line x1="56" y1="54" x2="264" y2="54" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="5,4"/>
-        <!-- Highlight zona selecionada -->
         <rect id="zone-hl" x="0" y="0" width="0" height="0" rx="4" opacity=".7"/>
-        <!-- Goleiro -->
         <g id="keeper-g" style="transition:transform .22s ease">
-          <!-- corpo do goleiro -->
           <ellipse cx="160" cy="74" rx="10" ry="12" fill="#ff8c00"/>
           <circle cx="160" cy="58" r="9" fill="#ffcc99"/>
-          <!-- luvas -->
           <ellipse cx="148" cy="70" rx="5" ry="4" fill="#ff8c00"/>
           <ellipse cx="172" cy="70" rx="5" ry="4" fill="#ff8c00"/>
-          <!-- pernas -->
           <rect x="153" y="83" width="6" height="14" rx="3" fill="#1a1a8f"/>
           <rect x="161" y="83" width="6" height="14" rx="3" fill="#1a1a8f"/>
         </g>
-        <!-- Bola (começa fora da tela) -->
-        <circle id="ball-g" cx="160" cy="200" r="8" fill="white" stroke="#333" stroke-width="1.5" opacity="0">
-          <animate id="ball-anim" attributeName="opacity" values="0" dur="0s"/>
-        </circle>
+        <circle id="ball-g" cx="160" cy="200" r="8" fill="white" stroke="#333" stroke-width="1.5" opacity="0"/>
       </svg>
     </div>
-
-    <!-- KICKER -->
     <div class="kicker-container">
       <svg id="kicker-svg" class="kicker-svg" viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg">
-        <!-- Sombra -->
         <ellipse cx="35" cy="88" rx="16" ry="3" fill="rgba(0,0,0,.3)"/>
-        <!-- Bola no chão -->
         <circle id="kick-ball" cx="44" cy="80" r="6" fill="white" stroke="#333" stroke-width="1"/>
-        <!-- Perna traseira -->
         <line x1="32" y1="62" x2="25" y2="82" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
-        <!-- Perna de chute (animada) -->
         <g id="kick-leg">
           <line x1="38" y1="62" x2="46" y2="80" stroke="#1a1a8f" stroke-width="5" stroke-linecap="round"/>
           <line x1="46" y1="80" x2="50" y2="82" stroke="#cc0000" stroke-width="4" stroke-linecap="round"/>
         </g>
-        <!-- Corpo -->
         <rect x="26" y="36" width="18" height="28" rx="6" fill="#cc0000"/>
-        <!-- Número -->
         <text x="35" y="54" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle" font-weight="bold">10</text>
-        <!-- Braço esq -->
         <line x1="28" y1="42" x2="18" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
-        <!-- Braço dir -->
         <line x1="42" y1="42" x2="52" y2="54" stroke="#cc0000" stroke-width="5" stroke-linecap="round"/>
-        <!-- Pescoço -->
         <rect x="31" y="30" width="8" height="8" rx="3" fill="#ffcc99"/>
-        <!-- Cabeça -->
         <circle cx="35" cy="22" r="12" fill="#ffcc99"/>
-        <!-- Cabelo -->
         <ellipse cx="35" cy="13" rx="11" ry="5" fill="#3a2000"/>
       </svg>
     </div>
   </div>
 
-  <!-- PAINEL DA PARTIDA -->
   <div class="match-panel">
-    <!-- Placar -->
     <div class="match-top">
       <div class="mt-team">
         <div class="mt-name" id="mt-user-name">Seu Time</div>
-        <div style="font-size:9px;color:var(--text3)" id="mt-user-badge"></div>
+        <div class="mt-attrs" id="mt-user-attrs"></div>
       </div>
       <div style="text-align:center">
         <div class="mt-score"><span id="mt-score-u">0</span><span style="color:var(--text3);font-size:20px"> × </span><span id="mt-score-o">0</span></div>
@@ -444,11 +419,10 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
       </div>
       <div class="mt-team">
         <div class="mt-name" id="mt-opp-name">Adversário</div>
-        <div style="font-size:9px;color:var(--text3)" id="mt-opp-badge"></div>
+        <div class="mt-attrs" id="mt-opp-attrs"></div>
       </div>
     </div>
 
-    <!-- Dots de pênalti por time -->
     <div class="dots-row">
       <div class="dots-label" id="dots-lbl-u" style="font-size:9px"></div>
       <div id="dots-user" style="display:flex;gap:3px"></div>
@@ -462,14 +436,11 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
       <span class="phase-tag shoot" id="phase-tag">🦵 Você chuta</span>
     </div>
     <div class="status-bar s-neutral" id="status-bar">Escolha uma zona no gol</div>
-
-    <!-- Labels de setor -->
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;padding:0 12px 2px;max-width:380px;margin:0 auto">
-      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">◀ ESQ</div>
-      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">▼ CEN</div>
-      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.5px">DIR ▶</div>
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35)">◀ ESQ</div>
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35)">▼ CEN</div>
+      <div style="text-align:center;font-size:9px;color:rgba(255,255,255,.35)">DIR ▶</div>
     </div>
-    <!-- ZONAS DE CHUTE/DEFESA -->
     <div class="zone-grid" id="zone-grid">
       <div class="zone-btn" data-zone="0" onclick="handleZone(0)"><span class="zone-icon">↖</span><span class="zone-lbl">Alto Esq</span></div>
       <div class="zone-btn" data-zone="1" onclick="handleZone(1)"><span class="zone-icon">⬆</span><span class="zone-lbl">Alto Cen</span></div>
@@ -478,17 +449,13 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
       <div class="zone-btn" data-zone="4" onclick="handleZone(4)"><span class="zone-icon">⬇</span><span class="zone-lbl">Baixo Cen</span></div>
       <div class="zone-btn" data-zone="5" onclick="handleZone(5)"><span class="zone-icon">↘</span><span class="zone-lbl">Baixo Dir</span></div>
     </div>
-    <div style="text-align:center;padding:0 12px 4px;font-size:10px;color:rgba(255,255,255,.3)" id="sector-hint">Esq / Centro / Dir determinam o resultado</div>
-
     <div style="padding:4px 12px 14px;text-align:center">
-      <button class="btn btn-ghost hidden" id="btn-next-kick" onclick="nextKick()" style="padding:8px;font-size:12px">
-        Pular ›
-      </button>
+      <button class="btn btn-ghost hidden" id="btn-next-kick" style="padding:8px;font-size:12px">Pular ›</button>
     </div>
   </div>
 </div>
 
-<!-- ══ TELA 5: RESULTADO PARTIDA ══ -->
+<!-- ══ RESULTADO ══ -->
 <div class="screen" id="sc-result">
   <div class="section-pad" style="text-align:center;padding-top:24px">
     <div class="result-big-icon" id="res-icon">🏅</div>
@@ -500,7 +467,7 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
   </div>
 </div>
 
-<!-- ══ TELA 6: MATA-MATA ══ -->
+<!-- ══ MATA-MATA ══ -->
 <div class="screen" id="sc-ko">
   <div class="ko-phase-hdr" id="ko-phase-hdr">Quartas de Final</div>
   <div class="ko-phase-sub" id="ko-phase-sub">Mata-Mata · Eliminação direta</div>
@@ -510,22 +477,19 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
   </div>
 </div>
 
-<!-- ══ TELA 7: CAMPEÃO ══ -->
+<!-- ══ CAMPEÃO ══ -->
 <div class="screen" id="sc-champ">
   <div class="champ-screen">
     <span class="champ-icon">🏆</span>
     <div style="font-size:28px;font-weight:900;color:var(--gold);margin-bottom:8px">CAMPEÃO!</div>
     <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:6px" id="champ-name"></div>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:28px">Você venceu a Copa Pênaltis!</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:28px" id="champ-sub">Você venceu a Copa Pênaltis!</div>
     <div style="display:flex;gap:10px;max-width:280px;margin:0 auto">
-      <button class="btn btn-ghost" onclick="showScreen('sc-start')">Início</button>
+      <button class="btn btn-ghost" onclick="voltarCampanha()">Campanha</button>
       <button class="btn btn-success" onclick="location.reload()">Jogar Novamente</button>
     </div>
   </div>
 </div>
-
-<!-- ══ TOAST ══ -->
-<div class="goal-toast" id="goal-toast"></div>
 
 <!-- ══ OVERLAY ELIMINADO ══ -->
 <div class="result-overlay hidden" id="ov-elim">
@@ -533,95 +497,170 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min
     <div class="result-big-icon">😔</div>
     <div class="result-title" style="color:var(--red)">Eliminado!</div>
     <div style="font-size:13px;color:var(--text2);margin:10px 0 18px" id="elim-msg"></div>
-    <button class="btn btn-danger" onclick="location.reload()">Voltar ao Início</button>
+    <button class="btn btn-danger" onclick="voltarCampanha()">Voltar à Campanha</button>
   </div>
 </div>
 
-<script>
-const TIMES = <?= json_encode(array_values($TIMES)) ?>;
+<!-- ══ MODAL COMPRA ══ -->
+<div class="modal-overlay hidden" id="modal-compra">
+  <div class="modal-box">
+    <div class="modal-badge" id="modal-badge"></div>
+    <div class="modal-team-name" id="modal-team-name"></div>
+    <div class="modal-attrs" id="modal-attrs"></div>
+    <div class="modal-price">1.000 🪙</div>
+    <div class="modal-balance">Seu saldo: <strong id="modal-balance-val"></strong> moedas</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="fecharModalCompra()" style="flex:1">Cancelar</button>
+      <button class="btn btn-gold" onclick="confirmarCompra()" style="flex:1" id="modal-btn-comprar">Desbloquear</button>
+    </div>
+  </div>
+</div>
 
-// ── TIMING ────────────────────────────────────────────────────────────────────
-const RESULT_DELAY  = 600;  // ms após o kick para mostrar resultado
-const AUTO_NEXT     = 2000; // ms antes de avançar automaticamente
+<!-- ══ TOAST ══ -->
+<div class="goal-toast" id="goal-toast"></div>
+
+<script>
+const TIMES         = <?= json_encode(array_values($TIMES)) ?>;
+const DESBLOQUEADOS = new Set(<?= json_encode($desbloqueados) ?>);
+const CONQUISTAS    = new Set(<?= json_encode($conquistas_arr) ?>);
+let   userMoedas    = <?= $moedas ?>;
+
+// ── TIMING ───────────────────────────────────────────────────────────────────
+const RESULT_DELAY = 600;
+const AUTO_NEXT    = 2000;
 
 // ── SETOR ────────────────────────────────────────────────────────────────────
 function sector(z) { return z % 3; }
 
-function keeperDive(userZone, tier, koBoost = 0) {
-  const readChance = Math.min(0.60, (tier === 1 ? 0.42 : tier === 2 ? 0.26 : 0.14) + koBoost * 0.07);
-  const sec = Math.random() < readChance ? sector(userZone) : Math.floor(Math.random() * 3);
+// Goleiro adversário defende: stat do GK inimigo vs stat de chute do user
+function keeperDive(shootZone, shooterShot, gkDef, koBoost = 0) {
+  const base      = 0.08 + (gkDef - 5) * 0.08;          // def6→16% def10→48%
+  const reduction = (shooterShot - 5) * 0.03;            // shot10→15% menos
+  const readChance = Math.min(0.58, Math.max(0.06, base - reduction + koBoost * 0.05));
+  const sec = Math.random() < readChance ? sector(shootZone) : Math.floor(Math.random() * 3);
   return sec + (Math.random() < 0.5 ? 0 : 3);
 }
 
-function aiShootZone(tier, koBoost = 0) {
-  const cornerBias = Math.min(0.82, (tier === 1 ? 0.68 : tier === 2 ? 0.52 : 0.36) + koBoost * 0.06);
+// Adversário chuta: stat de chute determina preferência por cantos
+function aiShootZone(playerShot, koBoost = 0) {
+  const cornerBias = Math.min(0.85, 0.28 + (playerShot - 5) * 0.09 + koBoost * 0.05);
   const side = Math.random() < cornerBias ? (Math.random() < 0.5 ? 0 : 2) : 1;
   return side + (Math.random() < 0.5 ? 0 : 3);
 }
 
-// ── ESTADO ────────────────────────────────────────────────────────────────────
+// ── ESTADO ───────────────────────────────────────────────────────────────────
 let state = null;
-let selectedTeam = null;
+let _pendingPurchaseSlug = null;
 
 // ── GOAL GEOMETRY ─────────────────────────────────────────────────────────────
-// zonas: [x, y, w, h] dentro do SVG 320x130
 const ZONE_RECTS = [
-  [56, 18, 65, 36],  // 0 alto-esq
-  [121,18, 75, 36],  // 1 alto-cen
-  [196,18, 68, 36],  // 2 alto-dir
-  [56, 54, 65, 36],  // 3 baixo-esq
-  [121,54, 75, 36],  // 4 baixo-cen
-  [196,54, 68, 36],  // 5 baixo-dir
+  [56,18,65,36],[121,18,75,36],[196,18,68,36],
+  [56,54,65,36],[121,54,75,36],[196,54,68,36],
 ];
 function zoneCX(z){ const r=ZONE_RECTS[z]; return r[0]+r[2]/2; }
 function zoneCY(z){ const r=ZONE_RECTS[z]; return r[1]+r[3]/2; }
+const KEEPER_X = {0:-80,1:-15,2:55,3:-80,4:-15,5:55};
 
-// ── KEEPER POSITIONS ──────────────────────────────────────────────────────────
-// translateX offset para animar o keeper dentro do goal SVG
-const KEEPER_X = { 0:-80, 1:-15, 2:55, 3:-80, 4:-15, 5:55 };
+// ── CAMPANHA ──────────────────────────────────────────────────────────────────
+function renderCampaign() {
+  const grid = document.getElementById('camp-grid');
+  grid.innerHTML = TIMES.map(t => {
+    const locked     = !DESBLOQUEADOS.has(t.slug);
+    const conquered  = CONQUISTAS.has(t.slug);
+    const badgeStyle = `background:${t.color}22;color:${t.color};border:1px solid ${t.color}55`;
+    const borderColor = conquered ? 'var(--gold)' : locked ? 'var(--border)' : t.color + '55';
 
-// ── TEAM PICKER ───────────────────────────────────────────────────────────────
-(function buildPicker() {
-  [1,2,3].forEach(tier => {
-    const grid = document.getElementById('tg-' + tier);
-    TIMES.filter(t => t.tier === tier).forEach(t => {
-      const d = document.createElement('div');
-      d.className = 'team-card';
-      d.dataset.name = t.name;
-      d.innerHTML = `
-        <div class="tc-badge" style="background:${t.color}22;color:${t.color};border:1px solid ${t.color}44">${t.badge}</div>
-        <div class="tc-name">${t.name}</div>
-        <div class="tc-diff">${tier===1?'★★★':tier===2?'★★☆':'★☆☆'}</div>`;
-      d.onclick = () => selectTeam(t, d);
-      grid.appendChild(d);
+    if (locked) {
+      return `<div class="camp-card locked" style="border-color:${borderColor}" onclick="abrirModalCompra('${t.slug}')">
+        <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+        <div class="camp-name">${t.name}</div>
+        <div class="camp-lock">🔒</div>
+        <div class="camp-price">1.000 🪙</div>
+      </div>`;
+    }
+    if (conquered) {
+      return `<div class="camp-card conquered" style="border-color:var(--gold)" onclick="startGame(TIMES.find(x=>x.slug==='${t.slug}'))">
+        <div class="camp-trophy">🏆</div>
+        <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+        <div class="camp-name">${t.name}</div>
+        <div class="camp-conquered-lbl">Campeão!</div>
+        <div class="camp-players">🧤 ${t.gk}<br>⚽ ${t.player}</div>
+      </div>`;
+    }
+    return `<div class="camp-card unlocked" style="border-color:${borderColor}" onclick="startGame(TIMES.find(x=>x.slug==='${t.slug}'))">
+      <div class="camp-badge" style="${badgeStyle}">${t.badge}</div>
+      <div class="camp-name">${t.name}</div>
+      <div class="camp-players">🧤 ${t.gk}<br>⚽ ${t.player}</div>
+      <div class="camp-play-btn">▶ JOGAR</div>
+    </div>`;
+  }).join('');
+
+  const total = CONQUISTAS.size;
+  document.getElementById('conq-count').textContent = total;
+  document.getElementById('camp-bar').style.width = (total / 16 * 100) + '%';
+}
+
+// ── MODAL COMPRA ──────────────────────────────────────────────────────────────
+function abrirModalCompra(slug) {
+  const t = TIMES.find(x => x.slug === slug);
+  if (!t) return;
+  _pendingPurchaseSlug = slug;
+  document.getElementById('modal-badge').textContent    = t.badge;
+  document.getElementById('modal-badge').style.cssText  = `background:${t.color}22;color:${t.color};border:1px solid ${t.color}55;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin:0 auto 12px`;
+  document.getElementById('modal-team-name').textContent = t.name;
+  document.getElementById('modal-attrs').innerHTML = `🧤 ${t.gk} &nbsp;·&nbsp; ⚽ ${t.player}`;
+  document.getElementById('modal-balance-val').textContent = userMoedas.toLocaleString('pt-BR');
+  const btn = document.getElementById('modal-btn-comprar');
+  btn.disabled = userMoedas < 1000;
+  btn.textContent = userMoedas < 1000 ? 'Moedas insuficientes' : 'Desbloquear';
+  document.getElementById('modal-compra').classList.remove('hidden');
+}
+function fecharModalCompra() {
+  document.getElementById('modal-compra').classList.add('hidden');
+  _pendingPurchaseSlug = null;
+}
+async function confirmarCompra() {
+  if (!_pendingPurchaseSlug) return;
+  const slug = _pendingPurchaseSlug;
+  const btn  = document.getElementById('modal-btn-comprar');
+  btn.disabled = true; btn.textContent = 'Processando...';
+  try {
+    const r = await fetch(window.location.href, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'comprar_time', slug})
     });
-  });
-})();
-
-function selectTeam(team, el) {
-  document.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  el.style.borderColor = team.color;
-  selectedTeam = team;
-  const btn = document.getElementById('btn-confirm-team');
-  btn.disabled = false;
-  btn.textContent = `⚽ Jogar com ${team.name}`;
+    const d = await r.json();
+    if (d.ok) {
+      DESBLOQUEADOS.add(slug);
+      if (d.moedas !== undefined) {
+        userMoedas = d.moedas;
+        document.getElementById('coins-display').textContent = userMoedas.toLocaleString('pt-BR');
+      }
+      fecharModalCompra();
+      renderCampaign();
+    } else {
+      alert(d.msg || 'Erro ao comprar');
+      btn.disabled = false; btn.textContent = 'Desbloquear';
+    }
+  } catch(e) { btn.disabled = false; btn.textContent = 'Desbloquear'; }
 }
 
-function confirmTeam() {
-  if (!selectedTeam) return;
-  startGame(selectedTeam);
+// ── INÍCIO / CAMPANHA ─────────────────────────────────────────────────────────
+function voltarCampanha() {
+  document.getElementById('ov-elim').classList.add('hidden');
+  renderCampaign();
+  showScreen('sc-start');
 }
 
-// ── INÍCIO ────────────────────────────────────────────────────────────────────
 function startGame(userTeam) {
+  if (!userTeam) return;
   state = {
     userTeam,
     phase: 'groups',
     groups: buildGroups(userTeam),
-    gmIdx: 0,       // game index 0-2 nos grupos
-    gmList: [],     // partidas do user nos grupos
-    cur: null,      // partida corrente
+    gmIdx: 0,
+    gmList: [],
+    cur: null,
     koRound: 0,
     koBracket: [],
   };
@@ -633,92 +672,66 @@ function startGame(userTeam) {
 
 // ── GRUPOS ────────────────────────────────────────────────────────────────────
 function buildGroups(userTeam) {
-  const pool = TIMES.filter(t => t.name !== userTeam.name);
+  const pool = TIMES.filter(t => t.slug !== userTeam.slug);
   shuffle(pool);
-  const picked = [userTeam, ...pool.slice(0, 15)];
-  // Garante user na posição 0 do grupo A
-  const groups = [];
+  const picked = [userTeam, ...pool.slice(0,15)];
   const letters = ['A','B','C','D'];
-  for (let i = 0; i < 4; i++) {
-    groups.push({ name: 'Grupo ' + letters[i], teams: picked.slice(i*4, i*4+4).map(t => ({...t, pts:0, gs:0, gc:0, played:0})) });
-  }
-  return groups;
+  return letters.map((l,i) => ({
+    name: 'Grupo '+l,
+    teams: picked.slice(i*4, i*4+4).map(t => ({...t, pts:0, gs:0, gc:0, played:0}))
+  }));
 }
-
 function buildUserMatches(groups) {
-  const g = groups[0];
-  return g.teams.filter(t => t.name !== state.userTeam.name).map(opp => ({ opp, done: false }));
+  return groups[0].teams.filter(t => t.slug !== state.userTeam.slug).map(opp => ({opp, done:false}));
 }
 
-// ── SIMULAÇÃO AO VIVO DOS OUTROS GRUPOS ──────────────────────────────────────
 let liveSimTimer = null;
-const liveMessages = [];
-
 function simulateOtherGroupsLive() {
   if (liveSimTimer) clearInterval(liveSimTimer);
-  liveMessages.length = 0;
-
-  // Coleta os confrontos que precisam ser simulados
   const confrontos = [];
-  for (let gi = 1; gi < state.groups.length; gi++) {
+  for (let gi=1; gi<state.groups.length; gi++) {
     const g = state.groups[gi];
-    for (let a = 0; a < g.teams.length; a++) {
-      for (let b = a+1; b < g.teams.length; b++) {
-        confrontos.push({ gi, a, b });
-      }
-    }
+    for (let a=0; a<g.teams.length; a++)
+      for (let b=a+1; b<g.teams.length; b++)
+        confrontos.push({gi,a,b});
   }
   shuffle(confrontos);
-
-  let idx = 0;
+  let idx=0;
   liveSimTimer = setInterval(() => {
-    if (idx >= confrontos.length || state.gmIdx >= 3) {
-      clearInterval(liveSimTimer);
-      return;
-    }
-    const { gi, a, b } = confrontos[idx++];
-    const g = state.groups[gi];
-    const ta = g.teams[a], tb = g.teams[b];
-    const ga = Math.floor(Math.random()*4), gb = Math.floor(Math.random()*4);
-    ta.gs += ga; ta.gc += gb; ta.played++;
-    tb.gs += gb; tb.gc += ga; tb.played++;
-    if (ga > gb) ta.pts += 3;
-    else if (ga === gb) { ta.pts += 1; tb.pts += 1; }
-    else tb.pts += 3;
-
-    const feed = document.getElementById('live-feed');
-    if (feed) {
-      feed.innerHTML = `<span class="live-result">⚽ ${g.name}: <b>${ta.name}</b> ${ga} × ${gb} <b>${tb.name}</b></span>`;
-    }
+    if (idx>=confrontos.length || state.gmIdx>=3) { clearInterval(liveSimTimer); return; }
+    const {gi,a,b} = confrontos[idx++];
+    const g=state.groups[gi], ta=g.teams[a], tb=g.teams[b];
+    const ga=Math.floor(Math.random()*4), gb=Math.floor(Math.random()*4);
+    ta.gs+=ga; ta.gc+=gb; ta.played++;
+    tb.gs+=gb; tb.gc+=ga; tb.played++;
+    if (ga>gb) ta.pts+=3; else if (ga===gb){ta.pts+=1;tb.pts+=1;} else tb.pts+=3;
+    const feed=document.getElementById('live-feed');
+    if (feed) feed.innerHTML=`<span class="live-result">⚽ ${g.name}: <b>${ta.name}</b> ${ga} × ${gb} <b>${tb.name}</b></span>`;
     renderGroups();
   }, 1800);
 }
 
-// ── RENDER TODOS OS GRUPOS ────────────────────────────────────────────────────
 function renderGroups() {
-  const wrap = document.getElementById('all-groups');
-  if (!wrap) return;
-  wrap.innerHTML = state.groups.map((g, gi) => {
-    const sorted = [...g.teams].sort((a,b) => (b.pts-a.pts) || ((b.gs-b.gc)-(a.gs-a.gc)));
-    const isUserGrp = gi === 0;
-    const done = gi > 0 ? sorted[0].played >= 3 : state.gmIdx >= 3;
-    const header = `<div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 4px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)">
+  const wrap=document.getElementById('all-groups'); if (!wrap) return;
+  wrap.innerHTML = state.groups.map((g,gi) => {
+    const sorted=[...g.teams].sort((a,b)=>(b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
+    const done=gi>0?sorted[0].played>=3:state.gmIdx>=3;
+    const header=`<div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 4px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)">
       <span style="font-size:9px;color:var(--text3);font-weight:700">TIME</span>
       <div style="display:flex;gap:14px">
         <span style="font-size:9px;color:var(--text3);min-width:18px;text-align:center">J</span>
         <span style="font-size:9px;color:var(--text3);min-width:28px;text-align:center">SG</span>
         <span style="font-size:9px;color:var(--text3);min-width:22px;text-align:right">PTS</span>
       </div></div>`;
-    return `<div class="group-card ${isUserGrp?'user-group':''}">
+    return `<div class="group-card ${gi===0?'user-group':''}">
       <div class="group-hdr">
-        <span>${g.name}${isUserGrp?' <span style="color:var(--amber);font-size:9px">▶ SEU GRUPO</span>':''}</span>
+        <span>${g.name}${gi===0?' <span style="color:var(--amber);font-size:9px">▶ SEU GRUPO</span>':''}</span>
         ${!done?'<div class="live-dot"></div>':'<span style="font-size:9px;color:var(--text3)">✓ Encerrado</span>'}
-      </div>
-      ${header}
-      ${sorted.map((t,i) => {
-        const isUser = t.name === state.userTeam.name;
-        const saldo = t.gs - t.gc;
-        const tag = done ? (i < 2 ? '<span class="classif q">Q</span>' : '<span class="classif e">E</span>') : '';
+      </div>${header}
+      ${sorted.map((t,i)=>{
+        const isUser=t.slug===state.userTeam.slug;
+        const saldo=t.gs-t.gc;
+        const tag=done?(i<2?'<span class="classif q">Q</span>':'<span class="classif e">E</span>'):'';
         return `<div class="g-team">
           <div class="g-pos" style="color:${i<2&&done?'var(--green)':'var(--text3)'}">${i+1}º</div>
           <div class="g-dot" style="background:${t.color}"></div>
@@ -727,43 +740,25 @@ function renderGroups() {
             <div class="g-pld">${t.played}</div>
             <div class="g-saldo" style="color:${saldo>=0?'var(--green)':'var(--red)'}">${saldo>0?'+':''}${saldo}</div>
             <div class="g-pts">${t.pts}</div>
-          </div>
-        </div>`;
+          </div></div>`;
       }).join('')}
     </div>`;
   }).join('');
-
-  // Atualiza botão
-  const btn = document.getElementById('btn-play-group');
-  if (!btn) return;
-  if (state.gmIdx >= 3) {
-    btn.textContent = '📋 Ver Classificação Final & Avançar';
-    btn.onclick = advanceFromGroups;
-  } else {
-    btn.textContent = `⚽ Jogar Jogo ${state.gmIdx+1} de 3`;
-    btn.onclick = playNextGroupMatch;
-  }
-  document.getElementById('groups-round-label').textContent =
-    state.gmIdx >= 3 ? 'Fase de grupos concluída' : `Jogo ${state.gmIdx+1} de 3`;
+  const btn=document.getElementById('btn-play-group'); if (!btn) return;
+  if (state.gmIdx>=3) { btn.textContent='📋 Classificação Final & Avançar'; btn.onclick=advanceFromGroups; }
+  else { btn.textContent=`⚽ Jogar Jogo ${state.gmIdx+1} de 3`; btn.onclick=playNextGroupMatch; }
+  document.getElementById('groups-round-label').textContent=state.gmIdx>=3?'Fase de grupos concluída':`Jogo ${state.gmIdx+1} de 3`;
 }
 
-// ── PRÓXIMO JOGO DO GRUPO ─────────────────────────────────────────────────────
 function playNextGroupMatch() {
-  if (state.gmIdx >= 3) { advanceFromGroups(); return; }
+  if (state.gmIdx>=3) { advanceFromGroups(); return; }
   startMatch(state.gmList[state.gmIdx].opp, false);
 }
 
-// ── INICIAR PARTIDA ────────────────────────────────────────────────────────────
-function startMatch(opp, isKO, koBoost = 0) {
+// ── PARTIDA ───────────────────────────────────────────────────────────────────
+function startMatch(opp, isKO, koBoost=0) {
   if (liveSimTimer) clearInterval(liveSimTimer);
-  state.cur = {
-    opp, isKO, koBoost,
-    uGoals: 0, oGoals: 0,
-    kickIdx: 0,   // 0-9: par=user chuta, ímpar=opp chuta
-    locked: false,
-    sd: false, sdPhase: 0, sdUserScored: null,
-  };
-  document.getElementById('penalty-log') && (document.getElementById('penalty-log').innerHTML = '');
+  state.cur = { opp, isKO, koBoost, uGoals:0, oGoals:0, kickIdx:0, locked:false, sd:false, sdPhase:0, sdUserScored:null };
   resetZoneBtns();
   updateMatchUI();
   initDots();
@@ -771,502 +766,349 @@ function startMatch(opp, isKO, koBoost = 0) {
   prepKick();
 }
 
-// ── UI DA PARTIDA ──────────────────────────────────────────────────────────────
 function updateMatchUI() {
-  const { cur, userTeam } = state;
+  const {cur,userTeam}=state;
   document.getElementById('mt-user-name').textContent = userTeam.name;
-  document.getElementById('mt-opp-name').textContent = cur.opp.name;
-  document.getElementById('mt-user-badge').textContent = userTeam.badge;
-  document.getElementById('mt-opp-badge').textContent = cur.opp.badge;
-  document.getElementById('mt-score-u').textContent = cur.uGoals;
-  document.getElementById('mt-score-o').textContent = cur.oGoals;
-  document.getElementById('dots-lbl-u').textContent = userTeam.badge;
-  document.getElementById('dots-lbl-o').textContent = cur.opp.badge;
+  document.getElementById('mt-opp-name').textContent  = cur.opp.name;
+  document.getElementById('mt-user-attrs').innerHTML  = `🧤 ${userTeam.gk} · ⚽ ${userTeam.player}`;
+  document.getElementById('mt-opp-attrs').innerHTML   = `🧤 ${cur.opp.gk} · ⚽ ${cur.opp.player}`;
+  document.getElementById('mt-score-u').textContent   = 0;
+  document.getElementById('mt-score-o').textContent   = 0;
+  document.getElementById('dots-lbl-u').textContent   = userTeam.badge;
+  document.getElementById('dots-lbl-o').textContent   = cur.opp.badge;
 }
 
 function initDots() {
   ['dots-user','dots-opp'].forEach(id => {
-    const el = document.getElementById(id);
-    el.innerHTML = '';
+    const el=document.getElementById(id); el.innerHTML='';
     for (let i=0;i<5;i++) {
-      const d = document.createElement('div');
-      d.className = 'dot pending';
-      d.id = id + '-' + i;
-      el.appendChild(d);
+      const d=document.createElement('div'); d.className='dot pending'; d.id=id+'-'+i; el.appendChild(d);
     }
   });
 }
 
+function prepKick() {
+  const m=state.cur; if (m.locked) return;
+  const userShooting=m.kickIdx%2===0;
+  const round=Math.floor(m.kickIdx/2)+1;
+  document.getElementById('mt-round').textContent=`Pênalti ${round}/5`;
+  const tag=document.getElementById('phase-tag');
+  if (m.sd) { tag.className='phase-tag sd'; tag.textContent=m.sdPhase===0?'💀 Morte Súbita — Chute!':'💀 Morte Súbita — Defenda!'; }
+  else if (userShooting) { tag.className='phase-tag shoot'; tag.textContent=`🦵 Você chuta (${round}/5)`; }
+  else { tag.className='phase-tag defend'; tag.textContent=`🧤 Você defende (${round}/5)`; }
+  setStatus(m.sd?'Clique na zona!':userShooting?'Escolha onde chutar':'Escolha a zona para defender','neutral');
+  resetZoneBtns();
+  document.getElementById('btn-next-kick').classList.add('hidden');
+  moveKeeper(4);
+}
+
 // ── TOAST ────────────────────────────────────────────────────────────────────
-let _toastT = null;
-function showToast(text, type) {
-  const el = document.getElementById('goal-toast');
-  if (!el) return;
+let _toastT=null;
+function showToast(text,type) {
+  const el=document.getElementById('goal-toast'); if (!el) return;
   if (_toastT) clearTimeout(_toastT);
-  el.textContent = text;
-  el.className = `goal-toast show ${type}`;
-  _toastT = setTimeout(() => el.classList.remove('show'), 1100);
+  el.textContent=text; el.className=`goal-toast show ${type}`;
+  _toastT=setTimeout(()=>el.classList.remove('show'),1100);
 }
 
 // ── PLACAR ───────────────────────────────────────────────────────────────────
 function addGoal(side) {
-  const cur = state.cur;
-  if (side === 'user') cur.uGoals++;
-  else cur.oGoals++;
-  const elId = side === 'user' ? 'mt-score-u' : 'mt-score-o';
-  const cls  = side === 'user' ? 'score-bump' : 'score-bump-opp';
-  const el   = document.getElementById(elId);
-  el.textContent = side === 'user' ? cur.uGoals : cur.oGoals;
-  el.classList.remove('score-bump', 'score-bump-opp');
-  void el.offsetWidth;
-  el.classList.add(cls);
-  setTimeout(() => el.classList.remove(cls), 500);
+  const cur=state.cur;
+  if (side==='user') cur.uGoals++; else cur.oGoals++;
+  const elId=side==='user'?'mt-score-u':'mt-score-o';
+  const cls =side==='user'?'score-bump':'score-bump-opp';
+  const el  =document.getElementById(elId);
+  el.textContent=side==='user'?cur.uGoals:cur.oGoals;
+  el.classList.remove('score-bump','score-bump-opp'); void el.offsetWidth; el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls),500);
+}
+function updateDot(side,kickRound,result) {
+  const el=document.getElementById(`dots-${side}-${kickRound}`); if (!el) return;
+  el.className=result==='goal'?'dot dot-scored':'dot dot-missed';
+  el.textContent=result==='goal'?'⚽':'✕';
 }
 
-// ── DOTS (visual only) ───────────────────────────────────────────────────────
-function updateDot(side, kickRound, result) {
-  const el = document.getElementById(`dots-${side}-${kickRound}`);
-  if (!el) return;
-  el.className = result === 'goal' ? 'dot dot-scored' : 'dot dot-missed';
-  el.textContent = result === 'goal' ? '⚽' : '✕';
-}
-
-function prepKick() {
-  const m = state.cur;
-  if (m.locked) return;
-  const userShooting = m.kickIdx % 2 === 0;
-  const round = Math.floor(m.kickIdx / 2) + 1;
-  document.getElementById('mt-round').textContent = `Pênalti ${round}/5`;
-
-  const tag = document.getElementById('phase-tag');
-  if (m.sd) {
-    tag.className = 'phase-tag sd';
-    tag.textContent = m.sdPhase === 0 ? '💀 Morte Súbita — Chute!' : '💀 Morte Súbita — Defenda!';
-  } else if (userShooting) {
-    tag.className = 'phase-tag shoot';
-    tag.textContent = `🦵 Você chuta (${round}/5)`;
-  } else {
-    tag.className = 'phase-tag defend';
-    tag.textContent = `🧤 Você defende (${round}/5)`;
-  }
-
-  setStatus(m.sd ? 'Clique na zona!' : userShooting ? 'Escolha onde chutar' : 'Escolha a zona para defender', 'neutral');
-  resetZoneBtns();
-  document.getElementById('btn-next-kick').classList.add('hidden');
-  moveKeeper(4); // centro
-}
-
-// ── CLICK NA ZONA ────────────────────────────────────────────────────────────
+// ── CLICK NA ZONA ─────────────────────────────────────────────────────────────
 function handleZone(zone) {
-  const m = state.cur;
-  if (m.locked) return;
-  m.locked = true;
-
+  const m=state.cur; if (m.locked) return; m.locked=true;
   if (m.sd) { handleSD(zone); return; }
-
-  const userShooting = m.kickIdx % 2 === 0;
-  const kickRound    = Math.floor(m.kickIdx / 2);
-
+  const userShooting=m.kickIdx%2===0;
+  const kickRound=Math.floor(m.kickIdx/2);
   let result, keepZone;
+
   if (userShooting) {
-    keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
-    result   = sector(zone) === sector(keepZone) ? 'save' : 'goal';
-    animateShoot(zone, keepZone, result, true);
+    keepZone=keeperDive(zone, state.userTeam.player_shot, m.opp.gk_def, m.koBoost);
+    result=sector(zone)===sector(keepZone)?'save':'goal';
+    animateShoot(zone,keepZone,result,true);
   } else {
-    const oppZone = aiShootZone(m.opp.tier, m.koBoost);
-    result   = sector(zone) === sector(oppZone) ? 'save' : 'goal';
-    keepZone = result === 'save' ? oppZone : zone;
-    animateShoot(oppZone, keepZone, result, false);
+    const oppZone=aiShootZone(m.opp.player_shot, m.koBoost);
+    const sectorMatch=sector(zone)===sector(oppZone);
+    // Bônus do goleiro: chance de defesa milagrosa mesmo no setor errado
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.025);
+    const saved=sectorMatch||(Math.random()<gkBonus);
+    result=saved?'save':'goal';
+    keepZone=saved?oppZone:zone;
+    animateShoot(oppZone,keepZone,result,false);
   }
 
-  // Resultado sincronizado com a animação da bola (~600 ms)
-  setTimeout(() => {
+  setTimeout(()=>{
+    updateDot(userShooting?'user':'opp', kickRound, result);
     if (userShooting) {
-      updateDot('user', kickRound, result);
-      if (result === 'goal') {
-        addGoal('user');
-        showToast('⚽ GOL!', 'type-goal');
-        setStatus('⚽ GOL! Você marcou!', 'ok');
-      } else {
-        showToast('🧤 Defendido', 'type-save');
-        setStatus('🧤 Defendido! O goleiro foi no lado certo.', 'fail');
-      }
+      if (result==='goal') { addGoal('user'); showToast('⚽ GOL!','type-goal'); setStatus('⚽ GOL! Você marcou!','ok'); }
+      else { showToast('🧤 Defendido','type-save'); setStatus('🧤 Defendido! O goleiro foi no lado certo.','fail'); }
     } else {
-      updateDot('opp', kickRound, result);
-      if (result === 'goal') {
-        addGoal('opp');
-        showToast('😬 Gol deles!', 'type-fail');
-        setStatus('😬 Gol do adversário! Você foi pro lado errado.', 'fail');
-      } else {
-        showToast('🧤 Defendeu!', 'type-goal');
-        setStatus('🧤 Você defendeu! Lado certo!', 'ok');
-      }
+      if (result==='goal') { addGoal('opp'); showToast('😬 Gol deles!','type-fail'); setStatus('😬 Gol do adversário!','fail'); }
+      else { showToast('🧤 Defendeu!','type-goal'); setStatus('🧤 Você defendeu!','ok'); }
     }
   }, RESULT_DELAY);
 
   m.kickIdx++;
-  if (m.kickIdx >= 10) {
-    setTimeout(finishMatch, RESULT_DELAY + 1400);
-  } else {
-    setTimeout(() => {
-      const skipBtn = document.getElementById('btn-next-kick');
+  if (m.kickIdx>=10) { setTimeout(finishMatch, RESULT_DELAY+1400); }
+  else {
+    setTimeout(()=>{
+      const skipBtn=document.getElementById('btn-next-kick');
       skipBtn.classList.remove('hidden');
-      const autoTimer = setTimeout(() => {
-        skipBtn.classList.add('hidden');
-        nextKick();
-      }, AUTO_NEXT);
-      skipBtn.onclick = () => { clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
-    }, RESULT_DELAY + 50);
+      const autoTimer=setTimeout(()=>{ skipBtn.classList.add('hidden'); nextKick(); }, AUTO_NEXT);
+      skipBtn.onclick=()=>{ clearTimeout(autoTimer); skipBtn.classList.add('hidden'); nextKick(); };
+    }, RESULT_DELAY+50);
   }
 }
 
-// ── ANIMAÇÕES ──────────────────────────────────────────────────────────────────
-function animateShoot(ballZone, keeperZone, result, userKicking) {
-  // Kicker
-  const ksvg = document.getElementById('kicker-svg');
-  ksvg.classList.add('kick-anim');
-  setTimeout(() => ksvg.classList.remove('kick-anim'), 400);
-
-  // Bola no chão some
-  const kickBall = document.getElementById('kick-ball');
-  if (kickBall) kickBall.setAttribute('opacity','0');
-
-  // Keeper move
-  setTimeout(() => moveKeeper(keeperZone), 150);
-
-  // Highlight zona
-  highlightZone(ballZone, result);
-
-  // Botão da zona
-  setTimeout(() => {
-    const btn = document.querySelector(`.zone-btn[data-zone="${ballZone}"]`);
-    if (btn) btn.classList.add(result === 'goal' ? 'hit-goal' : 'hit-save');
-  }, 300);
-
-  // Bola no SVG voa
-  animBallSVG(ballZone, result);
+// ── ANIMAÇÕES ────────────────────────────────────────────────────────────────
+function animateShoot(ballZone,keeperZone,result) {
+  const ksvg=document.getElementById('kicker-svg');
+  ksvg.classList.add('kick-anim'); setTimeout(()=>ksvg.classList.remove('kick-anim'),400);
+  const kickBall=document.getElementById('kick-ball'); if (kickBall) kickBall.setAttribute('opacity','0');
+  setTimeout(()=>moveKeeper(keeperZone),150);
+  highlightZone(ballZone,result);
+  setTimeout(()=>{ const btn=document.querySelector(`.zone-btn[data-zone="${ballZone}"]`); if (btn) btn.classList.add(result==='goal'?'hit-goal':'hit-save'); },300);
+  animBallSVG(ballZone,result);
 }
-
-function animBallSVG(zone, result) {
-  const ball = document.getElementById('ball-g');
-  if (!ball) return;
-  const tx = zoneCX(zone), ty = zoneCY(zone);
-  ball.setAttribute('cx', 160);
-  ball.setAttribute('cy', 118);
-  ball.setAttribute('r', 11);
-  ball.setAttribute('opacity', '1');
-  ball.setAttribute('fill', 'white');
-  ball.setAttribute('stroke', '#333');
-  let progress = 0;
-  const anim = setInterval(() => {
-    progress += 0.045;
-    if (progress >= 1) { progress = 1; clearInterval(anim); }
-    const ease = progress < 0.5 ? 2*progress*progress : -1+(4-2*progress)*progress;
-    const x = 160 + (tx - 160) * ease;
-    const y = 118 + (ty - 118) * ease;
-    const r = 11 - ease * 5;
-    ball.setAttribute('cx', x);
-    ball.setAttribute('cy', y);
-    ball.setAttribute('r', r);
-    // Flash cor no final
-    if (progress >= 1) ball.setAttribute('fill', result === 'goal' ? '#22c55e' : '#ef4444');
-  }, 16);
-  setTimeout(() => {
-    ball.setAttribute('opacity','0');
-    ball.setAttribute('cx', 160);
-    ball.setAttribute('cy', 200);
-    ball.setAttribute('fill', 'white');
-    const kb = document.getElementById('kick-ball');
-    if (kb) kb.setAttribute('opacity','1');
-  }, 1400);
+function animBallSVG(zone,result) {
+  const ball=document.getElementById('ball-g'); if (!ball) return;
+  const tx=zoneCX(zone),ty=zoneCY(zone);
+  ball.setAttribute('cx',160); ball.setAttribute('cy',118); ball.setAttribute('r',11);
+  ball.setAttribute('opacity','1'); ball.setAttribute('fill','white'); ball.setAttribute('stroke','#333');
+  let progress=0;
+  const anim=setInterval(()=>{
+    progress+=0.045; if (progress>=1){progress=1;clearInterval(anim);}
+    const ease=progress<0.5?2*progress*progress:-1+(4-2*progress)*progress;
+    ball.setAttribute('cx',160+(tx-160)*ease); ball.setAttribute('cy',118+(ty-118)*ease);
+    ball.setAttribute('r',11-ease*5);
+    if (progress>=1) ball.setAttribute('fill',result==='goal'?'#22c55e':'#ef4444');
+  },16);
+  setTimeout(()=>{
+    ball.setAttribute('opacity','0'); ball.setAttribute('cx',160); ball.setAttribute('cy',200); ball.setAttribute('fill','white');
+    const kb=document.getElementById('kick-ball'); if (kb) kb.setAttribute('opacity','1');
+  },1400);
 }
-
 function moveKeeper(zone) {
-  const kg = document.getElementById('keeper-g');
-  if (!kg) return;
-  const dx = KEEPER_X[zone] ?? 0;
-  const dy = zone <= 2 ? -18 : 0;
-  kg.style.transform = `translate(${dx}px, ${dy}px)`;
+  const kg=document.getElementById('keeper-g'); if (!kg) return;
+  kg.style.transform=`translate(${KEEPER_X[zone]??0}px,${zone<=2?-18:0}px)`;
 }
-
-function highlightZone(zone, result) {
-  const hl = document.getElementById('zone-hl');
-  if (!hl) return;
-  const r = ZONE_RECTS[zone];
-  hl.setAttribute('x', r[0]); hl.setAttribute('y', r[1]);
-  hl.setAttribute('width', r[2]); hl.setAttribute('height', r[3]);
-  hl.setAttribute('fill', result === 'goal' ? 'rgba(34,197,94,.4)' : 'rgba(239,68,68,.35)');
-  setTimeout(() => hl.setAttribute('width','0'), 1000);
+function highlightZone(zone,result) {
+  const hl=document.getElementById('zone-hl'); if (!hl) return;
+  const r=ZONE_RECTS[zone];
+  hl.setAttribute('x',r[0]); hl.setAttribute('y',r[1]); hl.setAttribute('width',r[2]); hl.setAttribute('height',r[3]);
+  hl.setAttribute('fill',result==='goal'?'rgba(34,197,94,.4)':'rgba(239,68,68,.35)');
+  setTimeout(()=>hl.setAttribute('width','0'),1200);
 }
-
-function resetZoneBtns() {
-  document.querySelectorAll('.zone-btn').forEach(b => b.classList.remove('hit-goal','hit-save'));
-}
-
-function setStatus(msg, cls) {
-  const el = document.getElementById('status-bar');
-  el.textContent = msg;
-  el.className = 'status-bar s-' + cls;
-}
-
+function resetZoneBtns() { document.querySelectorAll('.zone-btn').forEach(b=>b.classList.remove('hit-goal','hit-save')); }
+function setStatus(msg,cls) { const el=document.getElementById('status-bar'); el.textContent=msg; el.className='status-bar s-'+cls; }
 function nextKick() {
-  state.cur.locked = false;
+  state.cur.locked=false;
   document.getElementById('btn-next-kick').classList.add('hidden');
   resetZoneBtns();
-  const hl = document.getElementById('zone-hl');
-  if (hl) hl.setAttribute('width','0');
+  const hl=document.getElementById('zone-hl'); if (hl) hl.setAttribute('width','0');
   moveKeeper(4);
-  const kb = document.getElementById('kick-ball');
-  if (kb) kb.setAttribute('opacity','1');
+  const kb=document.getElementById('kick-ball'); if (kb) kb.setAttribute('opacity','1');
   prepKick();
 }
 
-// ── FINALIZAR PARTIDA ──────────────────────────────────────────────────────────
+// ── FINALIZAR PARTIDA ─────────────────────────────────────────────────────────
 function finishMatch() {
-  const m = state.cur;
-  const win = m.uGoals > m.oGoals, draw = m.uGoals === m.oGoals;
-
-  if (m.isKO && draw) { startSD(); return; }
-
-  if (!m.isKO) {
-    updateGroupStandings(m.opp, m.uGoals, m.oGoals);
-    state.gmIdx++;
-  }
-  showResult(win, draw);
+  const m=state.cur; const win=m.uGoals>m.oGoals, draw=m.uGoals===m.oGoals;
+  if (m.isKO&&draw){startSD();return;}
+  if (!m.isKO){updateGroupStandings(m.opp,m.uGoals,m.oGoals);state.gmIdx++;}
+  showResult(win,draw);
 }
 
 // ── MORTE SÚBITA ──────────────────────────────────────────────────────────────
 function startSD() {
-  const m = state.cur;
-  m.sd = true; m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
-  initDots();
-  resetZoneBtns();
-  moveKeeper(4);
-  document.getElementById('mt-round').textContent = 'Morte Súbita!';
-  prepKick();
+  const m=state.cur; m.sd=true;m.sdPhase=0;m.sdUserScored=null;m.locked=false;
+  initDots();resetZoneBtns();moveKeeper(4);
+  document.getElementById('mt-round').textContent='Morte Súbita!'; prepKick();
 }
-
 function handleSD(zone) {
-  const m = state.cur;
-
-  if (m.sdPhase === 0) {
-    const keepZone = keeperDive(zone, m.opp.tier, m.koBoost);
-    const saved = sector(zone) === sector(keepZone);
-    m.sdUserScored = !saved;
-    animateShoot(zone, keepZone, saved ? 'save' : 'goal', true);
-    setTimeout(() => {
-      if (m.sdUserScored) {
-        showToast('⚽ GOL!', 'type-goal');
-        setStatus('⚽ Gol! Agora defenda para vencer!', 'ok');
-      } else {
-        showToast('🧤 Defendido', 'type-save');
-        setStatus('🧤 Defendido! Defenda para não perder!', 'fail');
-      }
-    }, RESULT_DELAY);
-    m.sdPhase = 1;
-    setTimeout(() => {
-      resetZoneBtns();
-      moveKeeper(4);
-      prepKick();
-      m.locked = false;
-    }, RESULT_DELAY + 900);
+  const m=state.cur;
+  if (m.sdPhase===0) {
+    const keepZone=keeperDive(zone,state.userTeam.player_shot,m.opp.gk_def,m.koBoost);
+    const saved=sector(zone)===sector(keepZone); m.sdUserScored=!saved;
+    animateShoot(zone,keepZone,saved?'save':'goal',true);
+    setTimeout(()=>{
+      if (m.sdUserScored){showToast('⚽ GOL!','type-goal');setStatus('⚽ Gol! Agora defenda para vencer!','ok');}
+      else{showToast('🧤 Defendido','type-save');setStatus('🧤 Defendido! Defenda para não perder!','fail');}
+    },RESULT_DELAY);
+    m.sdPhase=1;
+    setTimeout(()=>{resetZoneBtns();moveKeeper(4);prepKick();m.locked=false;},RESULT_DELAY+900);
   } else {
-    const oppZone = aiShootZone(m.opp.tier, m.koBoost);
-    const saved = sector(zone) === sector(oppZone);
-    const scored = !saved;
-    const keepZone = saved ? oppZone : zone;
-    animateShoot(oppZone, keepZone, scored ? 'goal' : 'save', false);
-    const userWins  = m.sdUserScored && !scored;
-    const userLoses = !m.sdUserScored && scored;
-    setTimeout(() => {
-      if (!scored) {
-        showToast('🧤 Defendeu!', 'type-goal');
-        setStatus('🧤 Você defendeu!', 'ok');
-      } else {
-        showToast('😬 Gol deles!', 'type-fail');
-        setStatus('😬 Gol do adversário!', 'fail');
-      }
-      setTimeout(() => {
-        if (userWins) { addGoal('user'); showResult(true, false); }
-        else if (userLoses) { addGoal('opp'); showResult(false, false); }
-        else {
-          m.sdPhase = 0; m.sdUserScored = null; m.locked = false;
-          resetZoneBtns(); moveKeeper(4); prepKick();
-          setStatus('Nova rodada!', 'neutral');
-        }
-      }, 500);
-    }, RESULT_DELAY);
+    const oppZone=aiShootZone(m.opp.player_shot,m.koBoost);
+    const sectorMatch=sector(zone)===sector(oppZone);
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.025);
+    const saved=sectorMatch||(Math.random()<gkBonus);
+    const scored=!saved;
+    animateShoot(oppZone,saved?oppZone:zone,scored?'goal':'save',false);
+    const userWins=m.sdUserScored&&!scored, userLoses=!m.sdUserScored&&scored;
+    setTimeout(()=>{
+      if (!scored){showToast('🧤 Defendeu!','type-goal');setStatus('🧤 Você defendeu!','ok');}
+      else{showToast('😬 Gol deles!','type-fail');setStatus('😬 Gol do adversário!','fail');}
+      setTimeout(()=>{
+        if (userWins){addGoal('user');showResult(true,false);}
+        else if (userLoses){addGoal('opp');showResult(false,false);}
+        else{m.sdPhase=0;m.sdUserScored=null;m.locked=false;resetZoneBtns();moveKeeper(4);prepKick();setStatus('Nova rodada!','neutral');}
+      },500);
+    },RESULT_DELAY);
   }
 }
 
-// ── STANDINGS DOS GRUPOS ───────────────────────────────────────────────────────
-function updateGroupStandings(opp, uG, oG) {
-  const g = state.groups[0];
-  const u = g.teams.find(t => t.name === state.userTeam.name);
-  const o = g.teams.find(t => t.name === opp.name);
-  u.gs += uG; u.gc += oG; u.played++;
-  o.gs += oG; o.gc += uG; o.played++;
-  if (uG > oG) u.pts += 3;
-  else if (uG === oG) { u.pts += 1; o.pts += 1; }
-  else o.pts += 3;
-
-  // Simula jogo entre os outros 2 do grupo
-  const rest = g.teams.filter(t => t.name !== state.userTeam.name && t.name !== opp.name);
-  if (rest.length >= 2) {
-    const ga = Math.floor(Math.random()*4), gb = Math.floor(Math.random()*4);
-    rest[0].gs += ga; rest[0].gc += gb; rest[0].played++;
-    rest[1].gs += gb; rest[1].gc += ga; rest[1].played++;
-    if (ga > gb) rest[0].pts += 3;
-    else if (ga === gb) { rest[0].pts += 1; rest[1].pts += 1; }
-    else rest[1].pts += 3;
+// ── STANDINGS ─────────────────────────────────────────────────────────────────
+function updateGroupStandings(opp,uG,oG) {
+  const g=state.groups[0];
+  const u=g.teams.find(t=>t.slug===state.userTeam.slug);
+  const o=g.teams.find(t=>t.slug===opp.slug);
+  u.gs+=uG;u.gc+=oG;u.played++;o.gs+=oG;o.gc+=uG;o.played++;
+  if (uG>oG)u.pts+=3;else if(uG===oG){u.pts+=1;o.pts+=1;}else o.pts+=3;
+  const rest=g.teams.filter(t=>t.slug!==state.userTeam.slug&&t.slug!==opp.slug);
+  if (rest.length>=2){
+    const ga=Math.floor(Math.random()*4),gb=Math.floor(Math.random()*4);
+    rest[0].gs+=ga;rest[0].gc+=gb;rest[0].played++;rest[1].gs+=gb;rest[1].gc+=ga;rest[1].played++;
+    if(ga>gb)rest[0].pts+=3;else if(ga===gb){rest[0].pts+=1;rest[1].pts+=1;}else rest[1].pts+=3;
   }
 }
 
-// ── RESULTADO DA PARTIDA ───────────────────────────────────────────────────────
-function showResult(win, draw) {
-  const m = state.cur;
-  document.getElementById('res-icon').textContent = win ? '🏅' : draw ? '🤝' : '😓';
-  document.getElementById('res-title').textContent = win ? 'Vitória!' : draw ? 'Empate!' : (m.isKO ? 'Eliminado!' : 'Derrota!');
-  document.getElementById('res-title').style.color = win ? 'var(--green)' : draw ? 'var(--amber)' : (m.isKO ? 'var(--red)' : 'var(--amber)');
-  document.getElementById('res-score').textContent = `${m.uGoals} × ${m.oGoals}`;
-  document.getElementById('res-teams').textContent = `${state.userTeam.name} vs ${m.opp.name}`;
-  document.getElementById('res-sub').textContent = win
-    ? (m.isKO ? `${state.userTeam.name} avança para a próxima fase!` : 'Vitória na fase de grupos!')
-    : draw ? 'Empate — 1 ponto cada.' : (m.isKO ? 'Você foi eliminado da copa.' : 'Derrota, mas ainda há jogos!');
-
-  const btn = document.getElementById('btn-res-continue');
-  if (m.isKO && !win) {
-    btn.textContent = 'Voltar ao Início';
-    btn.onclick = () => location.reload();
-  } else {
-    btn.textContent = 'Continuar ›';
-    btn.onclick = afterMatch;
-  }
+// ── RESULTADO ─────────────────────────────────────────────────────────────────
+function showResult(win,draw) {
+  const m=state.cur;
+  document.getElementById('res-icon').textContent=win?'🏅':draw?'🤝':'😓';
+  document.getElementById('res-title').textContent=win?'Vitória!':draw?'Empate!':(m.isKO?'Eliminado!':'Derrota!');
+  document.getElementById('res-title').style.color=win?'var(--green)':draw?'var(--amber)':(m.isKO?'var(--red)':'var(--amber)');
+  document.getElementById('res-score').textContent=`${m.uGoals} × ${m.oGoals}`;
+  document.getElementById('res-teams').textContent=`${state.userTeam.name} vs ${m.opp.name}`;
+  document.getElementById('res-sub').textContent=win?(m.isKO?`${state.userTeam.name} avança!`:'Vitória na fase de grupos!'):draw?'Empate — 1 ponto cada.':(m.isKO?'Você foi eliminado.':'Derrota, mas ainda há jogos!');
+  const btn=document.getElementById('btn-res-continue');
+  if (m.isKO&&!win){btn.textContent='Voltar à Campanha';btn.onclick=voltarCampanha;}
+  else{btn.textContent='Continuar ›';btn.onclick=afterMatch;}
   showScreen('sc-result');
 }
-
 function afterMatch() {
-  if (state.cur.isKO) { advanceKO(); return; }
-  showScreen('sc-groups');
-  renderGroups();
-  simulateOtherGroupsLive();
+  if (state.cur.isKO){advanceKO();return;}
+  showScreen('sc-groups');renderGroups();simulateOtherGroupsLive();
 }
 
-// ── AVANÇAR DOS GRUPOS ─────────────────────────────────────────────────────────
+// ── AVANÇAR DOS GRUPOS ────────────────────────────────────────────────────────
 function advanceFromGroups() {
   if (liveSimTimer) clearInterval(liveSimTimer);
-  const g = state.groups[0];
-  const sorted = [...g.teams].sort((a,b) => (b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
-  const userPos = sorted.findIndex(t => t.name === state.userTeam.name);
-  if (userPos >= 2) {
-    document.getElementById('elim-msg').textContent =
-      `${state.userTeam.name} terminou em ${userPos+1}º no Grupo A e não avançou.`;
-    document.getElementById('ov-elim').classList.remove('hidden');
-    return;
+  const g=state.groups[0];
+  const sorted=[...g.teams].sort((a,b)=>(b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
+  const userPos=sorted.findIndex(t=>t.slug===state.userTeam.slug);
+  if (userPos>=2){
+    document.getElementById('elim-msg').textContent=`${state.userTeam.name} terminou em ${userPos+1}º no Grupo A e não avançou.`;
+    document.getElementById('ov-elim').classList.remove('hidden'); return;
   }
-  // Monta bracket: 2 classificados de cada grupo
-  state.koBracket = [];
-  state.groups.forEach(grp => {
-    const s = [...grp.teams].sort((a,b) => (b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
-    state.koBracket.push(s[0], s[1]);
+  state.koBracket=[];
+  state.groups.forEach(grp=>{
+    const s=[...grp.teams].sort((a,b)=>(b.pts-a.pts)||((b.gs-b.gc)-(a.gs-a.gc)));
+    state.koBracket.push(s[0],s[1]);
   });
-  state.koRound = 0;
-  state.phase = 'knockout';
-  showKO();
+  state.koRound=0; state.phase='knockout'; showKO();
 }
 
-// ── MATA-MATA ──────────────────────────────────────────────────────────────────
-const KO_NAMES = ['Oitavas de Final','Quartas de Final','Semifinal','Final'];
-
+// ── MATA-MATA ─────────────────────────────────────────────────────────────────
+const KO_NAMES=['Oitavas de Final','Quartas de Final','Semifinal','Final'];
 function showKO() {
-  const r = state.koRound;
-  document.getElementById('ko-phase-hdr').textContent = KO_NAMES[r] ?? 'Final';
-  document.getElementById('ko-phase-sub').textContent = 'Mata-Mata · Eliminação direta · Empate = Morte Súbita';
-  document.getElementById('hdr-phase').textContent = KO_NAMES[r] ?? 'Final';
-
-  const bracket = state.koBracket;
-  const userIdx = bracket.findIndex(t => t && t.name === state.userTeam.name);
-  const pairIdx = userIdx % 2 === 0 ? userIdx + 1 : userIdx - 1;
-  const userOpp = bracket[pairIdx];
-
-  let html = '';
-  for (let i = 0; i < bracket.length; i += 2) {
-    const t1 = bracket[i], t2 = bracket[i+1];
-    if (!t1 || !t2) continue;
-    const isUserMatch = t1.name === state.userTeam.name || t2.name === state.userTeam.name;
-    html += `<div class="ko-match ${isUserMatch?'user-match':''}">
-      ${isUserMatch?`<div style="font-size:10px;color:var(--amber);padding:6px 12px 0;font-weight:700">⭐ SEU JOGO</div>`:''}
+  const r=state.koRound;
+  document.getElementById('ko-phase-hdr').textContent=KO_NAMES[r]??'Final';
+  document.getElementById('ko-phase-sub').textContent='Mata-Mata · Eliminação direta · Empate = Morte Súbita';
+  const bracket=state.koBracket;
+  const userIdx=bracket.findIndex(t=>t&&t.slug===state.userTeam.slug);
+  const pairIdx=userIdx%2===0?userIdx+1:userIdx-1;
+  const userOpp=bracket[pairIdx];
+  let html='';
+  for (let i=0;i<bracket.length;i+=2){
+    const t1=bracket[i],t2=bracket[i+1]; if (!t1||!t2) continue;
+    const isUM=t1.slug===state.userTeam.slug||t2.slug===state.userTeam.slug;
+    html+=`<div class="ko-match ${isUM?'user-match':''}">
+      ${isUM?`<div style="font-size:10px;color:var(--amber);padding:6px 12px 0;font-weight:700">⭐ SEU JOGO</div>`:''}
       <div class="ko-team-row">
         <div class="ko-badge" style="background:${t1.color}22;color:${t1.color}">${t1.badge}</div>
-        <div class="ko-name ${t1.name===state.userTeam.name?'':''}">
-          ${t1.name} ${t1.name===state.userTeam.name?'<span class="user-lbl">VOCÊ</span>':''}
-        </div>
-        <div class="ko-tier">Tier ${t1.tier}</div>
+        <div class="ko-name">${t1.name} ${t1.slug===state.userTeam.slug?'<span class="user-lbl">VOCÊ</span>':''}</div>
       </div>
       <div class="ko-team-row">
         <div class="ko-badge" style="background:${t2.color}22;color:${t2.color}">${t2.badge}</div>
-        <div class="ko-name">
-          ${t2.name} ${t2.name===state.userTeam.name?'<span class="user-lbl">VOCÊ</span>':''}
-        </div>
-        <div class="ko-tier">Tier ${t2.tier}</div>
-      </div>
-    </div>`;
+        <div class="ko-name">${t2.name} ${t2.slug===state.userTeam.slug?'<span class="user-lbl">VOCÊ</span>':''}</div>
+      </div></div>`;
   }
-  document.getElementById('ko-bracket').innerHTML = html;
-
-  const btn = document.getElementById('btn-ko-play');
-  btn.textContent = `⚽ Jogar vs ${userOpp?.name ?? '?'}`;
+  document.getElementById('ko-bracket').innerHTML=html;
+  document.getElementById('btn-ko-play').textContent=`⚽ Jogar vs ${userOpp?.name??'?'}`;
   showScreen('sc-ko');
 }
-
 function playKO() {
-  const bracket = state.koBracket;
-  const userIdx = bracket.findIndex(t => t && t.name === state.userTeam.name);
-  const pairIdx = userIdx % 2 === 0 ? userIdx + 1 : userIdx - 1;
-  startMatch(bracket[pairIdx], true, state.koRound + 1);
+  const bracket=state.koBracket;
+  const userIdx=bracket.findIndex(t=>t&&t.slug===state.userTeam.slug);
+  const pairIdx=userIdx%2===0?userIdx+1:userIdx-1;
+  startMatch(bracket[pairIdx],true,state.koRound+1);
 }
-
 function advanceKO() {
-  const m = state.cur;
-  const win = m.uGoals > m.oGoals;
-  if (!win) { location.reload(); return; }
-
-  const bracket = state.koBracket;
-  const winners = [];
-  for (let i = 0; i < bracket.length; i += 2) {
-    const t1 = bracket[i], t2 = bracket[i+1];
-    if (!t1 || !t2) { winners.push(t1 ?? t2); continue; }
-    if (t1.name === state.userTeam.name) { winners.push(state.userTeam); continue; }
-    if (t2.name === state.userTeam.name) { winners.push(state.userTeam); continue; }
-    const w1 = 4 - t1.tier, w2 = 4 - t2.tier;
-    winners.push(Math.random() < w1/(w1+w2) ? t1 : t2);
+  const m=state.cur; if (m.uGoals<=m.oGoals){voltarCampanha();return;}
+  const bracket=state.koBracket, winners=[];
+  for (let i=0;i<bracket.length;i+=2){
+    const t1=bracket[i],t2=bracket[i+1];
+    if (!t1||!t2){winners.push(t1??t2);continue;}
+    if (t1.slug===state.userTeam.slug){winners.push(state.userTeam);continue;}
+    if (t2.slug===state.userTeam.slug){winners.push(state.userTeam);continue;}
+    // AI vs AI: usa stats para determinar vencedor
+    const s1=t1.gk_def+t1.player_shot, s2=t2.gk_def+t2.player_shot;
+    winners.push(Math.random()<s1/(s1+s2)?t1:t2);
   }
-
-  state.koBracket = winners;
-  state.koRound++;
-
-  if (winners.length === 1) {
-    document.getElementById('champ-name').textContent = state.userTeam.name;
-    showScreen('sc-champ');
+  state.koBracket=winners; state.koRound++;
+  if (winners.length===1) {
+    registrarConquista(state.userTeam.slug);
     return;
   }
   showKO();
 }
 
-// ── UTILS ──────────────────────────────────────────────────────────────────────
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  window.scrollTo(0, 0);
+// ── CONQUISTA ─────────────────────────────────────────────────────────────────
+async function registrarConquista(slug) {
+  CONQUISTAS.add(slug);
+  document.getElementById('champ-name').textContent = state.userTeam.name;
+  const totalConq = CONQUISTAS.size;
+  document.getElementById('champ-sub').textContent =
+    totalConq >= 16
+      ? '🏆 Você conquistou todos os 16 times! Acesse a campanha para ver sua recompensa.'
+      : `Você venceu a Copa Pênaltis! (${totalConq}/16 conquistas)`;
+  showScreen('sc-champ');
+  try {
+    await fetch(window.location.href, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'registrar_conquista', slug})
+    });
+  } catch(e) {}
 }
 
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
 function shuffle(arr) {
-  for (let i = arr.length-1; i > 0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]] = [arr[j],arr[i]];
-  }
+  for (let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
   return arr;
 }
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderCampaign();
 </script>
 </body>
 </html>
