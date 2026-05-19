@@ -7,6 +7,8 @@ const isNewFaEnabled = typeof useNewFreeAgency !== 'undefined' ? !!useNewFreeAge
 let faHistoryTeamSort = null;
 let faWaiversTeamSort = null;
 
+const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function sortIndicator(direction) {
     if (direction === 'asc') return ' <i class="bi bi-caret-up-fill"></i>';
     if (direction === 'desc') return ' <i class="bi bi-caret-down-fill"></i>';
