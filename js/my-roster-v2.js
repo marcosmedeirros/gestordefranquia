@@ -344,8 +344,97 @@ let pendingSkillUpdates = [];
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
 
+// --- NBA REAL SPOILER (balldontlie.io) ---
+const BDL_API_KEY = ''; // ← Cole aqui sua chave gratuita de api.balldontlie.io
+const BDL_BASE_URL = 'https://api.balldontlie.io/nba/v1';
+
+async function getRealSpoiler(playerName) {
+  if (!BDL_API_KEY || !playerName || !playerName.trim()) return null;
+
+  const cacheKey = `nba_spoiler_${playerName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { spoiler, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < 30 * 24 * 60 * 60 * 1000) return spoiler;
+    }
+  } catch (_) {}
+
+  try {
+    const searchRes = await fetch(
+      `${BDL_BASE_URL}/players?search=${encodeURIComponent(playerName)}&per_page=1`,
+      { headers: { 'Authorization': BDL_API_KEY } }
+    );
+    if (!searchRes.ok) return null;
+    const searchData = await searchRes.json();
+    if (!searchData.data || !searchData.data.length) return null;
+    const p = searchData.data[0];
+
+    let careerPPG = '—', careerRPG = '—', careerAPG = '—';
+    let gamesPlayed = 0, seasonsPlayed = 0, hasFullStats = false;
+
+    try {
+      const statsRes = await fetch(
+        `${BDL_BASE_URL}/stats?player_ids[]=${p.id}&per_page=100`,
+        { headers: { 'Authorization': BDL_API_KEY } }
+      );
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        const games = statsData.data || [];
+        let totalPts = 0, totalReb = 0, totalAst = 0;
+        const seasonSet = new Set();
+        games.forEach(g => {
+          totalPts += Number(g.pts || 0);
+          totalReb += Number(g.reb || 0);
+          totalAst += Number(g.ast || 0);
+          if (g.season) seasonSet.add(g.season);
+        });
+        gamesPlayed = games.length;
+        seasonsPlayed = seasonSet.size;
+        if (gamesPlayed > 0) {
+          careerPPG = (totalPts / gamesPlayed).toFixed(1);
+          careerRPG = (totalReb / gamesPlayed).toFixed(1);
+          careerAPG = (totalAst / gamesPlayed).toFixed(1);
+          hasFullStats = true;
+        }
+      }
+    } catch (_) {}
+
+    const ppgNum = parseFloat(careerPPG);
+    let note;
+    if (!hasFullStats) {
+      note = `Draft ${p.draft_year || '—'}, R${p.draft_round || '—'}, Pick ${p.draft_number || '—'}. Sem estatísticas completas disponíveis ainda.`;
+    } else if (gamesPlayed === 0) {
+      note = `Sem dados de carreira NBA ainda. Provável rookie — monitore o desenvolvimento.`;
+    } else if (seasonsPlayed < 3 || ppgNum < 8) {
+      note = `Pode ser um bom role player, mas não comprometa Cap Space com ele.<br><small style="color:var(--text-3)">${careerPPG} PPG · ${careerRPG} RPG · ${careerAPG} APG — ${seasonsPlayed} temp. (${gamesPlayed} jogos)</small>`;
+    } else if (ppgNum >= 15) {
+      note = `Potencial histórico de All-Star. Lapide forte!<br><small style="color:var(--text-3)">${careerPPG} PPG · ${careerRPG} RPG · ${careerAPG} APG — ${seasonsPlayed} temp. (${gamesPlayed} jogos)</small>`;
+    } else if (ppgNum >= 10) {
+      note = `Sólido potencial como starter. Vale lapidar com moderação.<br><small style="color:var(--text-3)">${careerPPG} PPG · ${careerRPG} RPG · ${careerAPG} APG — ${seasonsPlayed} temp. (${gamesPlayed} jogos)</small>`;
+    } else {
+      note = `Role player decente com upside. Avalie com cuidado.<br><small style="color:var(--text-3)">${careerPPG} PPG · ${careerRPG} RPG · ${careerAPG} APG — ${seasonsPlayed} temp. (${gamesPlayed} jogos)</small>`;
+    }
+
+    const spoiler = {
+      realName: `${p.first_name} ${p.last_name}`,
+      draftYear: p.draft_year || '—',
+      note
+    };
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ spoiler, timestamp: Date.now() }));
+    } catch (_) {}
+
+    return spoiler;
+  } catch (e) {
+    console.warn('[BDL] Erro ao buscar spoiler:', e);
+    return null;
+  }
+}
+
 // --- LOGICA DA IA DE MELHORIAS ---
-function generateAIAnalysis() {
+async function generateAIAnalysis() {
   if (allPlayers.length === 0) {
     alert('Voce precisa ter jogadores no elenco para a IA analisar!');
     return;
@@ -362,114 +451,131 @@ function generateAIAnalysis() {
 
   aiModal.show();
 
-  setTimeout(() => {
-    const strengths = [];
-    const weaknesses = [];
+  await new Promise(r => setTimeout(r, 1200));
 
-    const starters = allPlayers.filter(p => normalizeRoleKey(p.role) === 'Titular');
+  const strengths = [];
+  const weaknesses = [];
 
-    const positionCounts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
-    allPlayers.forEach(p => {
-      if (positionCounts[p.position] !== undefined) positionCounts[p.position]++;
-    });
+  const starters = allPlayers.filter(p => normalizeRoleKey(p.role) === 'Titular');
 
-    const missingPositions = [];
-    const overloadedPositions = [];
+  const positionCounts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
+  allPlayers.forEach(p => {
+    if (positionCounts[p.position] !== undefined) positionCounts[p.position]++;
+  });
 
-    Object.entries(positionCounts).forEach(([pos, count]) => {
-      if (count < 2) missingPositions.push(pos);
-      else if (count > 4) overloadedPositions.push(pos);
-    });
+  const missingPositions = [];
+  const overloadedPositions = [];
 
-    if (missingPositions.length > 0) {
-      weaknesses.push(`<strong>Garrafao ou Perimetro Desfalcado:</strong> Falta profundidade nas posicoes <b>${missingPositions.join(', ')}</b> (menos de 2). Busque reforcos.`);
-    }
-    if (overloadedPositions.length > 0) {
-      weaknesses.push(`<strong>Congestionamento:</strong> Excesso de jogadores nas posicoes <b>${overloadedPositions.join(', ')}</b>. Considere usar alguns como moeda de troca.`);
-    }
-    if (missingPositions.length === 0 && overloadedPositions.length === 0 && allPlayers.length >= 10) {
-      strengths.push('<strong>Rotacao Equilibrada:</strong> Seu elenco tem excelente profundidade tatica nas 5 posicoes da quadra.');
-    }
+  Object.entries(positionCounts).forEach(([pos, count]) => {
+    if (count < 2) missingPositions.push(pos);
+    else if (count > 4) overloadedPositions.push(pos);
+  });
 
-    const bestPlayer = [...allPlayers].sort((a, b) => Number(b.ovr) - Number(a.ovr))[0];
-    if (bestPlayer && Number(bestPlayer.ovr) >= 89) {
-      strengths.push(`<strong>Estrela da Franquia:</strong> ${bestPlayer.name} (${bestPlayer.ovr} OVR) e um jogador de elite para carregar a equipe.`);
-    } else if (bestPlayer) {
-      weaknesses.push(`<strong>Falta de um Astro:</strong> Seu melhor jogador e ${bestPlayer.name} (${bestPlayer.ovr} OVR). O time precisa de um Franchise Player (89+).`);
-    }
+  if (missingPositions.length > 0) {
+    weaknesses.push(`<strong>Garrafao ou Perimetro Desfalcado:</strong> Falta profundidade nas posicoes <b>${missingPositions.join(', ')}</b> (menos de 2). Busque reforcos.`);
+  }
+  if (overloadedPositions.length > 0) {
+    weaknesses.push(`<strong>Congestionamento:</strong> Excesso de jogadores nas posicoes <b>${overloadedPositions.join(', ')}</b>. Considere usar alguns como moeda de troca.`);
+  }
+  if (missingPositions.length === 0 && overloadedPositions.length === 0 && allPlayers.length >= 10) {
+    strengths.push('<strong>Rotacao Equilibrada:</strong> Seu elenco tem excelente profundidade tatica nas 5 posicoes da quadra.');
+  }
 
-    if (starters.length > 0) {
-      const weakStarter = [...starters].sort((a, b) => Number(a.ovr) - Number(b.ovr))[0];
-      if (weakStarter && Number(weakStarter.ovr) < 80) {
-        weaknesses.push(`<strong>Ponto Fraco no Quinteto:</strong> A posicao ${weakStarter.position} com ${weakStarter.name} (${weakStarter.ovr} OVR) e o elo mais fraco dos titulares.`);
-      } else {
-        strengths.push('<strong>Quinteto Solido:</strong> Todos os seus titulares tem 80+ de OVR. A fundacao do time e muito forte!');
-      }
+  const bestPlayer = [...allPlayers].sort((a, b) => Number(b.ovr) - Number(a.ovr))[0];
+  if (bestPlayer && Number(bestPlayer.ovr) >= 89) {
+    strengths.push(`<strong>Estrela da Franquia:</strong> ${bestPlayer.name} (${bestPlayer.ovr} OVR) e um jogador de elite para carregar a equipe.`);
+  } else if (bestPlayer) {
+    weaknesses.push(`<strong>Falta de um Astro:</strong> Seu melhor jogador e ${bestPlayer.name} (${bestPlayer.ovr} OVR). O time precisa de um Franchise Player (89+).`);
+  }
+
+  if (starters.length > 0) {
+    const weakStarter = [...starters].sort((a, b) => Number(a.ovr) - Number(b.ovr))[0];
+    if (weakStarter && Number(weakStarter.ovr) < 80) {
+      weaknesses.push(`<strong>Ponto Fraco no Quinteto:</strong> A posicao ${weakStarter.position} com ${weakStarter.name} (${weakStarter.ovr} OVR) e o elo mais fraco dos titulares.`);
     } else {
-      weaknesses.push('<strong>Rotacao Indefinida:</strong> Voce nao definiu seus titulares corretamente.');
+      strengths.push('<strong>Quinteto Solido:</strong> Todos os seus titulares tem 80+ de OVR. A fundacao do time e muito forte!');
     }
+  } else {
+    weaknesses.push('<strong>Rotacao Indefinida:</strong> Voce nao definiu seus titulares corretamente.');
+  }
 
-    const agingPlayers = allPlayers.filter(p => Number(p.age) >= 33);
-    const youngTalents = allPlayers.filter(p => Number(p.age) <= 23 && Number(p.ovr) >= 79);
+  const agingPlayers = allPlayers.filter(p => Number(p.age) >= 33);
+  const youngTalents = allPlayers.filter(p => Number(p.age) <= 23 && Number(p.ovr) >= 79);
 
-    if (agingPlayers.length >= 3) {
-      weaknesses.push(`<strong>Elenco Envelhecido:</strong> Voce tem ${agingPlayers.length} jogadores com 33+ anos. Cuidado com a queda drastica de OVR na proxima temporada.`);
-    } else if (agingPlayers.length > 0) {
-      const bestVet = [...agingPlayers].sort((a, b) => Number(b.ovr) - Number(a.ovr))[0];
-      if (bestVet) {
-        weaknesses.push(`<strong>Risco de Regressao:</strong> Fique de olho em veteranos como ${bestVet.name} (${bestVet.age} anos). Eles tendem a perder atributos.`);
-      }
+  if (agingPlayers.length >= 3) {
+    weaknesses.push(`<strong>Elenco Envelhecido:</strong> Voce tem ${agingPlayers.length} jogadores com 33+ anos. Cuidado com a queda drastica de OVR na proxima temporada.`);
+  } else if (agingPlayers.length > 0) {
+    const bestVet = [...agingPlayers].sort((a, b) => Number(b.ovr) - Number(a.ovr))[0];
+    if (bestVet) {
+      weaknesses.push(`<strong>Risco de Regressao:</strong> Fique de olho em veteranos como ${bestVet.name} (${bestVet.age} anos). Eles tendem a perder atributos.`);
     }
+  }
 
-    if (youngTalents.length > 0) {
-      const topYoung = youngTalents[0];
-      strengths.push(`<strong>Futuro Garantido:</strong> ${topYoung.name} (${topYoung.age} anos, ${topYoung.ovr} OVR) tem enorme potencial de evolucao.`);
+  // Spoilers NBA reais para jogadores < 25 anos (fetch paralelo + cache 30 dias)
+  if (BDL_API_KEY) {
+    const youngForSpoiler = allPlayers.filter(p => Number(p.age) < 25);
+    if (youngForSpoiler.length > 0) {
+      const spoilerResults = await Promise.all(
+        youngForSpoiler.map(talent =>
+          getRealSpoiler(talent.name).then(spoiler => ({ talent, spoiler }))
+        )
+      );
+      spoilerResults.forEach(({ talent, spoiler }) => {
+        if (spoiler) {
+          strengths.push(`<strong>🔮 Spoiler NBA — ${talent.name} (${talent.age} anos):</strong> ${spoiler.note}`);
+        }
+      });
     }
+  }
 
-    const strengthsHtml = strengths.length > 0
-      ? strengths.map(s => `<li class="mb-2">${s}</li>`).join('')
-      : '<li>Nenhum destaque claro encontrado.</li>';
-    const weaknessesHtml = weaknesses.length > 0
-      ? weaknesses.map(w => `<li class="mb-2">${w}</li>`).join('')
-      : '<li>Seu time esta perfeito!</li>';
+  if (youngTalents.length > 0) {
+    const topYoung = youngTalents[0];
+    strengths.push(`<strong>Futuro Garantido:</strong> ${topYoung.name} (${topYoung.age} anos, ${topYoung.ovr} OVR) tem enorme potencial de evolucao.`);
+  }
 
-    const strengthsEl = document.getElementById('ai-strengths');
-    const weaknessesEl = document.getElementById('ai-weaknesses');
-    if (strengthsEl) strengthsEl.innerHTML = strengthsHtml;
-    if (weaknessesEl) weaknessesEl.innerHTML = weaknessesHtml;
+  const strengthsHtml = strengths.length > 0
+    ? strengths.map(s => `<li class="mb-2">${s}</li>`).join('')
+    : '<li>Nenhum destaque claro encontrado.</li>';
+  const weaknessesHtml = weaknesses.length > 0
+    ? weaknesses.map(w => `<li class="mb-2">${w}</li>`).join('')
+    : '<li>Seu time esta perfeito!</li>';
 
-    // Card de status da franquia
-    const aiTag = computeAiTag(allPlayers);
-    const statusContainer = document.getElementById('ai-status-container');
-    if (statusContainer && aiTag && TAG_META[aiTag]) {
-      const m = TAG_META[aiTag];
-      const starters = allPlayers.filter(p => normalizeRoleKey(p.role) === 'Titular');
-      const top5 = [...starters].sort((a,b)=>Number(b.ovr)-Number(a.ovr)).slice(0,5);
-      const avgOvr = top5.length ? (top5.reduce((s,p)=>s+Number(p.ovr),0)/top5.length).toFixed(1) : '—';
-      const avgAge = (allPlayers.reduce((s,p)=>s+Number(p.age||25),0)/allPlayers.length).toFixed(1);
-      statusContainer.innerHTML = `
-        <div style="background:${m.bg};border:1px solid ${m.color}55;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Status da Franquia · IA</div>
-            <div style="font-size:20px;font-weight:800;color:${m.color}">${m.label}</div>
-            <div style="font-size:12px;color:var(--text-2);margin-top:3px;">${m.desc}</div>
+  const strengthsEl = document.getElementById('ai-strengths');
+  const weaknessesEl = document.getElementById('ai-weaknesses');
+  if (strengthsEl) strengthsEl.innerHTML = strengthsHtml;
+  if (weaknessesEl) weaknessesEl.innerHTML = weaknessesHtml;
+
+  // Card de status da franquia
+  const aiTag = computeAiTag(allPlayers);
+  const statusContainer = document.getElementById('ai-status-container');
+  if (statusContainer && aiTag && TAG_META[aiTag]) {
+    const m = TAG_META[aiTag];
+    const starters2 = allPlayers.filter(p => normalizeRoleKey(p.role) === 'Titular');
+    const top5 = [...starters2].sort((a,b)=>Number(b.ovr)-Number(a.ovr)).slice(0,5);
+    const avgOvr = top5.length ? (top5.reduce((s,p)=>s+Number(p.ovr),0)/top5.length).toFixed(1) : '—';
+    const avgAge = (allPlayers.reduce((s,p)=>s+Number(p.age||25),0)/allPlayers.length).toFixed(1);
+    statusContainer.innerHTML = `
+      <div style="background:${m.bg};border:1px solid ${m.color}55;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Status da Franquia · IA</div>
+          <div style="font-size:20px;font-weight:800;color:${m.color}">${m.label}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:3px;">${m.desc}</div>
+        </div>
+        <div style="display:flex;gap:20px;flex-shrink:0;">
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:${m.color}">${avgOvr}</div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">OVR Médio</div>
           </div>
-          <div style="display:flex;gap:20px;flex-shrink:0;">
-            <div style="text-align:center;">
-              <div style="font-size:18px;font-weight:800;color:${m.color}">${avgOvr}</div>
-              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">OVR Médio</div>
-            </div>
-            <div style="text-align:center;">
-              <div style="font-size:18px;font-weight:800;color:var(--text)">${avgAge}</div>
-              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Idade Média</div>
-            </div>
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:var(--text)">${avgAge}</div>
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Idade Média</div>
           </div>
-        </div>`;
-    }
+        </div>
+      </div>`;
+  }
 
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (resultsEl) resultsEl.style.display = 'block';
-  }, 2000);
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (resultsEl) resultsEl.style.display = 'block';
 }
 
 async function loadFreeAgencyLimits() {

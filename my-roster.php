@@ -936,6 +936,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260514-1"></script>
+<script src="/js/my-roster-v2.js?v=20260519-1"></script>
 </body>
 </html>

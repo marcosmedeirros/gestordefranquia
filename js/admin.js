@@ -903,26 +903,32 @@ async function showTeam(teamId) {
       }).join('')}
 </div>
 
-<div class="panel mb-3">
-  <div class="panel-header">
-    <div class="panel-title"><i class="bi bi-calendar-check-fill"></i> Picks <span style="font-size:12px;color:var(--text-3);font-weight:400">(${t.picks ? t.picks.length : 0})</span></div>
-    <button class="btn-ghost" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
-  </div>
-  ${!t.picks || t.picks.length === 0
-    ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
-    : t.picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
+${(() => {
+    const curYear = new Date().getFullYear();
+    const picks = (t.picks || []).filter(p => Number(p.season_year) >= curYear);
+    const swapLabel = type => type === 'SW' ? '(SW) Worst' : type === 'SB' ? '(SB) Best' : escapeHtml(type);
+    const pickRows = !picks.length
+      ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
+      : picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
   <div style="flex:1;min-width:0">
-    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${escapeHtml(p.swap_type)}</span>` : ''}
+    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${swapLabel(p.swap_type)}</span>` : ''}
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.city)} ${escapeHtml(p.team_name)}</div>
   </div>
   <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
-    <button class="btn-ghost" style="padding:3px 7px;font-size:11px;font-weight:700;min-width:32px;${p.swap_type ? 'color:var(--red);border-color:rgba(252,0,37,.25)' : 'color:var(--text-3)'}" onclick="quickSwapType(${p.id})" title="Tipo de swap">${p.swap_type ? escapeHtml(p.swap_type) : 'SW'}</button>
+    <button class="btn-ghost" style="padding:3px 7px;font-size:10px;font-weight:700;${p.swap_type ? 'color:var(--red);border-color:rgba(252,0,37,.25)' : 'color:var(--text-3)'}" onclick="quickSwapType(${p.id})" title="Tipo de swap">SWAP?</button>
     <button class="btn-ghost" style="padding:5px 7px" onclick="movePick(${p.id})" title="Mover para outro time"><i class="bi bi-arrow-left-right"></i></button>
     <button class="btn-ghost" style="padding:5px 7px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
     <button class="btn-ghost" style="padding:5px 7px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
   </div>
-</div>`).join('')}
+</div>`).join('');
+    return `<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-calendar-check-fill"></i> Picks <span style="font-size:12px;color:var(--text-3);font-weight:400">(${picks.length})</span></div>
+    <button class="btn-ghost" onclick="addPick(${t.id})"><i class="bi bi-plus-circle me-1"></i>Adicionar</button>
+  </div>
+  ${pickRows}
 </div>`;
+  })()}`;
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar time</div>';
   }
@@ -1997,8 +2003,8 @@ function editPick(pickId) {
 <div class="mb-3"><label class="form-label text-light-gray">Tipo de Swap</label>
 <select class="form-select bg-dark text-white border-orange" id="editPickSwapType">
 <option value="" ${!p.swap_type ? 'selected' : ''}>Nenhum</option>
-<option value="SW" ${p.swap_type === 'SW' ? 'selected' : ''}>SW — Swap</option>
-<option value="SB" ${p.swap_type === 'SB' ? 'selected' : ''}>SB — Swap Back</option>
+<option value="SW" ${p.swap_type === 'SW' ? 'selected' : ''}>SW — Worst</option>
+<option value="SB" ${p.swap_type === 'SB' ? 'selected' : ''}>SB — Best</option>
 </select></div>
 <div class="mb-3"><label class="form-label text-light-gray">Observações (opcional)</label>
 <textarea class="form-control bg-dark text-white border-orange" id="editPickNotes" rows="2">${p.notes || ''}</textarea></div>
@@ -2078,8 +2084,8 @@ function quickSwapType(pickId) {
 <div class="modal-body">
 <div class="d-flex flex-column gap-2">
 <button type="button" class="btn ${!p.swap_type ? 'btn-orange' : 'btn-secondary'}" onclick="applySwapType(${pickId}, '')">Nenhum</button>
-<button type="button" class="btn ${p.swap_type === 'SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SW')">SW — Swap</button>
-<button type="button" class="btn ${p.swap_type === 'SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SB')">SB — Swap Back</button>
+<button type="button" class="btn ${p.swap_type === 'SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SW')">SW — Worst</button>
+<button type="button" class="btn ${p.swap_type === 'SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="applySwapType(${pickId}, 'SB')">SB — Best</button>
 </div></div></div></div>`;
   document.body.appendChild(modal);
   new bootstrap.Modal(modal).show();
