@@ -30,6 +30,7 @@ $boxnba_concluiu_hoje = false;
 $conexoes_concluiu_hoje = false;
 $bomba_status_hoje = null;
 $quemsoueu_concluiu_hoje = false;
+$quemsoueu_futebol_concluiu_hoje = false;
 
 try { $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS r FROM flappy_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $flappy_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['r'] ?? 0); } catch (PDOException $e) {}
 try { $stmt = $pdo->prepare("SELECT MAX(pontuacao_final) AS r FROM dino_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $pinguim_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['r'] ?? 0); } catch (PDOException $e) {}
@@ -86,6 +87,12 @@ try {
     $stmt->execute([$user_id, $today]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row) $quemsoueu_concluiu_hoje = (bool)$row['resolvido'];
+} catch (PDOException $e) {}
+try {
+    $stmt = $pdo->prepare("SELECT resolvido FROM quemsoueu_futebol WHERE id_usuario = ? AND data_jogo = ? LIMIT 1");
+    $stmt->execute([$user_id, $today]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) $quemsoueu_futebol_concluiu_hoje = (bool)$row['resolvido'];
 } catch (PDOException $e) {}
 
 /* ── Ranking moedas ── */
@@ -376,6 +383,10 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="stat-label"><i class="bi bi-question-circle-fill" style="color:#3b82f6"></i>Quem Sou Eu · Hoje</div>
       <div class="stat-value"><?= $quemsoueu_concluiu_hoje ? '✅' : '—' ?></div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label"><i class="bi bi-question-circle-fill" style="color:#22c55e"></i>Quem Sou Eu? ⚽ · Hoje</div>
+      <div class="stat-value"><?= $quemsoueu_futebol_concluiu_hoje ? '✅' : '—' ?></div>
+    </div>
     <?php /* OCULTO PROVISORIAMENTE
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-grid-fill" style="color:#3b82f6"></i>Box NBA · Hoje</div>
@@ -415,6 +426,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     */ ?>
     <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
     <a href="games/index.php?game=quemsoueu"   class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🤔</span><div class="game-title">Quem Sou Eu?</div><div class="game-sub">Diário · NBA</div></a>
+    <a href="games/games/quemsoueu_futebol.php" class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">⚽</span><div class="game-title">Quem Sou Eu?</div><div class="game-sub">Diário · Futebol</div></a>
     <a href="games/index.php?game=bomba"       class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Diamantes</div></a>
   </div>
 
