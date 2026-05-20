@@ -20,6 +20,7 @@ let state = {
 let currentSlot = null;
 let lastPackType = null;
 let tradeReloadPending = false;
+let openAccordion = null;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
@@ -137,6 +138,7 @@ function switchTab(tab) {
     if (tab === 'market') renderMarket();
     if (tab === 'trades') renderTrades();
     if (tab === 'store') loadDailyPackStatus();
+    if (tab === 'colecoes') renderCollectionRewards();
     if (tab === 'admin') renderAdminCards();
 }
 window.switchTab = switchTab;
@@ -167,36 +169,73 @@ function renderAlbum() {
             return String(a).localeCompare(String(b));
         });
 
-    collections.forEach((collectionName) => {
+    collections.forEach((collectionName, idx) => {
         const cards = state.master.filter((x) => (x.collection || 'Geral') === collectionName);
-        const section = document.createElement('div');
-        section.className = 'bg-zinc-950/60 p-4 rounded-xl border border-zinc-700';
-        section.innerHTML = `<h3 class="text-xl font-bold fba-title mb-4 border-b border-zinc-700 pb-2 text-red-400">${collectionName}</h3>`;
-        const grid = document.createElement('div');
-        grid.className = 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4';
+        const ownedCount = cards.filter((card) => hasCard(card.id)).length;
+        const pct = cards.length > 0 ? Math.round((ownedCount / cards.length) * 100) : 0;
+
+        const isOpen = openAccordion === collectionName || (openAccordion === null && idx === 0);
+        if (isOpen && openAccordion === null) openAccordion = collectionName;
+
+        const escapedName = collectionName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+        const item = document.createElement('div');
+        item.className = 'fba-acc-item';
+        item.dataset.collection = collectionName;
+        item.innerHTML = `
+            <button class="fba-acc-head" onclick="albumAccordionToggle('${escapedName}')">
+                <span class="fba-acc-title">${collectionName}</span>
+                <div class="fba-acc-bar"><div class="fba-acc-fill" style="width:${pct}%"></div></div>
+                <span class="fba-acc-count">${ownedCount}/${cards.length}</span>
+                <i class="bi bi-chevron-down fba-acc-icon ${isOpen ? 'open' : ''}"></i>
+            </button>
+            <div class="fba-acc-body ${isOpen ? 'open' : ''}">
+                <div class="fba-card-grid"></div>
+            </div>`;
+
+        const grid = item.querySelector('.fba-card-grid');
         cards.forEach((card) => {
             const got = hasCard(card.id);
             const slot = document.createElement('div');
-            slot.className = `album-slot rounded-xl overflow-hidden relative flex items-center justify-center ${got ? 'collected ' + rarityClass(card.rarity) : 'p-2'}`;
+            slot.className = `album-slot ${got ? 'collected ' + rarityClass(card.rarity) : ''}`;
             slot.innerHTML = got
-                ? `<img src="${card.img}" class="w-full h-full object-cover"><div class="absolute top-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[0.6rem] font-bold text-white">#${card.id}</div><div class="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[0.6rem] font-bold text-red-300">x${state.collection[card.id]}</div>`
-                : `<div class="opacity-30 text-[0.65rem] font-bold text-center">${card.name}<br>#${card.id}</div>`;
+                ? `<img src="${card.img}" style="width:100%;height:100%;object-fit:cover"><div style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.8);padding:1px 5px;border-radius:4px;font-size:.6rem;font-weight:bold;color:#fff">#${card.id}</div><div style="position:absolute;bottom:3px;left:3px;background:rgba(0,0,0,.8);padding:1px 5px;border-radius:4px;font-size:.6rem;font-weight:bold;color:#fc9090">x${state.collection[card.id]}</div>`
+                : `<div style="opacity:.3;font-size:.62rem;font-weight:bold;text-align:center;padding:4px;line-height:1.3">${card.name}<br>#${card.id}</div>`;
             if (got) {
-                slot.classList.add('cursor-pointer', 'hover:scale-[1.02]', 'transition-transform');
+                slot.style.cursor = 'pointer';
                 slot.onclick = () => openAlbumCardModal(card, Number(state.collection[card.id] || 1));
             }
             grid.appendChild(slot);
         });
-        section.appendChild(grid);
-        c.appendChild(section);
+
+        c.appendChild(item);
     });
+
     if (!collections.length) {
-        c.innerHTML = '<div class="text-zinc-400">Nenhuma coleção encontrada para o filtro informado.</div>';
+        c.innerHTML = '<div style="color:var(--text-2);padding:20px 0">Nenhuma coleção encontrada.</div>';
     }
     document.getElementById('album-progress').innerText = `Progresso: ${totalCollected} / ${state.master.length} figurinhas`;
     document.getElementById('coin-count').innerText = state.user.coins || 0;
     renderCollectionRewards();
 }
+
+function albumAccordionToggle(name) {
+    document.querySelectorAll('.fba-acc-item').forEach((item) => {
+        const body = item.querySelector('.fba-acc-body');
+        const icon = item.querySelector('.fba-acc-icon');
+        if (!body || !icon) return;
+        if (item.dataset.collection === name) {
+            const wasOpen = body.classList.contains('open');
+            body.classList.toggle('open', !wasOpen);
+            icon.classList.toggle('open', !wasOpen);
+            openAccordion = wasOpen ? null : name;
+        } else {
+            body.classList.remove('open');
+            icon.classList.remove('open');
+        }
+    });
+}
+window.albumAccordionToggle = albumAccordionToggle;
 
 function collectionProgressData() {
     const totals = {};
@@ -269,33 +308,30 @@ function renderCollectionRewards() {
     if (!wrap) return;
     const data = collectionProgressData();
     if (!data.length) {
-        wrap.innerHTML = '<div class="text-zinc-500 text-sm">Nenhuma colecao encontrada.</div>';
+        wrap.innerHTML = '<div style="color:var(--text-2);font-size:13px">Nenhuma coleção encontrada.</div>';
         return;
     }
     wrap.innerHTML = '';
     data.forEach((item) => {
-        const card = document.createElement('div');
-        card.className = 'min-w-[230px] bg-zinc-900/80 border border-zinc-700 rounded-xl p-4 flex flex-col gap-3';
         const isComplete = item.total > 0 && item.owned >= item.total;
-        const status = item.redeemed
-            ? '<span class="text-xs bg-zinc-700 text-zinc-200 px-2 py-1 rounded-full">Resgatado</span>'
-            : isComplete
-                ? '<span class="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">Completo</span>'
-                : '<span class="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-full">Em progresso</span>';
+        const card = document.createElement('div');
+        card.className = `coll-card ${isComplete && !item.redeemed ? 'complete' : ''} ${item.redeemed ? 'redeemed' : ''}`;
+        const statusClass = item.redeemed ? 's-redeemed' : isComplete ? 's-complete' : 's-progress';
+        const statusText = item.redeemed ? 'Resgatado' : isComplete ? 'Completo ✓' : 'Em progresso';
         card.innerHTML = `
-            <div class="flex items-start justify-between gap-2">
-                <div class="font-bold text-red-300">${item.name}</div>
-                ${status}
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                <div class="coll-card-name">${item.name}</div>
+                <span class="coll-status ${statusClass}">${statusText}</span>
             </div>
-            <div class="text-sm text-zinc-300">${item.owned}/${item.total} figurinhas</div>
-            <div class="w-full bg-zinc-800 rounded-full h-2">
-                <div class="h-2 rounded-full bg-red-600" style="width:${item.percent}%"></div>
-            </div>
-            <div class="text-xs text-zinc-400">${item.percent}% completo</div>
-        `;
+            <div class="coll-card-bar"><div class="coll-card-fill" style="width:${item.percent}%"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;color:var(--text-2)">${item.owned}/${item.total} figurinhas</span>
+                <span style="font-size:11px;color:var(--text-3)">${item.percent}%</span>
+            </div>`;
         if (isComplete && !item.redeemed) {
             const btn = document.createElement('button');
-            btn.className = 'mt-1 bg-red-700 hover:bg-red-600 rounded-lg px-3 py-2 text-sm font-bold';
+            btn.className = 'btn-primary';
+            btn.style.cssText = 'width:100%;padding:9px;margin-top:2px;font-size:13px';
             btn.textContent = 'Resgatar 500 FBA Points';
             btn.onclick = () => openRedeemConfirm(item.name);
             card.appendChild(btn);
