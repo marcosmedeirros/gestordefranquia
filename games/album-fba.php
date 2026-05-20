@@ -50,7 +50,7 @@ $teams = [
     .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
 
     /* ── Tabs ── */
-    .fba-tabs{background:var(--panel);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 4px}
+    .fba-tabs{background:var(--panel);border-bottom:1px solid var(--border);display:flex;justify-content:center;overflow-x:auto;scrollbar-width:none;padding:0 4px}
     .fba-tabs::-webkit-scrollbar{display:none}
     .fba-tab{padding:0 16px;height:44px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:color var(--t),border-color var(--t);display:flex;align-items:center;gap:6px}
     .fba-tab:hover{color:var(--text)}
@@ -129,6 +129,24 @@ $teams = [
     .pack-buy-white{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2)!important;color:#fff;border:none}
     .pack-hint{font-size:11px;color:var(--text-3);min-height:16px;text-align:center}
     .pack-note{font-size:11px;color:var(--text-3);text-align:center;max-width:150px}
+
+    /* ── Trade cards ── */
+    .trade-card{background:var(--panel);border:1px solid var(--border-red);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+    .trade-card-head{padding:16px 18px 14px;border-bottom:1px solid rgba(252,0,37,.12)}
+    .trade-card-body{padding:14px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+    .trade-ratio{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .trade-qty{min-width:40px;height:40px;border-radius:10px;background:rgba(252,0,37,.08);border:1px solid var(--border-red);display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:20px;font-weight:700;color:var(--red)}
+    .trade-arrow{color:var(--text-3);font-size:18px}
+    .trade-badge{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:1.5px;padding:5px 13px;border-radius:999px}
+
+    /* ── Admin ── */
+    .fld-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px}
+    .admin-collections-toggle{width:100%;display:flex;align-items:center;gap:8px;padding:13px 16px;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;transition:color var(--t)}
+    .admin-collections-toggle:hover{color:var(--text)}
+    .admin-collections-toggle .aco-chevron{margin-left:auto;font-size:11px;transition:transform .25s var(--ease)}
+    .admin-collections-toggle.open .aco-chevron{transform:rotate(180deg)}
+    .admin-collections-body{display:none;padding:4px 16px 16px;border-top:1px solid var(--border)}
+    .admin-collections-body.open{display:block}
 
     /* ── Shake ── */
     .shaking{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both;animation-iteration-count:3}
@@ -280,57 +298,79 @@ $teams = [
 
   <!-- ── Trocas ── -->
   <section id="section-trades" style="display:none">
-    <div style="margin-bottom:18px">
+    <div style="margin-bottom:20px">
       <h2 class="fba-title" style="font-size:20px;color:var(--text)">Trocas</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:2px">Troque figurinhas duplicadas por pacotes especiais.</p>
+      <p style="font-size:12px;color:var(--text-2);margin-top:2px">Transforme figurinhas duplicadas em novos pacotes.</p>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px">
+
       <!-- Premium -->
-      <div class="fba-panel-red" style="padding:20px">
-        <div style="margin-bottom:14px">
-          <div class="fba-title" style="font-size:15px;color:var(--text)">3 figurinhas = Premium</div>
-          <div style="font-size:12px;color:var(--text-2);margin-top:3px">Troque 3 duplicadas por um pacote premium</div>
+      <div class="trade-card">
+        <div class="trade-card-head">
+          <div class="trade-ratio">
+            <div class="trade-qty">3×</div>
+            <i class="bi bi-arrow-right trade-arrow"></i>
+            <span class="trade-badge" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:#f87171">PREMIUM</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-2);line-height:1.4">Troque 3 figurinhas duplicadas por um pacote premium com chances de raridades melhores.</p>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="trade-card-body">
           <select id="trade-premium-1" class="fba-input"></select>
           <select id="trade-premium-2" class="fba-input"></select>
           <select id="trade-premium-3" class="fba-input"></select>
-          <button id="trade-premium-btn" class="btn-primary" style="width:100%;padding:10px;margin-top:4px">Trocar por Premium</button>
+          <button id="trade-premium-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+            <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por Premium
+          </button>
         </div>
       </div>
 
       <!-- Ultra -->
-      <div class="fba-panel-red" style="padding:20px">
-        <div style="margin-bottom:14px">
-          <div class="fba-title" style="font-size:15px;color:var(--text)">5 figurinhas = Ultra</div>
-          <div style="font-size:12px;color:var(--text-2);margin-top:3px">Troque 5 duplicadas por um pacote ultra</div>
+      <div class="trade-card">
+        <div class="trade-card-head">
+          <div class="trade-ratio">
+            <div class="trade-qty">5×</div>
+            <i class="bi bi-arrow-right trade-arrow"></i>
+            <span class="trade-badge" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#fff">ULTRA</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-2);line-height:1.4">Troque 5 figurinhas duplicadas pelo pacote ultra, com as maiores probabilidades de lendárias.</p>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="trade-card-body">
           <select id="trade-ultra-1" class="fba-input"></select>
           <select id="trade-ultra-2" class="fba-input"></select>
           <select id="trade-ultra-3" class="fba-input"></select>
           <select id="trade-ultra-4" class="fba-input"></select>
           <select id="trade-ultra-5" class="fba-input"></select>
-          <button id="trade-ultra-btn" class="btn-primary" style="width:100%;padding:10px;margin-top:4px">Trocar por Ultra</button>
+          <button id="trade-ultra-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+            <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por Ultra
+          </button>
         </div>
       </div>
 
-      <!-- Missing -->
-      <div class="fba-panel-red" style="padding:20px">
-        <div style="margin-bottom:14px">
-          <div class="fba-title" style="font-size:15px;color:var(--text)">10 figurinhas = 1 nova</div>
-          <div style="font-size:12px;color:var(--text-2);margin-top:3px">Receba uma figurinha que você ainda não tem</div>
+      <!-- Nova -->
+      <div class="trade-card">
+        <div class="trade-card-head">
+          <div class="trade-ratio">
+            <div class="trade-qty">10×</div>
+            <i class="bi bi-arrow-right trade-arrow"></i>
+            <span class="trade-badge" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.22);color:#4ade80">NOVA</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-2);line-height:1.4">Troque 10 duplicadas e receba uma figurinha que você ainda não possui no álbum.</p>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <?php for ($i = 1; $i <= 10; $i++): ?>
-          <select id="trade-missing-<?= $i ?>" class="fba-input" style="font-size:11px;padding:7px 8px"></select>
-          <?php endfor; ?>
+        <div class="trade-card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <?php for ($i = 1; $i <= 10; $i++): ?>
+            <select id="trade-missing-<?= $i ?>" class="fba-input" style="font-size:11px;padding:7px 8px"></select>
+            <?php endfor; ?>
+          </div>
+          <button id="trade-missing-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+            <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por nova
+          </button>
         </div>
-        <button id="trade-missing-btn" class="btn-primary" style="width:100%;padding:10px;margin-top:10px">Trocar por nova</button>
       </div>
+
     </div>
-    <p id="trade-feedback" style="font-size:12px;color:var(--text-2);margin-top:10px"></p>
+    <p id="trade-feedback" style="font-size:12px;color:var(--text-2);margin-top:12px"></p>
   </section>
 
   <!-- ── Pacotes ── -->
@@ -385,64 +425,99 @@ $teams = [
 
   <!-- ── Admin ── -->
   <section id="section-admin" style="display:none">
-    <div style="margin-bottom:18px">
+    <div style="margin-bottom:20px">
       <h2 class="fba-title" style="font-size:20px;color:var(--text)">Admin de Cartas</h2>
       <p style="font-size:12px;color:var(--text-2);margin-top:2px">Cadastre e gerencie figurinhas do plantel.</p>
     </div>
 
-    <div class="fba-panel-red" style="padding:16px 18px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--text-2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px">
-        <i class="bi bi-collection-fill" style="color:var(--red)"></i> Coleções nos pacotinhos
+    <!-- Coleções nos pacotes (colapsável) -->
+    <div class="fba-panel" style="margin-bottom:16px;overflow:hidden">
+      <button type="button" class="admin-collections-toggle" id="admin-coll-toggle" onclick="adminCollToggle()">
+        <i class="bi bi-boxes" style="color:var(--red)"></i>
+        Coleções nos pacotinhos
+        <i class="bi bi-chevron-down aco-chevron"></i>
+      </button>
+      <div class="admin-collections-body" id="admin-coll-body">
+        <p style="color:var(--text-2);font-size:12px;margin-bottom:10px">Ative para que a coleção apareça nos pacotes.</p>
+        <div id="admin-pack-collections" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
-      <p style="color:var(--text-2);font-size:12px;margin-bottom:12px">Ative para permitir que a coleção apareça nos pacotes.</p>
-      <div id="admin-pack-collections" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-      <!-- Form -->
-      <div class="fba-panel-red" style="padding:18px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:7px">
-          <i class="bi bi-plus-circle-fill" style="color:var(--red)"></i> <span id="admin-form-title">Nova carta</span>
+
+      <!-- Formulário -->
+      <div class="fba-panel" style="padding:18px 20px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:7px">
+          <i class="bi bi-plus-circle-fill" style="color:var(--red)"></i> Dados da carta
         </div>
-        <form id="admin-card-form" style="display:flex;flex-direction:column;gap:9px">
+        <form id="admin-card-form" style="display:flex;flex-direction:column;gap:14px">
           <input type="hidden" id="admin-card-id" value="">
-          <input id="admin-collection" placeholder="Nome da coleção" class="fba-input" required>
-          <select id="admin-team" class="fba-input" required>
-            <option value="">Selecione o time</option>
-            <?php foreach ($teams as $team): ?>
-              <option value="<?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?></option>
-            <?php endforeach; ?>
-            <option value="__other__">Outro (digitar)</option>
-          </select>
-          <input id="admin-team-other" placeholder="Digite o nome do time" class="fba-input hidden">
-          <input id="admin-name" placeholder="Nome da carta" class="fba-input" required>
-          <div style="display:grid;grid-template-columns:1fr 1fr 72px;gap:8px">
-            <select id="admin-position" class="fba-input">
-              <option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option>
-            </select>
-            <select id="admin-rarity" class="fba-input">
-              <option value="comum">Comum</option><option value="rara">Rara</option>
-              <option value="epico">Épica</option><option value="lendario">Lendária</option>
-            </select>
-            <input id="admin-ovr" type="number" min="50" max="99" placeholder="OVR" class="fba-input" required>
+
+          <div>
+            <div class="fld-label">Coleção</div>
+            <input id="admin-collection" placeholder="Ex: Temporada 2026" class="fba-input" required>
           </div>
-          <input id="admin-image-file" type="file" accept="image/*" class="fba-input" style="font-size:12px">
-          <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px">
-            <button id="admin-save-btn" class="btn-primary" type="submit">Cadastrar Carta</button>
-            <button id="admin-cancel-edit-btn" class="btn-ghost hidden" type="button">Cancelar</button>
-            <button id="admin-delete-btn" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.2);color:#f87171;border-radius:var(--radius-sm);padding:9px 12px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer" class="hidden" type="button">Excluir</button>
+
+          <div>
+            <div class="fld-label">Time</div>
+            <select id="admin-team" class="fba-input" required>
+              <option value="">Selecione o time</option>
+              <?php foreach ($teams as $team): ?>
+                <option value="<?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+              <option value="__other__">Outro (digitar)</option>
+            </select>
+            <input id="admin-team-other" placeholder="Nome do time" class="fba-input hidden" style="margin-top:6px">
           </div>
-          <small style="color:var(--text-3);font-size:11px">Na edição, a imagem é opcional (envie só se quiser trocar).</small>
+
+          <div>
+            <div class="fld-label">Nome da carta</div>
+            <input id="admin-name" placeholder="Ex: LeBron James" class="fba-input" required>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 68px;gap:8px">
+            <div>
+              <div class="fld-label">Posição</div>
+              <select id="admin-position" class="fba-input">
+                <option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option>
+              </select>
+            </div>
+            <div>
+              <div class="fld-label">Raridade</div>
+              <select id="admin-rarity" class="fba-input">
+                <option value="comum">Comum</option><option value="rara">Rara</option>
+                <option value="epico">Épica</option><option value="lendario">Lendária</option>
+              </select>
+            </div>
+            <div>
+              <div class="fld-label">OVR</div>
+              <input id="admin-ovr" type="number" min="50" max="99" placeholder="75" class="fba-input" required>
+            </div>
+          </div>
+
+          <div>
+            <div class="fld-label">Imagem</div>
+            <input id="admin-image-file" type="file" accept="image/*" class="fba-input" style="font-size:12px">
+            <small style="color:var(--text-3);font-size:11px;display:block;margin-top:4px">Na edição, envie somente se quiser trocar.</small>
+          </div>
+
+          <div style="display:flex;gap:6px;padding-top:2px;border-top:1px solid var(--border)">
+            <button id="admin-save-btn" class="btn-primary" type="submit" style="flex:1;padding:10px">Cadastrar Carta</button>
+            <button id="admin-cancel-edit-btn" class="btn-ghost hidden" type="button" style="padding:10px 14px">Cancelar</button>
+            <button id="admin-delete-btn" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.18);color:#f87171;border-radius:var(--radius-sm);padding:10px 14px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer" class="hidden" type="button">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
         </form>
         <p id="admin-feedback" style="margin-top:10px;font-size:12px;color:var(--text-2)"></p>
       </div>
 
-      <!-- Cards list -->
-      <div class="fba-panel-red" style="padding:18px">
-        <div style="font-size:12px;font-weight:700;color:var(--text-2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:7px">
-          <i class="bi bi-card-list" style="color:var(--red)"></i> Últimas cartas
+      <!-- Lista de cartas -->
+      <div class="fba-panel" style="padding:18px 20px;display:flex;flex-direction:column">
+        <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:7px">
+          <i class="bi bi-card-list" style="color:var(--red)"></i> Cartas cadastradas
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <select id="admin-filter-collection" class="fba-input" style="font-size:12px">
             <option value="">Todas as coleções</option>
           </select>
@@ -452,9 +527,12 @@ $teams = [
             <option value="epico">Épica</option><option value="lendario">Lendária</option>
           </select>
         </div>
-        <button id="admin-filter-clear" class="btn-ghost" style="width:100%;margin-bottom:10px;font-size:12px" type="button">Limpar filtros</button>
-        <div id="admin-cards-list" style="display:flex;flex-direction:column;gap:7px;max-height:420px;overflow-y:auto;padding-right:4px"></div>
+        <button id="admin-filter-clear" class="btn-ghost" style="width:100%;margin-bottom:12px;font-size:12px" type="button">
+          <i class="bi bi-x-circle" style="margin-right:4px"></i>Limpar filtros
+        </button>
+        <div id="admin-cards-list" style="display:flex;flex-direction:column;gap:6px;flex:1;max-height:480px;overflow-y:auto;padding-right:4px"></div>
       </div>
+
     </div>
   </section>
 
@@ -566,6 +644,14 @@ $teams = [
   </div>
 </div>
 
+<script>
+function adminCollToggle() {
+  const btn  = document.getElementById('admin-coll-toggle');
+  const body = document.getElementById('admin-coll-body');
+  btn.classList.toggle('open');
+  body.classList.toggle('open');
+}
+</script>
 <script src="album-fba.js"></script>
 </body>
 </html>

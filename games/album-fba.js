@@ -240,23 +240,21 @@ window.albumAccordionToggle = albumAccordionToggle;
 function collectionProgressData() {
     const totals = {};
     const owned = {};
+    const dates = {};
     state.master.forEach((card) => {
         const name = card.collection || 'Geral';
         totals[name] = (totals[name] || 0) + 1;
-        if (hasCard(card.id)) {
-            owned[name] = (owned[name] || 0) + 1;
-        }
+        if (hasCard(card.id)) owned[name] = (owned[name] || 0) + 1;
+        const ts = Date.parse(card.created_at || card.createdAt || '');
+        if (!Number.isNaN(ts)) dates[name] = dates[name] ? Math.min(dates[name], ts) : ts;
     });
     return Object.keys(totals).map((name) => {
         const total = totals[name] || 0;
         const have = owned[name] || 0;
         const percent = total > 0 ? Math.round((have / total) * 100) : 0;
         const redeemed = state.redeemedCollections.includes(name);
-        return { name, owned: have, total, percent, redeemed };
-    }).sort((a, b) => {
-        if (a.percent !== b.percent) return b.percent - a.percent;
-        return a.name.localeCompare(b.name);
-    });
+        return { name, owned: have, total, percent, redeemed, date: dates[name] || 0 };
+    }).sort((a, b) => b.date - a.date || String(a.name).localeCompare(String(b.name)));
 }
 
 async function redeemCollectionReward(collectionName) {
