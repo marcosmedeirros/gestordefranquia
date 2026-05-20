@@ -4610,7 +4610,10 @@ async function showAdminDraft(league) {
                   ${isDone ? `<br><span style="font-size:11px;color:#22c55e"><i class="bi bi-check me-1"></i>${escapeHtml(o.player_name || '')}${o.player_position ? ' · ' + o.player_position : ''}${o.player_ovr ? ' · OVR ' + o.player_ovr : ''}</span>` : ''}
                   ${isCurrent ? `<br><span style="font-size:11px;color:#a855f7"><i class="bi bi-cursor-fill me-1"></i>Escolhendo agora…</span>` : ''}
                 </div>
-                ${!isDone ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="_adminDraftPickModal(${draft.id}, ${o.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-check me-1"></i>Pick</button>` : '<span></span>'}
+                ${!isDone ? `<div style="display:flex;gap:5px;flex-shrink:0">
+                  <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="_adminDraftPickModal(${draft.id}, ${o.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-check me-1"></i>Pick</button>
+                  <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#f59e0b;border-color:rgba(245,158,11,.3)" title="Trocar dono da pick" onclick="_adminDraftChangeOwnerModal(${draft.id}, ${o.id}, ${o.round}, ${o.pick_position}, ${o.team_id}, '${league}')"><i class="bi bi-arrow-left-right"></i></button>
+                </div>` : '<span></span>'}
               </div>`;
           }).join('');
           return `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Rodada ${r}</div>${pickRows}</div>`;
@@ -4697,6 +4700,78 @@ async function showAdminDraft(league) {
     container.innerHTML = `
       <div class="mb-4">${back}</div>
       <div class="alert alert-danger">Erro ao carregar draft: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
+  }
+}
+
+async function _adminDraftChangeOwnerModal(draftId, pickId, round, pickPos, currentTeamId, league) {
+  document.getElementById('_adminChangeOwnerModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_adminChangeOwnerModal';
+  modal.className = 'modal fade';
+  modal.setAttribute('tabindex', '-1');
+  modal.innerHTML = `
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Trocar Dono da Pick</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">Rodada ${round} · Pick #${pickPos}</p>
+          <label class="pun-field-label">Novo dono</label>
+          <select id="_adminChangeOwnerSelect" class="form-select mt-1">
+            <option value="">Carregando…</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn-orange" onclick="_adminDraftConfirmChangeOwner(${draftId}, ${pickId}, ${round}, ${pickPos}, '${league}')">
+            <i class="bi bi-check me-1"></i>Confirmar
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+
+  const select = document.getElementById('_adminChangeOwnerSelect');
+  try {
+    const data = await api(`draft.php?action=league_teams&league=${encodeURIComponent(league)}`);
+    const teams = data.teams || [];
+    select.innerHTML = '<option value="">Selecione o time…</option>';
+    teams
+      .filter(t => Number(t.id) !== Number(currentTeamId))
+      .sort((a, b) => `${a.city} ${a.name}`.localeCompare(`${b.city} ${b.name}`))
+      .forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.city} ${t.name}`;
+        select.appendChild(opt);
+      });
+  } catch(e) {
+    select.innerHTML = '<option value="">Erro ao carregar times</option>';
+  }
+}
+
+async function _adminDraftConfirmChangeOwner(draftId, pickId, round, pickPos, league) {
+  const select = document.getElementById('_adminChangeOwnerSelect');
+  const toTeamId = Number(select?.value || 0);
+  if (!toTeamId) { showAlert('danger', 'Selecione o time que vai receber a pick.'); return; }
+  try {
+    await api('draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'trade_pick', draft_session_id: draftId, pick_id: pickId, to_team_id: toTeamId })
+    });
+    const modal = document.getElementById('_adminChangeOwnerModal');
+    if (modal) bootstrap.Modal.getInstance(modal)?.hide();
+    showAlert('success', `Pick R${round}·#${pickPos} transferida com sucesso!`);
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao trocar dono da pick');
   }
 }
 
