@@ -22,14 +22,17 @@ const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().ge
 const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 function _fmtTradeDate(createdAt, status) {
-  const d = new Date(createdAt);
-  const date = d.toLocaleDateString('pt-BR');
-  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // MySQL retorna "YYYY-MM-DD HH:MM:SS"; Safari exige "T" como separador
+  const d = new Date((createdAt || '').replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const over24 = status === 'pending' && (Date.now() - d.getTime()) > 864e5;
-  const timeHtml = over24
-    ? `<span style="color:#ef4444;font-weight:600">${time} <i class="bi bi-exclamation-triangle-fill" title="Mais de 24h sem resposta" style="font-size:9px"></i></span>`
-    : `<span style="color:var(--text-2)">${time}</span>`;
-  return `${date} ${timeHtml}`;
+  if (over24) {
+    return `<span style="color:#ef4444;font-weight:600">${date} ${time} <i class="bi bi-exclamation-triangle-fill" title="Mais de 24h sem resposta" style="font-size:9px"></i></span>`;
+  }
+  return `<span style="color:var(--text-2)">${date} ${time}</span>`;
 }
 
 
