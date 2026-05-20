@@ -4623,6 +4623,16 @@ async function showSerasaAdmin() {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
 
   try {
+    // Gera avisos automáticos para trades pendentes > 24h
+    let novoAvisos = 0;
+    try {
+      const chk = await api('admin.php?action=check_overdue_trades', {
+        method: 'POST',
+        body: JSON.stringify({ league })
+      });
+      novoAvisos = chk.avisos_gerados || 0;
+    } catch (_) {}
+
     const data = await api(`admin.php?action=teams&league=${league}`);
     const teams = (data.teams || []).slice().sort((a, b) => (parseInt(b.avisos_count||0)) - (parseInt(a.avisos_count||0)));
 
@@ -4659,8 +4669,16 @@ async function showSerasaAdmin() {
       ['#ef4444','rgba(239,68,68,.3)','Péssimo (9+)'],
     ].map(([c, b, l]) => `<span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;color:${c};background:${c}1a;border:1px solid ${b}">${l}</span>`).join('');
 
+    const novoAvisoBanner = novoAvisos > 0
+      ? `<div style="background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:8px">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span><strong>${novoAvisos} aviso${novoAvisos > 1 ? 's' : ''}</strong> gerado${novoAvisos > 1 ? 's' : ''} automaticamente por trade${novoAvisos > 1 ? 's' : ''} pendente${novoAvisos > 1 ? 's' : ''} há mais de 24h.</span>
+        </div>`
+      : '';
+
     container.innerHTML = `
       <div class="mb-4"><button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+      ${novoAvisoBanner}
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title"><i class="bi bi-shield-check" style="color:#8b5cf6"></i> FBA SERASA — ${league}</div>

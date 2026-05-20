@@ -106,6 +106,33 @@ function syncTeamTradeCounter(PDO $pdo, int $teamId): int
 
 // Contador de trades (mostrar exatamente o campo trades_used do time logado)
 $tradeCount = (int)($team['trades_used'] ?? 0);
+
+// Gera avisos SERASA automaticamente para trades pendentes > 24h (roda a cada carregamento, silencioso)
+try {
+    $stmtOverdue = $pdo->query("
+        SELECT t.id, t.to_team_id, t.league
+        FROM trades t
+        WHERE t.status = 'pending'
+          AND t.created_at < NOW() - INTERVAL 24 HOUR
+          AND NOT EXISTS (
+              SELECT 1 FROM team_punishments tp
+              WHERE tp.team_id = t.to_team_id
+                AND tp.type = 'AVISO_TRADE'
+                AND tp.notes LIKE CONCAT('%Trade #', t.id, '%')
+          )
+    ");
+    $overdueRows = $stmtOverdue ? $stmtOverdue->fetchAll(PDO::FETCH_ASSOC) : [];
+    if (!empty($overdueRows)) {
+        $stmtIns = $pdo->prepare("
+            INSERT INTO team_punishments (team_id, league, type, motive, punishment_label, effect_type, notes, season_scope, created_by)
+            VALUES (?, ?, 'AVISO_TRADE', ?, 'Aviso de trade (SERASA)', 'AVISO_TRADE', ?, 'current', 1)
+        ");
+        foreach ($overdueRows as $tr) {
+            $desc = "Trade #{$tr['id']} pendente há mais de 24h sem resposta";
+            $stmtIns->execute([$tr['to_team_id'], $tr['league'], $desc, $desc]);
+        }
+    }
+} catch (Exception $e) { /* silencia — não pode travar a página */ }
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

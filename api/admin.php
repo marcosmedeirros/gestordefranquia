@@ -2173,6 +2173,41 @@ if ($method === 'POST') {
             echo json_encode(['success' => true]);
             break;
 
+        case 'check_overdue_trades':
+            $league = $data['league'] ?? null;
+            if (!$league) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'Liga obrigatória']); break; }
+
+            // Trades pendentes há mais de 24h sem aviso já registrado para esse trade
+            $stmtOverdue = $pdo->prepare("
+                SELECT t.id, t.to_team_id, t.league
+                FROM trades t
+                WHERE t.league = ?
+                  AND t.status = 'pending'
+                  AND t.created_at < NOW() - INTERVAL 24 HOUR
+                  AND NOT EXISTS (
+                      SELECT 1 FROM team_punishments tp
+                      WHERE tp.team_id = t.to_team_id
+                        AND tp.type = 'AVISO_TRADE'
+                        AND tp.notes LIKE CONCAT('%Trade #', t.id, '%')
+                  )
+            ");
+            $stmtOverdue->execute([$league]);
+            $overdueTrades = $stmtOverdue->fetchAll(PDO::FETCH_ASSOC);
+
+            $generated = 0;
+            $stmtIns = $pdo->prepare("
+                INSERT INTO team_punishments (team_id, league, type, motive, punishment_label, effect_type, notes, season_scope, created_by)
+                VALUES (?, ?, 'AVISO_TRADE', ?, 'Aviso de trade (SERASA)', 'AVISO_TRADE', ?, 'current', ?)
+            ");
+            foreach ($overdueTrades as $tr) {
+                $desc = "Trade #{$tr['id']} pendente há mais de 24h sem resposta";
+                $stmtIns->execute([$tr['to_team_id'], $tr['league'], $desc, $desc, $user['id']]);
+                $generated++;
+            }
+
+            echo json_encode(['success' => true, 'avisos_gerados' => $generated]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
