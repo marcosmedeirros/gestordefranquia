@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['flappy_run_start']   = time();
         $_SESSION['flappy_last_score']  = 0;
         $_SESSION['flappy_revive_used'] = false;
+        $_SESSION['flappy_score_saved'] = false;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -100,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     if ($_POST['acao'] == 'reviver') {
         try {
-            if (!$run_active) throw new Exception('Sessão de jogo inválida.');
+            if (!$run_active && empty($_SESSION['flappy_score_saved'])) throw new Exception('Sessão de jogo inválida.');
             if (!empty($_SESSION['flappy_revive_used'])) throw new Exception('Revive já utilizado.');
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
@@ -110,6 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->prepare("UPDATE usuarios SET pontos = pontos - 10 WHERE id = :id")->execute([':id' => $user_id]);
             $pdo->commit();
             $_SESSION['flappy_revive_used'] = true;
+            $_SESSION['flappy_run_active']  = true;
+            $_SESSION['flappy_score_saved'] = false;
             echo json_encode(['sucesso' => true, 'novo_saldo' => $saldo - 10]);
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -137,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->commit();
             $_SESSION['flappy_last_score'] = $score;
             $_SESSION['flappy_run_active'] = false;
+            $_SESSION['flappy_score_saved'] = true;
             echo json_encode(['sucesso' => true, 'coins' => $coins_earned, 'novo_saldo' => $novo_saldo]);
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
