@@ -4397,6 +4397,224 @@ async function deletePtsMgmt(seasonId, league) {
   }
 }
 
+// ── Registro de Pontuação (formulário inteligente) ───────────────────
+
+async function showRegistroPontuacao(league) {
+  league = league || appState.currentLeague || 'ELITE';
+  appState.view = 'pontuacao';
+  updateBreadcrumb();
+
+  const container = document.getElementById('mainContainer');
+  const back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Registro de Pontuação — ${league}</span>
+    </div>
+    <div id="regPtsContent"><div class="text-center py-5"><div class="spinner-border text-orange"></div></div></div>`;
+
+  let overviewData;
+  try {
+    overviewData = await api(`history-points.php?action=get_league_seasons_overview&league=${encodeURIComponent(league)}`);
+  } catch(e) {
+    document.getElementById('regPtsContent').innerHTML = `<div class="alert alert-danger">Erro ao carregar dados.</div>`;
+    return;
+  }
+
+  const leagueTeams = overviewData?.league_teams || [];
+  const seasons     = overviewData?.seasons     || [];
+
+  // Pega a temporada mais recente ainda não registrada
+  const pending = [...seasons].reverse().find(s => !s.points_registered);
+  // Também carrega a já registrada mais recente para referência
+  const registered = [...seasons].reverse().find(s => s.points_registered);
+
+  if (!leagueTeams.length) {
+    document.getElementById('regPtsContent').innerHTML = `<div class="alert alert-warning">Nenhum time encontrado para ${league}.</div>`;
+    return;
+  }
+
+  const fmtTitle = s => [
+    s.sprint_number ? `Sprint ${s.sprint_number}` : '',
+    s.season_number ? `Temporada ${s.season_number}` : '',
+    s.year          ? String(s.year)                 : ''
+  ].filter(Boolean).join(' · ');
+
+  const sel = (cls, tid, opts) => `
+    <select class="${cls}" data-team-id="${tid}" onchange="_regPtsRecalc()"
+      style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text)">
+      ${opts}
+    </select>`;
+
+  const regularOpts = `
+    <option value="4">1º Lugar (+4 pts)</option>
+    <option value="3">2º ao 4º (+3 pts)</option>
+    <option value="2" selected>5º ao 8º (+2 pts)</option>
+    <option value="0">Não classificou (+0)</option>`;
+
+  const playoffOpts = `
+    <option value="0" selected>Não foi (+0)</option>
+    <option value="1">1ª Rodada (+1 pt)</option>
+    <option value="2">Semifinalista (+2 pts)</option>
+    <option value="3">Finalista de Conferência (+3 pts)</option>
+    <option value="2">Vice-Campeão (+2 pts)</option>
+    <option value="5">Campeão (+5 pts)</option>`;
+
+  const teamOpts = `<option value="">— Nenhum —</option>` +
+    leagueTeams.map(t => `<option value="${t.team_id}">${escapeHtml(t.team_name || '')}</option>`).join('');
+
+  const awards = [
+    { key: 'mvp',   label: 'MVP'      },
+    { key: 'dpoy',  label: 'DPOY'     },
+    { key: 'mip',   label: 'MIP'      },
+    { key: 'sexto', label: '6º Homem' },
+    { key: 'roy',   label: 'ROY'      },
+  ];
+
+  const teamsHtml = leagueTeams.map(t => `
+    <div class="pun-card mb-2" style="padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:var(--text);min-width:130px">${escapeHtml(t.team_name || '')}</span>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
+          <div>
+            <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Temporada Regular</div>
+            ${sel('reg-season-sel', t.team_id, regularOpts)}
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Playoffs</div>
+            ${sel('playoff-sel', t.team_id, playoffOpts)}
+          </div>
+        </div>
+        <div style="min-width:60px;text-align:right">
+          <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase">Total</div>
+          <span id="rpt-${t.team_id}" style="font-size:20px;font-weight:800;color:var(--red)">2</span>
+          <span style="font-size:11px;color:var(--text-3)"> pts</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const awardsHtml = awards.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px;color:var(--text);font-weight:600">${a.label}
+        <span style="color:#22c55e;font-weight:400;font-size:11px"> +1 pt</span>
+      </span>
+      <select class="award-sel" data-award="${a.key}" onchange="_regPtsRecalc()"
+        style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);min-width:180px">
+        ${teamOpts}
+      </select>
+    </div>`).join('');
+
+  let html = '';
+
+  if (pending) {
+    html += `
+      <div class="panel mb-3">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-clipboard-data-fill" style="color:#10b981"></i> ${escapeHtml(fmtTitle(pending))}</div>
+          <span class="pun-badge pun-badge-off">Pendente</span>
+        </div>
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Times</div>
+          ${teamsHtml}
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+            <i class="bi bi-award-fill" style="color:#22c55e;margin-right:5px"></i>Prêmios Individuais
+          </div>
+          <div class="pun-card" style="padding:4px 14px">${awardsHtml}</div>
+        </div>
+        <div class="mt-4">
+          <button class="btn-orange" onclick="_regPtsSave(${pending.season_id}, '${league}')">
+            <i class="bi bi-save me-2"></i>Registrar Pontuação
+          </button>
+        </div>
+      </div>`;
+  } else {
+    html += `<div class="alert alert-info"><i class="bi bi-check-circle me-2"></i>Todas as temporadas desta liga já têm pontuação registrada. Use "Histórico de Pontuação" para editar.</div>`;
+  }
+
+  // Referência visual das regras
+  html += `
+    <div class="panel">
+      <div class="panel-title"><i class="bi bi-calculator-fill" style="color:var(--text-3)"></i> Sistema de Pontuação</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;font-size:12px">
+        <div>
+          <div style="color:#eab308;font-weight:700;margin-bottom:6px">Playoffs</div>
+          <div style="color:var(--text-2);line-height:2">
+            Campeão: <strong style="color:var(--text)">+5 pts</strong><br>
+            Vice-Campeão: <strong style="color:var(--text)">+2 pts</strong><br>
+            Finalista Conf.: <strong style="color:var(--text)">+3 pts</strong><br>
+            Semifinalista: <strong style="color:var(--text)">+2 pts</strong><br>
+            1ª Rodada: <strong style="color:var(--text)">+1 pt</strong>
+          </div>
+        </div>
+        <div>
+          <div style="color:#06b6d4;font-weight:700;margin-bottom:6px">Temporada Regular</div>
+          <div style="color:var(--text-2);line-height:2">
+            1º Lugar: <strong style="color:var(--text)">+4 pts</strong><br>
+            2º ao 4º: <strong style="color:var(--text)">+3 pts</strong><br>
+            5º ao 8º: <strong style="color:var(--text)">+2 pts</strong>
+          </div>
+        </div>
+        <div>
+          <div style="color:#22c55e;font-weight:700;margin-bottom:6px">Prêmios Individuais</div>
+          <div style="color:var(--text-2);line-height:2">
+            MVP / DPOY / MIP / 6º Homem / ROY:<br>
+            <strong style="color:var(--text)">+1 pt cada</strong>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('regPtsContent').innerHTML = html;
+  _regPtsRecalc();
+}
+
+function _regPtsRecalcForTeam(teamId) {
+  let pts = 0;
+  const reg = document.querySelector(`.reg-season-sel[data-team-id="${teamId}"]`);
+  if (reg) pts += parseInt(reg.value || '0', 10);
+  const po = document.querySelector(`.playoff-sel[data-team-id="${teamId}"]`);
+  if (po) pts += parseInt(po.value || '0', 10);
+  document.querySelectorAll('.award-sel').forEach(s => {
+    if (String(s.value) === String(teamId)) pts += 1;
+  });
+  const el = document.getElementById(`rpt-${teamId}`);
+  if (el) el.textContent = pts;
+  return pts;
+}
+
+function _regPtsRecalc() {
+  document.querySelectorAll('.reg-season-sel').forEach(s => _regPtsRecalcForTeam(s.dataset.teamId));
+}
+
+async function _regPtsSave(seasonId, league) {
+  const teamPoints = [];
+  document.querySelectorAll('.reg-season-sel').forEach(s => {
+    const tid = parseInt(s.dataset.teamId, 10);
+    teamPoints.push({ team_id: tid, points: _regPtsRecalcForTeam(tid) });
+  });
+
+  const summary = teamPoints.map(tp => {
+    const name = document.querySelector(`.reg-season-sel[data-team-id="${tp.team_id}"]`)?.closest('.pun-card')?.querySelector('span')?.textContent || tp.team_id;
+    return `${name}: ${tp.points} pts`;
+  }).join('\n');
+
+  if (!confirm(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
+
+  try {
+    await api('history-points.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints })
+    });
+    showAlert('success', 'Pontuação registrada com sucesso!');
+    showRegistroPontuacao(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao registrar pontuação');
+  }
+}
+
 // ── FBA SERASA Admin ─────────────────────────────────────────────────
 
 async function showSerasaAdmin() {
