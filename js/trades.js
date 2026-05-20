@@ -64,15 +64,16 @@ const formatTradePickDisplay = (pick) => {
   const pickNumber = pick.draft_pick_number || null;
   const hasYearRound = year !== '?' && round !== '?';
   const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
-  
-  // Mostrar de quem é a pick (time original)
-  const originalTeam = pick.original_team_city && pick.original_team_name 
-    ? `${pick.original_team_city} ${pick.original_team_name}` 
-    : 'Time';
-  
+
+  // Mostrar o time original apenas quando a pick foi negociada (dono atual ≠ time de origem)
+  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
+  const originalTeam = (isTraded && pick.original_team_city && pick.original_team_name)
+    ? `${pick.original_team_city} ${pick.original_team_name}`
+    : null;
+
   let display = (pickNumber && isCurrentDraft)
-    ? `Pick ${pickNumber} (${originalTeam})${hasYearRound ? ` - ${year} R${round}` : ''}`
-    : `Pick ${year} R${round} (${originalTeam})`;
+    ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
+    : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
 
   if (pick.swap_type) {
     display += ` <span class="badge bg-secondary ms-1">${pick.swap_type}</span>`;
@@ -81,7 +82,7 @@ const formatTradePickDisplay = (pick) => {
   if (isCurrentDraft) {
     display += ' - Draft atual';
   }
-  
+
   return display;
 };
 
@@ -517,9 +518,11 @@ const buildPickSummary = (pick) => {
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
   const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
-  const origin = pick.original_team_city && pick.original_team_name
+  // Mostrar o time original apenas quando a pick foi negociada (dono atual ≠ time de origem)
+  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
+  const origin = (isTraded && pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
-    : (pick.original_team_name || 'Time');
+    : (isTraded && pick.original_team_name ? pick.original_team_name : '');
   const via = '';
   const metaParts = [];
   if (pickNumber && isCurrentDraft) {
@@ -817,7 +820,7 @@ function renderPickOptions(side) {
       <div class="pick-option-card ${selectedClass}">
         <div>
           <div class="pick-title">${summary.title}</div>
-          <div class="pick-meta">${summary.meta ? `${summary.meta} • ` : ''}${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
+          <div class="pick-meta">${[summary.meta, summary.origin, summary.via].filter(Boolean).join(' • ')}</div>
         </div>
         <button type="button" class="btn btn-sm ${isSelected ? 'btn-outline-secondary' : 'btn-outline-orange'}" data-action="add-pick" data-pick-id="${pick.id}" ${disabledAttr}>
           ${isSelected ? 'Selecionada' : 'Adicionar'}
@@ -861,7 +864,7 @@ function renderSelectedPicks(side) {
       <div class="selected-pick-card" data-pick-id="${pick.id}">
         <div class="selected-pick-info">
           <div class="pick-title mb-1">${summary.title}</div>
-          <div class="pick-meta">${summary.meta ? `${summary.meta} • ` : ''}${summary.origin}${summary.via ? ` • ${summary.via}` : ''}</div>
+          <div class="pick-meta">${[summary.meta, summary.origin, summary.via].filter(Boolean).join(' • ')}</div>
         </div>
         <div class="selected-pick-actions">
           ${swapControls}
