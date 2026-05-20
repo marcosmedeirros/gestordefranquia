@@ -2173,6 +2173,38 @@ if ($method === 'POST') {
             echo json_encode(['success' => true]);
             break;
 
+        case 'set_team_avisos':
+            $teamId     = (int)($data['team_id'] ?? 0);
+            $target     = (int)($data['count']   ?? 0);
+            $league     = $data['league'] ?? null;
+            if (!$teamId || !$league || $target < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+                break;
+            }
+            // IDs atuais não revertidos, ordem crescente (mais antigos primeiro)
+            $stmtCur = $pdo->prepare("SELECT id FROM team_punishments WHERE team_id = ? AND type = 'AVISO_TRADE' AND reverted_at IS NULL ORDER BY id ASC");
+            $stmtCur->execute([$teamId]);
+            $currentIds = $stmtCur->fetchAll(PDO::FETCH_COLUMN);
+            $current = count($currentIds);
+
+            if ($target > $current) {
+                $ins = $pdo->prepare("INSERT INTO team_punishments (team_id, league, type, motive, punishment_label, effect_type, notes, season_scope, created_by) VALUES (?, ?, 'AVISO_TRADE', 'Ajuste manual pelo admin', 'Aviso de trade (SERASA)', 'AVISO_TRADE', 'Ajuste manual pelo admin', 'current', ?)");
+                for ($i = 0; $i < $target - $current; $i++) {
+                    $ins->execute([$teamId, $league, $user['id']]);
+                }
+            } elseif ($target < $current) {
+                // Reverte os mais recentes (mantém os mais antigos)
+                $toRevert = array_slice($currentIds, $target);
+                $rev = $pdo->prepare("UPDATE team_punishments SET reverted_at = NOW(), reverted_by = ? WHERE id = ?");
+                foreach ($toRevert as $pid) { $rev->execute([$user['id'], $pid]); }
+            }
+
+            $stmtNew = $pdo->prepare("SELECT COUNT(*) FROM team_punishments WHERE team_id = ? AND type = 'AVISO_TRADE' AND reverted_at IS NULL");
+            $stmtNew->execute([$teamId]);
+            echo json_encode(['success' => true, 'count' => (int)$stmtNew->fetchColumn()]);
+            break;
+
         case 'check_overdue_trades':
             $league = $data['league'] ?? null;
             if (!$league) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'Liga obrigatória']); break; }

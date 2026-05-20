@@ -4648,15 +4648,16 @@ async function showSerasaAdmin() {
       const n = parseInt(t.avisos_count || 0);
       const s = getScore(n);
       return `
-        <div class="pun-card" style="display:flex;align-items:center;gap:12px;padding:10px 14px">
+        <div class="pun-card" style="display:flex;align-items:center;gap:12px;padding:10px 14px" id="serasa-row-${t.id}">
           <img src="${escapeHtml(t.photo_url || '/img/default-team.png')}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)" onerror="this.src='/img/default-team.png'">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
             <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0" id="serasa-info-${t.id}">
             <span style="font-size:11px;color:var(--text-3)">${n} aviso${n !== 1 ? 's' : ''}</span>
             <span style="padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${s.color};background:${s.bg};border:1px solid ${s.border}">${s.label}</span>
+            <button class="btn-ghost" style="padding:2px 8px;font-size:11px" title="Editar avisos" onclick="_serasaEditAvisos(${t.id}, '${escapeHtml(league)}', ${n})"><i class="bi bi-pencil"></i></button>
           </div>
         </div>`;
     }).join('');
@@ -4689,6 +4690,51 @@ async function showSerasaAdmin() {
       </div>`;
   } catch (e) {
     container.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+function _serasaEditAvisos(teamId, league, current) {
+  const infoEl = document.getElementById(`serasa-info-${teamId}`);
+  if (!infoEl) return;
+
+  infoEl.innerHTML = `
+    <input id="_serasaInput_${teamId}" type="number" min="0" max="99" value="${current}"
+      style="width:60px;padding:3px 6px;font-size:13px;background:var(--panel-2);border:1px solid var(--border-red);border-radius:8px;color:var(--text);text-align:center">
+    <button class="btn-ghost" style="padding:3px 10px;font-size:12px;color:#22c55e;border-color:rgba(34,197,94,.3)"
+      onclick="_serasaSaveAvisos(${teamId}, '${league}')"><i class="bi bi-check-lg"></i></button>
+    <button class="btn-ghost" style="padding:3px 10px;font-size:12px"
+      onclick="showSerasaAdmin()"><i class="bi bi-x-lg"></i></button>`;
+
+  document.getElementById(`_serasaInput_${teamId}`)?.focus();
+}
+
+async function _serasaSaveAvisos(teamId, league) {
+  const input = document.getElementById(`_serasaInput_${teamId}`);
+  const count = parseInt(input?.value ?? '-1', 10);
+  if (isNaN(count) || count < 0) { showAlert('danger', 'Número inválido'); return; }
+
+  try {
+    const res = await api('admin.php?action=set_team_avisos', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, league, count })
+    });
+    const n = res.count;
+    const getScore = (n) => {
+      if (n <= 2) return { label: 'Excelente', color: '#22c55e', bg: 'rgba(34,197,94,.10)',  border: 'rgba(34,197,94,.3)'  };
+      if (n <= 4) return { label: 'Bom',       color: '#3b82f6', bg: 'rgba(59,130,246,.10)', border: 'rgba(59,130,246,.3)' };
+      if (n <= 6) return { label: 'Regular',   color: '#eab308', bg: 'rgba(234,179,8,.10)',  border: 'rgba(234,179,8,.3)'  };
+      if (n <= 8) return { label: 'Ruim',      color: '#f97316', bg: 'rgba(249,115,22,.10)', border: 'rgba(249,115,22,.3)' };
+      return              { label: 'Péssimo',  color: '#ef4444', bg: 'rgba(239,68,68,.10)',  border: 'rgba(239,68,68,.3)'  };
+    };
+    const s = getScore(n);
+    const infoEl = document.getElementById(`serasa-info-${teamId}`);
+    if (infoEl) infoEl.innerHTML = `
+      <span style="font-size:11px;color:var(--text-3)">${n} aviso${n !== 1 ? 's' : ''}</span>
+      <span style="padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${s.color};background:${s.bg};border:1px solid ${s.border}">${s.label}</span>
+      <button class="btn-ghost" style="padding:2px 8px;font-size:11px" title="Editar avisos" onclick="_serasaEditAvisos(${teamId}, '${league}', ${n})"><i class="bi bi-pencil"></i></button>`;
+    showAlert('success', 'Avisos atualizados');
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao salvar');
   }
 }
 
