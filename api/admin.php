@@ -1381,6 +1381,19 @@ if ($method === 'PUT') {
             echo json_encode(['success' => true]);
             break;
 
+        case 'clear_pick_swap':
+            // Limpar campos de swap de uma pick específica (usado para corrigir picks travadas após reversão de trade)
+            $pickId = $data['pick_id'] ?? null;
+            if (!$pickId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'pick_id obrigatório']);
+                exit;
+            }
+            $stmtClear = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
+            $stmtClear->execute([(int)$pickId]);
+            echo json_encode(['success' => true, 'message' => 'Campos de swap da pick limpos com sucesso']);
+            break;
+
         case 'revert_trade':
             // Reverter trade aceita
             $tradeId = $data['trade_id'] ?? null;
@@ -1453,17 +1466,20 @@ if ($method === 'PUT') {
                             continue;
                         }
                         
-                        // Só reverter se a pick não estiver já no time original
+                        // Reverter pick e sempre limpar campos de swap (inclusive picks swap que não mudaram de time)
                         if ((int)$pick['team_id'] !== (int)$originalTeamId) {
                             // O last_owner deve ser quem tinha antes da trade atual
                             // Se from_team=true, o dono original era from_team, então last_owner deve ser NULL ou from_team
                             // Se from_team=false, o dono original era to_team
                             $lastOwnerBeforeTrade = $item['from_team'] ? null : $trade['to_team_id'];
-                            
-                            $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
+
+                            $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
                             $stmtRevert->execute([$originalTeamId, $lastOwnerBeforeTrade, $item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
                         } else {
+                            // Pick já está no time original (caso swap), limpar campos de swap residuais
+                            $stmtClearSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
+                            $stmtClearSwap->execute([$item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
                         }
                     }
@@ -1543,7 +1559,8 @@ if ($method === 'PUT') {
                 $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
                 $stmtMovePlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
                 $stmtCheckPick = $pdo->prepare('SELECT team_id, season_year, round FROM picks WHERE id = ?');
-                $stmtMovePick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ? WHERE id = ?');
+                $stmtMovePick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
+                $stmtClearPickSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
 
                 foreach ($items as $item) {
                     if (!empty($item['player_id'])) {
@@ -1572,6 +1589,8 @@ if ($method === 'PUT') {
                             $stmtMovePick->execute([(int)$item['from_team_id'], (int)$item['to_team_id'], (int)$item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
                         } elseif ((int)$pick['team_id'] === (int)$item['from_team_id']) {
+                            // Pick já está no time original (caso swap), limpar campos de swap residuais
+                            $stmtClearPickSwap->execute([(int)$item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
                         } else {
                             $errors[] = "Pick {$item['pick_id']} não está no time esperado";
@@ -1625,6 +1644,7 @@ if ($method === 'PUT') {
             $swapTypeRaw = isset($data['swap_type']) ? trim((string)$data['swap_type']) : null;
             $swapType = ($swapTypeRaw !== null && $swapTypeRaw !== '') ? strtoupper($swapTypeRaw) : null;
             if ($swapType !== null && !in_array($swapType, ['SW', 'SB'])) $swapType = null;
+            $swapLocked = $swapType !== null ? 1 : 0;
 
             if (!$teamId || !$originalTeamId || !$seasonYear || !$round) {
                 http_response_code(400);
@@ -1636,10 +1656,10 @@ if ($method === 'PUT') {
                 // Atualizar pick existente
                 $stmt = $pdo->prepare('
                     UPDATE picks
-                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, swap_type = ?, auto_generated = 0, last_owner_team_id = ?
+                    SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, swap_type = ?, swap_locked = ?, swap_pair_pick_id = CASE WHEN ? IS NULL THEN NULL ELSE swap_pair_pick_id END, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
-                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $swapType, $teamId, $pickId]);
+                $stmt->execute([$teamId, $originalTeamId, $seasonYear, $round, $notes, $swapType, $swapLocked, $swapType, $teamId, $pickId]);
             } else {
                 // Reutilizar pick existente com mesma origem/ano/rodada ou criar um novo
                 $stmtExisting = $pdo->prepare('

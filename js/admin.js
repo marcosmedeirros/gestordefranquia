@@ -2156,10 +2156,14 @@ function movePick(pickId) {
   api('admin.php?action=teams').then(data => {
     const select = modal.querySelector('#movePickDestTeam');
     select.innerHTML = '';
-    data.teams.forEach(t => {
+    const currentLeague = ((appState.currentTeam?.league) || appState.currentLeague || '').toUpperCase();
+    const teams = currentLeague
+      ? data.teams.filter(t => (t.league || '').toUpperCase() === currentLeague)
+      : data.teams;
+    teams.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.id;
-      opt.textContent = `${t.city} ${t.name} (${t.league})`;
+      opt.textContent = `${t.city} ${t.name}`;
       if (t.id == p.team_id) opt.selected = true;
       select.appendChild(opt);
     });
