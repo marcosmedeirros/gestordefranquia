@@ -5,7 +5,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit;
 $user_id = (int)$_SESSION['user_id'];
 
 // diff: 1=Iniciante 2=Médio 3=Difícil 4=Elite
-// gk_def 7=24% saves  8=32%  9=40%  10=48%
+// gk_def 7=16% read  8=22%  9=28%  10=34%  (total save ~40/44/48/52% vs shot7)
 $TIMES = [
   ['slug'=>'brasil',    'name'=>'Brasil',       'badge'=>'BRA','color'=>'#FFD700','dark'=>'#009c3b',
    'shirt'=>'#FFD700','shirt2'=>'#009c3b', 'diff'=>1,
@@ -680,9 +680,9 @@ function sector(z) { return z % 3; }
 
 // Goleiro adversário defende: stat do GK inimigo vs stat de chute do user
 function keeperDive(shootZone, shooterShot, gkDef, koBoost = 0) {
-  const base      = 0.08 + (gkDef - 5) * 0.08;          // def6→16% def10→48%
+  const base      = 0.04 + (gkDef - 5) * 0.06;          // def7→16% def8→22% def9→28% def10→34%
   const reduction = (shooterShot - 5) * 0.03;            // shot10→15% menos
-  const readChance = Math.min(0.58, Math.max(0.06, base - reduction + koBoost * 0.05));
+  const readChance = Math.min(0.50, Math.max(0.04, base - reduction + koBoost * 0.04));
   const sec = Math.random() < readChance ? sector(shootZone) : Math.floor(Math.random() * 3);
   return sec + (Math.random() < 0.5 ? 0 : 3);
 }
@@ -999,7 +999,7 @@ function handleZone(zone) {
     const oppZone=aiShootZone(m.opp.player_shot, m.koBoost);
     const sectorMatch=sector(zone)===sector(oppZone);
     // Bônus do goleiro: chance de defesa milagrosa mesmo no setor errado
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.025);
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.06);
     const saved=sectorMatch||(Math.random()<gkBonus);
     result=saved?'save':'goal';
     keepZone=saved?oppZone:zone;
@@ -1117,7 +1117,7 @@ function handleSD(zone) {
   } else {
     const oppZone=aiShootZone(m.opp.player_shot,m.koBoost);
     const sectorMatch=sector(zone)===sector(oppZone);
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.025);
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.06);
     const saved=sectorMatch||(Math.random()<gkBonus);
     const scored=!saved;
     animateShoot(oppZone,saved?oppZone:zone,scored?'goal':'save',false);

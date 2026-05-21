@@ -2695,6 +2695,21 @@ function normalizeDirectivePlayerInfo(raw) {
   return {};
 }
 
+function filterDirCards(val) {
+  const q = (val || '').trim().toLowerCase();
+  document.querySelectorAll('.admin-check-card').forEach(card => {
+    const name = card.dataset.teamName || '';
+    card.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+function filterPtsTeam(val) {
+  const q = (val || '').trim().toLowerCase();
+  document.querySelectorAll('#ptsMgmtContent [data-team-name]').forEach(row => {
+    row.style.display = (!q || (row.dataset.teamName || '').includes(q)) ? '' : 'none';
+  });
+}
+
 async function showDirectives() {
   appState.view = 'directives';
   updateBreadcrumb();
@@ -2928,8 +2943,9 @@ async function viewDirectives(deadlineId, league) {
       </div>
       
       <div class="card bg-dark-panel border-orange">
-        <div class="card-header bg-transparent border-orange">
+        <div class="card-header bg-transparent border-orange d-flex align-items-center justify-content-between flex-wrap gap-2">
           <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
+          <input type="text" id="dirTeamSearch" class="form-control form-control-sm" style="width:200px;font-size:13px" placeholder="Filtrar por time..." oninput="filterDirCards(this.value)">
         </div>
         <div class="card-body">
           ${fallbackNotice}
@@ -3051,7 +3067,7 @@ async function viewDirectives(deadlineId, league) {
               const playbookLabel = escapeHtml(playbookValue || 'Nao informado');
 
               return `
-              <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}">
+              <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}" data-team-name="${((d.city||'') + ' ' + (d.team_name||'')).toLowerCase()}">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
                     <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
@@ -4559,6 +4575,9 @@ async function showPointsManagement(league) {
       <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
       <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação — ${league}</span>
     </div>
+    <div style="margin-bottom:12px">
+      <input type="text" id="ptsTeamSearch" class="form-control" style="max-width:260px;font-size:13px" placeholder="Filtrar por time..." oninput="filterPtsTeam(this.value)">
+    </div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -4627,7 +4646,7 @@ async function showPointsManagement(league) {
         </div>
         <div id="pts-view-${s.season_id}" style="margin-top:8px">
           ${(s.teams || []).map((t, ti) => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="font-size:11px;color:var(--text-3);width:20px;text-align:right">${ti + 1}°</span>
                 <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
@@ -4638,7 +4657,7 @@ async function showPointsManagement(league) {
         <div id="pts-edit-form-${s.season_id}" style="display:none;margin-top:12px">
           ${leagueTeams.map(t => {
             const pts = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            return `<div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
               <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
               <input type="number" class="pts-edit-input" data-team-id="${t.team_id}" value="${pts ? pts.points : 0}" min="0"
                 style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
@@ -4654,7 +4673,7 @@ async function showPointsManagement(league) {
       </div>`;
     } else {
       const teamInputs = leagueTeams.map(t => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+        <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
           <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
           <input type="number" class="pts-mgmt-input" data-team-id="${t.team_id}" value="0" min="0"
             style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
