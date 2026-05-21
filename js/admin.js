@@ -3577,6 +3577,8 @@ window.leilaoTogglePropostas = async function(leilaoId) {
       div.innerHTML = '<p class="empty-state" style="font-size:12px">Nenhuma proposta ainda.</p>';
       return;
     }
+    const _statusOrd = { pendente: 0, aceita: 1, recusada: 2 };
+    propostas.sort((a, b) => (_statusOrd[a.status] ?? 3) - (_statusOrd[b.status] ?? 3));
     div.innerHTML = propostas.map(p => {
       const jogs = (p.jogadores || []).map(j => j.name).join(', ') || '—';
       const picks = (p.picks || []).map(pk => `${pk.season_year} R${pk.round}`).join(', ') || '—';

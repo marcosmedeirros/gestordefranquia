@@ -31,17 +31,37 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
   if (!propostas || !propostas.length) {
     return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma proposta recebida ainda.</p>';
   }
-  return propostas.map(p => {
+  // Pendentes sempre no topo
+  const statusOrder = { pendente: 0, aceita: 1, recusada: 2 };
+  const sortedPropostas = [...propostas].sort((a, b) =>
+    (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
+  );
+  return sortedPropostas.map(p => {
     const jogs = (p.jogadores || []).map(j => {
       const age = j.age ? ` · ${j.age} anos` : '';
       return `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-2)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
     }).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
 
-    const picks = (p.picks || []).map(pk => {
+    // Picks: 1ª rodada na frente, 2ª com espaço; dono da pick em branco
+    const _renderPickBadge = pk => {
       const swapBadge = pk.swap_type ? `<span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px;margin-left:5px">${_esc(pk.swap_type)}</span>` : '';
-      const origTeam = (pk.original_team_name || '').trim() ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px">${_esc(pk.original_team_name.trim())}</span>` : '';
+      const origTeam = (pk.original_team_name || '').trim() ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc(pk.original_team_name.trim())}</span>` : '';
       return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||pk.round_num||'?'}${swapBadge}${origTeam}</span>`;
-    }).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
+    };
+    const allPicks = p.picks || [];
+    const r1picks = allPicks.filter(pk => Number(pk.round || pk.round_num) === 1);
+    const r2picks = allPicks.filter(pk => Number(pk.round || pk.round_num) !== 1);
+    let picks = '';
+    if (allPicks.length) {
+      if (r1picks.length) {
+        picks += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1picks.map(_renderPickBadge).join('')}</div>`;
+      }
+      if (r2picks.length) {
+        picks += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1picks.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2picks.map(_renderPickBadge).join('')}</div>`;
+      }
+    } else {
+      picks = '<span style="color:var(--text-3);font-size:12px">—</span>';
+    }
 
     const obs = p.obs || p.notas;
 
@@ -49,10 +69,21 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
       const age = j.age ? ` · ${j.age} anos` : '';
       return `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-2)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
     }).join('');
-    const extraPicks = (p.extra_picks || []).map(pk => {
+    // Extra picks: 1ª rodada na frente, dono em branco
+    const _renderExtraPickBadge = pk => {
       const orig = (pk.original_team_name || '').trim();
-      return `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px">${_esc(orig)}</span>` : ''}</span>`;
-    }).join('');
+      return `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc(orig)}</span>` : ''}</span>`;
+    };
+    const allExtraPicks = p.extra_picks || [];
+    const r1extra = allExtraPicks.filter(pk => Number(pk.round) === 1);
+    const r2extra = allExtraPicks.filter(pk => Number(pk.round) !== 1);
+    let extraPicks = '';
+    if (r1extra.length) {
+      extraPicks += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1extra.map(_renderExtraPickBadge).join('')}</div>`;
+    }
+    if (r2extra.length) {
+      extraPicks += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1extra.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2extra.map(_renderExtraPickBadge).join('')}</div>`;
+    }
     const personalizedHtml = p.is_personalized ? `
       <div style="background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.18);border-radius:8px;padding:10px 12px;margin-top:12px">
         <div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"><i class="bi bi-stars me-1"></i>Oferta Personalizada — itens do vendedor incluídos</div>
@@ -60,6 +91,7 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
           ? `<div style="margin-bottom:4px">${extraJogs}</div><div>${extraPicks}</div>`
           : '<span style="color:var(--text-3);font-size:12px">—</span>'}
       </div>` : '';
+
 
     const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : p.status === 'recusada' ? 'rgba(239,68,68,.12)' : 'var(--border)';
 

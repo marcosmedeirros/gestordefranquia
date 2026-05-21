@@ -534,7 +534,7 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
             FROM leilao_propostas lp
             JOIN teams t ON lp.team_id = t.id
             WHERE lp.leilao_id = ?" . ($onlyAccepted ? " AND lp.status = 'aceita'" : '') . "
-            ORDER BY lp.created_at DESC";
+            ORDER BY FIELD(lp.status,'pendente','aceita','recusada'), lp.created_at DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$leilao_id]);
@@ -1069,11 +1069,6 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         }
     }
 
-    if (!$is_admin && !empty($proposta['data_fim']) && strtotime($proposta['data_fim']) > time()) {
-        echo json_encode(['success' => false, 'error' => 'Leilao ainda esta em andamento']);
-        return;
-    }
-    
     $pdo->beginTransaction();
     
     try {
