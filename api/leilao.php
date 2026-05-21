@@ -188,8 +188,14 @@ function ensurePersonalizedProposalSupport(PDO $pdo): void {
             id INT AUTO_INCREMENT PRIMARY KEY,
             proposta_id INT NOT NULL,
             pick_id INT NOT NULL,
+            swap_type VARCHAR(10) NULL,
             INDEX idx_epk (proposta_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {}
+    try {
+        if (!tableColumnExists($pdo, 'leilao_proposta_extra_picks', 'swap_type')) {
+            $pdo->exec('ALTER TABLE leilao_proposta_extra_picks ADD COLUMN swap_type VARCHAR(10) NULL');
+        }
     } catch (Throwable $e) {}
 }
 
@@ -511,7 +517,7 @@ function verPropostas($pdo, $leilao_id, $team_id, $is_admin) {
                                 WHERE ep.proposta_id = ?");
         $stmt4->execute([$proposta['id']]);
         $proposta['extra_jogadores'] = $stmt4->fetchAll(PDO::FETCH_ASSOC);
-        $stmt5 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round,
+        $stmt5 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, ep.swap_type,
                                        CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
                                 FROM leilao_proposta_extra_picks ep
                                 JOIN picks pk ON pk.id = ep.pick_id
@@ -564,7 +570,7 @@ function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
         $stmt4->execute([$proposta['id']]);
         $proposta['extra_jogadores'] = $stmt4->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt5 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round,
+        $stmt5 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, ep.swap_type,
                                        CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
                                 FROM leilao_proposta_extra_picks ep
                                 JOIN picks pk ON pk.id = ep.pick_id
@@ -656,7 +662,7 @@ function sellerItems(PDO $pdo, int $seller_team_id, ?int $league_id): void {
         return;
     }
     $ovrColumn = playerOvrColumn($pdo);
-    $stmt = $pdo->prepare("SELECT id, name, position, age, {$ovrColumn} as ovr FROM players WHERE team_id = ? ORDER BY {$ovrColumn} DESC");
+    $stmt = $pdo->prepare("SELECT id, name, position, age, {$ovrColumn} as ovr, COALESCE(role,'') as role FROM players WHERE team_id = ? ORDER BY {$ovrColumn} DESC");
     $stmt->execute([$seller_team_id]);
     $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -806,6 +812,7 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
     $pick_swaps = $body['pick_swaps'] ?? [];
     $extra_player_ids = $body['extra_player_ids'] ?? [];
     $extra_pick_ids = $body['extra_pick_ids'] ?? [];
+    $extra_pick_swaps = $body['extra_pick_swaps'] ?? [];
     $is_personalized = !empty($extra_player_ids) || !empty($extra_pick_ids);
 
     if (!$leilao_id || (empty($player_ids) && empty($pick_ids) && trim($notas) === '')) {
@@ -891,6 +898,26 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
         }
     }
 
+    // Validar SWAP para picks extras do vendedor: round 1, comprador deve ter pick do mesmo ano
+    if (!empty($extra_pick_swaps) && !empty($leilao['team_id'])) {
+        foreach ($extra_pick_swaps as $pickId => $swapType) {
+            if (!in_array($swapType, ['SB', 'SW'])) continue;
+            $stmtPk = $pdo->prepare("SELECT round, season_year FROM picks WHERE id = ?");
+            $stmtPk->execute([$pickId]);
+            $pkRow = $stmtPk->fetch(PDO::FETCH_ASSOC);
+            if (!$pkRow || (int)$pkRow['round'] !== 1) {
+                echo json_encode(['success' => false, 'error' => 'Picks extras de 2ª rodada não podem ser SWAP']);
+                return;
+            }
+            $stmtBuyer = $pdo->prepare("SELECT id FROM picks WHERE team_id = ? AND round = 1 AND season_year = ?");
+            $stmtBuyer->execute([$team_id, $pkRow['season_year']]);
+            if (!$stmtBuyer->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'SWAP inválido: você não tem pick de 1ª rodada de ' . $pkRow['season_year']]);
+                return;
+            }
+        }
+    }
+
     // Validar itens extras pertencem ao vendedor
     if ($is_personalized && empty($leilao['team_id'])) {
         echo json_encode(['success' => false, 'error' => 'Este leilão não aceita oferta personalizada (jogador sem time vendedor).']);
@@ -945,8 +972,11 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
                 foreach ($extra_player_ids as $pid) { $stmt->execute([$proposta_id, $pid]); }
             }
             if (!empty($extra_pick_ids)) {
-                $stmt = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id) VALUES (?, ?)");
-                foreach ($extra_pick_ids as $pkid) { $stmt->execute([$proposta_id, $pkid]); }
+                $stmt = $pdo->prepare("INSERT INTO leilao_proposta_extra_picks (proposta_id, pick_id, swap_type) VALUES (?, ?, ?)");
+                foreach ($extra_pick_ids as $pkid) {
+                    $sw = isset($extra_pick_swaps[$pkid]) && in_array($extra_pick_swaps[$pkid], ['SB','SW']) ? $extra_pick_swaps[$pkid] : null;
+                    $stmt->execute([$proposta_id, $pkid, $sw]);
+                }
             }
         }
 

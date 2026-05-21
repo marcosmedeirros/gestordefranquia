@@ -115,6 +115,36 @@ let _propostsAutoRefresh = null;
 let _currentProposalSellerTeamId = null;
 let _customOfferOpen = false;
 let _cachedSellerItems = null;
+let _cachedMyR1Years = null;
+
+function _roleOrder(role) {
+  const r = (role || '').toLowerCase().trim();
+  if (r === 'titular' || r === 'starter') return 0;
+  if (r === 'banco' || r === 'bench') return 1;
+  return 2;
+}
+
+function _renderPlayersGrouped(players, checkboxClass) {
+  if (!players.length) return '';
+  const sorted = [...players].sort((a, b) =>
+    _roleOrder(a.role) - _roleOrder(b.role) || Number(b.ovr||b.overall||0) - Number(a.ovr||a.overall||0)
+  );
+  const labels = { 0: 'Titulares', 1: 'Banco', 2: 'Outros' };
+  let html = '';
+  let cur = -1;
+  for (const pl of sorted) {
+    const ord = _roleOrder(pl.role);
+    if (ord !== cur) {
+      cur = ord;
+      html += `<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin:${html ? '10px' : '0'} 0 5px">${labels[ord]}</div>`;
+    }
+    html += `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:5px">
+      <input class="form-check-input ${checkboxClass}" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
+      <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||pl.overall||'?'} · ${pl.age||'?'} anos</span></span>
+    </label>`;
+  }
+  return html;
+}
 
 function _getModalInstance() {
   const el = document.getElementById('modalVerPropostas');
@@ -428,16 +458,14 @@ async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
     sellerTeamId ? _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${sellerTeamId}`).catch(() => ({ players: [], picks: [] })) : Promise.resolve({ players: [], picks: [] })
   ]);
   _cachedSellerItems = dataSellerRaw;
+  _cachedMyR1Years = null;
 
-  // Render players
+  // Render players grouped by role
   const players = dataPlayers.players || [];
   if (playersContainer) {
-    playersContainer.innerHTML = players.length
-      ? '<div style="display:flex;flex-direction:column;gap:6px">' + players.map(pl =>
-          `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
-            <input class="form-check-input player-checkbox" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
-            <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||pl.overall||'?'}</span></span>
-          </label>`).join('') + '</div>'
+    const grouped = _renderPlayersGrouped(players, 'player-checkbox');
+    playersContainer.innerHTML = grouped
+      ? `<div>${grouped}</div>`
       : '<p style="color:#f59e0b;font-size:13px">Você não tem jogadores disponíveis para troca.</p>';
   }
 
@@ -448,6 +476,7 @@ async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
       (dataSellerRaw.picks || []).filter(p => Number(p.round) === 1).map(p => String(p.season_year))
     );
     const round1 = picks.filter(pk => Number(pk.round) === 1);
+    _cachedMyR1Years = new Set(round1.map(pk => String(pk.season_year)));
     const round2 = picks.filter(pk => Number(pk.round) !== 1);
 
     if (!picks.length) {
@@ -514,29 +543,55 @@ async function _loadSellerItemsForProposal() {
   try {
     const data = _cachedSellerItems || await _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${_currentProposalSellerTeamId}`);
     _cachedSellerItems = data;
+
+    // Players grouped by role
     const players = data.players || [];
     if (playersDiv) {
-      playersDiv.innerHTML = players.length
-        ? '<div style="display:flex;flex-direction:column;gap:6px">' + players.map(pl =>
-            `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
-              <input class="form-check-input extra-player-checkbox" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
-              <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||'?'} · ${pl.age||'?'} anos</span></span>
-            </label>`).join('') + '</div>'
+      const grouped = _renderPlayersGrouped(players, 'extra-player-checkbox');
+      playersDiv.innerHTML = grouped
+        ? `<div>${grouped}</div>`
         : '<p style="color:var(--text-3);font-size:13px">Nenhum jogador disponível.</p>';
     }
+
+    // Picks separated by round, swap for R1 where buyer also has same year
     const picks = data.picks || [];
     if (picksDiv) {
-      picksDiv.innerHTML = picks.length
-        ? '<div style="display:flex;flex-direction:column;gap:6px">' + picks.map(pk => {
-            const r = pk.round || pk.round_num;
-            const orig = (pk.original_team_name || '').trim();
-            const label = `${pk.season_year} R${r}${orig ? ' · ' + orig : ''}`;
-            return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
-              <input class="form-check-input extra-pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
-              <span style="font-size:13px;color:var(--text)">${_esc(label)}</span>
-            </label>`;
-          }).join('') + '</div>'
-        : '<p style="color:var(--text-3);font-size:13px">Nenhuma pick disponível.</p>';
+      if (!picks.length) {
+        picksDiv.innerHTML = '<p style="color:var(--text-3);font-size:13px">Nenhuma pick disponível.</p>';
+      } else {
+        const myR1Years = _cachedMyR1Years || new Set();
+        const round1 = picks.filter(pk => Number(pk.round) === 1);
+        const round2 = picks.filter(pk => Number(pk.round) !== 1);
+
+        const renderSellerPick = (pk, allowSwap) => {
+          const orig = (pk.original_team_name || '').trim();
+          const label = `${pk.season_year} R${pk.round}${orig ? ' · ' + orig : ''}`;
+          const swapHtml = allowSwap
+            ? `<select class="extra-pick-swap-select" data-pick-id="${pk.id}" style="font-size:11px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:2px 6px;cursor:pointer;font-family:var(--font)">
+                 <option value="">Sem SWAP</option>
+                 <option value="SB">SB</option>
+                 <option value="SW">SW</option>
+               </select>`
+            : '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
+            <input class="form-check-input extra-pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
+            <span style="font-size:13px;color:var(--text);flex:1">${_esc(label)}</span>
+            ${swapHtml}
+          </div>`;
+        };
+
+        const rlbl = (txt, mt) => `<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin:${mt} 0 5px">${txt}</div>`;
+        let html = '';
+        if (round1.length) {
+          html += rlbl('1ª Rodada', '0');
+          html += round1.map(pk => renderSellerPick(pk, myR1Years.has(String(pk.season_year)))).join('');
+        }
+        if (round2.length) {
+          html += rlbl('2ª Rodada', round1.length ? '10px' : '0');
+          html += round2.map(pk => renderSellerPick(pk, false)).join('');
+        }
+        picksDiv.innerHTML = html;
+      }
     }
   } catch (e) {
     if (playersDiv) playersDiv.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar.</p>';
@@ -561,6 +616,10 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
   });
   const extraPlayerIds = Array.from(document.querySelectorAll('.extra-player-checkbox:checked')).map(cb => cb.value);
   const extraPickIds = Array.from(document.querySelectorAll('.extra-pick-checkbox:checked')).map(cb => cb.value);
+  const extraPickSwaps = {};
+  document.querySelectorAll('.extra-pick-swap-select').forEach(sel => {
+    if (sel.value) extraPickSwaps[sel.dataset.pickId] = sel.value;
+  });
   const isPersonalized = extraPlayerIds.length > 0 || extraPickIds.length > 0;
 
   if (!playerIds.length && !pickIds.length && !notas.trim() && !obs.trim()) {
@@ -573,7 +632,7 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
-      body: JSON.stringify({ action:'enviar_proposta', leilao_id:leilaoId, player_ids:playerIds, pick_ids:pickIds, notas, obs, pick_swaps:pickSwaps, extra_player_ids:extraPlayerIds, extra_pick_ids:extraPickIds, is_personalized:isPersonalized })
+      body: JSON.stringify({ action:'enviar_proposta', leilao_id:leilaoId, player_ids:playerIds, pick_ids:pickIds, notas, obs, pick_swaps:pickSwaps, extra_player_ids:extraPlayerIds, extra_pick_ids:extraPickIds, extra_pick_swaps:extraPickSwaps, is_personalized:isPersonalized })
     });
     if (data.success) {
       bootstrap.Modal.getInstance(document.getElementById('modalProposta'))?.hide();
