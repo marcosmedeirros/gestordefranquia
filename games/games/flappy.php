@@ -549,7 +549,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             </div>
 
             <div class="coins-banner" id="coinsBanner">
-                <i class="bi bi-coin"></i> <span id="coinsText">+0 moedas ganhas!</span>
+                <img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"> <span id="coinsText">+0 moedas ganhas!</span>
             </div>
 
             <button id="reviveBtn" class="btn-revive" style="display:none">

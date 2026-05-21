@@ -274,12 +274,12 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <img src="moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <img src="lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">FBA Pts</div>
     </div>
@@ -317,8 +317,8 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
   <span class="mob-title">FBA <span>Games</span></span>
   <div class="mob-chips">
-    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></span>
-    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></span>
   </div>
   <a href="index.php" class="mob-back" title="Apostas"><i class="bi bi-arrow-left"></i></a>
 </div>
@@ -328,7 +328,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
   <div class="section-label" style="margin-top:0"><i class="bi bi-joystick"></i>Meus Jogos</div>
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-coin"></i>Moedas</div>
+      <div class="stat-label"><img src="moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle">Moedas</div>
       <div class="stat-value"><?= number_format($usuario['pontos'], 0, ',', '.') ?></div>
     </div>
     <div class="stat-card">
@@ -455,7 +455,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
                   </div>
                   <?php if (!empty($j['league'])): ?><div class="rank-meta"><?= htmlspecialchars($j['league']) ?></div><?php endif; ?>
                 </div>
-                <div class="rank-value"><?= number_format($j['pontos'], 0, ',', '.') ?> moedas</div>
+                <div class="rank-value"><img src="moeda.png" style="width:12px;height:12px;object-fit:contain;vertical-align:middle"> <?= number_format($j['pontos'], 0, ',', '.') ?></div>
               </div>
             <?php endforeach; ?>
           <?php endif; ?>

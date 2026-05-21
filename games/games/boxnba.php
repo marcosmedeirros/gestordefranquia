@@ -417,7 +417,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
   <div class="topbar-right">
     <div class="chip" id="triesChip"><i class="bi bi-crosshair"></i><span id="triesLabel">9</span></div>
-    <div class="chip" id="scoreChip" style="color:var(--amber)"><i class="bi bi-coin" style="color:var(--amber)"></i><span id="scoreLabel">0</span></div>
+    <div class="chip" id="scoreChip" style="color:var(--amber)"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><span id="scoreLabel">0</span></div>
   </div>
 </div>
 

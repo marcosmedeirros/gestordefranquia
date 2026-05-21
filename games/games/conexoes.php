@@ -604,7 +604,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <span class="heart" id="h1">❤️</span>
       <span class="heart" id="h0">❤️</span>
     </div>
-    <div class="score-chip"><i class="bi bi-coin"></i><span id="scoreVal">0</span></div>
+    <div class="score-chip"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><span id="scoreVal">0</span></div>
   </div>
 </div>
 

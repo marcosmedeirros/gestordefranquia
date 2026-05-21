@@ -210,7 +210,7 @@ try {
     </div>
     <div class="d-flex align-items-center gap-2">
         <span class="text-secondary d-none d-md-inline">Olá, <strong class="text-white"><?= htmlspecialchars($usuario['nome']) ?></strong></span>
-        <span class="saldo-badge" id="saldoDisplay"><i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
+        <span class="saldo-badge" id="saldoDisplay"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
         <a href="../games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
     </div>
 </div>

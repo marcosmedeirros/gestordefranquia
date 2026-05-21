@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                                 <span class='fw-bold text-light'>{$s['criador']}</span>
                             </div>
                         </td>
-                        <td class='text-warning fw-bold'><i class='bi bi-coin me-1'></i>{$valor}</td>
+                        <td class='text-warning fw-bold'><img src='../moeda.png' style='width:14px;height:14px;object-fit:contain;vertical-align:middle'> {$valor}</td>
                         <td><span class='badge bg-info bg-opacity-25 text-info border border-info'>No Lobby</span></td>
                         <td class='text-end pe-3'>$btn</td>
                     </tr>";
@@ -463,7 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     </div>
     <div class="d-flex align-items-center gap-3">
         <a href="../games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Sair</a>
-        <span class="badge bg-primary fs-6 shadow-sm"><i class="bi bi-coin me-1"></i> <?= number_format($meu_perfil['pontos'], 0, ',', '.') ?></span>
+        <span class="badge bg-primary fs-6 shadow-sm"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($meu_perfil['pontos'], 0, ',', '.') ?></span>
     </div>
 </div>
 

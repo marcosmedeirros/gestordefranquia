@@ -474,10 +474,10 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
         </div>
         
         <span class="saldo-badge">
-            <i class="bi bi-coin me-1"></i><?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas
+            <img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($usuario['pontos'], 0, ',', '.') ?> moedas
         </span>
         <span class="saldo-badge">
-            <i class="bi bi-gem me-1"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS
+            <img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS
         </span>
         
         <a href="../games.php" class="btn btn-sm btn-outline-light border-0">

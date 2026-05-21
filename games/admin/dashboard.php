@@ -461,12 +461,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">FBA Pts</div>
     </div>
@@ -491,15 +491,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <!-- Topbar (desktop) -->
   <div class="topbar">
     <div class="topbar-title">Controle de <span>Apostas</span></div>
-    <div class="chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'], 0, ',', '.') ?></div>
-    <div class="chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($user['fba_points'], 0, ',', '.') ?></div>
+    <div class="chip"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($user['pontos'], 0, ',', '.') ?></div>
+    <div class="chip"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($user['fba_points'], 0, ',', '.') ?></div>
   </div>
 
   <!-- Topbar (mobile) -->
   <div class="mob-bar">
     <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
     <span class="mob-title">Admin <span>Apostas</span></span>
-    <div class="chip" style="font-size:11px"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'], 0, ',', '.') ?></div>
+    <div class="chip" style="font-size:11px"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($user['pontos'], 0, ',', '.') ?></div>
   </div>
 
   <div class="body-wrap">

@@ -241,7 +241,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php if ($streak_atual > 0): ?>
     <div class="chip fire"><i class="bi bi-fire"></i><?= $streak_atual ?></div>
     <?php endif; ?>
-    <div class="chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($meu_perfil['pontos'],0,',','.') ?></div>
+    <div class="chip"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><?= number_format($meu_perfil['pontos'],0,',','.') ?></div>
   </div>
 </div>
 

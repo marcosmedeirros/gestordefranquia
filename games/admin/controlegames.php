@@ -334,12 +334,12 @@ $labelMap = [
       <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">FBA Pts</div>
     </div>
@@ -375,8 +375,8 @@ $labelMap = [
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
   <span class="mob-title">FBA <span>Admin</span></span>
   <div class="mob-chips">
-    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></span>
-    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($user['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($user['fba_points'] ?? 0, 0, ',', '.') ?></span>
   </div>
   <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
@@ -435,7 +435,7 @@ $labelMap = [
 
   <div class="panel-card" style="margin-bottom:14px">
     <div class="panel-head">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle">
       Zerar FBA Points e Moedas
     </div>
     <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">

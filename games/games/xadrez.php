@@ -405,8 +405,8 @@ if (isset($_GET['id'])) {
     
     <div class="d-flex align-items-center gap-3">
         <a href="../games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar ao Painel</a>
-        <span class="saldo-badge me-2"><i class="bi bi-coin me-1"></i><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
-        <span class="saldo-badge"><i class="bi bi-gem me-1"></i><?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS</span>
+        <span class="saldo-badge me-2"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> moedas</span>
+        <span class="saldo-badge"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS</span>
     </div>
 </div>
 

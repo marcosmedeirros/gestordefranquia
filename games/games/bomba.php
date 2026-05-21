@@ -336,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
     <span class="game-title">💣 <span>Bomba</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">
-    <div class="chip"><i class="bi bi-coin" style="color:#f59e0b"></i><?= number_format($meu_perfil['pontos'] ?? 0, 0, ',', '.') ?></div>
+    <div class="chip"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><?= number_format($meu_perfil['pontos'] ?? 0, 0, ',', '.') ?></div>
   </div>
 </div>
 

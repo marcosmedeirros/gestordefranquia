@@ -274,12 +274,12 @@ try {
       <div class="sb-stat-label">Tapas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-coin" style="color:var(--amber)"></i>
+      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">Moedas</div>
     </div>
     <div class="sb-stat">
-      <i class="bi bi-gem" style="color:#a78bfa"></i>
+      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
       <div class="sb-stat-val"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></div>
       <div class="sb-stat-label">FBA Pts</div>
     </div>
@@ -317,8 +317,8 @@ try {
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
   <span class="mob-title">FBA <span>Games</span></span>
   <div class="mob-chips">
-    <span class="mob-chip"><i class="bi bi-coin" style="color:var(--amber)"></i><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></span>
-    <span class="mob-chip"><i class="bi bi-gem" style="color:#a78bfa"></i><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($usuario['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?></span>
   </div>
   <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
@@ -332,7 +332,7 @@ try {
       <div class="stat-value"><?= (int)$resumo['total_apostas'] ?></div>
     </div>
     <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-coin"></i>Total apostado</div>
+      <div class="stat-label"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle">Total apostado</div>
       <div class="stat-value" style="font-size:16px"><?= number_format((float)$resumo['total_apostado'], 0, ',', '.') ?></div>
     </div>
     <div class="stat-card">
