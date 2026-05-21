@@ -775,6 +775,29 @@ async function showLeague(league) {
         <div id="leagueConfigInlineBody"></div>
       </div>
 
+      <div class="panel mb-3" id="leagueQuickSearchPanel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-search" style="color:#94a3b8"></i> Busca Rápida</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-ghost" id="srchTabPlayer" style="font-size:12px" onclick="setLeagueSearchType('player')"><i class="bi bi-person-fill me-1"></i>Jogador</button>
+            <button class="btn-ghost" id="srchTabPick" style="font-size:12px;color:var(--text-2)" onclick="setLeagueSearchType('pick')"><i class="bi bi-calendar2-check me-1"></i>Pick</button>
+          </div>
+        </div>
+        <div id="srchPlayerPanel">
+          <div class="d-flex gap-2">
+            <input type="text" id="srchPlayerInput" class="form-control bg-dark text-white" style="border-color:rgba(252,0,37,.35);font-size:13px" placeholder="Nome do jogador...">
+            <button class="btn btn-sm" style="background:var(--red);color:#fff;white-space:nowrap;padding:6px 14px" onclick="runLeaguePlayerSearch()"><i class="bi bi-search"></i></button>
+          </div>
+          <div id="srchPlayerResults" class="mt-2"></div>
+        </div>
+        <div id="srchPickPanel" style="display:none">
+          <select id="srchPickTeam" class="form-select bg-dark text-white" style="border-color:rgba(252,0,37,.35);font-size:13px" onchange="runLeaguePickSearch(this.value)">
+            <option value="">Selecionar time...</option>
+          </select>
+          <div id="srchPickResults" class="mt-2"></div>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title" style="margin-bottom:0"><i class="bi bi-people-fill"></i> Times</div>
@@ -785,6 +808,7 @@ async function showLeague(league) {
     `;
 
     setupLeaguePlayerSearch(league);
+    setupLeagueQuickSearch(league);
     document.getElementById('copyRosterBtn')?.addEventListener('click', copyLeagueRosters);
     document.getElementById('copyPicksBtn')?.addEventListener('click', copyLeaguePicks);
 
@@ -849,6 +873,337 @@ function setupLeaguePlayerSearch(league) {
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
   });
+}
+
+// =====================================================================
+// League Quick Search
+// =====================================================================
+
+const _leagueSearchCache = { players: [], ownedPicks: [], awayPicks: [] };
+
+function setupLeagueQuickSearch(league) {
+  const input = document.getElementById('srchPlayerInput');
+  if (!input) return;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runLeaguePlayerSearch(); }
+  });
+}
+
+function setLeagueSearchType(type) {
+  const playerPanel = document.getElementById('srchPlayerPanel');
+  const pickPanel   = document.getElementById('srchPickPanel');
+  const tabPlayer   = document.getElementById('srchTabPlayer');
+  const tabPick     = document.getElementById('srchTabPick');
+  if (!playerPanel) return;
+  if (type === 'player') {
+    playerPanel.style.display = '';
+    pickPanel.style.display   = 'none';
+    tabPlayer.style.color = 'var(--text)';
+    tabPick.style.color   = 'var(--text-2)';
+  } else {
+    playerPanel.style.display = 'none';
+    pickPanel.style.display   = '';
+    tabPlayer.style.color = 'var(--text-2)';
+    tabPick.style.color   = 'var(--text)';
+    _populateSrchPickTeams();
+  }
+}
+
+async function _populateSrchPickTeams() {
+  const sel = document.getElementById('srchPickTeam');
+  if (!sel || sel.dataset.loaded) return;
+  const league = appState.currentLeague;
+  try {
+    const data = await api(`admin.php?action=teams&league=${encodeURIComponent(league)}`);
+    sel.innerHTML = '<option value="">Selecionar time...</option>';
+    (data.teams || []).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name}`;
+      sel.appendChild(opt);
+    });
+    sel.dataset.loaded = '1';
+  } catch (e) {}
+}
+
+async function runLeaguePlayerSearch() {
+  const input   = document.getElementById('srchPlayerInput');
+  const results = document.getElementById('srchPlayerResults');
+  if (!input || !results) return;
+  const term = input.value.trim();
+  if (term.length < 2) { results.innerHTML = ''; return; }
+  const league = appState.currentLeague;
+  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:6px 0">Buscando...</div>';
+  try {
+    const data = await api(`admin.php?action=search_players&league=${encodeURIComponent(league)}&query=${encodeURIComponent(term)}`);
+    let players = (data.players || []);
+    players.sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0));
+    players = players.slice(0, 10);
+    _leagueSearchCache.players = players;
+    if (!players.length) {
+      results.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:6px 0">Nenhum jogador encontrado.</div>';
+      return;
+    }
+    results.innerHTML = players.map(p => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.name)}</div>
+          <div style="font-size:11px;color:var(--text-3)">${p.position||'-'} · OVR ${p.ovr??'-'} · ${p.age??'-'} anos · ${escapeHtml((p.team_city||'') + ' ' + (p.team_name||''))}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" title="Mover time" onclick="srchMovePlayer(${p.id})"><i class="bi bi-arrow-left-right"></i></button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" title="Editar" onclick="srchEditPlayer(${p.id})"><i class="bi bi-pencil"></i></button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" title="Deletar" onclick="srchDeletePlayer(${p.id})"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    results.innerHTML = `<div style="color:var(--red);font-size:13px;padding:6px 0">Erro: ${e.error || 'Erro ao buscar'}</div>`;
+  }
+}
+
+async function runLeaguePickSearch(teamId) {
+  if (!teamId) teamId = document.getElementById('srchPickTeam')?.value;
+  const results = document.getElementById('srchPickResults');
+  if (!results || !teamId) return;
+  results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:6px 0">Buscando...</div>';
+  try {
+    const data = await api(`picks.php?team_id=${teamId}&include_away=1`);
+    const owned = (data.picks || []).filter(p => Number(p.round) === 1);
+    const away  = (data.picks_away || []).filter(p => Number(p.round) === 1);
+    _leagueSearchCache.ownedPicks = owned;
+    _leagueSearchCache.awayPicks  = away;
+    if (!owned.length && !away.length) {
+      results.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:6px 0">Nenhuma pick de 1ª rodada encontrada.</div>';
+      return;
+    }
+    const swBadge = st => st
+      ? `<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px;margin-left:4px">${st}</span>`
+      : '';
+    const pickRow = (p, isAway) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${p.season_year} R${p.round}${swBadge(p.swap_type)}</div>
+          <div style="font-size:11px;color:var(--text-3)">${isAway
+            ? 'Atual: ' + escapeHtml((p.current_team_city||'') + ' ' + (p.current_team_name||''))
+            : 'Original: ' + escapeHtml((p.original_team_city||'') + ' ' + (p.original_team_name||''))
+          }</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" title="Mover dono" onclick="srchMovePick(${p.id},${isAway})"><i class="bi bi-arrow-left-right"></i></button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px;color:#f59e0b" title="SWAP" onclick="srchSwapPick(${p.id},${isAway})">SWAP</button>
+        </div>
+      </div>`;
+    let html = '';
+    if (owned.length) {
+      html += `<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;padding-top:4px;padding-bottom:2px">Picks que o time possui</div>`;
+      html += owned.map(p => pickRow(p, false)).join('');
+    }
+    if (away.length) {
+      html += `<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;padding-top:${owned.length?'12':'4'}px;padding-bottom:2px">Picks originais do time (em outros times)</div>`;
+      html += away.map(p => pickRow(p, true)).join('');
+    }
+    results.innerHTML = html;
+  } catch (e) {
+    results.innerHTML = `<div style="color:var(--red);font-size:13px;padding:6px 0">Erro: ${e.error || 'Erro ao buscar picks'}</div>`;
+  }
+}
+
+// --- Player actions from search context ---
+
+function srchMovePlayer(playerId) {
+  const p = _leagueSearchCache.players.find(x => x.id == playerId);
+  if (!p) return;
+  const league = appState.currentLeague;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Mover ${escapeHtml(p.name)}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Time de destino</label>
+<select class="form-select bg-dark text-white border-orange" id="srchMovePlayerTeam"><option value="">Carregando...</option></select></div></div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="_applySrchMovePlayer(${playerId})">Mover</button></div></div></div>`;
+  document.body.appendChild(modal);
+  api(`admin.php?action=teams&league=${encodeURIComponent(league)}`).then(data => {
+    const sel = modal.querySelector('#srchMovePlayerTeam');
+    sel.innerHTML = '';
+    (data.teams || []).filter(t => t.id != p.team_id).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name}`;
+      sel.appendChild(opt);
+    });
+  });
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function _applySrchMovePlayer(playerId) {
+  const teamId = parseInt(document.getElementById('srchMovePlayerTeam')?.value);
+  if (!teamId) { alert('Selecione o time destino!'); return; }
+  try {
+    await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify({ player_id: playerId, team_id: teamId }) });
+    const m = document.querySelector('.modal.show');
+    bootstrap.Modal.getInstance(m)?.hide();
+    showAlert('success', 'Jogador movido!');
+    runLeaguePlayerSearch();
+  } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+}
+
+function srchEditPlayer(playerId) {
+  const p = _leagueSearchCache.players.find(x => x.id == playerId);
+  if (!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Editar ${escapeHtml(p.name)}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="mb-3"><label class="form-label text-light-gray">Posição</label>
+<input type="text" class="form-control bg-dark text-white border-orange" id="srchEditPos" value="${escapeHtml(p.position||'')}"></div>
+<div class="row">
+<div class="col-6 mb-3"><label class="form-label text-light-gray">Idade</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="srchEditAge" value="${p.age||''}" min="16" max="60"></div>
+<div class="col-6 mb-3"><label class="form-label text-light-gray">OVR</label>
+<input type="number" class="form-control bg-dark text-white border-orange" id="srchEditOvr" value="${p.ovr||0}" min="0" max="99"></div>
+</div>
+<div class="mb-3"><label class="form-label text-light-gray">Papel</label>
+<select class="form-select bg-dark text-white border-orange" id="srchEditRole">
+<option value="Titular" ${p.role==='Titular'?'selected':''}>Titular</option>
+<option value="Banco" ${p.role==='Banco'?'selected':''}>Banco</option>
+<option value="Outro" ${p.role==='Outro'?'selected':''}>Outro</option>
+<option value="G-League" ${p.role==='G-League'?'selected':''}>G-League</option>
+</select></div>
+</div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="_applySrchEditPlayer(${playerId})">Salvar</button></div></div></div>`;
+  document.body.appendChild(modal);
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function _applySrchEditPlayer(playerId) {
+  const ageVal = parseInt(document.getElementById('srchEditAge')?.value || '', 10);
+  const data = {
+    player_id: playerId,
+    position: document.getElementById('srchEditPos').value,
+    ovr: parseInt(document.getElementById('srchEditOvr').value, 10),
+    role: document.getElementById('srchEditRole').value,
+  };
+  if (!Number.isNaN(ageVal)) data.age = ageVal;
+  try {
+    await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify(data) });
+    const m = document.querySelector('.modal.show');
+    bootstrap.Modal.getInstance(m)?.hide();
+    showAlert('success', 'Jogador atualizado!');
+    runLeaguePlayerSearch();
+  } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+}
+
+async function srchDeletePlayer(playerId) {
+  if (!confirm('Deletar jogador?')) return;
+  try {
+    await api(`admin.php?action=player&id=${playerId}`, { method: 'DELETE' });
+    showAlert('success', 'Jogador deletado!');
+    runLeaguePlayerSearch();
+  } catch (e) { alert('Erro ao deletar jogador'); }
+}
+
+// --- Pick actions from search context ---
+
+function srchMovePick(pickId, isAway) {
+  const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
+  const p = cache.find(x => x.id == pickId);
+  if (!p) return;
+  const league = appState.currentLeague;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white">Mover Pick — ${p.season_year} R${p.round}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<p style="font-size:13px;color:var(--text-2);margin-bottom:12px">Original: <strong>${escapeHtml((p.original_team_city||p.current_team_city||'') + ' ' + (p.original_team_name||p.current_team_name||''))}</strong></p>
+<div class="mb-3"><label class="form-label text-light-gray">Mover para o time</label>
+<select class="form-select bg-dark text-white border-orange" id="srchMovePickTeam"><option value="">Carregando...</option></select></div>
+</div>
+<div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+<button type="button" class="btn btn-orange" onclick="_applySrchMovePick(${pickId},${isAway})">Mover</button></div></div></div>`;
+  document.body.appendChild(modal);
+  api(`admin.php?action=teams&league=${encodeURIComponent(league)}`).then(data => {
+    const sel = modal.querySelector('#srchMovePickTeam');
+    sel.innerHTML = '';
+    (data.teams || []).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.city} ${t.name}`;
+      if (t.id == p.team_id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function _applySrchMovePick(pickId, isAway) {
+  const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
+  const p = cache.find(x => x.id == pickId);
+  if (!p) return;
+  const destTeamId = parseInt(document.getElementById('srchMovePickTeam')?.value);
+  if (!destTeamId) { alert('Selecione o time destino!'); return; }
+  try {
+    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
+      pick_id: pickId,
+      team_id: destTeamId,
+      original_team_id: p.original_team_id,
+      season_year: p.season_year,
+      round: p.round,
+      swap_type: p.swap_type || null,
+      notes: p.notes || null
+    })});
+    const m = document.querySelector('.modal.show');
+    bootstrap.Modal.getInstance(m)?.hide();
+    showAlert('success', 'Pick movida!');
+    const teamId = document.getElementById('srchPickTeam')?.value;
+    if (teamId) runLeaguePickSearch(teamId);
+  } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+}
+
+function srchSwapPick(pickId, isAway) {
+  const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
+  const p = cache.find(x => x.id == pickId);
+  if (!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `<div class="modal-dialog modal-sm"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
+<h5 class="modal-title text-white" style="font-size:14px">Swap — ${p.season_year} R${p.round}</h5>
+<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+<div class="modal-body"><div class="d-flex flex-column gap-2">
+<button type="button" class="btn ${!p.swap_type ? 'btn-orange' : 'btn-secondary'}" onclick="_applySrchSwap(${pickId},${isAway},'')">Nenhum</button>
+<button type="button" class="btn ${p.swap_type==='SW' ? 'btn-orange' : 'btn-outline-light'}" onclick="_applySrchSwap(${pickId},${isAway},'SW')">SW — Worst</button>
+<button type="button" class="btn ${p.swap_type==='SB' ? 'btn-orange' : 'btn-outline-light'}" onclick="_applySrchSwap(${pickId},${isAway},'SB')">SB — Best</button>
+</div></div></div></div>`;
+  document.body.appendChild(modal);
+  new bootstrap.Modal(modal).show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function _applySrchSwap(pickId, isAway, swapType) {
+  const cache = isAway ? _leagueSearchCache.awayPicks : _leagueSearchCache.ownedPicks;
+  const p = cache.find(x => x.id == pickId);
+  if (!p) return;
+  try {
+    await api('admin.php?action=pick', { method: 'PUT', body: JSON.stringify({
+      pick_id: pickId,
+      team_id: p.team_id,
+      original_team_id: p.original_team_id,
+      season_year: p.season_year,
+      round: p.round,
+      swap_type: swapType || null,
+      notes: p.notes || null
+    })});
+    const m = document.querySelector('.modal.show');
+    bootstrap.Modal.getInstance(m)?.hide();
+    showAlert('success', swapType ? `Swap: ${swapType}` : 'Swap removido');
+    const teamId = document.getElementById('srchPickTeam')?.value;
+    if (teamId) runLeaguePickSearch(teamId);
+  } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
 }
 
 async function showTeam(teamId) {
