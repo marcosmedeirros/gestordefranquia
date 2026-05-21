@@ -834,14 +834,6 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
         return;
     }
     
-    // Verificar se ja enviou proposta para este leilao
-    $stmt = $pdo->prepare("SELECT id FROM leilao_propostas WHERE leilao_id = ? AND team_id = ? AND status = 'pendente'");
-    $stmt->execute([$leilao_id, $team_id]);
-    if ($stmt->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Voce ja tem uma proposta pendente para este leilao']);
-        return;
-    }
-
     // Se o leilão não tem time (jogador criado), não aceitar picks
     if (!empty($pick_ids) && empty($leilao['team_id'])) {
         echo json_encode(['success' => false, 'error' => 'Este leilao nao aceita picks (jogador sem time).']);
@@ -879,6 +871,26 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
         }
     }
     
+    // Validar regras de SWAP: apenas round 1, e vendedor deve ter pick do mesmo ano
+    if (!empty($pick_swaps) && !empty($leilao['team_id'])) {
+        foreach ($pick_swaps as $pickId => $swapType) {
+            if (!in_array($swapType, ['SB', 'SW'])) continue;
+            $stmtPk = $pdo->prepare("SELECT round, season_year FROM picks WHERE id = ?");
+            $stmtPk->execute([$pickId]);
+            $pkRow = $stmtPk->fetch(PDO::FETCH_ASSOC);
+            if (!$pkRow || (int)$pkRow['round'] !== 1) {
+                echo json_encode(['success' => false, 'error' => 'Picks de 2ª rodada não podem ser SWAP']);
+                return;
+            }
+            $stmtSeller = $pdo->prepare("SELECT id FROM picks WHERE team_id = ? AND round = 1 AND season_year = ?");
+            $stmtSeller->execute([$leilao['team_id'], $pkRow['season_year']]);
+            if (!$stmtSeller->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'SWAP inválido: vendedor não tem pick de 1ª rodada de ' . $pkRow['season_year']]);
+                return;
+            }
+        }
+    }
+
     // Validar itens extras pertencem ao vendedor
     if ($is_personalized && empty($leilao['team_id'])) {
         echo json_encode(['success' => false, 'error' => 'Este leilão não aceita oferta personalizada (jogador sem time vendedor).']);

@@ -114,6 +114,7 @@ let _modalIsOwner = false;
 let _propostsAutoRefresh = null;
 let _currentProposalSellerTeamId = null;
 let _customOfferOpen = false;
+let _cachedSellerItems = null;
 
 function _getModalInstance() {
   const el = document.getElementById('modalVerPropostas');
@@ -181,10 +182,10 @@ function _startPropostasAutoRefresh(leilaoId, isOwner) {
 
 // ── Leilões ativos ────────────────────────────────────────────────────────────
 
-async function carregarLeiloesAtivos() {
+async function carregarLeiloesAtivos(silent = false) {
   const container = document.getElementById('leiloesAtivosContainer');
   if (!container) return;
-  container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
+  if (!silent) container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
 
   try {
     const url = currentLeagueId
@@ -348,10 +349,10 @@ async function verPropostaVencedora(leilaoId) {
 
 // ── Propostas Recebidas (card inline, sem modal) ───────────────────────────────
 
-async function carregarPropostasRecebidas() {
+async function carregarPropostasRecebidas(silent = false) {
   const container = document.getElementById('propostasRecebidasContainer');
   if (!container) return;
-  container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px"><div class="spinner-border" style="color:var(--red);width:1.2rem;height:1.2rem" role="status"></div></div>';
+  if (!silent) container.innerHTML = '<div style="display:flex;justify-content:center;padding:24px"><div class="spinner-border" style="color:var(--red);width:1.2rem;height:1.2rem" role="status"></div></div>';
 
   try {
     const data = await _fetchJson('api/leilao.php?action=propostas_recebidas');
@@ -415,55 +416,77 @@ async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
   const toggleBtn = document.getElementById('btnToggleCustomOffer');
   if (toggleBtn) toggleBtn.style.display = sellerTeamId ? '' : 'none';
 
-  const container = document.getElementById('meusJogadoresParaTroca');
-  container.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+  const playersContainer = document.getElementById('meusJogadoresParaTroca');
+  const picksContainer = document.getElementById('minhasPicksParaTroca');
+  if (playersContainer) playersContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+  if (picksContainer) picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+  _cachedSellerItems = null;
 
-  try {
-    const url = userTeamId ? `api/team-players.php?team_id=${userTeamId}` : 'api/team-players.php';
-    const data = await _fetchJson(url);
-    const players = data.players || [];
-    if (players.length) {
-      container.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
-        players.map(pl => `
-          <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+  const [dataPlayers, dataPicks, dataSellerRaw] = await Promise.all([
+    _fetchJson(userTeamId ? `api/team-players.php?team_id=${userTeamId}` : 'api/team-players.php').catch(() => ({ players: [] })),
+    _fetchJson('api/leilao.php?action=minhas_picks').catch(() => ({ picks: [] })),
+    sellerTeamId ? _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${sellerTeamId}`).catch(() => ({ players: [], picks: [] })) : Promise.resolve({ players: [], picks: [] })
+  ]);
+  _cachedSellerItems = dataSellerRaw;
+
+  // Render players
+  const players = dataPlayers.players || [];
+  if (playersContainer) {
+    playersContainer.innerHTML = players.length
+      ? '<div style="display:flex;flex-direction:column;gap:6px">' + players.map(pl =>
+          `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
             <input class="form-check-input player-checkbox" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
             <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||pl.overall||'?'}</span></span>
-          </label>`).join('') + '</div>';
-    } else {
-      container.innerHTML = '<p style="color:#f59e0b;font-size:13px">Você não tem jogadores disponíveis para troca.</p>';
-    }
-  } catch (e) {
-    container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar jogadores.</p>';
+          </label>`).join('') + '</div>'
+      : '<p style="color:#f59e0b;font-size:13px">Você não tem jogadores disponíveis para troca.</p>';
   }
 
-  const picksContainer = document.getElementById('minhasPicksParaTroca');
+  // Render picks separated by round, swap only for R1 where seller has same year
   if (picksContainer) {
-    picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
-    try {
-      const dataP = await _fetchJson('api/leilao.php?action=minhas_picks');
-      const picks = dataP.picks || [];
-      if (picks.length) {
-        picksContainer.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
-          picks.map(pk => {
-            const r = pk.round || pk.round_num || pk.rnd;
-            const orig = (pk.original_team_name || '').trim();
-            const label = `${pk.season_year} R${r}${orig ? ' · ' + orig : ''}`;
-            return `
-              <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px">
-                <input class="form-check-input pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
-                <span style="font-size:13px;color:var(--text);flex:1">${_esc(label)}</span>
-                <select class="pick-swap-select" data-pick-id="${pk.id}" style="font-size:11px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:2px 6px;cursor:pointer;font-family:var(--font)">
-                  <option value="">Sem SWAP</option>
-                  <option value="SB">SB</option>
-                  <option value="SW">SW</option>
-                </select>
-              </div>`;
-          }).join('') + '</div>';
-      } else {
-        picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Você não tem picks disponíveis.</p>';
+    const picks = dataPicks.picks || [];
+    const sellerR1Years = new Set(
+      (dataSellerRaw.picks || []).filter(p => Number(p.round) === 1).map(p => String(p.season_year))
+    );
+    const round1 = picks.filter(pk => Number(pk.round) === 1);
+    const round2 = picks.filter(pk => Number(pk.round) !== 1);
+
+    if (!picks.length) {
+      picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Você não tem picks disponíveis.</p>';
+    } else {
+      const renderPick = (pk, allowSwap) => {
+        const orig = (pk.original_team_name || '').trim();
+        const label = `${pk.season_year} R${pk.round}${orig ? ' · ' + orig : ''}`;
+        const swapHtml = allowSwap
+          ? `<select class="pick-swap-select" data-pick-id="${pk.id}" style="font-size:11px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:2px 6px;cursor:pointer;font-family:var(--font)">
+               <option value="">Sem SWAP</option>
+               <option value="SB">SB</option>
+               <option value="SW">SW</option>
+             </select>`
+          : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px">
+          <input class="form-check-input pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
+          <span style="font-size:13px;color:var(--text);flex:1">${_esc(label)}</span>
+          ${swapHtml}
+        </div>`;
+      };
+
+      const roundLabel = (txt, mt) =>
+        `<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin:${mt} 0 5px">${txt}</div>`;
+
+      let html = '';
+      if (round1.length) {
+        html += roundLabel('1ª Rodada', '0');
+        html += '<div style="display:flex;flex-direction:column;gap:5px">';
+        html += round1.map(pk => renderPick(pk, sellerTeamId && sellerR1Years.has(String(pk.season_year)))).join('');
+        html += '</div>';
       }
-    } catch (e) {
-      picksContainer.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar picks.</p>';
+      if (round2.length) {
+        html += roundLabel('2ª Rodada', round1.length ? '10px' : '0');
+        html += '<div style="display:flex;flex-direction:column;gap:5px">';
+        html += round2.map(pk => renderPick(pk, false)).join('');
+        html += '</div>';
+      }
+      picksContainer.innerHTML = html;
     }
   }
 
@@ -489,7 +512,8 @@ async function _loadSellerItemsForProposal() {
   const playersDiv = document.getElementById('sellerPlayersParaTroca');
   const picksDiv = document.getElementById('sellerPicksParaTroca');
   try {
-    const data = await _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${_currentProposalSellerTeamId}`);
+    const data = _cachedSellerItems || await _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${_currentProposalSellerTeamId}`);
+    _cachedSellerItems = data;
     const players = data.players || [];
     if (playersDiv) {
       playersDiv.innerHTML = players.length
@@ -610,7 +634,7 @@ async function recusarProposta(propostaId, leilaoId) {
 
 // ── Admin: leilões ────────────────────────────────────────────────────────────
 
-async function carregarLeiloesAdmin() {
+async function carregarLeiloesAdmin(silent = false) {
   const container = document.getElementById('adminLeiloesContainer');
   if (!container) return;
 
@@ -929,10 +953,12 @@ function setupAdminEvents() {
 // ── Cronômetros ────────────────────────────────────────────────────────────────
 
 function iniciarCronometros() {
-  const timers = document.querySelectorAll('.auction-timer');
-  if (!timers.length) return;
+  clearInterval(window._leilaoTimerInterval);
+  window._leilaoTimerInterval = null;
 
   const update = () => {
+    const timers = document.querySelectorAll('.auction-timer');
+    if (!timers.length) return;
     const now = Date.now();
     timers.forEach(timer => {
       const endTime = timer.getAttribute('data-end-time');
@@ -973,9 +999,7 @@ function iniciarCronometros() {
   };
 
   update();
-  if (!window._leilaoTimerInterval) {
-    window._leilaoTimerInterval = setInterval(update, 1000);
-  }
+  window._leilaoTimerInterval = setInterval(update, 1000);
 }
 
 // ── Manter compatibilidade com parseJsonSafe (usado em outros lugares) ────────
@@ -1000,13 +1024,20 @@ function _startPageAutoRefresh() {
     const propostaModal = document.getElementById('modalProposta');
     if (propostaModal && propostaModal.classList.contains('show')) return;
 
-    await carregarLeiloesAtivos();
-    if (userTeamId) await carregarPropostasRecebidas();
-    if (isAdmin) await carregarLeiloesAdmin();
+    await carregarLeiloesAtivos(true);
+    if (userTeamId) await carregarPropostasRecebidas(true);
+    if (isAdmin) await carregarLeiloesAdmin(true);
   }, 30000);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+function _forceModalCleanup() {
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.overflow = '';
+  document.body.style.paddingRight = '';
+}
 
 document.addEventListener('DOMContentLoaded', function () {
   carregarLeiloesAtivos();
@@ -1019,4 +1050,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   _applyLeilaoTableLabels();
   _startPageAutoRefresh();
+
+  // Garante limpeza do backdrop em mobile ao fechar qualquer modal
+  document.querySelectorAll('.modal').forEach(modalEl => {
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      // Só limpa se não houver outro modal aberto
+      const anyOpen = document.querySelector('.modal.show');
+      if (!anyOpen) _forceModalCleanup();
+    });
+  });
 });
