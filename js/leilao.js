@@ -227,7 +227,7 @@ async function carregarLeiloesAtivos() {
       const verBtn = (!isMyTeam && userTeamId) ? `
         <button onclick="verPropostasEnviadas(${l.id})"
           style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-2);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);margin-bottom:8px">
-          <i class="bi bi-eye me-1"></i>Minhas propostas enviadas
+          <i class="bi bi-eye me-1"></i>Ver propostas
         </button>` : '';
 
       const ownerBtn = isMyTeam && propCount > 0 ? `
@@ -474,7 +474,7 @@ function toggleCustomOffer() {
   _customOfferOpen = !_customOfferOpen;
   const section = document.getElementById('propostaCustomSection');
   const chevron = document.getElementById('customOfferChevron');
-  if (section) section.style.display = _customOfferOpen ? '' : 'none';
+  if (section) section.style.display = _customOfferOpen ? 'block' : 'none';
   if (chevron) {
     chevron.classList.toggle('bi-chevron-down', !_customOfferOpen);
     chevron.classList.toggle('bi-chevron-up', _customOfferOpen);
