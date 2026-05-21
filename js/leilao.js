@@ -377,7 +377,17 @@ async function verPropostaVencedora(leilaoId) {
   }
 }
 
-// ── Propostas Recebidas (card inline, sem modal) ───────────────────────────────
+// ── Propostas Recebidas (inline, sem modal) ────────────────────────────────────
+
+window._toggleRecusadasSection = function(uid) {
+  const d = document.getElementById(uid);
+  if (!d) return;
+  const btn = d.previousElementSibling;
+  const isOpen = d.style.display !== 'none';
+  d.style.display = isOpen ? 'none' : 'block';
+  const icon = btn && btn.querySelector('i');
+  if (icon) icon.className = 'bi ' + (isOpen ? 'bi-chevron-down' : 'bi-chevron-up');
+};
 
 async function carregarPropostasRecebidas(silent = false) {
   const container = document.getElementById('propostasRecebidasContainer');
@@ -393,24 +403,45 @@ async function carregarPropostasRecebidas(silent = false) {
       return;
     }
 
-    const cards = leiloes.map(l => {
-      const n = Number(l.total_propostas) || 0;
-      return `
-        <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <div>
-              <div style="font-weight:600;font-size:14px;color:var(--text)">${_esc(l.player_name)}</div>
-              <div style="font-size:12px;color:var(--text-3);margin-top:2px">${_esc(l.position||'')} · OVR ${l.ovr||'?'} · ${n} proposta${n!==1?'s':''}</div>
-            </div>
-            <button onclick="verMinhasPropostasRecebidas(${l.id})"
-              style="padding:7px 14px;background:var(--red);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">
-              <i class="bi bi-inbox me-1"></i>Ver e Escolher
+    const gridStyle = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:12px';
+
+    const sections = leiloes.map(l => {
+      const propostas = l.propostas || [];
+      const pendentes = propostas.filter(p => p.status === 'pendente');
+      const recusadas = propostas.filter(p => p.status === 'recusada');
+
+      const pendentesHtml = pendentes.length
+        ? `<div style="${gridStyle}">${_renderPropostasHtml(pendentes, true, l.id)}</div>`
+        : '<p style="color:var(--text-3);font-size:13px;padding:4px 0 6px">Nenhuma proposta pendente.</p>';
+
+      let recusadasSection = '';
+      if (recusadas.length) {
+        const uid = `recusadas-${l.id}`;
+        recusadasSection = `
+          <div style="margin-top:12px">
+            <button onclick="_toggleRecusadasSection('${uid}')"
+              style="display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--text-3);cursor:pointer;font-family:var(--font);width:100%;text-align:left">
+              <i class="bi bi-chevron-down" style="font-size:11px;flex-shrink:0"></i>
+              <span>Propostas recusadas (${recusadas.length})</span>
             </button>
+            <div id="${uid}" style="display:none;margin-top:8px">
+              <div style="${gridStyle}">${_renderPropostasHtml(recusadas, false, l.id)}</div>
+            </div>
+          </div>`;
+      }
+
+      return `
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px">
+          <div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">${_esc(l.player_name)}</div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:3px">${_esc(l.position||'')} · OVR ${l.ovr||'?'}</div>
           </div>
+          ${pendentesHtml}
+          ${recusadasSection}
         </div>`;
     }).join('');
 
-    container.innerHTML = cards;
+    container.innerHTML = sections;
     _applyLeilaoTableLabels(container);
   } catch (e) {
     container.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar propostas.</p>';
@@ -680,9 +711,11 @@ async function recusarProposta(propostaId, leilaoId) {
       body: JSON.stringify({ action:'recusar_proposta', proposta_id:propostaId })
     });
     if (data.success) {
-      // Recarrega APENAS o conteúdo do modal sem fechar/reabrir (fix do bug de tela bugada)
-      await _loadPropostasContent(leilaoId || _modalLeilaoId, _modalIsOwner);
-      carregarPropostasRecebidas();
+      const modalEl = document.getElementById('modalVerPropostas');
+      if (modalEl && modalEl.classList.contains('show')) {
+        await _loadPropostasContent(leilaoId || _modalLeilaoId, _modalIsOwner);
+      }
+      carregarPropostasRecebidas(true);
     } else {
       alert('Erro: ' + (data.error || 'Erro desconhecido'));
     }

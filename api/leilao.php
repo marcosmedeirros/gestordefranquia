@@ -447,22 +447,69 @@ function propostasRecebidas($pdo, $team_id) {
         echo json_encode(['success' => true, 'leiloes' => []]);
         return;
     }
-    
-    // Buscar leiloes dos meus jogadores que tem propostas
+
     $ovrColumn = playerOvrColumn($pdo);
-    $sql = "SELECT l.*, 
-                   COALESCE(l.temp_name, p.name) as player_name, 
-                   COALESCE(l.temp_position, p.position) as position, 
-                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
-                   (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas
+    $sql = "SELECT l.id, l.status,
+                   COALESCE(l.temp_name, p.name) as player_name,
+                   COALESCE(l.temp_position, p.position) as position,
+                   COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
-            WHERE l.team_id = ? AND l.status = 'ativo'
-            HAVING total_propostas > 0";
-    
+            WHERE l.team_id = ? AND l.status = 'ativo'";
+
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$team_id]);
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $ovrCol = playerOvrColumn($pdo);
+    foreach ($leiloes as &$leilao) {
+        $stmtP = $pdo->prepare("SELECT lp.*, t.name as team_name
+                                FROM leilao_propostas lp
+                                JOIN teams t ON lp.team_id = t.id
+                                WHERE lp.leilao_id = ?
+                                ORDER BY FIELD(lp.status,'pendente','recusada'), lp.created_at DESC");
+        $stmtP->execute([$leilao['id']]);
+        $propostas = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($propostas as &$proposta) {
+            $stmtJ = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} as ovr
+                                    FROM players p
+                                    JOIN leilao_proposta_jogadores lpj ON p.id = lpj.player_id
+                                    WHERE lpj.proposta_id = ?");
+            $stmtJ->execute([$proposta['id']]);
+            $proposta['jogadores'] = $stmtJ->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtPk = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, lpp.swap_type,
+                                           CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                    FROM leilao_proposta_picks lpp
+                                    JOIN picks pk ON pk.id = lpp.pick_id
+                                    LEFT JOIN teams t ON t.id = pk.original_team_id
+                                    WHERE lpp.proposta_id = ?");
+            $stmtPk->execute([$proposta['id']]);
+            $proposta['picks'] = $stmtPk->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtEJ = $pdo->prepare("SELECT pl.id, pl.name, pl.position, pl.age, pl.{$ovrCol} as ovr
+                                     FROM leilao_proposta_extra_players ep
+                                     JOIN players pl ON pl.id = ep.player_id
+                                     WHERE ep.proposta_id = ?");
+            $stmtEJ->execute([$proposta['id']]);
+            $proposta['extra_jogadores'] = $stmtEJ->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtEP = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, ep.swap_type,
+                                           CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                    FROM leilao_proposta_extra_picks ep
+                                    JOIN picks pk ON pk.id = ep.pick_id
+                                    LEFT JOIN teams t ON t.id = pk.original_team_id
+                                    WHERE ep.proposta_id = ?");
+            $stmtEP->execute([$proposta['id']]);
+            $proposta['extra_picks'] = $stmtEP->fetchAll(PDO::FETCH_ASSOC);
+        }
+        unset($proposta);
+        $leilao['propostas'] = $propostas;
+    }
+    unset($leilao);
+
+    $leiloes = array_values(array_filter($leiloes, fn($l) => !empty($l['propostas'])));
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }
 
