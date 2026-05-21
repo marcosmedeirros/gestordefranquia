@@ -695,8 +695,11 @@ async function showLeague(league) {
       const statusColor = isRunning ? '#22c55e' : '#f59e0b';
       const statusBg = isRunning ? 'rgba(34,197,94,.1)' : 'rgba(245,158,11,.1)';
       const statusLabel = isRunning ? 'Em andamento' : 'Configurando';
+      const timerEl = (isRunning && activeDraft.pick_deadline_ts)
+        ? `<span id="admin-draft-pick-timer" style="font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:#22c55e;margin-left:6px">⏱ --:--</span>`
+        : '';
       const sub = isRunning
-        ? `Rodada ${activeDraft.current_round || 1} · Pick ${activeDraft.current_pick || 1}`
+        ? `Rodada ${activeDraft.current_round || 1} · Pick ${activeDraft.current_pick || 1}${timerEl}`
         : 'Aguardando configuração da ordem de picks';
       return `
       <div class="panel mb-3" style="border-color:rgba(168,85,247,.35)">
@@ -811,6 +814,10 @@ async function showLeague(league) {
     setupLeagueQuickSearch(league);
     document.getElementById('copyRosterBtn')?.addEventListener('click', copyLeagueRosters);
     document.getElementById('copyPicksBtn')?.addEventListener('click', copyLeaguePicks);
+
+    if (activeDraft?.status === 'in_progress' && activeDraft?.pick_deadline_ts) {
+      _startAdminDraftTimer(Number(activeDraft.pick_deadline_ts), 'admin-draft-pick-timer');
+    }
 
     try {
       const approvalData = await api('user-approval.php');
@@ -5120,6 +5127,30 @@ async function _serasaSaveAvisos(teamId, league) {
 
 // ── Draft Admin ──────────────────────────────────────────────────────
 
+let _adminDraftTimerInterval = null;
+
+function _startAdminDraftTimer(deadlineTs, elId) {
+  clearInterval(_adminDraftTimerInterval);
+  const update = () => {
+    const el = document.getElementById(elId);
+    if (!el) { clearInterval(_adminDraftTimerInterval); return; }
+    const remaining = deadlineTs - Math.floor(Date.now() / 1000);
+    if (remaining <= 0) {
+      el.textContent = '⏱ Expirado';
+      el.style.color = '#ef4444';
+      clearInterval(_adminDraftTimerInterval);
+      return;
+    }
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    el.textContent = `⏱ ${m}:${s}`;
+    el.style.color = remaining < 300 ? '#f59e0b' : '#22c55e';
+    if (el.style.border) el.style.borderColor = remaining < 300 ? 'rgba(245,158,11,.2)' : 'rgba(34,197,94,.2)';
+  };
+  update();
+  _adminDraftTimerInterval = setInterval(update, 1000);
+}
+
 async function showAdminDraft(league) {
   league = league || appState.currentLeague;
   appState.view = 'draft';
@@ -5204,10 +5235,11 @@ async function showAdminDraft(league) {
       actionBtns.push(`<button class="btn-ghost" style="color:#a855f7" onclick="_adminDraftAddPlayerModal(${draft.id}, ${draft.season_id}, '${league}')"><i class="bi bi-person-plus me-1"></i>Adicionar Jogador</button>`);
 
       const currentInfo = draftStatus === 'in_progress' ? `
-        <div style="padding:10px 16px;border-top:1px solid var(--panel-border);display:flex;gap:16px">
+        <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:16px;align-items:center;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--text-3)">Rodada: <strong style="color:var(--text)">${currentRound}</strong></span>
           <span style="font-size:12px;color:var(--text-3)">Pick: <strong style="color:var(--text)">${currentPick}</strong></span>
           <span style="font-size:12px;color:var(--text-3)">Rodadas: <strong style="color:var(--text)">${draft.total_rounds || 2}</strong></span>
+          ${draft.pick_deadline_ts ? `<span id="admin-draft-detail-timer" style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:2px 10px">⏱ --:--</span>` : ''}
         </div>` : '';
 
       sessionPanel = `
@@ -5357,6 +5389,10 @@ async function showAdminDraft(league) {
       ${sessionPanel}
       ${orderPanel}
       ${playersPanel}`;
+
+    if (draftStatus === 'in_progress' && draft?.pick_deadline_ts) {
+      _startAdminDraftTimer(Number(draft.pick_deadline_ts), 'admin-draft-detail-timer');
+    }
 
   } catch(e) {
     container.innerHTML = `

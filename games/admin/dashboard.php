@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $nome_evento  = trim($_POST['nome_evento']);
         $data_limite  = $_POST['data_limite'];
         $opcoes_nomes = $_POST['opcoes_nomes'];
+        $opcoes_imgs  = $_POST['opcoes_imgs'] ?? [];
 
         if (empty($nome_evento) || empty($data_limite) || count(array_filter($opcoes_nomes)) < 2) {
             $mensagem = "Preencha todos os campos (mínimo 2 opções).";
@@ -32,9 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO eventos (nome, data_limite, status) VALUES (:nome, :data, 'aberta')");
                 $stmt->execute([':nome' => $nome_evento, ':data' => $data_limite]);
                 $evento_id = $pdo->lastInsertId();
-                $stmtOpcao = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd) VALUES (:eid, :desc, 1)");
-                foreach ($opcoes_nomes as $op) {
-                    if (!empty(trim($op))) $stmtOpcao->execute([':eid' => $evento_id, ':desc' => trim($op)]);
+                $stmtOpcao = $pdo->prepare("INSERT INTO opcoes (evento_id, descricao, odd, img_url) VALUES (:eid, :desc, 1, :img)");
+                foreach ($opcoes_nomes as $i => $op) {
+                    if (!empty(trim($op))) {
+                        $img = !empty($opcoes_imgs[$i]) ? trim($opcoes_imgs[$i]) : null;
+                        $stmtOpcao->execute([':eid' => $evento_id, ':desc' => trim($op), ':img' => $img]);
+                    }
                 }
                 $pdo->commit();
                 $mensagem = "Aposta publicada com sucesso!";
@@ -52,18 +56,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $data_limite = $_POST['data_limite'];
         $op_ids      = $_POST['opcoes_ids'] ?? [];
         $op_nomes    = $_POST['opcoes_nomes'];
+        $op_imgs     = $_POST['opcoes_imgs'] ?? [];
         try {
             $pdo->beginTransaction();
             $pdo->prepare("UPDATE eventos SET nome=:nome, data_limite=:data WHERE id=:id")
                 ->execute([':nome'=>$nome_evento,':data'=>$data_limite,':id'=>$id_evento]);
-            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao=:desc WHERE id=:oid AND evento_id=:eid");
-            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id,descricao,odd) VALUES (:eid,:desc,1)");
+            $stmtUpd = $pdo->prepare("UPDATE opcoes SET descricao=:desc, img_url=:img WHERE id=:oid AND evento_id=:eid");
+            $stmtIns = $pdo->prepare("INSERT INTO opcoes (evento_id,descricao,odd,img_url) VALUES (:eid,:desc,1,:img)");
             for ($i = 0; $i < count($op_nomes); $i++) {
                 $nome = trim($op_nomes[$i]);
                 $oid  = $op_ids[$i] ?? '';
+                $img  = !empty($op_imgs[$i]) ? trim($op_imgs[$i]) : null;
                 if (!empty($nome)) {
-                    if (!empty($oid)) $stmtUpd->execute([':desc'=>$nome,':oid'=>$oid,':eid'=>$id_evento]);
-                    else              $stmtIns->execute([':eid'=>$id_evento,':desc'=>$nome]);
+                    if (!empty($oid)) $stmtUpd->execute([':desc'=>$nome,':img'=>$img,':oid'=>$oid,':eid'=>$id_evento]);
+                    else              $stmtIns->execute([':eid'=>$id_evento,':desc'=>$nome,':img'=>$img]);
                 }
             }
             $pdo->commit();
@@ -168,12 +174,30 @@ $totalPalpites  = $pdo->query("SELECT COUNT(*) FROM palpites")->fetchColumn();
 
 $acTeams = [];
 $acPlayers = [];
+$acImgMap = []; // name -> img_url
 try {
     $pdoFba = new PDO('mysql:host=localhost;dbname=u289267434_fbabrasilbanco;charset=utf8mb4',
                       'u289267434_fbabrasilbanco', 'Fbabrasil@2025',
                       [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    $acTeams   = $pdoFba->query("SELECT DISTINCT name FROM teams ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
-    $acPlayers = $pdoFba->query("SELECT DISTINCT name FROM players ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+    $rows = $pdoFba->query("SELECT name, photo_url FROM teams ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) {
+        $acTeams[] = $r['name'];
+        if (!empty($r['photo_url'])) $acImgMap[$r['name']] = $r['photo_url'];
+    }
+    $rows = $pdoFba->query("SELECT name, nba_player_id, foto_adicional FROM players ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) {
+        $acPlayers[] = $r['name'];
+        if (!empty($r['foto_adicional'])) {
+            $fa = trim($r['foto_adicional']);
+            if (preg_match('/^https?:\/\//', $fa) || preg_match('/^data:image\//', $fa)) {
+                $acImgMap[$r['name']] = $fa;
+            } else {
+                $acImgMap[$r['name']] = '/' . ltrim($fa, '/');
+            }
+        } elseif (!empty($r['nba_player_id'])) {
+            $acImgMap[$r['name']] = "https://cdn.nba.com/headshots/nba/latest/1040x760/{$r['nba_player_id']}.png";
+        }
+    }
 } catch (Exception $e) { /* se o banco principal não estiver acessível, sugestões ficam vazias */ }
 $acTeamSet = array_flip($acTeams);
 $acSuggestions = $acTeams;
@@ -529,6 +553,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <div class="opcoes-list" id="listaOpcoes">
             <div class="opcao-row">
               <input type="hidden" name="opcoes_ids[]" value="">
+              <input type="hidden" name="opcoes_imgs[]" class="img-url-input" value="">
               <div class="ac-wrap">
                 <input type="text" name="opcoes_nomes[]" class="f-input" placeholder="Time, jogador ou texto livre" required>
                 <div class="ac-drop"></div>
@@ -536,6 +561,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             </div>
             <div class="opcao-row">
               <input type="hidden" name="opcoes_ids[]" value="">
+              <input type="hidden" name="opcoes_imgs[]" class="img-url-input" value="">
               <div class="ac-wrap">
                 <input type="text" name="opcoes_nomes[]" class="f-input" placeholder="Time, jogador ou texto livre" required>
                 <div class="ac-drop"></div>
@@ -686,6 +712,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <script>
 const AC_SUGGESTIONS = <?= json_encode($acSuggestions, JSON_UNESCAPED_UNICODE) ?>;
 const AC_TEAM_SET    = new Set(<?= json_encode($acTeams, JSON_UNESCAPED_UNICODE) ?>);
+const AC_IMG_MAP     = <?= json_encode($acImgMap, JSON_UNESCAPED_UNICODE) ?>;
 
 let editingCardId = null;
 
@@ -694,6 +721,14 @@ function initAC(input) {
   if (!wrap) return;
   const drop = wrap.querySelector('.ac-drop');
   let activeIdx = -1;
+
+  function fillImg(name) {
+    const row = input.closest('.opcao-row');
+    if (row) {
+      const imgInput = row.querySelector('.img-url-input');
+      if (imgInput) imgInput.value = AC_IMG_MAP[name] || '';
+    }
+  }
 
   function show(items) {
     drop.innerHTML = '';
@@ -707,6 +742,7 @@ function initAC(input) {
       d.addEventListener('mousedown', e => {
         e.preventDefault();
         input.value = name;
+        fillImg(name);
         drop.style.display = 'none';
       });
       drop.appendChild(d);
@@ -737,7 +773,13 @@ function initAC(input) {
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
     else if (e.key === 'Enter') {
       const active = drop.querySelector('.ac-active');
-      if (active) { e.preventDefault(); input.value = active.textContent.trim(); drop.style.display = 'none'; }
+      if (active) {
+        e.preventDefault();
+        const name = active.textContent.trim();
+        input.value = name;
+        fillImg(name);
+        drop.style.display = 'none';
+      }
     }
     else if (e.key === 'Escape') { drop.style.display = 'none'; }
   });
@@ -747,11 +789,12 @@ function initAC(input) {
   });
 }
 
-function addOpcao(id='', nome='') {
+function addOpcao(id='', nome='', img='') {
   const div = document.createElement('div');
   div.className = 'opcao-row';
   div.innerHTML = `
     <input type="hidden" name="opcoes_ids[]" value="${id}">
+    <input type="hidden" name="opcoes_imgs[]" class="img-url-input" value="${img.replace(/"/g,'&quot;')}">
     <div class="ac-wrap">
       <input type="text" name="opcoes_nomes[]" class="f-input" value="${nome.replace(/"/g,'&quot;')}" placeholder="Time, jogador ou texto livre" required>
       <div class="ac-drop"></div>
@@ -786,7 +829,7 @@ function editarAposta(evt) {
   // Fill opcoes
   const lista = document.getElementById('listaOpcoes');
   lista.innerHTML = '';
-  evt.opcoes.forEach(op => addOpcao(op.id, op.descricao));
+  evt.opcoes.forEach(op => addOpcao(op.id, op.descricao, op.img_url || ''));
 
   document.getElementById('btnSubmit').innerHTML  = '<i class="bi bi-save-fill"></i> Salvar Alterações';
   document.getElementById('btnCancelar').classList.add('show');

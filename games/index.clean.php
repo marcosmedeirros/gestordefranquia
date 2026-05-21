@@ -149,7 +149,7 @@ try {
     }
     $ultimos_eventos_abertos = $eventos_abertos;
     foreach ($ultimos_eventos_abertos as &$evento) {
-        $stmtOpcoes = $pdo->prepare("SELECT o.id, o.descricao, COUNT(p.id) as palpites_count FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id WHERE o.evento_id = :eid GROUP BY o.id, o.descricao ORDER BY o.id ASC");
+        $stmtOpcoes = $pdo->prepare("SELECT o.id, o.descricao, o.img_url, COUNT(p.id) as palpites_count FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id WHERE o.evento_id = :eid GROUP BY o.id, o.descricao, o.img_url ORDER BY o.id ASC");
         $stmtOpcoes->execute([':eid' => $evento['id']]);
         $evento['opcoes'] = $stmtOpcoes->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $evento['total_palpites'] = array_sum(array_column($evento['opcoes'], 'palpites_count'));
@@ -443,6 +443,7 @@ try {
     .bet-opt-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
     .bet-opt-name { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bet-opt-pct { font-size: 12px; font-weight: 800; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+    .bet-opt-img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--panel-3); }
     .bet-opt.picked .bet-opt-pct { color: var(--red); }
     .bet-bar-wrap { height: 4px; background: rgba(255,255,255,.05); border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
     .bet-bar { height: 100%; border-radius: 2px; background: rgba(255,255,255,.12); transition: width .6s cubic-bezier(.2,.8,.2,1); }
@@ -844,6 +845,9 @@ try {
               ?>
               <div class="bet-opt<?= $isPicked ? ' picked' : '' ?>">
                 <div class="bet-opt-top">
+                  <?php if (!empty($opcao['img_url'])): ?>
+                  <img class="bet-opt-img" src="<?= htmlspecialchars($opcao['img_url']) ?>" alt="" onerror="this.style.display='none'">
+                  <?php endif; ?>
                   <span class="bet-opt-name"><?= htmlspecialchars($opcao['descricao']) ?></span>
                   <span class="bet-opt-pct"><?= $total_palps > 0 ? $pct.'%' : '—' ?></span>
                 </div>

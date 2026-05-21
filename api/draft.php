@@ -89,6 +89,9 @@ if ($method === 'GET') {
             );
             $stmt->execute([$league]);
             $draft = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($draft && !empty($draft['current_pick_started_at'])) {
+                $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
+            }
 
             echo json_encode(['success' => true, 'draft' => $draft]);
             break;

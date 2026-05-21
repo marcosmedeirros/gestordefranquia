@@ -154,6 +154,16 @@ try {
     }
 
     try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM opcoes LIKE 'img_url'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE opcoes ADD COLUMN img_url VARCHAR(500) NULL DEFAULT NULL");
+        }
+    } catch (PDOException $e) {
+        // Silencia erro de ajuste de schema para nao quebrar a conexao
+    }
+
+    try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS fba_game_controls (
             id INT AUTO_INCREMENT PRIMARY KEY,
             game_key VARCHAR(40) NOT NULL UNIQUE,
