@@ -329,13 +329,34 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 <h5 class="modal-title"><i class="bi bi-send" style="color:var(--red)"></i>Enviar Proposta de Troca</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height:80vh;overflow-y:auto">
                 <input type="hidden" id="leilaoIdProposta">
+                <input type="hidden" id="leilaoSellerTeamId">
                 <div class="info-box"><strong style="color:var(--text);">Jogador em leilão:</strong> <span id="jogadorLeilaoNome" style="color:var(--red);font-weight:600;"></span></div>
+
                 <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Selecione os jogadores que você oferece em troca:</p>
                 <div id="meusJogadoresParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
-                <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Picks para oferecer (opcional):</p>
+
+                <p style="font-size:13px;color:var(--text-2);margin-bottom:4px;">Picks para oferecer <span style="font-size:11px;color:var(--text-3)">(selecione o swap se aplicável)</span>:</p>
                 <div id="minhasPicksParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+
+                <!-- Oferta Personalizada -->
+                <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+                  <button type="button" id="btnToggleCustomOffer" onclick="toggleCustomOffer()"
+                    style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:8px;color:#f59e0b;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);text-align:left;transition:.15s">
+                    <i class="bi bi-stars"></i>
+                    <span>Oferta Personalizada — solicitar itens do vendedor</span>
+                    <i class="bi bi-chevron-down ms-auto" id="customOfferChevron"></i>
+                  </button>
+                  <div id="propostaCustomSection" style="display:none;margin-top:10px;padding:14px;background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.15);border-radius:8px">
+                    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Selecione jogadores/picks do <strong style="color:var(--text)">time vendedor</strong> que você quer receber junto com o jogador leiloado:</p>
+                    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Jogadores do vendedor</div>
+                    <div id="sellerPlayersParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Picks do vendedor</div>
+                    <div id="sellerPicksParaTroca"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div>
+                  </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Observação <span style="color:var(--text-3);font-weight:400;">(opcional)</span></label>
                     <textarea id="obsProposta" class="form-control" rows="3" placeholder="Ex: estou oferecendo 2 picks + 1 jogador, aberto a negociar..."></textarea>

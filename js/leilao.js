@@ -34,14 +34,33 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
   return propostas.map(p => {
     const jogs = (p.jogadores || []).map(j => {
       const age = j.age ? ` · ${j.age} anos` : '';
-      return `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
+      return `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-2)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
     }).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
 
-    const picks = (p.picks || []).map(pk =>
-      `<span style="display:inline-flex;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||pk.round_num||'?'}</span>`
-    ).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
+    const picks = (p.picks || []).map(pk => {
+      const swapBadge = pk.swap_type ? `<span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px;margin-left:5px">${_esc(pk.swap_type)}</span>` : '';
+      const origTeam = (pk.original_team_name || '').trim() ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px">${_esc(pk.original_team_name.trim())}</span>` : '';
+      return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||pk.round_num||'?'}${swapBadge}${origTeam}</span>`;
+    }).join('') || '<span style="color:var(--text-3);font-size:12px">—</span>';
 
     const obs = p.obs || p.notas;
+
+    const extraJogs = (p.extra_jogadores || []).map(j => {
+      const age = j.age ? ` · ${j.age} anos` : '';
+      return `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-2)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
+    }).join('');
+    const extraPicks = (p.extra_picks || []).map(pk => {
+      const orig = (pk.original_team_name || '').trim();
+      return `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(String(pk.season_year||''))} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px">${_esc(orig)}</span>` : ''}</span>`;
+    }).join('');
+    const personalizedHtml = p.is_personalized ? `
+      <div style="background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.18);border-radius:8px;padding:10px 12px;margin-top:12px">
+        <div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"><i class="bi bi-stars me-1"></i>Oferta Personalizada — itens do vendedor incluídos</div>
+        ${extraJogs || extraPicks
+          ? `<div style="margin-bottom:4px">${extraJogs}</div><div>${extraPicks}</div>`
+          : '<span style="color:var(--text-3);font-size:12px">—</span>'}
+      </div>` : '';
+
     const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : p.status === 'recusada' ? 'rgba(239,68,68,.12)' : 'var(--border)';
 
     const actionHtml = (showActions && p.status === 'pendente') ? `
@@ -67,6 +86,7 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
         <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Picks</div>
         <div>${picks}</div>
         ${obs ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;margin-top:12px"><div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-sticky me-1"></i>Observação</div><div style="font-size:13px;color:var(--text-2)">${_esc(obs)}</div></div>` : ''}
+        ${personalizedHtml}
         ${actionHtml}
       </div>`;
   }).join('');
@@ -92,6 +112,8 @@ function _applyLeilaoTableLabels(root = document) {
 let _modalLeilaoId = null;
 let _modalIsOwner = false;
 let _propostsAutoRefresh = null;
+let _currentProposalSellerTeamId = null;
+let _customOfferOpen = false;
 
 function _getModalInstance() {
   const el = document.getElementById('modalVerPropostas');
@@ -195,7 +217,7 @@ async function carregarLeiloesAtivos() {
       const actionHtml = (() => {
         if (!userTeamId || isMyTeam) return '';
         if (faDisabled) return `<button disabled style="width:100%;padding:9px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;color:var(--text-3);font-size:13px;font-weight:600;cursor:not-allowed">Período fechado</button>`;
-        return `<button onclick="abrirModalProposta(${l.id}, '${l.player_name.replace(/'/g,"\\'")}')"
+        return `<button onclick="abrirModalProposta(${l.id}, '${l.player_name.replace(/'/g,"\\'")}', ${l.team_id || 'null'})"
           class="auction-propose-btn"
           style="width:100%;padding:9px;background:var(--red);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">
           <i class="bi bi-send me-1"></i>Enviar Proposta
@@ -366,16 +388,32 @@ async function carregarPropostasRecebidas() {
 
 // ── Modal Proposta (enviar) ────────────────────────────────────────────────────
 
-async function abrirModalProposta(leilaoId, playerName) {
+async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
   if (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) {
     alert('O período de propostas está fechado nesta liga.');
     return;
   }
   document.getElementById('leilaoIdProposta').value = leilaoId;
+  const sellerInput = document.getElementById('leilaoSellerTeamId');
+  if (sellerInput) sellerInput.value = sellerTeamId || '';
+  _currentProposalSellerTeamId = sellerTeamId || null;
+  _customOfferOpen = false;
   document.getElementById('jogadorLeilaoNome').textContent = playerName;
   document.getElementById('notasProposta').value = '';
   const obsInput = document.getElementById('obsProposta');
   if (obsInput) obsInput.value = '';
+
+  // Reset custom offer section
+  const customSection = document.getElementById('propostaCustomSection');
+  if (customSection) customSection.style.display = 'none';
+  const chevron = document.getElementById('customOfferChevron');
+  if (chevron) { chevron.classList.remove('bi-chevron-up'); chevron.classList.add('bi-chevron-down'); }
+  const sellerPlayersDiv = document.getElementById('sellerPlayersParaTroca');
+  if (sellerPlayersDiv) sellerPlayersDiv.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+  const sellerPicksDiv = document.getElementById('sellerPicksParaTroca');
+  if (sellerPicksDiv) sellerPicksDiv.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+  const toggleBtn = document.getElementById('btnToggleCustomOffer');
+  if (toggleBtn) toggleBtn.style.display = sellerTeamId ? '' : 'none';
 
   const container = document.getElementById('meusJogadoresParaTroca');
   container.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
@@ -389,7 +427,7 @@ async function abrirModalProposta(leilaoId, playerName) {
         players.map(pl => `
           <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
             <input class="form-check-input player-checkbox" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
-            <span style="font-size:13px"><strong>${_esc(pl.name)}</strong> <span style="color:var(--text-3)">${_esc(pl.position||'')} · OVR ${pl.ovr||pl.overall||'?'}</span></span>
+            <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||pl.overall||'?'}</span></span>
           </label>`).join('') + '</div>';
     } else {
       container.innerHTML = '<p style="color:#f59e0b;font-size:13px">Você não tem jogadores disponíveis para troca.</p>';
@@ -408,12 +446,18 @@ async function abrirModalProposta(leilaoId, playerName) {
         picksContainer.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' +
           picks.map(pk => {
             const r = pk.round || pk.round_num || pk.rnd;
-            const label = `${pk.season_year} R${r}${pk.original_team_name ? ' · ' + pk.original_team_name : ''}`;
+            const orig = (pk.original_team_name || '').trim();
+            const label = `${pk.season_year} R${r}${orig ? ' · ' + orig : ''}`;
             return `
-              <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px">
                 <input class="form-check-input pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
-                <span style="font-size:13px;color:var(--text)">${_esc(label)}</span>
-              </label>`;
+                <span style="font-size:13px;color:var(--text);flex:1">${_esc(label)}</span>
+                <select class="pick-swap-select" data-pick-id="${pk.id}" style="font-size:11px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:2px 6px;cursor:pointer;font-family:var(--font)">
+                  <option value="">Sem SWAP</option>
+                  <option value="SB">SB</option>
+                  <option value="SW">SW</option>
+                </select>
+              </div>`;
           }).join('') + '</div>';
       } else {
         picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Você não tem picks disponíveis.</p>';
@@ -424,6 +468,56 @@ async function abrirModalProposta(leilaoId, playerName) {
   }
 
   new bootstrap.Modal(document.getElementById('modalProposta')).show();
+}
+
+function toggleCustomOffer() {
+  _customOfferOpen = !_customOfferOpen;
+  const section = document.getElementById('propostaCustomSection');
+  const chevron = document.getElementById('customOfferChevron');
+  if (section) section.style.display = _customOfferOpen ? '' : 'none';
+  if (chevron) {
+    chevron.classList.toggle('bi-chevron-down', !_customOfferOpen);
+    chevron.classList.toggle('bi-chevron-up', _customOfferOpen);
+  }
+  if (_customOfferOpen && _currentProposalSellerTeamId) {
+    _loadSellerItemsForProposal();
+  }
+}
+
+async function _loadSellerItemsForProposal() {
+  if (!_currentProposalSellerTeamId) return;
+  const playersDiv = document.getElementById('sellerPlayersParaTroca');
+  const picksDiv = document.getElementById('sellerPicksParaTroca');
+  try {
+    const data = await _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${_currentProposalSellerTeamId}`);
+    const players = data.players || [];
+    if (playersDiv) {
+      playersDiv.innerHTML = players.length
+        ? '<div style="display:flex;flex-direction:column;gap:6px">' + players.map(pl =>
+            `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+              <input class="form-check-input extra-player-checkbox" type="checkbox" value="${pl.id}" style="flex-shrink:0;margin:0">
+              <span style="font-size:13px"><strong style="color:var(--text)">${_esc(pl.name)}</strong> <span style="color:var(--text-2)">${_esc(pl.position||'')} · OVR ${pl.ovr||'?'} · ${pl.age||'?'} anos</span></span>
+            </label>`).join('') + '</div>'
+        : '<p style="color:var(--text-3);font-size:13px">Nenhum jogador disponível.</p>';
+    }
+    const picks = data.picks || [];
+    if (picksDiv) {
+      picksDiv.innerHTML = picks.length
+        ? '<div style="display:flex;flex-direction:column;gap:6px">' + picks.map(pk => {
+            const r = pk.round || pk.round_num;
+            const orig = (pk.original_team_name || '').trim();
+            const label = `${pk.season_year} R${r}${orig ? ' · ' + orig : ''}`;
+            return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+              <input class="form-check-input extra-pick-checkbox" type="checkbox" value="${pk.id}" style="flex-shrink:0;margin:0">
+              <span style="font-size:13px;color:var(--text)">${_esc(label)}</span>
+            </label>`;
+          }).join('') + '</div>'
+        : '<p style="color:var(--text-3);font-size:13px">Nenhuma pick disponível.</p>';
+    }
+  } catch (e) {
+    if (playersDiv) playersDiv.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar.</p>';
+    if (picksDiv) picksDiv.innerHTML = '';
+  }
 }
 
 document.getElementById('btnEnviarProposta')?.addEventListener('click', async function () {
@@ -437,6 +531,14 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
   const playerIds = Array.from(document.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
   const pickIds = Array.from(document.querySelectorAll('.pick-checkbox:checked')).map(cb => cb.value);
 
+  const pickSwaps = {};
+  document.querySelectorAll('.pick-swap-select').forEach(sel => {
+    if (sel.value) pickSwaps[sel.dataset.pickId] = sel.value;
+  });
+  const extraPlayerIds = Array.from(document.querySelectorAll('.extra-player-checkbox:checked')).map(cb => cb.value);
+  const extraPickIds = Array.from(document.querySelectorAll('.extra-pick-checkbox:checked')).map(cb => cb.value);
+  const isPersonalized = extraPlayerIds.length > 0 || extraPickIds.length > 0;
+
   if (!playerIds.length && !pickIds.length && !notas.trim() && !obs.trim()) {
     alert('Informe uma mensagem ou selecione jogadores/picks para oferecer.');
     return;
@@ -447,7 +549,7 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
-      body: JSON.stringify({ action:'enviar_proposta', leilao_id:leilaoId, player_ids:playerIds, pick_ids:pickIds, notas, obs })
+      body: JSON.stringify({ action:'enviar_proposta', leilao_id:leilaoId, player_ids:playerIds, pick_ids:pickIds, notas, obs, pick_swaps:pickSwaps, extra_player_ids:extraPlayerIds, extra_pick_ids:extraPickIds, is_personalized:isPersonalized })
     });
     if (data.success) {
       bootstrap.Modal.getInstance(document.getElementById('modalProposta'))?.hide();
@@ -886,6 +988,24 @@ async function parseJsonSafe(response) {
   }
 }
 
+// ── Auto-refresh da página ────────────────────────────────────────────────────
+
+let _pageRefreshInterval = null;
+
+function _startPageAutoRefresh() {
+  clearInterval(_pageRefreshInterval);
+  _pageRefreshInterval = setInterval(async () => {
+    if (document.hidden) return;
+    // Não atualiza se o modal de proposta (envio) estiver aberto
+    const propostaModal = document.getElementById('modalProposta');
+    if (propostaModal && propostaModal.classList.contains('show')) return;
+
+    await carregarLeiloesAtivos();
+    if (userTeamId) await carregarPropostasRecebidas();
+    if (isAdmin) await carregarLeiloesAdmin();
+  }, 30000);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -898,4 +1018,5 @@ document.addEventListener('DOMContentLoaded', function () {
     setupAdminEvents();
   }
   _applyLeilaoTableLabels();
+  _startPageAutoRefresh();
 });
