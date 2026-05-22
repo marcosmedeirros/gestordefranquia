@@ -31,8 +31,11 @@ async function loadHistory(league) {
         }
 
         const awards = [
-            { key: 'champion',   nameKey: 'champion_name',     teamKey: null,                 icon: '🏆', cls: 'gold',   label: 'Campeão'     },
+            { key: 'champion',   nameKey: 'champion_name',     teamKey: null,                 icon: '🏆', cls: 'gold',   label: 'Campeão'      },
             { key: 'runner_up',  nameKey: 'runner_up_name',    teamKey: null,                 icon: '🥈', cls: 'silver', label: 'Vice-Campeão' },
+            ...(league === 'ELITE' ? [
+            { key: 'nba_cup',    nameKey: 'nba_cup_team_name', teamKey: null,                 icon: '🏆', cls: 'amber',  label: 'NBA Cup'      },
+            ] : []),
             { key: 'mvp',        nameKey: 'mvp_player',        teamKey: 'mvp_team_name',      icon: '⭐', cls: 'amber',  label: 'MVP'          },
             { key: 'dpoy',       nameKey: 'dpoy_player',       teamKey: 'dpoy_team_name',     icon: '🛡️', cls: 'blue',   label: 'DPOY'         },
             { key: 'mip',        nameKey: 'mip_player',        teamKey: 'mip_team_name',      icon: '📈', cls: 'green',  label: 'MIP'          },
@@ -43,10 +46,7 @@ async function loadHistory(league) {
         let html = '';
 
         history.forEach(season => {
-            const yearLabel = season.year || '';
-            const sprintLabel = season.sprint_number ? `Sprint ${season.sprint_number}` : '';
-            const titleParts = [sprintLabel, yearLabel].filter(Boolean);
-            const title = titleParts.join(' · ') || 'Temporada';
+            const title = season.year ? String(season.year) : 'Temporada';
 
             const chips = awards
                 .filter(a => season[a.nameKey])

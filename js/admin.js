@@ -4573,18 +4573,132 @@ function renderDispensasTable() {
 // PONTUAÇÃO POR TEMPORADA
 // ══════════════════════════════════════════════
 
+const PTS_REGULAR = [
+  {v:0, l:'— Nenhum —'},
+  {v:4, l:'1° Lugar (+4 pts)'},
+  {v:3, l:'2°–4° Lugar (+3 pts)'},
+  {v:2, l:'5°–8° Lugar (+2 pts)'}
+];
+// valores cumulativos: 1ªRod(+1) + Semi(+2) + FinConf(+3) + Vice(+2) + Campeão(+5)
+const PTS_PLAYOFF = [
+  {v:0,  l:'— Não participou —'},
+  {v:1,  l:'1ª Rodada (+1 pt)'},
+  {v:3,  l:'Semifinalista (+3 pts acum.)'},
+  {v:6,  l:'Final de Conferência (+6 pts acum.)'},
+  {v:8,  l:'Vice-Campeão (+8 pts acum.)'},
+  {v:13, l:'Campeão (+13 pts acum.)'}
+];
+const PTS_AWARDS = ['MVP','DPOY','MIP','6° Homem','ROY'];
+
+function buildPtsForm(seasonId, league, leagueTeams, inputClass) {
+  const sid = String(seasonId);
+  const isElite = (league||'').toUpperCase() === 'ELITE';
+  const sel = 'background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:3px 5px;color:var(--text);font-size:11px;flex-shrink:0';
+
+  const teamRows = leagueTeams.map(t => `
+    <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.team_name||'')}</span>
+      <select class="pts-reg-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:150px">
+        ${PTS_REGULAR.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+      </select>
+      <select class="pts-play-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:190px">
+        ${PTS_PLAYOFF.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+      </select>
+    </div>`).join('');
+
+  const awardRows = PTS_AWARDS.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--text)">${escapeHtml(a)} <span style="font-size:10px;color:var(--text-3)">(+1 pt)</span></span>
+      <select class="pts-award-sel" data-award="${escapeHtml(a)}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:200px">
+        <option value="0">— Nenhum —</option>
+        ${leagueTeams.map(t=>`<option value="${t.team_id}">${escapeHtml(t.team_name||'')}</option>`).join('')}
+      </select>
+    </div>`).join('');
+
+  const nbaCupHtml = isElite ? `
+    <div style="margin-top:12px;padding:10px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:8px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#f59e0b;margin-bottom:6px">NBA Cup — ELITE</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--text)">Campeão NBA Cup <span style="font-size:10px;color:var(--text-3)">(+2 pts)</span></span>
+        <select class="pts-nbacup-sel" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:200px">
+          <option value="0">— Nenhum —</option>
+          ${leagueTeams.map(t=>`<option value="${t.team_id}">${escapeHtml(t.team_name||'')}</option>`).join('')}
+        </select>
+      </div>
+    </div>` : '';
+
+  const hiddenInputs = leagueTeams.map(t =>
+    `<input type="hidden" class="${inputClass}" data-team-id="${t.team_id}" value="0">`).join('');
+
+  return `
+    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Temporada Regular + Playoffs</div>
+    <div style="font-size:10px;color:var(--text-3);display:flex;gap:6px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:2px">
+      <span style="flex:1">Time</span><span style="width:150px;text-align:center">T. Regular</span><span style="width:190px;text-align:center">Playoffs</span>
+    </div>
+    ${teamRows}
+    <div style="margin-top:12px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Prêmios Individuais</div>
+      ${awardRows}
+    </div>
+    ${nbaCupHtml}
+    <div style="margin-top:12px;background:var(--panel-3);border-radius:8px;padding:10px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Prévia — Total por Time</div>
+      ${leagueTeams.map(t=>`
+        <div style="display:flex;justify-content:space-between;padding:2px 0">
+          <span style="font-size:11px;color:var(--text-2)">${escapeHtml(t.team_name||'')}</span>
+          <span class="pts-pv-val" data-tid="${t.team_id}" style="font-size:11px;font-weight:700;color:var(--text-3)">0 pts</span>
+        </div>`).join('')}
+    </div>
+    ${hiddenInputs}`;
+}
+
+function calcPtsPreview(seasonId) {
+  const sid = String(seasonId);
+  const newForm  = document.getElementById(`pts-form-${sid}`);
+  const editForm = document.getElementById(`pts-edit-form-${sid}`);
+  const form = (editForm && editForm.style.display !== 'none') ? editForm : newForm;
+  if (!form) return;
+
+  const totals = {};
+  form.querySelectorAll('.pts-reg-sel').forEach(sel => {
+    const tid = sel.dataset.teamId;
+    totals[tid] = (totals[tid]||0) + parseInt(sel.value||'0', 10);
+  });
+  form.querySelectorAll('.pts-play-sel').forEach(sel => {
+    const tid = sel.dataset.teamId;
+    totals[tid] = (totals[tid]||0) + parseInt(sel.value||'0', 10);
+  });
+  form.querySelectorAll('.pts-award-sel').forEach(sel => {
+    if (sel.value && sel.value !== '0') totals[sel.value] = (totals[sel.value]||0) + 1;
+  });
+  form.querySelectorAll('.pts-nbacup-sel').forEach(sel => {
+    if (sel.value && sel.value !== '0') totals[sel.value] = (totals[sel.value]||0) + 2;
+  });
+
+  form.querySelectorAll('input[type="hidden"][data-team-id]').forEach(inp => {
+    const tid = inp.dataset.teamId;
+    const pts = totals[tid] || 0;
+    inp.value = pts;
+  });
+  form.querySelectorAll('.pts-pv-val').forEach(el => {
+    const tid = el.dataset.tid;
+    const pts = totals[tid] || 0;
+    el.textContent = `${pts} pts`;
+    el.style.color = pts > 0 ? 'var(--red)' : 'var(--text-3)';
+  });
+}
+
 async function showPointsManagement(league) {
   league = league || appState.currentLeague || 'ELITE';
   appState.view = 'pontuacao';
   updateBreadcrumb();
   const container = document.getElementById('mainContainer');
-
   const _ptsBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
 
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação — ${league}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Histórico de Pontuação — ${league}</span>
     </div>
     <div style="margin-bottom:12px">
       <input type="text" id="ptsTeamSearch" class="form-control" style="max-width:260px;font-size:13px" placeholder="Filtrar por time..." oninput="filterPtsTeam(this.value)">
@@ -4602,117 +4716,134 @@ async function showPointsManagement(league) {
     return;
   }
 
-  const seasons    = data.seasons    || [];
+  const seasons     = data.seasons      || [];
   const leagueTeams = data.league_teams || [];
 
-  if (!seasons.length) {
+  if (!leagueTeams.length) {
     document.getElementById('ptsMgmtContent').innerHTML =
-      `<div class="alert alert-info">Nenhuma temporada encontrada para a liga ${league}.</div>`;
+      `<div class="alert alert-info">Nenhum time encontrado para ${league}.</div>`;
     return;
   }
 
-  let html = '';
-  seasons.forEach((s) => {
-    const title = [
-      s.sprint_number ? `Sprint ${s.sprint_number}` : '',
-      s.season_number ? `Temp ${s.season_number}`   : '',
-      s.year          ? String(s.year)               : ''
-    ].filter(Boolean).join(' · ');
+  const fmtTitle = s => [
+    s.sprint_number ? `Sprint ${s.sprint_number}` : '',
+    s.season_number ? `Temp. ${s.season_number}`  : '',
+    s.year          ? String(s.year)               : ''
+  ].filter(Boolean).join(' · ');
 
-    if (s.points_registered) {
-      const rows = (s.teams || []).map((t, ti) => `
-        <tr>
-          <td style="color:var(--text-3);font-size:12px;width:32px">${ti + 1}°</td>
-          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
-          <td class="text-end" style="color:var(--red);font-weight:700">${t.points} pts</td>
-        </tr>`).join('');
-
-      const editInputs = leagueTeams.map(t => {
-        const pts = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
-        return `
-        <tr>
-          <td style="font-weight:600">${escapeHtml(t.team_name || '')}</td>
-          <td>
-            <input type="number" class="form-control form-control-sm pts-edit-input"
-              data-team-id="${t.team_id}" value="${pts ? pts.points : 0}" min="0" style="max-width:100px">
-          </td>
-        </tr>`;
-      }).join('');
-
-      html += `
-      <div class="pun-card mb-2" id="pts-season-${s.season_id}">
-        <div class="pun-card-head">
-          <div>
-            <div class="pun-card-title"><i class="bi bi-trophy-fill" style="color:var(--red);margin-right:6px"></i>${escapeHtml(title)}</div>
-          </div>
-          <div class="d-flex gap-2 align-items-center flex-shrink-0">
-            <span class="pun-badge" style="background:rgba(34,197,94,.1);color:#22c55e;border-color:rgba(34,197,94,.3)">Registrado</span>
-            <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
-              <i class="bi bi-pencil me-1"></i>Editar
-            </button>
-            <button class="btn-ghost" style="padding:3px 10px;font-size:11px;color:#ef4444" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-              <i class="bi bi-trash3"></i>
-            </button>
-          </div>
-        </div>
-        <div id="pts-view-${s.season_id}" style="margin-top:8px">
-          ${(s.teams || []).map((t, ti) => `
-            <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:11px;color:var(--text-3);width:20px;text-align:right">${ti + 1}°</span>
-                <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
-              </div>
-              <span style="font-size:13px;font-weight:700;color:var(--red)">${t.points} pts</span>
-            </div>`).join('')}
-        </div>
-        <div id="pts-edit-form-${s.season_id}" style="display:none;margin-top:12px">
-          ${leagueTeams.map(t => {
-            const pts = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
-            return `<div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
-              <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
-              <input type="number" class="pts-edit-input" data-team-id="${t.team_id}" value="${pts ? pts.points : 0}" min="0"
-                style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
-            </div>`;
-          }).join('')}
-          <div class="d-flex gap-2 mt-3">
-            <button class="btn-ghost" style="color:#22c55e" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-              <i class="bi bi-save me-1"></i>Salvar
-            </button>
-            <button class="btn-ghost" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
-          </div>
-        </div>
-      </div>`;
-    } else {
-      const teamInputs = leagueTeams.map(t => `
-        <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name || '')}</span>
-          <input type="number" class="pts-mgmt-input" data-team-id="${t.team_id}" value="0" min="0"
-            style="width:80px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:4px 8px;color:var(--text);font-size:12px;text-align:center">
-        </div>`).join('');
-
-      html += `
-      <div class="pun-card mb-2" id="pts-season-${s.season_id}">
-        <div class="pun-card-head">
-          <div class="pun-card-title"><i class="bi bi-clipboard-check" style="color:var(--text-3);margin-right:6px"></i>${escapeHtml(title)}</div>
-          <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="togglePtsForm(${s.season_id})">
-            <i class="bi bi-plus-circle me-1"></i>Cadastrar Pontuação
-          </button>
-        </div>
-        <div id="pts-form-${s.season_id}" style="display:none;margin-top:12px">
-          ${teamInputs}
-          <div class="d-flex gap-2 mt-3">
-            <button class="btn-ghost" style="color:#22c55e" onclick="savePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-              <i class="bi bi-save me-1"></i>Salvar
-            </button>
-            <button class="btn-ghost" onclick="togglePtsForm(${s.season_id})">Cancelar</button>
-          </div>
-        </div>
-      </div>`;
-    }
+  // ── Montar mapa por time ─────────────────────────────────────────────
+  const teamMap = {};
+  leagueTeams.forEach(t => {
+    teamMap[String(t.team_id)] = { team_id: t.team_id, team_name: t.team_name, rows: [], total: 0 };
   });
 
+  // Temporadas registradas, mais recentes primeiro
+  [...seasons].filter(s => s.points_registered).reverse().forEach(s => {
+    const label = fmtTitle(s);
+    (s.teams || []).forEach(t => {
+      const key = String(t.team_id);
+      if (!teamMap[key]) return;
+      const pts = parseInt(t.points, 10) || 0;
+      teamMap[key].rows.push({ season_id: s.season_id, label, points: pts });
+      teamMap[key].total += pts;
+    });
+  });
+
+  // Ordenar por total desc
+  const sorted = Object.values(teamMap).sort((a, b) => b.total - a.total);
+
+  // ── Cards por time ───────────────────────────────────────────────────
+  const teamHtml = sorted.map((t, idx) => {
+    const rowsHtml = t.rows.length
+      ? t.rows.map(r => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--text-2)">${escapeHtml(r.label)}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--red)">${r.points} pts</span>
+          </div>`).join('')
+      : `<div style="padding:8px 0;font-size:12px;color:var(--text-3)">Nenhuma temporada registrada</div>`;
+
+    return `
+      <div class="pun-card mb-2" data-team-name="${escapeHtml((t.team_name||'').toLowerCase())}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--text-3);width:22px;text-align:right;flex-shrink:0">${idx + 1}°</span>
+            <span style="font-size:14px;font-weight:700;color:var(--text)">${escapeHtml(t.team_name||'')}</span>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <span style="font-size:18px;font-weight:800;color:var(--red)">${t.total}</span>
+            <span style="font-size:11px;color:var(--text-3)"> pts</span>
+          </div>
+        </div>
+        ${rowsHtml}
+      </div>`;
+  }).join('');
+
+  // ── Administração de temporadas (colapsável) ─────────────────────────
+  const registered = seasons.filter(s => s.points_registered);
+  let adminHtml = '';
+  if (registered.length) {
+    const seasonCards = registered.map(s => {
+      const title = fmtTitle(s);
+      const editInputs = leagueTeams.map(t => {
+        const existing = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--text)">${escapeHtml(t.team_name||'')}</span>
+            <input type="number" class="form-control form-control-sm pts-edit-input" data-team-id="${t.team_id}"
+              value="${existing ? existing.points : 0}" min="0" style="max-width:90px">
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="pun-card mb-2" id="pts-season-${s.season_id}">
+          <div class="pun-card-head">
+            <div class="pun-card-title"><i class="bi bi-trophy-fill" style="color:var(--red);margin-right:6px"></i>${escapeHtml(title)}</div>
+            <div class="d-flex gap-2 align-items-center flex-shrink-0">
+              <span class="pun-badge" style="background:rgba(34,197,94,.1);color:#22c55e;border-color:rgba(34,197,94,.3)">Registrado</span>
+              <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
+                <i class="bi bi-pencil me-1"></i>Editar
+              </button>
+              <button class="btn-ghost" style="padding:3px 10px;font-size:11px;color:#ef4444" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>
+          </div>
+          <div id="pts-view-${s.season_id}" style="margin-top:8px">
+            ${(s.teams||[]).map((t,ti) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;color:var(--text-3);width:20px;text-align:right">${ti + 1}°</span>
+                  <span style="font-size:13px;color:var(--text)">${escapeHtml(t.team_name||'')}</span>
+                </div>
+                <span style="font-size:13px;font-weight:700;color:var(--red)">${t.points} pts</span>
+              </div>`).join('')}
+          </div>
+          <div id="pts-edit-form-${s.season_id}" style="display:none;margin-top:12px">
+            ${editInputs}
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn-ghost" style="color:#22c55e" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+                <i class="bi bi-save me-1"></i>Salvar
+              </button>
+              <button class="btn-ghost" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    adminHtml = `
+      <div class="panel mt-4">
+        <div class="pun-card-head" style="cursor:pointer;user-select:none"
+          onclick="const el=document.getElementById('ptsMgmtAdmin');el.classList.toggle('d-none')">
+          <div class="panel-title"><i class="bi bi-gear-fill" style="color:var(--text-3)"></i> Administração de Temporadas</div>
+          <i class="bi bi-chevron-down" style="color:var(--text-3)"></i>
+        </div>
+        <div id="ptsMgmtAdmin" class="d-none mt-3">${seasonCards}</div>
+      </div>`;
+  }
+
   document.getElementById('ptsMgmtContent').innerHTML =
-    html || '<div class="alert alert-info">Nenhuma temporada encontrada.</div>';
+    (teamHtml || '<div class="alert alert-info">Nenhuma pontuação registrada ainda. Use "Registro de Pontuação" para cadastrar.</div>')
+    + adminHtml;
 }
 
 function togglePtsForm(seasonId) {
@@ -4837,18 +4968,19 @@ async function showRegistroPontuacao(league) {
     </select>`;
 
   const regularOpts = `
+    <option value="0" selected>— Nenhum —</option>
     <option value="4">1º Lugar (+4 pts)</option>
     <option value="3">2º ao 4º (+3 pts)</option>
-    <option value="2" selected>5º ao 8º (+2 pts)</option>
-    <option value="0">Não classificou (+0)</option>`;
+    <option value="2">5º ao 8º (+2 pts)</option>`;
 
+  // valores CUMULATIVOS: 1ªRod+1 / Semi+1+2=3 / FinConf+1+2+3=6 / Vice+1+2+3+2=8 / Camp+1+2+3+2+5=13
   const playoffOpts = `
-    <option value="0" selected>Não foi (+0)</option>
+    <option value="0" selected>Não participou (+0)</option>
     <option value="1">1ª Rodada (+1 pt)</option>
-    <option value="2">Semifinalista (+2 pts)</option>
-    <option value="3">Finalista de Conferência (+3 pts)</option>
-    <option value="2">Vice-Campeão (+2 pts)</option>
-    <option value="5">Campeão (+5 pts)</option>`;
+    <option value="3">Semifinalista (+3 pts)</option>
+    <option value="6">Finalista de Conferência (+6 pts)</option>
+    <option value="8">Vice-Campeão (+8 pts)</option>
+    <option value="13">Campeão (+13 pts)</option>`;
 
   const teamOpts = `<option value="">— Nenhum —</option>` +
     leagueTeams.map(t => `<option value="${t.team_id}">${escapeHtml(t.team_name || '')}</option>`).join('');
@@ -4894,6 +5026,24 @@ async function showRegistroPontuacao(league) {
       </select>
     </div>`).join('');
 
+  const nbaCupHtml = league === 'ELITE' ? `
+    <div class="mt-3">
+      <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+        <i class="bi bi-trophy-fill" style="color:#f59e0b;margin-right:5px"></i>NBA Cup <span style="font-size:10px;font-weight:400;color:var(--text-3)">(Somente ELITE)</span>
+      </div>
+      <div class="pun-card" style="padding:4px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0">
+          <span style="font-size:13px;color:var(--text);font-weight:600">Campeão NBA Cup
+            <span style="color:#f59e0b;font-weight:400;font-size:11px"> +2 pts</span>
+          </span>
+          <select id="nbaCupWinner" onchange="_regPtsRecalc()"
+            style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);min-width:180px">
+            ${teamOpts}
+          </select>
+        </div>
+      </div>
+    </div>` : '';
+
   let html = '';
 
   if (pending) {
@@ -4913,6 +5063,7 @@ async function showRegistroPontuacao(league) {
           </div>
           <div class="pun-card" style="padding:4px 14px">${awardsHtml}</div>
         </div>
+        ${nbaCupHtml}
         <div class="mt-4">
           <button class="btn-orange" onclick="_regPtsSave(${pending.season_id}, '${league}')">
             <i class="bi bi-save me-2"></i>Registrar Pontuação
@@ -4953,6 +5104,13 @@ async function showRegistroPontuacao(league) {
             <strong style="color:var(--text)">+1 pt cada</strong>
           </div>
         </div>
+        ${league === 'ELITE' ? `
+        <div>
+          <div style="color:#f59e0b;font-weight:700;margin-bottom:6px">NBA Cup <span style="font-size:10px;color:var(--text-3)">(ELITE)</span></div>
+          <div style="color:var(--text-2);line-height:2">
+            Campeão: <strong style="color:var(--text)">+2 pts</strong>
+          </div>
+        </div>` : ''}
       </div>
     </div>`;
 
@@ -4969,6 +5127,8 @@ function _regPtsRecalcForTeam(teamId) {
   document.querySelectorAll('.award-sel').forEach(s => {
     if (String(s.value) === String(teamId)) pts += 1;
   });
+  const nbaCup = document.getElementById('nbaCupWinner');
+  if (nbaCup && String(nbaCup.value) === String(teamId)) pts += 2;
   const el = document.getElementById(`rpt-${teamId}`);
   if (el) el.textContent = pts;
   return pts;

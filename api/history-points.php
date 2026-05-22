@@ -216,8 +216,18 @@ try {
                         NULL as roy_team_name";
             
             $royJoin = $hasRoy ? "LEFT JOIN teams troy ON sh.roy_team_id = troy.id" : "";
-            
-            $sql = "SELECT 
+
+            // Verificar coluna nba_cup_team_id
+            $stmtNbaCup = $pdo->query("SHOW COLUMNS FROM season_history LIKE 'nba_cup_team_id'");
+            $hasNbaCup  = $stmtNbaCup->rowCount() > 0;
+            $nbaCupFields = $hasNbaCup ? ",
+                        sh.nba_cup_team_id,
+                        CONCAT(tnc.city, ' ', tnc.name) as nba_cup_team_name" : ",
+                        NULL as nba_cup_team_id,
+                        NULL as nba_cup_team_name";
+            $nbaCupJoin = $hasNbaCup ? "LEFT JOIN teams tnc ON sh.nba_cup_team_id = tnc.id" : "";
+
+            $sql = "SELECT
                         sh.id,
                         sh.season_id,
                         sh.league,
@@ -240,7 +250,8 @@ try {
                         sh.sixth_man_player,
                         sh.sixth_man_team_id,
                         CONCAT(ts.city, ' ', ts.name) as sixth_man_team_name
-                        {$royFields},
+                        {$royFields}
+                        {$nbaCupFields},
                         sh.created_at,
                         CASE WHEN s.draft_order_snapshot IS NOT NULL THEN 1 ELSE 0 END as has_draft_history
                     FROM season_history sh
@@ -251,7 +262,8 @@ try {
                     LEFT JOIN teams td ON sh.dpoy_team_id = td.id
                     LEFT JOIN teams ti ON sh.mip_team_id = ti.id
                     LEFT JOIN teams ts ON sh.sixth_man_team_id = ts.id
-                    {$royJoin}";
+                    {$royJoin}
+                    {$nbaCupJoin}";
             
             $params = [];
             if ($league) {
