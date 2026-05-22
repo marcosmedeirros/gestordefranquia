@@ -216,8 +216,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .action-bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center}
 .btn-save{display:flex;align-items:center;gap:7px;padding:11px 22px;background:var(--green);color:#000;border:none;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:opacity var(--t) var(--ease)}
 .btn-save:hover{opacity:.85}.btn-save:disabled{opacity:.35;cursor:not-allowed}
-.btn-share{display:flex;align-items:center;gap:7px;padding:11px 22px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.25);color:#25d366;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all var(--t) var(--ease)}
-.btn-share:hover{background:rgba(37,211,102,.2)}
+.btn-share{display:flex;align-items:center;gap:7px;padding:11px 22px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue);border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all var(--t) var(--ease)}
+.btn-share:hover{background:rgba(59,130,246,.18)}
 .btn-oficial{display:flex;align-items:center;gap:7px;padding:11px 22px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue);border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all var(--t) var(--ease)}
 .btn-oficial:hover{background:rgba(59,130,246,.18)}
 .locked-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green);padding:7px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:700}
@@ -362,7 +362,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
       <div id="seeds-strip-<?= $lg ?>" class="seeds-wrap"></div>
       <div id="bracket-locked-<?= $lg ?>"></div>
       <div class="action-bar">
-        <button class="btn-share" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-whatsapp"></i>Compartilhar</button>
+        <button class="btn-share" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-clipboard"></i>Copiar</button>
         <?php if ($official&&($official['seeds_json']||$official['rounds_json'])): ?>
         <button class="btn-oficial" onclick="openOficial('<?= $lg ?>')"><i class="bi bi-eye-fill"></i>Ver Oficial</button>
         <?php endif; ?>
@@ -389,7 +389,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
         <div class="bracket-wrap" id="bracketWrap-<?= $lg ?>"></div>
         <div class="action-bar">
           <button class="btn-save" id="btnSave-<?= $lg ?>" disabled onclick="saveBracket('<?= $lg ?>')"><i class="bi bi-lock-fill"></i>Salvar e Bloquear</button>
-          <button class="btn-share" id="btnShare-<?= $lg ?>" style="display:none" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-whatsapp"></i>Compartilhar</button>
+          <button class="btn-share" id="btnShare-<?= $lg ?>" style="display:none" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-clipboard"></i>Copiar</button>
           <?php if ($official&&($official['seeds_json']||$official['rounds_json'])): ?>
           <button class="btn-oficial" onclick="openOficial('<?= $lg ?>')"><i class="bi bi-eye-fill"></i>Ver Oficial</button>
           <?php endif; ?>
@@ -668,17 +668,25 @@ function shareBracket(lg){
   if(raw&&raw.locked){const s=JSON.parse(raw.seeds),r=JSON.parse(raw.rounds);state={seedsA:s.slice(0,8),seedsB:s.slice(8,16),rounds:r};}
   else state=loadLS(lg);
   if(!state?.rounds)return showToast('Bracket incompleto','red');
-  const r=state.rounds,tn=t=>t?t.name:'?',win=m=>m.w?`→ ${m.w.name}`:'';
-  let txt=`🏆 FBA BRACKET — ${lg}\n\nCONF A: ${(state.seedsA||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\nCONF B: ${(state.seedsB||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\n\n⚔️ 1ª RODADA\n`;
-  r.r1.forEach((m,i)=>txt+=`[${i<4?'A':'B'}] ${tn(m.t1)} × ${tn(m.t2)} ${win(m)}\n`);
-  if(r.r2[0].t1)txt+=`\n🏅 SEMIS\n`+r.r2.map((m,i)=>`[${i<2?'A':'B'}] ${tn(m.t1)} × ${tn(m.t2)} ${win(m)}`).join('\n')+'\n';
-  if(r.r3[0].t1)txt+=`\n🥊 FINAIS CONF\n${r.r3.map((m,i)=>`[${i===0?'A':'B'}] ${tn(m.t1)} × ${tn(m.t2)} ${win(m)}`).join('\n')}\n`;
-  if(r.r4[0].t1)txt+=`\n🏆 GRANDE FINAL\n${tn(r.r4[0].t1)} × ${tn(r.r4[0].t2)} ${win(r.r4[0])}\n`;
-  if(r.r4[0].w)txt+=`\n👑 CAMPEÃO: ${r.r4[0].w.name}\n`;
+  const r=state.rounds;
+  const tn=t=>t?t.name:'?';
+  const fmt=(m,conf)=>{
+    const cn=conf==='A'?'LESTE':'OESTE';
+    if(!m.t1||!m.t2)return`[${cn}] — × —`;
+    const n1=tn(m.t1),n2=tn(m.t2);
+    if(!m.w)return`[${cn}] ${n1} × ${n2}`;
+    const w1=m.w.id===m.t1.id;
+    return`[${cn}] ${w1?'*'+n1+'*':n1} × ${w1?n2:'*'+n2+'*'}`;
+  };
+  let txt=`🏆 FBA BRACKET — ${lg}\n\nLESTE: ${(state.seedsA||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\nOESTE: ${(state.seedsB||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\n\n⚔️ 1ª RODADA\n`;
+  r.r1.forEach((m,i)=>txt+=fmt(m,i<4?'A':'B')+'\n');
+  if(r.r2[0].t1)txt+=`\n🏅 SEMIS\n`+r.r2.map((m,i)=>fmt(m,i<2?'A':'B')).join('\n')+'\n';
+  if(r.r3[0].t1)txt+=`\n🥊 FINAIS CONF\n`+r.r3.map((m,i)=>fmt(m,i===0?'A':'B')).join('\n')+'\n';
+  if(r.r4[0].t1)txt+=`\n🏆 GRANDE FINAL\n`+fmt(r.r4[0],'')+'\n';
+  if(r.r4[0].w)txt+=`\n👑 CAMPEÃO: *${r.r4[0].w.name}*\n`;
   txt+=`\n🏀 FBA Games`;
-  if(navigator.share)navigator.share({text:txt}).catch(()=>{});
-  else if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>showToast('Copiado! Cole no WhatsApp','green'));
-  else window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+  if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>showToast('Copiado!','green')).catch(()=>showToast('Erro ao copiar','red'));
+  else{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('Copiado!','green');}
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
