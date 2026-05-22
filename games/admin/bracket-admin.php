@@ -590,6 +590,7 @@ function adminStartBracket(lg){
   document.getElementById('adm-picking-'+lg).style.display='none';
   document.getElementById('adm-bracketPhase-'+lg).style.display='block';
   renderAdminBracket(lg,state);
+  autoSaveOfficial(lg,state);
 }
 function adminResetBracket(lg){
   if(!confirm('Resetar bracket oficial de '+lg+'? O resultado salvo no banco não será apagado.'))return;
