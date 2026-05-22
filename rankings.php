@@ -532,7 +532,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
-    const currentSeasonId = <?= $currentSeasonId ? (int)$currentSeasonId : 'null' ?>;
+    const currentSeasonId   = <?= $currentSeasonId   ? (int)$currentSeasonId   : 'null' ?>;
+    const currentSeasonYear = <?= (int)$currentSeasonYear ?>;
 
     function updateActiveButton() {
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -652,9 +653,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
             const seasons = data.seasons || [];
-            const filtered = currentSeasonId
-                ? seasons.filter(s => parseInt(s.season_id || 0, 10) !== currentSeasonId)
-                : seasons;
+            const filtered = seasons.filter(s => {
+                if (currentSeasonId && parseInt(s.season_id || 0, 10) === currentSeasonId) return false;
+                if (currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
+                return true;
+            });
             if (!filtered.length) {
                 ptsHistoryBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma pontuação registrada ainda.</div>';
                 return;
@@ -716,9 +719,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
             const seasons = data.seasons || [];
-            const filtered = currentSeasonId
-                ? seasons.filter(s => parseInt(s.season_id || 0, 10) !== currentSeasonId)
-                : seasons;
+            const filtered = seasons.filter(s => {
+                if (currentSeasonId && parseInt(s.season_id || 0, 10) === currentSeasonId) return false;
+                if (currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
+                return true;
+            });
             if (!filtered.length) {
                 teamLogBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma temporada encontrada.</div>';
                 return;
