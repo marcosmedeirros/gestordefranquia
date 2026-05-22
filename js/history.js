@@ -46,7 +46,12 @@ async function loadHistory(league) {
         let html = '';
 
         history.forEach(season => {
-            const title = season.year ? String(season.year) : 'Temporada';
+            const title = season.year
+                ? String(season.year)
+                : [
+                    season.sprint_number ? `Sprint ${season.sprint_number}` : '',
+                    season.season_number ? `Temp. ${season.season_number}`  : ''
+                  ].filter(Boolean).join(' · ') || '—';
 
             const chips = awards
                 .filter(a => season[a.nameKey])

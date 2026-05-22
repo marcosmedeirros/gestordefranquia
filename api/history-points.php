@@ -233,7 +233,7 @@ try {
                         sh.league,
                         sh.sprint_number,
                         sh.season_number,
-                        sh.year,
+                        COALESCE(sh.year, s.year) as year,
                         sh.champion_team_id,
                         CONCAT(tc.city, ' ', tc.name) as champion_name,
                         sh.runner_up_team_id,
