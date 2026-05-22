@@ -416,7 +416,7 @@ const ADV = {
   r3:{0:{r:'r4',i:0,s:'t1'},1:{r:'r4',i:0,s:'t2'}}
 };
 
-function lsKey(lg){return 'fba_brk_v4_'+lg;}
+function lsKey(lg){return 'fba_brk_v4_'+lg+'_c'+(CYCLES[lg]&&CYCLES[lg].id||0);}
 function loadLS(lg){try{return JSON.parse(localStorage.getItem(lsKey(lg)))||null;}catch(e){return null;}}
 function saveLS(lg,s){localStorage.setItem(lsKey(lg),JSON.stringify(s));}
 function clearLS(lg){localStorage.removeItem(lsKey(lg));}
