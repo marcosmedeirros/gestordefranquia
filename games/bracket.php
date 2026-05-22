@@ -169,14 +169,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .conf-section{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
 .conf-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .conf-label.a{color:var(--blue)}.conf-label.b{color:var(--amber)}
-.teams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:7px}
-.team-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;transition:all var(--t) var(--ease);position:relative;user-select:none}
+.teams-grid{display:flex;flex-direction:column;gap:4px}
+.team-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all var(--t) var(--ease);user-select:none}
 .team-card:hover{border-color:var(--border-md)}.team-card.sel-a{border-color:var(--blue);background:rgba(59,130,246,.08)}.team-card.sel-b{border-color:var(--amber);background:rgba(245,158,11,.08)}.team-card.full{opacity:.35;pointer-events:none}
-.seed-badge{position:absolute;top:4px;right:4px;width:17px;height:17px;border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;color:#fff}
-.seed-badge.a{background:var(--blue)}.seed-badge.b{background:var(--amber)}
+.seed-badge{width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
+.seed-badge.a{background:var(--blue);border-color:var(--blue);color:#fff}.seed-badge.b{background:var(--amber);border-color:var(--amber);color:#fff}
 .t-logo{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--panel-3)}
 .t-logo-ph{width:40px;height:40px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--text-3)}
-.t-name{font-size:10px;font-weight:700;color:var(--text);text-align:center;line-height:1.3;word-break:break-word}
+.t-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.3}
 /* Seeds strip */
 .seeds-wrap{margin-bottom:14px}
 .seeds-conf-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
@@ -456,8 +456,8 @@ function renderConfWrap(lg,sA,sB){
     const idx=selArr.indexOf(t.id);const sel=idx!==-1;
     const full=(conf==='A'?idsA:idsB).length>=8&&idx===-1;
     return`<div class="team-card${sel?' sel-'+conf.toLowerCase():''}${full?' full':''}" onclick="toggleSeed('${lg}','${conf}',${t.id})">
-      ${sel?`<div class="seed-badge ${conf.toLowerCase()}">${idx+1}</div>`:''}
-      <div class="t-name">${t.name}</div>
+      <div class="seed-badge ${sel?conf.toLowerCase():''}">${sel?idx+1:''}</div>
+      <div class="t-name">${(t.city?t.city+' ':'')+t.name}</div>
     </div>`;
   };
   el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conferência A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${tA.map(t=>card(t,'A',idsA)).join('')}</div></div>
