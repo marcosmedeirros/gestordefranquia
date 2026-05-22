@@ -722,8 +722,11 @@ try {
     <a href="games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
+    <a href="bracket.php" class="sb-link">
+      <i class="bi bi-trophy-fill"></i>Bracket
+    </a>
     <a href="user/ranking-geral.php" class="sb-link">
-      <i class="bi bi-trophy"></i>Ranking Geral
+      <i class="bi bi-bar-chart-fill"></i>Ranking Geral
     </a>
     <?php if (!empty($usuario['is_admin'])): ?>
     <div class="sb-nav-section">Admin</div>
