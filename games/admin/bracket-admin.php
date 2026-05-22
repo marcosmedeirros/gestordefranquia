@@ -107,11 +107,15 @@ $leagues = []; $teamsByLeague = []; $confAssignments = [];
 try { $rows=$pdo->query("SELECT team_id,league,conference FROM fba_bracket_conferences")->fetchAll(PDO::FETCH_ASSOC); foreach($rows as $r) $confAssignments[$r['league']][$r['team_id']]=$r['conference']; } catch(Exception $e){}
 try {
     $pdoFba = new PDO('mysql:host=localhost;dbname=u289267434_fbabrasilbanco;charset=utf8mb4','u289267434_fbabrasilbanco','Fbabrasil@2025',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-    $rows = $pdoFba->query("SELECT id,name,city,league,photo_url FROM teams ORDER BY league,name")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $pdoFba->query("SELECT id,name,city,league,photo_url,conference FROM teams ORDER BY league,name")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $r) {
         $lg=$r['league']; if ($lg==='ROOKIE') continue;
         if (!in_array($lg,$leagues)) $leagues[]=$lg;
-        $teamsByLeague[$lg][]=['id'=>(int)$r['id'],'name'=>$r['name'],'city'=>$r['city'],'photo_url'=>$r['photo_url']?:'','conference'=>$confAssignments[$lg][(int)$r['id']]??''];
+        $conf = $confAssignments[$lg][(int)$r['id']] ?? null;
+        if (!$conf && !empty($r['conference'])) {
+            $conf = ($r['conference']==='LESTE') ? 'A' : (($r['conference']==='OESTE') ? 'B' : '');
+        }
+        $teamsByLeague[$lg][]=['id'=>(int)$r['id'],'name'=>$r['name'],'city'=>$r['city'],'photo_url'=>$r['photo_url']?:'','conference'=>$conf??''];
     }
 } catch(Exception $e){}
 
