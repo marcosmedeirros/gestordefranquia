@@ -439,7 +439,7 @@ function clearLS(lg){localStorage.removeItem(lsKey(lg));}
 
 function showToast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type?' '+type:'');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2500);}
 
-function switchTab(lg){LEAGUES.forEach(l=>{document.getElementById('panel-'+l).style.display=l===lg?'block':'none';document.getElementById('tab-'+l).classList.toggle('active',l===lg);});}
+function switchTab(lg){LEAGUES.forEach(l=>{document.getElementById('panel-'+l).style.display=l===lg?'block':'none';document.getElementById('tab-'+l).classList.toggle('active',l===lg);});localStorage.setItem('fba_brk_tab',lg);}
 
 // ── Logo HTML ─────────────────────────────────────────────────────────────────
 function logoHtml(t,sz=28){
@@ -727,6 +727,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       renderConfWrap(lg,sA,sB);
     }
   });
+  const savedTab=localStorage.getItem('fba_brk_tab');
+  if(savedTab&&LEAGUES.includes(savedTab))switchTab(savedTab);
   document.getElementById('modalOficial').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 });
 </script>
