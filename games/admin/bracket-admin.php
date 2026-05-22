@@ -7,52 +7,52 @@ $stmt->execute([':id'=>$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user || !$user['is_admin']) die("Acesso negado.");
 
-$msg = ''; $msgType = 'success';
-
-// ── POST handlers ─────────────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    $acao = $_POST['acao']??'';
+// ── AJAX ──────────────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD']==='POST' && !empty($_POST['acao'])) {
+    header('Content-Type: application/json');
+    $acao = $_POST['acao'];
 
     if ($acao === 'save_conferences') {
         try {
             $league = trim($_POST['league']??'');
             $teams  = $_POST['teams']??[];
             $pdo->prepare("DELETE FROM fba_bracket_conferences WHERE league=?")->execute([$league]);
-            $stmt = $pdo->prepare("INSERT INTO fba_bracket_conferences (team_id,league,conference) VALUES (?,?,?)");
+            $stmt2 = $pdo->prepare("INSERT INTO fba_bracket_conferences (team_id,league,conference) VALUES (?,?,?)");
             foreach ($teams as $teamId => $conf) {
-                if ($conf==='A'||$conf==='B') $stmt->execute([(int)$teamId,$league,$conf]);
+                if ($conf==='A'||$conf==='B') $stmt2->execute([(int)$teamId,$league,$conf]);
             }
-            $msg = "Conferências da liga $league salvas!";
-        } catch(Exception $e) { $msg=$e->getMessage(); $msgType='danger'; }
+            echo json_encode(['ok'=>true,'msg'=>"Conferências da liga $league salvas!"]);
+        } catch(Exception $e) { echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]); }
+        exit;
     }
 
-    if ($acao === 'save_official') {
+    if ($acao === 'save_official_picks') {
         try {
-            $cycle_id  = (int)($_POST['cycle_id']??0);
-            $seeds_raw = trim($_POST['seeds_json']??'');
-            $rounds_raw= trim($_POST['rounds_json']??'');
+            $cycle_id = (int)($_POST['cycle_id']??0);
+            $seeds    = $_POST['seeds']??'';
+            $rounds   = $_POST['rounds']??'';
             if (!$cycle_id) throw new Exception('cycle_id inválido');
-            $stmt = $pdo->prepare("INSERT INTO fba_bracket_official (cycle_id,seeds_json,rounds_json,updated_by) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE seeds_json=VALUES(seeds_json),rounds_json=VALUES(rounds_json),updated_by=VALUES(updated_by),updated_at=NOW()");
-            $stmt->execute([$cycle_id, $seeds_raw?:null, $rounds_raw?:null, $_SESSION['user_id']]);
-            // Recalculate all user points for this cycle
+            $s = $pdo->prepare("INSERT INTO fba_bracket_official (cycle_id,seeds_json,rounds_json,updated_by) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE seeds_json=VALUES(seeds_json),rounds_json=VALUES(rounds_json),updated_by=VALUES(updated_by),updated_at=NOW()");
+            $s->execute([$cycle_id, $seeds?:null, $rounds?:null, $_SESSION['user_id']]);
+            // Recalculate all locked user picks
+            $official = ['seeds_json'=>$seeds,'rounds_json'=>$rounds];
             $picks = $pdo->prepare("SELECT id,seeds_json,rounds_json FROM fba_bracket_picks WHERE cycle_id=?");
             $picks->execute([$cycle_id]);
-            $official = ['seeds_json'=>$seeds_raw,'rounds_json'=>$rounds_raw];
             foreach ($picks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
-                $pts = calcPointsAdmin($pick, $official);
+                $pts = calcPoints($pick, $official);
                 $pdo->prepare("UPDATE fba_bracket_picks SET points=? WHERE id=?")->execute([$pts,$pick['id']]);
             }
-            $msg = "Resultado oficial salvo e pontos recalculados!";
-        } catch(Exception $e) { $msg=$e->getMessage(); $msgType='danger'; }
+            echo json_encode(['ok'=>true]);
+        } catch(Exception $e) { echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]); }
+        exit;
     }
 
     if ($acao === 'force_reset') {
         try {
             $league = trim($_POST['league']??'');
-            // Close open cycles for this league
-            $cycles = $pdo->prepare("SELECT * FROM fba_bracket_cycles WHERE league=? AND status='open'");
-            $cycles->execute([$league]);
-            foreach ($cycles->fetchAll(PDO::FETCH_ASSOC) as $cycle) {
+            $cycles2 = $pdo->prepare("SELECT * FROM fba_bracket_cycles WHERE league=? AND status='open'");
+            $cycles2->execute([$league]);
+            foreach ($cycles2->fetchAll(PDO::FETCH_ASSOC) as $cycle) {
                 $winner = $pdo->prepare("SELECT user_id, MAX(points) as pts FROM fba_bracket_picks WHERE cycle_id=? AND locked=1 GROUP BY user_id ORDER BY pts DESC LIMIT 1");
                 $winner->execute([$cycle['id']]);
                 $w = $winner->fetch(PDO::FETCH_ASSOC);
@@ -63,64 +63,49 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                     $pdo->prepare("UPDATE fba_bracket_cycles SET status='closed' WHERE id=?")->execute([$cycle['id']]);
                 }
             }
-            // Create new cycle
             $pdo->prepare("INSERT INTO fba_bracket_cycles (league,cycle_start,status) VALUES (?,NOW(),'open')")->execute([$league]);
-            $msg = "Bracket $league resetado. Novo ciclo criado.";
-        } catch(Exception $e) { $msg=$e->getMessage(); $msgType='danger'; }
+            echo json_encode(['ok'=>true,'msg'=>"Bracket $league resetado."]);
+        } catch(Exception $e) { echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]); }
+        exit;
     }
+    exit;
 }
 
-function calcPointsAdmin(array $pick, array $official): int {
-    $pts=0;
-    $us=@json_decode($pick['seeds_json'],true);
-    $ur=@json_decode($pick['rounds_json'],true);
-    $os=@json_decode($official['seeds_json'],true);
-    $or_=@json_decode($official['rounds_json'],true);
+function calcPoints(array $pick, array $off): int {
+    $pts=0; $us=@json_decode($pick['seeds_json'],true); $ur=@json_decode($pick['rounds_json'],true);
+    $os=@json_decode($off['seeds_json'],true); $or_=@json_decode($off['rounds_json'],true);
     if (!is_array($us)||!is_array($os)) return 0;
     $cids=[];
-    for ($i=0;$i<8;$i++) { if(isset($us[$i]['id'],$os[$i]['id'])&&$us[$i]['id']==$os[$i]['id']){$pts++;$cids[]=(int)$us[$i]['id'];} }
+    for ($i=0;$i<min(count($us),count($os));$i++) if(isset($us[$i]['id'],$os[$i]['id'])&&$us[$i]['id']==$os[$i]['id']){$pts++;$cids[]=(int)$us[$i]['id'];}
     if (!is_array($ur)||!is_array($or_)) return $pts;
-    foreach (['r1','r2','r3'] as $rnd) {
-        foreach (($ur[$rnd]??[]) as $i=>$um) {
-            $om=$or_[$rnd][$i]??null; if(!$om) continue;
-            $uw=$um['w']['id']??null; $ow=$om['w']['id']??null;
-            if ($uw&&$ow&&$uw==$ow&&in_array((int)$uw,$cids)) $pts+=2;
-        }
-    }
+    foreach (['r1','r2','r3','r4'] as $rnd) foreach(($ur[$rnd]??[]) as $i=>$um) { $om=$or_[$rnd][$i]??null; if(!$om) continue; $uw=$um['w']['id']??null; $ow=$om['w']['id']??null; if($uw&&$ow&&$uw==$ow&&in_array((int)$uw,$cids)) $pts+=2; }
     return $pts;
 }
 
-// Load data
-$leagues = [];
-$teamsByLeague = [];
-$confAssignments = [];
-try {
-    $rows = $pdo->query("SELECT team_id,league,conference FROM fba_bracket_conferences")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($rows as $r) $confAssignments[$r['league']][$r['team_id']] = $r['conference'];
-} catch(Exception $e) {}
-
+// ── LOAD DATA ─────────────────────────────────────────────────────────────────
+$leagues = []; $teamsByLeague = []; $confAssignments = [];
+try { $rows=$pdo->query("SELECT team_id,league,conference FROM fba_bracket_conferences")->fetchAll(PDO::FETCH_ASSOC); foreach($rows as $r) $confAssignments[$r['league']][$r['team_id']]=$r['conference']; } catch(Exception $e){}
 try {
     $pdoFba = new PDO('mysql:host=localhost;dbname=u289267434_fbabrasilbanco;charset=utf8mb4','u289267434_fbabrasilbanco','Fbabrasil@2025',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
     $rows = $pdoFba->query("SELECT id,name,city,league,photo_url FROM teams ORDER BY league,name")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $r) {
-        $lg=$r['league'];
+        $lg=$r['league']; if ($lg==='ROOKIE') continue;
         if (!in_array($lg,$leagues)) $leagues[]=$lg;
-        $teamsByLeague[$lg][] = ['id'=>(int)$r['id'],'name'=>$r['name'],'city'=>$r['city'],'photo_url'=>$r['photo_url']?:'','conference'=>$confAssignments[$lg][(int)$r['id']]??''];
+        $teamsByLeague[$lg][]=['id'=>(int)$r['id'],'name'=>$r['name'],'city'=>$r['city'],'photo_url'=>$r['photo_url']?:'','conference'=>$confAssignments[$lg][(int)$r['id']]??''];
     }
-} catch(Exception $e) {}
+} catch(Exception $e){}
 
-$cycles = [];
-$officialByLeague = [];
+$cycles=[]; $officialByLeague=[]; $pickCountByLeague=[];
 foreach ($leagues as $lg) {
-    $stmt = $pdo->prepare("SELECT * FROM fba_bracket_cycles WHERE league=? AND status='open' ORDER BY id DESC LIMIT 1");
-    $stmt->execute([$lg]);
-    $c = $stmt->fetch(PDO::FETCH_ASSOC);
-    $cycles[$lg] = $c ?: null;
+    $s=$pdo->prepare("SELECT * FROM fba_bracket_cycles WHERE league=? AND status='open' ORDER BY id DESC LIMIT 1");
+    $s->execute([$lg]); $c=$s->fetch(PDO::FETCH_ASSOC);
+    $cycles[$lg]=$c?:null;
     if ($c) {
-        $stmt2 = $pdo->prepare("SELECT * FROM fba_bracket_official WHERE cycle_id=?");
-        $stmt2->execute([$c['id']]);
-        $officialByLeague[$lg] = $stmt2->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
+        $s2=$pdo->prepare("SELECT * FROM fba_bracket_official WHERE cycle_id=?"); $s2->execute([$c['id']]);
+        $officialByLeague[$lg]=$s2->fetch(PDO::FETCH_ASSOC)?:null;
+        $s3=$pdo->prepare("SELECT COUNT(*) FROM fba_bracket_picks WHERE cycle_id=? AND locked=1"); $s3->execute([$c['id']]);
+        $pickCountByLeague[$lg]=(int)$s3->fetchColumn();
+    } else { $officialByLeague[$lg]=null; $pickCountByLeague[$lg]=0; }
 }
 ?>
 <!DOCTYPE html>
@@ -128,112 +113,412 @@ foreach ($leagues as $lg) {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin Bracket — FBA</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--bg:#07070a;--panel:#101013;--panel-2:#16161a;--border:rgba(255,255,255,.08);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--font:'Poppins',sans-serif}
-body{background:var(--bg);color:var(--text);font-family:var(--font)}
-.card-dark{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
-.section-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.f-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);display:block;margin-bottom:5px}
-.f-input{width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:var(--font);font-size:13px;outline:none}
-.f-input:focus{border-color:var(--red)}
+:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--ease:cubic-bezier(.2,.8,.2,1);--t:200ms}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;padding:0}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.top-title{font-size:16px;font-weight:800;color:var(--text)}.top-title span{color:var(--red)}
+.main{max-width:960px;margin:0 auto;padding:24px 20px 60px}
+.tab-bar{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:3px;margin:0 auto 24px;width:fit-content}
+.tab-btn{padding:7px 22px;border-radius:999px;border:none;background:transparent;color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease)}
+.tab-btn.active{background:var(--red);color:#fff;box-shadow:0 2px 12px rgba(252,0,37,.3)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none}
+.card-head-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-2);display:flex;align-items:center;gap:7px}
+.card-head-title i{color:var(--red)}
+.card-body{padding:16px}
+/* Conference assignment */
 .team-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
 .team-row:last-child{border-bottom:none}
-.t-logo{width:28px;height:28px;border-radius:50%;object-fit:cover;background:var(--panel-2);flex-shrink:0}
+.t-logo{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .t-name{font-size:12px;font-weight:600;color:var(--text);flex:1}
-.conf-radio{display:flex;gap:8px}
-.conf-btn{padding:4px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.conf-btn.a.active{background:rgba(59,130,246,.15);border-color:#3b82f6;color:#3b82f6}
-.conf-btn.b.active{background:rgba(245,158,11,.15);border-color:#f59e0b;color:#f59e0b}
-.btn-submit{background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s}
-.btn-submit:hover{opacity:.85}
-.btn-reset{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#f87171;border-radius:8px;padding:9px 20px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer}
-.alert-bar{padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-.alert-bar.success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:#4ade80}
-.alert-bar.danger{background:rgba(252,0,37,.1);border:1px solid rgba(252,0,37,.2);color:#ff6680}
-.cycle-info{font-size:11px;color:var(--text-2);margin-bottom:12px}
+.conf-radio{display:flex;gap:6px}
+.conf-btn{padding:3px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-2);font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.conf-btn.a.active{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--blue)}
+.conf-btn.b.active{background:rgba(245,158,11,.15);border-color:var(--amber);color:var(--amber)}
+/* Bracket picking */
+.conf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.conf-section{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
+.conf-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.conf-label.a{color:var(--blue)}.conf-label.b{color:var(--amber)}
+.teams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
+.team-card{background:var(--panel-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 5px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all var(--t) var(--ease);position:relative;user-select:none}
+.team-card:hover{border-color:var(--border-md)}.team-card.sel-a{border-color:var(--blue);background:rgba(59,130,246,.08)}.team-card.sel-b{border-color:var(--amber);background:rgba(245,158,11,.08)}.team-card.full{opacity:.3;pointer-events:none}
+.seed-badge{position:absolute;top:3px;right:3px;width:15px;height:15px;border-radius:50%;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;color:#fff}
+.seed-badge.a{background:var(--blue)}.seed-badge.b{background:var(--amber)}
+.tl{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--panel-2)}
+.tl-ph{width:36px;height:36px;border-radius:50%;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--text-3)}
+.t-nm{font-size:9px;font-weight:700;color:var(--text);text-align:center;line-height:1.3;word-break:break-word}
+/* Seeds strip */
+.seeds-conf-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.seed-slot{display:flex;align-items:center;gap:3px;padding:3px 7px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:6px;min-width:0}
+.snum{font-size:9px;font-weight:800;white-space:nowrap}.snum.a{color:var(--blue)}.snum.b{color:var(--amber)}
+.slogo{width:16px;height:16px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.sname{font-size:10px;font-weight:600;color:var(--text);max-width:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Bracket */
+.bracket-wrap{display:flex;flex-direction:column;gap:12px}
+.round-block{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.round-head{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.round-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-2)}
+.round-grid{display:grid;background:var(--border)}
+.round-grid.g4{grid-template-columns:1fr 1fr 1fr 1fr}.round-grid.g2{grid-template-columns:1fr 1fr}.round-grid.g1{grid-template-columns:1fr}
+.matchup{background:var(--panel)}
+.conf-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px 2px;display:block}
+.conf-tag.a{color:var(--blue)}.conf-tag.b{color:var(--amber)}
+.m-team{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;transition:background var(--t) var(--ease);border-left:3px solid transparent}
+.m-team:not(.locked):not(.tbd):hover{background:var(--panel-2)}.m-team+.m-team{border-top:1px solid var(--border)}
+.m-team.winner{background:rgba(34,197,94,.07);border-left-color:var(--green)}.m-team.loser{opacity:.3}.m-team.locked,.m-team.tbd{cursor:default}
+.m-logo{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)}
+.m-logo-ph{width:26px;height:26px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:var(--text-3);flex-shrink:0}
+.m-info{flex:1;min-width:0}.m-seed{font-size:9px;color:var(--text-3);font-weight:600}.m-name{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-check{margin-left:auto;color:var(--green);font-size:13px;flex-shrink:0}
+.champ-wrap{margin-top:12px;display:flex;justify-content:center}
+.champ-card{display:inline-flex;flex-direction:column;align-items:center;gap:7px;background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(252,0,37,.08));border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:18px 28px}
+.champ-crown{font-size:22px}.champ-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--amber)}
+.champ-logo{width:52px;height:52px;border-radius:50%;object-fit:cover;border:3px solid var(--amber)}
+.champ-name{font-size:16px;font-weight:800;color:#fff}.champ-city{font-size:11px;color:var(--text-2)}
+/* Buttons */
+.btn-red{background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:opacity .15s}
+.btn-red:hover{opacity:.85}.btn-red:disabled{opacity:.35;cursor:not-allowed}
+.btn-outline{background:transparent;border:1px solid var(--border-md);border-radius:8px;padding:8px 16px;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-outline:hover{border-color:rgba(239,68,68,.4);color:#f87171;background:rgba(239,68,68,.06)}
+.btn-ghost-sm{background:transparent;border:1px solid var(--border);border-radius:7px;padding:5px 12px;color:var(--text-2);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-ghost-sm:hover{border-color:var(--border-md);color:var(--text)}
+.cycle-info{font-size:11px;color:var(--text-2);margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge-count{background:var(--panel-3);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:var(--amber)}
+.save-status{font-size:11px;color:var(--green);display:flex;align-items:center;gap:5px;opacity:0;transition:opacity .3s}
+.save-status.show{opacity:1}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);z-index:9999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}.toast.green{border-color:rgba(34,197,94,.3);color:var(--green)}.toast.red{border-color:rgba(252,0,37,.3);color:#ff6680}
+@media(max-width:640px){.conf-wrap{grid-template-columns:1fr}.round-grid.g4{grid-template-columns:1fr 1fr}}
 </style>
 </head>
-<body class="p-4">
-<div style="max-width:900px;margin:0 auto">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:10px">
-  <h1 style="font-size:18px;font-weight:800;color:var(--text)">Admin <span style="color:var(--red)">Bracket</span></h1>
-  <a href="../bracket.php" style="color:var(--text-2);font-size:12px;text-decoration:none"><i class="bi bi-arrow-left"></i> Ver Bracket</a>
+<body>
+<div class="toast" id="toast"></div>
+
+<div class="topbar">
+  <div class="top-title">Admin <span>Bracket</span></div>
+  <a href="../bracket.php" style="color:var(--text-2);font-size:12px;text-decoration:none;display:flex;align-items:center;gap:5px"><i class="bi bi-arrow-left"></i>Ver Bracket</a>
 </div>
 
-<?php if ($msg): ?>
-<div class="alert-bar <?= $msgType ?>"><?= htmlspecialchars($msg) ?></div>
-<?php endif; ?>
-
-<?php foreach ($leagues as $lg): $cycle=$cycles[$lg]; $official=$officialByLeague[$lg]??null; ?>
-<div class="card-dark">
-  <div class="section-title"><i class="bi bi-shield-fill" style="color:var(--red)"></i><?= htmlspecialchars($lg) ?></div>
-  <?php if ($cycle): ?>
-  <div class="cycle-info">Ciclo ativo: #<?= $cycle['id'] ?> · iniciado em <?= date('d/m/Y H:i',strtotime($cycle['cycle_start'])) ?></div>
+<div class="main">
+  <?php if (empty($leagues)): ?>
+  <p style="color:var(--text-3);text-align:center;padding:40px">Nenhuma liga encontrada.</p>
   <?php else: ?>
-  <div class="cycle-info" style="color:#f59e0b">Nenhum ciclo ativo. Acesse bracket.php para criar.</div>
-  <?php endif; ?>
 
-  <!-- Conference assignment -->
-  <div style="margin-bottom:20px">
-    <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px">Conferências</div>
-    <form method="POST">
-      <input type="hidden" name="acao" value="save_conferences">
-      <input type="hidden" name="league" value="<?= htmlspecialchars($lg) ?>">
-      <div style="max-height:300px;overflow-y:auto">
-        <?php foreach (($teamsByLeague[$lg]??[]) as $t): $conf=$confAssignments[$lg][$t['id']]??''; ?>
-        <div class="team-row">
-          <?php if ($t['photo_url']): ?><img class="t-logo" src="<?= htmlspecialchars($t['photo_url']) ?>" onerror="this.style.display='none'"><?php endif; ?>
-          <div class="t-name"><?= htmlspecialchars($t['name']) ?></div>
-          <div class="conf-radio">
-            <button type="button" class="conf-btn a <?= $conf==='A'?'active':'' ?>" onclick="setConf(this,'A',<?= $t['id'] ?>,'<?= $lg ?>')">A</button>
-            <button type="button" class="conf-btn b <?= $conf==='B'?'active':'' ?>" onclick="setConf(this,'B',<?= $t['id'] ?>,'<?= $lg ?>')">B</button>
-            <input type="hidden" name="teams[<?= $t['id'] ?>]" id="conf-<?= $lg ?>-<?= $t['id'] ?>" value="<?= htmlspecialchars($conf) ?>">
-          </div>
-        </div>
-        <?php endforeach; ?>
+  <div class="tab-bar">
+    <?php foreach ($leagues as $i=>$lg): ?>
+    <button class="tab-btn <?= $i===0?'active':'' ?>" onclick="switchTab('<?= $lg ?>')" id="adm-tab-<?= $lg ?>"><?= htmlspecialchars($lg) ?></button>
+    <?php endforeach; ?>
+  </div>
+
+  <?php foreach ($leagues as $i=>$lg): $cycle=$cycles[$lg]; $official=$officialByLeague[$lg]; ?>
+  <div id="adm-panel-<?= $lg ?>" style="display:<?= $i===0?'block':'none' ?>">
+
+    <!-- Cycle info -->
+    <div class="cycle-info">
+      <?php if ($cycle): ?>
+      <i class="bi bi-circle-fill" style="color:var(--green);font-size:8px"></i>
+      Ciclo #<?= $cycle['id'] ?> · iniciado <?= date('d/m/Y H:i',strtotime($cycle['cycle_start'])) ?>
+      <span class="badge-count"><?= $pickCountByLeague[$lg] ?> pick(s) salvo(s)</span>
+      <?php else: ?>
+      <i class="bi bi-exclamation-circle" style="color:var(--amber)"></i>
+      Nenhum ciclo ativo. Acesse bracket.php para criar.
+      <?php endif; ?>
+    </div>
+
+    <!-- Conference assignment -->
+    <div class="card">
+      <div class="card-head" onclick="toggleCard('conf-<?= $lg ?>')">
+        <div class="card-head-title"><i class="bi bi-shield-half"></i>Conferências — <?= htmlspecialchars($lg) ?></div>
+        <i class="bi bi-chevron-down" id="chevron-conf-<?= $lg ?>" style="color:var(--text-3);font-size:12px;transition:transform .2s"></i>
       </div>
-      <button type="submit" class="btn-submit mt-3"><i class="bi bi-save-fill me-1"></i>Salvar Conferências</button>
-    </form>
-  </div>
+      <div id="conf-<?= $lg ?>" class="card-body" style="display:none">
+        <div style="max-height:280px;overflow-y:auto">
+          <?php foreach (($teamsByLeague[$lg]??[]) as $t): $conf=$confAssignments[$lg][$t['id']]??''; ?>
+          <div class="team-row">
+            <?php if ($t['photo_url']): ?><img class="t-logo" src="<?= htmlspecialchars($t['photo_url']) ?>" onerror="this.style.display='none'"><?php endif; ?>
+            <div class="t-name"><?= htmlspecialchars($t['name']) ?></div>
+            <div class="conf-radio">
+              <button type="button" class="conf-btn a <?= $conf==='A'?'active':'' ?>" onclick="setConf(this,'A',<?= $t['id'] ?>,'<?= $lg ?>')">A</button>
+              <button type="button" class="conf-btn b <?= $conf==='B'?'active':'' ?>" onclick="setConf(this,'B',<?= $t['id'] ?>,'<?= $lg ?>')">B</button>
+              <input type="hidden" id="conf-val-<?= $lg ?>-<?= $t['id'] ?>" value="<?= htmlspecialchars($conf) ?>">
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
+          <button class="btn-red" onclick="saveConferences('<?= $lg ?>')"><i class="bi bi-save-fill"></i>Salvar Conferências</button>
+          <span class="save-status" id="conf-saved-<?= $lg ?>"><i class="bi bi-check-circle-fill"></i>Salvo!</span>
+        </div>
+      </div>
+    </div>
 
-  <!-- Official result -->
-  <?php if ($cycle): ?>
-  <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
-    <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px">Resultado Oficial (para calcular pontos)</div>
-    <form method="POST">
-      <input type="hidden" name="acao" value="save_official">
-      <input type="hidden" name="cycle_id" value="<?= $cycle['id'] ?>">
-      <label class="f-label">Seeds JSON (array de 8 times, índice 0-3=Conf A, 4-7=Conf B)</label>
-      <textarea class="f-input" name="seeds_json" rows="3" style="font-size:11px;resize:vertical" placeholder='[{"id":1,"name":"Team A",...},...]'><?= htmlspecialchars($official['seeds_json']??'') ?></textarea>
-      <label class="f-label mt-2">Rounds JSON (resultados reais)</label>
-      <textarea class="f-input" name="rounds_json" rows="4" style="font-size:11px;resize:vertical" placeholder='{"r1":[{"t1":{...},"t2":{...},"w":{...}},...],"r2":[...],"r3":[...]}'><?= htmlspecialchars($official['rounds_json']??'') ?></textarea>
-      <button type="submit" class="btn-submit mt-2"><i class="bi bi-calculator me-1"></i>Salvar e Recalcular Pontos</button>
-    </form>
+    <!-- Official bracket -->
+    <?php if ($cycle): ?>
+    <div class="card">
+      <div class="card-head" onclick="toggleCard('brk-<?= $lg ?>')">
+        <div class="card-head-title"><i class="bi bi-trophy-fill"></i>Bracket Oficial — <?= htmlspecialchars($lg) ?></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="save-status" id="brk-saved-<?= $lg ?>"><i class="bi bi-check-circle-fill"></i>Salvo</span>
+          <i class="bi bi-chevron-down" id="chevron-brk-<?= $lg ?>" style="color:var(--text-3);font-size:12px;transition:transform .2s"></i>
+        </div>
+      </div>
+      <div id="brk-<?= $lg ?>" class="card-body">
+        <!-- Seeds strip -->
+        <div id="adm-seeds-strip-<?= $lg ?>" style="margin-bottom:12px"></div>
+
+        <!-- Picking phase -->
+        <div id="adm-picking-<?= $lg ?>">
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:10px">Selecione 8 seeds de cada conferência para montar o bracket oficial</div>
+          <div class="conf-wrap" id="adm-confWrap-<?= $lg ?>"></div>
+          <button class="btn-red" id="adm-btnStart-<?= $lg ?>" disabled onclick="adminStartBracket('<?= $lg ?>')"><i class="bi bi-play-fill"></i>Gerar Bracket</button>
+        </div>
+
+        <!-- Bracket phase -->
+        <div id="adm-bracketPhase-<?= $lg ?>" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:11px;color:var(--text-2)">Clique no vencedor de cada confronto para salvar o resultado oficial</div>
+            <button class="btn-ghost-sm" onclick="adminResetBracket('<?= $lg ?>')"><i class="bi bi-arrow-counterclockwise"></i>Resetar</button>
+          </div>
+          <div class="bracket-wrap" id="adm-bracketWrap-<?= $lg ?>"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Force reset -->
+    <div style="margin-bottom:20px">
+      <button class="btn-outline" onclick="forceReset('<?= $lg ?>')"><i class="bi bi-arrow-counterclockwise"></i>Forçar Reset <?= htmlspecialchars($lg) ?></button>
+    </div>
+
+    <?php endif; ?>
   </div>
+  <?php endforeach; ?>
   <?php endif; ?>
-
-  <!-- Force reset -->
-  <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px">
-    <form method="POST" onsubmit="return confirm('Resetar bracket <?= $lg ?>? Pontos serão pagos e novo ciclo criado.')">
-      <input type="hidden" name="acao" value="force_reset">
-      <input type="hidden" name="league" value="<?= htmlspecialchars($lg) ?>">
-      <button type="submit" class="btn-reset"><i class="bi bi-arrow-counterclockwise me-1"></i>Forçar Reset <?= htmlspecialchars($lg) ?></button>
-    </form>
-  </div>
 </div>
-<?php endforeach; ?>
 
-</div>
 <script>
+const TEAMS_BY_LEAGUE = <?= json_encode($teamsByLeague, JSON_UNESCAPED_UNICODE) ?>;
+const LEAGUES = <?= json_encode($leagues, JSON_UNESCAPED_UNICODE) ?>;
+const CYCLES  = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$cycles[$lg]?['id'=>$cycles[$lg]['id']]:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
+const OFFICIAL_RAW = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$officialByLeague[$lg]?['seeds'=>$officialByLeague[$lg]['seeds_json']??'','rounds'=>$officialByLeague[$lg]['rounds_json']??'']:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
+
+const ADV = {
+  r1:{0:{r:'r2',i:0,s:'t1'},1:{r:'r2',i:0,s:'t2'},2:{r:'r2',i:1,s:'t1'},3:{r:'r2',i:1,s:'t2'},
+      4:{r:'r2',i:2,s:'t1'},5:{r:'r2',i:2,s:'t2'},6:{r:'r2',i:3,s:'t1'},7:{r:'r2',i:3,s:'t2'}},
+  r2:{0:{r:'r3',i:0,s:'t1'},1:{r:'r3',i:0,s:'t2'},2:{r:'r3',i:1,s:'t1'},3:{r:'r3',i:1,s:'t2'}},
+  r3:{0:{r:'r4',i:0,s:'t1'},1:{r:'r4',i:0,s:'t2'}}
+};
+
+function lsKey(lg){return 'fba_brk_adm_v1_'+lg;}
+function loadLS(lg){try{return JSON.parse(localStorage.getItem(lsKey(lg)))||null;}catch(e){return null;}}
+function saveLS(lg,s){localStorage.setItem(lsKey(lg),JSON.stringify(s));}
+function clearLS(lg){localStorage.removeItem(lsKey(lg));}
+
+function showToast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type?' '+type:'');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2500);}
+function showSaved(id){const el=document.getElementById(id);if(!el)return;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2500);}
+
+function switchTab(lg){LEAGUES.forEach(l=>{document.getElementById('adm-panel-'+l).style.display=l===lg?'block':'none';document.getElementById('adm-tab-'+l).classList.toggle('active',l===lg);});}
+
+function toggleCard(id){const el=document.getElementById(id);const chevron=document.getElementById('chevron-'+id);const open=el.style.display!=='none';el.style.display=open?'none':'block';if(chevron)chevron.style.transform=open?'':'rotate(180deg)';}
+
+// ── Conference assignment ──────────────────────────────────────────────────────
 function setConf(btn, conf, teamId, lg) {
-  document.querySelectorAll(`[id^="conf-${lg}-${teamId}"]`).forEach(el=>el.value=conf);
-  const row = btn.closest('.conf-radio');
+  document.getElementById('conf-val-'+lg+'-'+teamId).value=conf;
+  const row=btn.closest('.conf-radio');
   row.querySelectorAll('.conf-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 }
+async function saveConferences(lg) {
+  const teams={};
+  document.querySelectorAll('[id^="conf-val-'+lg+'-"]').forEach(el=>{
+    const id=el.id.replace('conf-val-'+lg+'-','');const val=el.value;if(val)teams[id]=val;
+  });
+  const body=new URLSearchParams({acao:'save_conferences',league:lg});
+  Object.entries(teams).forEach(([id,v])=>body.append('teams['+id+']',v));
+  const resp=await fetch('bracket-admin.php',{method:'POST',body});
+  const data=await resp.json();
+  if(data.ok){showSaved('conf-saved-'+lg);showToast('Conferências salvas!','green');}
+  else showToast(data.msg||'Erro','red');
+}
+
+// ── Logo helpers ──────────────────────────────────────────────────────────────
+function logoHtml(t,sz=26){
+  if(!t)return`<div class="m-logo-ph" style="width:${sz}px;height:${sz}px">?</div>`;
+  if(t.photo_url)return`<img class="m-logo" src="${t.photo_url}" style="width:${sz}px;height:${sz}px" onerror="this.outerHTML='<div class=m-logo-ph style=width:${sz}px;height:${sz}px>${(t.name||'?').slice(0,2).toUpperCase()}</div>'">`;
+  return`<div class="m-logo-ph" style="width:${sz}px;height:${sz}px">${(t.name||'?').slice(0,2).toUpperCase()}</div>`;
+}
+
+// ── Seeds strip ───────────────────────────────────────────────────────────────
+function renderSeedsStrip(lg,sA,sB){
+  const el=document.getElementById('adm-seeds-strip-'+lg);if(!el)return;
+  if(!sA.some(Boolean)&&!sB.some(Boolean)){el.innerHTML='';return;}
+  const row=(seeds,conf)=>seeds.map((t,i)=>`<div class="seed-slot"><span class="snum ${conf}">#${i+1}${conf.toUpperCase()}</span>${t&&t.photo_url?`<img class="slogo" src="${t.photo_url}" onerror="this.style.display='none'">`:''}<span class="sname">${t?t.name:'—'}</span></div>`).join('');
+  el.innerHTML=`<div class="seeds-conf-row">${row(Array.from({length:8},(_,i)=>sA[i]||null),'a')}</div><div class="seeds-conf-row">${row(Array.from({length:8},(_,i)=>sB[i]||null),'b')}</div>`;
+}
+
+// ── Conf picking grid ─────────────────────────────────────────────────────────
+function renderAdminConfWrap(lg,sA,sB){
+  const el=document.getElementById('adm-confWrap-'+lg);if(!el)return;
+  const teams=TEAMS_BY_LEAGUE[lg]||[];
+  const hasConf=teams.some(t=>t.conference);
+  const tA=hasConf?teams.filter(t=>t.conference==='A'):teams.slice(0,Math.ceil(teams.length/2));
+  const tB=hasConf?teams.filter(t=>t.conference==='B'):teams.slice(Math.ceil(teams.length/2));
+  const idsA=sA.filter(Boolean).map(t=>t.id),idsB=sB.filter(Boolean).map(t=>t.id);
+  const card=(t,conf,selArr)=>{
+    const idx=selArr.indexOf(t.id);const sel=idx!==-1;
+    const full=(conf==='A'?idsA:idsB).length>=8&&idx===-1;
+    return`<div class="team-card${sel?' sel-'+conf.toLowerCase():''}${full?' full':''}" onclick="adminToggleSeed('${lg}','${conf}',${t.id})">
+      ${sel?`<div class="seed-badge ${conf.toLowerCase()}">${idx+1}</div>`:''}
+      ${t.photo_url?`<img class="tl" src="${t.photo_url}" onerror="this.outerHTML='<div class=tl-ph>${t.name.slice(0,2).toUpperCase()}</div>'">`:`<div class="tl-ph">${t.name.slice(0,2).toUpperCase()}</div>`}
+      <div class="t-nm">${t.name}</div>
+    </div>`;
+  };
+  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conf A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${tA.map(t=>card(t,'A',idsA)).join('')}</div></div>
+  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>Conf B <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${tB.map(t=>card(t,'B',idsB)).join('')}</div></div>`;
+  const btn=document.getElementById('adm-btnStart-'+lg);if(btn)btn.disabled=idsA.length<8||idsB.length<8;
+}
+
+function adminToggleSeed(lg,conf,teamId){
+  const state=loadLS(lg)||{phase:'picking',seedsA:[],seedsB:[]};
+  if(state.phase!=='picking')return;
+  const teams=TEAMS_BY_LEAGUE[lg]||[];const team=teams.find(t=>t.id===teamId);if(!team)return;
+  const arr=conf==='A'?state.seedsA:state.seedsB;
+  const idx=arr.findIndex(t=>t&&t.id===teamId);
+  if(idx!==-1)arr.splice(idx,1);else{if(arr.length>=8)return;arr.push(team);}
+  saveLS(lg,state);renderAdminConfWrap(lg,state.seedsA,state.seedsB);renderSeedsStrip(lg,state.seedsA,state.seedsB);
+}
+
+// ── Build rounds ──────────────────────────────────────────────────────────────
+function buildRounds(sA,sB){
+  const e=()=>({t1:null,t2:null,w:null});
+  return{
+    r1:[{t1:sA[0],t2:sA[7],w:null},{t1:sA[3],t2:sA[4],w:null},{t1:sA[1],t2:sA[6],w:null},{t1:sA[2],t2:sA[5],w:null},
+        {t1:sB[0],t2:sB[7],w:null},{t1:sB[3],t2:sB[4],w:null},{t1:sB[1],t2:sB[6],w:null},{t1:sB[2],t2:sB[5],w:null}],
+    r2:[e(),e(),e(),e()],r3:[e(),e()],r4:[e()]
+  };
+}
+function adminStartBracket(lg){
+  const state=loadLS(lg)||{};const sA=state.seedsA||[],sB=state.seedsB||[];
+  if(sA.length<8||sB.length<8)return;
+  state.rounds=buildRounds(sA,sB);state.phase='bracket';saveLS(lg,state);
+  document.getElementById('adm-picking-'+lg).style.display='none';
+  document.getElementById('adm-bracketPhase-'+lg).style.display='block';
+  renderAdminBracket(lg,state);
+}
+function adminResetBracket(lg){
+  if(!confirm('Resetar bracket oficial de '+lg+'? O resultado salvo no banco não será apagado.'))return;
+  clearLS(lg);
+  document.getElementById('adm-picking-'+lg).style.display='block';
+  document.getElementById('adm-bracketPhase-'+lg).style.display='none';
+  renderAdminConfWrap(lg,[],[]);renderSeedsStrip(lg,[],[]);
+}
+
+// ── Pick winner ───────────────────────────────────────────────────────────────
+function adminPickWinner(lg,round,idx,teamId){
+  const state=loadLS(lg);if(!state||state.phase!=='bracket')return;
+  const match=state.rounds[round][idx];if(!match.t1||!match.t2)return;
+  const winner=[match.t1,match.t2].find(t=>t.id===teamId);if(!winner)return;
+  match.w=winner;
+  const adv=ADV[round]&&ADV[round][idx];
+  if(adv){state.rounds[adv.r][adv.i][adv.s]=winner;}
+  saveLS(lg,state);renderAdminBracket(lg,state);autoSaveOfficial(lg,state);
+}
+
+// ── Auto-save to DB ───────────────────────────────────────────────────────────
+async function autoSaveOfficial(lg,state){
+  const cid=CYCLES[lg]&&CYCLES[lg].id;if(!cid)return;
+  const seeds8=[...(state.seedsA||[]),...(state.seedsB||[])];
+  try {
+    const resp=await fetch('bracket-admin.php',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({acao:'save_official_picks',cycle_id:cid,seeds:JSON.stringify(seeds8),rounds:JSON.stringify(state.rounds)})});
+    const data=await resp.json();
+    if(data.ok)showSaved('brk-saved-'+lg);
+    else showToast(data.msg||'Erro ao salvar','red');
+  } catch(e){showToast('Erro de rede','red');}
+}
+
+// ── Render bracket ────────────────────────────────────────────────────────────
+function matchupHtml(lg,round,idx,match,confTag){
+  const done=!!match.w;
+  const row=(team,isWin)=>{
+    if(!team)return`<div class="m-team tbd">${logoHtml(null,26)}<div class="m-info"><div class="m-name" style="color:var(--text-3);font-style:italic">A definir</div></div></div>`;
+    const cls=done?(isWin?'winner':'loser'):'';
+    const onclick=!done?`adminPickWinner('${lg}','${round}',${idx},${team.id})`:'';
+    return`<div class="m-team ${cls} ${done?'locked':''}" ${onclick?`onclick="${onclick}"`:''}>
+      ${logoHtml(team,26)}<div class="m-info"><div class="m-seed">${team.city||''}</div><div class="m-name">${team.name}</div></div>
+      ${isWin?'<i class="bi bi-check-circle-fill m-check"></i>':''}
+    </div>`;
+  };
+  const w1=match.w&&match.t1&&match.w.id===match.t1.id,w2=match.w&&match.t2&&match.w.id===match.t2.id;
+  return`<div class="matchup">${confTag?`<span class="conf-tag ${confTag.toLowerCase()}">${confTag==='A'?'Conf A':'Conf B'}</span>`:''}<div>${row(match.t1,w1)}${row(match.t2,w2)}</div></div>`;
+}
+function renderAdminBracket(lg,state){
+  const wrap=document.getElementById('adm-bracketWrap-'+lg);if(!wrap)return;
+  const r=state.rounds;
+  const allR1=r.r1.every(m=>m.w),allR2=r.r2.every(m=>m.w),allR3=r.r3.every(m=>m.w);
+  const champ=r.r4&&r.r4[0]&&r.r4[0].w;
+  let html=`<div class="round-block"><div class="round-head"><span class="round-label">Primeira Rodada</span></div>
+    <div class="round-grid g4">
+      ${matchupHtml(lg,'r1',0,r.r1[0],'A')}${matchupHtml(lg,'r1',1,r.r1[1],'A')}
+      ${matchupHtml(lg,'r1',2,r.r1[2],'A')}${matchupHtml(lg,'r1',3,r.r1[3],'A')}
+      ${matchupHtml(lg,'r1',4,r.r1[4],'B')}${matchupHtml(lg,'r1',5,r.r1[5],'B')}
+      ${matchupHtml(lg,'r1',6,r.r1[6],'B')}${matchupHtml(lg,'r1',7,r.r1[7],'B')}
+    </div></div>`;
+  if(allR1)html+=`<div class="round-block"><div class="round-head"><span class="round-label">Semifinais</span></div>
+    <div class="round-grid g4">
+      ${matchupHtml(lg,'r2',0,r.r2[0],'A')}${matchupHtml(lg,'r2',1,r.r2[1],'A')}
+      ${matchupHtml(lg,'r2',2,r.r2[2],'B')}${matchupHtml(lg,'r2',3,r.r2[3],'B')}
+    </div></div>`;
+  if(allR2)html+=`<div class="round-block"><div class="round-head"><span class="round-label">Finais de Conferência</span></div>
+    <div class="round-grid g2">
+      ${matchupHtml(lg,'r3',0,r.r3[0],'A')}${matchupHtml(lg,'r3',1,r.r3[1],'B')}
+    </div></div>`;
+  if(allR3)html+=`<div class="round-block"><div class="round-head"><span class="round-label">🏆 Grande Final</span></div>
+    <div class="round-grid g1">${matchupHtml(lg,'r4',0,r.r4[0],null)}</div></div>`;
+  if(champ)html+=`<div class="champ-wrap"><div class="champ-card"><div class="champ-crown">🏆</div><div class="champ-lbl">Campeão Oficial</div>${champ.photo_url?`<img class="champ-logo" src="${champ.photo_url}" onerror="this.style.display='none'">`:''}<div class="champ-name">${champ.name}</div><div class="champ-city">${champ.city||''}</div></div></div>`;
+  wrap.innerHTML=html;
+}
+
+// ── Force reset ───────────────────────────────────────────────────────────────
+async function forceReset(lg){
+  if(!confirm('Resetar bracket '+lg+'? Pontos serão pagos e novo ciclo criado.'))return;
+  const body=new URLSearchParams({acao:'force_reset',league:lg});
+  const resp=await fetch('bracket-admin.php',{method:'POST',body});
+  const data=await resp.json();
+  if(data.ok){showToast(data.msg,'green');setTimeout(()=>location.reload(),1500);}
+  else showToast(data.msg||'Erro','red');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  LEAGUES.forEach(lg=>{
+    // Try to restore from localStorage first, then fall back to DB official data
+    let state=loadLS(lg);
+    if(!state&&OFFICIAL_RAW[lg]){
+      const raw=OFFICIAL_RAW[lg];
+      try {
+        const seeds=raw.seeds?JSON.parse(raw.seeds):null;
+        const rounds=raw.rounds?JSON.parse(raw.rounds):null;
+        if(seeds&&seeds.length===16){
+          state={phase:'bracket',seedsA:seeds.slice(0,8),seedsB:seeds.slice(8,16),rounds:rounds||buildRounds(seeds.slice(0,8),seeds.slice(8,16))};
+          saveLS(lg,state);
+        }
+      } catch(e){}
+    }
+    if(state&&state.phase==='bracket'&&state.rounds){
+      document.getElementById('adm-picking-'+lg).style.display='none';
+      document.getElementById('adm-bracketPhase-'+lg).style.display='block';
+      renderAdminBracket(lg,state);renderSeedsStrip(lg,state.seedsA||[],state.seedsB||[]);
+    } else {
+      const sA=state?.seedsA||[],sB=state?.seedsB||[];
+      renderAdminConfWrap(lg,sA,sB);renderSeedsStrip(lg,sA,sB);
+    }
+  });
+});
 </script>
 </body>
 </html>

@@ -343,6 +343,12 @@ if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'a
  * Chamada após set_standings e save_history para manter o card "Pontuação" atualizado.
  */
 function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $sprintNumber, int $seasonNumber): void {
+    // Pontos já gravados para esta temporada (necessário para calcular o delta em re-registros)
+    $stmtOld = $pdo->prepare("SELECT team_id, points FROM team_season_points WHERE season_id = ?");
+    $stmtOld->execute([$seasonId]);
+    $oldPoints = [];
+    foreach ($stmtOld->fetchAll(PDO::FETCH_ASSOC) as $r) $oldPoints[(int)$r['team_id']] = (int)$r['points'];
+
     $stmt = $pdo->prepare("
         SELECT trp.team_id,
                CONCAT(t.city, ' ', t.name) AS team_name,
@@ -371,21 +377,22 @@ function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $spri
             team_name   = VALUES(team_name),
             updated_at  = NOW()
     ");
+    $newPoints = [];
     foreach ($rows as $row) {
-        $stmtUpsert->execute([
-            (int)$row['team_id'],
-            $row['team_name'] ?? 'Time Desconhecido',
-            $league,
-            $seasonId,
-            $sprintNumber,
-            $seasonNumber,
-            (int)$row['total_points'],
-        ]);
+        $tid = (int)$row['team_id'];
+        $pts = (int)$row['total_points'];
+        $newPoints[$tid] = $pts;
+        $stmtUpsert->execute([$tid, $row['team_name'] ?? 'Time Desconhecido', $league, $seasonId, $sprintNumber, $seasonNumber, $pts]);
     }
 
-    // Recalcula teams.ranking_points como soma de TODAS as temporadas do time.
-    // Idempotente: pode chamar N vezes, resultado sempre correto.
-    recalcTeamsRankingPoints($pdo, $league);
+    // Incrementa teams.ranking_points pelo delta (novo - antigo desta temporada).
+    // Nunca recalcula do zero — o histórico é opcional e não afeta o acumulado.
+    if (!columnExists($pdo, 'teams', 'ranking_points')) return;
+    $stmtInc = $pdo->prepare("UPDATE teams SET ranking_points = GREATEST(0, COALESCE(ranking_points,0) + ?) WHERE id = ?");
+    foreach (array_unique(array_merge(array_keys($newPoints), array_keys($oldPoints))) as $tid) {
+        $delta = ($newPoints[$tid] ?? 0) - ($oldPoints[$tid] ?? 0);
+        if ($delta !== 0) $stmtInc->execute([$delta, $tid]);
+    }
 }
 
 /**
