@@ -34,7 +34,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !empty($_POST['acao'])) {
             if (!$cycle_id) throw new Exception('cycle_id inválido');
             $s = $pdo->prepare("INSERT INTO fba_bracket_official (cycle_id,seeds_json,rounds_json,updated_by) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE seeds_json=VALUES(seeds_json),rounds_json=VALUES(rounds_json),updated_by=VALUES(updated_by),updated_at=NOW()");
             $s->execute([$cycle_id, $seeds?:null, $rounds?:null, $_SESSION['user_id']]);
-            // Recalculate all locked user picks
+            // Auto-close picks for this league when official is saved
+            $lgStmt = $pdo->prepare("SELECT league FROM fba_bracket_cycles WHERE id=?");
+            $lgStmt->execute([$cycle_id]);
+            $lgRow = $lgStmt->fetch(PDO::FETCH_ASSOC);
+            if ($lgRow && $lgRow['league']) {
+                $pdo->prepare("INSERT INTO fba_bracket_settings (league,picking_open) VALUES (?,0) ON DUPLICATE KEY UPDATE picking_open=0")->execute([$lgRow['league']]);
+            }
+            // Recalculate all user picks
             $official = ['seeds_json'=>$seeds,'rounds_json'=>$rounds];
             $picks = $pdo->prepare("SELECT id,seeds_json,rounds_json FROM fba_bracket_picks WHERE cycle_id=?");
             $picks->execute([$cycle_id]);
@@ -593,10 +600,18 @@ function adminResetBracket(lg){
 }
 
 // ── Pick winner ───────────────────────────────────────────────────────────────
+function clearDownstream(rounds,round,idx){
+  const adv=ADV[round]&&ADV[round][idx];if(!adv)return;
+  const next=rounds[adv.r]&&rounds[adv.r][adv.i];if(!next)return;
+  next[adv.s]=null;
+  if(next.w){next.w=null;clearDownstream(rounds,adv.r,adv.i);}
+}
 function adminPickWinner(lg,round,idx,teamId){
   const state=loadLS(lg);if(!state||state.phase!=='bracket')return;
   const match=state.rounds[round][idx];if(!match.t1||!match.t2)return;
   const winner=[match.t1,match.t2].find(t=>t.id===teamId);if(!winner)return;
+  if(match.w&&match.w.id===winner.id)return;
+  if(match.w)clearDownstream(state.rounds,round,idx);
   match.w=winner;
   const adv=ADV[round]&&ADV[round][idx];
   if(adv){state.rounds[adv.r][adv.i][adv.s]=winner;}
@@ -622,8 +637,7 @@ function matchupHtml(lg,round,idx,match,confTag){
   const row=(team,isWin)=>{
     if(!team)return`<div class="m-team tbd">${logoHtml(null,26)}<div class="m-info"><div class="m-name" style="color:var(--text-3);font-style:italic">A definir</div></div></div>`;
     const cls=done?(isWin?'winner':'loser'):'';
-    const onclick=!done?`adminPickWinner('${lg}','${round}',${idx},${team.id})`:'';
-    return`<div class="m-team ${cls} ${done?'locked':''}" ${onclick?`onclick="${onclick}"`:''}>
+    return`<div class="m-team ${cls}" onclick="adminPickWinner('${lg}','${round}',${idx},${team.id})">
       ${logoHtml(team,26)}<div class="m-info"><div class="m-seed">${team.city||''}</div><div class="m-name">${team.name}</div></div>
       ${isWin?'<i class="bi bi-check-circle-fill m-check"></i>':''}
     </div>`;

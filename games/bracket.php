@@ -622,7 +622,7 @@ function renderLockedBracket(lg,seeds8,userRounds){
   const wrapId='brk-locked-wrap-'+lg;
   el.innerHTML=`<div class="bracket-wrap" id="${wrapId}"></div>`;
   const off=getOfficial(lg);
-  if(off&&off.rounds&&off.rounds.r1&&!PICKING_OPEN[lg]){
+  if(off&&off.rounds&&off.rounds.r1){
     const offSA=off.seeds?off.seeds.slice(0,8):[];
     const offSB=off.seeds?off.seeds.slice(8,16):[];
     renderBracket(lg,{seedsA:offSA,seedsB:offSB,rounds:off.rounds},true,wrapId,userRounds);
