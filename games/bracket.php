@@ -364,7 +364,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
         <div><div class="phase-title" id="phaseTitle-<?= $lg ?>">Montar <span>Bracket</span></div><div class="phase-sub" id="phaseSub-<?= $lg ?>">Selecione 8 seeds de cada conferência</div></div>
         <button class="btn-ghost" onclick="resetBracket('<?= $lg ?>')"><i class="bi bi-arrow-counterclockwise"></i>Resetar</button>
       </div>
-      <div id="seeds-strip-<?= $lg ?>" class="seeds-wrap"></div>
       <div id="pickingPhase-<?= $lg ?>">
         <div class="conf-wrap" id="confWrap-<?= $lg ?>"></div>
         <button class="btn-start" id="btnStart-<?= $lg ?>" disabled onclick="startBracket('<?= $lg ?>')"><i class="bi bi-play-fill"></i>Gerar Bracket</button>
@@ -461,8 +460,8 @@ function renderConfWrap(lg,sA,sB){
     </div>`;
   };
   const sortBySeeds=(teams,ids)=>[...teams].sort((a,b)=>{const ia=ids.indexOf(a.id),ib=ids.indexOf(b.id);if(ia!==-1&&ib!==-1)return ia-ib;if(ia!==-1)return-1;if(ib!==-1)return 1;return 0;});
-  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conferência A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${sortBySeeds(tA,idsA).map(t=>card(t,'A',idsA)).join('')}</div></div>
-  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>Conferência B <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${sortBySeeds(tB,idsB).map(t=>card(t,'B',idsB)).join('')}</div></div>`;
+  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>LESTE <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${sortBySeeds(tA,idsA).map(t=>card(t,'A',idsA)).join('')}</div></div>
+  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>OESTE <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${sortBySeeds(tB,idsB).map(t=>card(t,'B',idsB)).join('')}</div></div>`;
   const btn=document.getElementById('btnStart-'+lg);if(btn)btn.disabled=idsA.length<8||idsB.length<8;
 }
 
@@ -474,7 +473,7 @@ function toggleSeed(lg,conf,teamId){
   const arr=conf==='A'?state.seedsA:state.seedsB;
   const idx=arr.findIndex(t=>t&&t.id===teamId);
   if(idx!==-1)arr.splice(idx,1);else{if(arr.length>=8)return;arr.push(team);}
-  saveLS(lg,state);renderConfWrap(lg,state.seedsA,state.seedsB);renderSeedsStrip(lg,state.seedsA,state.seedsB);
+  saveLS(lg,state);renderConfWrap(lg,state.seedsA,state.seedsB);
 }
 
 // ── Start bracket ─────────────────────────────────────────────────────────────
@@ -689,10 +688,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('bracketPhase-'+lg).style.display='block';
       document.getElementById('phaseTitle-'+lg).innerHTML='Bracket <span>Playoffs</span>';
       document.getElementById('phaseSub-'+lg).textContent='Clique no vencedor de cada confronto';
-      renderBracket(lg,state);renderSeedsStrip(lg,state.seedsA||[],state.seedsB||[]);
+      renderBracket(lg,state);
     }else{
       const sA=state?.seedsA||[],sB=state?.seedsB||[];
-      renderConfWrap(lg,sA,sB);renderSeedsStrip(lg,sA,sB);
+      renderConfWrap(lg,sA,sB);
     }
   });
   document.getElementById('modalOficial').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});

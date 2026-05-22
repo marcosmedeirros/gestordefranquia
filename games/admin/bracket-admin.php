@@ -391,8 +391,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
         </div>
       </div>
       <div id="brk-<?= $lg ?>" class="card-body">
-        <!-- Seeds strip -->
-        <div id="adm-seeds-strip-<?= $lg ?>" style="margin-bottom:12px"></div>
+
 
         <!-- Picking phase -->
         <div id="adm-picking-<?= $lg ?>">
@@ -502,8 +501,8 @@ function renderAdminConfWrap(lg,sA,sB){
     </div>`;
   };
   const sortBySeeds=(teams,ids)=>[...teams].sort((a,b)=>{const ia=ids.indexOf(a.id),ib=ids.indexOf(b.id);if(ia!==-1&&ib!==-1)return ia-ib;if(ia!==-1)return-1;if(ib!==-1)return 1;return 0;});
-  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conf A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${sortBySeeds(tA,idsA).map(t=>card(t,'A',idsA)).join('')}</div></div>
-  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>Conf B <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${sortBySeeds(tB,idsB).map(t=>card(t,'B',idsB)).join('')}</div></div>`;
+  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>LESTE <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${sortBySeeds(tA,idsA).map(t=>card(t,'A',idsA)).join('')}</div></div>
+  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>OESTE <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${sortBySeeds(tB,idsB).map(t=>card(t,'B',idsB)).join('')}</div></div>`;
   const btn=document.getElementById('adm-btnStart-'+lg);if(btn)btn.disabled=idsA.length<8||idsB.length<8;
 }
 
@@ -514,7 +513,7 @@ function adminToggleSeed(lg,conf,teamId){
   const arr=conf==='A'?state.seedsA:state.seedsB;
   const idx=arr.findIndex(t=>t&&t.id===teamId);
   if(idx!==-1)arr.splice(idx,1);else{if(arr.length>=8)return;arr.push(team);}
-  saveLS(lg,state);renderAdminConfWrap(lg,state.seedsA,state.seedsB);renderSeedsStrip(lg,state.seedsA,state.seedsB);
+  saveLS(lg,state);renderAdminConfWrap(lg,state.seedsA,state.seedsB);
 }
 
 // ── Build rounds ──────────────────────────────────────────────────────────────
@@ -539,7 +538,7 @@ function adminResetBracket(lg){
   clearLS(lg);
   document.getElementById('adm-picking-'+lg).style.display='block';
   document.getElementById('adm-bracketPhase-'+lg).style.display='none';
-  renderAdminConfWrap(lg,[],[]);renderSeedsStrip(lg,[],[]);
+  renderAdminConfWrap(lg,[],[]);
 }
 
 // ── Pick winner ───────────────────────────────────────────────────────────────
@@ -666,10 +665,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(state&&state.phase==='bracket'&&state.rounds){
       document.getElementById('adm-picking-'+lg).style.display='none';
       document.getElementById('adm-bracketPhase-'+lg).style.display='block';
-      renderAdminBracket(lg,state);renderSeedsStrip(lg,state.seedsA||[],state.seedsB||[]);
+      renderAdminBracket(lg,state);
     } else {
       const sA=state?.seedsA||[],sB=state?.seedsB||[];
-      renderAdminConfWrap(lg,sA,sB);renderSeedsStrip(lg,sA,sB);
+      renderAdminConfWrap(lg,sA,sB);
     }
   });
 });
