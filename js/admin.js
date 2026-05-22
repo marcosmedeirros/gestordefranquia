@@ -4700,9 +4700,6 @@ async function showPointsManagement(league) {
       <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
       <span class="text-light-gray" style="font-size:14px;font-weight:600">Histórico de Pontuação — ${league}</span>
     </div>
-    <div style="margin-bottom:12px">
-      <input type="text" id="ptsTeamSearch" class="form-control" style="max-width:260px;font-size:13px" placeholder="Filtrar por time..." oninput="filterPtsTeam(this.value)">
-    </div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -4719,75 +4716,25 @@ async function showPointsManagement(league) {
   const seasons     = data.seasons      || [];
   const leagueTeams = data.league_teams || [];
 
-  if (!leagueTeams.length) {
+  if (!seasons.length) {
     document.getElementById('ptsMgmtContent').innerHTML =
-      `<div class="alert alert-info">Nenhum time encontrado para ${league}.</div>`;
+      `<div class="alert alert-info">Nenhuma temporada encontrada para ${league}.</div>`;
     return;
   }
 
-  const fmtTitle = s => [
-    s.sprint_number ? `Sprint ${s.sprint_number}` : '',
-    s.season_number ? `Temp. ${s.season_number}`  : '',
-    s.year          ? String(s.year)               : ''
-  ].filter(Boolean).join(' · ');
+  const fmtTitle = s => s.year ? String(s.year)
+    : ([s.sprint_number ? `Sprint ${s.sprint_number}` : '', s.season_number ? `Temp. ${s.season_number}` : ''].filter(Boolean).join(' · ') || 'Temporada');
 
-  // ── Montar mapa por time ─────────────────────────────────────────────
-  const teamMap = {};
-  leagueTeams.forEach(t => {
-    teamMap[String(t.team_id)] = { team_id: t.team_id, team_name: t.team_name, rows: [], total: 0 };
-  });
+  // Mais recente no topo
+  const html = [...seasons].reverse().map(s => {
+    const title = fmtTitle(s);
 
-  // Temporadas registradas, mais recentes primeiro
-  [...seasons].filter(s => s.points_registered).reverse().forEach(s => {
-    const label = fmtTitle(s);
-    (s.teams || []).forEach(t => {
-      const key = String(t.team_id);
-      if (!teamMap[key]) return;
-      const pts = parseInt(t.points, 10) || 0;
-      teamMap[key].rows.push({ season_id: s.season_id, label, points: pts });
-      teamMap[key].total += pts;
-    });
-  });
-
-  // Ordenar por total desc
-  const sorted = Object.values(teamMap).sort((a, b) => b.total - a.total);
-
-  // ── Cards por time ───────────────────────────────────────────────────
-  const teamHtml = sorted.map((t, idx) => {
-    const rowsHtml = t.rows.length
-      ? t.rows.map(r => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
-            <span style="font-size:12px;color:var(--text-2)">${escapeHtml(r.label)}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--red)">${r.points} pts</span>
-          </div>`).join('')
-      : `<div style="padding:8px 0;font-size:12px;color:var(--text-3)">Nenhuma temporada registrada</div>`;
-
-    return `
-      <div class="pun-card mb-2" data-team-name="${escapeHtml((t.team_name||'').toLowerCase())}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:11px;color:var(--text-3);width:22px;text-align:right;flex-shrink:0">${idx + 1}°</span>
-            <span style="font-size:14px;font-weight:700;color:var(--text)">${escapeHtml(t.team_name||'')}</span>
-          </div>
-          <div style="text-align:right;flex-shrink:0">
-            <span style="font-size:18px;font-weight:800;color:var(--red)">${t.total}</span>
-            <span style="font-size:11px;color:var(--text-3)"> pts</span>
-          </div>
-        </div>
-        ${rowsHtml}
-      </div>`;
-  }).join('');
-
-  // ── Administração de temporadas (colapsável) ─────────────────────────
-  const registered = seasons.filter(s => s.points_registered);
-  let adminHtml = '';
-  if (registered.length) {
-    const seasonCards = registered.map(s => {
-      const title = fmtTitle(s);
+    if (s.points_registered) {
+      // Inputs de edição pré-preenchidos com valores atuais
       const editInputs = leagueTeams.map(t => {
         const existing = (s.teams || []).find(st => String(st.team_id) === String(t.team_id));
         return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
             <span style="font-size:12px;color:var(--text)">${escapeHtml(t.team_name||'')}</span>
             <input type="number" class="form-control form-control-sm pts-edit-input" data-team-id="${t.team_id}"
               value="${existing ? existing.points : 0}" min="0" style="max-width:90px">
@@ -4797,19 +4744,22 @@ async function showPointsManagement(league) {
       return `
         <div class="pun-card mb-2" id="pts-season-${s.season_id}">
           <div class="pun-card-head">
-            <div class="pun-card-title"><i class="bi bi-trophy-fill" style="color:var(--red);margin-right:6px"></i>${escapeHtml(title)}</div>
+            <div class="pun-card-title">
+              <i class="bi bi-trophy-fill" style="color:var(--red);margin-right:6px"></i>${escapeHtml(title)}
+            </div>
             <div class="d-flex gap-2 align-items-center flex-shrink-0">
               <span class="pun-badge" style="background:rgba(34,197,94,.1);color:#22c55e;border-color:rgba(34,197,94,.3)">Registrado</span>
               <button class="btn-ghost" style="padding:3px 10px;font-size:11px" onclick="toggleEditPtsForm(${s.season_id})">
                 <i class="bi bi-pencil me-1"></i>Editar
               </button>
-              <button class="btn-ghost" style="padding:3px 10px;font-size:11px;color:#ef4444" onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
-                <i class="bi bi-trash3"></i>
+              <button class="btn-ghost" style="padding:3px 10px;font-size:11px;color:#ef4444"
+                onclick="deletePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+                <i class="bi bi-trash3 me-1"></i>Limpar
               </button>
             </div>
           </div>
           <div id="pts-view-${s.season_id}" style="margin-top:8px">
-            ${(s.teams||[]).map((t,ti) => `
+            ${(s.teams||[]).map((t, ti) => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
                 <div style="display:flex;align-items:center;gap:8px">
                   <span style="font-size:11px;color:var(--text-3);width:20px;text-align:right">${ti + 1}°</span>
@@ -4821,29 +4771,45 @@ async function showPointsManagement(league) {
           <div id="pts-edit-form-${s.season_id}" style="display:none;margin-top:12px">
             ${editInputs}
             <div class="d-flex gap-2 mt-3">
-              <button class="btn-ghost" style="color:#22c55e" onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+              <button class="btn-ghost" style="color:#22c55e"
+                onclick="saveEditPtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
                 <i class="bi bi-save me-1"></i>Salvar
               </button>
               <button class="btn-ghost" onclick="toggleEditPtsForm(${s.season_id})">Cancelar</button>
             </div>
           </div>
         </div>`;
-    }).join('');
-
-    adminHtml = `
-      <div class="panel mt-4">
-        <div class="pun-card-head" style="cursor:pointer;user-select:none"
-          onclick="const el=document.getElementById('ptsMgmtAdmin');el.classList.toggle('d-none')">
-          <div class="panel-title"><i class="bi bi-gear-fill" style="color:var(--text-3)"></i> Administração de Temporadas</div>
-          <i class="bi bi-chevron-down" style="color:var(--text-3)"></i>
-        </div>
-        <div id="ptsMgmtAdmin" class="d-none mt-3">${seasonCards}</div>
-      </div>`;
-  }
+    } else {
+      return `
+        <div class="pun-card mb-2" id="pts-season-${s.season_id}">
+          <div class="pun-card-head">
+            <div class="pun-card-title">
+              <i class="bi bi-clipboard-check" style="color:var(--text-3);margin-right:6px"></i>${escapeHtml(title)}
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-shrink-0">
+              <span class="pun-badge pun-badge-off">Pendente</span>
+              <button class="btn-ghost" style="padding:3px 10px;font-size:11px"
+                onclick="togglePtsForm(${s.season_id})">
+                <i class="bi bi-plus-circle me-1"></i>Registrar
+              </button>
+            </div>
+          </div>
+          <div id="pts-form-${s.season_id}" style="display:none;margin-top:12px">
+            ${buildPtsForm(s.season_id, league, leagueTeams, 'pts-mgmt-input')}
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn-ghost" style="color:#22c55e"
+                onclick="savePtsMgmt(${s.season_id}, '${escapeHtml(league)}')">
+                <i class="bi bi-save me-1"></i>Salvar
+              </button>
+              <button class="btn-ghost" onclick="togglePtsForm(${s.season_id})">Cancelar</button>
+            </div>
+          </div>
+        </div>`;
+    }
+  }).join('');
 
   document.getElementById('ptsMgmtContent').innerHTML =
-    (teamHtml || '<div class="alert alert-info">Nenhuma pontuação registrada ainda. Use "Registro de Pontuação" para cadastrar.</div>')
-    + adminHtml;
+    html || '<div class="alert alert-info">Nenhuma temporada encontrada.</div>';
 }
 
 function togglePtsForm(seasonId) {
@@ -4852,6 +4818,7 @@ function togglePtsForm(seasonId) {
 }
 
 async function savePtsMgmt(seasonId, league) {
+  calcPtsPreview(String(seasonId));
   const card = document.getElementById(`pts-season-${seasonId}`);
   if (!card) return;
   const inputs = card.querySelectorAll('.pts-mgmt-input');
