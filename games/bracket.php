@@ -455,7 +455,7 @@ function renderConfWrap(lg,sA,sB){
     const full=(conf==='A'?idsA:idsB).length>=8&&idx===-1;
     return`<div class="team-card${sel?' sel-'+conf.toLowerCase():''}${full?' full':''}" onclick="toggleSeed('${lg}','${conf}',${t.id})">
       ${sel?`<div class="seed-badge ${conf.toLowerCase()}">${idx+1}</div>`:''}
-      ${t.photo_url?`<img class="t-logo" src="${t.photo_url}" style="width:40px;height:40px" onerror="this.outerHTML='<div class=\\'t-logo-ph\\'>${t.name.slice(0,2).toUpperCase()}</div>'">`:`<div class="t-logo-ph">${t.name.slice(0,2).toUpperCase()}</div>`}
+      <img class="t-logo" src="${t.photo_url||'/img/default-team.png'}" style="width:40px;height:40px" onerror="this.src='/img/default-team.png'">
       <div class="t-name">${t.name}</div>
     </div>`;
   };

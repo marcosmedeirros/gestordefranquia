@@ -498,7 +498,7 @@ function renderAdminConfWrap(lg,sA,sB){
     const full=(conf==='A'?idsA:idsB).length>=8&&idx===-1;
     return`<div class="team-card${sel?' sel-'+conf.toLowerCase():''}${full?' full':''}" onclick="adminToggleSeed('${lg}','${conf}',${t.id})">
       ${sel?`<div class="seed-badge ${conf.toLowerCase()}">${idx+1}</div>`:''}
-      ${t.photo_url?`<img class="tl" src="${t.photo_url}" onerror="this.outerHTML='<div class=tl-ph>${t.name.slice(0,2).toUpperCase()}</div>'">`:`<div class="tl-ph">${t.name.slice(0,2).toUpperCase()}</div>`}
+      <img class="tl" src="${t.photo_url||'/img/default-team.png'}" onerror="this.src='/img/default-team.png'">
       <div class="t-nm">${t.name}</div>
     </div>`;
   };
