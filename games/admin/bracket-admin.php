@@ -501,8 +501,9 @@ function renderAdminConfWrap(lg,sA,sB){
       <div class="t-nm">${(t.city?t.city+' ':'')+t.name}</div>
     </div>`;
   };
-  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conf A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${tA.map(t=>card(t,'A',idsA)).join('')}</div></div>
-  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>Conf B <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${tB.map(t=>card(t,'B',idsB)).join('')}</div></div>`;
+  const sortBySeeds=(teams,ids)=>[...teams].sort((a,b)=>{const ia=ids.indexOf(a.id),ib=ids.indexOf(b.id);if(ia!==-1&&ib!==-1)return ia-ib;if(ia!==-1)return-1;if(ib!==-1)return 1;return 0;});
+  el.innerHTML=`<div class="conf-section"><div class="conf-label a"><i class="bi bi-shield-fill"></i>Conf A <span style="color:var(--text-3);font-weight:400">${idsA.length}/8</span></div><div class="teams-grid">${sortBySeeds(tA,idsA).map(t=>card(t,'A',idsA)).join('')}</div></div>
+  <div class="conf-section"><div class="conf-label b"><i class="bi bi-shield-fill"></i>Conf B <span style="color:var(--text-3);font-weight:400">${idsB.length}/8</span></div><div class="teams-grid">${sortBySeeds(tB,idsB).map(t=>card(t,'B',idsB)).join('')}</div></div>`;
   const btn=document.getElementById('adm-btnStart-'+lg);if(btn)btn.disabled=idsA.length<8||idsB.length<8;
 }
 
