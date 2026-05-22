@@ -237,6 +237,33 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:12px 18px;font-size:13px;font-weight:600;color:var(--text);z-index:9999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
 .toast.show{opacity:1;transform:translateY(0)}.toast.green{border-color:rgba(34,197,94,.3);color:var(--green)}.toast.red{border-color:rgba(252,0,37,.3);color:#ff6680}
+/* ── Tree bracket (desktop) ── */
+@media(min-width:769px){
+  .brk-tree{display:flex;align-items:stretch;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;overflow-x:auto}
+  .brk-col{display:flex;flex-direction:column;min-width:150px;flex:1;overflow:hidden}
+  .brk-col:not(:last-child){border-right:1px solid var(--border)}
+  .brk-col-head{flex-shrink:0;height:34px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-2);background:var(--panel-2);border-bottom:1px solid var(--border);white-space:nowrap;padding:0 8px}
+  .brk-col-body{flex:1;display:flex;flex-direction:column}
+  .brk-m{flex:1;display:flex;align-items:center;padding:4px 6px;border-bottom:1px solid var(--border);min-height:0}
+  .brk-m:last-child{border-bottom:none}
+  .brk-m .matchup{width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .brk-tree .conf-tag{display:none}
+  .brk-tree .m-team{padding:6px 8px}
+  .brk-tree .m-logo,.brk-tree .m-logo-ph{width:22px!important;height:22px!important}
+  .brk-tree .m-name{font-size:10px}
+  .brk-tree .m-seed{font-size:8px}
+  /* Connectors */
+  .brk-conns{width:24px;flex-shrink:0;display:flex;flex-direction:column;padding-top:34px;background:var(--panel)}
+  .brk-conn{flex:1;position:relative}
+  .brk-conn::before{content:'';position:absolute;left:0;top:25%;width:12px;height:50%;border-top:1px solid var(--border-md);border-right:1px solid var(--border-md);border-bottom:1px solid var(--border-md)}
+  .brk-conn::after{content:'';position:absolute;left:12px;top:50%;right:0;height:1px;background:var(--border-md)}
+  /* Champion column */
+  .brk-col-champ{flex:0 0 110px;min-width:90px}
+  .brk-champ-mini{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px 8px;text-align:center;height:100%;background:linear-gradient(135deg,rgba(245,158,11,.07),rgba(252,0,37,.05))}
+  .brk-champ-mini img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--amber)}
+  .brk-champ-mini .cn{font-size:11px;font-weight:800;color:var(--amber)}
+  .brk-champ-mini .cc{font-size:9px;color:var(--text-2)}
+}
 @media(max-width:768px){
   html,body{height:auto}.sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease)}.sidebar.open{transform:translateX(0)}
   .sb-close{display:flex}.page{margin-left:0}.topbar{display:none}.mob-bar{display:flex}
@@ -508,28 +535,53 @@ function matchupHtml(lg,round,idx,match,confTag,official,locked){
 function renderBracket(lg,state,locked=false,targetId){
   const wrapId=targetId||('bracketWrap-'+lg);const wrap=document.getElementById(wrapId);if(!wrap)return;
   const r=state.rounds;const official=getOfficial(lg);
-  const allR1=r.r1.every(m=>m.w),allR2=r.r2.every(m=>m.w),allR3=r.r3.every(m=>m.w);
   const champ=r.r4&&r.r4[0]&&r.r4[0].w;
-  let html=`<div class="round-block"><div class="round-head"><span class="round-label">Primeira Rodada</span></div>
-    <div class="round-grid g4">
-      ${matchupHtml(lg,'r1',0,r.r1[0],'A',official,locked)}${matchupHtml(lg,'r1',1,r.r1[1],'A',official,locked)}
-      ${matchupHtml(lg,'r1',2,r.r1[2],'A',official,locked)}${matchupHtml(lg,'r1',3,r.r1[3],'A',official,locked)}
-      ${matchupHtml(lg,'r1',4,r.r1[4],'B',official,locked)}${matchupHtml(lg,'r1',5,r.r1[5],'B',official,locked)}
-      ${matchupHtml(lg,'r1',6,r.r1[6],'B',official,locked)}${matchupHtml(lg,'r1',7,r.r1[7],'B',official,locked)}
-    </div></div>`;
-  if(allR1)html+=`<div class="round-block"><div class="round-head"><span class="round-label">Semifinais</span></div>
-    <div class="round-grid g4">
-      ${matchupHtml(lg,'r2',0,r.r2[0],'A',official,locked)}${matchupHtml(lg,'r2',1,r.r2[1],'A',official,locked)}
-      ${matchupHtml(lg,'r2',2,r.r2[2],'B',official,locked)}${matchupHtml(lg,'r2',3,r.r2[3],'B',official,locked)}
-    </div></div>`;
-  if(allR2)html+=`<div class="round-block"><div class="round-head"><span class="round-label">Finais de Conferência</span></div>
-    <div class="round-grid g2">
-      ${matchupHtml(lg,'r3',0,r.r3[0],'A',official,locked)}${matchupHtml(lg,'r3',1,r.r3[1],'B',official,locked)}
-    </div></div>`;
-  if(allR3)html+=`<div class="round-block"><div class="round-head"><span class="round-label">🏆 Grande Final</span></div>
-    <div class="round-grid g1">${matchupHtml(lg,'r4',0,r.r4[0],null,official,locked)}</div></div>`;
-  if(champ)html+=`<div class="champ-wrap"><div class="champ-card"><div class="champ-crown">🏆</div><div class="champ-lbl">Campeão</div>${champ.photo_url?`<img class="champ-logo" src="${champ.photo_url}" onerror="this.style.display='none'">`:''}<div class="champ-name">${champ.name}</div><div class="champ-city">${champ.city||''}</div></div></div>`;
-  wrap.innerHTML=html;
+  const mh=(round,idx,match,tag)=>matchupHtml(lg,round,idx,match,tag,official,locked);
+
+  if(window.innerWidth>768){
+    // ── Desktop: tree layout ──
+    let h='<div class="brk-tree">';
+    // R1
+    h+=`<div class="brk-col"><div class="brk-col-head">1ª Rodada</div><div class="brk-col-body">`;
+    r.r1.forEach((m,i)=>h+=`<div class="brk-m">${mh('r1',i,m,i<4?'A':'B')}</div>`);
+    h+=`</div></div>`;
+    // Conn R1→R2
+    h+=`<div class="brk-conns">`;for(let i=0;i<4;i++)h+=`<div class="brk-conn"></div>`;h+=`</div>`;
+    // R2
+    h+=`<div class="brk-col"><div class="brk-col-head">Quartas</div><div class="brk-col-body">`;
+    r.r2.forEach((m,i)=>h+=`<div class="brk-m">${mh('r2',i,m,i<2?'A':'B')}</div>`);
+    h+=`</div></div>`;
+    // Conn R2→R3
+    h+=`<div class="brk-conns">`;for(let i=0;i<2;i++)h+=`<div class="brk-conn"></div>`;h+=`</div>`;
+    // R3
+    h+=`<div class="brk-col"><div class="brk-col-head">Finais de Conf</div><div class="brk-col-body">`;
+    r.r3.forEach((m,i)=>h+=`<div class="brk-m">${mh('r3',i,m,i===0?'A':'B')}</div>`);
+    h+=`</div></div>`;
+    // Conn R3→R4
+    h+=`<div class="brk-conns"><div class="brk-conn"></div></div>`;
+    // R4
+    h+=`<div class="brk-col"><div class="brk-col-head">🏆 Final</div><div class="brk-col-body"><div class="brk-m">${mh('r4',0,r.r4[0],null)}</div></div></div>`;
+    // Champion
+    if(champ){h+=`<div class="brk-col brk-col-champ"><div class="brk-col-head">👑</div><div class="brk-col-body"><div class="brk-m"><div class="brk-champ-mini">🏆${champ.photo_url?`<img src="${champ.photo_url}" onerror="this.style.display='none'">`:''}<div class="cn">${champ.name}</div><div class="cc">${champ.city||''}</div></div></div></div></div>`;}
+    h+='</div>';
+    wrap.innerHTML=h;
+  } else {
+    // ── Mobile: vertical cards ──
+    const allR1=r.r1.every(m=>m.w),allR2=r.r2.every(m=>m.w),allR3=r.r3.every(m=>m.w);
+    let h=`<div class="round-block"><div class="round-head"><span class="round-label">Primeira Rodada</span></div>
+      <div class="round-grid g4">
+        ${[0,1,2,3].map(i=>mh('r1',i,r.r1[i],'A')).join('')}${[4,5,6,7].map(i=>mh('r1',i,r.r1[i],'B')).join('')}
+      </div></div>`;
+    if(allR1)h+=`<div class="round-block"><div class="round-head"><span class="round-label">Semifinais</span></div>
+      <div class="round-grid g4">${[0,1].map(i=>mh('r2',i,r.r2[i],'A')).join('')}${[2,3].map(i=>mh('r2',i,r.r2[i],'B')).join('')}</div></div>`;
+    if(allR2)h+=`<div class="round-block"><div class="round-head"><span class="round-label">Finais de Conferência</span></div>
+      <div class="round-grid g2">${mh('r3',0,r.r3[0],'A')}${mh('r3',1,r.r3[1],'B')}</div></div>`;
+    if(allR3)h+=`<div class="round-block"><div class="round-head"><span class="round-label">🏆 Grande Final</span></div>
+      <div class="round-grid g1">${mh('r4',0,r.r4[0],null)}</div></div>`;
+    if(champ)h+=`<div class="champ-wrap"><div class="champ-card"><div class="champ-crown">🏆</div><div class="champ-lbl">Campeão</div>${champ.photo_url?`<img class="champ-logo" src="${champ.photo_url}" onerror="this.style.display='none'">`:''}<div class="champ-name">${champ.name}</div><div class="champ-city">${champ.city||''}</div></div></div>`;
+    wrap.innerHTML=h;
+  }
+
   const btnSave=document.getElementById('btnSave-'+lg);const btnShare=document.getElementById('btnShare-'+lg);
   if(btnSave)btnSave.disabled=!champ;if(btnShare)btnShare.style.display=champ?'flex':'none';
 }

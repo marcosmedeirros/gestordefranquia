@@ -362,6 +362,12 @@ $labelMap = [
     <a href="dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <a href="../bracket.php" class="sb-link">
+      <i class="bi bi-diagram-3-fill"></i>Bracket
+    </a>
+    <a href="bracket-admin.php" class="sb-link">
+      <i class="bi bi-diagram-3"></i>Admin Bracket
+    </a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout">

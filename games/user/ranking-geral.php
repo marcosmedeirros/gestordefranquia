@@ -620,6 +620,9 @@ $tab_labels = [
     <a href="ranking-geral.php" class="sb-link active">
       <i class="bi bi-trophy"></i>Ranking Geral
     </a>
+    <a href="../bracket.php" class="sb-link">
+      <i class="bi bi-diagram-3-fill"></i>Bracket
+    </a>
     <?php if (!empty($meu_perfil['is_admin'])): ?>
     <div class="sb-nav-section">Admin</div>
     <a href="../admin/controlegames.php" class="sb-link">
@@ -627,6 +630,9 @@ $tab_labels = [
     </a>
     <a href="../admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
+    </a>
+    <a href="../admin/bracket-admin.php" class="sb-link">
+      <i class="bi bi-diagram-3"></i>Admin Bracket
     </a>
     <?php endif; ?>
   </nav>
