@@ -359,7 +359,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
           <?php if ((int)$myPick['points']>0): ?><span class="pts-badge"><i class="bi bi-star-fill"></i><?= $myPick['points'] ?> pts</span><?php endif; ?>
         </div>
       </div>
-      <div id="seeds-strip-<?= $lg ?>" class="seeds-wrap"></div>
       <div id="bracket-locked-<?= $lg ?>"></div>
       <div class="action-bar">
         <button class="btn-share" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-clipboard"></i>Copiar</button>
@@ -422,6 +421,7 @@ console.log('DEBUG photo_url NEXT:', (TEAMS_BY_LEAGUE['NEXT']||[]).slice(0,3).ma
 const LEAGUES = <?= json_encode($leagues, JSON_UNESCAPED_UNICODE) ?>;
 const CYCLES  = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>['id'=>$cycles[$lg]['id']], $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 const USER_PICKS_RAW = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$userPicks[$lg]?['seeds'=>$userPicks[$lg]['seeds_json'],'rounds'=>$userPicks[$lg]['rounds_json'],'locked'=>(bool)$userPicks[$lg]['locked'],'points'=>(int)$userPicks[$lg]['points']]:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
+const PICKING_OPEN = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>($bracketSettings[$lg]??1)===1, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 const OFFICIAL_RAW = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$officialResults[$lg]?['seeds'=>$officialResults[$lg]['seeds_json']??'','rounds'=>$officialResults[$lg]['rounds_json']??'']:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 
 // Advancement map: round → matchIdx → {round, idx, slot}
@@ -622,16 +622,12 @@ function renderLockedBracket(lg,seeds8,userRounds){
   const wrapId='brk-locked-wrap-'+lg;
   el.innerHTML=`<div class="bracket-wrap" id="${wrapId}"></div>`;
   const off=getOfficial(lg);
-  if(off&&off.rounds&&off.rounds.r1){
-    // Mostra bracket oficial; verde onde o usuário acertou
+  if(off&&off.rounds&&off.rounds.r1&&!PICKING_OPEN[lg]){
     const offSA=off.seeds?off.seeds.slice(0,8):[];
     const offSB=off.seeds?off.seeds.slice(8,16):[];
-    renderSeedsStrip(lg,offSA,offSB);
     renderBracket(lg,{seedsA:offSA,seedsB:offSB,rounds:off.rounds},true,wrapId,userRounds);
   } else {
-    // Oficial ainda sem resultados: mostra o bracket do usuário bloqueado
     const sA=seeds8.slice(0,8),sB=seeds8.slice(8,16);
-    renderSeedsStrip(lg,sA,sB);
     renderBracket(lg,{seedsA:sA,seedsB:sB,rounds:userRounds},true,wrapId);
   }
 }
