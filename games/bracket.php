@@ -213,7 +213,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .m-info{flex:1;min-width:0}.m-seed{font-size:9px;color:var(--text-3);font-weight:600}.m-name{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .m-check{margin-left:auto;color:var(--green);font-size:14px;flex-shrink:0}
 /* Action bar */
-.action-bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center}
+.action-bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center;justify-content:center}
 .btn-save{display:flex;align-items:center;gap:7px;padding:11px 22px;background:var(--green);color:#000;border:none;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:opacity var(--t) var(--ease)}
 .btn-save:hover{opacity:.85}.btn-save:disabled{opacity:.35;cursor:not-allowed}
 .btn-share{display:flex;align-items:center;gap:7px;padding:11px 22px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue);border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all var(--t) var(--ease)}
@@ -678,7 +678,7 @@ function shareBracket(lg){
     const w1=m.w.id===m.t1.id;
     return`[${cn}] ${w1?'*'+n1+'*':n1} × ${w1?n2:'*'+n2+'*'}`;
   };
-  let txt=`🏆 FBA BRACKET — ${lg}\n\nLESTE: ${(state.seedsA||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\nOESTE: ${(state.seedsB||[]).map((t,i)=>`${i+1}.${t?t.name:'—'}`).join(' | ')}\n\n⚔️ 1ª RODADA\n`;
+  let txt=`🏆 FBA BRACKET — ${lg}\n\n⚔️ 1ª RODADA\n`;
   r.r1.forEach((m,i)=>txt+=fmt(m,i<4?'A':'B')+'\n');
   if(r.r2[0].t1)txt+=`\n🏅 SEMIS\n`+r.r2.map((m,i)=>fmt(m,i<2?'A':'B')).join('\n')+'\n';
   if(r.r3[0].t1)txt+=`\n🥊 FINAIS CONF\n`+r.r3.map((m,i)=>fmt(m,i===0?'A':'B')).join('\n')+'\n';
