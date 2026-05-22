@@ -669,8 +669,8 @@ async function showLeague(league) {
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-      { icon: 'bi-bar-chart-steps',         label: 'Histórico de<br>Pontuação',  fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
-      { icon: 'bi-clipboard-data-fill',     label: 'Registro de<br>Pontuação',  fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
+      { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
+      { icon: 'bi-clipboard-data-fill',     label: 'Pontuação da<br>Temporada',  fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
@@ -4698,7 +4698,7 @@ async function showPointsManagement(league) {
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back me-2" onclick="${_ptsBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray" style="font-size:14px;font-weight:600">Histórico de Pontuação — ${league}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação por Time — ${league}</span>
     </div>
     <div id="ptsMgmtContent">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
@@ -4897,7 +4897,7 @@ async function showRegistroPontuacao(league) {
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray" style="font-size:14px;font-weight:600">Registro de Pontuação — ${league}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação da Temporada — ${league}</span>
     </div>
     <div id="regPtsContent"><div class="text-center py-5"><div class="spinner-border text-orange"></div></div></div>`;
 
@@ -5038,7 +5038,7 @@ async function showRegistroPontuacao(league) {
         </div>
       </div>`;
   } else {
-    html += `<div class="alert alert-info"><i class="bi bi-check-circle me-2"></i>Todas as temporadas desta liga já têm pontuação registrada. Use "Histórico de Pontuação" para editar.</div>`;
+    html += `<div class="alert alert-info"><i class="bi bi-check-circle me-2"></i>Todas as temporadas desta liga já têm pontuação registrada. Use "Pontuação por Time" para editar.</div>`;
   }
 
   // Referência visual das regras
