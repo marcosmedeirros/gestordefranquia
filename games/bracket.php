@@ -14,6 +14,13 @@ try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS fba_bracket_picks (id INT AUTO_INCREMENT PRIMARY KEY, cycle_id INT NOT NULL, user_id INT NOT NULL, seeds_json TEXT NOT NULL, rounds_json TEXT NOT NULL, points INT NOT NULL DEFAULT 0, locked TINYINT(1) NOT NULL DEFAULT 0, locked_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_cycle_user (cycle_id, user_id), INDEX idx_cycle (cycle_id))");
     $pdo->exec("CREATE TABLE IF NOT EXISTS fba_bracket_official (id INT AUTO_INCREMENT PRIMARY KEY, cycle_id INT NOT NULL UNIQUE, seeds_json TEXT NULL, rounds_json TEXT NULL, updated_by INT NULL, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS fba_bracket_conferences (team_id INT NOT NULL, league VARCHAR(20) NOT NULL, conference CHAR(1) NOT NULL DEFAULT 'A', PRIMARY KEY (team_id, league))");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_bracket_settings (league VARCHAR(20) NOT NULL PRIMARY KEY, picking_open TINYINT(1) NOT NULL DEFAULT 1)");
+} catch (Exception $e) {}
+
+$bracketSettings = [];
+try {
+    foreach ($pdo->query("SELECT league, picking_open FROM fba_bracket_settings")->fetchAll(PDO::FETCH_ASSOC) as $r)
+        $bracketSettings[$r['league']] = (int)$r['picking_open'];
 } catch (Exception $e) {}
 
 // ── AJAX ──────────────────────────────────────────────────────────────────────
@@ -337,6 +344,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
       $cycle=$cycles[$lg]; $myPick=$userPicks[$lg]; $ranking=$rankings[$lg];
       $isLocked=$myPick&&$myPick['locked'];
       $official=$officialResults[$lg];
+      $isPickingOpen=($bracketSettings[$lg]??1)===1;
     ?>
     <div class="tab-panel" id="panel-<?= $lg ?>" style="display:<?= $i===0?'block':'none' ?>">
       <?php if (!empty($nextReset[$lg])): ?>
@@ -357,6 +365,15 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
         <button class="btn-share" onclick="shareBracket('<?= $lg ?>')"><i class="bi bi-whatsapp"></i>Compartilhar</button>
         <?php if ($official&&($official['seeds_json']||$official['rounds_json'])): ?>
         <button class="btn-oficial" onclick="openOficial('<?= $lg ?>')"><i class="bi bi-eye-fill"></i>Ver Oficial</button>
+        <?php endif; ?>
+      </div>
+      <?php elseif (!$isPickingOpen): ?>
+      <div style="text-align:center;padding:32px 20px">
+        <div style="font-size:32px;margin-bottom:12px">🏀</div>
+        <div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:6px">Simulação já começou</div>
+        <div style="font-size:13px;color:var(--text-2)">As picks para a liga <?= htmlspecialchars($lg) ?> estão encerradas.</div>
+        <?php if ($official&&($official['seeds_json']||$official['rounds_json'])): ?>
+        <div style="margin-top:16px"><button class="btn-oficial" onclick="openOficial('<?= $lg ?>')"><i class="bi bi-eye-fill"></i>Ver Bracket Oficial</button></div>
         <?php endif; ?>
       </div>
       <?php else: ?>
@@ -497,10 +514,18 @@ function startBracket(lg){
 }
 
 // ── Pick winner ───────────────────────────────────────────────────────────────
+function clearDownstream(rounds,round,idx){
+  const adv=ADV[round]&&ADV[round][idx];if(!adv)return;
+  const next=rounds[adv.r]&&rounds[adv.r][adv.i];if(!next)return;
+  next[adv.s]=null;
+  if(next.w){next.w=null;clearDownstream(rounds,adv.r,adv.i);}
+}
 function pickWinner(lg,round,idx,teamId){
   const state=loadLS(lg);if(!state||state.phase!=='bracket')return;
   const match=state.rounds[round][idx];if(!match.t1||!match.t2)return;
   const winner=[match.t1,match.t2].find(t=>t.id===teamId);if(!winner)return;
+  if(match.w&&match.w.id===winner.id)return;
+  if(match.w)clearDownstream(state.rounds,round,idx);
   match.w=winner;
   const adv=ADV[round]&&ADV[round][idx];
   if(adv){state.rounds[adv.r][adv.i][adv.s]=winner;}
@@ -527,8 +552,8 @@ function matchupHtml(lg,round,idx,match,confTag,official,locked){
     let cls=''; const st=matchStatus(official,round,idx,team.id===match.w?.id?match.w:null);
     if(locked){cls=isWin?(st==='correct'?'winner correct':st==='wrong'?'winner wrong':'winner'):(done?'loser':'');}
     else{cls=done?(isWin?'winner':'loser'):'';}
-    const onclick=(!done&&!locked)?`pickWinner('${lg}','${round}',${idx},${team.id})`:'';
-    return`<div class="m-team ${cls} ${(done||locked)?'locked':''}" ${onclick?`onclick="${onclick}"`:''}>
+    const onclick=!locked?`pickWinner('${lg}','${round}',${idx},${team.id})`:'';
+    return`<div class="m-team ${cls} ${locked?'locked':''}" ${onclick?`onclick="${onclick}"`:''}>
       ${logoHtml(team,28)}<div class="m-info"><div class="m-seed">${team.city||''}</div><div class="m-name">${team.name}</div></div>
       ${isWin?'<i class="bi bi-check-circle-fill m-check"></i>':''}
     </div>`;

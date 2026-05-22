@@ -67,6 +67,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !empty($_POST['acao'])) {
         exit;
     }
 
+    if ($acao === 'toggle_picking') {
+        try {
+            $league = trim($_POST['league']??'');
+            $open   = (int)$_POST['open'];
+            $pdo->prepare("INSERT INTO fba_bracket_settings (league,picking_open) VALUES (?,?) ON DUPLICATE KEY UPDATE picking_open=?")->execute([$league,$open,$open]);
+            echo json_encode(['ok'=>true,'open'=>$open]);
+        } catch(Exception $e) { echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]); }
+        exit;
+    }
+
     if ($acao === 'force_reset') {
         try {
             $league = trim($_POST['league']??'');
@@ -118,6 +128,13 @@ try {
         $teamsByLeague[$lg][]=['id'=>(int)$r['id'],'name'=>$r['name'],'city'=>$r['city'],'photo_url'=>$r['photo_url']?:'','conference'=>$conf??''];
     }
 } catch(Exception $e){}
+
+$bracketSettings = [];
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fba_bracket_settings (league VARCHAR(20) NOT NULL PRIMARY KEY, picking_open TINYINT(1) NOT NULL DEFAULT 1)");
+    foreach ($pdo->query("SELECT league, picking_open FROM fba_bracket_settings")->fetchAll(PDO::FETCH_ASSOC) as $r)
+        $bracketSettings[$r['league']] = (int)$r['picking_open'];
+} catch(Exception $e) {}
 
 $cycles=[]; $officialByLeague=[]; $pickCountByLeague=[];
 foreach ($leagues as $lg) {
@@ -236,6 +253,11 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .btn-red:hover{opacity:.85}.btn-red:disabled{opacity:.35;cursor:not-allowed}
 .btn-outline{background:transparent;border:1px solid var(--border-md);border-radius:8px;padding:8px 16px;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
 .btn-outline:hover{border-color:rgba(239,68,68,.4);color:#f87171;background:rgba(239,68,68,.06)}
+.toggle-picking{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:8px;border:none;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
+.toggle-picking.open{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.toggle-picking.open:hover{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171}
+.toggle-picking.closed{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171}
+.toggle-picking.closed:hover{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:var(--green)}
 .btn-ghost-sm{background:transparent;border:1px solid var(--border);border-radius:7px;padding:5px 12px;color:var(--text-2);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
 .btn-ghost-sm:hover{border-color:var(--border-md);color:var(--text)}
 .cycle-info{font-size:11px;color:var(--text-2);margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -341,15 +363,23 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   <div id="adm-panel-<?= $lg ?>" style="display:<?= $i===0?'block':'none' ?>">
 
     <!-- Cycle info -->
-    <div class="cycle-info">
-      <?php if ($cycle): ?>
-      <i class="bi bi-circle-fill" style="color:var(--green);font-size:8px"></i>
-      Ciclo #<?= $cycle['id'] ?> · iniciado <?= date('d/m/Y H:i',strtotime($cycle['cycle_start'])) ?>
-      <span class="badge-count"><?= $pickCountByLeague[$lg] ?> pick(s) salvo(s)</span>
-      <?php else: ?>
-      <i class="bi bi-exclamation-circle" style="color:var(--amber)"></i>
-      Nenhum ciclo ativo. Acesse bracket.php para criar.
-      <?php endif; ?>
+    <div class="cycle-info" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <?php if ($cycle): ?>
+        <i class="bi bi-circle-fill" style="color:var(--green);font-size:8px"></i>
+        Ciclo #<?= $cycle['id'] ?> · iniciado <?= date('d/m/Y H:i',strtotime($cycle['cycle_start'])) ?>
+        <span class="badge-count"><?= $pickCountByLeague[$lg] ?> pick(s) salvo(s)</span>
+        <?php else: ?>
+        <i class="bi bi-exclamation-circle" style="color:var(--amber)"></i>
+        Nenhum ciclo ativo. Acesse bracket.php para criar.
+        <?php endif; ?>
+      </div>
+      <?php $isOpen=($bracketSettings[$lg]??1)===1; ?>
+      <button id="toggle-picking-<?= $lg ?>" class="toggle-picking <?= $isOpen?'open':'closed' ?>"
+              onclick="togglePicking('<?= $lg ?>', <?= $isOpen?0:1 ?>)">
+        <i class="bi bi-<?= $isOpen?'unlock-fill':'lock-fill' ?>"></i>
+        <?= $isOpen?'Picks Abertos — Desativar':'Picks Fechados — Ativar' ?>
+      </button>
     </div>
 
     <!-- Conference assignment -->
@@ -429,6 +459,7 @@ const TEAMS_BY_LEAGUE = <?= json_encode($teamsByLeague, JSON_UNESCAPED_UNICODE) 
 const LEAGUES = <?= json_encode($leagues, JSON_UNESCAPED_UNICODE) ?>;
 const CYCLES  = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$cycles[$lg]?['id'=>$cycles[$lg]['id']]:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 const OFFICIAL_RAW = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$officialByLeague[$lg]?['seeds'=>$officialByLeague[$lg]['seeds_json']??'','rounds'=>$officialByLeague[$lg]['rounds_json']??'']:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
+const PICKING_OPEN = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>($bracketSettings[$lg]??1)===1, $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 
 const ADV = {
   r1:{0:{r:'r2',i:0,s:'t1'},1:{r:'r2',i:0,s:'t2'},2:{r:'r2',i:1,s:'t1'},3:{r:'r2',i:1,s:'t2'},
@@ -446,6 +477,26 @@ function showToast(msg,type=''){const el=document.getElementById('toast');el.tex
 function showSaved(id){const el=document.getElementById(id);if(!el)return;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2500);}
 
 function switchTab(lg){LEAGUES.forEach(l=>{document.getElementById('adm-panel-'+l).style.display=l===lg?'block':'none';document.getElementById('adm-tab-'+l).classList.toggle('active',l===lg);});}
+
+async function togglePicking(lg, newOpen) {
+  const btn = document.getElementById('toggle-picking-'+lg);
+  if (btn) { btn.disabled = true; }
+  try {
+    const resp = await fetch('bracket-admin.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({acao:'toggle_picking', league:lg, open:newOpen})});
+    const data = await resp.json();
+    if (data.ok) {
+      const isNowOpen = data.open === 1;
+      if (btn) {
+        btn.className = 'toggle-picking ' + (isNowOpen ? 'open' : 'closed');
+        btn.innerHTML = `<i class="bi bi-${isNowOpen?'unlock-fill':'lock-fill'}"></i> ${isNowOpen?'Picks Abertos — Desativar':'Picks Fechados — Ativar'}`;
+        btn.setAttribute('onclick', `togglePicking('${lg}', ${isNowOpen?0:1})`);
+      }
+      showToast(isNowOpen ? `Picks da liga ${lg} ativados!` : `Picks da liga ${lg} fechados!`, isNowOpen?'green':'red');
+    } else { showToast(data.msg||'Erro','red'); }
+  } catch(e) { showToast('Erro de conexão','red'); }
+  if (btn) btn.disabled = false;
+}
 
 function toggleCard(id){const el=document.getElementById(id);const chevron=document.getElementById('chevron-'+id);const open=el.style.display!=='none';el.style.display=open?'none':'block';if(chevron)chevron.style.transform=open?'':'rotate(180deg)';}
 
