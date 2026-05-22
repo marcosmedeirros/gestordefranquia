@@ -562,9 +562,9 @@ function matchupHtml(lg,round,idx,match,confTag,official,locked){
   return`<div class="matchup">${confTag?`<span class="conf-tag ${confTag.toLowerCase()}">${confTag==='A'?'Conf A':'Conf B'}</span>`:''}<div>${row(match.t1,w1)}${row(match.t2,w2)}</div></div>`;
 }
 
-function renderBracket(lg,state,locked=false,targetId){
+function renderBracket(lg,state,locked=false,targetId,compareRounds=null){
   const wrapId=targetId||('bracketWrap-'+lg);const wrap=document.getElementById(wrapId);if(!wrap)return;
-  const r=state.rounds;const official=getOfficial(lg);
+  const r=state.rounds;const official=compareRounds?{rounds:compareRounds}:getOfficial(lg);
   const champ=r.r4&&r.r4[0]&&r.r4[0].w;
   const mh=(round,idx,match,tag)=>matchupHtml(lg,round,idx,match,tag,official,locked);
 
@@ -617,13 +617,23 @@ function renderBracket(lg,state,locked=false,targetId){
 }
 
 // ── Locked bracket display ────────────────────────────────────────────────────
-function renderLockedBracket(lg,seeds8,rounds){
+function renderLockedBracket(lg,seeds8,userRounds){
   const el=document.getElementById('bracket-locked-'+lg);if(!el)return;
-  const sA=seeds8.slice(0,8),sB=seeds8.slice(8,16);
-  renderSeedsStrip(lg,sA,sB);
   const wrapId='brk-locked-wrap-'+lg;
   el.innerHTML=`<div class="bracket-wrap" id="${wrapId}"></div>`;
-  renderBracket(lg,{seedsA:sA,seedsB:sB,rounds},true,wrapId);
+  const off=getOfficial(lg);
+  if(off&&off.rounds&&off.rounds.r1){
+    // Mostra bracket oficial; verde onde o usuário acertou
+    const offSA=off.seeds?off.seeds.slice(0,8):[];
+    const offSB=off.seeds?off.seeds.slice(8,16):[];
+    renderSeedsStrip(lg,offSA,offSB);
+    renderBracket(lg,{seedsA:offSA,seedsB:offSB,rounds:off.rounds},true,wrapId,userRounds);
+  } else {
+    // Oficial ainda sem resultados: mostra o bracket do usuário bloqueado
+    const sA=seeds8.slice(0,8),sB=seeds8.slice(8,16);
+    renderSeedsStrip(lg,sA,sB);
+    renderBracket(lg,{seedsA:sA,seedsB:sB,rounds:userRounds},true,wrapId);
+  }
 }
 
 // ── Modal oficial ─────────────────────────────────────────────────────────────
