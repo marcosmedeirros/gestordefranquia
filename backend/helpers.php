@@ -337,18 +337,13 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
         $stmt = $pdo->prepare('
             SELECT COUNT(*) FROM players p
             WHERE p.team_id = ?
-            AND (
-                p.is_franchise_player = 1
-                OR (
-                    p.ovr >= 90
-                    AND COALESCE(p.was_traded, 0) = 0
-                    AND EXISTS (
-                        SELECT 1 FROM draft_pool dp
-                        WHERE dp.name = p.name
-                        AND dp.drafted_by_team_id = ?
-                        AND dp.draft_status = "drafted"
-                    )
-                )
+            AND p.ovr >= 90
+            AND COALESCE(p.was_traded, 0) = 0
+            AND EXISTS (
+                SELECT 1 FROM draft_pool dp
+                WHERE dp.name = p.name
+                AND dp.drafted_by_team_id = ?
+                AND dp.draft_status = "drafted"
             )
         ');
         $stmt->execute([$teamId, $teamId]);
@@ -360,8 +355,32 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
 
 function restrictedCapBonus(PDO $pdo, int $teamId): int
 {
-    $count = restrictedEligibleCount($pdo, $teamId);
-    return $count * 2;
+    $count90 = restrictedEligibleCount($pdo, $teamId);
+    if ($count90 === 0) return 0;
+
+    // Verifica se há pelo menos 1 elegível com OVR >= 94
+    try {
+        $stmt94 = $pdo->prepare('
+            SELECT COUNT(*) FROM players p
+            WHERE p.team_id = ?
+            AND p.ovr >= 94
+            AND COALESCE(p.was_traded, 0) = 0
+            AND EXISTS (
+                SELECT 1 FROM draft_pool dp
+                WHERE dp.name = p.name
+                AND dp.drafted_by_team_id = ?
+                AND dp.draft_status = "drafted"
+            )
+        ');
+        $stmt94->execute([$teamId, $teamId]);
+        $count94 = (int)$stmt94->fetchColumn();
+    } catch (Exception $e) {
+        $count94 = 0;
+    }
+
+    // +4 se tiver >= 2 elegíveis e pelo menos 1 com 94+; caso contrário +2
+    if ($count90 >= 2 && $count94 >= 1) return 4;
+    return 2;
 }
 
 function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int

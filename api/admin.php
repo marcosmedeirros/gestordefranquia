@@ -448,7 +448,7 @@ if ($method === 'GET') {
                 $capTop8 = topEightCap($pdo, $team['id']);
                 $team['cap_top8'] = $capTop8;
                 $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$team['id']);
-                $team['restricted_bonus'] = $team['restricted_eligible'] * 2;
+                $team['restricted_bonus'] = restrictedCapBonus($pdo, (int)$team['id']);
                 $teams[] = $team;
             }
 

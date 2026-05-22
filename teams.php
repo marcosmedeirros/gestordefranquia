@@ -2065,15 +2065,20 @@ function getSerasaScore(int $avisos): array {
                     ${players.map(p => {
                         const photoUrl = getPlayerPhoto(p);
                         const isCapBonus = Number(p.cap_bonus_eligible) === 1;
-                        const rowStyle = isCapBonus ? 'background: rgba(34,197,94,.14);' : '';
+                        const isLoyal = String(team.league||'').toUpperCase().startsWith('RISE') && Number(p.was_traded??1) === 0;
+                        const rowBg = isCapBonus ? 'rgba(245,158,11,.08)' : (isLoyal ? 'rgba(6,182,212,.06)' : '');
+                        const rowBorder = isCapBonus ? 'border-left:3px solid rgba(245,158,11,.5);' : (isLoyal ? 'border-left:3px solid rgba(6,182,212,.5);' : '');
+                        const badge = isCapBonus
+                            ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:4px">Franquia</span>'
+                            : (isLoyal ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:4px">Leal</span>' : '');
                         return `
-                    <div class="${isCapBonus ? 'player-cap-bonus' : ''}" style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);${rowStyle}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0 5px 6px;border-bottom:1px solid var(--border);${rowBg?'background:'+rowBg+';':''}${rowBorder}">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0">
                             <img src="${photoUrl}" alt="${p.name||''}"
                                  style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"
                                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64'">
                             <div style="min-width:0">
-                                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+                                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${badge}</div>
                                 <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
                             </div>
                         </div>

@@ -351,6 +351,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.ovr-base { background: rgba(130,130,138,.18); color: #9aa0ac; }
 		.franchise-player-row { background: rgba(245,158,11,.07) !important; border-left: 3px solid rgba(245,158,11,.45); }
 		.franchise-player-card { border-color: rgba(245,158,11,.4) !important; background: rgba(245,158,11,.05) !important; }
+		.loyal-player-row { background: rgba(6,182,212,.06) !important; border-left: 3px solid rgba(6,182,212,.45); }
+		.loyal-player-card { border-color: rgba(6,182,212,.4) !important; background: rgba(6,182,212,.05) !important; }
 		.badge-franchise { display:inline-flex; align-items:center; gap:3px; background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.35); border-radius:999px; font-size:10px; font-weight:700; padding:2px 7px; margin-left:4px; }
 
 		.players-cards {
@@ -861,9 +863,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return nextGrades;
 	}
 
+	function isLoyalPlayer(p) {
+		return p.league === 'RISE' && Number(p.was_traded ?? 1) === 0;
+	}
+
 	function isFranchiseEligible(p) {
 		if (p.league !== 'RISE') return false;
-		if (Number(p.is_franchise_player) === 1) return true;
 		return Number(p.was_traded) === 0
 			&& Number(p.drafted_by_team_id) > 0
 			&& Number(p.drafted_by_team_id) === Number(p.team_id)
@@ -878,7 +883,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	function renderPlayerListItem(p, teamName) {
 		const ovr = Number(p.ovr || 0);
-		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆</span>' : '';
+		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '');
 		const tagBadge = renderPlayerTagBadge(p);
 		return `
 			<div class="mpl-item">
@@ -904,8 +909,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	function renderPlayerCard(p, whatsappLink, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const photoUrl = getPlayerPhotoUrl(p);
-		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
-		const franchiseClass = isFranchiseEligible(p) ? ' franchise-player-card' : '';
+		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '');
+		const franchiseClass = isFranchiseEligible(p) ? ' franchise-player-card' : (isLoyalPlayer(p) ? ' loyal-player-card' : '');
 		const tagBadgeCard = renderPlayerTagBadge(p);
 		return `
 			<div class="player-card${franchiseClass}">
@@ -987,8 +992,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					} else {
 						const ovr = Number(p.ovr || 0);
 						const photoUrl = getPlayerPhotoUrl(p);
-						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : '';
-						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : '';
+						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : (isLoyalPlayer(p) ? ' class="loyal-player-row"' : '');
+						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '');
 						const tagBadgeRow = renderPlayerTagBadge(p);
 						tableBody.innerHTML += `
 							<tr${franchiseRow}>

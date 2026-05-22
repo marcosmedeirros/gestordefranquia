@@ -401,6 +401,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 
 <script>
 const TEAMS_BY_LEAGUE = <?= json_encode($teamsByLeague, JSON_UNESCAPED_UNICODE) ?>;
+// DEBUG temporário - remover depois
+console.log('DEBUG photo_url NEXT:', (TEAMS_BY_LEAGUE['NEXT']||[]).slice(0,3).map(t=>({name:t.name,photo:t.photo_url})));
 const LEAGUES = <?= json_encode($leagues, JSON_UNESCAPED_UNICODE) ?>;
 const CYCLES  = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>['id'=>$cycles[$lg]['id']], $leagues)), JSON_UNESCAPED_UNICODE) ?>;
 const USER_PICKS_RAW = <?= json_encode(array_combine($leagues, array_map(fn($lg)=>$userPicks[$lg]?['seeds'=>$userPicks[$lg]['seeds_json'],'rounds'=>$userPicks[$lg]['rounds_json'],'locked'=>(bool)$userPicks[$lg]['locked'],'points'=>(int)$userPicks[$lg]['points']]:null, $leagues)), JSON_UNESCAPED_UNICODE) ?>;

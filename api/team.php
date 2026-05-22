@@ -505,11 +505,10 @@ if ($method === 'GET') {
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
         foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
             if ($isRiseTeam) {
-                $franchise       = (int)($p['is_franchise_player'] ?? 0) === 1;
                 $notTraded       = (int)($p['was_traded'] ?? 0) === 0;
                 $highOvr         = (int)($p['ovr'] ?? 0) >= 90;
                 $fromSeasonDraft = isset($seasonDraftNames[$p['name']]);
-                $p['cap_bonus_eligible'] = ($franchise || ($notTraded && $highOvr && $fromSeasonDraft)) ? 1 : 0;
+                $p['cap_bonus_eligible'] = ($notTraded && $highOvr && $fromSeasonDraft) ? 1 : 0;
             } else {
                 $p['cap_bonus_eligible'] = 0;
             }

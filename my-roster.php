@@ -205,11 +205,14 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         .stat-pill-val   { font-weight: 700; font-size: 18px; font-family: var(--font); }
         .stat-pill-label { color: var(--text-2); font-size: 12px; }
         .cap-bonus-label { color: #f59e0b; font-size: 11px; font-weight: 700; margin-left: 6px; }
-        .loyal-badge { background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.35); font-size: 10px; padding: 2px 6px; border-radius: 999px; }
+        .loyal-badge { background: rgba(6,182,212,.15); color: #06b6d4; border: 1px solid rgba(6,182,212,.35); font-size: 10px; padding: 2px 6px; border-radius: 999px; font-weight: 700; }
         .franchise-badge { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.35); font-size: 10px; padding: 2px 6px; border-radius: 999px; font-weight: 700; }
         .franchise-player-card { border-color: rgba(245,158,11,.45) !important; background: rgba(245,158,11,.06) !important; }
         .franchise-player-row { background: rgba(245,158,11,.07) !important; border-left: 3px solid rgba(245,158,11,.45); }
         .franchise-player-li { background: rgba(245,158,11,.06) !important; border-radius: 6px; padding-left: 8px !important; }
+        .loyal-player-card { border-color: rgba(6,182,212,.45) !important; background: rgba(6,182,212,.05) !important; }
+        .loyal-player-row { background: rgba(6,182,212,.06) !important; border-left: 3px solid rgba(6,182,212,.45); }
+        .loyal-player-li { background: rgba(6,182,212,.05) !important; border-radius: 6px; padding-left: 8px !important; }
         #franchise-bonus-banner { display:none; align-items:center; gap:10px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.3); border-radius:10px; padding:12px 16px; font-size:13px; color:var(--text-2); margin-bottom:18px; }
 
         /* ── Panel ─────────────────────────────────────── */
