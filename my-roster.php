@@ -1122,7 +1122,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 
   function gradeSelectHtml(idx, skill, val) {
     const color = gradeColor(val || '-');
-    const opts = GRADE_VALS.map(g => `<option value="${g}" ${g === (val||'-') ? 'selected' : ''}>${g}</option>`).join('');
+    const opts = GRADE_VALS.map(g => `<option value="${g}" ${g === (val||'-') ? 'selected' : ''} style="color:#fff;background:#1e1e1e">${g}</option>`).join('');
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
       <div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">${SKILL_LABELS[skill]}</div>
       <select data-idx="${idx}" data-skill="${skill}" class="skill-grade-edit"
@@ -1140,7 +1140,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 
       return `<div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-          <div style="font-size:12px;color:var(--text-3);min-width:80px;flex-shrink:0">${d.name}</div>
+          <div style="font-size:12px;color:var(--text);min-width:80px;flex-shrink:0">${d.name}</div>
           <select data-idx="${idx}" class="skill-match-select"
             style="flex:1;min-width:140px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;outline:none">${rosterOpts}</select>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -1187,8 +1187,8 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
       if (!playerId) return;
       const d = _visionDetected[idx];
       const update = { player_id: playerId, skill_grades: d.grades };
-      if (d.age    != null) update.age = d.age;
-      if (d.rating != null) update.ovr = d.rating;
+      if (d.age    != null && d.age    > 0) update.age = d.age;
+      if (d.rating != null && d.rating > 0) update.ovr = d.rating;
       updates.push(update);
     });
 
