@@ -663,7 +663,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                     <div class="toolbar-sep"></div>
                     <!-- Importar Skills -->
                     <button id="btn-import-skills" class="btn-ghost" type="button" title="Importar Skills por Imagem">
-                        <i class="bi bi-camera"></i> Skills
+                        <i class="bi bi-camera"></i> Atualizar
                     </button>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
@@ -904,7 +904,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 
 <!-- Modal: Importar Skills por Imagem -->
 <div class="modal fade" id="importSkillsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-camera me-2" style="color:var(--red)"></i>Importar Skills por Imagem</h5>
@@ -1117,55 +1117,48 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     }
   }
 
-  const inputStyle = 'width:48px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:3px 4px;color:var(--text);font-size:11px;font-weight:700;text-align:center;outline:none';
-  const gradeSelStyle = 'width:52px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:3px 2px;color:var(--text);font-size:11px;font-weight:700;text-align:center;outline:none';
-  const gradeOpts = ['-','A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'].map(g => `<option value="${g}">${g}</option>`).join('');
+  const GRADE_VALS = ['-','A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];
+  const numInpStyle = 'width:52px;background:var(--panel-3);border:1px solid var(--border);border-radius:6px;padding:4px 6px;color:var(--text);font-size:13px;font-weight:700;text-align:center;outline:none;-moz-appearance:textfield';
+
+  function gradeSelectHtml(idx, skill, val) {
+    const color = gradeColor(val || '-');
+    const opts = GRADE_VALS.map(g => `<option value="${g}" ${g === (val||'-') ? 'selected' : ''}>${g}</option>`).join('');
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">${SKILL_LABELS[skill]}</div>
+      <select data-idx="${idx}" data-skill="${skill}" class="skill-grade-edit"
+        style="width:50px;background:var(--panel-3);border:1px solid var(--border);border-radius:6px;padding:4px 2px;font-size:13px;font-weight:800;text-align:center;outline:none;color:${color};cursor:pointer"
+        onchange="this.style.color=window._gradeColor(this.value)">${opts}</select>
+    </div>`;
+  }
 
   function renderMatchTable() {
-    const rows = _visionDetected.map((d, idx) => {
-      const gradesCells = SKILL_KEYS.map(k => {
-        const v = d.grades[k] || '-';
-        const opts = gradeOpts.replace(`value="${v}"`, `value="${v}" selected`);
-        return `<td style="padding:3px 4px;text-align:center">
-          <select data-idx="${idx}" data-skill="${k}" class="skill-grade-edit" style="${gradeSelStyle};color:${gradeColor(v)}"
-            onchange="this.style.color=window._gradeColor(this.value)">${opts}</select>
-        </td>`;
-      }).join('');
-
-      const ageVal = d.age ?? '';
-      const ovrVal = d.rating ?? '';
-      const ageCell    = `<td style="padding:3px 4px;text-align:center"><input type="number" data-idx="${idx}" data-field="age" class="skill-num-edit" value="${ageVal}" min="18" max="45" style="${inputStyle}"></td>`;
-      const ratingCell = `<td style="padding:3px 4px;text-align:center"><input type="number" data-idx="${idx}" data-field="ovr" class="skill-num-edit" value="${ovrVal}" min="50" max="99" style="${inputStyle}"></td>`;
-
-      const options = `<option value="">— Ignorar —</option>` +
+    const cards = _visionDetected.map((d, idx) => {
+      const rosterOpts = `<option value="">— Ignorar —</option>` +
         _visionRoster.map(p => `<option value="${p.id}" ${d.player_id == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
 
-      return `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:6px 10px;font-size:12px;color:var(--text-2);white-space:nowrap">${d.name}</td>
-        <td style="padding:4px 8px">
-          <select data-idx="${idx}" class="skill-match-select" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-size:12px;width:100%">${options}</select>
-        </td>
-        ${ageCell}${ratingCell}${gradesCells}
-      </tr>`;
+      const gradesHtml = SKILL_KEYS.map(k => gradeSelectHtml(idx, k, d.grades[k])).join('');
+
+      return `<div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <div style="font-size:12px;color:var(--text-3);min-width:80px;flex-shrink:0">${d.name}</div>
+          <select data-idx="${idx}" class="skill-match-select"
+            style="flex:1;min-width:140px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;outline:none">${rosterOpts}</select>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+              <span style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">AGE</span>
+              <input type="number" data-idx="${idx}" data-field="age" class="skill-num-edit" value="${d.age ?? ''}" min="18" max="45" style="${numInpStyle}">
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+              <span style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">OVR</span>
+              <input type="number" data-idx="${idx}" data-field="ovr" class="skill-num-edit" value="${d.rating ?? ''}" min="50" max="99" style="${numInpStyle}">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${gradesHtml}</div>
+      </div>`;
     }).join('');
 
-    const headers = SKILL_KEYS.map(k => `<th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px;text-transform:uppercase">${SKILL_LABELS[k]}</th>`).join('');
-
-    matchTable.innerHTML = `
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr style="border-bottom:1px solid var(--border)">
-              <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 10px;text-align:left">DETECTADO</th>
-              <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 8px;min-width:160px">JOGADOR NO ELENCO</th>
-              <th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px">AGE</th>
-              <th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px">OVR</th>
-              ${headers}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    matchTable.innerHTML = `<div style="max-height:55vh;overflow-y:auto;padding-right:4px">${cards}</div>`;
   }
 
   window._gradeColor = gradeColor;
