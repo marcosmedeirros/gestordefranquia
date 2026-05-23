@@ -4579,14 +4579,14 @@ const PTS_REGULAR = [
   {v:3, l:'2°–4° Lugar (+3 pts)'},
   {v:2, l:'5°–8° Lugar (+2 pts)'}
 ];
-// valores cumulativos: 1ªRod(+1) + Semi(+2) + FinConf(+3) + Vice(+2) + Campeão(+5)
+// valores cumulativos: 1ªRod(+1) + Semi(+2=3) + FinConf(+3=6) + Vice(+2=8) + Campeão(+3=11)
 const PTS_PLAYOFF = [
   {v:0,  l:'— Não participou —'},
   {v:1,  l:'1ª Rodada (+1 pt)'},
   {v:3,  l:'Semifinalista (+3 pts acum.)'},
   {v:6,  l:'Final de Conferência (+6 pts acum.)'},
   {v:8,  l:'Vice-Campeão (+8 pts acum.)'},
-  {v:13, l:'Campeão (+13 pts acum.)'}
+  {v:11, l:'Campeão (+11 pts acum.)'}
 ];
 const PTS_AWARDS = ['MVP','DPOY','MIP','6° Homem','ROY'];
 
@@ -4940,14 +4940,14 @@ async function showRegistroPontuacao(league) {
     <option value="3">2º ao 4º (+3 pts)</option>
     <option value="2">5º ao 8º (+2 pts)</option>`;
 
-  // valores CUMULATIVOS: 1ªRod+1 / Semi+1+2=3 / FinConf+1+2+3=6 / Vice+1+2+3+2=8 / Camp+1+2+3+2+5=13
+  // valores CUMULATIVOS: 1ªRod+1 / Semi+2=3 / FinConf+3=6 / Vice+2=8 / Camp+3=11
   const playoffOpts = `
     <option value="0" selected>Não participou (+0)</option>
     <option value="1">1ª Rodada (+1 pt)</option>
     <option value="3">Semifinalista (+3 pts)</option>
     <option value="6">Finalista de Conferência (+6 pts)</option>
     <option value="8">Vice-Campeão (+8 pts)</option>
-    <option value="13">Campeão (+13 pts)</option>`;
+    <option value="11">Campeão (+11 pts)</option>`;
 
   const teamOpts = `<option value="">— Nenhum —</option>` +
     leagueTeams.map(t => `<option value="${t.team_id}">${escapeHtml(t.team_name || '')}</option>`).join('');

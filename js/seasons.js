@@ -752,7 +752,7 @@ async function showRegistroPontuacao(league) {
             <!-- 1. Premiações -->
             <div class="panel mb-3">
                 <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 1. Premiações</div>
-                <div style="font-size:12px;color:var(--text-3);margin-top:4px">MVP, DPOY, MIP e ROY valem 1 ponto cada.${league === 'ELITE' ? ' NBA Cup vale 2 pontos.' : ''}</div>
+                <div style="font-size:12px;color:var(--text-3);margin-top:4px">MVP, DPOY, MIP, 6º Homem e ROY valem 1 ponto cada.${league === 'ELITE' ? ' NBA Cup vale 2 pontos.' : ''}</div>
                 <div class="row g-3" style="margin-top:8px">
                     <div class="col-md-6"><label style="${lblStyle}">MVP (Time)</label><select name="mvp_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
                     <div class="col-md-6"><label style="${lblStyle}">MVP (Jogador)</label><input type="text" name="mvp_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
@@ -760,6 +760,8 @@ async function showRegistroPontuacao(league) {
                     <div class="col-md-6"><label style="${lblStyle}">DPOY (Jogador)</label><input type="text" name="dpoy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
                     <div class="col-md-6"><label style="${lblStyle}">MIP (Time)</label><select name="mip_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
                     <div class="col-md-6"><label style="${lblStyle}">MIP (Jogador)</label><input type="text" name="mip_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    <div class="col-md-6"><label style="${lblStyle}">6º Homem (Time)</label><select name="sixth_man_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
+                    <div class="col-md-6"><label style="${lblStyle}">6º Homem (Jogador)</label><input type="text" name="sixth_man_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
                     <div class="col-md-6"><label style="${lblStyle}">ROY (Time)</label><select name="roy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
                     <div class="col-md-6"><label style="${lblStyle}">ROY (Jogador)</label><input type="text" name="roy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
                     ${league === 'ELITE' ? `
@@ -868,6 +870,8 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         dpoy_team_id: form.dpoy_team_id?.value || null,
         mip: form.mip_player_name?.value || null,
         mip_team_id: form.mip_team_id?.value || null,
+        sixth_man: form.sixth_man_player_name?.value || null,
+        sixth_man_team_id: form.sixth_man_team_id?.value || null,
         roy: form.roy_player_name?.value || null,
         roy_team_id: form.roy_team_id?.value || null,
         nba_cup_team_id: form.nba_cup_team_id?.value || null

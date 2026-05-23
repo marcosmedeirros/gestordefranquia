@@ -1355,10 +1355,10 @@ try {
                 }
             };
 
-            // Processar Campeão (cumulativo conforme regra: 1ª(1) + 2ª(2) + F.Conf(3) + Vice(2) + Campeão(5) = 13)
+            // Processar Campeão (cumulativo conforme regra: 1ª(1) + Semi(+2=3) + F.Conf(+3=6) + Vice(+2=8) + Campeão(+3=11))
             $initTeam($champion);
             $teamStats[$champion]['playoff_champion'] = 1;
-            $teamStats[$champion]['playoff_points'] = 13; 
+            $teamStats[$champion]['playoff_points'] = 11;
 
             // Processar Vice (8 pontos)
             $initTeam($runnerUp);
