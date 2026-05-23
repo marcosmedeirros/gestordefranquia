@@ -112,14 +112,24 @@ function normalizeSkillGrades(player) {
   return merged;
 }
 
+function gradeColor(v) {
+  if (!v || v === '-') return 'var(--text-3)';
+  const g = v.toUpperCase().trim();
+  if (g === 'A+' || g === 'A' || g === 'A-' || g === 'B+') return '#22c55e';
+  if (g === 'B' || g === 'B-' || g === 'C+' || g === 'C' || g === 'C-') return '#f59e0b';
+  return '#ef4444';
+}
+
 function buildSkillGradesHtml(grades) {
+  const hasAny = SKILL_GRADE_FIELDS.some(f => grades[f.key] && grades[f.key] !== '-');
+  if (!hasAny) return '';
   return `
     <div class="skill-grades-grid">
       ${SKILL_GRADE_FIELDS.map(field => {
         const value = grades[field.key] || '-';
         return `<div class="skill-grade-item">
           <div class="skill-grade-label">${field.label}</div>
-          <div class="skill-grade-value">${value}</div>
+          <div class="skill-grade-value" style="color:${gradeColor(value)}">${value}</div>
         </div>`;
       }).join('')}
     </div>
@@ -1194,6 +1204,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editTagColorEl) editTagColorEl.value = player.player_tag_color || '#3b82f6';
         const editTagCopyEl = document.getElementById('edit-tag-copy');
         if (editTagCopyEl) editTagCopyEl.checked = !!Number(player.player_tag_copy);
+        const skillWrap = document.getElementById('edit-skill-grades-wrap');
+        if (skillWrap) skillWrap.innerHTML = buildSkillGradesEditorHtml(normalizeSkillGrades(player));
         new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
       }
       return;
@@ -1274,6 +1286,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editTagColorEl) editTagColorEl.value = player.player_tag_color || '#3b82f6';
         const editTagCopyEl = document.getElementById('edit-tag-copy');
         if (editTagCopyEl) editTagCopyEl.checked = !!Number(player.player_tag_copy);
+        const skillWrap = document.getElementById('edit-skill-grades-wrap');
+        if (skillWrap) skillWrap.innerHTML = buildSkillGradesEditorHtml(normalizeSkillGrades(player));
         new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
       }
       return;
@@ -1319,8 +1333,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ? null
       : parseInt(badgesValRaw, 10);
 
+    const _editPlayerId = document.getElementById('edit-player-id').value;
+    const _basePlayer = allPlayers.find(p => p.id == _editPlayerId) || {};
+    const _skillWrap = document.getElementById('edit-skill-grades-wrap');
     const data = {
-      id: document.getElementById('edit-player-id').value,
+      id: _editPlayerId,
       name: document.getElementById('edit-name').value,
       age: ageVal,
       position: document.getElementById('edit-position').value,
@@ -1332,6 +1349,7 @@ document.addEventListener('DOMContentLoaded', () => {
       player_tag: tagVal || null,
       player_tag_color: tagVal ? (document.getElementById('edit-tag-color')?.value || '#3b82f6') : null,
       player_tag_copy: (document.getElementById('edit-tag-copy')?.checked && tagVal) ? 1 : 0,
+      skill_grades: collectSkillGradesFromEditor(_skillWrap, normalizeSkillGrades(_basePlayer)),
     };
     if (editPhotoFile) {
       data.foto_adicional = await convertToBase64(editPhotoFile);
@@ -1394,6 +1412,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>`).join('')
         : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
 
+      const grades = normalizeSkillGrades(player);
+      const gradesHtml = buildSkillGradesHtml(grades);
       const photoUrl = getPlayerPhotoUrl(player);
       if (content) content.innerHTML = `
         <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
@@ -1413,6 +1433,10 @@ document.addEventListener('DOMContentLoaded', () => {
           ${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
             .map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
         </div>
+        ${gradesHtml ? `<div style="padding:14px 22px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas por Skill</div>
+          ${gradesHtml}
+        </div>` : ''}
         <div style="padding:16px 22px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
           ${seasonLogHtml}

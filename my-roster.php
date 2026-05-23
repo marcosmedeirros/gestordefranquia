@@ -379,6 +379,14 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         /* Empty state */
         .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; font-size: 14px; }
 
+        /* ── Skill Grades ──────────────────────────────── */
+        .skill-grades-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+        .skill-grade-item { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:8px 4px; text-align:center; }
+        .skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+        .skill-grade-value { font-size:15px; font-weight:800; }
+        .skill-edit-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+        .skill-edit-grid select { width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:5px 2px; color:var(--text); font-size:12px; text-align:center; outline:none; }
+
         /* ── Responsive ────────────────────────────────── */
         @media (max-width: 1100px) { .stats-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } }
         @media (max-width: 992px) {
@@ -792,6 +800,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                             <input class="form-check-input" type="checkbox" id="edit-available">
                             <label class="form-check-label" for="edit-available">Disponível para troca</label>
                         </div>
+                    </div>
+                    <div style="grid-column: span 12; border-top: 1px solid var(--border); padding-top:14px; margin-top:4px;" id="edit-skill-grades-section">
+                        <div style="font-size:11px;color:var(--text-2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">Notas por Skill</div>
+                        <div id="edit-skill-grades-wrap"></div>
                     </div>
                     <div style="grid-column: span 12; border-top: 1px solid var(--border); padding-top:14px; margin-top:4px;">
                         <div style="font-size:11px;color:var(--text-2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">Tag do Jogador</div>

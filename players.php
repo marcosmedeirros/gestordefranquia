@@ -460,6 +460,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			z-index: 250; display: none;
 		}
 		.sb-overlay.show { display: block; }
+
+		/* ── Skill Grades ───────────────────────────── */
+		.skill-grades-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+		.skill-grade-item { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:8px 4px; text-align:center; }
+		.skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+		.skill-grade-value { font-size:15px; font-weight:800; }
 	</style>
 </head>
 <body>
@@ -822,14 +828,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return merged;
 	}
 
+	function gradeColor(v) {
+		if (!v || v === '-') return 'var(--text-3)';
+		const g = v.toUpperCase().trim();
+		if (g === 'A+' || g === 'A' || g === 'A-' || g === 'B+') return '#22c55e';
+		if (g === 'B' || g === 'B-' || g === 'C+' || g === 'C' || g === 'C-') return '#f59e0b';
+		return '#ef4444';
+	}
+
 	function buildSkillGradesHtml(grades) {
+		const hasAny = SKILL_GRADE_FIELDS.some(f => grades[f.key] && grades[f.key] !== '-');
+		if (!hasAny) return '';
 		return `
 			<div class="skill-grades-grid">
 				${SKILL_GRADE_FIELDS.map(field => {
 					const value = grades[field.key] || '-';
 					return `<div class="skill-grade-item">
 						<div class="skill-grade-label">${field.label}</div>
-						<div class="skill-grade-value">${value}</div>
+						<div class="skill-grade-value" style="color:${gradeColor(value)}">${value}</div>
 					</div>`;
 				}).join('')}
 			</div>
@@ -1137,6 +1153,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				</div>`).join('')
 				: '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
 
+			const grades = normalizeSkillGrades(player);
+			const gradesHtml = buildSkillGradesHtml(grades);
 			const photoUrl = getPlayerPhotoUrl(player);
 			if (content) content.innerHTML = `
 				<div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
@@ -1156,6 +1174,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
 						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
 				</div>
+				${gradesHtml ? `<div style="padding:14px 22px;border-bottom:1px solid var(--border)">
+					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas por Skill</div>
+					${gradesHtml}
+				</div>` : ''}
 				<div style="padding:16px 22px">
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
 					${seasonLogHtml}
