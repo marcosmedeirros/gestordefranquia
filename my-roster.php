@@ -1117,20 +1117,30 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     }
   }
 
+  const inputStyle = 'width:48px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:3px 4px;color:var(--text);font-size:11px;font-weight:700;text-align:center;outline:none';
+  const gradeSelStyle = 'width:52px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:3px 2px;color:var(--text);font-size:11px;font-weight:700;text-align:center;outline:none';
+  const gradeOpts = ['-','A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'].map(g => `<option value="${g}">${g}</option>`).join('');
+
   function renderMatchTable() {
     const rows = _visionDetected.map((d, idx) => {
       const gradesCells = SKILL_KEYS.map(k => {
         const v = d.grades[k] || '-';
-        return `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:${gradeColor(v)}">${v}</td>`;
+        const opts = gradeOpts.replace(`value="${v}"`, `value="${v}" selected`);
+        return `<td style="padding:3px 4px;text-align:center">
+          <select data-idx="${idx}" data-skill="${k}" class="skill-grade-edit" style="${gradeSelStyle};color:${gradeColor(v)}"
+            onchange="this.style.color=window._gradeColor(this.value)">${opts}</select>
+        </td>`;
       }).join('');
 
-      const ageCell    = `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:var(--text-2)">${d.age ?? '-'}</td>`;
-      const ratingCell = `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:var(--text)">${d.rating ?? '-'}</td>`;
+      const ageVal = d.age ?? '';
+      const ovrVal = d.rating ?? '';
+      const ageCell    = `<td style="padding:3px 4px;text-align:center"><input type="number" data-idx="${idx}" data-field="age" class="skill-num-edit" value="${ageVal}" min="18" max="45" style="${inputStyle}"></td>`;
+      const ratingCell = `<td style="padding:3px 4px;text-align:center"><input type="number" data-idx="${idx}" data-field="ovr" class="skill-num-edit" value="${ovrVal}" min="50" max="99" style="${inputStyle}"></td>`;
 
       const options = `<option value="">— Ignorar —</option>` +
         _visionRoster.map(p => `<option value="${p.id}" ${d.player_id == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
 
-      return `<tr>
+      return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:6px 10px;font-size:12px;color:var(--text-2);white-space:nowrap">${d.name}</td>
         <td style="padding:4px 8px">
           <select data-idx="${idx}" class="skill-match-select" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-size:12px;width:100%">${options}</select>
@@ -1158,7 +1168,24 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
       </div>`;
   }
 
+  window._gradeColor = gradeColor;
+
   async function saveSkills() {
+    // Coletar edições feitas pelo usuário antes de salvar
+    matchTable.querySelectorAll('.skill-grade-edit').forEach(sel => {
+      const idx = parseInt(sel.dataset.idx, 10);
+      const skill = sel.dataset.skill;
+      if (_visionDetected[idx]) _visionDetected[idx].grades[skill] = sel.value;
+    });
+    matchTable.querySelectorAll('.skill-num-edit').forEach(inp => {
+      const idx   = parseInt(inp.dataset.idx, 10);
+      const field = inp.dataset.field;
+      const val   = parseInt(inp.value, 10);
+      if (!_visionDetected[idx] || isNaN(val)) return;
+      if (field === 'age') _visionDetected[idx].age = val;
+      if (field === 'ovr') _visionDetected[idx].rating = val;
+    });
+
     const selects = matchTable.querySelectorAll('.skill-match-select');
     const updates = [];
     selects.forEach(sel => {

@@ -27,7 +27,7 @@ if (empty($body['image'])) {
     exit;
 }
 
-const VISION_LIMIT = 3;
+const VISION_LIMIT = 2;
 const VISION_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
 
 $user = getUserSession();
