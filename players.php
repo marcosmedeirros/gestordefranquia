@@ -837,8 +837,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	}
 
 	function buildSkillGradesHtml(grades) {
-		const hasAny = SKILL_GRADE_FIELDS.some(f => grades[f.key] && grades[f.key] !== '-');
-		if (!hasAny) return '';
 		return `
 			<div class="skill-grades-grid">
 				${SKILL_GRADE_FIELDS.map(field => {
@@ -1131,10 +1129,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 			const seasonLogHtml = seasonLog.length
 				? seasonLog.map((s, si) => {
-					const sp = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
 					const tm = s.season_number ? `Temp ${s.season_number}` : '';
 					const yr = s.year ? ` · ${s.year}` : '';
-					const label = [sp, tm].filter(Boolean).join(' · ') + yr || `Temporada ${si+1}`;
+					const label = tm + yr || `Temporada ${si+1}`;
 					const d = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
 					const dHtml = d > 0 && si > 0
 						? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${d}</span>`
@@ -1174,10 +1171,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					${[['Idade',player.age??'-'],['Posição',player.position??'-'],['Pos. Sec.',player.secondary_position||'-']]
 						.map(([l,v])=>`<div style="padding:12px 8px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:15px;font-weight:800">${v}</div><div style="font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;font-weight:600">${l}</div></div>`).join('')}
 				</div>
-				${gradesHtml ? `<div style="padding:14px 22px;border-bottom:1px solid var(--border)">
+				<div style="padding:14px 22px;border-bottom:1px solid var(--border)">
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Notas por Skill</div>
 					${gradesHtml}
-				</div>` : ''}
+				</div>
 				<div style="padding:16px 22px">
 					<div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Evolução por Temporada</div>
 					${seasonLogHtml}
