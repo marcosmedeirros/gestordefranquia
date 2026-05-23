@@ -655,7 +655,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             const seasons = data.seasons || [];
             const filtered = seasons.filter(s => {
                 if (currentSeasonId && parseInt(s.season_id || 0, 10) === currentSeasonId) return false;
-                if (currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
+                if (!currentSeasonId && currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
                 return true;
             });
             if (!filtered.length) {
@@ -721,7 +721,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             const seasons = data.seasons || [];
             const filtered = seasons.filter(s => {
                 if (currentSeasonId && parseInt(s.season_id || 0, 10) === currentSeasonId) return false;
-                if (currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
+                if (!currentSeasonId && currentSeasonYear && s.year && parseInt(s.year, 10) >= currentSeasonYear) return false;
                 return true;
             });
             if (!filtered.length) {
