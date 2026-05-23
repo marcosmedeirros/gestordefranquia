@@ -27,10 +27,50 @@ if (empty($body['image'])) {
     exit;
 }
 
+const VISION_LIMIT = 3;
+const VISION_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
+
 $user = getUserSession();
-$pdo = db();
-$stmt = $pdo->prepare('SELECT p.id, p.name FROM players p INNER JOIN teams t ON p.team_id = t.id WHERE t.user_id = ? ORDER BY p.name');
-$stmt->execute([$user['id']]);
+$pdo  = db();
+
+// Garantir tabela de controle
+$pdo->exec("CREATE TABLE IF NOT EXISTS vision_skill_usage (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    team_id    INT NOT NULL,
+    season_id  INT,
+    count      INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_team_season (team_id, season_id)
+)");
+
+// Buscar time do usuário
+$stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$user['id']]);
+$team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+$teamId = $team ? (int)$team['id'] : null;
+
+// Buscar temporada ativa
+$seasonId = null;
+if ($team) {
+    $stmtSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND status <> 'completed' ORDER BY id DESC LIMIT 1");
+    $stmtSeason->execute([$team['league']]);
+    $seasonId = $stmtSeason->fetchColumn() ?: null;
+}
+
+// Verificar limite
+$stmtUsage = $pdo->prepare('SELECT count FROM vision_skill_usage WHERE team_id = ? AND season_id <=> ?');
+$stmtUsage->execute([$teamId, $seasonId]);
+$currentCount = (int)($stmtUsage->fetchColumn() ?: 0);
+
+$isUnlimited = in_array($user['email'] ?? '', VISION_UNLIMITED_EMAILS);
+if (!$isUnlimited && $currentCount >= VISION_LIMIT) {
+    http_response_code(429);
+    echo json_encode(['error' => "Limite de " . VISION_LIMIT . " análises por temporada atingido.", 'limit' => VISION_LIMIT, 'used' => $currentCount]);
+    exit;
+}
+
+// Buscar elenco
+$stmt = $pdo->prepare('SELECT p.id, p.name FROM players p WHERE p.team_id = ? ORDER BY p.name');
+$stmt->execute([$teamId]);
 $rosterPlayers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $imageData = $body['image'];
@@ -72,14 +112,20 @@ if (!empty($visionData['error'])) {
 
 $annotations = $visionData['responses'][0]['textAnnotations'] ?? [];
 if (empty($annotations)) {
-    echo json_encode(['detected' => [], 'roster' => $rosterPlayers]);
+    echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => VISION_LIMIT]);
     exit;
 }
 
-$detected = parseSkillTable($annotations);
-$matched = autoMatchPlayers($detected, $rosterPlayers);
+// Incrementar uso
+$pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
+    ON DUPLICATE KEY UPDATE count = count + 1')
+    ->execute([$teamId, $seasonId]);
+$currentCount++;
 
-echo json_encode(['detected' => $matched, 'roster' => $rosterPlayers]);
+$detected = parseSkillTable($annotations);
+$matched  = autoMatchPlayers($detected, $rosterPlayers);
+
+echo json_encode(['detected' => $matched, 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => VISION_LIMIT]);
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -137,10 +183,10 @@ function parseSkillTable($annotations) {
 
     // Map header words → column X positions
     $headerKeyMap = [
-        'IN'   => 'in',   'MID'  => 'mid',  '3PT'  => 'pt3',
-        'POST' => 'post_d','PER' => 'per_d', 'PLAY' => 'play',
-        'REB'  => 'reb',  'ATHL' => 'athl', 'IQ'   => 'iq',
-        'POT'  => 'pot',
+        'IN'     => 'in',     'MID'    => 'mid',    '3PT'  => 'pt3',
+        'POST'   => 'post_d', 'PER'    => 'per_d',  'PLAY' => 'play',
+        'REB'    => 'reb',    'ATHL'   => 'athl',   'IQ'   => 'iq',
+        'POT'    => 'pot',    'AGE'    => '_age',   'RATING' => '_rating',
     ];
     $colX = [];
     foreach ($headerRow as $w) {
@@ -149,10 +195,12 @@ function parseSkillTable($annotations) {
     }
     if (empty($colX)) return [];
 
-    $skillStartX = min($colX) - 50;
+    $skillKeys   = ['in','mid','pt3','post_d','per_d','play','reb','athl','iq','pot'];
+    $numericKeys = ['_age','_rating'];
+    $skillStartX = min(array_filter($colX, fn($k) => in_array($k, $skillKeys), ARRAY_FILTER_USE_KEY)) - 50;
     $validGrades = ['A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];
 
-    // Skip position/age codes
+    // Skip position codes and header tokens
     $skipTokens = ['PG','SG','SF','PF','C','G','F','NAME','POS','AGE','RATING','OVR','OVERALL'];
 
     $detected = [];
@@ -160,13 +208,16 @@ function parseSkillTable($annotations) {
         $row = $rows[$ri];
         usort($row, fn($a,$b) => $a['x'] <=> $b['x']);
 
-        $nameWords  = [];
-        $gradeWords = [];
+        $nameWords   = [];
+        $gradeWords  = [];
+        $numericWords = [];
 
         foreach ($row as $w) {
             $t = strtoupper($w['text']);
             if (in_array($t, $validGrades) && $w['x'] >= $skillStartX) {
                 $gradeWords[] = $w;
+            } elseif (preg_match('/^\d{1,3}$/', $w['text']) && $w['x'] >= ($colX['_age'] ?? PHP_INT_MAX) - 30) {
+                $numericWords[] = $w;
             } elseif ($w['x'] < $skillStartX && !in_array($t, $skipTokens) && !preg_match('/^\d+$/', $w['text'])) {
                 $nameWords[] = $w;
             }
@@ -177,12 +228,13 @@ function parseSkillTable($annotations) {
         $name = trim(implode(' ', array_column($nameWords, 'text')));
         if (!$name) continue;
 
-        // Assign each grade to nearest column
+        // Assign grades to nearest skill column
         $grades = [];
         foreach ($gradeWords as $gw) {
-            $nearestKey = null;
+            $nearestKey  = null;
             $nearestDist = PHP_INT_MAX;
             foreach ($colX as $key => $cx) {
+                if (!in_array($key, $skillKeys)) continue;
                 $d = abs($gw['x'] - $cx);
                 if ($d < $nearestDist) { $nearestDist = $d; $nearestKey = $key; }
             }
@@ -191,8 +243,23 @@ function parseSkillTable($annotations) {
             }
         }
 
+        // Assign numeric values to age/rating columns
+        $age    = null;
+        $rating = null;
+        foreach ($numericWords as $nw) {
+            $nearestKey  = null;
+            $nearestDist = PHP_INT_MAX;
+            foreach ($numericKeys as $key) {
+                if (!isset($colX[$key])) continue;
+                $d = abs($nw['x'] - $colX[$key]);
+                if ($d < $nearestDist) { $nearestDist = $d; $nearestKey = $key; }
+            }
+            if ($nearestKey === '_age'    && $age    === null) $age    = (int)$nw['text'];
+            if ($nearestKey === '_rating' && $rating === null) $rating = (int)$nw['text'];
+        }
+
         if (!empty($grades)) {
-            $detected[] = ['name' => $name, 'grades' => $grades];
+            $detected[] = ['name' => $name, 'grades' => $grades, 'age' => $age, 'rating' => $rating];
         }
     }
 

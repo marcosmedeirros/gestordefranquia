@@ -930,6 +930,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                             <button id="btn-skill-clear" class="btn-ghost" style="margin-left:8px"><i class="bi bi-x"></i> Trocar</button>
                         </div>
                     </div>
+                    <div id="skill-usage-info" style="display:none;font-size:12px;color:var(--text-3);margin-top:10px;text-align:right"></div>
                     <div id="skill-analyzing" style="display:none;text-align:center;padding:30px">
                         <div class="spinner-border" style="width:2.5rem;height:2.5rem;color:var(--red)"></div>
                         <div style="margin-top:12px;font-size:13px;color:var(--text-2)">Analisando imagem…</div>
@@ -1031,6 +1032,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
   const matchTable  = document.getElementById('skill-match-table');
   const errBox      = document.getElementById('skill-import-error');
   const btnSave     = document.getElementById('btn-skill-save');
+  const usageInfo   = document.getElementById('skill-usage-info');
 
   document.getElementById('btn-import-skills')?.addEventListener('click', () => {
     resetImportModal();
@@ -1098,6 +1100,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
       analyzing.style.display = 'none';
       _visionDetected = data.detected || [];
       _visionRoster   = data.roster   || [];
+      showUsage(data.used, data.limit);
       if (_visionDetected.length === 0) {
         showError('Nenhum jogador com notas detectado. Verifique se a imagem mostra a tabela de skills completa.');
         previewWrap.style.display = '';
@@ -1121,6 +1124,9 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         return `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:${gradeColor(v)}">${v}</td>`;
       }).join('');
 
+      const ageCell    = `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:var(--text-2)">${d.age ?? '-'}</td>`;
+      const ratingCell = `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:var(--text)">${d.rating ?? '-'}</td>`;
+
       const options = `<option value="">— Ignorar —</option>` +
         _visionRoster.map(p => `<option value="${p.id}" ${d.player_id == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
 
@@ -1129,7 +1135,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         <td style="padding:4px 8px">
           <select data-idx="${idx}" class="skill-match-select" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-size:12px;width:100%">${options}</select>
         </td>
-        ${gradesCells}
+        ${ageCell}${ratingCell}${gradesCells}
       </tr>`;
     }).join('');
 
@@ -1142,6 +1148,8 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             <tr style="border-bottom:1px solid var(--border)">
               <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 10px;text-align:left">DETECTADO</th>
               <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 8px;min-width:160px">JOGADOR NO ELENCO</th>
+              <th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px">AGE</th>
+              <th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px">OVR</th>
               ${headers}
             </tr>
           </thead>
@@ -1158,7 +1166,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
       const playerId = parseInt(sel.value, 10);
       if (!playerId) return;
       const d = _visionDetected[idx];
-      updates.push({ player_id: playerId, skill_grades: d.grades });
+      const update = { player_id: playerId, skill_grades: d.grades };
+      if (d.age    != null) update.age = d.age;
+      if (d.rating != null) update.ovr = d.rating;
+      updates.push(update);
     });
 
     if (updates.length === 0) {
@@ -1173,10 +1184,13 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     let errors = 0;
     for (const u of updates) {
       try {
+        const payload = { id: u.player_id, skill_grades: u.skill_grades };
+        if (u.age != null) payload.age = u.age;
+        if (u.ovr != null) payload.ovr = u.ovr;
         const res = await fetch('/api/players.php', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: u.player_id, skill_grades: u.skill_grades }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) errors++;
       } catch { errors++; }
@@ -1191,6 +1205,14 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
       bootstrap.Modal.getInstance(modal)?.hide();
       if (typeof loadPlayers === 'function') loadPlayers();
     }
+  }
+
+  function showUsage(used, limit) {
+    if (used == null || limit == null) return;
+    const remaining = limit - used;
+    const color = remaining === 0 ? 'var(--red)' : remaining === 1 ? '#f59e0b' : 'var(--text-3)';
+    usageInfo.innerHTML = `<span style="color:${color}">Análises esta temporada: ${used}/${limit}</span>`;
+    usageInfo.style.display = '';
   }
 
   function showError(msg) {
