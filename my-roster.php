@@ -661,6 +661,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                         <option value="age">Ordenar: Idade</option>
                     </select>
                     <div class="toolbar-sep"></div>
+                    <!-- Importar Skills -->
+                    <button id="btn-import-skills" class="btn-ghost" type="button" title="Importar Skills por Imagem">
+                        <i class="bi bi-camera"></i> Skills
+                    </button>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
@@ -898,6 +902,58 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 </div>
 
 
+<!-- Modal: Importar Skills por Imagem -->
+<div class="modal fade" id="importSkillsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-camera me-2" style="color:var(--red)"></i>Importar Skills por Imagem</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Step 1: Upload -->
+                <div id="skill-import-step1">
+                    <p style="font-size:13px;color:var(--text-2);margin-bottom:16px;">
+                        Tire um print da tela de skills do seu jogo (ex: NBA 2K) e envie abaixo. O sistema vai ler as notas automaticamente.
+                    </p>
+                    <div id="skill-drop-zone" style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:border-color .2s">
+                        <i class="bi bi-cloud-arrow-up" style="font-size:36px;color:var(--text-3);display:block;margin-bottom:10px"></i>
+                        <div style="font-size:14px;color:var(--text-2);margin-bottom:6px">Clique ou arraste a imagem aqui</div>
+                        <div style="font-size:12px;color:var(--text-3)">PNG, JPG, JPEG</div>
+                        <input type="file" id="skill-image-input" accept="image/*" style="display:none">
+                    </div>
+                    <div id="skill-preview-wrap" style="display:none;margin-top:14px;text-align:center">
+                        <img id="skill-preview-img" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--border)">
+                        <div style="margin-top:8px">
+                            <button id="btn-skill-analyze" class="btn-red"><i class="bi bi-search"></i> Analisar Imagem</button>
+                            <button id="btn-skill-clear" class="btn-ghost" style="margin-left:8px"><i class="bi bi-x"></i> Trocar</button>
+                        </div>
+                    </div>
+                    <div id="skill-analyzing" style="display:none;text-align:center;padding:30px">
+                        <div class="spinner-border" style="width:2.5rem;height:2.5rem;color:var(--red)"></div>
+                        <div style="margin-top:12px;font-size:13px;color:var(--text-2)">Analisando imagem…</div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Confirmar match -->
+                <div id="skill-import-step2" style="display:none">
+                    <div style="font-size:13px;color:var(--text-2);margin-bottom:14px">
+                        Verifique os jogadores detectados e confirme o vínculo com seu elenco antes de salvar.
+                    </div>
+                    <div id="skill-match-table"></div>
+                </div>
+
+                <div id="skill-import-error" style="display:none;color:var(--red);font-size:13px;padding:10px 0"></div>
+            </div>
+            <div class="modal-footer" style="gap:10px">
+                <button class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                <button id="btn-skill-save" class="btn-red" style="display:none"><i class="bi bi-save2"></i> Salvar Skills</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ══════════════════════════════════════
      SCRIPTS
 ══════════════════════════════════════ -->
@@ -955,5 +1011,201 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     });
 </script>
 <script src="/js/my-roster-v2.js?v=20260519-2"></script>
+<script>
+(function () {
+  const GRADE_OPTIONS = ['-','A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];
+  const SKILL_KEYS = ['in','mid','pt3','post_d','per_d','play','reb','athl','iq','pot'];
+  const SKILL_LABELS = {in:'IN',mid:'MID',pt3:'3PT',post_d:'POST-D',per_d:'PER-D',play:'PLAY',reb:'REB',athl:'ATHL',iq:'IQ',pot:'POT'};
+
+  let _visionDetected = [];
+  let _visionRoster   = [];
+
+  const modal       = document.getElementById('importSkillsModal');
+  const step1       = document.getElementById('skill-import-step1');
+  const step2       = document.getElementById('skill-import-step2');
+  const dropZone    = document.getElementById('skill-drop-zone');
+  const fileInput   = document.getElementById('skill-image-input');
+  const previewWrap = document.getElementById('skill-preview-wrap');
+  const previewImg  = document.getElementById('skill-preview-img');
+  const analyzing   = document.getElementById('skill-analyzing');
+  const matchTable  = document.getElementById('skill-match-table');
+  const errBox      = document.getElementById('skill-import-error');
+  const btnSave     = document.getElementById('btn-skill-save');
+
+  document.getElementById('btn-import-skills')?.addEventListener('click', () => {
+    resetImportModal();
+    new bootstrap.Modal(modal).show();
+  });
+
+  dropZone?.addEventListener('click', () => fileInput?.click());
+  dropZone?.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--red)'; });
+  dropZone?.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border)'; });
+  dropZone?.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--border)';
+    const file = e.dataTransfer.files[0];
+    if (file) loadPreview(file);
+  });
+  fileInput?.addEventListener('change', () => { if (fileInput.files[0]) loadPreview(fileInput.files[0]); });
+
+  document.getElementById('btn-skill-clear')?.addEventListener('click', () => {
+    previewWrap.style.display = 'none';
+    dropZone.style.display = '';
+    fileInput.value = '';
+  });
+
+  document.getElementById('btn-skill-analyze')?.addEventListener('click', analyzeImage);
+
+  btnSave?.addEventListener('click', saveSkills);
+
+  function resetImportModal() {
+    step1.style.display = '';
+    step2.style.display = 'none';
+    previewWrap.style.display = 'none';
+    dropZone.style.display = '';
+    analyzing.style.display = 'none';
+    errBox.style.display = 'none';
+    btnSave.style.display = 'none';
+    fileInput.value = '';
+    _visionDetected = [];
+    _visionRoster   = [];
+  }
+
+  function loadPreview(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src = e.target.result;
+      previewWrap.style.display = '';
+      dropZone.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyzeImage() {
+    const src = previewImg.src;
+    if (!src) return;
+    analyzing.style.display = '';
+    previewWrap.style.display = 'none';
+    errBox.style.display = 'none';
+    try {
+      const res = await fetch('/api/vision_skills.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: src }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+      analyzing.style.display = 'none';
+      _visionDetected = data.detected || [];
+      _visionRoster   = data.roster   || [];
+      if (_visionDetected.length === 0) {
+        showError('Nenhum jogador com notas detectado. Verifique se a imagem mostra a tabela de skills completa.');
+        previewWrap.style.display = '';
+        return;
+      }
+      renderMatchTable();
+      step1.style.display = 'none';
+      step2.style.display = '';
+      btnSave.style.display = '';
+    } catch (err) {
+      analyzing.style.display = 'none';
+      previewWrap.style.display = '';
+      showError(err.message);
+    }
+  }
+
+  function renderMatchTable() {
+    const rows = _visionDetected.map((d, idx) => {
+      const gradesCells = SKILL_KEYS.map(k => {
+        const v = d.grades[k] || '-';
+        return `<td style="font-size:11px;font-weight:700;text-align:center;padding:4px 6px;color:${gradeColor(v)}">${v}</td>`;
+      }).join('');
+
+      const options = `<option value="">— Ignorar —</option>` +
+        _visionRoster.map(p => `<option value="${p.id}" ${d.player_id == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+
+      return `<tr>
+        <td style="padding:6px 10px;font-size:12px;color:var(--text-2);white-space:nowrap">${d.name}</td>
+        <td style="padding:4px 8px">
+          <select data-idx="${idx}" class="skill-match-select" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-size:12px;width:100%">${options}</select>
+        </td>
+        ${gradesCells}
+      </tr>`;
+    }).join('');
+
+    const headers = SKILL_KEYS.map(k => `<th style="font-size:10px;font-weight:700;color:var(--text-3);text-align:center;padding:4px 6px;text-transform:uppercase">${SKILL_LABELS[k]}</th>`).join('');
+
+    matchTable.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 10px;text-align:left">DETECTADO</th>
+              <th style="font-size:10px;font-weight:700;color:var(--text-3);padding:6px 8px;min-width:160px">JOGADOR NO ELENCO</th>
+              ${headers}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  async function saveSkills() {
+    const selects = matchTable.querySelectorAll('.skill-match-select');
+    const updates = [];
+    selects.forEach(sel => {
+      const idx = parseInt(sel.dataset.idx, 10);
+      const playerId = parseInt(sel.value, 10);
+      if (!playerId) return;
+      const d = _visionDetected[idx];
+      updates.push({ player_id: playerId, skill_grades: d.grades });
+    });
+
+    if (updates.length === 0) {
+      showError('Nenhum jogador vinculado.');
+      return;
+    }
+
+    btnSave.disabled = true;
+    btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Salvando…';
+    errBox.style.display = 'none';
+
+    let errors = 0;
+    for (const u of updates) {
+      try {
+        const res = await fetch('/api/players.php', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: u.player_id, skill_grades: u.skill_grades }),
+        });
+        if (!res.ok) errors++;
+      } catch { errors++; }
+    }
+
+    btnSave.disabled = false;
+    btnSave.innerHTML = '<i class="bi bi-save2"></i> Salvar Skills';
+
+    if (errors) {
+      showError(`${errors} jogador(es) não puderam ser salvos.`);
+    } else {
+      bootstrap.Modal.getInstance(modal)?.hide();
+      if (typeof loadPlayers === 'function') loadPlayers();
+    }
+  }
+
+  function showError(msg) {
+    errBox.textContent = msg;
+    errBox.style.display = '';
+  }
+
+  function gradeColor(v) {
+    if (!v || v === '-') return 'var(--text-3)';
+    const g = v.toUpperCase().trim();
+    if (['A+','A','A-','B+'].includes(g)) return '#22c55e';
+    if (['B','B-','C+','C','C-'].includes(g)) return '#f59e0b';
+    return '#ef4444';
+  }
+})();
+</script>
 </body>
 </html>

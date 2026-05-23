@@ -26,5 +26,6 @@ return [
         'debug_reset_link' => getenv('FBA_DEBUG_RESET_LINK') ?: false,
         'run_picks_token' => '597737f33985463d9441cfaa71168a60f56305e65150483a853d1f81e13b7c8d',
         'bdl_api_key' => getenv('BDL_API_KEY') ?: '1a3df0bc-d67d-4890-8a41-0b26588e2315',
+        'google_vision_key' => getenv('GOOGLE_VISION_KEY') ?: 'API_KEY',
     ],
 ];
