@@ -113,7 +113,7 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
@@ -167,6 +167,7 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 'id' => $pickId,
                 'season_year' => $pick['season_year'] ?? null,
                 'round' => $pick['round'] ?? null,
+                'swap_type' => $pick['swap_type'] ?? null,
                 'original_team' => $pick ? trim(($pick['city'] ?? '') . ' ' . ($pick['team_name'] ?? '')) : null,
                 'protection' => $item['pick_protection'] ?? null,
             ];
@@ -312,7 +313,7 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
