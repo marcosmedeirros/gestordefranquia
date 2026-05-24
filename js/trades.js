@@ -1527,6 +1527,56 @@ async function loadTrades(type) {
   }
 }
 
+function copyTradeText(trade, isMulti) {
+  let lines = [];
+  if (isMulti) {
+    const teamMap = {};
+    (trade.teams || []).forEach(t => { teamMap[t.id] = `${t.city} ${t.name}`; });
+    lines.push('🔄 TRADE MÚLTIPLA');
+    lines.push('Times: ' + (trade.teams || []).map(t => `${t.city} ${t.name}`).join(', '));
+    lines.push('');
+    const byTeam = {};
+    (trade.items || []).forEach(item => {
+      const toId = String(item.to_team_id);
+      if (!byTeam[toId]) byTeam[toId] = [];
+      byTeam[toId].push(item);
+    });
+    Object.entries(byTeam).forEach(([toId, items]) => {
+      lines.push((teamMap[toId] || `Time ${toId}`) + ' recebe:');
+      items.forEach(item => {
+        let detail = '';
+        if (item.player_id || item.player_name) {
+          detail = formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr });
+        } else if (item.pick_id) {
+          detail = formatTradePickDisplay(item);
+        }
+        const from = teamMap[String(item.from_team_id)];
+        lines.push(`  • ${from ? 'de ' + from + ' → ' : ''}${detail}`);
+      });
+      lines.push('');
+    });
+  } else {
+    const from = trade.from_team ? `${trade.from_team.city} ${trade.from_team.name}` : 'Time A';
+    const to   = trade.to_team   ? `${trade.to_team.city} ${trade.to_team.name}`   : 'Time B';
+    lines.push(`🔄 TRADE: ${from} ↔ ${to}`);
+    lines.push('');
+    lines.push(`${from} oferece:`);
+    (trade.offer_players || []).forEach(p => lines.push(`  • ${formatTradePlayerDisplay(p)}`));
+    (trade.offer_picks   || []).forEach(p => lines.push(`  • Pick: ${formatTradePickDisplay(p)}`));
+    if (!trade.offer_players?.length && !trade.offer_picks?.length) lines.push('  • Nenhum item');
+    lines.push('');
+    lines.push(`${to} envia:`);
+    (trade.request_players || []).forEach(p => lines.push(`  • ${formatTradePlayerDisplay(p)}`));
+    (trade.request_picks   || []).forEach(p => lines.push(`  • Pick: ${formatTradePickDisplay(p)}`));
+    if (!trade.request_players?.length && !trade.request_picks?.length) lines.push('  • Nenhum item');
+  }
+  if (trade.notes) { lines.push(''); lines.push('Nota: ' + trade.notes); }
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = document.querySelector(`[data-copy-trade="${trade.id}"]`);
+    if (btn) { btn.innerHTML = '<i class="bi bi-check2"></i> Copiado!'; setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar'; }, 2000); }
+  });
+}
+
 function createMultiTradeCard(trade, type) {
   const card = document.createElement('div');
   card.className = 'tc';
@@ -1589,6 +1639,9 @@ function createMultiTradeCard(trade, type) {
       <div class="d-flex gap-2 align-items-center flex-wrap">
         ${acceptanceBadge}
         ${statusBadge}
+        <button class="btn-r secondary sm" data-copy-trade="${trade.id}" onclick="copyTradeText(window.__tradeCache__['m${trade.id}'], true)">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
       </div>
     </div>
     <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || `<span style="color:var(--text-3);font-size:13px">Times</span>`}</div>
@@ -1693,9 +1746,12 @@ async function openEditMultiTrade(trade) {
 }
 
 function createTradeCard(trade, type) {
+  if (!window.__tradeCache__) window.__tradeCache__ = {};
   if (trade.is_multi) {
+    window.__tradeCache__['m' + trade.id] = trade;
     return createMultiTradeCard(trade, type);
   }
+  window.__tradeCache__['s' + trade.id] = trade;
   tradesById.set(Number(trade.id), trade);
   const card = document.createElement('div');
   card.className = 'tc';
@@ -1726,7 +1782,12 @@ function createTradeCard(trade, type) {
         <div class="tc-title">${fromTeam} <i class="bi bi-arrow-right" style="color:var(--red)"></i> ${toTeam}</div>
         <div class="tc-date">${_fmtTradeDate(trade.created_at, trade.status)}</div>
       </div>
-      <div>${statusBadge}</div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        ${statusBadge}
+        <button class="btn-r secondary sm" data-copy-trade="${trade.id}" onclick="copyTradeText(window.__tradeCache__['s${trade.id}'], false)">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
+      </div>
     </div>
 
     <div class="row g-3">
