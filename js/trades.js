@@ -90,6 +90,23 @@ const formatTradePickDisplay = (pick) => {
   return display;
 };
 
+const formatTradePickPlain = (pick) => {
+  if (!pick) return '';
+  const year = pick.season_year || '?';
+  const round = pick.round || '?';
+  const pickNumber = pick.draft_pick_number || null;
+  const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
+  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
+  const originalTeam = (isTraded && pick.original_team_city && pick.original_team_name)
+    ? `${pick.original_team_city} ${pick.original_team_name}` : null;
+  let display = (pickNumber && isCurrentDraft)
+    ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${year !== '?' && round !== '?' ? ` - ${year} R${round}` : ''}`
+    : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
+  const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  if (swapTag) display += ` ${swapTag}`;
+  return display;
+};
+
 const calcTop8Cap = (players = []) => {
   const sorted = [...players].sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0));
   return sorted.slice(0, 8).reduce((sum, p) => sum + (Number(p.ovr) || 0), 0);
@@ -1546,7 +1563,7 @@ function copyTradeText(trade, isMulti) {
         if (item.player_id || item.player_name) {
           detail = formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr });
         } else if (item.pick_id) {
-          detail = formatTradePickDisplay(item);
+          detail = formatTradePickPlain(item);
         }
         const from = teamMap[String(item.from_team_id)];
         lines.push(`  • ${from ? 'de ' + from + ' → ' : ''}${detail}`);
@@ -1558,12 +1575,12 @@ function copyTradeText(trade, isMulti) {
     const to   = `${trade.to_city   || ''} ${trade.to_name   || ''}`.trim();
     lines.push(`${from} oferece:`);
     (trade.offer_players || []).forEach(p => lines.push(`  • ${formatTradePlayerDisplay(p)}`));
-    (trade.offer_picks   || []).forEach(p => lines.push(`  • Pick: ${formatTradePickDisplay(p)}`));
+    (trade.offer_picks   || []).forEach(p => lines.push(`  • ${formatTradePickPlain(p)}`));
     if (!trade.offer_players?.length && !trade.offer_picks?.length) lines.push('  • Nenhum item');
     lines.push('');
     lines.push(`${to} envia:`);
     (trade.request_players || []).forEach(p => lines.push(`  • ${formatTradePlayerDisplay(p)}`));
-    (trade.request_picks   || []).forEach(p => lines.push(`  • Pick: ${formatTradePickDisplay(p)}`));
+    (trade.request_picks   || []).forEach(p => lines.push(`  • ${formatTradePickPlain(p)}`));
     if (!trade.request_players?.length && !trade.request_picks?.length) lines.push('  • Nenhum item');
   }
   if (trade.notes) { lines.push(''); lines.push('Nota: ' + trade.notes); }
