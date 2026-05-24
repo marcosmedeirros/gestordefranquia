@@ -78,8 +78,9 @@ const formatTradePickDisplay = (pick) => {
     ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
 
-  if (pick.swap_type) {
-    display += ` <span class="badge bg-secondary ms-1">${pick.swap_type}</span>`;
+  const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  if (swapTag) {
+    display += ` <span class="badge bg-secondary ms-1">${swapTag}</span>`;
   }
 
   if (isCurrentDraft) {
