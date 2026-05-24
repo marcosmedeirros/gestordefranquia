@@ -1532,9 +1532,6 @@ function copyTradeText(trade, isMulti) {
   if (isMulti) {
     const teamMap = {};
     (trade.teams || []).forEach(t => { teamMap[t.id] = `${t.city} ${t.name}`; });
-    lines.push('🔄 TRADE MÚLTIPLA');
-    lines.push('Times: ' + (trade.teams || []).map(t => `${t.city} ${t.name}`).join(', '));
-    lines.push('');
     const byTeam = {};
     (trade.items || []).forEach(item => {
       const toId = String(item.to_team_id);
@@ -1556,10 +1553,8 @@ function copyTradeText(trade, isMulti) {
       lines.push('');
     });
   } else {
-    const from = trade.from_team ? `${trade.from_team.city} ${trade.from_team.name}` : 'Time A';
-    const to   = trade.to_team   ? `${trade.to_team.city} ${trade.to_team.name}`   : 'Time B';
-    lines.push(`🔄 TRADE: ${from} ↔ ${to}`);
-    lines.push('');
+    const from = `${trade.from_city || ''} ${trade.from_name || ''}`.trim();
+    const to   = `${trade.to_city   || ''} ${trade.to_name   || ''}`.trim();
     lines.push(`${from} oferece:`);
     (trade.offer_players || []).forEach(p => lines.push(`  • ${formatTradePlayerDisplay(p)}`));
     (trade.offer_picks   || []).forEach(p => lines.push(`  • Pick: ${formatTradePickDisplay(p)}`));
