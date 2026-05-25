@@ -552,16 +552,6 @@ try {
               <i class="bi bi-trophy me-1"></i>Trocas Gerais
             </button>
           </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="rumors-tab" data-bs-toggle="tab" data-bs-target="#rumors" type="button">
-              <i class="bi bi-megaphone me-1"></i>Rumores
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="trade-list-tab" data-bs-toggle="tab" data-bs-target="#trade-list" type="button">
-              <i class="bi bi-list-stars me-1"></i>Trade List
-            </button>
-          </li>
         </ul>
 
         <!-- Tab Content -->
@@ -607,70 +597,6 @@ try {
             </div>
           </div>
 
-          <!-- Rumores -->
-          <div class="tab-pane fade" id="rumors" role="tabpanel">
-            <div class="panel-card">
-              <div class="panel-card-header">
-                <div>
-                  <div class="panel-card-title"><i class="bi bi-megaphone me-2" style="color:var(--red)"></i>Rumores da Liga</div>
-                  <div style="font-size:12px;color:var(--text-2);margin-top:2px">Compartilhe o que está procurando ou quais jogadores quer negociar.</div>
-                </div>
-                <span class="tag gray" id="rumorsCount">0 rumores</span>
-              </div>
-              <div class="panel-card-body">
-                <!-- Comentários do Admin -->
-                <div class="mb-4">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span style="font-size:13px;font-weight:600;color:var(--text)"><i class="bi bi-pin-angle-fill me-2" style="color:var(--red)"></i>Comentários do Admin</span>
-                    <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-                    <button class="btn-r secondary" style="padding:5px 10px;font-size:12px" id="addAdminCommentBtn"><i class="bi bi-plus-lg"></i>Adicionar</button>
-                    <?php endif; ?>
-                  </div>
-                  <div id="adminCommentsList"></div>
-                </div>
-                <!-- Novo rumor -->
-                <div class="mb-3">
-                  <label class="form-label">Seu rumor</label>
-                  <textarea class="form-control" id="rumorContent" rows="2" placeholder="Ex.: Procuro SG com OVR 80+ ou vendo PF"></textarea>
-                  <div class="d-flex justify-content-end mt-2">
-                    <button class="btn-r primary" id="submitRumorBtn"><i class="bi bi-megaphone-fill"></i>Publicar</button>
-                  </div>
-                </div>
-                <div id="rumorsList"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Trade List -->
-          <div class="tab-pane fade" id="trade-list" role="tabpanel">
-            <div class="panel-card">
-              <div class="panel-card-header">
-                <div>
-                  <div class="panel-card-title"><i class="bi bi-list-stars me-2" style="color:var(--red)"></i>Jogadores disponíveis para troca</div>
-                  <div style="font-size:12px;color:var(--text-2);margin-top:2px">Somente atletas marcados como disponíveis na sua liga atual.</div>
-                </div>
-                <span class="tag gray" id="countBadge">0 jogadores</span>
-              </div>
-              <div class="panel-card-body">
-                <div class="d-flex flex-column flex-md-row gap-2 mb-3">
-                  <input type="text" class="form-control" id="searchInput" placeholder="Procurar por nome...">
-                  <select class="form-select" id="sortSelect" style="min-width:180px">
-                    <option value="ovr_desc">OVR (Maior primeiro)</option>
-                    <option value="ovr_asc">OVR (Menor primeiro)</option>
-                    <option value="name_asc">Nome (A-Z)</option>
-                    <option value="name_desc">Nome (Z-A)</option>
-                    <option value="age_asc">Idade (Menor primeiro)</option>
-                    <option value="age_desc">Idade (Maior primeiro)</option>
-                    <option value="position_asc">Posição (A-Z)</option>
-                    <option value="position_desc">Posição (Z-A)</option>
-                    <option value="team_asc">Time (A-Z)</option>
-                    <option value="team_desc">Time (Z-A)</option>
-                  </select>
-                </div>
-                <div id="playersList"></div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <?php endif; ?>
@@ -834,8 +760,6 @@ try {
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/trades.js?v=20260512"></script>
-  <script src="/js/trade-list.js?v=20260130"></script>
-  <script src="/js/rumors.js?v=20260130"></script>
   <script src="/js/pwa.js?v=20260130"></script>
   <script>
     // Mobile sidebar

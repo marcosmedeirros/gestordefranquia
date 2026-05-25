@@ -217,6 +217,39 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     ];
 
     postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
+
+    // N8N webhook — dispara apenas em trade_accepted com jogador 80+
+    if ($event === 'trade_accepted') {
+        $allPlayers = array_merge($fromPlayers, $toPlayers);
+        $has80 = false;
+        foreach ($allPlayers as $p) {
+            if ((int)($p['ovr'] ?? 0) >= 80) { $has80 = true; break; }
+        }
+        if ($has80) {
+            try {
+                $stmtWh = $pdo->prepare('SELECT n8n_webhook_url FROM league_settings WHERE league = ?');
+                $stmtWh->execute([$trade['league']]);
+                $n8nUrl = $stmtWh->fetchColumn() ?: null;
+                if ($n8nUrl) {
+                    $n8nPayload = [
+                        'event'       => 'trade_accepted',
+                        'league'      => $trade['league'],
+                        'trade_id'    => (int)$trade['id'],
+                        'from_team'   => $payload['from_team']['name'] ?? null,
+                        'to_team'     => $payload['to_team']['name'] ?? null,
+                        'players_from'=> array_map(fn($p) => ['name' => $p['name'], 'ovr' => (int)($p['ovr'] ?? 0), 'position' => $p['position'] ?? null], $fromPlayers),
+                        'players_to'  => array_map(fn($p) => ['name' => $p['name'], 'ovr' => (int)($p['ovr'] ?? 0), 'position' => $p['position'] ?? null], $toPlayers),
+                        'picks_from'  => $fromPicks,
+                        'picks_to'    => $toPicks,
+                        'timestamp'   => date('c'),
+                    ];
+                    postTradeWebhook($n8nUrl, $n8nPayload, 'n8n-trade-webhook', $tradeId);
+                }
+            } catch (\Throwable $e) {
+                error_log('[n8n-trade-webhook] error: ' . $e->getMessage());
+            }
+        }
+    }
 }
 
 function sendTradePush(PDO $pdo, int $tradeId, string $event): void
@@ -398,6 +431,40 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
     ];
 
     postTradeWebhook($webhookUrl, $payload, 'multi-trade-webhook', $tradeId);
+
+    // N8N webhook — dispara apenas em trade_accepted com jogador 80+
+    if ($event === 'trade_accepted') {
+        $allPlayers = array_filter(array_column($payloadItems, 'player'));
+        $has80 = false;
+        foreach ($allPlayers as $p) {
+            if ((int)($p['ovr'] ?? 0) >= 80) { $has80 = true; break; }
+        }
+        if ($has80) {
+            try {
+                $stmtWh = $pdo->prepare('SELECT n8n_webhook_url FROM league_settings WHERE league = ?');
+                $stmtWh->execute([$trade['league']]);
+                $n8nUrl = $stmtWh->fetchColumn() ?: null;
+                if ($n8nUrl) {
+                    $n8nPayload = [
+                        'event'    => 'trade_accepted',
+                        'league'   => $trade['league'],
+                        'trade_id' => (int)$trade['id'],
+                        'teams'    => $payloadTeams,
+                        'items'    => array_map(fn($it) => [
+                            'from_team_id' => $it['from_team_id'],
+                            'to_team_id'   => $it['to_team_id'],
+                            'player'       => $it['player'] ? ['name' => $it['player']['name'], 'ovr' => (int)($it['player']['ovr'] ?? 0), 'position' => $it['player']['position'] ?? null] : null,
+                            'pick'         => $it['pick'],
+                        ], $payloadItems),
+                        'timestamp' => date('c'),
+                    ];
+                    postTradeWebhook($n8nUrl, $n8nPayload, 'n8n-multi-trade-webhook', $tradeId);
+                }
+            } catch (\Throwable $e) {
+                error_log('[n8n-multi-trade-webhook] error: ' . $e->getMessage());
+            }
+        }
+    }
 }
 
 // Snapshot dos jogadores nos itens da trade, para manter histórico mesmo se o jogador for dispensado

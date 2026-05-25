@@ -1896,6 +1896,11 @@ async function showConfig() {
       <input type="number" class="form-control" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" />
     </div>
   </div>
+  <div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px"><i class="bi bi-webhook me-1"></i>Webhook N8N (trades 80+)</div>
+    <input type="text" class="form-control" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url" />
+    <div style="font-size:11px;color:var(--text-3);margin-top:4px">Disparado automaticamente quando uma trade com jogador OVR 80+ for aceita nesta liga.</div>
+  </div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Status da Liga</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">
@@ -1965,7 +1970,7 @@ async function saveLeagueSettings() {
   inputs.forEach(inp => {
     const lg = inp.dataset.league;
     groups[lg] = groups[lg] || { league: lg };
-    const value = inp.dataset.field === 'edital' ? inp.value : parseInt(inp.value);
+    const value = (inp.dataset.field === 'edital' || inp.dataset.field === 'n8n_webhook_url') ? inp.value : parseInt(inp.value);
     groups[lg][inp.dataset.field] = value;
   });
   
@@ -2017,6 +2022,10 @@ async function _loadLeagueConfigInline(league) {
           <div style="font-size:11px;font-weight:600;color:var(--text-2)">Máx. Trocas/Temp.</div>
           <input type="number" class="form-control form-control-sm" style="width:90px" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades">
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-webhook me-1"></i>Webhook N8N</div>
+          <input type="text" class="form-control form-control-sm" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url">
+        </div>
         <div style="background:var(--red-soft);border:1px solid var(--border-red);border-radius:10px;padding:7px 12px;text-align:center;min-width:80px">
           <div style="font-size:13px;font-weight:700;color:var(--red)">${lg.cap_min}–${lg.cap_max}</div>
           <div style="font-size:10px;color:var(--text-3)">CAP Range</div>
@@ -2055,7 +2064,7 @@ async function _loadLeagueConfigInline(league) {
     document.getElementById('saveConfigInlineBtn')?.addEventListener('click', async () => {
       const inputs = body.querySelectorAll('input[data-league]');
       const payload = { league };
-      inputs.forEach(inp => { payload[inp.dataset.field] = parseInt(inp.value); });
+      inputs.forEach(inp => { payload[inp.dataset.field] = inp.type === 'number' ? parseInt(inp.value) : inp.value; });
       const btn = document.getElementById('saveConfigInlineBtn');
       if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       try {

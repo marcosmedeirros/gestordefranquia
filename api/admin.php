@@ -22,6 +22,11 @@ if (!$isGlobalAdminApi && empty($apiAdminLeagues)) {
     exit;
 }
 
+// Ensure n8n_webhook_url column exists
+try {
+    $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS n8n_webhook_url TEXT NULL");
+} catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
+
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
@@ -391,9 +396,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => ''];
 
                 $stmtTeams = $pdo->prepare('SELECT COUNT(*) as total FROM teams WHERE league = ?');
                 $stmtTeams->execute([$league]);
@@ -408,6 +413,7 @@ if ($method === 'GET') {
                     'edital_file' => $cfg['edital'],
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
                     'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
+                    'n8n_webhook_url' => $cfg['n8n_webhook_url'] ?? '',
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -1147,6 +1153,7 @@ if ($method === 'PUT') {
             $edital = $data['edital'] ?? null;
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
+            $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -1180,6 +1187,10 @@ if ($method === 'PUT') {
             if ($fa_enabled !== null) {
                 $updates[] = 'fa_enabled = ?';
                 $params[] = $fa_enabled;
+            }
+            if ($n8n_webhook_url !== null) {
+                $updates[] = 'n8n_webhook_url = ?';
+                $params[] = $n8n_webhook_url;
             }
 
             if (empty($updates)) {

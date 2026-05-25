@@ -258,10 +258,26 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             <div>
                 <div class="page-eyebrow">Liga &mdash; <?= $currentSeasonYear ?></div>
                 <h1 class="page-title">Mercado de Trades</h1>
-                <p class="page-sub">Jogadores disponíveis para troca</p>
+                <p class="page-sub">Jogadores disponíveis e feed da liga</p>
             </div>
         </div>
 
+        <!-- Tabs nav -->
+        <ul class="nav-tabs-mkt" id="mktTabNav" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px;list-style:none;padding:0">
+            <li>
+                <button class="mkt-tab active" data-tab="jogadores" style="background:none;border:none;border-bottom:2px solid var(--red);color:var(--red);font-weight:600;font-size:13px;padding:10px 18px;cursor:pointer;font-family:var(--font)">
+                    <i class="bi bi-people-fill me-1"></i>Jogadores
+                </button>
+            </li>
+            <li>
+                <button class="mkt-tab" data-tab="feed" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--text-2);font-weight:500;font-size:13px;padding:10px 18px;cursor:pointer;font-family:var(--font)">
+                    <i class="bi bi-chat-text-fill me-1"></i>Feed
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab: Jogadores -->
+        <div id="tab-jogadores">
         <div class="panel">
             <div class="filter-bar">
                 <div class="field">
@@ -304,6 +320,39 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             <div id="market-grid" class="market-grid" style="display:none"></div>
             <div id="market-list" style="display:none"></div>
             <div id="market-empty">Nenhum jogador disponível para trade no momento.</div>
+        </div>
+        </div>
+
+        <!-- Tab: Feed -->
+        <div id="tab-feed" style="display:none">
+        <div class="panel">
+            <div class="panel-header" style="margin-bottom:16px">
+                <span class="panel-title"><i class="bi bi-chat-text-fill me-2" style="color:var(--red)"></i>Feed da Liga</span>
+                <span id="feed-count" style="font-size:12px;color:var(--text-2)"></span>
+            </div>
+
+            <!-- Post composer -->
+            <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:20px">
+                <textarea id="feedComposer" rows="2" placeholder="Compartilhe um rumor, procure jogadores ou escreva para a liga…"
+                    style="width:100%;background:transparent;border:none;color:var(--text);font-family:var(--font);font-size:14px;resize:vertical;outline:none;min-height:60px"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+                    <span id="feedCharCount" style="font-size:11px;color:var(--text-3)">0 / 500</span>
+                    <button class="btn-red" id="feedPostBtn" style="padding:7px 18px;font-size:13px">
+                        <i class="bi bi-send-fill me-1"></i>Publicar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Posts list -->
+            <div id="feed-loading" style="text-align:center;padding:32px">
+                <div class="spinner-border" role="status" style="width:1.5rem;height:1.5rem;color:var(--red)"></div>
+            </div>
+            <div id="feed-list"></div>
+            <div id="feed-empty" style="display:none;text-align:center;padding:32px;color:var(--text-2);font-size:13px">
+                <i class="bi bi-chat-dots" style="font-size:28px;display:block;margin-bottom:8px;opacity:.4"></i>
+                Nenhuma mensagem ainda. Seja o primeiro a postar!
+            </div>
+        </div>
         </div>
     </main>
 </div>
@@ -478,6 +527,156 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
 
     let _resizeTimer;
     window.addEventListener('resize', () => { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(load, 400); });
+
+    /* ── Tabs ──────────────────────────── */
+    const MY_USER_ID = <?= (int)$user['id'] ?>;
+    const IS_ADMIN   = <?= $is_admin ? 'true' : 'false' ?>;
+    let feedLoaded = false;
+
+    document.querySelectorAll('.mkt-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mkt-tab').forEach(b => {
+                b.style.borderBottomColor = 'transparent';
+                b.style.color = 'var(--text-2)';
+                b.style.fontWeight = '500';
+            });
+            btn.style.borderBottomColor = 'var(--red)';
+            btn.style.color = 'var(--red)';
+            btn.style.fontWeight = '600';
+
+            const tab = btn.dataset.tab;
+            document.getElementById('tab-jogadores').style.display = tab === 'jogadores' ? '' : 'none';
+            document.getElementById('tab-feed').style.display      = tab === 'feed'      ? '' : 'none';
+
+            if (tab === 'feed' && !feedLoaded) { feedLoaded = true; loadFeed(); }
+        });
+    });
+
+    /* ── Feed ──────────────────────────── */
+    const composer  = document.getElementById('feedComposer');
+    const charCount = document.getElementById('feedCharCount');
+    composer?.addEventListener('input', () => {
+        const n = composer.value.length;
+        charCount.textContent = `${n} / 500`;
+        charCount.style.color = n > 480 ? 'var(--red)' : 'var(--text-3)';
+    });
+
+    document.getElementById('feedPostBtn')?.addEventListener('click', async () => {
+        const content = composer.value.trim();
+        if (!content) return;
+        const btn = document.getElementById('feedPostBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+        try {
+            const res  = await fetch('/api/market.php?action=feed_post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'Erro');
+            composer.value = '';
+            charCount.textContent = '0 / 500';
+            if (data.post) prependFeedPost(data.post);
+            document.getElementById('feed-empty').style.display = 'none';
+            const countEl = document.getElementById('feed-count');
+            if (countEl) {
+                const cur = parseInt(countEl.textContent) || 0;
+                countEl.textContent = `${cur + 1} mensagens`;
+            }
+        } catch (e) { alert(e.message || 'Erro ao publicar'); }
+        finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Publicar'; }
+    });
+
+    function getUserPhoto(url) {
+        return url && url.trim() ? url.trim() : null;
+    }
+
+    function formatDate(str) {
+        if (!str) return '';
+        const d = new Date(str.replace(' ', 'T'));
+        if (isNaN(d)) return str;
+        const now = new Date();
+        const diff = Math.floor((now - d) / 1000);
+        if (diff < 60)    return 'agora mesmo';
+        if (diff < 3600)  return `${Math.floor(diff/60)}min atrás`;
+        if (diff < 86400) return `${Math.floor(diff/3600)}h atrás`;
+        if (diff < 604800) return `${Math.floor(diff/86400)}d atrás`;
+        return d.toLocaleDateString('pt-BR');
+    }
+
+    function renderFeedPost(post) {
+        const teamLabel = post.team_city || post.team_name
+            ? `${post.team_city || ''} ${post.team_name || ''}`.trim()
+            : null;
+        const photoUrl = getUserPhoto(post.user_photo);
+        const avatarHtml = photoUrl
+            ? `<img src="${photoUrl}" alt="" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+            : '';
+        const initials = (post.user_name || 'U').charAt(0).toUpperCase();
+        const canDelete = IS_ADMIN || (int(post.user_id) === MY_USER_ID);
+        return `<div class="feed-post" id="fpost-${post.id}" style="display:flex;gap:10px;padding:14px 0;border-bottom:1px solid var(--border)">
+            <div style="flex-shrink:0;position:relative">
+                ${avatarHtml}
+                <div style="width:38px;height:38px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border-md);display:${photoUrl ? 'none' : 'flex'};align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--red)">${initials}</div>
+            </div>
+            <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                    <span style="font-weight:600;font-size:13px;color:var(--text)">${post.user_name || 'Usuário'}</span>
+                    ${teamLabel ? `<span style="font-size:11px;color:var(--red);font-weight:600">${teamLabel}</span>` : ''}
+                    <span style="font-size:11px;color:var(--text-3)">${formatDate(post.created_at)}</span>
+                </div>
+                <div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escHtml(post.content)}</div>
+            </div>
+            ${canDelete ? `<button onclick="deleteFeedPost(${post.id})" title="Apagar" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-3);font-size:14px;padding:4px 6px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-3)'"><i class="bi bi-trash"></i></button>` : ''}
+        </div>`;
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function prependFeedPost(post) {
+        const list = document.getElementById('feed-list');
+        list.insertAdjacentHTML('afterbegin', renderFeedPost(post));
+    }
+
+    async function loadFeed() {
+        const loading = document.getElementById('feed-loading');
+        const list    = document.getElementById('feed-list');
+        const empty   = document.getElementById('feed-empty');
+        loading.style.display = '';
+        list.innerHTML = '';
+        empty.style.display = 'none';
+        try {
+            const res  = await fetch('/api/market.php?action=feed_posts&limit=50');
+            const data = await res.json();
+            const posts = data.posts || [];
+            loading.style.display = 'none';
+            const countEl = document.getElementById('feed-count');
+            if (countEl) countEl.textContent = posts.length ? `${posts.length} mensagens` : '';
+            if (!posts.length) { empty.style.display = ''; return; }
+            list.innerHTML = posts.map(renderFeedPost).join('');
+        } catch {
+            loading.style.display = 'none';
+            empty.style.display = '';
+            empty.textContent = 'Erro ao carregar o feed.';
+        }
+    }
+
+    window.deleteFeedPost = async function(postId) {
+        if (!confirm('Apagar esta mensagem?')) return;
+        try {
+            const res  = await fetch('/api/market.php?action=feed_delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId })
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'Erro');
+            document.getElementById(`fpost-${postId}`)?.remove();
+        } catch (e) { alert(e.message || 'Erro ao apagar'); }
+    };
 
     load();
 
