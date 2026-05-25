@@ -479,6 +479,12 @@ async function carregarMinhasPropostasNovaFA() {
             return;
         }
 
+        const priorityBadge = p => {
+            const cfg = { 1: ['#22c55e','Alta'], 2: ['#f59e0b','Média'], 3: ['#94a3b8','Baixa'] };
+            const [c, l] = cfg[p] || cfg[2];
+            return `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${c}18;border:1px solid ${c}44;color:${c};white-space:nowrap">P${p} ${l}</span>`;
+        };
+
         let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
         html += '<thead><tr><th>Jogador</th><th>OVR</th><th>Proposta</th><th>Status</th><th>Temporada</th><th>Acoes</th></tr></thead><tbody>';
         requests.forEach(item => {
@@ -490,13 +496,13 @@ async function carregarMinhasPropostasNovaFA() {
             html += `<tr>
                 <td><strong class="text-orange">${item.player_name}</strong><div class="small text-light-gray">${item.position}${item.secondary_position ? '/' + item.secondary_position : ''}</div></td>
                 <td>${item.ovr ?? '-'}</td>
-                <td>${item.amount ?? 0} moedas</td>
+                <td>${item.amount ?? 0} moedas ${priorityBadge(item.priority ?? 2)}</td>
                 <td>${statusLabel}</td>
                 <td>${season}</td>
                 <td>
                     ${isPending ? `
                         <div class=\"d-flex gap-2 flex-wrap\">
-                            <button class=\"btn btn-sm btn-outline-light\" onclick=\"editarPropostaNovaFA(${item.offer_id}, ${item.amount})\">
+                            <button class=\"btn btn-sm btn-outline-light\" onclick=\"editarPropostaNovaFA(${item.offer_id}, ${item.amount}, ${item.priority ?? 2})\">
                                 <i class=\"bi bi-pencil\"></i>
                             </button>
                             <button class=\"btn btn-sm btn-outline-danger\" onclick=\"excluirPropostaNovaFA(${item.offer_id})\">
@@ -728,33 +734,45 @@ window.recusarSolicitacaoNovaFA = async function(requestId) {
     }
 };
 
-window.editarPropostaNovaFA = async function(offerId, currentAmount) {
-    const novoValor = prompt('Atualize o valor da proposta (moedas):', currentAmount);
-    if (novoValor === null) return;
-    const amount = parseInt(novoValor, 10);
-    if (!Number.isFinite(amount) || amount <= 0) {
-        alert('Valor invalido.');
-        return;
-    }
+window.editarPropostaNovaFA = function(offerId, currentAmount, currentPriority) {
+    const modalEl = document.getElementById('faEditOfferModal');
+    if (!modalEl) return;
 
-    try {
-        const response = await fetch('api/free-agency.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'update_request_offer', offer_id: Number(offerId), amount })
-        });
-        const data = await response.json();
-        if (!data.success) {
-            alert(data.error || 'Erro ao atualizar proposta.');
+    document.getElementById('editOfferModalId').value = offerId;
+    document.getElementById('editOfferAmount').value = currentAmount;
+    document.getElementById('editOfferPriority').value = String(currentPriority || 2);
+
+    const saveBtn = document.getElementById('editOfferSaveBtn');
+    const newBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newBtn, saveBtn);
+
+    newBtn.addEventListener('click', async function() {
+        const amount = parseInt(document.getElementById('editOfferAmount').value, 10);
+        const priority = parseInt(document.getElementById('editOfferPriority').value, 10) || 2;
+        if (!Number.isFinite(amount) || amount <= 0) {
+            alert('Valor inválido.');
             return;
         }
-        carregarMinhasPropostasNovaFA();
-        if (isAdmin) {
-            carregarSolicitacoesNovaFA();
+        try {
+            const response = await fetch('api/free-agency.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'update_request_offer', offer_id: Number(offerId), amount, priority })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                alert(data.error || 'Erro ao atualizar proposta.');
+                return;
+            }
+            bootstrap.Modal.getInstance(modalEl)?.hide();
+            carregarMinhasPropostasNovaFA();
+            if (isAdmin) carregarSolicitacoesNovaFA();
+        } catch (error) {
+            alert('Erro ao atualizar proposta.');
         }
-    } catch (error) {
-        alert('Erro ao atualizar proposta.');
-    }
+    });
+
+    new bootstrap.Modal(modalEl).show();
 };
 
 window.excluirPropostaNovaFA = async function(offerId) {

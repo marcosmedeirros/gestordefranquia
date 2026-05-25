@@ -960,7 +960,7 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
 
     $stmt = $pdo->prepare('
      SELECT r.id, r.player_name, r.position, r.secondary_position, r.ovr, r.season_year, r.status AS request_status,
-         o.id AS offer_id, o.amount, o.status AS offer_status,
+         o.id AS offer_id, o.amount, o.priority, o.status AS offer_status,
          wt.city AS winner_city, wt.name AS winner_name
         FROM fa_requests r
         JOIN fa_request_offers o ON o.request_id = r.id
@@ -985,6 +985,7 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
             'ovr' => $row['ovr'],
             'season_year' => $row['season_year'],
             'amount' => (int)$row['amount'],
+            'priority' => (int)($row['priority'] ?? 2),
             'status' => $status,
             'winner_team' => trim(($row['winner_city'] ?? '') . ' ' . ($row['winner_name'] ?? ''))
         ];
@@ -1303,8 +1304,9 @@ function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): 
         jsonError('Voce precisa ter um time');
     }
 
-    $offerId = (int)($body['offer_id'] ?? 0);
-    $amount = (int)($body['amount'] ?? 0);
+    $offerId  = (int)($body['offer_id'] ?? 0);
+    $amount   = (int)($body['amount'] ?? 0);
+    $priority = max(1, min(3, (int)($body['priority'] ?? 2)));
     if (!$offerId) {
         jsonError('Proposta invalida');
     }
@@ -1321,8 +1323,8 @@ function updateNewFaOffer(PDO $pdo, array $body, ?int $teamId, int $teamCoins): 
         jsonError('Proposta nao encontrada');
     }
 
-    $stmtUpdate = $pdo->prepare('UPDATE fa_request_offers SET amount = ? WHERE id = ?');
-    $stmtUpdate->execute([$amount, $offerId]);
+    $stmtUpdate = $pdo->prepare('UPDATE fa_request_offers SET amount = ?, priority = ? WHERE id = ?');
+    $stmtUpdate->execute([$amount, $priority, $offerId]);
     jsonSuccess();
 }
 

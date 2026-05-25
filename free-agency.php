@@ -999,6 +999,39 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     </div>
 </div>
 
+<!-- Modal: Editar Proposta -->
+<div class="modal fade" id="faEditOfferModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-1"></i> Editar Proposta</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+                <input type="hidden" id="editOfferModalId">
+                <div class="field">
+                    <label for="editOfferAmount">Moedas</label>
+                    <input type="number" id="editOfferAmount" min="1">
+                </div>
+                <div class="field">
+                    <label for="editOfferPriority">Prioridade</label>
+                    <select id="editOfferPriority">
+                        <option value="1">🟢 Alta</option>
+                        <option value="2">🟡 Média</option>
+                        <option value="3">⚪ Baixa</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer" style="gap:10px;">
+                <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn-red" id="editOfferSaveBtn">
+                    <i class="bi bi-check-lg"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Quem está ganhando -->
 <div class="modal fade" id="faApprovedModal" tabindex="-1" style="z-index:2000;">
     <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
