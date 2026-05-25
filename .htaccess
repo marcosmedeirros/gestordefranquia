@@ -59,6 +59,9 @@ AddDefaultCharset UTF-8
 
     # Páginas públicas de times: /times/{slug}
     RewriteRule ^times/([^/]+)/?$ /times/index.php?slug=$1 [L,QSA]
+
+    # Webhook público de trades
+    RewriteRule ^webhook$ /webhook.php [L,QSA]
 </IfModule>
 
 # Proteção de arquivos
