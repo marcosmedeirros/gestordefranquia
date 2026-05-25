@@ -308,6 +308,10 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
                     <label>OVR mín.</label>
                     <input type="number" id="mktOvrMin" min="40" max="99" placeholder="—">
                 </div>
+                <div class="field" style="max-width:90px">
+                    <label>Idade máx.</label>
+                    <input type="number" id="mktAgeMax" min="18" max="45" placeholder="—">
+                </div>
             </div>
 
             <div id="market-count"></div>
@@ -438,7 +442,6 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
             <div class="mc-stats">
                 <div class="mc-stat"><span class="mc-stat-val">${p.position || '—'}</span><span class="mc-stat-label">POS</span></div>
                 <div class="mc-stat"><span class="mc-stat-val">${p.age || '—'}</span><span class="mc-stat-label">IDADE</span></div>
-                <div class="mc-stat"><span class="mc-stat-val">${p.badges_count ?? 0}</span><span class="mc-stat-label">BADGES</span></div>
                 ${p.secondary_position ? `<div class="mc-stat"><span class="mc-stat-val">${p.secondary_position}</span><span class="mc-stat-label">SEC</span></div>` : ''}
             </div>
             <div class="mc-footer">
@@ -484,11 +487,14 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
         document.getElementById('market-empty').style.display = 'none';
         document.getElementById('market-count').textContent   = '';
 
+        const ageMax  = document.getElementById('mktAgeMax').value;
+
         const params = new URLSearchParams({ action: 'list_players', available_for_trade: '1', per_page: '200' });
         if (search)  params.set('query', search);
         if (pos)     params.set('position', pos);
         if (teamId)  params.set('team_id', teamId);
         if (ovrMin)  params.set('ovr_min', ovrMin);
+        if (ageMax)  params.set('age_max', ageMax);
 
         try {
             const res  = await fetch(`/api/team.php?${params}`);
@@ -524,6 +530,7 @@ $is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
     document.getElementById('mktPosition').addEventListener('change', load);
     document.getElementById('mktTeam').addEventListener('change', load);
     document.getElementById('mktOvrMin').addEventListener('input', scheduleLoad);
+    document.getElementById('mktAgeMax').addEventListener('input', scheduleLoad);
 
     let _resizeTimer;
     window.addEventListener('resize', () => { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(load, 400); });
