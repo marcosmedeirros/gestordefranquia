@@ -275,6 +275,7 @@ try {
             <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
             <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
             <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
             <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
             <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
@@ -282,6 +283,7 @@ try {
             <div class="sb-section">Liga</div>
             <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
             <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
             <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>

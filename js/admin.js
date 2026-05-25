@@ -661,6 +661,14 @@ async function showLeague(league) {
             <span style="color:var(--text-2)"><i class="bi bi-arrow-left-right" style="color:#3b82f6"></i> ${parseInt(t.trades_used||0)}</span>
             <span style="color:var(--text-2)"><i class="bi bi-person-dash" style="color:#22c55e"></i> ${parseInt(t.waivers_used||0)}</span>
           </div>
+          <div class="d-flex align-items-center justify-content-between mt-2" style="font-size:11px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px" onclick="event.stopPropagation()">
+            <span style="color:var(--text-2)"><i class="bi bi-exclamation-triangle-fill" style="color:#f43f5e"></i> Avisos</span>
+            <div class="d-flex align-items-center gap-1">
+              <button class="btn-ghost" style="padding:1px 7px;font-size:12px;line-height:1.4" onclick="event.stopPropagation();_adminCardAvisosAdj(${t.id},'${escapeHtml(league)}',-1,this)">−</button>
+              <span id="avisos-count-${t.id}" style="font-weight:700;min-width:18px;text-align:center;color:${parseInt(t.avisos_count||0)>0?'#f43f5e':'var(--text-2)'}">${parseInt(t.avisos_count||0)}</span>
+              <button class="btn-ghost" style="padding:1px 7px;font-size:12px;line-height:1.4" onclick="event.stopPropagation();_adminCardAvisosAdj(${t.id},'${escapeHtml(league)}',1,this)">+</button>
+            </div>
+          </div>
         </div>
       </div>`).join('');
 
@@ -5222,6 +5230,29 @@ function _serasaEditAvisos(teamId, league, current) {
       onclick="showSerasaAdmin()"><i class="bi bi-x-lg"></i></button>`;
 
   document.getElementById(`_serasaInput_${teamId}`)?.focus();
+}
+
+async function _adminCardAvisosAdj(teamId, league, delta, btn) {
+  const spanEl = document.getElementById(`avisos-count-${teamId}`);
+  const current = parseInt(spanEl?.textContent ?? '0', 10);
+  const newCount = Math.max(0, current + delta);
+  if (newCount === current) return;
+  btn.disabled = true;
+  try {
+    const res = await api('admin.php?action=set_team_avisos', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, league, count: newCount })
+    });
+    const n = res.count;
+    if (spanEl) {
+      spanEl.textContent = n;
+      spanEl.style.color = n > 0 ? '#f43f5e' : 'var(--text-2)';
+    }
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao atualizar avisos');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function _serasaSaveAvisos(teamId, league) {

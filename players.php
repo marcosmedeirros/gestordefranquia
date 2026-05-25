@@ -502,6 +502,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <a href="/players.php" class="active"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
             <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
             <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
             <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
             <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
@@ -509,6 +510,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <div class="sb-section">Liga</div>
             <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
             <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
             <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
@@ -895,14 +897,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
 	}
 
+	function renderTradeBadge(p) {
+		if (!Number(p.available_for_trade)) return '';
+		return `<a href="/mercado.php" title="Disponível para trade" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid rgba(252,0,37,.35);background:rgba(252,0,37,.12);color:var(--red);margin-left:4px;text-decoration:none;white-space:nowrap;"><i class="bi bi-arrow-left-right"></i> Trade</a>`;
+	}
+
 	function renderPlayerListItem(p, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '');
 		const tagBadge = renderPlayerTagBadge(p);
+		const tradeBadge = renderTradeBadge(p);
 		return `
 			<div class="mpl-item">
 				<div class="mpl-main">
-					<div class="mpl-name">${p.name}${franchiseBadge}${tagBadge}</div>
+					<div class="mpl-name">${p.name}${franchiseBadge}${tagBadge}${tradeBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
 				</div>
 				<div class="mpl-right">
@@ -1009,12 +1017,13 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : (isLoyalPlayer(p) ? ' class="loyal-player-row"' : '');
 						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '');
 						const tagBadgeRow = renderPlayerTagBadge(p);
+						const tradeBadgeRow = renderTradeBadge(p);
 						tableBody.innerHTML += `
 							<tr${franchiseRow}>
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
-										<strong>${p.name}</strong>${franchiseBadgeRow}${tagBadgeRow}
+										<strong>${p.name}</strong>${franchiseBadgeRow}${tagBadgeRow}${tradeBadgeRow}
 									</div>
 								</td>
 								<td>

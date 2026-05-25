@@ -147,22 +147,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    // ── Calcular ano corrente ANTES da query para filtrar no SQL ──────────
+    $stmtTeam = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtTeam->execute([$teamId]);
+    $league = $stmtTeam->fetchColumn() ?: null;
+
+    $currentYear = (int)date('Y');
+    $foundCurrentYear = false;
+    try {
+        if ($league) {
+            $stmtDraft = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE ds.league = ? AND ds.status IN ("setup", "in_progress") ORDER BY ds.created_at DESC LIMIT 1');
+            $stmtDraft->execute([$league]);
+            $draftYear = computeSeasonDisplayYear($stmtDraft->fetch(PDO::FETCH_ASSOC) ?: null);
+            if ($draftYear) {
+                $currentYear = $draftYear;
+                $foundCurrentYear = true;
+            }
+        }
+        if (!$foundCurrentYear && $league) {
+            $stmtLeague = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
+            $stmtLeague->execute([$league]);
+            $seasonYearRow = computeSeasonDisplayYear($stmtLeague->fetch(PDO::FETCH_ASSOC) ?: null);
+            if ($seasonYearRow) {
+                $currentYear = $seasonYearRow;
+                $foundCurrentYear = true;
+            }
+        }
+    } catch (Exception $e) {}
+    if ($currentYear <= 0) {
+        $currentYear = (int)date('Y');
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     $stmt = $pdo->prepare('
-        SELECT p.*, 
+        SELECT p.*,
                orig.city as original_team_city, orig.name as original_team_name,
                last_t.city as last_owner_city, last_t.name as last_owner_name
         FROM picks p
         LEFT JOIN teams orig ON p.original_team_id = orig.id
         LEFT JOIN teams last_t ON p.last_owner_team_id = last_t.id
         WHERE p.team_id = ?
+          AND (p.season_year IS NULL OR p.season_year >= ?)
         ORDER BY p.season_year, p.round
     ');
-    $stmt->execute([$teamId]);
+    $stmt->execute([$teamId, $currentYear]);
     $picks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $stmtTeam = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
-    $stmtTeam->execute([$teamId]);
-    $league = $stmtTeam->fetchColumn() ?: null;
 
     $seasonId = null;
     $seasonYear = null;
@@ -197,33 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 return applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear);
             }, $picks);
         }
-    }
-    
-    // Determinar o ano atual da liga (temporada ativa ou draft ativo)
-    $currentYear = (int)date('Y');
-    $foundCurrentYear = false;
-    try {
-        if ($league) {
-            $stmtDraft = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE ds.league = ? AND ds.status IN ("setup", "in_progress") ORDER BY ds.created_at DESC LIMIT 1');
-            $stmtDraft->execute([$league]);
-            $draftYear = computeSeasonDisplayYear($stmtDraft->fetch(PDO::FETCH_ASSOC) ?: null);
-            if ($draftYear) {
-                $currentYear = $draftYear;
-                $foundCurrentYear = true;
-            }
-        }
-        if (!$foundCurrentYear && $league) {
-            $stmtLeague = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
-            $stmtLeague->execute([$league]);
-            $seasonYearRow = computeSeasonDisplayYear($stmtLeague->fetch(PDO::FETCH_ASSOC) ?: null);
-            if ($seasonYearRow) {
-                $currentYear = $seasonYearRow;
-                $foundCurrentYear = true;
-            }
-        }
-    } catch (Exception $e) {}
-    if ($currentYear <= 0) {
-        $currentYear = (int)date('Y');
     }
 
     $picks = array_values(array_filter($picks, function($pick) use ($currentYear) {

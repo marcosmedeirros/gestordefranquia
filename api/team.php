@@ -102,6 +102,7 @@ if ($method === 'GET') {
     $ovrMax = isset($_GET['ovr_max']) ? (int)$_GET['ovr_max'] : null;
     $ageMin = isset($_GET['age_min']) ? (int)$_GET['age_min'] : null;
     $ageMax = isset($_GET['age_max']) ? (int)$_GET['age_max'] : null;
+        $availableForTrade = isset($_GET['available_for_trade']) && $_GET['available_for_trade'] === '1';
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = (int)($_GET['per_page'] ?? 50);
         if ($perPage <= 0) $perPage = 50;
@@ -109,6 +110,9 @@ if ($method === 'GET') {
         $offset = ($page - 1) * $perPage;
         $params = [$league];
         $where = 't.league = ?';
+        if ($availableForTrade) {
+            $where .= ' AND p.available_for_trade = 1';
+        }
         if ($query !== '') {
             $where .= ' AND p.name LIKE ?';
             $params[] = '%' . $query . '%';
@@ -154,6 +158,7 @@ if ($method === 'GET') {
                                 SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
                                     {$badgesSelect},
                   p.was_traded, p.drafted_by_team_id,
+                  COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
                   COALESCE(p.player_tag_color, NULL) as player_tag_color,
                   COALESCE(p.player_tag_copy, 0) as player_tag_copy,
@@ -171,6 +176,7 @@ if ($method === 'GET') {
                                 SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
                                     {$badgesSelect},
                   p.was_traded, p.drafted_by_team_id,
+                  COALESCE(p.available_for_trade, 0) as available_for_trade,
                   t.id as team_id, t.city, t.name as team_name, t.league,
                   u.phone as owner_phone
                 FROM players p
