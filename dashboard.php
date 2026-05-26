@@ -183,6 +183,7 @@ $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 $copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
 $teamPicksForCopy = array_values(array_filter($teamPicks, fn($p) => (int)($p['season_year'] ?? 0) > $copySeasonYear));
+$firstRoundPicksCount = count(array_filter($teamPicks, fn($p) => (int)($p['round'] ?? 0) === 1 && (int)($p['season_year'] ?? 0) >= $copySeasonYear));
 
 function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int {
     try {
@@ -992,15 +993,15 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 <a href="/picks.php" class="stat-c" style="--accent:var(--green);animation-delay:.15s">
                     <div class="stat-c-top">
                         <div>
-                            <div class="stat-c-label">Picks</div>
-                            <div class="stat-c-val"><?= count($teamPicks) ?></div>
+                            <div class="stat-c-label">Picks 1ª Rodada</div>
+                            <div class="stat-c-val"><?= $firstRoundPicksCount ?></div>
                         </div>
                         <div class="stat-c-icon" style="background:rgba(34,197,94,.10)">
                             <i class="bi bi-calendar-check-fill" style="color:var(--green)"></i>
                         </div>
                     </div>
-                    <div class="stat-c-note">Próximas escolhas</div>
-                    <div class="stat-c-bar"><div class="stat-c-fill" style="width:<?= min(100, count($teamPicks) * 10) ?>%"></div></div>
+                    <div class="stat-c-note"><?= $copySeasonYear ?> em diante</div>
+                    <div class="stat-c-bar"><div class="stat-c-fill" style="width:<?= min(100, $firstRoundPicksCount * 20) ?>%"></div></div>
                 </a>
 
                 <a href="/trades.php" class="stat-c" style="--accent:var(--blue);animation-delay:.2s">
