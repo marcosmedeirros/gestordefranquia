@@ -377,9 +377,7 @@ function _clearBracketCache(league, seasonId) {
 }
 
 // ========== REGISTRO DE PONTUAÇÃO — estado ==========
-let _regPtsRows = [];
 let _regPtsAllTeams = [];
-let _regPtsTeamPlayersCache = {};
 let _regPtsCacheKey = '';
 let _regPtsLeague = '';
 let _regPtsSeasonId = null;
@@ -389,15 +387,9 @@ function _regPtsSaveCache() {
     const form = document.getElementById('formRegistroPontuacao');
     const formState = {};
     if (form) {
-        form.querySelectorAll('[name]').forEach(el => {
-            if (!el.dataset.regRow) formState[el.name] = el.value;
-        });
+        form.querySelectorAll('[name]').forEach(el => { formState[el.name] = el.value; });
     }
-    localStorage.setItem(_regPtsCacheKey, JSON.stringify({
-        rows: _regPtsRows,
-        form: formState,
-        playersCache: _regPtsTeamPlayersCache
-    }));
+    localStorage.setItem(_regPtsCacheKey, JSON.stringify({ form: formState }));
 }
 
 function _regPtsLoadCache() {
@@ -406,100 +398,144 @@ function _regPtsLoadCache() {
     try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; }
 }
 
-function _regPtsRender() {
-    const container = document.getElementById('regPtsRowsContainer');
-    if (!container) return;
-    const usedTeamIds = new Set(_regPtsRows.map(r => r.teamId).filter(Boolean));
+// ─── Auto-cálculo de pontos ───────────────────────────────────────────────────
+function _calcAutoPoints(payload, allTeams, league) {
+    const pts = {};
+    allTeams.forEach(t => { pts[String(t.id)] = { seed: 0, playoff: 0, awards: 0, cup: 0 }; });
 
-    const teamOpts = (currentId) =>
-        '<option value="">Selecione o time...</option>' +
-        _regPtsAllTeams.map(t => {
-            const sid = String(t.id);
-            const sel = sid === String(currentId) ? 'selected' : '';
-            const dis = usedTeamIds.has(sid) && sid !== String(currentId) ? 'disabled style="color:#555"' : '';
-            return `<option value="${t.id}" ${sel} ${dis}>${escapeHtml(t.city + ' ' + t.name)}</option>`;
+    const seedPts = (rank) => rank === 1 ? 4 : rank <= 4 ? 3 : rank <= 8 ? 2 : 0;
+    (payload.standings_leste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
+    (payload.standings_oeste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
+
+    if (payload.champion)  { const k = String(payload.champion);  if (pts[k] !== undefined) pts[k].playoff = 11; }
+    if (payload.runner_up) { const k = String(payload.runner_up); if (pts[k] !== undefined) pts[k].playoff = 8;  }
+    (payload.conference_final_losses || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 6; });
+    (payload.second_round_losses     || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 3; });
+    (payload.first_round_losses      || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 1; });
+
+    ['mvp_team_id','dpoy_team_id','mip_team_id','sixth_man_team_id','roy_team_id'].forEach(key => {
+        const k = String(payload[key] || '');
+        if (k && pts[k] !== undefined) pts[k].awards += 1;
+    });
+    if (league === 'ELITE' && payload.nba_cup_team_id) {
+        const k = String(payload.nba_cup_team_id);
+        if (pts[k] !== undefined) pts[k].cup = 2;
+    }
+
+    Object.values(pts).forEach(p => { p.total = p.seed + p.playoff + p.awards + p.cup; });
+    return pts;
+}
+
+function _showReviewPanel(seasonId, league, payload) {
+    const container = document.getElementById('mainContainer');
+    const allTeams = _regPtsAllTeams;
+    const calcPts = _calcAutoPoints(payload, allTeams, league);
+
+    const teamLabel = (id) => {
+        const t = allTeams.find(t => String(t.id) === String(id));
+        return t ? escapeHtml(t.city + ' ' + t.name) : `Time #${id}`;
+    };
+    const inpStyle = 'width:70px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);font-size:14px;font-weight:700;text-align:center';
+
+    const rows = allTeams
+        .filter(t => (calcPts[String(t.id)]?.total || 0) > 0)
+        .sort((a, b) => (calcPts[String(b.id)]?.total || 0) - (calcPts[String(a.id)]?.total || 0))
+        .map(t => {
+            const id = String(t.id);
+            const p = calcPts[id];
+            const premLabel = p.awards + (p.cup ? `+${p.cup}` : '');
+            return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:10px 12px;font-weight:600">${teamLabel(id)}</td>
+                <td style="padding:10px 12px;text-align:center;color:var(--text-2)">${p.seed}</td>
+                <td style="padding:10px 12px;text-align:center;color:var(--text-2)">${p.playoff}</td>
+                <td style="padding:10px 12px;text-align:center;color:var(--text-2)">${premLabel || '0'}</td>
+                <td style="padding:10px 12px;text-align:center">
+                    <input type="number" class="review-pts-input" data-team-id="${id}"
+                           value="${p.total}" min="0" style="${inpStyle}">
+                </td>
+            </tr>`;
         }).join('');
 
-    const playerOpts = (teamId, currentPlayerId) => {
-        const players = teamId ? (_regPtsTeamPlayersCache[String(teamId)] || []) : [];
-        if (!players.length) return '<option value="">— selecione um time primeiro —</option>';
-        return '<option value="">Jogador (opcional)</option>' +
-            players.map(p => {
-                const sel = String(p.id) === String(currentPlayerId) ? 'selected' : '';
-                return `<option value="${p.id}" ${sel}>${escapeHtml(p.name)} · ${p.position || '—'} · OVR ${p.ovr || '—'}</option>`;
-            }).join('');
-    };
-
-    const inputStyle = 'background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px';
-
-    container.innerHTML = _regPtsRows.map((row, idx) => `
-        <div class="pun-card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:700;color:var(--text-3);min-width:22px;text-align:right">${idx + 1}°</span>
-            <select style="flex:2;min-width:140px;${inputStyle}" onchange="_regPtsOnTeamChange(${idx})">
-                ${teamOpts(row.teamId)}
-            </select>
-            <select style="flex:2;min-width:180px;${inputStyle}" onchange="_regPtsOnPlayerChange(${idx})">
-                ${playerOpts(row.teamId, row.playerId)}
-            </select>
-            <input type="number" value="${row.points || 0}" min="0" placeholder="Pts"
-                   style="width:80px;${inputStyle};text-align:center"
-                   onchange="_regPtsOnPointsChange(${idx}, this.value)">
-            <button type="button" class="btn-ghost" style="padding:6px 10px;color:#ef4444;border-color:rgba(239,68,68,.3)"
-                    onclick="_regPtsRemoveRow(${idx})">
-                <i class="bi bi-trash"></i>
+    container.innerHTML = `
+        <div class="mb-3">
+            <button class="btn-ghost" onclick="showHome()"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
+        </div>
+        <div class="panel mb-3">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title"><i class="bi bi-check-circle-fill" style="color:#22c55e"></i> Pontuação Registrada — Revisar</div>
+                    <div class="panel-sub">Pontos calculados automaticamente a partir das seções preenchidas. Ajuste se necessário.</div>
+                </div>
+                <span style="background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3);border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px">
+                    <i class="bi bi-check-lg me-1"></i>Salvo
+                </span>
+            </div>
+        </div>
+        <div class="panel mb-4">
+            <div class="panel-title mb-3"><i class="bi bi-table"></i> Pontos por Time</div>
+            <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:13px">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border)">
+                            <th style="padding:8px 12px;text-align:left;color:var(--text-2);font-weight:600">Time</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="1°=4pts, 2°-4°=3pts, 5°-8°=2pts">Classificação</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="Campeão=11, Vice=8, Conf.Final=6, Semis=3, 1ªFase=1">Playoffs</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600" title="MVP/DPOY/MIP/6°Homem/ROY=1pt${league === 'ELITE' ? ', NBA Cup=2pts' : ''}">Prêmios</th>
+                            <th style="padding:8px 12px;text-align:center;color:var(--text-2);font-weight:600">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-3)">Nenhum time com pontuação calculada.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:10px">
+                Classificação: 1°=4pts, 2°–4°=3pts, 5°–8°=2pts &nbsp;|&nbsp; Playoffs: Campeão=11, Vice=8, Final de Conf.=6, Semis=3, 1ª Fase=1 &nbsp;|&nbsp; Prêmios: 1pt cada${league === 'ELITE' ? ' &nbsp;|&nbsp; NBA Cup: 2pts' : ''}
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button id="btnSaveReview" class="btn btn-orange" onclick="_saveReviewedPoints(${seasonId}, '${league}')" style="border-radius:15px">
+                <i class="bi bi-save me-1"></i> Salvar Pontuação
             </button>
-        </div>`).join('') ||
-        '<div style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhum time adicionado. Clique em "+ Adicionar Time" para começar.</div>';
+            <button class="btn-ghost" onclick="showHome()">Fechar sem salvar</button>
+        </div>`;
 }
 
-async function _regPtsOnTeamChange(rowIdx) {
-    const container = document.getElementById('regPtsRowsContainer');
-    if (!container) return;
-    const cards = container.querySelectorAll('.pun-card');
-    const card = cards[rowIdx];
-    if (!card) return;
-    const teamSel = card.querySelector('select');
-    const teamId = teamSel?.value || '';
-    _regPtsRows[rowIdx].teamId = teamId;
-    _regPtsRows[rowIdx].playerId = '';
-    if (teamId && !_regPtsTeamPlayersCache[teamId]) {
+async function _saveReviewedPoints(seasonId, league) {
+    const inputs = document.querySelectorAll('.review-pts-input');
+    if (!inputs.length) return;
+
+    const btn = document.getElementById('btnSaveReview');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
+
+    try {
+        let currentPointsByTeam = {};
         try {
-            const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
-            _regPtsTeamPlayersCache[teamId] = data.team?.players || [];
-        } catch (_) {
-            _regPtsTeamPlayersCache[teamId] = [];
-        }
+            const current = await api(`history-points.php?action=get_teams_for_points&season_id=${seasonId}&league=${encodeURIComponent(league)}`);
+            (current.teams || []).forEach(t => {
+                currentPointsByTeam[String(t.id)] = parseInt(t.current_points || '0', 10) || 0;
+            });
+        } catch (_) {}
+
+        const team_points = Array.from(inputs)
+            .map(inp => ({
+                team_id: parseInt(inp.dataset.teamId, 10),
+                points: (currentPointsByTeam[inp.dataset.teamId] || 0) + (parseInt(inp.value, 10) || 0)
+            }))
+            .filter(r => r.team_id);
+
+        await api('history-points.php', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
+        });
+
+        showAlert('success', 'Pontuação salva com sucesso!');
+        setTimeout(() => showHome(), 1200);
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+        alert('Erro ao salvar pontuação: ' + (e?.error || 'Desconhecido'));
     }
-    _regPtsRender();
-    _regPtsSaveCache();
-}
-
-function _regPtsOnPlayerChange(rowIdx) {
-    const container = document.getElementById('regPtsRowsContainer');
-    if (!container) return;
-    const cards = container.querySelectorAll('.pun-card');
-    const card = cards[rowIdx];
-    if (!card) return;
-    const sels = card.querySelectorAll('select');
-    _regPtsRows[rowIdx].playerId = sels[1]?.value || '';
-    _regPtsSaveCache();
-}
-
-function _regPtsOnPointsChange(rowIdx, value) {
-    if (_regPtsRows[rowIdx]) _regPtsRows[rowIdx].points = parseInt(value, 10) || 0;
-    _regPtsSaveCache();
-}
-
-function _regPtsRemoveRow(rowIdx) {
-    _regPtsRows.splice(rowIdx, 1);
-    _regPtsRender();
-    _regPtsSaveCache();
-}
-
-function _regPtsAddRow() {
-    _regPtsRows.push({ teamId: '', playerId: '', points: 0 });
-    _regPtsRender();
-    _regPtsSaveCache();
 }
 
 // ========== AVANÇAR TEMPORADA ==========
@@ -702,17 +738,7 @@ async function showRegistroPontuacao(league) {
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
     const backFn = 'showHome()';
 
-    // Restore or init row state
-    _regPtsRows = [];
-    _regPtsTeamPlayersCache = {};
     const cached = _regPtsLoadCache();
-    if (cached) {
-        _regPtsRows = cached.rows || [];
-        _regPtsTeamPlayersCache = cached.playersCache || {};
-    }
-    if (!_regPtsRows.length) {
-        _regPtsRows = [{ teamId: '', playerId: '', points: 0 }];
-    }
 
     const lockedBadge = histRegistered
         ? `<span style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:999px;font-size:11px;font-weight:700;padding:4px 12px">
@@ -792,20 +818,6 @@ async function showRegistroPontuacao(league) {
                 </div>
             </div>
 
-            <!-- 4. Pontuação Individual dos Times -->
-            <div class="panel mb-3">
-                <div class="panel-header">
-                    <div class="panel-title"><i class="bi bi-star-fill" style="color:#f59e0b"></i> 4. Pontuação Individual dos Times</div>
-                    <button type="button" class="btn-ghost" onclick="_regPtsAddRow()">
-                        <i class="bi bi-plus-circle me-1"></i> Adicionar Time
-                    </button>
-                </div>
-                <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">
-                    Selecione o time, o jogador destaque e informe os pontos ganhos nesta temporada. Esses pontos serão somados ao total atual do time.
-                </div>
-                <div id="regPtsRowsContainer"></div>
-            </div>
-
             <!-- Submit -->
             <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <button type="submit" class="btn btn-orange" style="border-radius:15px">
@@ -815,9 +827,6 @@ async function showRegistroPontuacao(league) {
             </div>
         </form>`}
     `;
-
-    // Render dynamic rows
-    _regPtsRender();
 
     // Restore award/player-name fields from form cache
     if (cached?.form) {
@@ -877,15 +886,6 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         nba_cup_team_id: form.nba_cup_team_id?.value || null
     };
 
-    const teamPointsByTeam = {};
-    _regPtsRows
-        .filter(r => r.teamId)
-        .forEach(r => {
-            const teamId = String(r.teamId);
-            const pts = parseInt(r.points, 10) || 0;
-            teamPointsByTeam[teamId] = (teamPointsByTeam[teamId] || 0) + pts;
-        });
-
     const btn = form.querySelector('button[type="submit"]');
     const originalText = btn.innerHTML;
     btn.disabled = true;
@@ -896,35 +896,12 @@ async function saveRegistroPontuacao(event, seasonId, league) {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        const teamIds = Object.keys(teamPointsByTeam);
-        if (teamIds.length > 0) {
-            let currentPointsByTeam = {};
-            try {
-                const current = await api(`history-points.php?action=get_teams_for_points&season_id=${seasonId}&league=${encodeURIComponent(league)}`);
-                (current.teams || []).forEach(t => {
-                    currentPointsByTeam[String(t.id)] = parseInt(t.current_points || '0', 10) || 0;
-                });
-            } catch (_) {}
-
-            const team_points = teamIds.map(teamId => ({
-                team_id: parseInt(teamId, 10),
-                points: (currentPointsByTeam[teamId] || 0) + teamPointsByTeam[teamId]
-            }));
-
-            await api('history-points.php', {
-                method: 'POST',
-                body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
-            });
-        }
-        // Clear all caches for this session
+        // Clear caches
         if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
         _clearFormCache(league, seasonId);
         _clearBracketCache(league, seasonId);
-        _regPtsRows = [];
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        showAlert('success', 'Pontuação registrada com sucesso!');
-        setTimeout(() => showHome(), 1200);
+        // Mostrar painel de revisão com pontos auto-calculados
+        _showReviewPanel(seasonId, league, payload);
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -1765,9 +1742,5 @@ window.showImportCSVModal = showImportCSVModal;
 window.submitImportCSV = submitImportCSV;
 window.downloadCSVTemplate = downloadCSVTemplate;
 window.submitDraftPlayer = submitDraftPlayer;
-window._regPtsOnTeamChange = _regPtsOnTeamChange;
-window._regPtsOnPlayerChange = _regPtsOnPlayerChange;
-window._regPtsOnPointsChange = _regPtsOnPointsChange;
-window._regPtsRemoveRow = _regPtsRemoveRow;
-window._regPtsAddRow = _regPtsAddRow;
+window._saveReviewedPoints = _saveReviewedPoints;
 window._submitCriarSprint = _submitCriarSprint;

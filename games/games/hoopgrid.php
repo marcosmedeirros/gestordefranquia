@@ -18,9 +18,21 @@ try { $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_historico (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (PDOException $e) {}
 try { $pdo->exec("INSERT IGNORE INTO fba_game_controls (game_key, is_double) VALUES ('hoopgrid', 0)"); } catch (PDOException $e) {}
 
-// ── DADOS DOS JOGADORES ─────────────────────────────────────────────────────
-// t=times, c=país, a=conquistas, e=eras (90s/00s/10s/20s)
-$PLAYERS = [
+// Tabela de jogadores (DB-first; hardcode abaixo é só seed)
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_players (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(200) NOT NULL,
+    times TEXT NOT NULL DEFAULT '[]',
+    pais CHAR(5) NOT NULL DEFAULT 'USA',
+    premios TEXT NOT NULL DEFAULT '[]',
+    eras TEXT NOT NULL DEFAULT '[]',
+    nba_person_id INT NULL,
+    ativo TINYINT(1) DEFAULT 1,
+    UNIQUE KEY uk_nome (nome)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (PDOException $e) {}
+
+// ── SEED DATA (hardcoded, usado apenas se o banco estiver vazio) ─────────────
+$_SEED = [
     ['n'=>'LeBron James',           't'=>['CLE','MIA','LAL'],                   'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP'],        'e'=>['00s','10s','20s']],
     ['n'=>'Stephen Curry',          't'=>['GSW'],                               'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP'],        'e'=>['10s','20s']],
     ['n'=>'Kevin Durant',           't'=>['OKC','GSW','BKN','PHX'],            'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP','SCORING'],'e'=>['00s','10s','20s']],
@@ -171,12 +183,124 @@ $PLAYERS = [
     ['n'=>'Alperen Sengun',         't'=>['HOU'],                              'c'=>'TUR','a'=>[],                                         'e'=>['20s']],
     ['n'=>'Pascal Siakam',          't'=>['TOR','IND'],                        'c'=>'CAM','a'=>['CHAMPION','ALLSTAR'],                     'e'=>['10s','20s']],
     ['n'=>'Paolo Banchero',         't'=>['ORL'],                              'c'=>'USA','a'=>['ALLSTAR','ROY'],                          'e'=>['20s']],
+
+    // ── Lendas dos anos 80 ──────────────────────────────────────────────────
+    ['n'=>'Kareem Abdul-Jabbar',    't'=>['MIL','LAL'],                        'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP','SCORING'],'e'=>['80s','90s']],
+    ['n'=>'Julius Erving',          't'=>['PHI'],                              'c'=>'USA','a'=>['MVP','ALLSTAR','FINALS_MVP'],                    'e'=>['80s']],
+    ['n'=>'Moses Malone',           't'=>['HOU','PHI','WAS','ATL','MIL','SAS'],'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP'],        'e'=>['80s','90s']],
+    ['n'=>'James Worthy',           't'=>['LAL'],                              'c'=>'USA','a'=>['CHAMPION','ALLSTAR','FINALS_MVP'],               'e'=>['80s','90s']],
+    ['n'=>'Dominique Wilkins',      't'=>['ATL','LAC','BOS','PHX'],            'c'=>'USA','a'=>['ALLSTAR','SCORING'],                            'e'=>['80s','90s']],
+    ['n'=>'Kevin McHale',           't'=>['BOS'],                              'c'=>'USA','a'=>['CHAMPION','ALLSTAR','SIXTHMAN'],                 'e'=>['80s','90s']],
+    ['n'=>'Robert Parish',          't'=>['BOS','CHI','CHA'],                  'c'=>'USA','a'=>['CHAMPION','ALLSTAR'],                           'e'=>['80s','90s']],
+    ['n'=>'Bill Walton',            't'=>['POR','BOS'],                        'c'=>'USA','a'=>['CHAMPION','MVP','DPOY','SIXTHMAN'],              'e'=>['80s']],
+    ['n'=>'Alex English',           't'=>['DEN','DAL'],                        'c'=>'USA','a'=>['ALLSTAR','SCORING'],                            'e'=>['80s']],
+    ['n'=>'Mitch Richmond',         't'=>['GSW','SAC','WAS','LAL'],            'c'=>'USA','a'=>['ALLSTAR','SCORING','ROY'],                      'e'=>['80s','90s']],
+    ['n'=>'Detlef Schrempf',        't'=>['IND','SEA'],                        'c'=>'GER','a'=>['ALLSTAR','SIXTHMAN'],                           'e'=>['80s','90s','00s']],
+    ['n'=>'Dan Majerle',            't'=>['PHX','CLE','MIA'],                  'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['80s','90s','00s']],
+    ['n'=>'Mark Price',             't'=>['CLE','WAS','GSW','ORL'],            'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['80s','90s']],
+    ['n'=>'Tom Chambers',           't'=>['PHX','UTA'],                        'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['80s','90s']],
+    ['n'=>'Adrian Dantley',         't'=>['UTA','DET','DAL','MIL','LAL'],      'c'=>'USA','a'=>['ALLSTAR','SCORING'],                            'e'=>['80s','90s']],
+    ['n'=>'Bernard King',           't'=>['NJN','UTA','NYK','WAS','IND'],      'c'=>'USA','a'=>['ALLSTAR','SCORING'],                            'e'=>['80s','90s']],
+    ['n'=>'Bob McAdoo',             't'=>['BOS','LAL','NYK','MIA'],            'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','SCORING'],           'e'=>['80s']],
+    ['n'=>'Bill Laimbeer',          't'=>['DET'],                              'c'=>'USA','a'=>['CHAMPION','ALLSTAR'],                           'e'=>['80s','90s']],
+    ['n'=>'Joe Dumars',             't'=>['DET'],                              'c'=>'USA','a'=>['CHAMPION','ALLSTAR','FINALS_MVP'],              'e'=>['80s','90s']],
+
+    // ── Anos 90 ─────────────────────────────────────────────────────────────
+    ['n'=>'Tim Hardaway',           't'=>['GSW','MIA','DAL','DEN','IND'],      'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s','00s']],
+    ['n'=>'Latrell Sprewell',       't'=>['GSW','NYK','MIN'],                  'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s','00s']],
+    ['n'=>'Larry Johnson',          't'=>['CHA','NYK'],                        'c'=>'USA','a'=>['ALLSTAR','ROY'],                                'e'=>['90s']],
+    ['n'=>'Horace Grant',           't'=>['CHI','ORL','LAL'],                  'c'=>'USA','a'=>['CHAMPION'],                                     'e'=>['90s','00s']],
+    ['n'=>'Glenn Robinson',         't'=>['MIL','ATL','PHI'],                  'c'=>'USA','a'=>['ALLSTAR','ROY'],                                'e'=>['90s','00s']],
+    ['n'=>'Sam Cassell',            't'=>['HOU','PHX','DAL','BKN','MIL','MIN','LAC','BOS'],'c'=>'USA','a'=>['CHAMPION','ALLSTAR'],               'e'=>['90s','00s']],
+    ['n'=>'Cedric Ceballos',        't'=>['PHX','LAL','MIA'],                  'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s']],
+    ['n'=>'John Starks',            't'=>['NYK','GSW','UTA','CHI'],            'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s','00s']],
+    ['n'=>'Nick Van Exel',          't'=>['LAL','DEN','DAL','POR','GSW','SAS'],'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s','00s']],
+    ['n'=>'Vin Baker',              't'=>['MIL','HOU'],                        'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['90s','00s']],
+    ['n'=>'Muggsy Bogues',          't'=>['WAS','CHA','GSW','TOR'],            'c'=>'USA','a'=>[],                                              'e'=>['80s','90s','00s']],
+    ['n'=>'Nick Anderson',          't'=>['ORL','SAC','MEM','HOU'],            'c'=>'USA','a'=>[],                                              'e'=>['90s','00s']],
+    ['n'=>'Hersey Hawkins',         't'=>['PHI','CHA','ATL','CHI'],            'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['80s','90s','00s']],
+
+    // ── Anos 2000 ────────────────────────────────────────────────────────────
+    ['n'=>'Andre Iguodala',         't'=>['PHI','DEN','GSW','MIA'],            'c'=>'USA','a'=>['CHAMPION','ALLSTAR','FINALS_MVP','SIXTHMAN'],   'e'=>['00s','10s','20s']],
+    ['n'=>'Shawn Marion',           't'=>['PHX','TOR','DAL','MIA','IND'],      'c'=>'USA','a'=>['CHAMPION','ALLSTAR'],                           'e'=>['00s','10s']],
+    ['n'=>'Elton Brand',            't'=>['CHI','LAC','PHI','DAL'],            'c'=>'USA','a'=>['ALLSTAR','ROY'],                                'e'=>['90s','00s','10s']],
+    ['n'=>'Zach Randolph',          't'=>['POR','NYK','LAC','MEM','SAC'],      'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['00s','10s']],
+    ['n'=>'Lamar Odom',             't'=>['LAC','MIA','LAL','DAL'],            'c'=>'USA','a'=>['CHAMPION','ALLSTAR','SIXTHMAN'],                'e'=>['00s','10s']],
+    ['n'=>'Ron Artest',             't'=>['CHI','IND','SAC','HOU','LAL','NYK'],'c'=>'USA','a'=>['CHAMPION','DPOY'],                             'e'=>['90s','00s','10s']],
+    ['n'=>'Baron Davis',            't'=>['CHA','NOP','GSW','CLE','NYK'],      'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['00s','10s']],
+    ['n'=>'Paul Millsap',           't'=>['UTA','ATL','DEN','TOR'],            'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['00s','10s','20s']],
+    ['n'=>'Josh Smith',             't'=>['ATL','DET','HOU','LAC','IND'],      'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['00s','10s']],
+    ['n'=>'Joakim Noah',            't'=>['CHI','NYK','LAC'],                  'c'=>'FRA','a'=>['ALLSTAR','DPOY'],                              'e'=>['00s','10s']],
+    ['n'=>'Luol Deng',              't'=>['CHI','CLE','MIA','LAL','MIN'],      'c'=>'GBR','a'=>['ALLSTAR'],                                      'e'=>['00s','10s']],
+    ['n'=>'Al Horford',             't'=>['ATL','BOS','PHI','OKC','MIA'],      'c'=>'DOM','a'=>['CHAMPION','ALLSTAR'],                           'e'=>['00s','10s','20s']],
+    ['n'=>'Richard Jefferson',      't'=>['NJN','BKN','MIL','SAS','UTA','GSW','CLE'],'c'=>'USA','a'=>['CHAMPION','ALLSTAR'],                   'e'=>['00s','10s','20s']],
+    ['n'=>'Udonis Haslem',          't'=>['MIA'],                              'c'=>'USA','a'=>['CHAMPION'],                                     'e'=>['00s','10s','20s']],
+    ['n'=>'Jameer Nelson',          't'=>['ORL','DEN','DAL','NOP','SAC'],      'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['00s','10s']],
+
+    // ── Anos 2010 e 2020 ─────────────────────────────────────────────────────
+    ['n'=>'Andre Drummond',         't'=>['DET','CLE','PHI','LAL','CHI','ATL'],'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Brook Lopez',            't'=>['BKN','LAL','MIL'],                  'c'=>'USA','a'=>['CHAMPION'],                                     'e'=>['00s','10s','20s']],
+    ['n'=>'Brandon Ingram',         't'=>['LAL','NOP'],                        'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Dejounte Murray',        't'=>['SAS','ATL','NOP'],                  'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Marcus Smart',           't'=>['BOS','MEM','POR'],                  'c'=>'USA','a'=>['CHAMPION','DPOY'],                             'e'=>['10s','20s']],
+    ['n'=>'Malcolm Brogdon',        't'=>['MIL','IND','BOS'],                  'c'=>'USA','a'=>['ROY','SIXTHMAN'],                              'e'=>['10s','20s']],
+    ['n'=>'Tyler Herro',            't'=>['MIA'],                              'c'=>'USA','a'=>['SIXTHMAN','ALLSTAR'],                           'e'=>['10s','20s']],
+    ['n'=>'Alex Caruso',            't'=>['LAL','CHI','OKC'],                  'c'=>'USA','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Patrick Beverley',       't'=>['HOU','LAC','MIN','LAL','CHI'],      'c'=>'USA','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Mikal Bridges',          't'=>['PHX','BKN','NYK'],                  'c'=>'USA','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Jaren Jackson Jr.',      't'=>['MEM'],                              'c'=>'USA','a'=>['ALLSTAR','DPOY'],                              'e'=>['10s','20s']],
+    ['n'=>'Myles Turner',           't'=>['IND'],                              'c'=>'USA','a'=>['ALLSTAR','DPOY'],                              'e'=>['10s','20s']],
+    ['n'=>'Eric Gordon',            't'=>['LAC','NOP','HOU','PHX','SAC'],      'c'=>'USA','a'=>['SIXTHMAN'],                                     'e'=>['00s','10s','20s']],
+    ['n'=>'Dillon Brooks',          't'=>['MEM','HOU'],                        'c'=>'CAN','a'=>[],                                              'e'=>['10s','20s']],
+    ['n'=>'RJ Barrett',             't'=>['NYK','TOR'],                        'c'=>'CAN','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Tristan Thompson',       't'=>['CLE','BOS','SAC','IND','CHI'],      'c'=>'CAN','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Bojan Bogdanovic',       't'=>['BKN','IND','UTA','DET'],            'c'=>'CRO','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Ivica Zubac',            't'=>['LAL','LAC'],                        'c'=>'CRO','a'=>[],                                              'e'=>['10s','20s']],
+    ['n'=>'Nikola Mirotic',         't'=>['CHI','NOP','MIL','BKN'],            'c'=>'ESP','a'=>[],                                              'e'=>['10s']],
+    ['n'=>'Lauri Markkanen',        't'=>['CHI','CLE','UTA'],                  'c'=>'FIN','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Rui Hachimura',          't'=>['WAS','LAL'],                        'c'=>'JPN','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Yuta Watanabe',          't'=>['TOR','BKN','PHX'],                  'c'=>'JPN','a'=>[],                                              'e'=>['10s','20s']],
+    ['n'=>'Deandre Ayton',          't'=>['PHX','POR'],                        'c'=>'BAH','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'Buddy Hield',            't'=>['NOP','SAC','IND','PHI','GSW','LAL'],'c'=>'BAH','a'=>['ALLSTAR'],                                      'e'=>['10s','20s']],
+    ['n'=>'OG Anunoby',             't'=>['TOR','NYK'],                        'c'=>'ENG','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Jordan Clarkson',        't'=>['WAS','LAL','CLE','UTA'],            'c'=>'PHL','a'=>['SIXTHMAN'],                                     'e'=>['10s','20s']],
+    ['n'=>'Zaza Pachulia',          't'=>['ATL','MIL','DAL','DET','GSW'],      'c'=>'GEO','a'=>['CHAMPION'],                                     'e'=>['00s','10s']],
+    ['n'=>'Thanasis Antetokounmpo', 't'=>['NYK','MIL'],                        'c'=>'GRE','a'=>['CHAMPION'],                                     'e'=>['10s','20s']],
+    ['n'=>'Georgios Papagiannis',   't'=>['SAC','NOP'],                        'c'=>'GRE','a'=>[],                                              'e'=>['10s','20s']],
+    ['n'=>'Al-Farouq Aminu',        't'=>['LAC','NOP','POR','ORL','WAS','UTA'],'c'=>'NIG','a'=>[],                                              'e'=>['00s','10s','20s']],
+    ['n'=>'Thaddeus Young',         't'=>['PHI','MIN','BKN','IND','CHI','TOR'],'c'=>'USA','a'=>[],                                              'e'=>['00s','10s','20s']],
 ];
 
-// Remove duplicatas por nome
-$seen = []; $PLAYERS_CLEAN = [];
-foreach ($PLAYERS as $p) { if (!isset($seen[$p['n']])) { $seen[$p['n']]=1; $PLAYERS_CLEAN[] = $p; } }
-$PLAYERS = $PLAYERS_CLEAN;
+// Seed DB se vazio
+try {
+    $cnt = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players")->fetchColumn();
+    if ($cnt === 0) {
+        $stmtSeed = $pdo->prepare("INSERT IGNORE INTO hoopgrid_players (nome, times, pais, premios, eras) VALUES (?,?,?,?,?)");
+        $seenSeed = [];
+        foreach ($_SEED as $p) {
+            if (!isset($seenSeed[$p['n']])) {
+                $seenSeed[$p['n']] = 1;
+                $stmtSeed->execute([$p['n'], json_encode($p['t']), $p['c'], json_encode($p['a']), json_encode($p['e'])]);
+            }
+        }
+    }
+} catch (PDOException $e) {}
+unset($_SEED);
+
+// Carregar jogadores do banco
+$PLAYERS = [];
+try {
+    $rowsPlayers = $pdo->query("SELECT nome, times, pais, premios, eras FROM hoopgrid_players WHERE ativo=1")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rowsPlayers as $rp) {
+        $PLAYERS[] = [
+            'n' => $rp['nome'],
+            't' => json_decode($rp['times'],  true) ?: [],
+            'c' => $rp['pais'],
+            'a' => json_decode($rp['premios'], true) ?: [],
+            'e' => json_decode($rp['eras'],    true) ?: [],
+        ];
+    }
+} catch (PDOException $e) { $PLAYERS = []; }
 
 // ── CRITÉRIOS ──────────────────────────────────────────────────────────────
 $CRITERIA = [
@@ -223,6 +347,10 @@ $CRITERIA = [
     ['id'=>'TUR','type'=>'nation','label'=>'Turquia',      'icon'=>'🇹🇷','full'=>'Turquia'],
     ['id'=>'ITA','type'=>'nation','label'=>'Itália',       'icon'=>'🇮🇹','full'=>'Itália'],
     ['id'=>'LAT','type'=>'nation','label'=>'Letônia',      'icon'=>'🇱🇻','full'=>'Letônia'],
+    ['id'=>'GRE','type'=>'nation','label'=>'Grécia',       'icon'=>'🇬🇷','full'=>'Grécia'],
+    ['id'=>'DOM','type'=>'nation','label'=>'Rep. Dominicana','icon'=>'🇩🇴','full'=>'República Dominicana'],
+    ['id'=>'CAM','type'=>'nation','label'=>'Camarões',     'icon'=>'🇨🇲','full'=>'Camarões'],
+    ['id'=>'FIN','type'=>'nation','label'=>'Finlândia',    'icon'=>'🇫🇮','full'=>'Finlândia'],
     // Prêmios
     ['id'=>'MVP',       'type'=>'award','label'=>'MVP',        'icon'=>'🏆','full'=>'MVP da Temporada'],
     ['id'=>'CHAMPION',  'type'=>'award','label'=>'Campeão',    'icon'=>'💍','full'=>'Campeão NBA'],
@@ -257,7 +385,6 @@ function generateDailyGrid(array $players, array $criteria): array {
     $byType = [];
     foreach ($criteria as $c) $byType[$c['type']][] = $c;
 
-    $types = array_keys($byType);
     $fallback = [
         'rows' => [
             $byType['award'][0] ?? $criteria[0],
@@ -339,7 +466,7 @@ $playerNbaIds   = ['LeBron James'=>2544,'Stephen Curry'=>201939,'Kevin Durant'=>
     'Trae Young'=>1629027,'Karl-Anthony Towns'=>1626157,'Zion Williamson'=>1629627,
     'Chris Bosh'=>76001,'Dwight Howard'=>2730,'DeMar DeRozan'=>201942,
     'Shai Gilgeous-Alexander'=>1628983,'Andrew Wiggins'=>203952,'Jamal Murray'=>1627750,
-    'Chris Paul'=>101108,'Khris Middleton'=>203114,'Jrue Holiday'=>201950,
+    'Khris Middleton'=>203114,'Jrue Holiday'=>201950,
 ];
 
 // AJAX
