@@ -74,6 +74,10 @@ $games_disponiveis = [
         'titulo' => '💣 Bomba',
         'arquivo' => 'bomba.php'
     ],
+    'hoopgrid' => [
+        'titulo' => '🏀 Hoop Grid',
+        'arquivo' => 'hoopgrid.php'
+    ],
     'penalti' => [
         'titulo' => '⚽ Copa Pênaltis',
         'arquivo' => 'penalti.php'
