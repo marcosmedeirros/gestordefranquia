@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require 'core/conexao.php';
 
@@ -291,9 +291,6 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     </a>
     <a href="games.php" class="sb-link active">
       <i class="bi bi-joystick"></i>Games
-    </a>
-    <a href="bracket.php" class="sb-link">
-      <i class="bi bi-trophy-fill"></i>Bracket
     </a>
     <a href="user/ranking-geral.php" class="sb-link">
       <i class="bi bi-bar-chart-fill"></i>Ranking Geral
