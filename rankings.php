@@ -11,7 +11,7 @@ $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 $userLeague = strtoupper($team['league'] ?? $user['league'] ?? 'ELITE');
 $currentTeamId = (int)($team['id'] ?? 0);
 $currentSeason = null;

@@ -456,7 +456,7 @@ try {
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
             <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
 
-            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
             <div class="sb-section">Admin</div>
             <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
 
@@ -490,7 +490,7 @@ try {
         <button class="topbar-menu-btn" id="sidebarToggle"><i class="bi bi-list"></i></button>
         <span class="topbar-title"><i class="bi bi-arrow-left-right me-2" style="color:var(--red)"></i>Trades</span>
         <div class="topbar-right">
-          <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+          <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
             <div class="d-flex align-items-center gap-2">
               <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" role="switch" id="tradesStatusToggle" <?= ($tradesEnabled ?? 1) == 1 ? 'checked' : '' ?>>
@@ -794,7 +794,7 @@ try {
       });
     })();
   </script>
-  <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+  <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
   <script>
     (function(){
       const toggle = document.getElementById('tradesStatusToggle');

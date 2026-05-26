@@ -17,7 +17,7 @@ if (!$team) {
 }
 
 $userLeague = $team['league'];
-$isAdmin    = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $currentSeason = null;
 try {

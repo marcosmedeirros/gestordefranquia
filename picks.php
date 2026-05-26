@@ -333,7 +333,7 @@ $tradedAway   = count($picksAway);
             <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
             <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
 
-            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
             <div class="sb-section">Admin</div>
             <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
 

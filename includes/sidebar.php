@@ -122,7 +122,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Bracket NBA
             </a>
         </li>
-        <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+        <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
         <li>
             <a href="/admin.php" class="<?= $currentPage === 'admin.php' ? 'active' : '' ?>">
                 <i class="bi bi-shield-lock-fill"></i>

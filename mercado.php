@@ -34,7 +34,7 @@ $stmtTeams = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? OR
 $stmtTeams->execute([$user['league']]);
 $leagueTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-$is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
+$is_admin = hasAdminAccess($pdo, (int)$user['id']);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

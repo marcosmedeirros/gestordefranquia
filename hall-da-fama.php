@@ -14,7 +14,7 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
 $userLeague = $team['league'] ?? ($user['league'] ?? 'ELITE');
-$isAdmin    = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $currentSeason = null;
 try {

@@ -517,7 +517,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
             <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
 
-            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
+            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
             <div class="sb-section">Admin</div>
             <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
             <?php endif; ?>

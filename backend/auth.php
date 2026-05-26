@@ -105,3 +105,13 @@ function isLeagueAdmin(PDO $pdo, int $userId, string $league): bool {
     $stmt->execute([$userId, strtoupper($league)]);
     return (bool)$stmt->fetch();
 }
+
+// Retorna true para admin global (user_type='admin') OU admin de qualquer liga (league_admins)
+function hasAdminAccess(PDO $pdo, int $userId): bool {
+    $stmt = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$userId]);
+    if ($stmt->fetchColumn() === 'admin') return true;
+    $stmt2 = $pdo->prepare("SELECT 1 FROM league_admins WHERE user_id = ? LIMIT 1");
+    $stmt2->execute([$userId]);
+    return (bool)$stmt2->fetch();
+}

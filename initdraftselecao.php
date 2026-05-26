@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/auth.php';
 
@@ -11,7 +11,7 @@ if (!$token) {
 
 $pdo = db();
 $user = getUserSession();
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 $userTeamId = null;
 if ($user && isset($user['id'])) {
     $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');

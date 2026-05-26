@@ -6,7 +6,7 @@ requireAuth();
 
 $user    = getUserSession();
 $pdo     = db();
-$is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
+$is_admin = hasAdminAccess($pdo, (int)$user['id']);
 $team_league = $user['league'];
 
 // ── Temporada ────────────────────────────────────────────

@@ -75,7 +75,7 @@ if ($teamId) {
 
 $canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
 $isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
-$is_admin = ($user['user_type'] ?? 'jogador') === 'admin';
+$is_admin = hasAdminAccess($pdo, (int)$user['id']);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
