@@ -259,7 +259,7 @@ async function renderAdminRequests(targetEl) {
                 <div>
                     <div style="font-weight:700;font-size:15px;color:var(--text)">${esc(req.player_name || 'Jogador')}</div>
                     <div style="font-size:12px;color:var(--text-3);margin-top:2px">
-                        ${esc(req.position || '')}${req.secondary_position ? '/' + esc(req.secondary_position) : ''} &bull; OVR <strong style="color:var(--red)">${req.ovr || '?'}</strong>
+                        ${esc(req.position || '')}${req.secondary_position ? '/' + esc(req.secondary_position) : ''} &bull; OVR <strong style="color:var(--red)">${req.ovr || '?'}</strong>${req.age ? ` &bull; ${req.age} anos` : ''}
                     </div>
                 </div>
                 <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25)">${offers.length} proposta${offers.length !== 1 ? 's' : ''}</span>
@@ -624,7 +624,7 @@ async function carregarSolicitacoesNovaFA() {
                 <div>
                     <div style="font-weight:700;font-size:15px;color:var(--text)">${esc(req.player_name || 'Jogador')}</div>
                     <div style="font-size:12px;color:var(--text-3);margin-top:2px">
-                        ${esc(req.position || '')}${req.secondary_position ? '/' + esc(req.secondary_position) : ''} &bull; OVR <strong style="color:var(--red)">${req.ovr || '?'}</strong>
+                        ${esc(req.position || '')}${req.secondary_position ? '/' + esc(req.secondary_position) : ''} &bull; OVR <strong style="color:var(--red)">${req.ovr || '?'}</strong>${req.age ? ` &bull; ${req.age} anos` : ''}
                     </div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
