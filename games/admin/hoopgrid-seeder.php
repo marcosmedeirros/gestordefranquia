@@ -8,7 +8,7 @@ session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id = ?");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$u || !$u['is_admin']) { http_response_code(403); die("Acesso negado"); }
@@ -51,6 +51,7 @@ $action = $_GET['action'] ?? 'status';
 
 // ── IMPORT DA API ────────────────────────────────────────────────────────────
 if ($action === 'import') {
+    header('Content-Type: application/json');
     set_time_limit(300);
     $season = '2024-25';
     $url = "https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=0&LeagueID=00&Season={$season}";
@@ -127,43 +128,45 @@ if ($action === 'import') {
 
 // ── LISTAR JOGADORES (JSON) ──────────────────────────────────────────────────
 if ($action === 'list') {
-    $page  = max(1, (int)($_GET['page'] ?? 1));
-    $limit = 50;
-    $off   = ($page - 1) * $limit;
-    $q     = trim($_GET['q'] ?? '');
+    header('Content-Type: application/json');
+    $page   = max(1, (int)($_GET['page'] ?? 1));
+    $limit  = 50;
+    $off    = ($page - 1) * $limit;
+    $q      = trim($_GET['q'] ?? '');
     $fAtivo = $_GET['ativo'] ?? '';
     $fPais  = trim($_GET['pais'] ?? '');
-    $fPremio = trim($_GET['premio'] ?? '');
+    $fPremio= trim($_GET['premio'] ?? '');
     $fEra   = trim($_GET['era'] ?? '');
     $fTime  = trim($_GET['time'] ?? '');
 
     $where = ['1=1'];
     $params = [];
-    if ($q !== '') { $where[] = 'nome LIKE ?'; $params[] = "%{$q}%"; }
-    if ($fAtivo !== '') { $where[] = 'ativo = ?'; $params[] = (int)$fAtivo; }
-    if ($fPais !== '') { $where[] = 'pais = ?'; $params[] = strtoupper($fPais); }
-    if ($fPremio !== '') { $where[] = 'JSON_CONTAINS(premios, JSON_QUOTE(?))'; $params[] = $fPremio; }
-    if ($fEra !== '') { $where[] = 'JSON_CONTAINS(eras, JSON_QUOTE(?))'; $params[] = $fEra; }
-    if ($fTime !== '') { $where[] = 'JSON_CONTAINS(times, JSON_QUOTE(?))'; $params[] = $fTime; }
+    if ($q !== '')      { $where[] = 'nome LIKE ?';       $params[] = "%{$q}%"; }
+    if ($fAtivo !== '') { $where[] = 'ativo = ?';         $params[] = (int)$fAtivo; }
+    if ($fPais !== '')  { $where[] = 'pais = ?';          $params[] = strtoupper($fPais); }
+    if ($fPremio !== '') { $where[] = 'premios LIKE ?';   $params[] = '%"' . $fPremio . '"%'; }
+    if ($fEra !== '')   { $where[] = 'eras LIKE ?';       $params[] = '%"' . $fEra . '"%'; }
+    if ($fTime !== '')  { $where[] = 'times LIKE ?';      $params[] = '%"' . $fTime . '"%'; }
 
-    $sql = "SELECT * FROM hoopgrid_players WHERE " . implode(' AND ', $where) . " ORDER BY nome ASC LIMIT ? OFFSET ?";
-    $params[] = $limit; $params[] = $off;
-    $stmtL = $pdo->prepare($sql);
+    $whereStr = implode(' AND ', $where);
+
+    // Conta total
+    $stmtC = $pdo->prepare("SELECT COUNT(*) FROM hoopgrid_players WHERE $whereStr");
+    $stmtC->execute($params);
+    $total = (int)$stmtC->fetchColumn();
+
+    // Busca página
+    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo FROM hoopgrid_players WHERE $whereStr ORDER BY nome ASC LIMIT $limit OFFSET $off");
     $stmtL->execute($params);
     $players = $stmtL->fetchAll(PDO::FETCH_ASSOC);
 
-    $sqlC = "SELECT COUNT(*) FROM hoopgrid_players WHERE " . implode(' AND ', $where);
-    $paramsC = array_slice($params, 0, -2);
-    $stmtC = $pdo->prepare($sqlC);
-    $stmtC->execute($paramsC);
-    $total = (int)$stmtC->fetchColumn();
-
-    echo json_encode(['ok'=>true,'players'=>$players,'total'=>$total,'page'=>$page,'pages'=>(int)ceil($total/$limit)]);
+    echo json_encode(['ok'=>true,'players'=>$players,'total'=>$total,'page'=>$page,'pages'=>max(1,(int)ceil($total/$limit))]);
     exit;
 }
 
 // ── SALVAR JOGADOR (POST JSON) ───────────────────────────────────────────────
 if ($action === 'save_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
     $body = json_decode(file_get_contents('php://input'), true);
     $id     = isset($body['id']) ? (int)$body['id'] : 0;
     $nome   = trim($body['nome'] ?? '');
@@ -192,6 +195,7 @@ if ($action === 'save_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── DELETAR JOGADOR ──────────────────────────────────────────────────────────
 if ($action === 'delete_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
     $body = json_decode(file_get_contents('php://input'), true);
     $id = (int)($body['id'] ?? 0);
     if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID inválido']); exit; }
@@ -202,6 +206,7 @@ if ($action === 'delete_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── TOGGLE ATIVO ─────────────────────────────────────────────────────────────
 if ($action === 'toggle_active' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
     $body = json_decode(file_get_contents('php://input'), true);
     $id    = (int)($body['id'] ?? 0);
     $ativo = (int)(bool)($body['ativo'] ?? 0);
@@ -246,187 +251,277 @@ if ($action === 'import_json' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $totalPlayers = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players WHERE ativo=1")->fetchColumn();
 $totalAll     = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players")->fetchColumn();
 $comPremios   = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players WHERE ativo=1 AND premios != '[]'")->fetchColumn();
+$userInitial  = strtoupper(mb_substr($u['nome'] ?? 'A', 0, 1));
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Banco de Jogadores NBA</title>
+<title>Controle de Jogadores — FBA Admin</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}
-body{background:#07070a;color:#f0f0f3;font-family:'Segoe UI',sans-serif;font-size:14px}
-.panel{background:#101013;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px}
-.stat{background:#16161a;border-radius:10px;padding:14px;text-align:center}
+:root{
+  --red:#fc0025;--red-soft:rgba(252,0,37,.10);--red-glow:rgba(252,0,37,.18);
+  --bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;
+  --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--border-red:rgba(252,0,37,.22);
+  --text:#f0f0f3;--text-2:#868690;--text-3:#48484f;
+  --font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;
+  --ease:cubic-bezier(.2,.8,.2,1);--t:200ms;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+
+/* ── Layout ── */
+.page-layout{display:flex;min-height:100vh}
+.sidebar{width:240px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+         display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;overflow-y:auto}
+.page-content{flex:1;margin-left:240px;min-width:0;padding:28px 24px 60px;overflow-y:auto;min-height:100vh}
+
+/* ── Sidebar ── */
+.sb-header{display:flex;align-items:center;gap:10px;padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;
+         justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
+.sb-brand{font-weight:800;font-size:13px;color:var(--text);flex:1}
+.sb-brand span{color:var(--red)}
+.sb-user{padding:14px;border-bottom:1px solid var(--border)}
+.sb-avatar{width:40px;height:40px;border-radius:50%;background:var(--red-soft);border:2px solid var(--border-red);
+           display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--red);margin-bottom:8px}
+.sb-user-name{font-size:13px;font-weight:700;color:#fff}
+.sb-user-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.sb-stats{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:row;gap:6px}
+.sb-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:4px;
+         padding:8px 4px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border)}
+.sb-stat i{font-size:13px;color:var(--red)}
+.sb-stat-val{font-size:12px;font-weight:700;color:var(--text);line-height:1.2}
+.sb-stat-label{font-size:9px;color:var(--text-3)}
+.sb-nav{flex:1;padding:8px 0;overflow-y:auto}
+.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
+.sb-link{display:flex;align-items:center;gap:10px;padding:9px 14px;text-decoration:none;
+         font-size:12px;font-weight:500;color:var(--text-2);transition:all var(--t) var(--ease);border-left:3px solid transparent}
+.sb-link i{width:16px;text-align:center;font-size:13px}
+.sb-link:hover{background:var(--panel-2);color:var(--text);border-left-color:var(--border-md)}
+.sb-link.active{background:var(--red-soft);color:var(--red);border-left-color:var(--red);font-weight:700}
+.sb-footer{padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.sb-logout{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;
+           border:1px solid var(--border);background:transparent;color:var(--text-2);text-decoration:none;
+           font-family:var(--font);font-size:12px;font-weight:600;transition:all var(--t) var(--ease)}
+.sb-logout:hover{background:rgba(252,0,37,.1);border-color:var(--border-red);color:var(--red)}
+
+/* ── Content ── */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.stat-card{background:var(--panel-2);border-radius:10px;padding:14px;text-align:center}
 .stat-v{font-size:1.8rem;font-weight:800}
-.stat-l{font-size:11px;color:#868690;margin-top:2px}
+.stat-l{font-size:11px;color:var(--text-2);margin-top:2px}
 #log{background:#000;border-radius:8px;padding:10px;font-family:monospace;font-size:12px;color:#4ade80;max-height:160px;overflow-y:auto;min-height:44px}
-.inp{background:#16161a;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 11px;color:#f0f0f3;font-size:13px;width:100%}
+.inp{background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:7px 11px;color:var(--text);font-size:13px;width:100%;font-family:var(--font)}
 .inp:focus{outline:none;border-color:rgba(249,115,22,.5)}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{padding:8px 10px;color:#868690;font-weight:600;text-align:left;border-bottom:1px solid rgba(255,255,255,.07);white-space:nowrap}
-.tbl td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
-.tbl tr:hover td{background:rgba(255,255,255,.03)}
+.tbl th{padding:8px 10px;color:var(--text-2);font-weight:600;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
 .tag{display:inline-block;background:rgba(249,115,22,.15);color:#fb923c;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px}
 .tag.blue{background:rgba(59,130,246,.15);color:#60a5fa}
 .tag.green{background:rgba(34,197,94,.12);color:#4ade80}
 .tag.red{background:rgba(239,68,68,.12);color:#f87171}
 .tag.gray{background:rgba(255,255,255,.07);color:#9ca3af}
-.btn-ic{background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:4px 8px;color:#9ca3af;cursor:pointer;font-size:12px;transition:.15s}
+.btn-ic{background:none;border:1px solid var(--border-md);border-radius:6px;padding:4px 8px;color:var(--text-2);cursor:pointer;font-size:12px;transition:.15s}
 .btn-ic:hover{border-color:rgba(249,115,22,.5);color:#fb923c}
 .btn-ic.danger:hover{border-color:rgba(239,68,68,.5);color:#f87171}
 .btn-ic.success:hover{border-color:rgba(34,197,94,.5);color:#4ade80}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal-box{background:#101013;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:min(700px,96vw);max-height:90vh;overflow-y:auto}
+.modal-box{background:var(--panel);border:1px solid var(--border-md);border-radius:var(--radius);padding:24px;width:min(700px,96vw);max-height:90vh;overflow-y:auto}
 .modal-box h5{margin:0 0 18px;font-weight:700}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .form-row.full{grid-template-columns:1fr}
-label{display:block;font-size:11px;color:#868690;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.f-label{display:block;font-size:11px;color:var(--text-2);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .chip-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.chip{display:flex;align-items:center;gap:4px;background:#16161a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;user-select:none;transition:.15s}
+.chip{display:flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;user-select:none;transition:.15s}
 .chip:hover{border-color:rgba(249,115,22,.4)}
 .chip.sel{background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.5);color:#fb923c}
 .chip.sel.blue{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.5);color:#60a5fa}
 .chip.sel.green{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4);color:#4ade80}
 .pag{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.pag button{background:#16161a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 11px;color:#9ca3af;cursor:pointer;font-size:12px}
+.pag button{background:var(--panel-2);border:1px solid var(--border-md);border-radius:6px;padding:5px 11px;color:var(--text-2);cursor:pointer;font-size:12px;font-family:var(--font)}
 .pag button:hover{border-color:rgba(249,115,22,.4);color:#fb923c}
 .pag button.active{background:rgba(249,115,22,.15);border-color:rgba(249,115,22,.5);color:#fb923c}
 .search-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .search-bar .inp{flex:1;min-width:160px}
+.page-title{font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px}
+.page-sub{font-size:12px;color:var(--text-2);margin-bottom:24px}
 </style>
 </head>
-<body class="p-3 p-md-4">
+<body>
+<div class="page-layout">
 
-<a href="dashboard.php" class="text-decoration-none text-secondary mb-3 d-inline-block"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
-<h4 class="fw-bold mb-1">🏀 Banco de Jogadores NBA</h4>
-<p class="text-secondary mb-4" style="font-size:12px">Banco centralizado usado pelo Hoop Grid e outros jogos. Importe via API ou gerencie manualmente.</p>
-
-<!-- Stats -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-3"><div class="stat"><div class="stat-v"><?= $totalAll ?></div><div class="stat-l">Total no banco</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat"><div class="stat-v text-success"><?= $totalPlayers ?></div><div class="stat-l">Ativos</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat"><div class="stat-v text-warning"><?= $comPremios ?></div><div class="stat-l">Com prêmios</div></div></div>
-  <div class="col-6 col-md-3"><div class="stat"><div class="stat-v text-danger"><?= $totalPlayers - $comPremios ?></div><div class="stat-l">Sem prêmios</div></div></div>
-</div>
-
-<!-- Import -->
-<div class="panel mb-4">
-  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-    <h6 class="fw-bold mb-0">Importar via NBA Stats API</h6>
-    <button class="btn btn-sm btn-danger fw-bold" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Agora</button>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">FBA</div>
+    <div class="sb-brand">FBA <span>Admin</span></div>
   </div>
-  <p class="text-secondary mb-2" style="font-size:12px">Busca todos os jogadores desde 1980. Existentes não são sobrescritos (prêmios/país preservados).</p>
-  <div id="log">Aguardando...</div>
-</div>
-
-<!-- Gerenciador -->
-<div class="panel">
-  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h6 class="fw-bold mb-0">Gerenciar Jogadores</h6>
-    <button class="btn btn-sm btn-warning fw-bold" onclick="openModal(null)"><i class="bi bi-plus-circle me-1"></i>Novo Jogador</button>
+  <div class="sb-user">
+    <div class="sb-avatar"><?= $userInitial ?></div>
+    <div class="sb-user-name"><?= htmlspecialchars($u['nome'] ?? '') ?></div>
+    <div class="sb-user-role">Administrador</div>
   </div>
+  <div class="sb-stats">
+    <div class="sb-stat">
+      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain">
+      <div class="sb-stat-val"><?= number_format($u['pontos'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Moedas</div>
+    </div>
+    <div class="sb-stat">
+      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain">
+      <div class="sb-stat-val"><?= number_format($u['fba_points'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">FBA Pts</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-nav-section">Menu</div>
+    <a href="../index.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="../games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
+    <div class="sb-nav-section">Admin</div>
+    <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a href="dashboard.php"             class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="hoopgrid-seeder.php"       class="sb-link active"><i class="bi bi-person-lines-fill"></i>Controle Jogadores</a>
+  </nav>
+  <div class="sb-footer">
+    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
+  </div>
+</aside>
 
-  <!-- Filtros -->
-  <div class="search-bar">
-    <input class="inp" id="fq" placeholder="Buscar por nome..." oninput="debSearch()">
-    <select class="inp" style="flex:0 0 110px" id="fAtivo" onchange="loadPlayers(1)">
-      <option value="">Todos</option>
-      <option value="1" selected>Ativos</option>
-      <option value="0">Inativos</option>
-    </select>
-    <input class="inp" style="flex:0 0 90px" id="fPais" placeholder="País (USA)" oninput="debSearch()">
-    <select class="inp" style="flex:0 0 100px" id="fEra" onchange="loadPlayers(1)">
-      <option value="">Era</option>
-      <option>80s</option><option>90s</option><option>00s</option><option>10s</option><option>20s</option>
-    </select>
-    <select class="inp" style="flex:0 0 110px" id="fTime" onchange="loadPlayers(1)">
-      <option value="">Time</option>
-      <?php foreach(['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS'] as $t): ?>
-      <option><?= $t ?></option>
-      <?php endforeach; ?>
-    </select>
-    <select class="inp" style="flex:0 0 120px" id="fPremio" onchange="loadPlayers(1)">
-      <option value="">Prêmio</option>
-      <?php foreach(['MVP','DPOY','MIP','6THMAN','ROY','CHAMP','ALLSTAR','ALLNBA1','ALLNBA2','ALLNBA3','HOF'] as $p): ?>
-      <option><?= $p ?></option>
-      <?php endforeach; ?>
-    </select>
+<!-- CONTEÚDO -->
+<div class="page-content">
+  <div class="page-title">🏀 Controle de Jogadores NBA</div>
+  <div class="page-sub">Banco centralizado usado pelo Hoop Grid e outros jogos. Importe via API ou gerencie manualmente.</div>
+
+  <!-- Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-v"><?= $totalAll ?></div><div class="stat-l">Total no banco</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-v" style="color:#4ade80"><?= $totalPlayers ?></div><div class="stat-l">Ativos</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-v" style="color:#f59e0b"><?= $comPremios ?></div><div class="stat-l">Com prêmios</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-v" style="color:#f87171"><?= $totalPlayers - $comPremios ?></div><div class="stat-l">Sem prêmios</div></div></div>
   </div>
 
-  <!-- Tabela -->
-  <div style="overflow-x:auto">
-  <table class="tbl" id="tbl">
-    <thead>
-      <tr>
-        <th>Nome</th>
-        <th>Times</th>
-        <th>País</th>
-        <th>Prêmios</th>
-        <th>Eras</th>
-        <th>Status</th>
-        <th style="text-align:right">Ações</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"><tr><td colspan="7" style="text-align:center;padding:30px;color:#555">Carregando...</td></tr></tbody>
-  </table>
+  <!-- Import (acordeon fechado) -->
+  <div class="panel mb-4">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleImport()">
+      <h6 style="margin:0;font-weight:700;font-size:13px"><i class="bi bi-cloud-download me-2" style="color:var(--red)"></i>Importar via NBA Stats API</h6>
+      <i class="bi bi-chevron-down" id="importChevron" style="transition:.2s;color:var(--text-2)"></i>
+    </div>
+    <div id="importBody" style="display:none;margin-top:16px">
+      <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Busca todos os jogadores desde 1980. Existentes não são sobrescritos (prêmios/país preservados).</p>
+      <button class="btn btn-sm btn-danger fw-bold mb-3" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Agora</button>
+      <div id="log">Aguardando...</div>
+    </div>
   </div>
 
-  <!-- Paginação -->
-  <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-    <span id="pageInfo" style="font-size:12px;color:#868690"></span>
-    <div class="pag" id="pagination"></div>
+  <!-- Gerenciador -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <h6 style="margin:0;font-weight:700;font-size:13px">Gerenciar Jogadores</h6>
+      <button class="btn btn-sm btn-warning fw-bold" onclick="openModal(null)"><i class="bi bi-plus-circle me-1"></i>Novo Jogador</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="search-bar">
+      <input class="inp" id="fq" placeholder="Buscar por nome..." oninput="debSearch()">
+      <select class="inp" style="flex:0 0 110px" id="fAtivo" onchange="loadPlayers(1)">
+        <option value="">Todos</option>
+        <option value="1" selected>Ativos</option>
+        <option value="0">Inativos</option>
+      </select>
+      <input class="inp" style="flex:0 0 90px" id="fPais" placeholder="País" oninput="debSearch()">
+      <select class="inp" style="flex:0 0 100px" id="fEra" onchange="loadPlayers(1)">
+        <option value="">Era</option>
+        <option>80s</option><option>90s</option><option>00s</option><option>10s</option><option>20s</option>
+      </select>
+      <select class="inp" style="flex:0 0 110px" id="fTime" onchange="loadPlayers(1)">
+        <option value="">Time</option>
+        <?php foreach(['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS'] as $t): ?>
+        <option><?= $t ?></option>
+        <?php endforeach; ?>
+      </select>
+      <select class="inp" style="flex:0 0 120px" id="fPremio" onchange="loadPlayers(1)">
+        <option value="">Prêmio</option>
+        <?php foreach(['MVP','DPOY','MIP','6THMAN','ROY','CHAMP','ALLSTAR','ALLNBA1','ALLNBA2','ALLNBA3','HOF'] as $p): ?>
+        <option><?= $p ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <!-- Tabela -->
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Times</th>
+          <th>País</th>
+          <th>Prêmios</th>
+          <th>Eras</th>
+          <th>Status</th>
+          <th style="text-align:right">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
+    </table>
+    </div>
+
+    <!-- Paginação -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px">
+      <span id="pageInfo" style="font-size:12px;color:var(--text-2)"></span>
+      <div class="pag" id="pagination"></div>
+    </div>
   </div>
-</div>
+</div><!-- /page-content -->
+</div><!-- /page-layout -->
 
 <!-- MODAL EDIÇÃO -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal-box">
-    <h5 id="modalTitle">Editar Jogador</h5>
+    <h5 id="modalTitle" style="font-size:16px">Editar Jogador</h5>
     <input type="hidden" id="eId">
 
     <div class="form-row">
       <div>
-        <label>Nome *</label>
+        <label class="f-label">Nome *</label>
         <input class="inp" id="eNome" placeholder="LeBron James">
       </div>
       <div>
-        <label>País</label>
+        <label class="f-label">País</label>
         <input class="inp" id="ePais" placeholder="USA" maxlength="5">
       </div>
     </div>
 
-    <div class="form-row full" style="margin-bottom:14px">
-      <div>
-        <label>Times (clique para selecionar)</label>
-        <div class="chip-group" id="chipTimes"></div>
-      </div>
+    <div class="form-row full">
+      <label class="f-label">Times (clique para selecionar)</label>
+      <div class="chip-group" id="chipTimes"></div>
     </div>
 
-    <div class="form-row full" style="margin-bottom:14px">
-      <div>
-        <label>Eras</label>
-        <div class="chip-group" id="chipEras"></div>
-      </div>
+    <div class="form-row full">
+      <label class="f-label">Eras</label>
+      <div class="chip-group" id="chipEras"></div>
     </div>
 
-    <div class="form-row full" style="margin-bottom:14px">
-      <div>
-        <label>Prêmios</label>
-        <div class="chip-group" id="chipPremios"></div>
-      </div>
+    <div class="form-row full">
+      <label class="f-label">Prêmios</label>
+      <div class="chip-group" id="chipPremios"></div>
     </div>
 
-    <div class="form-row">
+    <div class="form-row" style="margin-top:14px">
       <div>
-        <label>NBA Person ID</label>
+        <label class="f-label">NBA Person ID</label>
         <input class="inp" id="ePid" type="number" placeholder="opcional">
       </div>
       <div>
-        <label>Status</label>
+        <label class="f-label">Status</label>
         <select class="inp" id="eAtivo">
           <option value="1">Ativo</option>
           <option value="0">Inativo</option>
@@ -434,7 +529,7 @@ label{display:block;font-size:11px;color:#868690;margin-bottom:5px;font-weight:6
       </div>
     </div>
 
-    <div class="d-flex gap-2 mt-2">
+    <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn btn-warning fw-bold flex-fill" onclick="savePlayer()"><i class="bi bi-save me-1"></i>Salvar</button>
       <button class="btn btn-outline-secondary" onclick="closeModal()">Cancelar</button>
     </div>
@@ -598,6 +693,15 @@ async function deletePlayer(id, nome) {
   if (!confirm(`Excluir permanentemente "${nome}"?`)) return;
   await fetch('?action=delete_player', { method:'POST', body: JSON.stringify({id}) });
   loadPlayers(_currentPage);
+}
+
+// ── ACORDEON IMPORT ──────────────────────────────────────────────────────────
+function toggleImport() {
+  const body = qs('importBody');
+  const chev = qs('importChevron');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  chev.style.transform = open ? 'rotate(180deg)' : '';
 }
 
 // ── IMPORT ───────────────────────────────────────────────────────────────────

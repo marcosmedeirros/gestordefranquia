@@ -362,6 +362,9 @@ $labelMap = [
     <a href="dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <a href="hoopgrid-seeder.php" class="sb-link">
+      <i class="bi bi-person-lines-fill"></i>Controle Jogadores
+    </a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout">
