@@ -116,12 +116,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Histórico
             </a>
         </li>
-        <li>
-            <a href="/games/bracketnba.php" class="<?= $currentPage === 'bracketnba.php' ? 'active' : '' ?>">
-                <i class="bi bi-bracket"></i>
-                Bracket NBA
-            </a>
-        </li>
         <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
         <li>
             <a href="/admin.php" class="<?= $currentPage === 'admin.php' ? 'active' : '' ?>">
@@ -133,12 +127,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <a href="/punicoes.php" class="<?= $currentPage === 'punicoes.php' ? 'active' : '' ?>">
                 <i class="bi bi-exclamation-triangle-fill"></i>
                 Punições
-            </a>
-        </li>
-        <li>
-            <a href="/games/bracketadmin.php" class="<?= $currentPage === 'bracketadmin.php' ? 'active' : '' ?>">
-                <i class="bi bi-diagram-3-fill"></i>
-                Admin Bracket
             </a>
         </li>
         <?php endif; ?>
