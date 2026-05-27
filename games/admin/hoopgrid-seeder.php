@@ -2,7 +2,6 @@
 /**
  * hoopgrid-seeder.php
  * Gerenciador do banco de jogadores NBA (usado em múltiplos jogos)
- * Acesso restrito a admins
  */
 session_start();
 require '../core/conexao.php';
@@ -11,7 +10,8 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit;
 $stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$u || !$u['is_admin']) { http_response_code(403); die("Acesso negado"); }
+if (!$u) { header("Location: ../auth/login.php"); exit; }
+$isAdmin = !empty($u['is_admin']);
 
 // Garante que a tabela existe
 $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_players (
@@ -226,8 +226,8 @@ if ($action === 'import_awards') {
     if (ob_get_level()) ob_end_clean();
 
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
-    $chunkSize = 100;
-    $parallel  = 15;
+    $chunkSize = 50;
+    $parallel  = 5;
 
     $allPids = $pdo->query("SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id")
                    ->fetchAll(PDO::FETCH_COLUMN);
@@ -317,9 +317,11 @@ if ($action === 'import_awards') {
             if ($running > 0) curl_multi_select($mh, 1.0);
         } while ($running > 0);
 
+        $statusCodes = [];
         foreach ($handles as $pid => $ch) {
             $raw  = curl_multi_getcontent($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $statusCodes[] = $code;
             curl_multi_remove_handle($mh, $ch);
             curl_close($ch);
 
@@ -352,9 +354,9 @@ if ($action === 'import_awards') {
         }
 
         curl_multi_close($mh);
-        echo "Lote {$batchNum}/" . count($batches) . " ok, atualizados ate agora: {$updated}\n";
+        echo "Lote {$batchNum}/" . count($batches) . " | HTTP: [" . implode(',', $statusCodes) . "] | atualizados: {$updated}\n";
         flush();
-        usleep(200000);
+        usleep(400000);
     }
 
     if ($nextOffset >= $total) {

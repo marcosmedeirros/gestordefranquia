@@ -628,10 +628,10 @@ $tab_labels = [
     <a href="../admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <?php endif; ?>
     <a href="../admin/hoopgrid-seeder.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Controle Jogadores
     </a>
-    <?php endif; ?>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout">
