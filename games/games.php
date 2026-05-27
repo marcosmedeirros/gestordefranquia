@@ -310,6 +310,9 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <a href="admin/hoopgrid-seeder.php" class="sb-link">
+      <i class="bi bi-person-lines-fill"></i>Controle Jogadores
+    </a>
     <?php endif; ?>
   </nav>
   <div class="sb-footer">

@@ -722,9 +722,6 @@ try {
     <a href="games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
-    <a href="bracket.php" class="sb-link">
-      <i class="bi bi-trophy-fill"></i>Bracket
-    </a>
     <a href="user/ranking-geral.php" class="sb-link">
       <i class="bi bi-bar-chart-fill"></i>Ranking Geral
     </a>
@@ -735,6 +732,9 @@ try {
     </a>
     <a href="admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
+    </a>
+    <a href="admin/hoopgrid-seeder.php" class="sb-link">
+      <i class="bi bi-person-lines-fill"></i>Controle Jogadores
     </a>
     <?php endif; ?>
   </nav>
