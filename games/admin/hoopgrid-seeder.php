@@ -216,6 +216,117 @@ if ($action === 'toggle_active' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── IMPORTAR TIMES POR TEMPORADA (streaming) ─────────────────────────────────
+if ($action === 'import_teams') {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('X-Accel-Buffering: no');
+    header('Cache-Control: no-cache');
+    @ini_set('zlib.output_compression', 0);
+    set_time_limit(600);
+    if (ob_get_level()) ob_end_clean();
+
+    $fromY = max(1979, (int)($_GET['from'] ?? 1979));
+    $toY   = min(2024, (int)($_GET['to']   ?? 2024));
+    $seasons = [];
+    for ($y = $fromY; $y <= $toY; $y++) {
+        $seasons[] = sprintf('%d-%02d', $y, ($y + 1) % 100);
+    }
+
+    $playerTeams = [];
+    $done = 0; $total = count($seasons);
+    $headers_curl = [
+        'Accept: application/json, text/plain, */*',
+        'Accept-Encoding: gzip, deflate, br',
+        'Accept-Language: en-US,en;q=0.9',
+        'Cache-Control: no-cache',
+        'Connection: keep-alive',
+        'DNT: 1',
+        'Host: stats.nba.com',
+        'Origin: https://www.nba.com',
+        'Pragma: no-cache',
+        'Referer: https://www.nba.com/',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: same-site',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'x-nba-stats-origin: stats',
+        'x-nba-stats-token: true',
+    ];
+
+    echo "Buscando {$total} temporadas ({$fromY} a {$toY})...\n";
+    flush();
+
+    foreach ($seasons as $season) {
+        $qs = http_build_query([
+            'College'=>'','Conference'=>'','Country'=>'','DateFrom'=>'','DateTo'=>'',
+            'Division'=>'','DraftPick'=>'','DraftYear'=>'','GameScope'=>'','GameSegment'=>'',
+            'Height'=>'','LastNGames'=>0,'LeagueID'=>'00','Location'=>'','MeasureType'=>'Base',
+            'Month'=>0,'OpponentTeamID'=>0,'Outcome'=>'','PORound'=>0,'PaceAdjust'=>'N',
+            'PerMode'=>'Totals','Period'=>0,'PlayerExperience'=>'','PlayerPosition'=>'',
+            'PlusMinus'=>'N','Rank'=>'N','Season'=>$season,'SeasonSegment'=>'',
+            'SeasonType'=>'Regular Season','ShotClockRange'=>'','StarterBench'=>'',
+            'TeamID'=>0,'TwoWay'=>0,'VsConference'=>'','VsDivision'=>'','Weight'=>'',
+        ]);
+        $ch = curl_init("https://stats.nba.com/stats/leaguedashplayerstats?{$qs}");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_CONNECTTIMEOUT => 20,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_HTTPHEADER     => $headers_curl,
+        ]);
+        $raw  = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        $done++;
+
+        if ($err || $code !== 200) {
+            echo "ERRO [{$done}/{$total}] {$season}: HTTP {$code} {$err}\n";
+        } else {
+            $data    = json_decode($raw, true);
+            $hdrs    = $data['resultSets'][0]['headers'] ?? [];
+            $rows    = $data['resultSets'][0]['rowSet']   ?? [];
+            $ix      = array_flip($hdrs);
+            $iPid    = $ix['PLAYER_ID']         ?? null;
+            $iTeam   = $ix['TEAM_ABBREVIATION'] ?? null;
+            $count   = 0;
+            if ($iPid !== null && $iTeam !== null) {
+                foreach ($rows as $row) {
+                    $pid  = (int)$row[$iPid];
+                    $team = strtoupper(trim($row[$iTeam] ?? ''));
+                    if (!$pid || !$team || $team === 'TOT') continue;
+                    $team = $TEAM_MAP[$team] ?? $team;
+                    if (!isset($playerTeams[$pid])) $playerTeams[$pid] = [];
+                    if (!in_array($team, $playerTeams[$pid], true)) $playerTeams[$pid][] = $team;
+                    $count++;
+                }
+            }
+            echo "OK [{$done}/{$total}] {$season}: {$count} ocorrencias, " . count($rows) . " linhas\n";
+        }
+        flush();
+        usleep(400000);
+    }
+
+    echo "\nSalvando no banco...\n";
+    flush();
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET times=? WHERE nba_person_id=?");
+    $updated = 0;
+    foreach ($playerTeams as $pid => $teams) {
+        sort($teams);
+        $stmtU->execute([json_encode(array_values($teams)), $pid]);
+        $updated++;
+    }
+    echo "Concluido! {$updated} jogadores atualizados com todos os times.\n";
+    flush();
+    exit;
+}
+
 // ── IMPORT VIA JSON LOCAL ─────────────────────────────────────────────────────
 if ($action === 'import_json' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
@@ -417,7 +528,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
     <div id="importBody" style="display:none;margin-top:16px">
       <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Busca todos os jogadores desde 1980. Existentes não são sobrescritos (prêmios/país preservados).</p>
-      <button class="btn btn-sm btn-danger fw-bold mb-3" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Agora</button>
+      <div class="d-flex gap-2 mb-3 flex-wrap">
+        <button class="btn btn-sm btn-danger fw-bold" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Jogadores (API)</button>
+        <button class="btn btn-sm fw-bold" id="btnImportTeams" style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);color:#60a5fa"><i class="bi bi-building me-1"></i>Completar Times (46 temp.)</button>
+      </div>
       <div id="log">Aguardando...</div>
     </div>
   </div>
@@ -723,6 +837,39 @@ qs('btnImport').addEventListener('click', async () => {
     log.textContent += `❌ Falha: ${e.message}`;
   }
   btn.disabled = false;
+});
+
+// ── IMPORT TIMES (streaming) ─────────────────────────────────────────────────
+qs('btnImportTeams').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnImportTeams');
+  const btn2 = qs('btnImport');
+  btn.disabled = true;
+  btn2.disabled = true;
+  log.textContent = 'Iniciando busca de times por temporada (pode demorar ~3 min)...\n';
+
+  try {
+    const r = await fetch('?action=import_teams');
+    if (!r.body) {
+      log.textContent += '❌ Streaming não suportado neste servidor.\n';
+      btn.disabled = false; btn2.disabled = false;
+      return;
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = dec.decode(value);
+      log.textContent += chunk;
+      log.scrollTop = log.scrollHeight;
+    }
+    loadPlayers(1);
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message}`;
+  }
+  btn.disabled = false;
+  btn2.disabled = false;
 });
 
 // Carregar ao abrir
