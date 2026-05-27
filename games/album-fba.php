@@ -275,7 +275,7 @@ $teams = [
       <div style="font-size:12px;font-weight:700;color:var(--text-2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:7px">
         <i class="bi bi-grid-3x3-gap-fill" style="color:var(--red)"></i> Cartas disponíveis
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:10px">
         <input id="market-filter-name" type="text" placeholder="Filtrar por nome" class="fba-input">
         <select id="market-filter-collection" class="fba-input">
           <option value="">Todas as coleções</option>
@@ -287,6 +287,7 @@ $teams = [
           <option value="epico">Épica</option>
           <option value="lendario">Lendária</option>
         </select>
+        <input id="market-filter-price-max" type="number" min="0" step="1" placeholder="Preço máx. (pts)" class="fba-input">
       </div>
       <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);margin-bottom:12px;cursor:pointer">
         <input id="market-filter-missing" type="checkbox" style="accent-color:var(--red)"> Ainda não tenho

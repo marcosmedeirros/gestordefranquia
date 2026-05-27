@@ -442,7 +442,7 @@ if ($action === 'market_state') {
         SELECT m.id, m.seller_user_id, m.card_id, m.price_points, m.created_at,
                u.nome seller_name,
                c.nome card_name, c.raridade card_rarity, COALESCE(c.collection_name, 'Geral') card_collection,
-               t.nome card_team, c.img_url card_img
+               t.nome card_team
         FROM fba_market_listings m
         INNER JOIN usuarios u ON u.id = m.seller_user_id
         INNER JOIN fba_cards c ON c.id = m.card_id
@@ -506,7 +506,10 @@ if ($action === 'market_create_listing') {
         $ins = $pdo->prepare("INSERT INTO fba_market_listings (seller_user_id, card_id, price_points, status) VALUES (:s, :c, :p, 'active')");
         $ins->execute([':s' => $user_id, ':c' => $cardId, ':p' => $price]);
         $pdo->commit();
-        out(['ok' => true]);
+        $newQtyStmt = $pdo->prepare("SELECT COALESCE(quantidade,0) FROM fba_user_collection WHERE user_id=:u AND card_id=:c");
+        $newQtyStmt->execute([':u' => $user_id, ':c' => $cardId]);
+        $newQty = (int)$newQtyStmt->fetchColumn();
+        out(['ok' => true, 'card_id' => $cardId, 'new_qty' => $newQty]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao criar anuncio'], 500);
@@ -545,7 +548,7 @@ if ($action === 'market_cancel_listing') {
         $ret->execute([':u' => $user_id, ':c' => (int)$row['card_id']]);
 
         $pdo->commit();
-        out(['ok' => true]);
+        out(['ok' => true, 'card_id' => (int)$row['card_id']]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao cancelar anuncio'], 500);
@@ -601,7 +604,7 @@ if ($action === 'market_buy_listing') {
             out(['ok' => false, 'message' => 'Falha ao concluir compra'], 400);
         }
         $pdo->commit();
-        out(['ok' => true]);
+        out(['ok' => true, 'card_id' => (int)$row['card_id'], 'new_coins' => $buyerCoins - $price]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         out(['ok' => false, 'message' => 'Erro ao comprar carta'], 500);

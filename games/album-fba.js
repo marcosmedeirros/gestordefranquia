@@ -20,6 +20,7 @@ let state = {
 let currentSlot = null;
 let lastPackType = null;
 let tradeReloadPending = false;
+let marketLoaded = false;
 let openAccordion = null;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
@@ -97,7 +98,6 @@ async function bootstrap() {
 
     renderAlbum();
     renderCourt();
-    renderMarket();
     renderTrades();
     loadDailyPackStatus();
     if (state.user.is_admin) {
@@ -135,7 +135,7 @@ function switchTab(tab) {
     if (tab === 'album') renderAlbum();
     if (tab === 'team') renderCourt();
     if (tab === 'ranking') renderRanking();
-    if (tab === 'market') renderMarket();
+    if (tab === 'market') { if (!marketLoaded) { renderMarket().then(() => { marketLoaded = true; }).catch(() => {}); } else { renderMarketListings(); } }
     if (tab === 'trades') renderTrades();
     if (tab === 'store') loadDailyPackStatus();
     if (tab === 'colecoes') renderCollectionRewards();
@@ -578,18 +578,13 @@ function renderMarketMine() {
         return;
     }
     mineList.innerHTML = mine.map((item) => `
-        <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-3">
-            <div class="flex items-start justify-between gap-2">
-                <div>
-                    <div class="font-bold">${item.card_name}</div>
-                    <div class="text-xs text-zinc-400">${item.card_collection} • ${rarityLabel(item.card_rarity)}</div>
-                </div>
-                <button type="button" class="bg-red-800 hover:bg-red-700 rounded w-8 h-8 font-bold" data-market-cancel="${item.id}" title="Cancelar venda">X</button>
+        <div style="background:var(--panel);border:1px solid var(--border-red);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div style="min-width:0;flex:1">
+                <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px">${item.card_name}</div>
+                <div style="font-size:11px;color:var(--text-2)">${item.card_collection} &bull; ${rarityLabel(item.card_rarity)}</div>
+                <div style="font-size:13px;font-weight:800;color:var(--red);margin-top:4px">${Number(item.price_points)} <span style="font-size:10px;font-weight:400;color:var(--text-3)">pts</span></div>
             </div>
-            <div class="mt-2 bg-zinc-950 rounded border border-zinc-700 p-1">
-                <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-36 object-contain rounded" onerror="this.style.display='none'">
-            </div>
-            <div class="text-sm text-red-300 font-bold mt-2">${Number(item.price_points)} pts</div>
+            <button type="button" style="width:32px;height:32px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#f87171;font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0" data-market-cancel="${item.id}" title="Cancelar venda">&times;</button>
         </div>
     `).join('');
 }
@@ -598,14 +593,16 @@ function filteredMarketListings() {
     const nameQuery = String(document.getElementById('market-filter-name')?.value || '').trim().toLowerCase();
     const collectionFilter = String(document.getElementById('market-filter-collection')?.value || '');
     const rarityFilter = String(document.getElementById('market-filter-rarity')?.value || '');
+    const maxPrice = Number(document.getElementById('market-filter-price-max')?.value || 0);
     const missingOnly = Boolean(document.getElementById('market-filter-missing')?.checked);
     return (Array.isArray(state.market.listings) ? state.market.listings : []).filter((item) => {
         const nameOk = !nameQuery || String(item.card_name || '').toLowerCase().includes(nameQuery);
         const collectionOk = !collectionFilter || String(item.card_collection || '') === collectionFilter;
+        const priceOk = !maxPrice || Number(item.price_points) <= maxPrice;
         const rarityOk = !rarityFilter || String(item.card_rarity || '') === rarityFilter;
         const owned = Number(state.collection[item.card_id] || 0) > 0;
         const missingOk = !missingOnly || !owned;
-        return nameOk && collectionOk && rarityOk && missingOk;
+        return nameOk && collectionOk && rarityOk && priceOk && missingOk;
     });
 }
 
@@ -617,24 +614,25 @@ function renderMarketListings() {
         list.innerHTML = '<div class="col-span-full text-center py-8 text-zinc-400">Nenhuma carta encontrada com esses filtros.</div>';
         return;
     }
+    const rarityColor = { comum: '#4a4a52', rara: '#ef4444', epico: '#ff6b6b', lendario: '#fff' };
     list.innerHTML = rows.map((item) => {
         const mine = Number(item.seller_user_id) === Number(state.user?.id || 0);
+        const rc = rarityColor[item.card_rarity] || '#4a4a52';
         return `
-            <div class="bg-zinc-900 border border-zinc-700 rounded-lg p-3">
-                <div class="flex items-start justify-between gap-2">
-                    <div>
-                        <div class="font-bold">${item.card_name}</div>
-                        <div class="text-xs text-zinc-400">${item.card_collection} • ${rarityLabel(item.card_rarity)} • ${item.seller_name}</div>
+            <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <div style="min-width:0;flex:1">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${rc};flex-shrink:0;display:inline-block"></span>
+                        <span style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.card_name}</span>
                     </div>
-                    <div class="text-red-300 font-black">${Number(item.price_points)} pts</div>
+                    <div style="font-size:11px;color:var(--text-2)">${item.card_collection} &bull; ${rarityLabel(item.card_rarity)}</div>
+                    <div style="font-size:10px;color:var(--text-3);margin-top:1px">${item.seller_name}</div>
                 </div>
-                <div class="mt-2 bg-zinc-950 rounded border border-zinc-700 p-1">
-                    <img src="${item.card_img}" alt="${item.card_name}" class="w-full h-36 object-contain rounded" onerror="this.style.display='none'">
-                </div>
-                <div class="mt-3">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+                    <span style="font-size:14px;font-weight:800;color:var(--red)">${Number(item.price_points)} <span style="font-size:10px;font-weight:400;color:var(--text-3)">pts</span></span>
                     ${mine
-                        ? '<span class="text-xs px-2 py-1 rounded bg-zinc-700 text-zinc-200">Seu anuncio</span>'
-                        : `<button type="button" class="bg-red-700 hover:bg-red-600 rounded px-3 py-2 text-sm font-bold" data-market-buy="${item.id}">Comprar</button>`}
+                        ? '<span style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--text-2)">Seu anúncio</span>'
+                        : `<button type="button" style="padding:6px 14px;background:var(--red);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)" data-market-buy="${item.id}">Comprar</button>`}
                 </div>
             </div>
         `;
@@ -854,8 +852,8 @@ async function performTrade(action, payload) {
         state.collection = res.collection || state.collection;
         state.user.coins = Number(res.coins || state.user.coins || 0);
         document.getElementById('coin-count').innerText = state.user.coins;
+        marketLoaded = false;
         renderAlbum();
-        await renderMarket();
         renderTrades();
         const cards = Array.isArray(res.cards) ? res.cards : [];
         showRevealModal(cards, Number(res.bonus_points || 0), false);
@@ -939,8 +937,8 @@ async function claimDailyPack() {
         state.user.coins = Number(res.coins || state.user.coins || 0);
         state.collection = res.collection || state.collection;
         document.getElementById('coin-count').innerText = state.user.coins;
+        marketLoaded = false;
         renderAlbum();
-        await renderMarket();
         const cards = Array.isArray(res.cards) ? res.cards : [];
         showRevealModal(cards, Number(res.bonus_points || 0), false);
         if (card) {
@@ -1235,6 +1233,7 @@ document.getElementById('market-sell-card')?.addEventListener('change', updateMa
 document.getElementById('market-filter-name')?.addEventListener('input', renderMarketListings);
 document.getElementById('market-filter-collection')?.addEventListener('change', renderMarketListings);
 document.getElementById('market-filter-rarity')?.addEventListener('change', renderMarketListings);
+document.getElementById('market-filter-price-max')?.addEventListener('input', renderMarketListings);
 document.getElementById('market-filter-missing')?.addEventListener('change', renderMarketListings);
 document.getElementById('market-toggle-mine')?.addEventListener('click', () => {
     const wrap = document.getElementById('market-mine-wrap');
@@ -1264,8 +1263,21 @@ document.getElementById('market-sell-btn')?.addEventListener('click', async () =
             if (fb) fb.textContent = res.message || 'Erro ao criar anuncio.';
             return;
         }
-        await renderMarket();
-        renderAlbum();
+        if (res.card_id !== undefined) {
+            state.collection[res.card_id] = res.new_qty;
+            const masterCard = state.master.find((c) => Number(c.id) === Number(res.card_id));
+            if (masterCard) {
+                const nl = { id: -Date.now(), seller_user_id: state.user.id, card_id: masterCard.id, price_points: price, seller_name: state.user.nome || 'Você', card_name: masterCard.name, card_rarity: masterCard.rarity, card_collection: masterCard.collection || 'Geral' };
+                state.market.listings.unshift(nl);
+                state.market.myListings.unshift(nl);
+            }
+        }
+        renderMarketCollectionFilter();
+        renderMarketListings();
+        renderMarketMine();
+        renderMarketSellSelect();
+        updateMarketSellHint();
+        document.getElementById('market-sell-price').value = '';
         if (fb) fb.textContent = 'Carta anunciada com sucesso.';
     } catch (err) {
         if (fb) fb.textContent = err.message || 'Erro ao criar anuncio.';
@@ -1324,8 +1336,18 @@ document.getElementById('market-list')?.addEventListener('click', async (event) 
             if (fb) fb.textContent = res.message || 'Erro ao comprar carta.';
             return;
         }
-        await renderMarket();
-        renderAlbum();
+        state.market.listings = state.market.listings.filter((l) => Number(l.id) !== listingId);
+        state.market.myListings = state.market.myListings.filter((l) => Number(l.id) !== listingId);
+        if (res.card_id !== undefined) {
+            state.collection[res.card_id] = (Number(state.collection[res.card_id] || 0)) + 1;
+        }
+        if (res.new_coins !== undefined) {
+            state.user.coins = res.new_coins;
+            document.getElementById('coin-count').innerText = res.new_coins;
+        }
+        renderMarketListings();
+        renderMarketSellSelect();
+        updateMarketSellHint();
         if (fb) fb.textContent = 'Compra concluida com sucesso.';
     } catch (err) {
         if (fb) fb.textContent = err.message || 'Erro ao comprar carta.';
@@ -1344,8 +1366,15 @@ document.getElementById('market-mine-list')?.addEventListener('click', async (ev
             if (fb) fb.textContent = res.message || 'Erro ao cancelar anuncio.';
             return;
         }
-        await renderMarket();
-        renderAlbum();
+        state.market.listings = state.market.listings.filter((l) => Number(l.id) !== listingId);
+        state.market.myListings = state.market.myListings.filter((l) => Number(l.id) !== listingId);
+        if (res.card_id !== undefined) {
+            state.collection[res.card_id] = (Number(state.collection[res.card_id] || 0)) + 1;
+        }
+        renderMarketListings();
+        renderMarketMine();
+        renderMarketSellSelect();
+        updateMarketSellHint();
         if (fb) fb.textContent = 'Anuncio cancelado e carta devolvida.';
     } catch (err) {
         if (fb) fb.textContent = err.message || 'Erro ao cancelar anuncio.';
