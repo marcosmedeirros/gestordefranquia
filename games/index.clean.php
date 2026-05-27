@@ -412,7 +412,7 @@ try {
     }
     @keyframes betpulse { 0%,100%{box-shadow:0 0 3px var(--red)} 50%{box-shadow:0 0 8px rgba(252,0,37,.7)} }
     .bet-title-wrap { flex: 1; min-width: 0; }
-    .bet-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bet-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; word-break: break-word; }
     .bet-meta { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
     .bet-meta span { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-2); }
     .bet-meta i { font-size: 9px; }
