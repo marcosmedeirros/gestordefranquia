@@ -216,6 +216,156 @@ if ($action === 'toggle_active' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── IMPORTAR PRÊMIOS (chunked + curl_multi) ──────────────────────────────────
+if ($action === 'import_awards') {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('X-Accel-Buffering: no');
+    header('Cache-Control: no-cache');
+    @ini_set('zlib.output_compression', 0);
+    set_time_limit(90);
+    if (ob_get_level()) ob_end_clean();
+
+    $offset    = max(0, (int)($_GET['offset'] ?? 0));
+    $chunkSize = 100;
+    $parallel  = 15;
+
+    $allPids = $pdo->query("SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id")
+                   ->fetchAll(PDO::FETCH_COLUMN);
+    $total = count($allPids);
+
+    if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
+
+    $chunk      = array_slice($allPids, $offset, $chunkSize);
+    $nextOffset = $offset + count($chunk);
+
+    // Carregar premios atuais do bloco
+    $ph = implode(',', array_fill(0, count($chunk), '?'));
+    $stmtE = $pdo->prepare("SELECT nba_person_id, premios FROM hoopgrid_players WHERE nba_person_id IN ({$ph})");
+    $stmtE->execute($chunk);
+    $existingMap = [];
+    foreach ($stmtE->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $existingMap[(int)$r['nba_person_id']] = json_decode($r['premios'] ?: '[]', true) ?: [];
+    }
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET premios=? WHERE nba_person_id=?");
+
+    $mapAward = function(string $desc, $allnbaNum): ?string {
+        $d = strtolower(trim($desc));
+        if (strpos($d, 'all-star')            !== false || strpos($d, 'all star')             !== false) return 'ALLSTAR';
+        if (strpos($d, 'most valuable player') !== false || $d === 'mvp')                                 return 'MVP';
+        if (strpos($d, 'defensive player of the year') !== false)                                         return 'DPOY';
+        if (strpos($d, 'most improved')        !== false)                                                 return 'MIP';
+        if (strpos($d, 'sixth man')            !== false)                                                 return '6THMAN';
+        if (strpos($d, 'rookie of the year')   !== false || strpos($d, 'rookie award') !== false)        return 'ROY';
+        if (strpos($d, 'hall of fame')         !== false)                                                 return 'HOF';
+        if (strpos($d, 'champion')             !== false)                                                 return 'CHAMP';
+        if (strpos($d, 'all-nba') !== false || strpos($d, 'all nba') !== false) {
+            if ($allnbaNum == '1' || strpos($d, 'first')  !== false) return 'ALLNBA1';
+            if ($allnbaNum == '2' || strpos($d, 'second') !== false) return 'ALLNBA2';
+            if ($allnbaNum == '3' || strpos($d, 'third')  !== false) return 'ALLNBA3';
+        }
+        return null;
+    };
+
+    $hdrs_curl = [
+        'Accept: application/json, text/plain, */*',
+        'Accept-Language: en-US,en;q=0.9',
+        'Cache-Control: no-cache',
+        'Connection: keep-alive',
+        'DNT: 1',
+        'Host: stats.nba.com',
+        'Origin: https://www.nba.com',
+        'Pragma: no-cache',
+        'Referer: https://www.nba.com/',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: same-site',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'x-nba-stats-origin: stats',
+        'x-nba-stats-token: true',
+    ];
+
+    $updated  = 0;
+    $errors   = 0;
+    $batchNum = 0;
+    $batches  = array_chunk($chunk, $parallel);
+
+    foreach ($batches as $batch) {
+        $batchNum++;
+        $mh = curl_multi_init();
+        $handles = [];
+
+        foreach ($batch as $pid) {
+            $pid = (int)$pid;
+            $ch = curl_init("https://stats.nba.com/stats/playerawards?PlayerID={$pid}");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 25,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_HTTPHEADER     => $hdrs_curl,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$pid] = $ch;
+        }
+
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running > 0) curl_multi_select($mh, 1.0);
+        } while ($running > 0);
+
+        foreach ($handles as $pid => $ch) {
+            $raw  = curl_multi_getcontent($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+
+            if ($code !== 200 || !$raw) { $errors++; continue; }
+
+            $data = json_decode($raw, true);
+            $rhdrs = $data['resultSets'][0]['headers'] ?? [];
+            $rrows = $data['resultSets'][0]['rowSet']   ?? [];
+            if (!$rhdrs) continue;
+
+            $ix      = array_flip($rhdrs);
+            $iDesc   = $ix['DESCRIPTION']        ?? null;
+            $iAllNba = $ix['ALL_NBA_TEAM_NUMBER'] ?? null;
+            if ($iDesc === null) continue;
+
+            $current = $existingMap[$pid] ?? [];
+            $changed = false;
+            foreach ($rrows as $row) {
+                $award = $mapAward($row[$iDesc] ?? '', $iAllNba !== null ? ($row[$iAllNba] ?? null) : null);
+                if ($award && !in_array($award, $current, true)) {
+                    $current[] = $award;
+                    $changed   = true;
+                }
+            }
+            if ($changed) {
+                sort($current);
+                $stmtU->execute([json_encode(array_values($current)), $pid]);
+                $updated++;
+            }
+        }
+
+        curl_multi_close($mh);
+        echo "Lote {$batchNum}/" . count($batches) . " ok, atualizados ate agora: {$updated}\n";
+        flush();
+        usleep(200000);
+    }
+
+    if ($nextOffset >= $total) {
+        echo "DONE:{$total}:{$updated}\n";
+    } else {
+        echo "NEXT:{$nextOffset}:{$total}:{$updated}\n";
+    }
+    flush();
+    exit;
+}
+
 // ── IMPORTAR TIMES POR TEMPORADA (streaming) ─────────────────────────────────
 if ($action === 'import_teams') {
     header('Content-Type: text/plain; charset=utf-8');
@@ -233,7 +383,7 @@ if ($action === 'import_teams') {
     }
 
     $playerTeams = [];
-    $done = 0; $total = count($seasons);
+    $done = 0; $total = count($seasons); $totalUpdated = 0;
     $headers_curl = [
         'Accept: application/json, text/plain, */*',
         'Accept-Encoding: gzip, deflate, br',
@@ -311,18 +461,33 @@ if ($action === 'import_teams') {
         }
         flush();
         usleep(400000);
+
+        // Salvar no banco a cada 5 temporadas para evitar timeout do servidor
+        if (($done % 5 === 0 || $done === $total) && !empty($playerTeams)) {
+            $pids2 = array_keys($playerTeams);
+            $ph2   = implode(',', array_fill(0, count($pids2), '?'));
+            $sE = $pdo->prepare("SELECT nba_person_id, times FROM hoopgrid_players WHERE nba_person_id IN ({$ph2})");
+            $sE->execute($pids2);
+            $curMap = [];
+            foreach ($sE->fetchAll(PDO::FETCH_ASSOC) as $cr) {
+                $curMap[(int)$cr['nba_person_id']] = json_decode($cr['times'] ?: '[]', true) ?: [];
+            }
+            $sU = $pdo->prepare("UPDATE hoopgrid_players SET times=? WHERE nba_person_id=?");
+            $bc = 0;
+            foreach ($playerTeams as $pid2 => $tm) {
+                $mg = array_values(array_unique(array_merge($curMap[$pid2] ?? [], $tm)));
+                sort($mg);
+                $sU->execute([json_encode($mg), $pid2]);
+                if (isset($curMap[$pid2])) $bc++;
+            }
+            $totalUpdated += $bc;
+            echo "  -> Lote salvo: {$bc} jogadores (acumulado: {$totalUpdated})\n";
+            flush();
+            $playerTeams = [];
+        }
     }
 
-    echo "\nSalvando no banco...\n";
-    flush();
-    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET times=? WHERE nba_person_id=?");
-    $updated = 0;
-    foreach ($playerTeams as $pid => $teams) {
-        sort($teams);
-        $stmtU->execute([json_encode(array_values($teams)), $pid]);
-        $updated++;
-    }
-    echo "Concluido! {$updated} jogadores atualizados com todos os times.\n";
+    echo "Concluido! {$totalUpdated} jogadores atualizados com todos os times.\n";
     flush();
     exit;
 }
@@ -531,6 +696,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="d-flex gap-2 mb-3 flex-wrap">
         <button class="btn btn-sm btn-danger fw-bold" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Jogadores (API)</button>
         <button class="btn btn-sm fw-bold" id="btnImportTeams" style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);color:#60a5fa"><i class="bi bi-building me-1"></i>Completar Times (46 temp.)</button>
+        <button class="btn btn-sm fw-bold" id="btnImportAwards" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80"><i class="bi bi-award me-1"></i>Importar Prêmios</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -870,6 +1036,52 @@ qs('btnImportTeams').addEventListener('click', async () => {
   }
   btn.disabled = false;
   btn2.disabled = false;
+});
+
+// ── IMPORT PRÊMIOS (chunked, auto-chain) ─────────────────────────────────────
+async function importAwardsChunk(offset) {
+  const log = qs('log');
+  try {
+    const r = await fetch(`?action=import_awards&offset=${offset}`);
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const txt = dec.decode(value);
+      buf += txt;
+      log.textContent += txt;
+      log.scrollTop = log.scrollHeight;
+    }
+    const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+    const mDone = buf.match(/DONE:(\d+)/);
+    if (mNext) {
+      const pct = Math.round((parseInt(mNext[1]) / parseInt(mNext[2])) * 100);
+      log.textContent += `--- ${pct}% (${mNext[1]}/${mNext[2]}) ---\n`;
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => importAwardsChunk(parseInt(mNext[1])), 200);
+    } else if (mDone) {
+      log.textContent += `\n✅ Prêmios importados! ${mDone[1]} jogadores verificados.\n`;
+      log.scrollTop = log.scrollHeight;
+      ['btnImportAwards','btnImport','btnImportTeams'].forEach(id => { const e = qs(id); if(e) e.disabled = false; });
+      loadPlayers(1);
+    } else {
+      log.textContent += '\n⚠️ Resposta inesperada. Verifique o servidor.\n';
+      ['btnImportAwards','btnImport','btnImportTeams'].forEach(id => { const e = qs(id); if(e) e.disabled = false; });
+    }
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message} — tentando novamente...\n`;
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => importAwardsChunk(offset), 3000);
+  }
+}
+
+qs('btnImportAwards').addEventListener('click', () => {
+  const log = qs('log');
+  ['btnImportAwards','btnImport','btnImportTeams'].forEach(id => { const e = qs(id); if(e) e.disabled = true; });
+  log.textContent = 'Importando prêmios (MVP, All-Star, All-NBA, CHAMP, HOF...).\nProcessa 100 jogadores por bloco com 15 req. paralelas.\n\n';
+  importAwardsChunk(0);
 });
 
 // Carregar ao abrir
