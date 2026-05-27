@@ -265,7 +265,8 @@ $teams = [
           <button id="market-toggle-mine" class="btn-ghost" style="font-size:11px;padding:5px 10px">Mostrar</button>
         </div>
         <div id="market-mine-wrap" class="hidden" style="margin-top:12px">
-          <div id="market-mine-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+          <style>#market-mine-list{display:grid;gap:10px;grid-template-columns:repeat(2,1fr)}@media(min-width:480px){#market-mine-list{grid-template-columns:repeat(3,1fr)}}@media(min-width:768px){#market-mine-list{grid-template-columns:repeat(5,1fr)}}</style>
+          <div id="market-mine-list"></div>
         </div>
       </div>
     </div>
@@ -292,7 +293,8 @@ $teams = [
       <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);margin-bottom:12px;cursor:pointer">
         <input id="market-filter-missing" type="checkbox" style="accent-color:var(--red)"> Ainda não tenho
       </label>
-      <div id="market-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+      <style>#market-list{display:grid;gap:10px;grid-template-columns:repeat(2,1fr)}@media(min-width:480px){#market-list{grid-template-columns:repeat(3,1fr)}}@media(min-width:768px){#market-list{grid-template-columns:repeat(5,1fr)}}</style>
+      <div id="market-list"></div>
     </div>
     <p id="market-feedback" style="font-size:12px;color:var(--text-2);margin-top:10px"></p>
   </section>

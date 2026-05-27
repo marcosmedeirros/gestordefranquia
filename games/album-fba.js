@@ -577,16 +577,30 @@ function renderMarketMine() {
         mineList.innerHTML = '<div class="col-span-full" style="color:var(--text-2);font-size:13px;padding:8px 0">Você não tem cartas à venda.</div>';
         return;
     }
-    mineList.innerHTML = mine.map((item) => `
-        <div style="background:var(--panel);border:1px solid var(--border-red);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-            <div style="min-width:0;flex:1">
-                <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px">${item.card_name}</div>
-                <div style="font-size:11px;color:var(--text-2)">${item.card_collection} &bull; ${rarityLabel(item.card_rarity)}</div>
-                <div style="font-size:13px;font-weight:800;color:var(--red);margin-top:4px">${Number(item.price_points)} <span style="font-size:10px;font-weight:400;color:var(--text-3)">pts</span></div>
+    const rarityBorderMine = { comum: '#4a4a52', rara: '#ef4444', epico: '#ff6b6b', lendario: '#ffffff' };
+    const rarityBgMine = { comum: 'linear-gradient(145deg,var(--panel-2),var(--panel-3))', rara: 'linear-gradient(145deg,#2a0a0a,#6b1111)', epico: 'linear-gradient(145deg,#3b0f0f,#9b1c1c)', lendario: 'linear-gradient(145deg,#400000,#b30000)' };
+    mineList.innerHTML = mine.map((item) => {
+        const rb = rarityBorderMine[item.card_rarity] || '#4a4a52';
+        const bg = rarityBgMine[item.card_rarity] || rarityBgMine.comum;
+        const masterCard = state.master.find((c) => Number(c.id) === Number(item.card_id));
+        const imgSrc = masterCard?.img || '';
+        return `
+        <div style="background:var(--panel);border:2px solid ${rb};border-radius:var(--radius-sm);overflow:hidden;display:flex;flex-direction:column">
+            <div style="width:100%;aspect-ratio:3/4;${bg};overflow:hidden;position:relative">
+                ${imgSrc
+                    ? `<img src="${imgSrc}" alt="${item.card_name}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-3);font-size:28px\\'><i class=\\'bi bi-person-fill\\'></i></div>'">`
+                    : `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-3);font-size:28px"><i class="bi bi-person-fill"></i></div>`}
             </div>
-            <button type="button" style="width:32px;height:32px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#f87171;font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0" data-market-cancel="${item.id}" title="Cancelar venda">&times;</button>
-        </div>
-    `).join('');
+            <div style="padding:8px 10px;display:flex;flex-direction:column;gap:4px;flex:1">
+                <div style="font-weight:700;font-size:11px;color:var(--text);line-height:1.3;word-break:break-word">${item.card_name}</div>
+                <div style="font-size:9px;color:var(--text-2)">${item.card_collection}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:auto;padding-top:6px;border-top:1px solid var(--border)">
+                    <span style="font-size:13px;font-weight:800;color:var(--red)">${Number(item.price_points)}<span style="font-size:9px;font-weight:400;color:var(--text-3)">pts</span></span>
+                    <button type="button" style="width:26px;height:26px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:6px;color:#f87171;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;line-height:1" data-market-cancel="${item.id}" title="Cancelar venda">&times;</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function filteredMarketListings() {
@@ -614,25 +628,31 @@ function renderMarketListings() {
         list.innerHTML = '<div class="col-span-full text-center py-8 text-zinc-400">Nenhuma carta encontrada com esses filtros.</div>';
         return;
     }
-    const rarityColor = { comum: '#4a4a52', rara: '#ef4444', epico: '#ff6b6b', lendario: '#fff' };
+    const rarityBorder = { comum: '#4a4a52', rara: '#ef4444', epico: '#ff6b6b', lendario: '#ffffff' };
+    const rarityBg = { comum: 'linear-gradient(145deg,var(--panel-2),var(--panel-3))', rara: 'linear-gradient(145deg,#2a0a0a,#6b1111)', epico: 'linear-gradient(145deg,#3b0f0f,#9b1c1c)', lendario: 'linear-gradient(145deg,#400000,#b30000)' };
     list.innerHTML = rows.map((item) => {
         const mine = Number(item.seller_user_id) === Number(state.user?.id || 0);
-        const rc = rarityColor[item.card_rarity] || '#4a4a52';
+        const rb = rarityBorder[item.card_rarity] || '#4a4a52';
+        const bg = rarityBg[item.card_rarity] || rarityBg.comum;
+        const masterCard = state.master.find((c) => Number(c.id) === Number(item.card_id));
+        const imgSrc = masterCard?.img || '';
         return `
-            <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-                <div style="min-width:0;flex:1">
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-                        <span style="width:8px;height:8px;border-radius:50%;background:${rc};flex-shrink:0;display:inline-block"></span>
-                        <span style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.card_name}</span>
-                    </div>
-                    <div style="font-size:11px;color:var(--text-2)">${item.card_collection} &bull; ${rarityLabel(item.card_rarity)}</div>
-                    <div style="font-size:10px;color:var(--text-3);margin-top:1px">${item.seller_name}</div>
+            <div style="background:var(--panel);border:2px solid ${rb};border-radius:var(--radius-sm);overflow:hidden;display:flex;flex-direction:column">
+                <div style="width:100%;aspect-ratio:3/4;${bg};overflow:hidden;position:relative">
+                    ${imgSrc
+                        ? `<img src="${imgSrc}" alt="${item.card_name}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-3);font-size:28px\\'><i class=\\'bi bi-person-fill\\'></i></div>'">`
+                        : `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-3);font-size:28px"><i class="bi bi-person-fill"></i></div>`}
                 </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-                    <span style="font-size:14px;font-weight:800;color:var(--red)">${Number(item.price_points)} <span style="font-size:10px;font-weight:400;color:var(--text-3)">pts</span></span>
-                    ${mine
-                        ? '<span style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--text-2)">Seu anúncio</span>'
-                        : `<button type="button" style="padding:6px 14px;background:var(--red);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)" data-market-buy="${item.id}">Comprar</button>`}
+                <div style="padding:8px 10px;display:flex;flex-direction:column;gap:4px;flex:1">
+                    <div style="font-weight:700;font-size:11px;color:var(--text);line-height:1.3;word-break:break-word">${item.card_name}</div>
+                    <div style="font-size:9px;color:var(--text-2)">${item.card_collection}</div>
+                    <div style="font-size:9px;color:var(--text-3)">${item.seller_name}</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:auto;padding-top:6px;border-top:1px solid var(--border)">
+                        <span style="font-size:13px;font-weight:800;color:var(--red)">${Number(item.price_points)}<span style="font-size:9px;font-weight:400;color:var(--text-3)">pts</span></span>
+                        ${mine
+                            ? '<span style="font-size:9px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--text-2);white-space:nowrap">Seu</span>'
+                            : `<button type="button" style="padding:4px 10px;background:var(--red);border:none;border-radius:6px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);white-space:nowrap" data-market-buy="${item.id}">Comprar</button>`}
+                    </div>
                 </div>
             </div>
         `;
