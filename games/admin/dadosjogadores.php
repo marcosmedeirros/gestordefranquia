@@ -792,8 +792,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
 .mob-title span{color:var(--red)}
 @media(max-width:768px){
-  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease),visibility 0s 280ms;z-index:200;visibility:hidden;pointer-events:none}
-  .sidebar.open{transform:translateX(0);visibility:visible;pointer-events:auto;transition:transform 280ms var(--ease),visibility 0s 0s}
+  .sidebar{display:none !important}
+  .sidebar.open{display:flex !important;transform:none}
   .sb-close{display:flex}
   .mob-bar{display:flex}
   .page-content{margin-left:0;padding:0 12px 60px}
@@ -869,7 +869,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 <!-- CONTEÚDO -->
 <div class="page-content">
-  <div class="page-title">🏀 Controle de Jogadores NBA</div>
+  <div class="page-title">🏀 Controle de Jogadores Games</div>
   <div class="page-sub">Banco centralizado usado pelo Hoop Grid e outros jogos. Importe via API ou gerencie manualmente.</div>
 
   <!-- Stats -->
