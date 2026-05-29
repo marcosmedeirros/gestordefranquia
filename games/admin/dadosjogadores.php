@@ -792,21 +792,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
 .mob-title span{color:var(--red)}
 @media(max-width:768px){
-  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease);z-index:200}
-  .sidebar.open{transform:translateX(0)}
+  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease),visibility 0s 280ms;z-index:200;visibility:hidden;pointer-events:none}
+  .sidebar.open{transform:translateX(0);visibility:visible;pointer-events:auto;transition:transform 280ms var(--ease),visibility 0s 0s}
   .sb-close{display:flex}
   .mob-bar{display:flex}
   .page-content{margin-left:0;padding:0 12px 60px}
   .page-title{font-size:15px;margin-top:14px}
-  .page-sub{font-size:11px;margin-bottom:16px}
+  .page-sub{font-size:11px;margin-bottom:14px}
   .panel{padding:14px}
   .stat-card{padding:10px 8px}
   .stat-v{font-size:1.4rem}
   .stat-l{font-size:10px}
   .search-bar{gap:6px}
   .search-bar .inp{flex:1 1 calc(50% - 3px) !important;min-width:0 !important}
-  .tbl th,.tbl td{padding:6px 8px;font-size:12px}
+  #fq{flex:1 1 100% !important}
+  .mob-hide{display:none !important}
+  .tbl th,.tbl td{padding:6px 8px;font-size:11px}
+  #log{font-size:11px;max-height:120px}
   .form-row{grid-template-columns:1fr}
+  .modal-box{padding:16px}
+  .pag button{padding:5px 8px;font-size:11px}
+  .chip{font-size:11px;padding:3px 6px}
+  .btn-ic{padding:5px 9px}
 }
 </style>
 </head>
