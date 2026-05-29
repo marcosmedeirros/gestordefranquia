@@ -28,10 +28,23 @@ try {
     $pdo->exec("INSERT IGNORE INTO fba_game_controls (game_key, is_double) VALUES ('boxnba', 0)");
 } catch (PDOException $e) {}
 
-// --- BANCO DE JOGADORES (carregado de nba-players-db.php) ---
-require_once __DIR__ . '/../core/nba-players-db.php';
-nba_ensure_tables($pdo);
-$PLAYERS = nba_get_all_players($pdo);
+// --- BANCO DE JOGADORES (carregado de hoopgrid_players) ---
+$PLAYERS = [];
+$PLAYER_PIDS = [];
+try {
+    $stmt = $pdo->query("SELECT nome, times, pais, premios, nba_person_id FROM hoopgrid_players WHERE ativo=1");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $PLAYERS[] = [
+            'n' => $row['nome'],
+            't' => json_decode($row['times'],  true) ?: [],
+            'c' => $row['pais'],
+            'a' => json_decode($row['premios'], true) ?: [],
+        ];
+        if ($row['nba_person_id']) {
+            $PLAYER_PIDS[$row['nome']] = (int)$row['nba_person_id'];
+        }
+    }
+} catch (PDOException $e) {}
 
 $CRITERIA = [
     ['id'=>'LAL','type'=>'team',  'label'=>'Lakers',            'icon'=>'🟡','full'=>'Los Angeles Lakers',      'nba_id'=>1610612747],
@@ -85,80 +98,15 @@ $CRITERIA = [
     ['id'=>'SEN','type'=>'nation','label'=>'Senegal',           'icon'=>'🇸🇳','full'=>'Senegal'],
     ['id'=>'PRI','type'=>'nation','label'=>'Porto Rico',        'icon'=>'🇵🇷','full'=>'Porto Rico'],
     ['id'=>'MVP',       'type'=>'award','label'=>'MVP',             'icon'=>'🏆','full'=>'MVP da Temporada'],
-    ['id'=>'CHAMPION',  'type'=>'award','label'=>'Campeão',         'icon'=>'💍','full'=>'Campeão NBA'],
+    ['id'=>'CHAMP',      'type'=>'award','label'=>'Campeão',         'icon'=>'💍','full'=>'Campeão NBA'],
     ['id'=>'ALLSTAR',   'type'=>'award','label'=>'All-Star',        'icon'=>'⭐','full'=>'All-Star'],
     ['id'=>'DPOY',      'type'=>'award','label'=>'Defensor',        'icon'=>'🛡️','full'=>'Melhor Defensor (DPOY)'],
     ['id'=>'FINALS_MVP','type'=>'award','label'=>'MVP Finais',      'icon'=>'🎖️','full'=>'MVP das Finais'],
     ['id'=>'ROY',       'type'=>'award','label'=>'Calouro Ano',     'icon'=>'🌟','full'=>'Calouro do Ano (ROY)'],
     ['id'=>'SCORING',   'type'=>'award','label'=>'Artilheiro',      'icon'=>'🎯','full'=>'Artilheiro da Temporada'],
-    ['id'=>'SIXTHMAN',  'type'=>'award','label'=>'6º Homem',        'icon'=>'🪑','full'=>'Sexto Homem do Ano'],
+    ['id'=>'6THMAN',    'type'=>'award','label'=>'6º Homem',        'icon'=>'🪑','full'=>'Sexto Homem do Ano'],
 ];
 
-// NBA player IDs para headshots: https://cdn.nba.com/headshots/nba/latest/260x190/{id}.png
-$PLAYER_PIDS = [
-    'LeBron James'=>2544,'Stephen Curry'=>201939,'Kevin Durant'=>201142,
-    'Giannis Antetokounmpo'=>203507,'Nikola Jokic'=>203999,'Luka Doncic'=>1629029,
-    'Joel Embiid'=>203954,'Kawhi Leonard'=>202695,'Kobe Bryant'=>977,
-    'Shaquille O\'Neal'=>406,'Dwyane Wade'=>2548,'Chris Bosh'=>76001,
-    'Dirk Nowitzki'=>1717,'Tim Duncan'=>1495,'Tony Parker'=>2225,
-    'Manu Ginobili'=>1938,'Kevin Garnett'=>708,'Paul Pierce'=>1718,
-    'Ray Allen'=>951,'Allen Iverson'=>947,'Vince Carter'=>1713,
-    'Tracy McGrady'=>1503,'Carmelo Anthony'=>2546,'Russell Westbrook'=>201566,
-    'James Harden'=>201935,'Derrick Rose'=>201565,'Jimmy Butler'=>202710,
-    'Paul George'=>202331,'Kyrie Irving'=>202681,'Damian Lillard'=>203081,
-    'Chris Paul'=>101108,'Steve Nash'=>959,'Jason Kidd'=>714,
-    'Pau Gasol'=>1932,'Rudy Gobert'=>203497,'Victor Wembanyama'=>1641705,
-    'Andrew Wiggins'=>203952,'Jamal Murray'=>1627750,
-    'Shai Gilgeous-Alexander'=>1628983,'DeMar DeRozan'=>201942,
-    'Draymond Green'=>203110,'Klay Thompson'=>202691,'Anthony Davis'=>203076,
-    'Jayson Tatum'=>1628369,'Bam Adebayo'=>1628389,'Donovan Mitchell'=>1628378,
-    'Devin Booker'=>1626164,'Hakeem Olajuwon'=>165,'Charles Barkley'=>787,
-    'Scottie Pippen'=>979,'Dennis Rodman'=>1007,'Patrick Ewing'=>121,
-    'Dikembe Mutombo'=>137,'Magic Johnson'=>1020,'Larry Bird'=>1449,
-    'Michael Jordan'=>893,'Isiah Thomas'=>262,'John Stockton'=>304,
-    'Karl Malone'=>252,'Clyde Drexler'=>781,'Gary Payton'=>730,
-    'Shawn Kemp'=>713,'Wilt Chamberlain'=>76375,'Bill Russell'=>76343,
-    'Kareem Abdul-Jabbar'=>76003,'David Robinson'=>231,'James Worthy'=>311,
-    'Robert Horry'=>400,'Alonzo Mourning'=>174,'Derek Fisher'=>2524,
-    'Horace Grant'=>363,'Moses Malone'=>76550,'Julius Erving'=>76823,
-    'Kevin McHale'=>76872,'Dominique Wilkins'=>775,
-    'Toni Kukoc'=>758,'Peja Stojakovic'=>2038,'Julius Randle'=>203944,
-    'Khris Middleton'=>203114,'Jrue Holiday'=>201950,'Trae Young'=>1629027,
-    'Karl-Anthony Towns'=>1626157,'Zion Williamson'=>1629627,'Kyle Lowry'=>200768,
-    'Dwight Howard'=>2730,'Rajon Rondo'=>200765,'DeMarcus Cousins'=>202326,
-    'Brook Lopez'=>201572,'Jaylen Brown'=>1627759,'Anthony Edwards'=>1630162,
-    'Paolo Banchero'=>1631094,'Grant Hill'=>397,'Reggie Miller'=>855,
-    // Clássicos
-    'Oscar Robertson'=>1003,'Pete Maravich'=>76866,'John Havlicek'=>76984,
-    'Walt Frazier'=>76366,'Willis Reed'=>76963,'Rick Barry'=>76375,
-    'Bill Walton'=>76561,'Dave Cowens'=>76362,'Elvin Hayes'=>76586,
-    'George Gervin'=>76817,'Bob McAdoo'=>76862,'Nate Archibald'=>76328,
-    'Dave Bing'=>76343,'Bob Lanier'=>77018,'Jack Sikma'=>76699,
-    'Robert Parish'=>76949,'Dennis Johnson'=>76827,
-    // 80s-90s
-    'Adrian Dantley'=>76346,'Alex English'=>76816,'Sidney Moncrief'=>76893,
-    'Rolando Blackman'=>76353,'Mark Price'=>769,'Brad Daugherty'=>76358,
-    'Mark Aguirre'=>76323,'Danny Manning'=>765,'Kiki Vandeweghe'=>77153,
-    'Penny Hardaway'=>769,'Chris Webber'=>768,
-    'Glen Rice'=>729,'Latrell Sprewell'=>766,'Kevin Johnson'=>202,'Stephon Marbury'=>950,
-    'Allan Houston'=>1003,'Jason Terry'=>1891,'Michael Redd'=>2401,
-    // 2000s
-    'Yao Ming'=>2397,'Chauncey Billups'=>1012,'Ben Wallace'=>2404,
-    'Richard Hamilton'=>1949,'Rasheed Wallace'=>945,'Gilbert Arenas'=>2399,
-    'Amare Stoudemire'=>2405,'Baron Davis'=>1884,'Marcus Camby'=>944,
-    'Jermaine O\'Neal'=>2072,'Zach Randolph'=>2217,'Andre Iguodala'=>2738,
-    'Antawn Jamison'=>1728,'Steve Francis'=>2399,'Paul Millsap'=>200794,
-    'Mike Conley'=>201144,'Monta Ellis'=>201188,'Luol Deng'=>2546,
-    'Serge Ibaka'=>202683,
-    // 2010s-2020s
-    'Blake Griffin'=>201933,'John Wall'=>202322,'Kemba Walker'=>202689,
-    'Bradley Beal'=>203078,'Kevin Love'=>201567,'Marc Gasol'=>201188,
-    'Ben Simmons'=>1627732,'LaMelo Ball'=>1630163,'Ja Morant'=>1629630,
-    'Tyrese Haliburton'=>1630169,'De\'Aaron Fox'=>1628368,'Scottie Barnes'=>1630544,
-    'Evan Mobley'=>1630596,'Cade Cunningham'=>1630595,'Franz Wagner'=>1630532,
-    'Alperen Sengun'=>1630578,'Josh Giddey'=>1630581,'Andrew Bogut'=>101106,
-    'Patty Mills'=>201988,'Joe Ingles'=>204060,'Zydrunas Ilgauskas'=>708,
-];
 
 function playerMatchesCriteria(array $p, array $c): bool {
     if ($c['type'] === 'team')   return in_array($c['id'], $p['t'], true);
@@ -195,7 +143,7 @@ function generateDailyGrid(array $players, array $allCriteria): array {
         if ($valid && $minCount >= 1) return ['rows' => $rows, 'cols' => $cols];
     }
     return [
-        'rows' => [$byId['MVP'], $byId['CHAMPION'], $byId['ALLSTAR']],
+        'rows' => [$byId['MVP'], $byId['CHAMP'], $byId['ALLSTAR']],
         'cols' => [$byId['LAL'], $byId['GSW'],      $byId['BOS']],
     ];
 }
