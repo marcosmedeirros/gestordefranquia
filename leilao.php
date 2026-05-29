@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$is_admin = hasAdminAccess($pdo, (int)$user['id']);
+$is_admin = hasAdminAccess($pdo, (int)$user_id);
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
@@ -252,6 +252,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
             <a href="/leilao.php" class="active"><i class="bi bi-hammer"></i> Leilão</a>
             <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
             <div class="sb-section">Liga</div>
             <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>

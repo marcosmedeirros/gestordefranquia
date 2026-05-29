@@ -355,6 +355,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
       <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
       <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
       <div class="sb-section">Liga</div>
       <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>

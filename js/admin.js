@@ -1255,10 +1255,6 @@ async function showTeam(teamId) {
       <div style="font-size:20px;font-weight:700;color:var(--red)">${t.cap_top8}${t.restricted_bonus > 0 ? ` <small style="color:#f59e0b;font-size:.65em">+${t.restricted_bonus}</small>` : ''}</div>
       <div style="font-size:11px;color:var(--text-3)">CAP Top 8${t.restricted_bonus > 0 ? ` · ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}` : ''}</div>
     </div>
-    <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center">
-      <div style="font-size:20px;font-weight:700;color:#f59e0b">${parseInt(t.tapas || 0)}</div>
-      <div style="font-size:11px;color:var(--text-3)">Tapas</div>
-    </div>
     <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center;cursor:pointer" onclick="editTeamCounter(${t.id}, 'trades_used', ${parseInt(t.trades_used || 0)})">
       <div style="font-size:20px;font-weight:700;color:#38bdf8" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</div>
       <div style="font-size:11px;color:var(--text-3)">Trocas feitas <i class="bi bi-pencil-fill" style="font-size:9px"></i></div>
@@ -3740,7 +3736,13 @@ window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
           }).join('')
         : '<span style="color:var(--text-3)">—</span>';
       const picksHtml = (p.picks || []).length
-        ? (p.picks || []).map(pk => `<div style="color:#fff">${pk.season_year} R${pk.round}</div>`).join('')
+        ? (p.picks || []).map(pk => {
+            const owner = (pk.original_team_name || pk.current_team_name || '').trim();
+            return `<div style="display:flex;align-items:baseline;gap:6px">
+              <span style="color:#fff">${pk.season_year} R${pk.round}</span>
+              ${owner ? `<span style="font-size:10px;color:var(--text-3)">${escapeHtml(owner)}</span>` : ''}
+            </div>`;
+          }).join('')
         : '<div style="color:var(--text-3)">—</div>';
       return `
         <div style="padding:10px 12px;background:var(--panel-2);border-radius:var(--radius-sm);
@@ -4088,51 +4090,48 @@ async function showTapas() {
 
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
-    <div class="mb-4">
+    <div class="mb-4" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
       <button class="btn btn-back" onclick="${_tapasBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray ms-3" style="font-size:14px;font-weight:600">Tapas — ${tapasLeague}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Tapas — ${tapasLeague}</span>
     </div>
 
     <div id="tapasContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>
 
-    <div class="modal fade" id="tapasModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark-panel border-orange">
-          <div class="modal-header border-orange">
-            <h5 class="modal-title text-white"><i class="bi bi-hand-index-thumb text-warning me-2"></i>Gerenciar Tapas</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    <!-- Approval modal -->
+    <div style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center" id="tapasApproveOverlay">
+      <div style="background:var(--panel-3,#1c1c21);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;width:100%;max-width:400px;margin:16px">
+        <div style="font-size:15px;font-weight:700;color:var(--text,#f0f0f3);margin-bottom:4px">
+          <i class="bi bi-hand-index-thumb" style="color:#f97316"></i> Aprovar Solicitação
+        </div>
+        <div style="font-size:12px;color:var(--text-3,#48484f);margin-bottom:16px" id="tapasApproveInfo"></div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;font-weight:600;color:var(--text-2,#868690);display:block;margin-bottom:6px">Tipo de ação</label>
+          <div style="display:flex;gap:8px">
+            <button id="btnTypeTapa" onclick="setApproveType('tapa')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(249,115,22,.4);background:rgba(249,115,22,.15);color:#f97316;font-weight:700;font-size:13px;cursor:pointer">
+              <i class="bi bi-hand-index-thumb"></i> Tapa
+            </button>
+            <button id="btnTypeBadge" onclick="setApproveType('badge')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2,#868690);font-weight:700;font-size:13px;cursor:pointer">
+              <i class="bi bi-award"></i> Badge
+            </button>
           </div>
-          <div class="modal-body">
-            <input type="hidden" id="tapasTeamId">
-            <input type="hidden" id="tapasOperation" value="set">
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Time</label>
-              <input type="text" class="form-control bg-dark text-white" id="tapasTeamName" readonly>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Tapas atuais</label>
-              <div class="input-group">
-                <span class="input-group-text bg-dark text-warning border-orange"><i class="bi bi-hand-index-thumb"></i></span>
-                <input type="text" class="form-control bg-dark text-white" id="tapasCurrentBalance" readonly>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Quantidade</label>
-              <input type="number" class="form-control bg-dark text-white border-secondary" id="tapasAmount" min="0" value="0">
-            </div>
-          </div>
-          <div class="modal-footer border-orange">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-orange" onclick="submitTapas()">Confirmar</button>
-          </div>
+        </div>
+        <div id="badgeNameRow" style="display:none;margin-bottom:12px">
+          <label style="font-size:12px;font-weight:600;color:var(--text-2,#868690);display:block;margin-bottom:6px">Nome do badge</label>
+          <input id="tapasApproveBadgeName" type="text" placeholder="Ex: Veterano, MVP..." style="width:100%;background:var(--panel-2,#16161a);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text,#f0f0f3);font-size:13px;padding:9px 12px;outline:none;font-family:inherit">
+        </div>
+        <input type="hidden" id="tapasApproveReqId">
+        <input type="hidden" id="tapasApproveType" value="tapa">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button onclick="closeTapasApprove()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2,#868690);font-weight:600;font-size:13px;cursor:pointer">Cancelar</button>
+          <button onclick="submitTapasApprove()" style="padding:8px 18px;border-radius:8px;border:none;background:var(--red,#fc0025);color:#fff;font-weight:700;font-size:13px;cursor:pointer">Aprovar</button>
         </div>
       </div>
     </div>
   `;
 
-  loadTapasTeams();
+  loadTapasData();
 }
 
 function changeTapasLeague(league) {
@@ -4140,136 +4139,172 @@ function changeTapasLeague(league) {
   showTapas();
 }
 
-async function loadTapasTeams() {
+function setApproveType(type) {
+  document.getElementById('tapasApproveType').value = type;
+  const isBadge = type === 'badge';
+  document.getElementById('badgeNameRow').style.display = isBadge ? 'block' : 'none';
+  const btnTapa  = document.getElementById('btnTypeTapa');
+  const btnBadge = document.getElementById('btnTypeBadge');
+  btnTapa.style.background  = !isBadge ? 'rgba(249,115,22,.15)' : 'none';
+  btnTapa.style.color       = !isBadge ? '#f97316' : 'var(--text-2,#868690)';
+  btnTapa.style.borderColor = !isBadge ? 'rgba(249,115,22,.4)' : 'rgba(255,255,255,.1)';
+  btnBadge.style.background  = isBadge ? 'rgba(139,92,246,.15)' : 'none';
+  btnBadge.style.color       = isBadge ? '#a78bfa' : 'var(--text-2,#868690)';
+  btnBadge.style.borderColor = isBadge ? 'rgba(139,92,246,.4)' : 'rgba(255,255,255,.1)';
+}
+
+function openTapasApprove(reqId, playerName, teamName) {
+  document.getElementById('tapasApproveReqId').value = reqId;
+  document.getElementById('tapasApproveInfo').textContent = `${playerName} — ${teamName}`;
+  document.getElementById('tapasApproveBadgeName').value = '';
+  setApproveType('tapa');
+  const overlay = document.getElementById('tapasApproveOverlay');
+  overlay.style.display = 'flex';
+}
+
+function closeTapasApprove() {
+  document.getElementById('tapasApproveOverlay').style.display = 'none';
+}
+
+async function submitTapasApprove() {
+  const reqId     = parseInt(document.getElementById('tapasApproveReqId').value);
+  const actionType = document.getElementById('tapasApproveType').value;
+  const badgeName  = document.getElementById('tapasApproveBadgeName').value.trim();
+  if (actionType === 'badge' && !badgeName) { alert('Digite o nome do badge.'); return; }
+  try {
+    await fetch('/api/tapas.php?action=admin_approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: reqId, action_type: actionType, badge_name: badgeName })
+    }).then(r => r.json()).then(d => { if (d.success === false) throw d; });
+    closeTapasApprove();
+    loadTapasData();
+  } catch(e) {
+    alert(e.error || 'Erro ao aprovar');
+  }
+}
+
+async function rejectTapasRequest(reqId) {
+  if (!confirm('Rejeitar esta solicitação?')) return;
+  try {
+    await fetch('/api/tapas.php?action=admin_reject', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: reqId })
+    }).then(r => r.json()).then(d => { if (d.success === false) throw d; });
+    loadTapasData();
+  } catch(e) {
+    alert(e.error || 'Erro ao rejeitar');
+  }
+}
+
+async function quickTapasAdminChange(teamId, operation) {
+  try {
+    await fetch('/api/tapas.php?action=admin_set_tapas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_id: teamId, amount: 1, operation })
+    }).then(r => r.json()).then(d => {
+      if (d.success === false) throw d;
+      const span = document.getElementById(`tapas-val-${teamId}`);
+      if (span && d.new_tapas !== undefined) span.textContent = d.new_tapas;
+    });
+  } catch(e) {
+    alert(e.error || 'Erro ao atualizar tapas');
+  }
+}
+
+async function loadTapasData() {
   const container = document.getElementById('tapasContainer');
+  if (!container) return;
 
   try {
-    const data = await api(`admin.php?action=tapas&league=${tapasLeague}`);
-    const teams = data.teams || [];
+    const data = await fetch(`/api/tapas.php?action=admin_get_all&league=${encodeURIComponent(tapasLeague)}`)
+      .then(r => r.json());
+    if (data.success === false) throw data;
 
-    if (teams.length === 0) {
-      container.innerHTML = '<div class="alert alert-info bg-dark border-orange text-white">Nenhum time encontrado nesta liga.</div>';
-      return;
-    }
+    const teams    = data.teams    || [];
+    const requests = data.requests || [];
 
-    const totalTapas = teams.reduce((sum, t) => sum + parseInt(t.tapas || 0), 0);
-    const totalTapasUsed = teams.reduce((sum, t) => sum + parseInt(t.tapas_used || 0), 0);
+    const totalTapas    = teams.reduce((s, t) => s + parseInt(t.tapas || 0), 0);
+    const totalTapasUsed = teams.reduce((s, t) => s + parseInt(t.tapas_used || 0), 0);
+
+    const requestsHtml = requests.length === 0
+      ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhuma solicitação pendente.</div>'
+      : requests.map(r => `
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;margin-bottom:8px">
+            <i class="bi bi-hand-index-thumb" style="color:#f97316;font-size:18px;flex-shrink:0"></i>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(r.player_name)}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px">
+                ${escapeHtml(r.team_city)} ${escapeHtml(r.team_name)}
+                <span style="color:var(--text-3)"> &bull; </span>${escapeHtml(r.owner_name)}
+                <span style="color:var(--text-3)"> &bull; </span>${escapeHtml(r.player_position)} OVR ${r.player_ovr}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button onclick="openTapasApprove(${r.id},'${escapeHtml(r.player_name).replace(/'/g,"\\'")}','${escapeHtml(r.team_city+' '+r.team_name).replace(/'/g,"\\'")}')
+                " style="padding:6px 12px;border-radius:8px;border:none;background:rgba(34,197,94,.15);color:#22c55e;font-weight:700;font-size:12px;cursor:pointer">
+                <i class="bi bi-check-lg"></i> OK
+              </button>
+              <button onclick="rejectTapasRequest(${r.id})" style="padding:6px 12px;border-radius:8px;border:none;background:rgba(239,68,68,.12);color:#ef4444;font-weight:700;font-size:12px;cursor:pointer">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>`).join('');
 
     container.innerHTML = `
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <div class="bg-dark-panel border-orange rounded p-3">
-            <h6 class="text-light-gray mb-1">Total de Tapas na Liga</h6>
-            <h3 class="text-warning mb-0"><i class="bi bi-hand-index-thumb me-2"></i>${totalTapas.toLocaleString()}</h3>
-          </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 18px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:#f97316">${totalTapas}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Disponíveis</div>
         </div>
-        <div class="col-md-4">
-          <div class="bg-dark-panel border-orange rounded p-3">
-            <h6 class="text-light-gray mb-1">Tapas usados</h6>
-            <h3 class="text-danger mb-0"><i class="bi bi-hand-index-thumb me-2"></i>${totalTapasUsed.toLocaleString()}</h3>
-          </div>
+        <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 18px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:var(--text-2)">${totalTapasUsed}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Usados</div>
         </div>
-        <div class="col-md-4">
-          <div class="bg-dark-panel border-orange rounded p-3">
-            <h6 class="text-light-gray mb-1">Times</h6>
-            <h3 class="text-white mb-0"><i class="bi bi-people-fill me-2 text-orange"></i>${teams.length}</h3>
-          </div>
+        <div style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid ${requests.length ? 'rgba(245,158,11,.3)' : 'rgba(255,255,255,.07)'};border-radius:10px;padding:14px 18px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:${requests.length ? '#f59e0b' : 'var(--text-3)'}">${requests.length}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px">Pendentes</div>
         </div>
       </div>
 
-      <div class="table-responsive">
-        <table class="table table-dark table-hover">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Proprietário</th>
-              <th class="text-end">Tapas</th>
-              <th class="text-end">Usados</th>
-              <th class="text-center">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${teams.map(t => `
-              <tr>
-                <td><strong>${t.city} ${t.name}</strong></td>
-                <td class="text-light-gray">${t.owner_name}</td>
-                <td class="text-end">
-                  <span class="badge ${parseInt(t.tapas || 0) > 0 ? 'bg-warning text-dark' : 'bg-secondary'} fs-6">
-                    <i class="bi bi-hand-index-thumb me-1"></i>${parseInt(t.tapas || 0).toLocaleString()}
-                  </span>
-                </td>
-                <td class="text-end">
-                  <span class="badge ${parseInt(t.tapas_used || 0) > 0 ? 'bg-danger' : 'bg-secondary'} fs-6">
-                    <i class="bi bi-hand-index-thumb me-1"></i>${parseInt(t.tapas_used || 0).toLocaleString()}
-                  </span>
-                </td>
-                <td class="text-center">
-                  <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-sm btn-success" onclick="quickTapasChange(${t.id}, '${t.city} ${t.name}', 'add')" title="Adicionar tapas">
-                      <i class="bi bi-plus"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="quickTapasChange(${t.id}, '${t.city} ${t.name}', 'remove')" title="Remover tapas">
-                      <i class="bi bi-dash"></i>
-                    </button>
+      ${requests.length ? `
+      <div style="background:var(--panel-3);border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:16px 18px;margin-bottom:20px">
+        <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:12px"><i class="bi bi-clock-fill"></i> Solicitações Pendentes (${requests.length})</div>
+        ${requestsHtml}
+      </div>` : ''}
+
+      <div style="background:var(--panel-3);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:16px 18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px"><i class="bi bi-people-fill" style="color:#f97316"></i> Times — ${tapasLeague}</div>
+        ${teams.length === 0
+          ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhum time encontrado.</div>'
+          : `<div style="display:grid;gap:8px">
+              ${teams.map(t => `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:10px">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
+                    <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)}</div>
                   </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                    <span style="font-size:11px;color:var(--text-3)">Tapas:</span>
+                    <button onclick="quickTapasAdminChange(${t.id},'remove')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button>
+                    <span id="tapas-val-${t.id}" style="font-weight:800;font-size:15px;color:#f97316;min-width:24px;text-align:center">${parseInt(t.tapas || 0)}</span>
+                    <button onclick="quickTapasAdminChange(${t.id},'add')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>
+                    <span style="font-size:11px;color:var(--text-3);margin-left:4px">usados: ${parseInt(t.tapas_used || 0)}</span>
+                  </div>
+                </div>`).join('')}
+             </div>`}
       </div>
     `;
-  } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar times: ' + (e.error || 'Desconhecido') + '</div>';
+  } catch(e) {
+    container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro ao carregar: ${e.error || 'Desconhecido'}</div>`;
   }
 }
 
-function openTapasModal(teamId, teamName, currentBalance, operation = 'set') {
-  document.getElementById('tapasTeamId').value = teamId;
-  document.getElementById('tapasTeamName').value = teamName;
-  document.getElementById('tapasCurrentBalance').value = parseInt(currentBalance || 0).toLocaleString();
-  document.getElementById('tapasOperation').value = operation;
-  document.getElementById('tapasAmount').value = 0;
-
-  new bootstrap.Modal(document.getElementById('tapasModal')).show();
-}
-
-async function quickTapasChange(teamId, teamName, operation) {
-  try {
-    const result = await api('admin.php?action=tapas', {
-      method: 'POST',
-      body: JSON.stringify({ team_id: teamId, amount: 1, operation })
-    });
-
-    loadTapasTeams();
-  } catch (e) {
-    alert(`Erro ao atualizar tapas de ${teamName}: ${e.error || 'Desconhecido'}`);
-  }
-}
-
-async function submitTapas() {
-  const teamId = document.getElementById('tapasTeamId').value;
-  const amount = parseInt(document.getElementById('tapasAmount').value);
-  const operation = document.getElementById('tapasOperation').value || 'set';
-
-  if (!teamId || Number.isNaN(amount) || amount < 0) {
-    alert('Preencha uma quantidade válida.');
-    return;
-  }
-
-  try {
-    const result = await api('admin.php?action=tapas', {
-      method: 'POST',
-      body: JSON.stringify({ team_id: teamId, amount, operation })
-    });
-
-    bootstrap.Modal.getInstance(document.getElementById('tapasModal'))?.hide();
-    alert(result.message || 'Tapas atualizados com sucesso.');
-    loadTapasTeams();
-  } catch (e) {
-    alert('Erro: ' + (e.error || 'Desconhecido'));
-  }
-}
+// keep legacy aliases used by action tile
+function loadTapasTeams() { loadTapasData(); }
+async function quickTapasChange(teamId, teamName, operation) { await quickTapasAdminChange(teamId, operation); }
 
 // ========================================
 // APROVAÇÃO DE USUÁRIOS

@@ -631,16 +631,34 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .search-bar .inp{flex:1;min-width:160px}
 .page-title{font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px}
 .page-sub{font-size:12px;color:var(--text-2);margin-bottom:24px}
+/* ── Mobile ── */
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199}
+.sb-overlay.open{display:block}
+.sb-close{display:none;align-items:center;justify-content:center;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:30px;height:30px;cursor:pointer;flex-shrink:0}
+.mob-bar{display:none;align-items:center;gap:10px;height:52px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.mob-ham{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}
+.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
+.mob-title span{color:var(--red)}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform 280ms var(--ease);z-index:200}
+  .sidebar.open{transform:translateX(0)}
+  .sb-close{display:flex}
+  .mob-bar{display:flex}
+  .page-content{margin-left:0;padding-top:0}
+}
 </style>
 </head>
 <body>
 <div class="page-layout">
 
+<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sb-header">
     <div class="sb-logo">FBA</div>
     <div class="sb-brand">FBA <span>Admin</span></div>
+    <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
     <div class="sb-avatar"><?= $userInitial ?></div>
@@ -673,6 +691,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
   </div>
 </aside>
+
+<!-- Mob topbar -->
+<div class="mob-bar">
+  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+  <span class="mob-title">FBA <span>Admin</span></span>
+</div>
 
 <!-- CONTEÚDO -->
 <div class="page-content">
@@ -1088,6 +1112,17 @@ qs('btnImportAwards').addEventListener('click', () => {
 
 // Carregar ao abrir
 loadPlayers(1);
+
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sbOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
 </script>
 </body>
 </html>

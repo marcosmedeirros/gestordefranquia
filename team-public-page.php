@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
@@ -383,6 +383,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
             <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
             <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
             <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
             <div class="sb-section">Liga</div>
             <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
             <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
