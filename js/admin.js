@@ -2707,7 +2707,9 @@ function normalizeDirectivePlayerInfo(raw) {
       if (row && row.player_id) {
         acc[row.player_id] = {
           name: row.player_name || row.name || '?',
-          position: row.player_position || row.position || '?'
+          position: row.player_position || row.position || '?',
+          ovr: row.player_ovr ?? row.ovr ?? null,
+          age: row.player_age ?? row.age ?? null
         };
       }
       return acc;
@@ -2997,11 +2999,13 @@ async function viewDirectives(deadlineId, league) {
                 const m = isManualRotation && id && pm[id] ? `${pm[id]} min` : '';
                 const name = d['starter_' + i + '_name'] || '?';
                 const pos = d['starter_' + i + '_pos'] || '?';
+                const ovr = d['starter_' + i + '_ovr'] ?? '?';
+                const age = d['starter_' + i + '_age'] ?? '?';
                 const prevId = prev ? prev['starter_' + i + '_id'] : null;
                 const starterChanged = hasPrev && String(prevId ?? '') !== String(id ?? '');
                 const minutesChanged = isManualRotation && hasPrev && id && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[id]);
                 const rowClass = (starterChanged || minutesChanged) ? 'text-danger' : '';
-                return `<li class="${rowClass}">${name} (${pos})${m ? ' - ' + m : ''}</li>`;
+                return `<li class="${rowClass}">${name} (${pos}, ${ovr}/${age}y)${m ? ' - ' + m : ''}</li>`;
               }).join('');
               
               // Banco dinâmico: pegar dos player_minutes os que não são titulares
@@ -3031,16 +3035,20 @@ async function viewDirectives(deadlineId, league) {
                 const id = parseInt(playerId);
                 if (!starterIds.includes(id)) {
                   // Usar player_info para pegar nome e posição
-                  let name = '?', pos = '?';
+                  let name = '?', pos = '?', ovr = '?', age = '?';
                   if (playerInfo[id]) {
                     name = playerInfo[id].name || '?';
                     pos = playerInfo[id].position || '?';
+                    ovr = playerInfo[id].ovr ?? '?';
+                    age = playerInfo[id].age ?? '?';
                   } else {
                     // Fallback para bench_X columns (compatibilidade)
                     for (let i = 1; i <= 3; i++) {
                       if (parseInt(d['bench_' + i + '_id']) === id) {
                         name = d['bench_' + i + '_name'] || '?';
                         pos = d['bench_' + i + '_pos'] || '?';
+                        ovr = d['bench_' + i + '_ovr'] ?? '?';
+                        age = d['bench_' + i + '_age'] ?? '?';
                         break;
                       }
                     }
@@ -3050,7 +3058,7 @@ async function viewDirectives(deadlineId, league) {
                   const benchChanged = hasPrev && prevBenchIds.length > 0 && !prevBenchIds.includes(id);
                   const minutesChanged = isManualRotation && hasPrev && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[playerId]);
                   const rowClass = (benchChanged || minutesChanged) ? 'text-danger' : '';
-                  benchItems.push(`<li class="${rowClass}">${name} (${pos})${minLabel}</li>`);
+                  benchItems.push(`<li class="${rowClass}">${name} (${pos}, ${ovr}/${age}y)${minLabel}</li>`);
                 }
               });
               const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
@@ -3062,7 +3070,9 @@ async function viewDirectives(deadlineId, league) {
                 const info = playerInfo[id] || {};
                 const name = d[`gleague_${i}_name`] || info.name || '?';
                 const pos = d[`gleague_${i}_pos`] || info.position || '?';
-                return `<li>${name} (${pos})</li>`;
+                const ovr = d[`gleague_${i}_ovr`] ?? info.ovr ?? '?';
+                const age = d[`gleague_${i}_age`] ?? info.age ?? '?';
+                return `<li>${name} (${pos}, ${ovr}/${age}y)</li>`;
               }).filter(Boolean);
               const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
               
@@ -3751,15 +3761,22 @@ window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
             </div>`;
           }).join('')
         : '<span style="color:var(--text-3)">—</span>';
-      const picksHtml = (p.picks || []).length
-        ? (p.picks || []).map(pk => {
-            const owner = (pk.original_team_name || pk.current_team_name || '').trim();
-            return `<div style="display:flex;align-items:baseline;gap:6px">
-              <span style="color:#fff">${pk.season_year} R${pk.round}</span>
-              ${owner ? `<span style="font-size:10px;color:var(--text-3)">${escapeHtml(owner)}</span>` : ''}
-            </div>`;
-          }).join('')
-        : '<div style="color:var(--text-3)">—</div>';
+      const obs2 = (p.obs || p.notas || '').trim();
+      const _esc2 = s => escapeHtml(String(s ?? ''));
+      const _badge2 = pk => {
+        const orig = (pk.original_team_name || pk.current_team_name || '').trim();
+        return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc2(pk.season_year)} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc2(orig)}</span>` : ''}</span>`;
+      };
+      const allPicks2 = p.picks || [];
+      const r1b = allPicks2.filter(pk => Number(pk.round) === 1);
+      const r2b = allPicks2.filter(pk => Number(pk.round) !== 1);
+      let picksHtml = '';
+      if (allPicks2.length) {
+        if (r1b.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1b.map(_badge2).join('')}</div>`;
+        if (r2b.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1b.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2b.map(_badge2).join('')}</div>`;
+      } else {
+        picksHtml = '<span style="color:var(--text-3);font-size:12px">—</span>';
+      }
       return `
         <div style="padding:10px 12px;background:var(--panel-2);border-radius:var(--radius-sm);
           margin-bottom:8px;border:1px solid ${borderColor}">
@@ -3769,8 +3786,8 @@ window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
               <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Jogadores</div>
               <div style="font-size:12px;margin-bottom:6px">${jogsHtml}</div>
               <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Picks</div>
-              <div style="font-size:12px;margin-bottom:${p.notas ? 6 : 0}px">${picksHtml}</div>
-              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic">"${escapeHtml(p.notas)}"</div>` : ''}
+              <div style="font-size:12px;margin-bottom:${obs2 ? 6 : 0}px">${picksHtml}</div>
+              ${obs2 ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;margin-top:6px"><div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-sticky me-1"></i>Observação</div><div style="font-size:13px;color:var(--text)">${_esc2(obs2)}</div></div>` : ''}
             </div>
             <span style="font-size:10px;font-weight:700;color:${sc};text-transform:uppercase;
               flex-shrink:0;padding:3px 9px;background:${sc}18;border:1px solid ${sc}44;border-radius:999px">
