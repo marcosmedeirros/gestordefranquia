@@ -297,7 +297,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .cell.locked{cursor:default;opacity:.5}
 @keyframes wrongFlash{0%,100%{background:var(--panel)}50%{background:rgba(252,0,37,.18);border-color:var(--red)}}
 .cell-plus{font-size:20px;color:var(--text3);font-weight:300;line-height:1}
-.cell-player{padding:5px 4px;text-align:center;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cell-player{padding:5px 4px;text-align:center;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;align-self:stretch}
 .cell-player-name{font-size:9.5px;font-weight:700;color:var(--text);line-height:1.3}
 .cell-player-icon{font-size:1.4rem;display:block;margin-bottom:2px}
 .cell-headshot{width:50px;height:37px;object-fit:contain;display:block;margin:0 auto 2px;border-radius:5px}

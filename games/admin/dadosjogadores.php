@@ -796,7 +796,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .sidebar.open{transform:translateX(0)}
   .sb-close{display:flex}
   .mob-bar{display:flex}
-  .page-content{margin-left:0;padding-top:0}
+  .page-content{margin-left:0;padding:0 12px 60px}
+  .page-title{font-size:15px;margin-top:14px}
+  .page-sub{font-size:11px;margin-bottom:16px}
+  .panel{padding:14px}
+  .stat-card{padding:10px 8px}
+  .stat-v{font-size:1.4rem}
+  .stat-l{font-size:10px}
+  .search-bar{gap:6px}
+  .search-bar .inp{flex:1 1 calc(50% - 3px) !important;min-width:0 !important}
+  .tbl th,.tbl td{padding:6px 8px;font-size:12px}
+  .form-row{grid-template-columns:1fr}
 }
 </style>
 </head>
