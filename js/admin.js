@@ -3603,7 +3603,10 @@ window.leilaoTogglePropostas = async function(leilaoId) {
     propostas.sort((a, b) => (_statusOrd[a.status] ?? 3) - (_statusOrd[b.status] ?? 3));
     div.innerHTML = propostas.map(p => {
       const jogs = (p.jogadores || []).map(j => j.name).join(', ') || '—';
-      const picks = (p.picks || []).map(pk => `${pk.season_year} R${pk.round}`).join(', ') || '—';
+      const picks = (p.picks || []).map(pk => {
+        const orig = (pk.original_team_name || '').trim();
+        return `${pk.season_year} R${pk.round}${orig ? ' · ' + orig : ''}`;
+      }).join(', ') || '—';
       const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
       const sc = statusMap[p.status] || 'var(--text-3)';
       return `
