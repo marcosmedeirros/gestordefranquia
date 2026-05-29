@@ -133,9 +133,11 @@ if ($method === 'POST' && $action === 'request_tapa') {
     $player = $stmtP->fetch(PDO::FETCH_ASSOC);
     if (!$player) err('Jogador não encontrado no seu elenco');
 
-    $stmtEx = $pdo->prepare("SELECT id FROM tapas_requests WHERE team_id = ? AND player_id = ? AND status = 'pending'");
-    $stmtEx->execute([$team['id'], $playerId]);
-    if ($stmtEx->fetch()) err('Já existe uma solicitação pendente para este jogador');
+    // bloqueia apenas se já há pendentes suficientes para consumir todo o saldo
+    $stmtPend = $pdo->prepare("SELECT COUNT(*) FROM tapas_requests WHERE team_id = ? AND status = 'pending'");
+    $stmtPend->execute([$team['id']]);
+    $pendingCount = (int)$stmtPend->fetchColumn();
+    if ($pendingCount >= $tapas) err('Você já tem ' . $pendingCount . ' solicitação(ões) pendente(s) e apenas ' . $tapas . ' tapa(s) disponível(is)');
 
     $actionType = $body['action_type'] ?? 'tapa';
     $badgeName  = trim($body['badge_name'] ?? '');
