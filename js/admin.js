@@ -3602,23 +3602,31 @@ window.leilaoTogglePropostas = async function(leilaoId) {
     const _statusOrd = { pendente: 0, aceita: 1, recusada: 2 };
     propostas.sort((a, b) => (_statusOrd[a.status] ?? 3) - (_statusOrd[b.status] ?? 3));
     div.innerHTML = propostas.map(p => {
-      const jogs = (p.jogadores || []).map(j => j.name).join(', ') || '—';
-      const picks = (p.picks || []).map(pk => {
-        const orig = (pk.original_team_name || '').trim();
-        return `${pk.season_year} R${pk.round}${orig ? ' · ' + orig : ''}`;
-      }).join(', ') || '—';
+      const jogs = (p.jogadores || []).map(j => escapeHtml(j.name)).join(', ') || '—';
+      const obs = (p.obs || p.notas || '').trim();
       const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
       const sc = statusMap[p.status] || 'var(--text-3)';
+      // picks separadas por rodada
+      const _esc = s => escapeHtml(String(s ?? ''));
+      const _pickBadge = pk => {
+        const orig = (pk.original_team_name || '').trim();
+        return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(pk.season_year)} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc(orig)}</span>` : ''}</span>`;
+      };
+      const allPicks = p.picks || [];
+      const r1 = allPicks.filter(pk => Number(pk.round) === 1);
+      const r2 = allPicks.filter(pk => Number(pk.round) !== 1);
+      let picksHtml = '';
+      if (allPicks.length) {
+        if (r1.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1.map(_pickBadge).join('')}</div>`;
+        if (r2.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2.map(_pickBadge).join('')}</div>`;
+      } else {
+        picksHtml = '<span style="color:var(--text-3);font-size:12px">—</span>';
+      }
       return `
-        <div style="padding:10px;background:var(--panel-2);border-radius:var(--radius-sm);
+        <div style="padding:12px 14px;background:var(--panel-2);border-radius:var(--radius-sm);
           margin-bottom:8px;border:1px solid var(--border)">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:13px;color:var(--text)">${p.team_name}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:2px">Jogadores: ${jogs}</div>
-              <div style="font-size:11px;color:var(--text-3)">Picks: ${picks}</div>
-              ${p.notas ? `<div style="font-size:11px;color:var(--text-3);font-style:italic;margin-top:2px">"${p.notas}"</div>` : ''}
-            </div>
+          <div class="d-flex justify-content-between align-items-start gap-2" style="margin-bottom:10px">
+            <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(p.team_name || '—')}</div>
             <div class="d-flex align-items-center gap-1 flex-shrink-0">
               <span style="font-size:10px;font-weight:600;color:${sc};text-transform:uppercase">${p.status}</span>
               ${p.status === 'pendente' ? `
@@ -3629,6 +3637,11 @@ window.leilaoTogglePropostas = async function(leilaoId) {
               ` : ''}
             </div>
           </div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Jogadores</div>
+          <div style="font-size:12px;color:var(--text);margin-bottom:10px">${jogs}</div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Picks</div>
+          <div>${picksHtml}</div>
+          ${obs ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;margin-top:10px"><div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-sticky me-1"></i>Observação</div><div style="font-size:13px;color:var(--text)">${_esc(obs)}</div></div>` : ''}
         </div>`;
     }).join('');
   } catch (e) {
