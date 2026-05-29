@@ -494,6 +494,120 @@ if ($action === 'import_teams') {
     exit;
 }
 
+// ── IMPORT JSON ESTÁTICO (awards-static.json) ────────────────────────────────
+if ($action === 'import_static') {
+    header('Content-Type: application/json');
+    $file = __DIR__ . '/awards-static.json';
+    if (!file_exists($file)) { echo json_encode(['ok'=>false,'error'=>'awards-static.json não encontrado']); exit; }
+    $data = json_decode(file_get_contents($file), true);
+    if (!$data) { echo json_encode(['ok'=>false,'error'=>'JSON inválido']); exit; }
+
+    $updated = 0; $skipped = 0;
+    foreach ($data as $name => $awards) {
+        if (empty($awards)) { $skipped++; continue; }
+        $stmt = $pdo->prepare("SELECT id, premios FROM hoopgrid_players WHERE nome = ? LIMIT 1");
+        $stmt->execute([$name]);
+        $player = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$player) { $skipped++; continue; }
+        $existing = json_decode($player['premios'] ?: '[]', true) ?: [];
+        $merged = array_values(array_unique(array_merge($existing, $awards)));
+        sort($merged);
+        $pdo->prepare("UPDATE hoopgrid_players SET premios = ? WHERE id = ?")
+            ->execute([json_encode($merged), $player['id']]);
+        $updated++;
+    }
+    echo json_encode(['ok'=>true,'updated'=>$updated,'skipped'=>$skipped,'total'=>count($data)]);
+    exit;
+}
+
+// ── IMPORT WIKIDATA ──────────────────────────────────────────────────────────
+if ($action === 'import_wikidata') {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('X-Accel-Buffering: no');
+    header('Cache-Control: no-cache');
+    @ini_set('zlib.output_compression', 0);
+    set_time_limit(180);
+    if (ob_get_level()) ob_end_clean();
+
+    // Prêmios individuais com Q ID do Wikidata
+    $awardsMap = [
+        'MVP'    => 'Q616833',    // NBA Most Valuable Player Award
+        'DPOY'   => 'Q1377631',   // NBA Defensive Player of the Year
+        'ROY'    => 'Q1377626',   // NBA Rookie of the Year
+        'MIP'    => 'Q1377627',   // NBA Most Improved Player
+        '6THMAN' => 'Q1377634',   // NBA Sixth Man of the Year
+        'HOF'    => 'Q18523573',  // Naismith Memorial Basketball Hall of Fame
+        'ALLNBA1'=> 'Q1377613',   // All-NBA First Team
+        'ALLNBA2'=> 'Q1377614',   // All-NBA Second Team
+        'ALLNBA3'=> 'Q1377615',   // All-NBA Third Team
+    ];
+
+    $totalUpdated = 0;
+
+    foreach ($awardsMap as $awardCode => $qid) {
+        echo "Buscando {$awardCode} (Wikidata {$qid})...\n";
+        flush();
+
+        $sparql = 'SELECT DISTINCT ?playerLabel WHERE { ?player wdt:P166 wd:' . $qid . ' . SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . } }';
+        $url = 'https://query.wikidata.org/sparql?query=' . urlencode($sparql) . '&format=json';
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_HTTPHEADER     => [
+                'Accept: application/sparql-results+json',
+                'User-Agent: HoopGrid-FBA/1.0 (games.fbabrasil.com.br)',
+            ],
+        ]);
+        $raw  = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 200 || !$raw) {
+            echo "  ERRO HTTP {$code} — pulando\n";
+            flush();
+            usleep(1200000);
+            continue;
+        }
+
+        $result   = json_decode($raw, true);
+        $bindings = $result['results']['bindings'] ?? [];
+        $names    = array_filter(array_map(fn($b) => trim($b['playerLabel']['value'] ?? ''), $bindings));
+
+        echo '  ' . count($names) . " nomes recebidos\n";
+        flush();
+
+        $updated = 0;
+        foreach ($names as $name) {
+            $stmt = $pdo->prepare("SELECT id, premios FROM hoopgrid_players WHERE nome = ? LIMIT 1");
+            $stmt->execute([$name]);
+            $player = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$player) continue;
+            $existing = json_decode($player['premios'] ?: '[]', true) ?: [];
+            if (!in_array($awardCode, $existing, true)) {
+                $existing[] = $awardCode;
+                sort($existing);
+                $pdo->prepare("UPDATE hoopgrid_players SET premios = ? WHERE id = ?")
+                    ->execute([json_encode(array_values($existing)), $player['id']]);
+                $updated++;
+                $totalUpdated++;
+            }
+        }
+
+        echo "  Banco atualizado: {$updated} jogadores\n";
+        flush();
+        usleep(1200000); // 1.2s entre queries para respeitar rate limit do Wikidata
+    }
+
+    echo "\nConcluído! Total de prêmios adicionados: {$totalUpdated}\n";
+    flush();
+    exit;
+}
+
 // ── IMPORT VIA JSON LOCAL ─────────────────────────────────────────────────────
 if ($action === 'import_json' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
@@ -722,7 +836,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="d-flex gap-2 mb-3 flex-wrap">
         <button class="btn btn-sm btn-danger fw-bold" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Jogadores (API)</button>
         <button class="btn btn-sm fw-bold" id="btnImportTeams" style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);color:#60a5fa"><i class="bi bi-building me-1"></i>Completar Times (46 temp.)</button>
-        <button class="btn btn-sm fw-bold" id="btnImportAwards" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80"><i class="bi bi-award me-1"></i>Importar Prêmios</button>
+        <button class="btn btn-sm fw-bold" id="btnImportAwards" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80"><i class="bi bi-award me-1"></i>Prêmios via NBA API</button>
+        <button class="btn btn-sm fw-bold" id="btnImportWikidata" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8"><i class="bi bi-globe me-1"></i>Prêmios via Wikidata</button>
+        <button class="btn btn-sm fw-bold" id="btnImportStatic" style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24"><i class="bi bi-file-earmark-code me-1"></i>Prêmios Estáticos (JSON)</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -1108,6 +1224,51 @@ qs('btnImportAwards').addEventListener('click', () => {
   ['btnImportAwards','btnImport','btnImportTeams'].forEach(id => { const e = qs(id); if(e) e.disabled = true; });
   log.textContent = 'Importando prêmios (MVP, All-Star, All-NBA, CHAMP, HOF...).\nProcessa 100 jogadores por bloco com 15 req. paralelas.\n\n';
   importAwardsChunk(0);
+});
+
+// ── IMPORT WIKIDATA (streaming) ──────────────────────────────────────────────
+qs('btnImportWikidata').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnImportWikidata');
+  btn.disabled = true;
+  log.textContent = 'Buscando prêmios no Wikidata (MVP, DPOY, ROY, MIP, 6THMAN, HOF, All-NBA)...\nCada prêmio leva ~2s. Aguarde.\n\n';
+  try {
+    const r = await fetch('?action=import_wikidata');
+    if (!r.body) { log.textContent += '❌ Streaming não suportado.\n'; btn.disabled = false; return; }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += dec.decode(value);
+      log.scrollTop = log.scrollHeight;
+    }
+    loadPlayers(1);
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message}`;
+  }
+  btn.disabled = false;
+});
+
+// ── IMPORT ESTÁTICO ──────────────────────────────────────────────────────────
+qs('btnImportStatic').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnImportStatic');
+  btn.disabled = true;
+  log.textContent = 'Importando prêmios do arquivo estático (awards-static.json)...\n';
+  try {
+    const r = await fetch('?action=import_static');
+    const d = await r.json();
+    if (d.ok) {
+      log.textContent += `✅ Concluído!\nAtualizados: ${d.updated} | Não encontrados: ${d.skipped} | Total no JSON: ${d.total}\n`;
+      loadPlayers(1);
+    } else {
+      log.textContent += `❌ Erro: ${d.error}\n`;
+    }
+  } catch(e) {
+    log.textContent += `❌ Falha: ${e.message}\n`;
+  }
+  btn.disabled = false;
 });
 
 // Carregar ao abrir
