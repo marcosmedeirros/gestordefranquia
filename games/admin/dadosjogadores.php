@@ -706,40 +706,14 @@ html,body{height:100%}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 
 /* ── Layout ── */
-.page-layout{display:flex;min-height:100vh}
-.sidebar{width:240px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
-         display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;overflow-y:auto}
-.page-content{flex:1;margin-left:240px;min-width:0;padding:28px 24px 60px;overflow-y:auto;min-height:100vh}
-
-/* ── Sidebar ── */
-.sb-header{display:flex;align-items:center;gap:10px;padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
-.sb-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;
-         justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
-.sb-brand{font-weight:800;font-size:13px;color:var(--text);flex:1}
-.sb-brand span{color:var(--red)}
-.sb-user{padding:14px;border-bottom:1px solid var(--border)}
-.sb-avatar{width:40px;height:40px;border-radius:50%;background:var(--red-soft);border:2px solid var(--border-red);
-           display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--red);margin-bottom:8px}
-.sb-user-name{font-size:13px;font-weight:700;color:#fff}
-.sb-user-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.sb-stats{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:row;gap:6px}
-.sb-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:4px;
-         padding:8px 4px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border)}
-.sb-stat i{font-size:13px;color:var(--red)}
-.sb-stat-val{font-size:12px;font-weight:700;color:var(--text);line-height:1.2}
-.sb-stat-label{font-size:9px;color:var(--text-3)}
-.sb-nav{flex:1;padding:8px 0;overflow-y:auto}
-.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
-.sb-link{display:flex;align-items:center;gap:10px;padding:9px 14px;text-decoration:none;
-         font-size:12px;font-weight:500;color:var(--text-2);transition:all var(--t) var(--ease);border-left:3px solid transparent}
-.sb-link i{width:16px;text-align:center;font-size:13px}
-.sb-link:hover{background:var(--panel-2);color:var(--text);border-left-color:var(--border-md)}
-.sb-link.active{background:var(--red-soft);color:var(--red);border-left-color:var(--red);font-weight:700}
-.sb-footer{padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
-.sb-logout{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;
-           border:1px solid var(--border);background:transparent;color:var(--text-2);text-decoration:none;
-           font-family:var(--font);font-size:12px;font-weight:600;transition:all var(--t) var(--ease)}
-.sb-logout:hover{background:rgba(252,0,37,.1);border-color:var(--border-red);color:var(--red)}
+.page-wrap{min-height:100vh;background:var(--bg)}
+.top-nav{display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.top-nav-logo{width:28px;height:28px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
+.top-nav-brand{font-weight:800;font-size:13px;color:var(--text);flex:1}
+.top-nav-brand span{color:var(--red)}
+.top-nav-link{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:7px;text-decoration:none;font-size:12px;font-weight:500;color:var(--text-2);white-space:nowrap;transition:all .15s}
+.top-nav-link:hover{background:var(--panel-2);color:var(--text)}
+.page-content{padding:24px 20px 60px;max-width:1400px;margin:0 auto}
 
 /* ── Content ── */
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
@@ -784,20 +758,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .page-title{font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px}
 .page-sub{font-size:12px;color:var(--text-2);margin-bottom:24px}
 /* ── Mobile ── */
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199}
-.sb-overlay.open{display:block}
-.sb-close{display:none;align-items:center;justify-content:center;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:30px;height:30px;cursor:pointer;flex-shrink:0}
-.mob-bar{display:none;align-items:center;gap:10px;height:52px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
-.mob-ham{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}
-.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
-.mob-title span{color:var(--red)}
 @media(max-width:768px){
-  .sidebar{display:none !important}
-  .sidebar.open{display:flex !important;transform:none}
-  .sb-close{display:flex}
-  .mob-bar{display:flex}
-  .page-content{margin-left:0;padding:0 12px 60px}
-  .page-title{font-size:15px;margin-top:14px}
+  .page-content{padding:16px 12px 60px}
+  .page-title{font-size:16px}
   .page-sub{font-size:11px;margin-bottom:14px}
   .panel{padding:14px}
   .stat-card{padding:10px 8px}
@@ -814,58 +777,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .pag button{padding:5px 8px;font-size:11px}
   .chip{font-size:11px;padding:3px 6px}
   .btn-ic{padding:5px 9px}
+  .top-nav{padding:0 12px;gap:4px}
+  .top-nav-link span{display:none}
 }
 </style>
 </head>
 <body>
-<div class="page-layout">
+<div class="page-wrap">
 
-<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
-
-<!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
-  <div class="sb-header">
-    <div class="sb-logo">FBA</div>
-    <div class="sb-brand">FBA <span>Admin</span></div>
-    <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
-  </div>
-  <div class="sb-user">
-    <div class="sb-avatar"><?= $userInitial ?></div>
-    <div class="sb-user-name"><?= htmlspecialchars($u['nome'] ?? '') ?></div>
-    <div class="sb-user-role">Administrador</div>
-  </div>
-  <div class="sb-stats">
-    <div class="sb-stat">
-      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain">
-      <div class="sb-stat-val"><?= number_format($u['pontos'] ?? 0, 0, ',', '.') ?></div>
-      <div class="sb-stat-label">Moedas</div>
-    </div>
-    <div class="sb-stat">
-      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain">
-      <div class="sb-stat-val"><?= number_format($u['fba_points'] ?? 0, 0, ',', '.') ?></div>
-      <div class="sb-stat-label">FBA Pts</div>
-    </div>
-  </div>
-  <nav class="sb-nav">
-    <div class="sb-nav-section">Menu</div>
-    <a href="../index.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <a href="../games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
-    <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
-    <div class="sb-nav-section">Admin</div>
-    <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
-    <a href="dashboard.php"             class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
-    <a href="dadosjogadores.php"        class="sb-link active"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
-  </nav>
-  <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
-  </div>
-</aside>
-
-<!-- Mob topbar -->
-<div class="mob-bar">
-  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
-  <span class="mob-title">FBA <span>Admin</span></span>
-</div>
+<nav class="top-nav">
+  <div class="top-nav-logo">FBA</div>
+  <div class="top-nav-brand">FBA <span>Admin</span></div>
+  <a href="../index.php"              class="top-nav-link"><i class="bi bi-lightning-charge"></i><span>Apostas</span></a>
+  <a href="../games.php"              class="top-nav-link"><i class="bi bi-joystick"></i><span>Games</span></a>
+  <a href="controlegames.php"         class="top-nav-link"><i class="bi bi-gear-fill"></i><span>Controles</span></a>
+  <a href="../auth/logout.php"        class="top-nav-link"><i class="bi bi-box-arrow-right"></i><span>Sair</span></a>
+</nav>
 
 <!-- CONTEÚDO -->
 <div class="page-content">
@@ -959,7 +886,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 </div><!-- /page-content -->
-</div><!-- /page-layout -->
+</div><!-- /page-wrap -->
 
 <!-- MODAL EDIÇÃO -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
@@ -1374,16 +1301,6 @@ qs('btnImportStatic').addEventListener('click', async () => {
 // Carregar ao abrir
 loadPlayers(1);
 
-function openSidebar() {
-  document.getElementById('sidebar').classList.add('open');
-  document.getElementById('sbOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sbOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
 </script>
 </body>
 </html>
