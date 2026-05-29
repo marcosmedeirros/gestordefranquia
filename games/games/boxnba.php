@@ -455,6 +455,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div style="text-align:center;font-size:11px;color:var(--text3);padding-bottom:8px">
     Toque em uma célula para adivinhar o jogador · Nova grade amanhã às 00:00
   </div>
+  <div style="text-align:center;padding:12px 0 4px">
+    <a href="../admin/dadosjogadores.php" style="font-size:11px;color:var(--text3);text-decoration:none;border-bottom:1px dashed var(--text3);padding-bottom:1px;transition:color .2s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">Você achou um erro? Clique aqui e corrija</a>
+  </div>
 </div>
 
 <script>
