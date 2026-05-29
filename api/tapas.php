@@ -12,10 +12,11 @@ if (!$user) {
     exit;
 }
 
-$pdo    = db();
-$method = $_SERVER['REQUEST_METHOD'];
-$action = $_GET['action'] ?? '';
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$pdo      = db();
+$pdoGames = dbGames();
+$method   = $_SERVER['REQUEST_METHOD'];
+$action   = $_GET['action'] ?? '';
+$isAdmin  = ($user['user_type'] ?? 'jogador') === 'admin';
 
 function out(array $data): void { echo json_encode($data); exit; }
 function err(string $msg, int $code = 400): void {
@@ -42,7 +43,6 @@ function ensureTables(PDO $pdo): void {
         INDEX idx_tr_league (league)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // ensure players columns
     $cols = $pdo->query("SHOW COLUMNS FROM players")->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('tapa_count', $cols)) {
         $pdo->exec("ALTER TABLE players ADD COLUMN tapa_count INT NOT NULL DEFAULT 0");
@@ -54,12 +54,38 @@ function ensureTables(PDO $pdo): void {
 
 ensureTables($pdo);
 
-// ── GET my_status (team: tapas disponíveis + minhas solicitações pendentes) ──
+// ── helpers games DB ──────────────────────────────────────────────────────────
+
+function getGamesUserId(PDO $pdo, int $userId): ?int {
+    $stmt = $pdo->prepare("SELECT games_user_id FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$userId]);
+    $val = $stmt->fetchColumn();
+    return ($val !== false && $val !== null) ? (int)$val : null;
+}
+
+function getGamesTapas(?PDO $pdoGames, ?int $gamesUserId): int {
+    if (!$pdoGames || !$gamesUserId) return 0;
+    $stmt = $pdoGames->prepare("SELECT COALESCE(numero_tapas,0) FROM usuarios WHERE id = ? LIMIT 1");
+    $stmt->execute([$gamesUserId]);
+    $val = $stmt->fetchColumn();
+    return $val !== false ? (int)$val : 0;
+}
+
+function decrementGamesTapas(?PDO $pdoGames, ?int $gamesUserId): void {
+    if (!$pdoGames || !$gamesUserId) return;
+    $pdoGames->prepare("UPDATE usuarios SET numero_tapas = GREATEST(COALESCE(numero_tapas,0)-1,0) WHERE id = ?")
+        ->execute([$gamesUserId]);
+}
+
+// ── GET my_status ─────────────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'my_status') {
-    $stmt = $pdo->prepare("SELECT t.id, t.tapas, t.tapas_used FROM teams t WHERE t.user_id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT t.id, t.tapas_used FROM teams t WHERE t.user_id = ? LIMIT 1");
     $stmt->execute([$user['id']]);
     $team = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$team) out(['tapas' => 0, 'tapas_used' => 0, 'pending' => []]);
+
+    $gamesUserId = getGamesUserId($pdo, $user['id']);
+    $tapas       = getGamesTapas($pdoGames, $gamesUserId);
 
     $pend = $pdo->prepare("SELECT r.*, p.tapa_count, p.badge_name AS player_badge FROM tapas_requests r
         LEFT JOIN players p ON p.id = r.player_id
@@ -67,10 +93,10 @@ if ($method === 'GET' && $action === 'my_status') {
     $pend->execute([$team['id']]);
     $requests = $pend->fetchAll(PDO::FETCH_ASSOC);
 
-    out(['success' => true, 'tapas' => (int)$team['tapas'], 'tapas_used' => (int)$team['tapas_used'], 'requests' => $requests]);
+    out(['success' => true, 'tapas' => $tapas, 'tapas_used' => (int)$team['tapas_used'], 'requests' => $requests]);
 }
 
-// ── GET league_recipients ──
+// ── GET league_recipients ─────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'league_recipients') {
     $league = $_GET['league'] ?? $user['league'] ?? 'ELITE';
     $stmt = $pdo->prepare("
@@ -86,26 +112,27 @@ if ($method === 'GET' && $action === 'league_recipients') {
     out(['success' => true, 'players' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-// ── POST request_tapa ──
+// ── POST request_tapa ─────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'request_tapa') {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body     = json_decode(file_get_contents('php://input'), true) ?? [];
     $playerId = (int)($body['player_id'] ?? 0);
     if (!$playerId) err('Jogador inválido');
 
-    // get team
-    $stmtT = $pdo->prepare("SELECT id, tapas, league FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtT = $pdo->prepare("SELECT id, league FROM teams WHERE user_id = ? LIMIT 1");
     $stmtT->execute([$user['id']]);
     $team = $stmtT->fetch(PDO::FETCH_ASSOC);
     if (!$team) err('Time não encontrado');
-    if ((int)$team['tapas'] <= 0) err('Sem tapas disponíveis');
 
-    // verify player belongs to team
+    // check balance in games DB
+    $gamesUserId = getGamesUserId($pdo, $user['id']);
+    $tapas       = getGamesTapas($pdoGames, $gamesUserId);
+    if ($tapas <= 0) err('Sem tapas disponíveis');
+
     $stmtP = $pdo->prepare("SELECT id, name FROM players WHERE id = ? AND team_id = ?");
     $stmtP->execute([$playerId, $team['id']]);
     $player = $stmtP->fetch(PDO::FETCH_ASSOC);
     if (!$player) err('Jogador não encontrado no seu elenco');
 
-    // check no pending request for same player
     $stmtEx = $pdo->prepare("SELECT id FROM tapas_requests WHERE team_id = ? AND player_id = ? AND status = 'pending'");
     $stmtEx->execute([$team['id'], $playerId]);
     if ($stmtEx->fetch()) err('Já existe uma solicitação pendente para este jogador');
@@ -122,14 +149,14 @@ if ($method === 'POST' && $action === 'request_tapa') {
     out(['success' => true, 'message' => 'Solicitação enviada com sucesso']);
 }
 
-// ── GET admin_get_all ──
+// ── GET admin_get_all ─────────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'admin_get_all') {
     if (!$isAdmin) err('Acesso negado', 403);
     $league = $_GET['league'] ?? 'ELITE';
 
     $stmtTeams = $pdo->prepare("
-        SELECT t.id, t.city, t.name, t.tapas, t.tapas_used,
-               u.name AS owner_name
+        SELECT t.id, t.city, t.name, t.tapas_used,
+               u.name AS owner_name, u.games_user_id
         FROM teams t
         LEFT JOIN users u ON u.id = t.user_id
         WHERE t.league = ?
@@ -137,6 +164,25 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     ");
     $stmtTeams->execute([$league]);
     $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+
+    // bulk fetch tapas from games DB
+    $gamesIds = array_values(array_filter(array_map(fn($t) => (int)($t['games_user_id'] ?? 0), $teams)));
+    $gamesTapasMap = [];
+    if ($pdoGames && !empty($gamesIds)) {
+        $ph = implode(',', array_fill(0, count($gamesIds), '?'));
+        $stmtG = $pdoGames->prepare("SELECT id, COALESCE(numero_tapas,0) AS numero_tapas FROM usuarios WHERE id IN ($ph)");
+        $stmtG->execute($gamesIds);
+        foreach ($stmtG->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $gamesTapasMap[(int)$row['id']] = (int)$row['numero_tapas'];
+        }
+    }
+
+    foreach ($teams as &$team) {
+        $gid = (int)($team['games_user_id'] ?? 0);
+        $team['tapas'] = $gid ? ($gamesTapasMap[$gid] ?? 0) : 0;
+        unset($team['games_user_id']);
+    }
+    unset($team);
 
     $stmtReq = $pdo->prepare("
         SELECT r.*, t.city AS team_city, t.name AS team_name,
@@ -155,36 +201,53 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     out(['success' => true, 'teams' => $teams, 'requests' => $requests]);
 }
 
-// ── POST admin_set_tapas ──
+// ── POST admin_set_tapas ──────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_set_tapas') {
     if (!$isAdmin) err('Acesso negado', 403);
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $teamId   = (int)($body['team_id'] ?? 0);
-    $amount   = (int)($body['amount'] ?? 0);
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $teamId    = (int)($body['team_id'] ?? 0);
+    $amount    = (int)($body['amount'] ?? 0);
     $operation = $body['operation'] ?? 'set';
     if (!$teamId) err('Time inválido');
 
-    if ($operation === 'add') {
-        $pdo->prepare("UPDATE teams SET tapas = tapas + ? WHERE id = ?")->execute([$amount, $teamId]);
-    } elseif ($operation === 'remove') {
-        $pdo->prepare("UPDATE teams SET tapas = GREATEST(0, tapas - ?) WHERE id = ?")->execute([$amount, $teamId]);
-    } else {
-        $pdo->prepare("UPDATE teams SET tapas = ? WHERE id = ?")->execute([$amount, $teamId]);
-    }
+    // resolve games_user_id for this team
+    $rowU = $pdo->prepare("SELECT u.games_user_id FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1");
+    $rowU->execute([$teamId]);
+    $gamesUserId = (int)($rowU->fetchColumn() ?? 0) ?: null;
 
-    $row = $pdo->prepare("SELECT tapas FROM teams WHERE id = ?")->execute([$teamId])
-        ? $pdo->prepare("SELECT tapas FROM teams WHERE id = ?") : null;
-    $stmtNew = $pdo->prepare("SELECT tapas FROM teams WHERE id = ?");
-    $stmtNew->execute([$teamId]);
-    $newVal = (int)$stmtNew->fetchColumn();
+    if ($pdoGames && $gamesUserId) {
+        if ($operation === 'add') {
+            $pdoGames->prepare("UPDATE usuarios SET numero_tapas = GREATEST(0, COALESCE(numero_tapas,0) + ?) WHERE id = ?")
+                ->execute([$amount, $gamesUserId]);
+        } elseif ($operation === 'remove') {
+            $pdoGames->prepare("UPDATE usuarios SET numero_tapas = GREATEST(0, COALESCE(numero_tapas,0) - ?) WHERE id = ?")
+                ->execute([$amount, $gamesUserId]);
+        } else {
+            $pdoGames->prepare("UPDATE usuarios SET numero_tapas = ? WHERE id = ?")
+                ->execute([$amount, $gamesUserId]);
+        }
+        $newVal = getGamesTapas($pdoGames, $gamesUserId);
+    } else {
+        // fallback: update teams.tapas if games DB unavailable
+        if ($operation === 'add') {
+            $pdo->prepare("UPDATE teams SET tapas = tapas + ? WHERE id = ?")->execute([$amount, $teamId]);
+        } elseif ($operation === 'remove') {
+            $pdo->prepare("UPDATE teams SET tapas = GREATEST(0, tapas - ?) WHERE id = ?")->execute([$amount, $teamId]);
+        } else {
+            $pdo->prepare("UPDATE teams SET tapas = ? WHERE id = ?")->execute([$amount, $teamId]);
+        }
+        $stmtNew = $pdo->prepare("SELECT tapas FROM teams WHERE id = ?");
+        $stmtNew->execute([$teamId]);
+        $newVal = (int)$stmtNew->fetchColumn();
+    }
 
     out(['success' => true, 'new_tapas' => $newVal]);
 }
 
-// ── POST admin_approve ──
+// ── POST admin_approve ────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_approve') {
     if (!$isAdmin) err('Acesso negado', 403);
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
 
@@ -193,30 +256,31 @@ if ($method === 'POST' && $action === 'admin_approve') {
     $req = $stmtR->fetch(PDO::FETCH_ASSOC);
     if (!$req) err('Solicitação não encontrada ou já processada');
 
-    // type and badge_name come from the request itself (team chose when submitting)
     $actionType = $req['action_type'] ?? 'tapa';
     $badgeName  = $req['badge_name'] ?? '';
 
+    // resolve games_user_id for the team owner
+    $rowU = $pdo->prepare("SELECT u.games_user_id FROM teams t JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1");
+    $rowU->execute([$req['team_id']]);
+    $gamesUserId = (int)($rowU->fetchColumn() ?? 0) ?: null;
+
     $pdo->beginTransaction();
     try {
-        // update request
         $pdo->prepare("UPDATE tapas_requests SET status='approved', processed_at=NOW() WHERE id=?")
             ->execute([$requestId]);
 
         if ($actionType === 'tapa') {
-            // increment player tapa_count
             $pdo->prepare("UPDATE players SET tapa_count = tapa_count + 1 WHERE id = ?")
                 ->execute([$req['player_id']]);
-            // decrement team tapas, increment tapas_used
-            $pdo->prepare("UPDATE teams SET tapas = GREATEST(0, tapas - 1), tapas_used = tapas_used + 1 WHERE id = ?")
-                ->execute([$req['team_id']]);
+            // deduct from games DB
+            decrementGamesTapas($pdoGames, $gamesUserId);
         } else {
-            // set badge on player (name was set by the team when requesting)
             $pdo->prepare("UPDATE players SET badge_name = ? WHERE id = ?")
                 ->execute([$badgeName, $req['player_id']]);
-            $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
-                ->execute([$req['team_id']]);
         }
+
+        $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
+            ->execute([$req['team_id']]);
 
         $pdo->commit();
         out(['success' => true, 'message' => 'Solicitação aprovada']);
@@ -226,10 +290,10 @@ if ($method === 'POST' && $action === 'admin_approve') {
     }
 }
 
-// ── POST admin_reject ──
+// ── POST admin_reject ─────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_reject') {
     if (!$isAdmin) err('Acesso negado', 403);
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
     $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
 

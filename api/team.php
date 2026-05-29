@@ -152,11 +152,13 @@ if ($method === 'GET') {
 
                 $hasBadgesCount = playersColumnExists($pdo, 'badges_count');
                 $badgesSelect = $hasBadgesCount ? ', p.badges_count' : ', NULL as badges_count';
+                $hasTapaCount = playersColumnExists($pdo, 'tapa_count');
+                $tapasSelect  = $hasTapaCount ? ', COALESCE(p.tapa_count,0) AS tapa_count, p.badge_name' : ', 0 AS tapa_count, NULL AS badge_name';
 
                 try {
             $stmt = $pdo->prepare("
                                 SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
-                                    {$badgesSelect},
+                                    {$badgesSelect}{$tapasSelect},
                   p.was_traded, p.drafted_by_team_id,
                   COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
@@ -503,7 +505,8 @@ if ($method === 'GET') {
         if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
         $tid = (int)$teamRow['id'];
 
-        $stmtP = $pdo->prepare('SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id, drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player FROM players WHERE team_id = ? ORDER BY ovr DESC');
+        $tapasExtra = playersColumnExists($pdo, 'tapa_count') ? ', COALESCE(tapa_count,0) AS tapa_count, badge_name' : ', 0 AS tapa_count, NULL AS badge_name';
+        $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id, drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player{$tapasExtra} FROM players WHERE team_id = ? ORDER BY ovr DESC");
         $stmtP->execute([$tid]);
 
         // Para flag cap_bonus_eligible: busca nomes draftados via draft de temporadas

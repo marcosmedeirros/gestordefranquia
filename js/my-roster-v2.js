@@ -301,6 +301,15 @@ function renderPlayerTagBadge(p) {
   return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
 }
 
+function renderTapaBadge(p) {
+  const count = parseInt(p.tapa_count) || 0;
+  const badge = (p.badge_name || '').trim();
+  let html = '';
+  if (count > 0) html += '🧃'.repeat(count);
+  if (badge) html += `<span title="${badge}">🎖️</span>`;
+  return html ? ` <span style="font-size:13px">${html}</span>` : '';
+}
+
 function renderTeamTag(tag) {
   const bar = document.getElementById('franchise-tag-bar');
   if (!bar) return;
@@ -785,7 +794,7 @@ function renderPlayers(players) {
           <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
             <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
             <div class="text-center">
-              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem; color:var(--text);">${p.name}</h6>
+              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem; color:var(--text);">${p.name}${renderTapaBadge(p)}</h6>
               <div class="d-flex justify-content-center gap-2 flex-wrap small">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
                 ${loyalBadge}${tagBadgeStarter}
@@ -820,7 +829,7 @@ function renderPlayers(players) {
         li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0'
           + (isFranchiseEligible(p) ? ' franchise-player-li' : (isLoyalPlayer(p) ? ' loyal-player-li' : ''));
         li.innerHTML = `
-          <span>${p.name} ${franchiseBadge}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span>${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -875,7 +884,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="fw-bold" style="color:var(--text);">${p.name} ${franchiseBadge}${tagBadgeMobile}</div>
+            <div class="fw-bold" style="color:var(--text);">${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -927,7 +936,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold">${p.name} ${franchiseBadge}${tagBadge}</span>
+            <span class="fw-semibold">${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
