@@ -526,59 +526,97 @@ if ($action === 'import_wikidata') {
     header('X-Accel-Buffering: no');
     header('Cache-Control: no-cache');
     @ini_set('zlib.output_compression', 0);
-    set_time_limit(180);
+    set_time_limit(300);
     if (ob_get_level()) ob_end_clean();
 
-    // Prêmios individuais com Q ID do Wikidata
-    $awardsMap = [
-        'MVP'    => 'Q616833',    // NBA Most Valuable Player Award
-        'DPOY'   => 'Q1377631',   // NBA Defensive Player of the Year
-        'ROY'    => 'Q1377626',   // NBA Rookie of the Year
-        'MIP'    => 'Q1377627',   // NBA Most Improved Player
-        '6THMAN' => 'Q1377634',   // NBA Sixth Man of the Year
-        'HOF'    => 'Q18523573',  // Naismith Memorial Basketball Hall of Fame
-        'ALLNBA1'=> 'Q1377613',   // All-NBA First Team
-        'ALLNBA2'=> 'Q1377614',   // All-NBA Second Team
-        'ALLNBA3'=> 'Q1377615',   // All-NBA Third Team
-    ];
-
-    $totalUpdated = 0;
-
-    foreach ($awardsMap as $awardCode => $qid) {
-        echo "Buscando {$awardCode} (Wikidata {$qid})...\n";
-        flush();
-
-        $sparql = 'SELECT DISTINCT ?playerLabel WHERE { ?player wdt:P166 wd:' . $qid . ' . SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . } }';
-        $url = 'https://query.wikidata.org/sparql?query=' . urlencode($sparql) . '&format=json';
-
+    // Busca o Q ID correto de um prêmio pelo nome em inglês
+    function wikidataFindQid(string $searchTerm): ?string {
+        $url = 'https://www.wikidata.org/w/api.php?' . http_build_query([
+            'action'   => 'wbsearchentities',
+            'search'   => $searchTerm,
+            'language' => 'en',
+            'type'     => 'item',
+            'limit'    => 3,
+            'format'   => 'json',
+        ]);
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_HTTPHEADER     => ['User-Agent: HoopGrid-FBA/1.0'],
+        ]);
+        $raw  = curl_exec($ch);
+        curl_close($ch);
+        $data = json_decode($raw, true);
+        foreach ($data['search'] ?? [] as $item) {
+            return $item['id']; // primeiro resultado
+        }
+        return null;
+    }
+
+    // Busca vencedores via SPARQL usando dois padrões (P166 award received / P1346 winner)
+    function wikidataWinners(string $qid): array {
+        $sparql = 'SELECT DISTINCT ?playerLabel WHERE {
+          { ?player wdt:P166 wd:' . $qid . ' . }
+          UNION
+          { ?edition wdt:P31 wd:' . $qid . ' . ?edition wdt:P1346 ?player . }
+          ?player wdt:P31 wd:Q5 .
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
+        }';
+        $url = 'https://query.wikidata.org/sparql?query=' . urlencode($sparql) . '&format=json';
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_HTTPHEADER     => [
                 'Accept: application/sparql-results+json',
-                'User-Agent: HoopGrid-FBA/1.0 (games.fbabrasil.com.br)',
+                'User-Agent: HoopGrid-FBA/1.0',
             ],
         ]);
         $raw  = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        if ($code !== 200 || !$raw) return [];
+        $result = json_decode($raw, true);
+        return array_filter(array_map(
+            fn($b) => trim($b['playerLabel']['value'] ?? ''),
+            $result['results']['bindings'] ?? []
+        ));
+    }
 
-        if ($code !== 200 || !$raw) {
-            echo "  ERRO HTTP {$code} — pulando\n";
+    // Nome do prêmio para busca → código interno
+    $awardsSearch = [
+        'MVP'    => 'NBA Most Valuable Player Award',
+        'DPOY'   => 'NBA Defensive Player of the Year Award',
+        'ROY'    => 'NBA Rookie of the Year Award',
+        'MIP'    => 'NBA Most Improved Player Award',
+        '6THMAN' => 'NBA Sixth Man of the Year Award',
+        'HOF'    => 'Naismith Memorial Basketball Hall of Fame',
+        'ALLNBA1'=> 'All-NBA First Team',
+        'ALLNBA2'=> 'All-NBA Second Team',
+        'ALLNBA3'=> 'All-NBA Third Team',
+    ];
+
+    $totalUpdated = 0;
+
+    foreach ($awardsSearch as $awardCode => $searchTerm) {
+        echo "Localizando \"{$searchTerm}\"...\n";
+        flush();
+
+        $qid = wikidataFindQid($searchTerm);
+        if (!$qid) {
+            echo "  Q ID não encontrado — pulando\n\n";
             flush();
-            usleep(1200000);
+            usleep(800000);
             continue;
         }
+        echo "  Q ID: {$qid}\n";
+        flush();
 
-        $result   = json_decode($raw, true);
-        $bindings = $result['results']['bindings'] ?? [];
-        $names    = array_filter(array_map(fn($b) => trim($b['playerLabel']['value'] ?? ''), $bindings));
-
-        echo '  ' . count($names) . " nomes recebidos\n";
+        $names = wikidataWinners($qid);
+        echo '  Nomes recebidos: ' . count($names) . "\n";
         flush();
 
         $updated = 0;
@@ -598,12 +636,12 @@ if ($action === 'import_wikidata') {
             }
         }
 
-        echo "  Banco atualizado: {$updated} jogadores\n";
+        echo "  Banco atualizado: {$updated} jogadores\n\n";
         flush();
-        usleep(1200000); // 1.2s entre queries para respeitar rate limit do Wikidata
+        usleep(1500000);
     }
 
-    echo "\nConcluído! Total de prêmios adicionados: {$totalUpdated}\n";
+    echo "Concluído! Total de prêmios adicionados: {$totalUpdated}\n";
     flush();
     exit;
 }
