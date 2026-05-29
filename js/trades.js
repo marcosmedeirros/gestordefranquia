@@ -68,11 +68,9 @@ const formatTradePickDisplay = (pick) => {
   const hasYearRound = year !== '?' && round !== '?';
   const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
 
-  // Mostrar o time original apenas quando a pick foi negociada (dono atual ≠ time de origem)
-  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
-  const originalTeam = (isTraded && pick.original_team_city && pick.original_team_name)
+  const originalTeam = (pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
-    : null;
+    : (pick.original_team_name || null);
 
   let display = (pickNumber && isCurrentDraft)
     ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
@@ -96,9 +94,9 @@ const formatTradePickPlain = (pick) => {
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
   const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
-  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
-  const originalTeam = (isTraded && pick.original_team_city && pick.original_team_name)
-    ? `${pick.original_team_city} ${pick.original_team_name}` : null;
+  const originalTeam = (pick.original_team_city && pick.original_team_name)
+    ? `${pick.original_team_city} ${pick.original_team_name}`
+    : (pick.original_team_name || null);
   let display = (pickNumber && isCurrentDraft)
     ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${year !== '?' && round !== '?' ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
@@ -539,11 +537,9 @@ const buildPickSummary = (pick) => {
   const round = pick.round || '?';
   const pickNumber = pick.draft_pick_number || null;
   const isCurrentDraft = Number(year) === currentSeasonYear && Number(pickNumber || 0) > 0 && Number(pick.draft_session_id || 0) > 0;
-  // Mostrar o time original apenas quando a pick foi negociada (dono atual ≠ time de origem)
-  const isTraded = pick.original_team_id && pick.team_id && String(pick.original_team_id) !== String(pick.team_id);
-  const origin = (isTraded && pick.original_team_city && pick.original_team_name)
+  const origin = (pick.original_team_city && pick.original_team_name)
     ? `${pick.original_team_city} ${pick.original_team_name}`
-    : (isTraded && pick.original_team_name ? pick.original_team_name : '');
+    : (pick.original_team_name || '');
   const via = '';
   const metaParts = [];
   if (pickNumber && isCurrentDraft) {
