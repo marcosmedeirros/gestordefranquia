@@ -4099,33 +4099,18 @@ async function showTapas() {
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>
 
-    <!-- Approval modal -->
+    <!-- Approval confirm modal -->
     <div style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center" id="tapasApproveOverlay">
-      <div style="background:var(--panel-3,#1c1c21);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;width:100%;max-width:400px;margin:16px">
-        <div style="font-size:15px;font-weight:700;color:var(--text,#f0f0f3);margin-bottom:4px">
-          <i class="bi bi-hand-index-thumb" style="color:#f97316"></i> Aprovar Solicitação
+      <div style="background:var(--panel-3,#1c1c21);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;width:100%;max-width:380px;margin:16px">
+        <div style="font-size:15px;font-weight:700;color:var(--text,#f0f0f3);margin-bottom:12px">
+          <i class="bi bi-check-circle" style="color:#22c55e"></i> Confirmar Aprovação
         </div>
-        <div style="font-size:12px;color:var(--text-3,#48484f);margin-bottom:16px" id="tapasApproveInfo"></div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:12px;font-weight:600;color:var(--text-2,#868690);display:block;margin-bottom:6px">Tipo de ação</label>
-          <div style="display:flex;gap:8px">
-            <button id="btnTypeTapa" onclick="setApproveType('tapa')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(249,115,22,.4);background:rgba(249,115,22,.15);color:#f97316;font-weight:700;font-size:13px;cursor:pointer">
-              <i class="bi bi-hand-index-thumb"></i> Tapa
-            </button>
-            <button id="btnTypeBadge" onclick="setApproveType('badge')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2,#868690);font-weight:700;font-size:13px;cursor:pointer">
-              <i class="bi bi-award"></i> Badge
-            </button>
-          </div>
-        </div>
-        <div id="badgeNameRow" style="display:none;margin-bottom:12px">
-          <label style="font-size:12px;font-weight:600;color:var(--text-2,#868690);display:block;margin-bottom:6px">Nome do badge</label>
-          <input id="tapasApproveBadgeName" type="text" placeholder="Ex: Veterano, MVP..." style="width:100%;background:var(--panel-2,#16161a);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--text,#f0f0f3);font-size:13px;padding:9px 12px;outline:none;font-family:inherit">
-        </div>
+        <div style="font-size:13px;color:var(--text,#f0f0f3);margin-bottom:6px" id="tapasApproveInfo"></div>
+        <div style="font-size:12px;color:var(--text-2,#868690);margin-bottom:20px" id="tapasApproveTypeInfo"></div>
         <input type="hidden" id="tapasApproveReqId">
-        <input type="hidden" id="tapasApproveType" value="tapa">
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
           <button onclick="closeTapasApprove()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2,#868690);font-weight:600;font-size:13px;cursor:pointer">Cancelar</button>
-          <button onclick="submitTapasApprove()" style="padding:8px 18px;border-radius:8px;border:none;background:var(--red,#fc0025);color:#fff;font-weight:700;font-size:13px;cursor:pointer">Aprovar</button>
+          <button onclick="submitTapasApprove()" style="padding:8px 18px;border-radius:8px;border:none;background:#22c55e;color:#fff;font-weight:700;font-size:13px;cursor:pointer">Aprovar</button>
         </div>
       </div>
     </div>
@@ -4139,27 +4124,15 @@ function changeTapasLeague(league) {
   showTapas();
 }
 
-function setApproveType(type) {
-  document.getElementById('tapasApproveType').value = type;
-  const isBadge = type === 'badge';
-  document.getElementById('badgeNameRow').style.display = isBadge ? 'block' : 'none';
-  const btnTapa  = document.getElementById('btnTypeTapa');
-  const btnBadge = document.getElementById('btnTypeBadge');
-  btnTapa.style.background  = !isBadge ? 'rgba(249,115,22,.15)' : 'none';
-  btnTapa.style.color       = !isBadge ? '#f97316' : 'var(--text-2,#868690)';
-  btnTapa.style.borderColor = !isBadge ? 'rgba(249,115,22,.4)' : 'rgba(255,255,255,.1)';
-  btnBadge.style.background  = isBadge ? 'rgba(139,92,246,.15)' : 'none';
-  btnBadge.style.color       = isBadge ? '#a78bfa' : 'var(--text-2,#868690)';
-  btnBadge.style.borderColor = isBadge ? 'rgba(139,92,246,.4)' : 'rgba(255,255,255,.1)';
-}
-
-function openTapasApprove(reqId, playerName, teamName) {
+function openTapasApprove(reqId, playerName, teamName, actionType, badgeName) {
   document.getElementById('tapasApproveReqId').value = reqId;
-  document.getElementById('tapasApproveInfo').textContent = `${playerName} — ${teamName}`;
-  document.getElementById('tapasApproveBadgeName').value = '';
-  setApproveType('tapa');
-  const overlay = document.getElementById('tapasApproveOverlay');
-  overlay.style.display = 'flex';
+  document.getElementById('tapasApproveInfo').innerHTML =
+    `<strong>${escapeHtml(playerName)}</strong> &mdash; ${escapeHtml(teamName)}`;
+  const typeLabel = actionType === 'badge'
+    ? `<i class="bi bi-award" style="color:#a78bfa"></i> Badge: <strong style="color:#a78bfa">${escapeHtml(badgeName || '')}</strong>`
+    : `<i class="bi bi-hand-index-thumb" style="color:#f97316"></i> <strong style="color:#f97316">Tapa</strong>`;
+  document.getElementById('tapasApproveTypeInfo').innerHTML = typeLabel;
+  document.getElementById('tapasApproveOverlay').style.display = 'flex';
 }
 
 function closeTapasApprove() {
@@ -4167,15 +4140,12 @@ function closeTapasApprove() {
 }
 
 async function submitTapasApprove() {
-  const reqId     = parseInt(document.getElementById('tapasApproveReqId').value);
-  const actionType = document.getElementById('tapasApproveType').value;
-  const badgeName  = document.getElementById('tapasApproveBadgeName').value.trim();
-  if (actionType === 'badge' && !badgeName) { alert('Digite o nome do badge.'); return; }
+  const reqId = parseInt(document.getElementById('tapasApproveReqId').value);
   try {
     await fetch('/api/tapas.php?action=admin_approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request_id: reqId, action_type: actionType, badge_name: badgeName })
+      body: JSON.stringify({ request_id: reqId })
     }).then(r => r.json()).then(d => { if (d.success === false) throw d; });
     closeTapasApprove();
     loadTapasData();
@@ -4231,27 +4201,40 @@ async function loadTapasData() {
 
     const requestsHtml = requests.length === 0
       ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhuma solicitação pendente.</div>'
-      : requests.map(r => `
+      : requests.map(r => {
+          const isBadge   = r.action_type === 'badge';
+          const typeChip  = isBadge
+            ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-award"></i> ${escapeHtml(r.badge_name || '')}</span>`
+            : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-hand-index-thumb"></i> Tapa</span>`;
+          const pn = escapeHtml(r.player_name).replace(/'/g,"\\'");
+          const tn = escapeHtml(r.team_city+' '+r.team_name).replace(/'/g,"\\'");
+          const at = escapeHtml(r.action_type || 'tapa').replace(/'/g,"\\'");
+          const bn = escapeHtml(r.badge_name || '').replace(/'/g,"\\'");
+          return `
           <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--panel-2);border:1px solid rgba(255,255,255,.07);border-radius:10px;margin-bottom:8px">
-            <i class="bi bi-hand-index-thumb" style="color:#f97316;font-size:18px;flex-shrink:0"></i>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(r.player_name)}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:2px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(r.player_name)}</span>
+                ${typeChip}
+              </div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:3px">
                 ${escapeHtml(r.team_city)} ${escapeHtml(r.team_name)}
-                <span style="color:var(--text-3)"> &bull; </span>${escapeHtml(r.owner_name)}
-                <span style="color:var(--text-3)"> &bull; </span>${escapeHtml(r.player_position)} OVR ${r.player_ovr}
+                &bull; ${escapeHtml(r.owner_name)}
+                &bull; ${escapeHtml(r.player_position)} OVR ${r.player_ovr}
               </div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
-              <button onclick="openTapasApprove(${r.id},'${escapeHtml(r.player_name).replace(/'/g,"\\'")}','${escapeHtml(r.team_city+' '+r.team_name).replace(/'/g,"\\'")}')
-                " style="padding:6px 12px;border-radius:8px;border:none;background:rgba(34,197,94,.15);color:#22c55e;font-weight:700;font-size:12px;cursor:pointer">
+              <button onclick="openTapasApprove(${r.id},'${pn}','${tn}','${at}','${bn}')"
+                style="padding:6px 12px;border-radius:8px;border:none;background:rgba(34,197,94,.15);color:#22c55e;font-weight:700;font-size:12px;cursor:pointer">
                 <i class="bi bi-check-lg"></i> OK
               </button>
-              <button onclick="rejectTapasRequest(${r.id})" style="padding:6px 12px;border-radius:8px;border:none;background:rgba(239,68,68,.12);color:#ef4444;font-weight:700;font-size:12px;cursor:pointer">
+              <button onclick="rejectTapasRequest(${r.id})"
+                style="padding:6px 12px;border-radius:8px;border:none;background:rgba(239,68,68,.12);color:#ef4444;font-weight:700;font-size:12px;cursor:pointer">
                 <i class="bi bi-x-lg"></i>
               </button>
             </div>
-          </div>`).join('');
+          </div>`;
+        }).join('');
 
     container.innerHTML = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">

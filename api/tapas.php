@@ -110,9 +110,14 @@ if ($method === 'POST' && $action === 'request_tapa') {
     $stmtEx->execute([$team['id'], $playerId]);
     if ($stmtEx->fetch()) err('Já existe uma solicitação pendente para este jogador');
 
-    $ins = $pdo->prepare("INSERT INTO tapas_requests (team_id, player_id, player_name, league, status)
-        VALUES (?, ?, ?, ?, 'pending')");
-    $ins->execute([$team['id'], $playerId, $player['name'], $team['league']]);
+    $actionType = $body['action_type'] ?? 'tapa';
+    $badgeName  = trim($body['badge_name'] ?? '');
+    if (!in_array($actionType, ['tapa', 'badge'])) err('Tipo de ação inválido');
+    if ($actionType === 'badge' && $badgeName === '') err('Nome do badge obrigatório');
+
+    $ins = $pdo->prepare("INSERT INTO tapas_requests (team_id, player_id, player_name, league, status, action_type, badge_name)
+        VALUES (?, ?, ?, ?, 'pending', ?, ?)");
+    $ins->execute([$team['id'], $playerId, $player['name'], $team['league'], $actionType, $actionType === 'badge' ? $badgeName : null]);
 
     out(['success' => true, 'message' => 'Solicitação enviada com sucesso']);
 }
@@ -180,23 +185,23 @@ if ($method === 'POST' && $action === 'admin_set_tapas') {
 if ($method === 'POST' && $action === 'admin_approve') {
     if (!$isAdmin) err('Acesso negado', 403);
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $requestId  = (int)($body['request_id'] ?? 0);
-    $actionType = $body['action_type'] ?? '';
-    $badgeName  = trim($body['badge_name'] ?? '');
+    $requestId = (int)($body['request_id'] ?? 0);
     if (!$requestId) err('Solicitação inválida');
-    if (!in_array($actionType, ['tapa', 'badge'])) err('Tipo de ação inválido');
-    if ($actionType === 'badge' && $badgeName === '') err('Nome do badge obrigatório');
 
     $stmtR = $pdo->prepare("SELECT * FROM tapas_requests WHERE id = ? AND status = 'pending'");
     $stmtR->execute([$requestId]);
     $req = $stmtR->fetch(PDO::FETCH_ASSOC);
     if (!$req) err('Solicitação não encontrada ou já processada');
 
+    // type and badge_name come from the request itself (team chose when submitting)
+    $actionType = $req['action_type'] ?? 'tapa';
+    $badgeName  = $req['badge_name'] ?? '';
+
     $pdo->beginTransaction();
     try {
         // update request
-        $pdo->prepare("UPDATE tapas_requests SET status='approved', action_type=?, badge_name=?, processed_at=NOW() WHERE id=?")
-            ->execute([$actionType, $actionType === 'badge' ? $badgeName : null, $requestId]);
+        $pdo->prepare("UPDATE tapas_requests SET status='approved', processed_at=NOW() WHERE id=?")
+            ->execute([$requestId]);
 
         if ($actionType === 'tapa') {
             // increment player tapa_count
@@ -206,10 +211,9 @@ if ($method === 'POST' && $action === 'admin_approve') {
             $pdo->prepare("UPDATE teams SET tapas = GREATEST(0, tapas - 1), tapas_used = tapas_used + 1 WHERE id = ?")
                 ->execute([$req['team_id']]);
         } else {
-            // set badge on player
+            // set badge on player (name was set by the team when requesting)
             $pdo->prepare("UPDATE players SET badge_name = ? WHERE id = ?")
                 ->execute([$badgeName, $req['player_id']]);
-            // badge doesn't consume tapas
             $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
                 ->execute([$req['team_id']]);
         }

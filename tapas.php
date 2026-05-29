@@ -231,6 +231,22 @@ $team_id = $team ? (int)$team['id'] : null;
             </span>
         </div>
 
+        <!-- Histórico do time (acordeão) -->
+        <div id="historicoAccordion" style="margin-bottom:24px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+            <button onclick="toggleHistorico()" type="button" id="historicoToggleBtn"
+                style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:none;border:none;color:var(--text);font-family:var(--font);cursor:pointer;text-align:left">
+                <span style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700">
+                    <i class="bi bi-clock-history" style="color:#f97316"></i>
+                    Histórico do Time
+                    <span id="historicoCount" style="font-size:11px;font-weight:600;background:rgba(249,115,22,.15);color:#f97316;border-radius:999px;padding:1px 8px">0</span>
+                </span>
+                <i class="bi bi-chevron-down" id="historicoChevron" style="font-size:13px;color:var(--text-3);transition:transform .2s"></i>
+            </button>
+            <div id="historicoBody" style="display:none;padding:0 20px 16px">
+                <div id="historicoList"><div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px">Nenhum tapa ou badge concedido ainda.</div></div>
+            </div>
+        </div>
+
         <!-- Minhas solicitações -->
         <div class="panel" style="margin-bottom:24px">
             <div class="panel-header">
@@ -265,15 +281,33 @@ $team_id = $team ? (int)$team['id'] : null;
 <div class="modal-overlay" id="solicitarModal">
     <div class="modal-box">
         <div class="modal-title"><i class="bi bi-hand-index-thumb" style="color:#f97316"></i> Solicitar Tapa</div>
-        <div style="margin-bottom:12px">
-            <label style="font-size:12px;color:var(--text-2);font-weight:600;display:block;margin-bottom:6px">Escolha o jogador</label>
+        <div style="margin-bottom:14px">
+            <label style="font-size:12px;color:var(--text-2);font-weight:600;display:block;margin-bottom:6px">Jogador</label>
             <select class="fba-select" id="playerSelect">
                 <option value="">Carregando...</option>
             </select>
         </div>
-        <div style="font-size:12px;color:var(--text-3);background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 12px">
-            <i class="bi bi-info-circle me-1" style="color:#f97316"></i>
-            A solicitação será enviada ao admin para aprovação. Quando aprovada, o jogador receberá um tapinha ao lado do nome.
+        <div style="margin-bottom:14px">
+            <label style="font-size:12px;color:var(--text-2);font-weight:600;display:block;margin-bottom:6px">Tipo</label>
+            <div style="display:flex;gap:8px">
+                <button id="solBtnTapa" onclick="setSolType('tapa')" type="button"
+                    style="flex:1;padding:10px;border-radius:9px;border:1px solid rgba(249,115,22,.5);background:rgba(249,115,22,.15);color:#f97316;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="bi bi-hand-index-thumb"></i> Tapa
+                </button>
+                <button id="solBtnBadge" onclick="setSolType('badge')" type="button"
+                    style="flex:1;padding:10px;border-radius:9px;border:1px solid var(--border-md);background:none;color:var(--text-2);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="bi bi-award"></i> Badge
+                </button>
+            </div>
+        </div>
+        <div id="solBadgeRow" style="display:none;margin-bottom:14px">
+            <label style="font-size:12px;color:var(--text-2);font-weight:600;display:block;margin-bottom:6px">Nome do badge</label>
+            <input id="solBadgeName" type="text" placeholder="Ex: Veterano, MVP..." class="fba-select" style="border-radius:9px">
+        </div>
+        <input type="hidden" id="solActionType" value="tapa">
+        <div style="font-size:12px;color:var(--text-3);background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 12px;margin-bottom:4px">
+            <i class="bi bi-info-circle" style="color:#f97316"></i>
+            A solicitação será enviada ao admin para aprovação.
         </div>
         <div class="modal-actions">
             <button class="btn-ghost-sm" onclick="closeSolicitarModal()">Cancelar</button>
@@ -327,18 +361,45 @@ async function loadMyStatus() {
             msg.style.display = 'inline';
         }
 
+        // pending/history split
+        const pending  = reqs.filter(r => r.status === 'pending');
+        const others   = reqs.filter(r => r.status !== 'pending');
+        const approved = reqs.filter(r => r.status === 'approved');
+
         const list = document.getElementById('myRequestsList');
+        const displayed = pending.length ? pending : others.slice(0, 5);
         if (!reqs.length) {
             list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">Nenhuma solicitação ainda.</div>';
         } else {
-            list.innerHTML = reqs.map(req => `
+            list.innerHTML = displayed.map(req => `
                 <div class="request-row" style="margin-bottom:8px">
                     <i class="bi bi-person-fill" style="color:#f97316;font-size:16px;flex-shrink:0"></i>
                     <div style="flex:1;min-width:0">
                         <div style="font-weight:600;font-size:13px;color:var(--text)">${escHtml(req.player_name)}</div>
-                        <div style="font-size:11px;color:var(--text-3)">${new Date(req.created_at).toLocaleDateString('pt-BR')}</div>
+                        <div style="font-size:11px;color:var(--text-3)">${new Date(req.created_at).toLocaleDateString('pt-BR')}
+                            &bull; ${req.action_type === 'badge' ? `<span style="color:#a78bfa"><i class="bi bi-award"></i> ${escHtml(req.badge_name)}</span>` : '<span style="color:#f97316"><i class="bi bi-hand-index-thumb"></i> Tapa</span>'}
+                        </div>
                     </div>
                     ${renderStatusBadge(req)}
+                </div>`).join('');
+        }
+
+        // histórico acordeão
+        const countEl = document.getElementById('historicoCount');
+        const hlist   = document.getElementById('historicoList');
+        countEl.textContent = approved.length;
+        if (!approved.length) {
+            hlist.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px">Nenhum tapa ou badge concedido ainda.</div>';
+        } else {
+            hlist.innerHTML = approved.map(r => `
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:13px;color:var(--text)">${escHtml(r.player_name)}</div>
+                        <div style="font-size:11px;color:var(--text-3)">${new Date(r.processed_at || r.created_at).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                    ${r.action_type === 'badge'
+                        ? `<span class="badge-badge"><i class="bi bi-award"></i> ${escHtml(r.badge_name)}</span>`
+                        : `<span class="badge-tapa"><i class="bi bi-hand-index-thumb"></i> Tapa</span>`}
                 </div>`).join('');
         }
     } catch (e) {
@@ -394,11 +455,27 @@ async function loadRoster() {
     }
 }
 
+function setSolType(type) {
+    document.getElementById('solActionType').value = type;
+    const isBadge = type === 'badge';
+    document.getElementById('solBadgeRow').style.display = isBadge ? 'block' : 'none';
+    const btnT = document.getElementById('solBtnTapa');
+    const btnB = document.getElementById('solBtnBadge');
+    btnT.style.background  = !isBadge ? 'rgba(249,115,22,.15)' : 'none';
+    btnT.style.color       = !isBadge ? '#f97316' : 'var(--text-2)';
+    btnT.style.borderColor = !isBadge ? 'rgba(249,115,22,.5)' : 'var(--border-md)';
+    btnB.style.background  = isBadge ? 'rgba(139,92,246,.15)' : 'none';
+    btnB.style.color       = isBadge ? '#a78bfa' : 'var(--text-2)';
+    btnB.style.borderColor = isBadge ? 'rgba(139,92,246,.4)' : 'var(--border-md)';
+}
+
 function openSolicitarModal() {
     const sel = document.getElementById('playerSelect');
     sel.innerHTML = myRoster.length
         ? '<option value="">Selecione um jogador...</option>' + myRoster.map(p => `<option value="${p.id}">${p.name} (${p.position} · OVR ${p.ovr})</option>`).join('')
         : '<option value="">Sem jogadores no elenco</option>';
+    setSolType('tapa');
+    document.getElementById('solBadgeName').value = '';
     document.getElementById('solicitarModal').classList.add('open');
 }
 function closeSolicitarModal() {
@@ -406,13 +483,16 @@ function closeSolicitarModal() {
 }
 
 async function submitSolicitar() {
-    const playerId = document.getElementById('playerSelect').value;
+    const playerId   = document.getElementById('playerSelect').value;
+    const actionType = document.getElementById('solActionType').value;
+    const badgeName  = document.getElementById('solBadgeName').value.trim();
     if (!playerId) { alert('Selecione um jogador.'); return; }
+    if (actionType === 'badge' && !badgeName) { alert('Digite o nome do badge.'); return; }
     try {
         await apiFetch('/api/tapas.php?action=request_tapa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_id: parseInt(playerId) })
+            body: JSON.stringify({ player_id: parseInt(playerId), action_type: actionType, badge_name: badgeName })
         });
         closeSolicitarModal();
         await loadMyStatus();
@@ -420,6 +500,14 @@ async function submitSolicitar() {
     } catch(e) {
         alert(e.error || 'Erro ao enviar solicitação');
     }
+}
+
+function toggleHistorico() {
+    const body    = document.getElementById('historicoBody');
+    const chevron = document.getElementById('historicoChevron');
+    const open    = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    chevron.style.transform = open ? 'rotate(180deg)' : '';
 }
 
 // sidebar mobile
