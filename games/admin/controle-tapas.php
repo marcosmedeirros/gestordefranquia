@@ -1,9 +1,4 @@
-﻿<?php
-// controlegames.php - CONTROLE DE JOGOS (DOBRO DE MOEDAS)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
+<?php
 session_start();
 require '../core/conexao.php';
 
@@ -17,65 +12,40 @@ if (!$user || $user['is_admin'] != 1) {
     die("Acesso negado: Area restrita a administradores.");
 }
 
-$mensagem = '';
-$msgType = 'success';
-$gameKeys = ['memoria', 'termo', 'flappy', 'pinguim', 'ai'];
+$hiddenEmailLower = 'marcoscemd@gmail.com';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Ações destrutivas
-    if (!empty($_POST['action'])) {
-        try {
-            if ($_POST['action'] === 'zerar_pontos') {
-                $pdo->exec("UPDATE usuarios SET pontos = 0, fba_points = 0");
-                $mensagem = 'FBA Points e Moedas zerados para todos os usuários.';
-                $msgType  = 'success';
-            } elseif ($_POST['action'] === 'resetar_tapas') {
-                $pdo->exec("UPDATE usuarios SET tapas_disponiveis = 2");
-                $mensagem = 'Tapas disponíveis resetadas para 2/2 para todos os usuários.';
-                $msgType  = 'success';
-            }
-        } catch (Exception $e) {
-            $mensagem = 'Erro: ' . htmlspecialchars($e->getMessage());
-            $msgType  = 'danger';
-        }
-    } else {
-        // Salvar configurações de dobro de moedas
-        try {
-            $pdo->beginTransaction();
-            $stmtUp = $pdo->prepare("INSERT INTO fba_game_controls (game_key, is_double) VALUES (:k, :v)
-                ON DUPLICATE KEY UPDATE is_double = VALUES(is_double)");
-
-            foreach ($gameKeys as $key) {
-                $val = isset($_POST['double'][$key]) ? (int)$_POST['double'][$key] : 0;
-                $stmtUp->execute([':k' => $key, ':v' => ($val === 1 ? 1 : 0)]);
-            }
-
-            $pdo->commit();
-            $mensagem = 'Configurações salvas com sucesso.';
-            $msgType  = 'success';
-        } catch (Exception $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            $mensagem = 'Erro ao salvar: ' . htmlspecialchars($e->getMessage());
-            $msgType  = 'danger';
-        }
-    }
+// =========================================================================
+// ENDPOINTS AJAX
+// =========================================================================
+if (isset($_GET['ajax_tapas'])) {
+    $stmtTapas = $pdo->prepare("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 AND LOWER(email) <> ? ORDER BY numero_tapas DESC, nome ASC");
+    $stmtTapas->execute([$hiddenEmailLower]);
+    $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
+    $stmtAllUsers = $pdo->prepare("SELECT id, nome FROM usuarios WHERE LOWER(email) <> ? ORDER BY nome ASC");
+    $stmtAllUsers->execute([$hiddenEmailLower]);
+    $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
+    header('Content-Type: application/json');
+    echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);
+    exit;
 }
 
-$config = array_fill_keys($gameKeys, 0);
-try {
-    $stmtCfg = $pdo->query("SELECT game_key, is_double FROM fba_game_controls");
-    while ($row = $stmtCfg->fetch(PDO::FETCH_ASSOC)) {
-        $config[$row['game_key']] = (int)$row['is_double'];
+if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
+    $msg = '';
+    if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
+        $id = (int)$_POST['remover_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa removido!';
     }
-} catch (Exception $e) {
+    if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
+        $id = (int)$_POST['adicionar_id'];
+        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
+        $msg = 'Tapa adicionado!';
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['msg' => $msg]);
+    exit;
 }
-
-$labelMap = [
-    'memoria' => ['label' => 'Memória', 'desc' => 'Vitória = 200 moedas', 'icon' => 'bi-grid-3x3-gap-fill'],
-    'termo'   => ['label' => 'Termo',   'desc' => 'Vitória = 200 moedas', 'icon' => 'bi-alphabet'],
-    'flappy'  => ['label' => 'Flappy',  'desc' => 'Dobrar moedas',        'icon' => 'bi-wind'],
-    'pinguim' => ['label' => 'Pinguim', 'desc' => 'Dobrar moedas',        'icon' => 'bi-snow2'],
-];
+// =========================================================================
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -83,7 +53,7 @@ $labelMap = [
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#fc0025">
-  <title>Controle de Jogos - FBA Admin</title>
+  <title>Controle de Tapas - FBA Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -91,6 +61,7 @@ $labelMap = [
     :root {
       --red:        #fc0025;
       --red-soft:   rgba(252,0,37,.10);
+      --red-glow:   rgba(252,0,37,.18);
       --bg:         #07070a;
       --panel:      #101013;
       --panel-2:    #16161a;
@@ -111,36 +82,6 @@ $labelMap = [
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
-
-    .topbar {
-      position: sticky; top: 0; z-index: 300; height: 58px;
-      background: var(--panel); border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; padding: 0 24px; gap: 16px;
-    }
-    .topbar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
-    .topbar-logo {
-      width: 32px; height: 32px; border-radius: 8px; background: var(--red);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 12px; color: #fff;
-    }
-    .topbar-name { font-weight: 800; font-size: 15px; color: var(--text); }
-    .topbar-name span { color: var(--red); }
-    .topbar-spacer { flex: 1; }
-    .balance-chip {
-      display: flex; align-items: center; gap: 6px;
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 999px; padding: 5px 12px;
-      font-size: 12px; font-weight: 700; color: var(--text);
-    }
-    .balance-chip i { color: var(--red); }
-    .icon-btn {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-2); display: flex; align-items: center; justify-content: center;
-      font-size: 14px; cursor: pointer; text-decoration: none;
-      transition: all var(--t) var(--ease);
-    }
-    .icon-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
     .main { max-width: 700px; margin: 0 auto; padding: 28px 20px 60px; }
 
@@ -172,50 +113,42 @@ $labelMap = [
     .panel-head i { color: var(--red); }
     .panel-body { padding: 18px; }
 
-    .game-row {
+    .tapa-list { list-style: none; padding: 0; margin-bottom: 20px; }
+    .tapa-item {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 0; border-bottom: 1px solid var(--border);
-    }
-    .game-row:last-of-type { border-bottom: none; padding-bottom: 0; }
-    .game-row:first-of-type { padding-top: 0; }
-    .game-meta { display: flex; align-items: center; gap: 12px; }
-    .game-icon {
-      width: 38px; height: 38px; border-radius: 10px;
+      padding: 10px 14px; border-radius: var(--radius-sm);
       background: var(--panel-2); border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; color: var(--text-2); flex-shrink: 0;
+      margin-bottom: 6px; font-size: 13px;
     }
-    .game-label { font-size: 13px; font-weight: 600; color: var(--text); }
-    .game-desc  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-
-    /* Toggle switch */
-    .toggle-wrap { display: flex; align-items: center; gap: 10px; }
-    .toggle-status { font-size: 11px; font-weight: 700; color: var(--text-3); transition: color var(--t); }
-    .toggle-status.on { color: var(--green); }
-    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; inset: 0;
-      background: var(--panel-3); border: 1px solid var(--border-md);
-      border-radius: 999px; transition: all var(--t) var(--ease);
+    .tapa-badge {
+      background: rgba(252,0,37,.12); color: #ff6680;
+      border: 1px solid var(--border-red);
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
     }
-    .slider:before {
-      content: ''; position: absolute;
-      height: 16px; width: 16px; left: 4px; bottom: 3px;
-      background: var(--text-3); border-radius: 50%;
+    .btn-danger-sm {
+      background: rgba(239,68,68,.15); color: #f87171;
+      border: 1px solid rgba(239,68,68,.2); border-radius: var(--radius-sm);
+      padding: 5px 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: var(--font);
       transition: all var(--t) var(--ease);
     }
-    input:checked + .slider { background: rgba(34,197,94,.2); border-color: rgba(34,197,94,.3); }
-    input:checked + .slider:before { transform: translateX(20px); background: var(--green); }
+    .btn-danger-sm:hover { background: rgba(239,68,68,.25); }
 
-    .btn-save {
+    .fba-select {
+      background: var(--panel-2); border: 1px solid var(--border-md);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      color: var(--text); font-family: var(--font); font-size: 13px;
+      outline: none; cursor: pointer;
+    }
+    .btn-red {
       background: var(--red); color: #fff; border: none;
-      border-radius: var(--radius-sm); padding: 10px 24px;
+      border-radius: var(--radius-sm); padding: 8px 16px;
       font-family: var(--font); font-size: 13px; font-weight: 700;
       cursor: pointer; transition: opacity var(--t) var(--ease);
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 6px;
     }
-    .btn-save:hover { opacity: .85; }
+    .btn-red:hover { opacity: .85; }
 
     /* ── Sidebar Layout ── */
     .page-layout { display: flex; min-height: 100vh; }
@@ -251,7 +184,6 @@ $labelMap = [
     .sb-stats { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 6px; }
     .sb-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 4px; padding: 8px 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
     .sb-stat i { font-size: 13px; color: var(--red); }
-    .sb-stat-info { display: flex; flex-direction: column; align-items: center; }
     .sb-stat-val { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
     .sb-stat-label { font-size: 9px; color: var(--text-3); }
     .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
@@ -290,7 +222,6 @@ $labelMap = [
     .mob-title span { color: var(--red); }
     .mob-chips { display: flex; align-items: center; gap: 6px; }
     .mob-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
-    .mob-chip i { font-size: 11px; }
     .mob-back {
       width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
       background: transparent; color: var(--text-2);
@@ -346,28 +277,14 @@ $labelMap = [
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="../index.php" class="sb-link">
-      <i class="bi bi-lightning-charge"></i>Apostas
-    </a>
-    <a href="../games.php" class="sb-link">
-      <i class="bi bi-joystick"></i>Games
-    </a>
-    <a href="../user/ranking-geral.php" class="sb-link">
-      <i class="bi bi-trophy"></i>Ranking Geral
-    </a>
+    <a href="../index.php" class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="../games.php" class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
     <div class="sb-nav-section">Admin</div>
-    <a href="controlegames.php" class="sb-link active">
-      <i class="bi bi-gear-fill"></i>Controle de Jogos
-    </a>
-    <a href="dashboard.php" class="sb-link">
-      <i class="bi bi-receipt-cutoff"></i>Controle Apostas
-    </a>
-    <a href="controle-tapas.php" class="sb-link">
-      <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
-    </a>
-    <a href="dadosjogadores.php" class="sb-link">
-      <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
-    </a>
+    <a href="controlegames.php" class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a href="dashboard.php" class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="controle-tapas.php" class="sb-link active"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
+    <a href="dadosjogadores.php" class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout">
@@ -389,96 +306,38 @@ $labelMap = [
 
 <div class="main">
 
-  <?php if ($mensagem): ?>
-  <div class="fba-alert <?= $msgType ?>">
-    <i class="bi bi-<?= $msgType === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill' ?>"></i>
-    <?= $mensagem ?>
-  </div>
-  <?php endif; ?>
+  <div class="section-label" style="margin-top:0"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</div>
 
-  <div class="section-label" style="margin-top:0"><i class="bi bi-gear-fill"></i>Controle de Jogos</div>
+  <div id="tapa-msg"></div>
 
   <div class="panel-card">
     <div class="panel-head">
-      <i class="bi bi-toggles"></i>
-      Dobro de moedas por jogo
+      <i class="bi bi-list-ul"></i>
+      Usuários com tapas
     </div>
     <div class="panel-body">
-      <form method="POST">
-        <?php foreach ($labelMap as $key => $meta): ?>
-        <div class="game-row">
-          <div class="game-meta">
-            <div class="game-icon"><i class="bi <?= $meta['icon'] ?>"></i></div>
-            <div>
-              <div class="game-label"><?= htmlspecialchars($meta['label']) ?></div>
-              <div class="game-desc"><?= htmlspecialchars($meta['desc']) ?></div>
-            </div>
-          </div>
-          <div class="toggle-wrap">
-            <span class="toggle-status <?= $config[$key] ? 'on' : '' ?>" id="status-<?= $key ?>">
-              <?= $config[$key] ? 'ATIVO' : 'OFF' ?>
-            </span>
-            <label class="switch">
-              <input type="checkbox" name="double[<?= $key ?>]" value="1"
-                     <?= $config[$key] ? 'checked' : '' ?>
-                     onchange="updateStatus(this,'<?= $key ?>')">
-              <span class="slider"></span>
-            </label>
-          </div>
-        </div>
-        <?php endforeach; ?>
-
-        <div style="margin-top:20px">
-          <button type="submit" class="btn-save">
-            <i class="bi bi-save-fill"></i> Salvar configurações
-          </button>
-        </div>
-      </form>
+      <ul class="tapa-list" id="lista-tapas">
+        <li class="tapa-item" style="color:var(--text-3)">Carregando...</li>
+      </ul>
     </div>
   </div>
 
-  <div class="section-label" style="margin-top:32px"><i class="bi bi-exclamation-triangle-fill"></i>Ações Administrativas</div>
-
-  <div class="panel-card" style="margin-bottom:14px">
+  <div class="panel-card" style="margin-top:16px">
     <div class="panel-head">
-      <img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle">
-      Zerar FBA Points e Moedas
+      <i class="bi bi-plus-circle"></i>
+      Adicionar tapa
     </div>
-    <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:13px;font-weight:600;color:var(--text)">Resetar saldo de todos os usuários</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:3px">Define <code style="color:var(--amber)">pontos = 0</code> e <code style="color:#a78bfa">fba_points = 0</code> para todos.</div>
-      </div>
-      <form method="POST" onsubmit="return confirmar('Tem certeza? Isso vai ZERAR as moedas e FBA Points de TODOS os usuários.')">
-        <input type="hidden" name="action" value="zerar_pontos">
-        <button type="submit" class="btn-save" style="background:#d97706;white-space:nowrap">
-          <i class="bi bi-eraser-fill"></i> Zerar tudo
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <div class="panel-card">
-    <div class="panel-head">
-      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
-      Resetar Tapas Disponíveis
-    </div>
-    <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:13px;font-weight:600;color:var(--text)">Restaurar tapas para todos os usuários</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:3px">Define <code style="color:var(--green)">tapas_disponiveis = 2</code> para todos.</div>
-      </div>
-      <form method="POST" onsubmit="return confirmar('Tem certeza? Isso vai restaurar as 2 tapas disponíveis para TODOS os usuários.')">
-        <input type="hidden" name="action" value="resetar_tapas">
-        <button type="submit" class="btn-save" style="background:#16a34a;white-space:nowrap">
-          <i class="bi bi-arrow-counterclockwise"></i> Resetar tapas
-        </button>
+    <div class="panel-body">
+      <form id="form-add-tapa" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select name="adicionar_id" id="adicionar_id" class="fba-select" required style="min-width:200px">
+          <option value="">Carregando...</option>
+        </select>
+        <button type="submit" class="btn-red"><i class="bi bi-plus"></i>Adicionar</button>
       </form>
     </div>
   </div>
 
 </div>
-
 </div><!-- /page-content -->
 </div><!-- /page-layout -->
 
@@ -493,14 +352,52 @@ function closeSidebar() {
   document.getElementById('sbOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
-function updateStatus(input, key) {
-  const span = document.getElementById('status-' + key);
-  span.textContent = input.checked ? 'ATIVO' : 'OFF';
-  span.classList.toggle('on', input.checked);
+
+async function fetchTapasAdmin() {
+  const res = await fetch('controle-tapas.php?ajax_tapas=1');
+  const data = await res.json();
+  const lista = document.getElementById('lista-tapas');
+  lista.innerHTML = '';
+  if (!data.usuarios_tapas.length) {
+    lista.innerHTML = '<li class="tapa-item" style="color:var(--text-3)">Nenhum usuário com tapas.</li>';
+  } else {
+    data.usuarios_tapas.forEach(u => {
+      const li = document.createElement('li');
+      li.className = 'tapa-item';
+      li.innerHTML = `<span>${u.nome} <span class="tapa-badge">👋 ${u.numero_tapas}</span></span>
+        <button class="btn-danger-sm" onclick="removerTapa(${u.id})"><i class="bi bi-dash"></i> Remover</button>`;
+      lista.appendChild(li);
+    });
+  }
+  const sel = document.getElementById('adicionar_id');
+  sel.innerHTML = '<option value="">Selecione o usuário</option>';
+  data.todos_usuarios.forEach(u => { sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`; });
 }
-function confirmar(msg) {
-  return window.confirm(msg);
+
+async function removerTapa(id) {
+  const res = await fetch('controle-tapas.php', {
+    method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: `admin_tapa_action=remover&remover_id=${id}&ajax=1`
+  });
+  const data = await res.json();
+  document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i> ${data.msg}</div>`;
+  fetchTapasAdmin();
 }
+
+document.getElementById('form-add-tapa').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const id = document.getElementById('adicionar_id').value;
+  if (!id) return;
+  const res = await fetch('controle-tapas.php', {
+    method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: `admin_tapa_action=adicionar&adicionar_id=${id}&ajax=1`
+  });
+  const data = await res.json();
+  document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i> ${data.msg}</div>`;
+  fetchTapasAdmin();
+});
+
+fetchTapasAdmin();
 </script>
 </body>
 </html>

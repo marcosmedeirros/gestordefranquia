@@ -20,37 +20,6 @@ try {
 }
 
 // =========================================================================
-// ENDPOINTS AJAX MOVIDOS PARA O TOPO (Evita renderizar HTML na resposta)
-// =========================================================================
-if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_GET['ajax_tapas'])) {
-  $stmtTapas = $pdo->prepare("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 AND LOWER(email) <> ? ORDER BY numero_tapas DESC, nome ASC");
-  $stmtTapas->execute([$hiddenRankingEmailLower]);
-    $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
-  $stmtAllUsers = $pdo->prepare("SELECT id, nome FROM usuarios WHERE LOWER(email) <> ? ORDER BY nome ASC");
-  $stmtAllUsers->execute([$hiddenRankingEmailLower]);
-    $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
-    header('Content-Type: application/json');
-    echo json_encode(['usuarios_tapas' => $usuarios_tapas, 'todos_usuarios' => $todos_usuarios]);
-    exit;
-}
-
-if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1 && isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
-    $msg = '';
-    if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
-        $id = (int)$_POST['remover_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
-        $msg = 'Tapa removido!';
-    }
-    if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
-        $id = (int)$_POST['adicionar_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
-        $msg = 'Tapa adicionado!';
-    }
-    header('Content-Type: application/json');
-    echo json_encode(['msg' => $msg]);
-    exit;
-}
-// =========================================================================
 
 $ranking_geral = [];
 $ranking_por_liga = [
@@ -436,45 +405,6 @@ $tab_labels = [
     .empty-state i { font-size: 32px; margin-bottom: 10px; display: block; }
     .empty-state p { font-size: 13px; margin: 0; }
 
-    /* Admin tapas */
-    .admin-panel {
-      background: var(--panel); border: 1px solid var(--border-red);
-      border-radius: var(--radius); margin-top: 32px; overflow: hidden;
-    }
-    .admin-head {
-      padding: 14px 18px; border-bottom: 1px solid var(--border-red);
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; font-weight: 700; color: #ff6680;
-    }
-    .admin-body { padding: 18px; }
-    .tapa-list { list-style: none; padding: 0; margin-bottom: 20px; }
-    .tapa-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; border-radius: var(--radius-sm);
-      background: var(--panel-2); border: 1px solid var(--border);
-      margin-bottom: 6px; font-size: 13px;
-    }
-    .tapa-badge {
-      background: rgba(252,0,37,.12); color: #ff6680;
-      border: 1px solid var(--border-red);
-      padding: 2px 8px; border-radius: 999px;
-      font-size: 11px; font-weight: 700;
-    }
-    .btn-danger-sm {
-      background: rgba(239,68,68,.15); color: #f87171;
-      border: 1px solid rgba(239,68,68,.2); border-radius: var(--radius-sm);
-      padding: 5px 10px; font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: var(--font);
-      transition: all var(--t) var(--ease);
-    }
-    .btn-danger-sm:hover { background: rgba(239,68,68,.25); }
-    .fba-alert {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-radius: var(--radius-sm);
-      font-size: 13px; font-weight: 500; margin-bottom: 14px;
-    }
-    .fba-alert.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: #4ade80; }
-
     @media (max-width: 640px) {
       .ranking-header-row { display: none; }
       .ranking-item { grid-template-columns: 36px 1fr; row-gap: 0; }
@@ -628,6 +558,9 @@ $tab_labels = [
     <a href="../admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <a href="../admin/controle-tapas.php" class="sb-link">
+      <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
+    </a>
     <?php endif; ?>
     <a href="../admin/dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
@@ -765,21 +698,6 @@ $tab_labels = [
   </div>
   <?php endforeach; ?>
 
-  <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
-  <div class="admin-panel">
-    <div class="admin-head"><i class="bi bi-hand-index-thumb-fill"></i> Administração de Tapas</div>
-    <div class="admin-body">
-      <div id="tapa-msg"></div>
-      <div class="section-label" style="margin-top:0"><i class="bi bi-list-ul"></i>Usuários com tapas</div>
-      <ul class="tapa-list" id="lista-tapas"></ul>
-      <div class="section-label"><i class="bi bi-plus-circle"></i>Adicionar tapa</div>
-      <form id="form-add-tapa" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <select name="adicionar_id" id="adicionar_id" class="fba-select" required style="min-width:180px"></select>
-        <button type="submit" class="btn-red"><i class="bi bi-plus me-1"></i>Adicionar</button>
-      </form>
-    </div>
-  </div>
-  <?php endif; ?>
 
 </div>
 
@@ -844,50 +762,6 @@ $tab_labels = [
 
   applyRankingSort(null);
 
-  <?php if (!empty($meu_perfil['is_admin']) && $meu_perfil['is_admin'] == 1): ?>
-  async function fetchTapasAdmin() {
-    const res = await fetch('ranking-geral.php?ajax_tapas=1');
-    const data = await res.json();
-    const lista = document.getElementById('lista-tapas');
-    lista.innerHTML = '';
-    if (!data.usuarios_tapas.length) {
-      lista.innerHTML = '<li class="tapa-item" style="color:var(--text-3)">Nenhum usuário com tapas.</li>';
-    } else {
-      data.usuarios_tapas.forEach(u => {
-        const li = document.createElement('li');
-        li.className = 'tapa-item';
-        li.innerHTML = `<span>${u.nome} <span class="tapa-badge">👋 ${u.numero_tapas}</span></span>
-          <button class="btn-danger-sm" onclick="removerTapa(${u.id})"><i class="bi bi-dash"></i> Remover</button>`;
-        lista.appendChild(li);
-      });
-    }
-    const sel = document.getElementById('adicionar_id');
-    sel.innerHTML = '<option value="">Selecione o usuário</option>';
-    data.todos_usuarios.forEach(u => { sel.innerHTML += `<option value="${u.id}">${u.nome}</option>`; });
-  }
-  async function removerTapa(id) {
-    const res = await fetch('ranking-geral.php', {
-      method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `admin_tapa_action=remover&remover_id=${id}&ajax=1`
-    });
-    const data = await res.json();
-    document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i>${data.msg}</div>`;
-    fetchTapasAdmin();
-  }
-  document.getElementById('form-add-tapa').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const id = document.getElementById('adicionar_id').value;
-    if (!id) return;
-    const res = await fetch('ranking-geral.php', {
-      method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `admin_tapa_action=adicionar&adicionar_id=${id}&ajax=1`
-    });
-    const data = await res.json();
-    document.getElementById('tapa-msg').innerHTML = `<div class="fba-alert success"><i class="bi bi-check-circle"></i>${data.msg}</div>`;
-    fetchTapasAdmin();
-  });
-  fetchTapasAdmin();
-  <?php endif; ?>
   function openSidebar() {
     document.getElementById('sidebar').classList.add('open');
     document.getElementById('sbOverlay').classList.add('open');

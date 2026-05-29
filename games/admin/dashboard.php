@@ -503,6 +503,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="sb-nav-section">Admin</div>
     <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
     <a href="dashboard.php"             class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="controle-tapas.php"        class="sb-link"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
     <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">

@@ -1605,7 +1605,7 @@ try {
             $initT2 = function($tid) use (&$teamStats2) {
                 if (!isset($teamStats2[$tid])) $teamStats2[$tid] = ['playoff_champion'=>0,'playoff_runner_up'=>0,'playoff_conference_finals'=>0,'playoff_second_round'=>0,'playoff_first_round'=>0,'playoff_points'=>0,'awards_count'=>0,'awards_points'=>0];
             };
-            $initT2($champion); $teamStats2[$champion]['playoff_champion'] = 1; $teamStats2[$champion]['playoff_points'] = 13;
+            $initT2($champion); $teamStats2[$champion]['playoff_champion'] = 1; $teamStats2[$champion]['playoff_points'] = 11;
             $initT2($runnerUp); $teamStats2[$runnerUp]['playoff_runner_up'] = 1; $teamStats2[$runnerUp]['playoff_points'] = 8;
             foreach ($confFinal   as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_conference_finals'] = 1; $teamStats2[$tid]['playoff_points'] = 6; }
             foreach ($secondRound as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_second_round'] = 1;      $teamStats2[$tid]['playoff_points'] = 3; }
