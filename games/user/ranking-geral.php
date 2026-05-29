@@ -629,8 +629,8 @@ $tab_labels = [
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
     <?php endif; ?>
-    <a href="../admin/hoopgrid-seeder.php" class="sb-link">
-      <i class="bi bi-person-lines-fill"></i>Controle Jogadores
+    <a href="../admin/dadosjogadores.php" class="sb-link">
+      <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
     </a>
   </nav>
   <div class="sb-footer">

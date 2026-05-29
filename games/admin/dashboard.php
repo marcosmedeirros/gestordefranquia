@@ -503,7 +503,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="sb-nav-section">Admin</div>
     <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
     <a href="dashboard.php"             class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
-    <a href="hoopgrid-seeder.php"       class="sb-link"><i class="bi bi-person-lines-fill"></i>Controle Jogadores</a>
+    <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
