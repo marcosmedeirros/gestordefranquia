@@ -449,6 +449,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
             listContracts($pdo, $league);
             break;
+        case 'admin_fa_history':
+            if (!$is_admin) { jsonError('Acesso negado', 403); }
+            adminFaHistory($pdo);
+            break;
         case 'new_fa_history':
             $league = getLeagueFromRequest($valid_leagues, $team_league);
             if (!$league) {
@@ -576,6 +580,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonError('Acesso negado', 403);
             }
             closeWithoutWinner($pdo, $body);
+            break;
+        case 'admin_fa_revert':
+            if (!$is_admin) { jsonError('Acesso negado', 403); }
+            adminFaRevert($pdo, $body, $user_id);
+            break;
+        case 'admin_fa_change_team':
+            if (!$is_admin) { jsonError('Acesso negado', 403); }
+            adminFaChangeTeam($pdo, $body, $user_id);
             break;
         default:
             jsonError('Acao nao reconhecida');
@@ -1074,6 +1086,135 @@ function listNewFaHistory(PDO $pdo, string $league): void
         return $row;
     }, $rows);
     jsonSuccess(['history' => $rows]);
+}
+
+function adminFaHistory(PDO $pdo): void
+{
+    $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
+    $leagueFilter = isset($_GET['league']) ? trim($_GET['league']) : null;
+
+    $where = 'r.status = "assigned"';
+    $params = [];
+    if ($seasonFilter) {
+        $where .= ' AND r.season_year = ?';
+        $params[] = $seasonFilter;
+    }
+    if ($leagueFilter) {
+        $where .= ' AND r.league = ?';
+        $params[] = $leagueFilter;
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT r.id AS request_id, r.player_name, r.position, r.secondary_position, r.ovr, r.age,
+               r.season_year, r.league, r.resolved_at,
+               t.id AS team_id,
+               TRIM(CONCAT(COALESCE(t.city,""), " ", COALESCE(t.name,""))) AS team_full_name
+        FROM fa_requests r
+        LEFT JOIN teams t ON r.winner_team_id = t.id
+        WHERE ' . $where . '
+        ORDER BY t.name ASC, r.resolved_at DESC
+    ');
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtS = $pdo->query('SELECT DISTINCT season_year FROM fa_requests WHERE status = "assigned" AND season_year IS NOT NULL ORDER BY season_year DESC');
+    $seasons = $stmtS->fetchAll(PDO::FETCH_COLUMN);
+
+    jsonSuccess(['rows' => $rows, 'seasons' => $seasons]);
+}
+
+function adminFaRevert(PDO $pdo, array $body, int $adminId): void
+{
+    $requestId = (int)($body['request_id'] ?? 0);
+    if (!$requestId) jsonError('request_id inválido');
+
+    $stmt = $pdo->prepare('
+        SELECT r.player_name, r.winner_team_id
+        FROM fa_requests r
+        WHERE r.id = ? AND r.status = "assigned"
+    ');
+    $stmt->execute([$requestId]);
+    $req = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$req) jsonError('Solicitação não encontrada ou já revertida');
+
+    $stmtOffer = $pdo->prepare('SELECT amount FROM fa_request_offers WHERE request_id = ? AND status = "accepted" LIMIT 1');
+    $stmtOffer->execute([$requestId]);
+    $offer = $stmtOffer->fetch(PDO::FETCH_ASSOC);
+    $amount = $offer ? (int)$offer['amount'] : 0;
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM players WHERE team_id = ? AND name = ? LIMIT 1')
+            ->execute([(int)$req['winner_team_id'], $req['player_name']]);
+
+        if ($amount > 0) {
+            $pdo->prepare('UPDATE teams SET moedas = moedas + ? WHERE id = ?')
+                ->execute([$amount, (int)$req['winner_team_id']]);
+        }
+
+        if (columnExists($pdo, 'teams', 'fa_signings_used')) {
+            $pdo->prepare('UPDATE teams SET fa_signings_used = GREATEST(0, COALESCE(fa_signings_used,0) - 1) WHERE id = ?')
+                ->execute([(int)$req['winner_team_id']]);
+        }
+
+        if ($amount > 0 && tableExists($pdo, 'team_coins_log')) {
+            $pdo->prepare('INSERT INTO team_coins_log (team_id, amount, reason, admin_id, created_at) VALUES (?,?,?,?,NOW())')
+                ->execute([(int)$req['winner_team_id'], $amount, 'Reversão FA: ' . $req['player_name'], $adminId]);
+        }
+
+        $pdo->prepare('UPDATE fa_requests SET status = "open", winner_team_id = NULL, resolved_at = NULL WHERE id = ?')
+            ->execute([$requestId]);
+        $pdo->prepare('UPDATE fa_request_offers SET status = "pending" WHERE request_id = ?')
+            ->execute([$requestId]);
+
+        $pdo->commit();
+        jsonSuccess(['message' => 'Reversão realizada. Jogador removido do time e moedas devolvidas.']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao reverter: ' . $e->getMessage(), 500);
+    }
+}
+
+function adminFaChangeTeam(PDO $pdo, array $body, int $adminId): void
+{
+    $requestId = (int)($body['request_id'] ?? 0);
+    $newTeamId = (int)($body['new_team_id'] ?? 0);
+    if (!$requestId || !$newTeamId) jsonError('Parâmetros inválidos');
+
+    $stmt = $pdo->prepare('
+        SELECT r.player_name, r.position, r.secondary_position, r.age, r.ovr,
+               r.winner_team_id AS old_team_id
+        FROM fa_requests r
+        WHERE r.id = ? AND r.status = "assigned"
+    ');
+    $stmt->execute([$requestId]);
+    $req = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$req) jsonError('Solicitação não encontrada');
+    if ((int)$req['old_team_id'] === $newTeamId) jsonError('Time já é o atual');
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM players WHERE team_id = ? AND name = ? LIMIT 1')
+            ->execute([(int)$req['old_team_id'], $req['player_name']]);
+
+        $cols = ['team_id','name','age','position','ovr'];
+        $vals = [$newTeamId, $req['player_name'], (int)$req['age'], $req['position'], (int)$req['ovr']];
+        if (columnExists($pdo,'players','secondary_position')) { $cols[]='secondary_position'; $vals[]=$req['secondary_position']?:null; }
+        if (columnExists($pdo,'players','seasons_in_league'))  { $cols[]='seasons_in_league';  $vals[]=0; }
+        if (columnExists($pdo,'players','role'))                { $cols[]='role';                $vals[]='Banco'; }
+        if (columnExists($pdo,'players','available_for_trade')) { $cols[]='available_for_trade'; $vals[]=0; }
+        $ph = implode(',', array_fill(0, count($cols), '?'));
+        $pdo->prepare('INSERT INTO players ('.implode(',',$cols).") VALUES ({$ph})")->execute($vals);
+
+        $pdo->prepare('UPDATE fa_requests SET winner_team_id = ? WHERE id = ?')
+            ->execute([$newTeamId, $requestId]);
+
+        $pdo->commit();
+        jsonSuccess(['message' => 'Jogador transferido para o novo time com sucesso.']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonError('Erro ao mudar time: ' . $e->getMessage(), 500);
+    }
 }
 
 function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, int $teamCoins): void

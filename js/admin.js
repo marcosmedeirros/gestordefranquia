@@ -3334,23 +3334,186 @@ async function showFAAdmin() {
 
   const league = appState.currentLeague || _leagues[0] || 'ELITE';
   const container = document.getElementById('mainContainer');
+  const leagueOpts = (_leagues || [league]).map(l =>
+    `<option value="${l}" ${l === league ? 'selected' : ''}>${l}</option>`
+  ).join('');
+
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
-    <div class="panel">
+    <div class="panel mb-4">
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-person-check-fill" style="color:var(--red);margin-right:8px;"></i>Solicitações Free Agency — ${league}</div>
       </div>
       <input type="hidden" id="faNewAdminLeague" value="${league}">
       <div id="faNewAdminRequests"><p class="empty-state">Carregando...</p></div>
     </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title"><i class="bi bi-people-fill" style="color:#22c55e;margin-right:8px;"></i>Lances Ganhos por Time</div>
+          <div class="panel-sub">Jogadores contratados via Free Agency</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <select id="adminFaLeagueFilter" class="form-select form-select-sm" style="width:auto" onchange="loadAdminFaHistory()">
+            <option value="">Todas as ligas</option>
+            ${leagueOpts}
+          </select>
+          <select id="adminFaSeasonFilter" class="form-select form-select-sm" style="width:auto" onchange="loadAdminFaHistory()">
+            <option value="">Todas as temp.</option>
+          </select>
+        </div>
+      </div>
+      <div id="adminFaHistoryContainer"><p class="empty-state">Carregando...</p></div>
+    </div>
+
+    <div class="modal fade" id="modalFaChangeTeam" tabindex="-1">
+      <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Mudar Time</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <input type="hidden" id="faChangeReqId">
+            <p id="faChangePlayerName" style="font-weight:600;font-size:14px;margin-bottom:12px"></p>
+            <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:5px">Novo time</label>
+            <select id="faChangeNewTeam" class="form-select"></select>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-warning btn-sm fw-bold" onclick="adminFaChangeTeamConfirm()"><i class="bi bi-arrow-left-right me-1"></i>Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
-  if (typeof carregarSolicitacoesNovaFA === 'function') {
-    carregarSolicitacoesNovaFA();
+  if (typeof carregarSolicitacoesNovaFA === 'function') carregarSolicitacoesNovaFA();
+  loadAdminFaHistory();
+}
+
+async function loadAdminFaHistory() {
+  const container = document.getElementById('adminFaHistoryContainer');
+  if (!container) return;
+  container.innerHTML = '<p class="empty-state">Carregando...</p>';
+
+  const leagueFil = document.getElementById('adminFaLeagueFilter')?.value || '';
+  const seasonFil = document.getElementById('adminFaSeasonFilter')?.value || '';
+
+  try {
+    const params = new URLSearchParams({ action: 'admin_fa_history' });
+    if (leagueFil) params.set('league', leagueFil);
+    if (seasonFil) params.set('season_year', seasonFil);
+
+    const data = await fetch(`/api/free-agency.php?${params}`).then(r => r.json());
+    if (!data.success) { container.innerHTML = '<p class="empty-state text-danger">Erro ao carregar.</p>'; return; }
+
+    const seasonSel = document.getElementById('adminFaSeasonFilter');
+    if (seasonSel && !seasonSel.dataset.loaded && data.seasons?.length) {
+      data.seasons.forEach(y => {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        seasonSel.appendChild(o);
+      });
+      seasonSel.dataset.loaded = '1';
+    }
+
+    const rows = data.rows || [];
+    if (!rows.length) { container.innerHTML = '<p class="empty-state">Nenhum lance ganho encontrado.</p>'; return; }
+
+    const byTeam = {};
+    rows.forEach(r => {
+      const key = r.team_full_name?.trim() || '—';
+      if (!byTeam[key]) byTeam[key] = [];
+      byTeam[key].push(r);
+    });
+
+    let html = '';
+    Object.entries(byTeam).sort(([a],[b]) => a.localeCompare(b)).forEach(([team, players]) => {
+      const tRows = players.map(p => {
+        const rid = p.request_id || 0;
+        const pn = (p.player_name || '').replace(/'/g, "\\'");
+        return `<tr>
+          <td><strong>${p.player_name}</strong></td>
+          <td>${p.position || ''}${p.secondary_position ? `<span style="color:var(--text-3)">/${p.secondary_position}</span>` : ''}</td>
+          <td><strong style="color:var(--red)">${p.ovr}</strong></td>
+          <td>${p.age}</td>
+          <td><span class="badge bg-secondary">${p.league}</span></td>
+          <td>${p.season_year || '—'}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" title="Mudar time" onclick="openFaChangeTeam(${rid},'${pn}')"><i class="bi bi-arrow-left-right"></i></button>
+            <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Reverter" onclick="adminFaRevertPlayer(${rid},'${pn}')"><i class="bi bi-arrow-counterclockwise"></i></button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      html += `
+        <div class="mb-4">
+          <div style="font-size:13px;font-weight:700;color:var(--text);padding:7px 0 6px;border-bottom:1px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+            <i class="bi bi-people-fill" style="color:#22c55e"></i>${team}
+            <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:auto">${players.length} jogador${players.length !== 1 ? 'es' : ''}</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="table table-dark table-sm mb-0" style="font-size:12px">
+              <thead><tr><th>Jogador</th><th>Pos</th><th>OVR</th><th>Idade</th><th>Liga</th><th>Temp.</th><th></th></tr></thead>
+              <tbody>${tRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<p class="empty-state text-danger">Erro de conexão.</p>';
   }
+}
+
+async function adminFaRevertPlayer(requestId, playerName) {
+  if (!requestId) { showAlert('danger', 'ID inválido.'); return; }
+  if (!confirm(`Reverter contratação de "${playerName}"?\nO jogador será removido do time e as moedas devolvidas.`)) return;
+  try {
+    const r = await fetch('/api/free-agency.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_fa_revert', request_id: requestId })
+    });
+    const d = await r.json();
+    if (d.success) { showAlert('success', d.message || 'Revertido.'); loadAdminFaHistory(); }
+    else showAlert('danger', d.error || 'Erro ao reverter.');
+  } catch(e) { showAlert('danger', 'Erro de conexão.'); }
+}
+
+async function openFaChangeTeam(requestId, playerName) {
+  if (!requestId) { showAlert('danger', 'ID inválido.'); return; }
+  document.getElementById('faChangeReqId').value = requestId;
+  document.getElementById('faChangePlayerName').textContent = playerName;
+  const sel = document.getElementById('faChangeNewTeam');
+  sel.innerHTML = '<option>Carregando...</option>';
+  try {
+    const r = await fetch('/api/teams.php?action=list');
+    const d = await r.json();
+    const teams = d.teams || d.data || [];
+    sel.innerHTML = teams.map(t =>
+      `<option value="${t.id}">${[(t.city||''), (t.name||'')].join(' ').trim()} (${t.league||''})</option>`
+    ).join('');
+  } catch(e) { sel.innerHTML = '<option value="">Erro ao carregar times</option>'; }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaChangeTeam')).show();
+}
+
+async function adminFaChangeTeamConfirm() {
+  const requestId = parseInt(document.getElementById('faChangeReqId').value);
+  const newTeamId = parseInt(document.getElementById('faChangeNewTeam').value);
+  if (!requestId || !newTeamId) { showAlert('danger', 'Selecione um time.'); return; }
+  try {
+    const r = await fetch('/api/free-agency.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_fa_change_team', request_id: requestId, new_team_id: newTeamId })
+    });
+    const d = await r.json();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaChangeTeam')).hide();
+    if (d.success) { showAlert('success', d.message || 'Time alterado.'); loadAdminFaHistory(); }
+    else showAlert('danger', d.error || 'Erro ao mudar time.');
+  } catch(e) { showAlert('danger', 'Erro de conexão.'); }
 }
 
 async function showFreeAgency() {
