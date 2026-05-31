@@ -3442,7 +3442,7 @@ async function loadAdminFaHistory() {
           <td><span class="badge bg-secondary">${p.league}</span></td>
           <td>${p.season_year || '—'}</td>
           <td style="white-space:nowrap">
-            <button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" title="Mudar time" onclick="openFaChangeTeam(${rid},'${pn}')"><i class="bi bi-arrow-left-right"></i></button>
+            <button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" title="Mudar time" onclick="openFaChangeTeam(${rid},'${pn}','${p.league||''}')"><i class="bi bi-arrow-left-right"></i></button>
             <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Reverter" onclick="adminFaRevertPlayer(${rid},'${pn}')"><i class="bi bi-arrow-counterclockwise"></i></button>
           </td>
         </tr>`;
@@ -3483,19 +3483,22 @@ async function adminFaRevertPlayer(requestId, playerName) {
   } catch(e) { showAlert('danger', 'Erro de conexão.'); }
 }
 
-async function openFaChangeTeam(requestId, playerName) {
+async function openFaChangeTeam(requestId, playerName, league) {
   if (!requestId) { showAlert('danger', 'ID inválido.'); return; }
   document.getElementById('faChangeReqId').value = requestId;
   document.getElementById('faChangePlayerName').textContent = playerName;
   const sel = document.getElementById('faChangeNewTeam');
   sel.innerHTML = '<option>Carregando...</option>';
   try {
-    const r = await fetch('/api/teams.php?action=list');
-    const d = await r.json();
-    const teams = d.teams || d.data || [];
-    sel.innerHTML = teams.map(t =>
-      `<option value="${t.id}">${[(t.city||''), (t.name||'')].join(' ').trim()} (${t.league||''})</option>`
-    ).join('');
+    const params = new URLSearchParams({ action: 'teams_by_league' });
+    if (league) params.set('league', league);
+    const d = await fetch(`/api/free-agency.php?${params}`).then(r => r.json());
+    const teams = d.teams || [];
+    if (!teams.length) {
+      sel.innerHTML = '<option value="">Nenhum time encontrado</option>';
+    } else {
+      sel.innerHTML = teams.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('');
+    }
   } catch(e) { sel.innerHTML = '<option value="">Erro ao carregar times</option>'; }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaChangeTeam')).show();
 }

@@ -453,6 +453,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             if (!$is_admin) { jsonError('Acesso negado', 403); }
             adminFaHistory($pdo);
             break;
+        case 'teams_by_league':
+            if (!$is_admin) { jsonError('Acesso negado', 403); }
+            $lg = strtoupper(trim($_GET['league'] ?? ''));
+            if (!$lg) { jsonSuccess(['teams' => []]); break; }
+            $stmtTL = $pdo->prepare('SELECT id, TRIM(CONCAT(COALESCE(city,""), " ", COALESCE(name,""))) AS full_name FROM teams WHERE league = ? ORDER BY name ASC');
+            $stmtTL->execute([$lg]);
+            jsonSuccess(['teams' => $stmtTL->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
         case 'new_fa_history':
             $league = getLeagueFromRequest($valid_leagues, $team_league);
             if (!$league) {
