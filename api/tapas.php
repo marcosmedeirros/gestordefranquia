@@ -292,6 +292,25 @@ if ($method === 'POST' && $action === 'admin_approve') {
     }
 }
 
+// ── POST cancel_tapa ──────────────────────────────────────────────────────────
+if ($method === 'POST' && $action === 'cancel_tapa') {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $requestId = (int)($body['request_id'] ?? 0);
+    if (!$requestId) err('Solicitação inválida');
+
+    $stmtT = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtT->execute([$user['id']]);
+    $team = $stmtT->fetch(PDO::FETCH_ASSOC);
+    if (!$team) err('Time não encontrado');
+
+    $rows = $pdo->prepare("DELETE FROM tapas_requests WHERE id = ? AND team_id = ? AND status = 'pending'");
+    $rows->execute([$requestId, $team['id']]);
+
+    if ($rows->rowCount() === 0) err('Solicitação não encontrada ou já processada');
+
+    out(['success' => true, 'message' => 'Solicitação cancelada. Tapa devolvido.']);
+}
+
 // ── POST admin_reject ─────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'admin_reject') {
     if (!$isAdmin) err('Acesso negado', 403);

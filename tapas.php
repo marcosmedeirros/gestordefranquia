@@ -381,6 +381,7 @@ async function loadMyStatus() {
                         </div>
                     </div>
                     ${renderStatusBadge(req)}
+                    ${req.status === 'pending' ? `<button onclick="cancelTapa(${req.id})" style="margin-left:6px;background:none;border:1px solid rgba(239,68,68,.35);border-radius:7px;color:#ef4444;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;font-family:inherit;white-space:nowrap" title="Cancelar solicitação"><i class="bi bi-x-lg"></i> Cancelar</button>` : ''}
                 </div>`).join('');
         }
 
@@ -499,6 +500,20 @@ async function submitSolicitar() {
         await loadLeagueRecipients();
     } catch(e) {
         alert(e.error || 'Erro ao enviar solicitação');
+    }
+}
+
+async function cancelTapa(requestId) {
+    if (!confirm('Cancelar esta solicitação? O tapa voltará para o seu saldo.')) return;
+    try {
+        await apiFetch('/api/tapas.php?action=cancel_tapa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: requestId })
+        });
+        await loadMyStatus();
+    } catch(e) {
+        alert(e.error || 'Erro ao cancelar solicitação.');
     }
 }
 
