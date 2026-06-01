@@ -161,6 +161,38 @@ function calcAllPoints(PDO $pdo, array $off): void {
     }
 }
 
+// ── Fixture seed ─────────────────────────────────────────────────────────────
+function seedCopa26Fixtures(PDO $pdo): int {
+    $pdo->exec("DELETE FROM copa26_matches WHERE phase='group'");
+    $rows=$pdo->query("SELECT t.id,t.name,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.name")->fetchAll(PDO::FETCH_ASSOC);
+    $byGroup=[]; $gids=[];
+    foreach ($rows as $r){ $byGroup[$r['letter']][]=$r; $gids[$r['letter']]=$r['gid']; }
+    // Dates: groups A-B share days, C-D share days, etc.
+    $calDates=[
+        'A'=>['2026-06-11','2026-06-20','2026-06-27'],'B'=>['2026-06-11','2026-06-20','2026-06-27'],
+        'C'=>['2026-06-12','2026-06-21','2026-06-28'],'D'=>['2026-06-12','2026-06-21','2026-06-28'],
+        'E'=>['2026-06-13','2026-06-22','2026-06-29'],'F'=>['2026-06-13','2026-06-22','2026-06-29'],
+        'G'=>['2026-06-14','2026-06-23','2026-06-30'],'H'=>['2026-06-14','2026-06-23','2026-06-30'],
+        'I'=>['2026-06-15','2026-06-24','2026-07-01'],'J'=>['2026-06-15','2026-06-24','2026-07-01'],
+        'K'=>['2026-06-16','2026-06-25','2026-07-02'],'L'=>['2026-06-16','2026-06-25','2026-07-02'],
+    ];
+    $st=$pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,phase,group_id) VALUES (?,?,?,?,?,?)");
+    $cnt=0;
+    foreach ($byGroup as $letter=>$teams){
+        if (count($teams)<4) continue;
+        [$t1,$t2,$t3,$t4]=array_slice($teams,0,4);
+        $gid=$gids[$letter]; $d=$calDates[$letter]??['2026-06-11','2026-06-20','2026-06-27'];
+        $even=(ord($letter)-ord('A'))%2===0;
+        $s1=$even?'15:00':'18:00'; $s2=$even?'18:00':'21:00';
+        foreach ([
+            [$t1['id'],$t2['id'],$d[0],$s1],[$t3['id'],$t4['id'],$d[0],$s2],
+            [$t1['id'],$t3['id'],$d[1],$s1],[$t2['id'],$t4['id'],$d[1],$s2],
+            [$t4['id'],$t1['id'],$d[2],$s1],[$t2['id'],$t3['id'],$d[2],$s2],
+        ] as $f){ $st->execute([$f[2],$f[3],$f[0],$f[1],'group',$gid]); $cnt++; }
+    }
+    return $cnt;
+}
+
 // ── POST handlers ─────────────────────────────────────────────────────────────
 if ($isAdmin && isset($_GET['action']) && $_GET['action']==='seed') {
     seedCopa26($pdo); header('Location: copa26.php'); exit;
@@ -205,6 +237,32 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if ($act==='del_match'&&$isAdmin) {
         $pdo->prepare("DELETE FROM copa26_matches WHERE id=?")->execute([(int)($body['match_id']??0)]);
         echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='update_match'&&$isAdmin) {
+        $sh=$body['score_home']!==''&&$body['score_home']!==null?(int)$body['score_home']:null;
+        $sa=$body['score_away']!==''&&$body['score_away']!==null?(int)$body['score_away']:null;
+        $pdo->prepare("UPDATE copa26_matches SET match_date=?,match_time=?,home_team_id=?,away_team_id=?,score_home=?,score_away=? WHERE id=?")
+            ->execute([$body['date']??null,$body['time']??null,(int)($body['home_id']??0),(int)($body['away_id']??0),$sh,$sa,(int)($body['match_id']??0)]);
+        echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='seed_fixtures'&&$isAdmin) {
+        // allTeams needs to be accessible here — re-query
+        $cnt=seedCopa26Fixtures($pdo);
+        echo json_encode(['ok'=>true,'inserted'=>$cnt]); exit;
+    }
+    if ($act==='csv_import'&&$isAdmin) {
+        $rows2=$body['rows']??[];
+        $tmap=[];
+        foreach ($pdo->query("SELECT t.id,LOWER(t.name) nm FROM copa26_teams t")->fetchAll(PDO::FETCH_ASSOC) as $r) $tmap[$r['nm']]=$r['id'];
+        $st=$pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,phase) VALUES (?,?,?,?,?)");
+        $ok=0;$fail=0;
+        foreach ($rows2 as $r){
+            $hid=$tmap[strtolower(trim($r['home']??''))]??null;
+            $aid=$tmap[strtolower(trim($r['away']??''))]??null;
+            if (!$hid||!$aid||!($r['date']??'')){ $fail++; continue; }
+            $st->execute([$r['date'],$r['time']??null,$hid,$aid,'group']); $ok++;
+        }
+        echo json_encode(['ok'=>true,'inserted'=>$ok,'failed'=>$fail]); exit;
     }
     if ($act==='save_official'&&$isAdmin) {
         $pdo->prepare("INSERT INTO copa26_official (id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,updated_by)
@@ -376,9 +434,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .rank-1 .team-rank{background:rgba(245,158,11,.2);color:var(--gold)}.rank-2 .team-rank{background:rgba(59,130,246,.15);color:var(--blue)}
 .rank-3 .team-rank,.rank-4 .team-rank{background:var(--panel-3);color:var(--text-3)}
 .team-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}.team-flag img{width:20px;height:auto;border-radius:2px;display:block}.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.team-arrows{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
-.arrow-btn{background:none;border:none;color:var(--text-3);cursor:pointer;padding:0 2px;font-size:10px;line-height:1.2;transition:color var(--t)}
-.arrow-btn:hover{color:var(--text)}.arrow-btn:disabled{opacity:.2;cursor:default}
+.drag-handle{color:var(--text-3);cursor:grab;font-size:13px;flex-shrink:0;padding:0 1px;touch-action:none;line-height:1}
+.drag-handle:active{cursor:grabbing;color:var(--text-2)}
+.sortable-ghost{opacity:.35;background:rgba(252,0,37,.07)!important;border-color:rgba(252,0,37,.2)!important}
+.sortable-chosen{background:var(--panel-2)!important;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .advance-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
 .advance-1{background:rgba(245,158,11,.15);color:var(--gold)}.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}.advance-3{background:rgba(255,255,255,.05);color:var(--text-3)}
 /* thirds */
@@ -453,14 +512,53 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .no-data{text-align:center;padding:60px 20px}
 .no-data-icon{font-size:48px;margin-bottom:14px}.no-data-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px}.no-data-sub{font-size:13px;color:var(--text-2)}
 .section-info{font-size:12px;color:var(--text-2);margin-bottom:14px}
+.matches-table{width:100%;border-collapse:collapse;font-size:12px}
+.matches-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.matches-table td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-2);vertical-align:middle}
+.matches-table tr:last-child td{border-bottom:none}
+.matches-table tr:hover td{background:rgba(255,255,255,.015)}
+.match-edit-input{background:var(--panel-2);color:var(--text);border:1px solid var(--border-md);border-radius:6px;padding:4px 7px;font-size:11px;font-family:var(--font);width:100%}
+.match-edit-input:focus{outline:none;border-color:var(--purple)}
+.match-edit-select{background:var(--panel-2);color:var(--text);border:1px solid var(--border-md);border-radius:6px;padding:4px 7px;font-size:11px;font-family:var(--font)}
+.csv-drop{border:2px dashed var(--border-md);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border-color var(--t);margin-bottom:10px}
+.csv-drop:hover,.csv-drop.drag-over{border-color:var(--purple);background:rgba(139,92,246,.05)}
+.csv-drop-icon{font-size:28px;margin-bottom:6px}
+.csv-drop-text{font-size:13px;color:var(--text-2)}.csv-drop-sub{font-size:11px;color:var(--text-3);margin-top:3px}
 @media(max-width:900px){
   .sidebar{transform:translateX(-100%);transition:transform var(--t) var(--ease)}.sidebar.open{transform:translateX(0)}
   .sb-close{display:block}.page{margin-left:0}.mob-bar{display:flex}
-  .groups-grid,.admin-groups-grid{grid-template-columns:repeat(2,1fr)}
+  .main{padding:16px 16px 50px}
+  .copa-hero{padding:14px 16px}.copa-hero-title{font-size:18px}
+  .groups-grid{grid-template-columns:repeat(2,1fr);gap:8px}
   .thirds-grid{grid-template-columns:repeat(4,1fr)}
   .prizes-grid{grid-template-columns:1fr}
+  .awards-grid{grid-template-columns:1fr}
   .pred-groups-mini{grid-template-columns:repeat(2,1fr)}
   .pred-awards{grid-template-columns:1fr}
+  .admin-form{grid-template-columns:1fr 1fr}
+  .bracket{min-width:700px}
+}
+@media(max-width:540px){
+  .main{padding:12px 12px 40px}
+  .copa-hero{padding:12px 14px;flex-direction:column;gap:8px}.copa-hero-title{font-size:16px}
+  .copa-tabs{gap:0}.copa-tab{padding:9px 11px;font-size:12px}
+  .groups-grid{grid-template-columns:repeat(2,1fr);gap:6px}
+  .group-card-header{padding:6px 10px}.group-teams{padding:4px}
+  .team-row{padding:5px 5px;gap:5px}
+  .team-name-sm{font-size:10px}
+  .thirds-grid{grid-template-columns:repeat(3,1fr)}
+  .bracket{min-width:560px}
+  .bracket-slot{padding:4px 7px;font-size:10px}
+  .prizes-grid{gap:8px}
+  .prize-card{padding:12px}
+  .submit-bar{flex-direction:column;align-items:stretch;gap:10px}
+  .submit-bar > div:last-child{display:flex;gap:8px}
+  .submit-bar > div:last-child > button{flex:1}
+  .admin-form{grid-template-columns:1fr}
+  .score-card{gap:6px}
+  .accordion-title{font-size:13px}
+  .pred-groups-mini{grid-template-columns:repeat(2,1fr);gap:5px}
+  .pred-group-mini{padding:6px 8px}
 }
 @media(max-width:540px){.main{padding:14px 14px 40px}.groups-grid{grid-template-columns:repeat(2,1fr)}.thirds-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -479,16 +577,22 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <div class="sb-user-role"><?=$isAdmin?'Admin':'Jogador'?></div>
   </div>
   <div class="sb-stats">
-    <div class="sb-stat"><i class="bi bi-coin"></i><span class="sb-stat-val"><?=(int)($usuario['pontos']??0)?></span><span class="sb-stat-label">Moedas</span></div>
-    <div class="sb-stat"><i class="bi bi-star-fill"></i><span class="sb-stat-val"><?=(int)($usuario['fba_points']??0)?></span><span class="sb-stat-label">FBA Pts</span></div>
+    <div class="sb-stat"><i class="bi bi-hand-index-fill" style="color:var(--green)"></i><span class="sb-stat-val"><?=(int)($usuario['numero_tapas']??0)?></span><span class="sb-stat-label">Tapas</span></div>
+    <div class="sb-stat"><i class="bi bi-coin"></i><span class="sb-stat-val"><?=number_format((int)($usuario['pontos']??0),0,',','.')?></span><span class="sb-stat-label">Moedas</span></div>
+    <div class="sb-stat"><i class="bi bi-star-fill"></i><span class="sb-stat-val"><?=number_format((int)($usuario['fba_points']??0),0,',','.')?></span><span class="sb-stat-label">FBA Pts</span></div>
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a class="sb-link" href="index.php"><i class="bi bi-house-door-fill"></i>Início</a>
-    <a class="sb-link" href="games.php"><i class="bi bi-controller"></i>Jogos</a>
-    <a class="sb-link" href="bracket.php"><i class="bi bi-diagram-3-fill"></i>Bracket NBA</a>
-    <a class="sb-link active" href="copa26.php"><i class="bi bi-trophy-fill"></i>Bolão Copa 2026</a>
-    <a class="sb-link" href="user/ranking.php"><i class="bi bi-bar-chart-fill"></i>Ranking</a>
+    <a class="sb-link" href="index.php"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a class="sb-link" href="games.php"><i class="bi bi-joystick"></i>Games</a>
+    <a class="sb-link active" href="copa26.php"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
+    <a class="sb-link" href="user/ranking-geral.php"><i class="bi bi-bar-chart-fill"></i>Ranking Geral</a>
+    <?php if ($isAdmin): ?>
+    <div class="sb-nav-section">Admin</div>
+    <a class="sb-link" href="admin/controlegames.php"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a class="sb-link" href="admin/dashboard.php"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <?php endif; ?>
+    <a class="sb-link" href="admin/dadosjogadores.php"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
     <a class="sb-logout" href="auth/logout.php"><i class="bi bi-box-arrow-right"></i>Sair</a>
@@ -604,17 +708,12 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <?php foreach ($teams as $idx=>$t): $rank=$idx+1;
         $badge=$rank===1?'<span class="advance-badge advance-1">1º</span>':($rank===2?'<span class="advance-badge advance-2">2º</span>':($rank===3?'<span class="advance-badge advance-3">3º?</span>':''));
     ?>
-    <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>" <?=$submitted?'style="cursor:default"':''?>>
+    <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
+      <?php if (!$submitted): ?><span class="drag-handle"><i class="bi bi-grip-vertical"></i></span><?php endif; ?>
       <span class="team-rank"><?=$rank?></span>
       <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
       <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
       <?=$badge?>
-      <?php if (!$submitted): ?>
-      <div class="team-arrows">
-        <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,-1)" <?=$rank===1?'disabled':''?>>▲</button>
-        <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,1)"  <?=$rank===4?'disabled':''?>>▼</button>
-      </div>
-      <?php endif; ?>
     </div>
     <?php endforeach; ?>
     </div>
@@ -829,13 +928,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
       <div class="group-teams" id="adm_gt_<?=$letter?>">
       <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
       <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
+        <span class="drag-handle"><i class="bi bi-grip-vertical"></i></span>
         <span class="team-rank"><?=$rank?></span>
         <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
         <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
-        <div class="team-arrows">
-          <button class="arrow-btn" onclick="moveAdmTeam('<?=$letter?>',<?=$t['id']?>,-1)" <?=$rank===1?'disabled':''?>>▲</button>
-          <button class="arrow-btn" onclick="moveAdmTeam('<?=$letter?>',<?=$t['id']?>,1)"  <?=$rank===4?'disabled':''?>>▼</button>
-        </div>
       </div>
       <?php endforeach; ?>
       </div>
@@ -878,19 +974,48 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     </div>
   </div>
 
-  <!-- Adicionar jogo -->
+  <!-- Jogos: seed + CSV + manual + lista -->
   <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-calendar-plus-fill" style="color:var(--blue)"></i>Adicionar Jogo do Dia</div>
-    <div class="admin-form" style="margin-bottom:14px">
+    <div class="admin-section-title"><i class="bi bi-calendar-fill" style="color:var(--blue)"></i>Gerenciar Jogos</div>
+
+    <!-- Quick actions -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <button class="btn-r outline" onclick="seedFixtures()"><i class="bi bi-lightning-charge-fill"></i>Pré-definir todos os jogos (fase de grupos)</button>
+    </div>
+
+    <!-- CSV upload -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Importar via CSV</div>
+      <div class="csv-drop" id="csvDrop" onclick="document.getElementById('csvFile').click()">
+        <div class="csv-drop-icon">📂</div>
+        <div class="csv-drop-text">Clique ou arraste um arquivo CSV</div>
+        <div class="csv-drop-sub">Colunas: <code>data,horario,casa,visitante</code></div>
+      </div>
+      <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none" onchange="handleCSV(this.files[0])">
+      <div id="csvPreview" style="display:none;margin-top:8px">
+        <div style="font-size:11px;color:var(--text-2);margin-bottom:6px" id="csvPreviewInfo"></div>
+        <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+          <table class="matches-table" id="csvPreviewTable"></table>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-r primary sm" onclick="importCSV()"><i class="bi bi-cloud-upload-fill"></i>Importar</button>
+          <button class="btn-r secondary sm" onclick="cancelCSV()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add single match -->
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Adicionar jogo manualmente</div>
+    <div class="admin-form" style="margin-bottom:18px">
       <div class="admin-form-group"><label>Data</label><input type="date" class="admin-input" id="match_date" value="<?=$today?>"></div>
       <div class="admin-form-group"><label>Horário</label><input type="time" class="admin-input" id="match_time"></div>
-      <div class="admin-form-group"><label>Time da Casa</label>
+      <div class="admin-form-group"><label>Casa</label>
         <select class="admin-select" id="match_home">
           <option value="">Selecione...</option>
           <?php foreach ($allTeams as $t): ?><option value="<?=$t['id']?>"><?=$t['flag']??''?> <?=htmlspecialchars($t['name'])?></option><?php endforeach; ?>
         </select>
       </div>
-      <div class="admin-form-group"><label>Time Visitante</label>
+      <div class="admin-form-group"><label>Visitante</label>
         <select class="admin-select" id="match_away">
           <option value="">Selecione...</option>
           <?php foreach ($allTeams as $t): ?><option value="<?=$t['id']?>"><?=$t['flag']??''?> <?=htmlspecialchars($t['name'])?></option><?php endforeach; ?>
@@ -900,6 +1025,48 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
         <button class="btn-r primary" onclick="addMatch()"><i class="bi bi-plus-lg"></i>Adicionar</button>
       </div>
     </div>
+
+    <!-- Match list -->
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">
+      Jogos cadastrados <span style="color:var(--text-3);font-weight:400">(<?=count($allMatches)?> total)</span>
+    </div>
+    <?php if (empty($allMatches)): ?>
+    <div style="text-align:center;padding:20px;color:var(--text-3);font-size:12px">Nenhum jogo cadastrado ainda.</div>
+    <?php else: ?>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+      <table class="matches-table">
+        <thead><tr>
+          <th>Data</th><th>Hora</th><th>Casa</th><th>Visitante</th><th>Resultado</th><th style="width:90px">Ações</th>
+        </tr></thead>
+        <tbody id="adminMatchList">
+        <?php
+        // group by date for display
+        $sortedMatches = $allMatches;
+        usort($sortedMatches, fn($a,$b)=>strcmp($a['match_date'].$a['match_time'],$b['match_date'].$b['match_time']));
+        foreach ($sortedMatches as $m):
+            $hName=$m['hname']?:$m['home_name']?:'?';
+            $aName=$m['aname']?:$m['away_name']?:'?';
+            $hF=$m['hflag']??''; $aF=$m['aflag']??'';
+            $res=$m['score_home']!==null?"{$m['score_home']}–{$m['score_away']}":'—';
+        ?>
+        <tr id="aml_<?=$m['id']?>">
+          <td><?=htmlspecialchars($m['match_date']??'')?></td>
+          <td><?=htmlspecialchars($m['match_time']??'—')?></td>
+          <td><?=$hF?flagImg($hF,16):''?> <?=htmlspecialchars($hName)?></td>
+          <td><?=$aF?flagImg($aF,16):''?> <?=htmlspecialchars($aName)?></td>
+          <td><?=$res?></td>
+          <td>
+            <div style="display:flex;gap:4px">
+              <button class="btn-r purple sm" onclick="editMatch(<?=$m['id']?>,<?=json_encode(['date'=>$m['match_date'],'time'=>$m['match_time']??'','home_id'=>$m['home_team_id'],'home_name'=>$hName,'away_id'=>$m['away_team_id'],'away_name'=>$aName,'sh'=>$m['score_home'],'sa'=>$m['score_away']])?> )">✏️</button>
+              <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)">🗑</button>
+            </div>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
   </div>
 
 </div>
@@ -947,21 +1114,47 @@ function renderGroupEl(letter,prefix,orderMap,editable,moveFn){
         const d=document.createElement('div');d.className='team-row '+rc[idx];
         d.dataset.teamId=t.id;d.dataset.teamName=t.name;d.dataset.teamFlag=t.flag||'🏳';
         if(!editable)d.style.cursor='default';
-        d.innerHTML=`<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>${bg[idx]}`+
-            (editable?`<div class="team-arrows"><button class="arrow-btn" onclick="${moveFn}('${letter}',${t.id},-1)"${idx===0?' disabled':''}>▲</button><button class="arrow-btn" onclick="${moveFn}('${letter}',${t.id},1)"${idx===3?' disabled':''}>▼</button></div>`:'');
+        d.innerHTML=(editable?'<span class="drag-handle"><i class="bi bi-grip-vertical"></i></span>':'')+
+            `<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>${bg[idx]}`;
         c.appendChild(d);
     });
 }
-function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED,'moveTeam');}
-function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true,'moveAdmTeam');}
+function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED,'');}
+function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true,'');}
 
-function moveTeamGeneric(letter,teamId,dir,orderMap,renderFn,thirdFn){
-    const o=orderMap[letter],idx=o.indexOf(+teamId),ni=idx+dir;
-    if(idx<0||ni<0||ni>=o.length)return;
-    [o[idx],o[ni]]=[o[ni],o[idx]];renderFn(letter);if(thirdFn)thirdFn(letter);
+// update rank badges after drag without re-rendering the list
+function updateGroupRanks(container,orderMap,letter,updateThirds){
+    const rc=['rank-1','rank-2','rank-3','rank-4'];
+    const bg=['<span class="advance-badge advance-1">1º</span>','<span class="advance-badge advance-2">2º</span>','<span class="advance-badge advance-3">3º?</span>',''];
+    const newOrder=[];
+    container.querySelectorAll('.team-row').forEach((row,idx)=>{
+        newOrder.push(+row.dataset.teamId);
+        rc.forEach(c=>row.classList.remove(c));row.classList.add(rc[idx]);
+        const rk=row.querySelector('.team-rank');if(rk)rk.textContent=idx+1;
+        const ob=row.querySelector('.advance-badge');if(ob)ob.remove();
+        if(bg[idx])row.querySelector('.team-name-sm')?.insertAdjacentHTML('afterend',bg[idx]);
+    });
+    orderMap[letter]=newOrder;
+    if(updateThirds)updateThirdsForGroup(letter);
 }
-function moveTeam(l,id,d){if(SUBMITTED)return;moveTeamGeneric(l,id,d,groupOrder,renderGroup,updateThirdsForGroup);}
-function moveAdmTeam(l,id,d){moveTeamGeneric(l,id,d,admGroupOrder,renderAdmGroup,null);}
+
+// SortableJS init
+function initSortables(){
+    if(typeof Sortable==='undefined')return;
+    GROUP_KEYS.forEach(l=>{
+        const c=document.getElementById('gt_'+l);if(!c)return;
+        Sortable.create(c,{handle:'.drag-handle',animation:160,ghostClass:'sortable-ghost',chosenClass:'sortable-chosen',
+            onEnd:()=>updateGroupRanks(c,groupOrder,l,true)});
+    });
+}
+function initAdmSortables(){
+    if(typeof Sortable==='undefined')return;
+    GROUP_KEYS.forEach(l=>{
+        const c=document.getElementById('adm_gt_'+l);if(!c)return;
+        Sortable.create(c,{handle:'.drag-handle',animation:160,ghostClass:'sortable-ghost',chosenClass:'sortable-chosen',
+            onEnd:()=>updateGroupRanks(c,admGroupOrder,l,false)});
+    });
+}
 
 function updateThirdsForGroup(letter){
     const t=getTeamById(groupOrder[letter][2]);if(!t)return;
@@ -1075,6 +1268,91 @@ async function addMatch(){
     if(r.ok){showToast('Jogo adicionado!');setTimeout(()=>location.reload(),800);}else showToast('Erro.',true);
 }
 
+async function seedFixtures(){
+    if(!confirm('Isso vai apagar todos os jogos da fase de grupos e criar os 72 jogos pré-definidos. Continuar?'))return;
+    const r=await post({action:'seed_fixtures'});
+    if(r.ok){showToast(`${r.inserted} jogos criados!`);setTimeout(()=>location.reload(),1000);}
+    else showToast('Erro.',true);
+}
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+let csvRows=[];
+function handleCSV(file){
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+        const lines=e.target.result.replace(/\r/g,'').split('\n').filter(l=>l.trim());
+        const header=lines[0].toLowerCase().split(',').map(h=>h.trim());
+        csvRows=lines.slice(1).map(line=>{
+            const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+            const obj={};header.forEach((h,i)=>{
+                const key=h.includes('data')||h==='date'?'date':h.includes('hora')||h==='time'?'time':h.includes('casa')||h==='home'?'home':'away';
+                obj[key]=cols[i]||'';
+            });
+            return obj;
+        }).filter(r=>r.date&&r.home&&r.away);
+        // preview
+        const preview=document.getElementById('csvPreview');
+        const info=document.getElementById('csvPreviewInfo');
+        const table=document.getElementById('csvPreviewTable');
+        info.textContent=`${csvRows.length} jogos encontrados`;
+        table.innerHTML='<thead><tr><th>Data</th><th>Horário</th><th>Casa</th><th>Visitante</th></tr></thead><tbody>'+
+            csvRows.slice(0,10).map(r=>`<tr><td>${escH(r.date)}</td><td>${escH(r.time)}</td><td>${escH(r.home)}</td><td>${escH(r.away)}</td></tr>`).join('')+
+            (csvRows.length>10?`<tr><td colspan="4" style="color:var(--text-3);text-align:center">+${csvRows.length-10} mais...</td></tr>`:'')+
+            '</tbody>';
+        preview.style.display='block';
+        // reset drag
+        document.getElementById('csvDrop').classList.remove('drag-over');
+    };
+    reader.readAsText(file);
+}
+async function importCSV(){
+    if(!csvRows.length){showToast('Nenhum dado.',true);return;}
+    const r=await post({action:'csv_import',rows:csvRows});
+    if(r.ok){showToast(`${r.inserted} importados, ${r.failed} falhas.`);if(r.inserted>0)setTimeout(()=>location.reload(),1200);}
+    else showToast('Erro.',true);
+}
+function cancelCSV(){document.getElementById('csvPreview').style.display='none';csvRows=[];document.getElementById('csvFile').value='';}
+
+// drag-over on csv-drop
+(function(){
+    const drop=document.getElementById('csvDrop');if(!drop)return;
+    drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag-over');});
+    drop.addEventListener('dragleave',()=>drop.classList.remove('drag-over'));
+    drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag-over');if(e.dataTransfer.files[0])handleCSV(e.dataTransfer.files[0]);});
+})();
+
+// ── Match inline edit ─────────────────────────────────────────────────────────
+const ALL_TEAMS_SEL = `<?php echo implode('', array_map(fn($t)=>'<option value="'.$t['id'].'">'.(htmlspecialchars($t['flag']??'')).' '.htmlspecialchars($t['name']).'</option>', $allTeams)); ?>`;
+
+function editMatch(id, data){
+    const row=document.getElementById('aml_'+id);if(!row)return;
+    row.innerHTML=`
+        <td><input class="match-edit-input" id="ei_date_${id}" type="date" value="${escH(data.date||'')}"></td>
+        <td><input class="match-edit-input" id="ei_time_${id}" type="time" value="${escH(data.time||'')}"></td>
+        <td><select class="match-edit-select" id="ei_home_${id}">${ALL_TEAMS_SEL}</select></td>
+        <td><select class="match-edit-select" id="ei_away_${id}">${ALL_TEAMS_SEL}</select></td>
+        <td><input class="match-edit-input" style="width:32px" id="ei_sh_${id}" type="number" min="0" value="${data.sh??''}"> – <input class="match-edit-input" style="width:32px" id="ei_sa_${id}" type="number" min="0" value="${data.sa??''}"></td>
+        <td><div style="display:flex;gap:4px">
+            <button class="btn-r green-btn sm" onclick="saveMatch(${id})">✓</button>
+            <button class="btn-r secondary sm" onclick="location.reload()">✕</button>
+        </div></td>`;
+    // set selected values
+    document.getElementById('ei_home_'+id).value=data.home_id||'';
+    document.getElementById('ei_away_'+id).value=data.away_id||'';
+}
+async function saveMatch(id){
+    const r=await post({action:'update_match',match_id:id,
+        date:document.getElementById('ei_date_'+id)?.value||'',
+        time:document.getElementById('ei_time_'+id)?.value||'',
+        home_id:+document.getElementById('ei_home_'+id)?.value||0,
+        away_id:+document.getElementById('ei_away_'+id)?.value||0,
+        score_home:document.getElementById('ei_sh_'+id)?.value,
+        score_away:document.getElementById('ei_sa_'+id)?.value});
+    if(r.ok){showToast('Jogo atualizado!');setTimeout(()=>location.reload(),700);}
+    else showToast('Erro.',true);
+}
+
 // ── Admin save official ───────────────────────────────────────────────────────
 async function saveOfficial(){
     const groups={};GROUP_KEYS.forEach(l=>groups[l]=admGroupOrder[l]);
@@ -1133,5 +1411,9 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 <?php if($seeded&&!$submitted):?>GROUP_KEYS.forEach(l=>renderGroup(l));<?php endif;?>
 <?php if($seeded&&$isAdmin):?>GROUP_KEYS.forEach(l=>renderAdmGroup(l));<?php endif;?>
 </script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" onload="
+<?php if($seeded&&!$submitted):?>initSortables();<?php endif;?>
+<?php if($seeded&&$isAdmin):?>initAdmSortables();<?php endif;?>
+"></script>
 </body>
 </html>

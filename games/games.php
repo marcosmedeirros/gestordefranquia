@@ -299,6 +299,9 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games.php" class="sb-link active">
       <i class="bi bi-joystick"></i>Games
     </a>
+    <a href="copa26.php" class="sb-link">
+      <i class="bi bi-trophy-fill"></i>Copa 2026
+    </a>
     <a href="user/ranking-geral.php" class="sb-link">
       <i class="bi bi-bar-chart-fill"></i>Ranking Geral
     </a>
