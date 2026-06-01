@@ -85,12 +85,19 @@ foreach (['neymar_goals VARCHAR(10) NULL AFTER revelation','points INT NOT NULL 
 
 // migrate emoji flags → ISO codes
 try {
-    $flagMigrate=['🇲🇽'=>'mx','🇯🇲'=>'jm','🇻🇪'=>'ve','🇪🇨'=>'ec','🇺🇸'=>'us','🇧🇴'=>'bo','🇵🇦'=>'pa','🇺🇾'=>'uy',
+    $flagMigrate=[
+        // old teams
+        '🇲🇽'=>'mx','🇯🇲'=>'jm','🇻🇪'=>'ve','🇪🇨'=>'ec','🇺🇸'=>'us','🇧🇴'=>'bo','🇵🇦'=>'pa','🇺🇾'=>'uy',
         '🇨🇦'=>'ca','🇭🇳'=>'hn','🇨🇴'=>'co','🇵🇾'=>'py','🇧🇷'=>'br','🇯🇵'=>'jp','🇨🇿'=>'cz','🇨🇩'=>'cd',
         '🇪🇸'=>'es','🇭🇷'=>'hr','🇲🇦'=>'ma','🇺🇿'=>'uz','🇦🇷'=>'ar','🇨🇱'=>'cl','🇹🇷'=>'tr','🇦🇴'=>'ao',
         '🇫🇷'=>'fr','🇧🇪'=>'be','🇩🇿'=>'dz','🇳🇿'=>'nz','🇵🇹'=>'pt','🇵🇱'=>'pl','🇸🇳'=>'sn','🇬🇹'=>'gt',
         '🇳🇱'=>'nl','🇵🇪'=>'pe','🇭🇹'=>'ht','🇸🇦'=>'sa','🇩🇪'=>'de','🇷🇸'=>'rs','🇨🇷'=>'cr','🇨🇲'=>'cm',
-        '🇮🇹'=>'it','🇶🇦'=>'qa','🇳🇮'=>'ni','🇦🇺'=>'au','🏴󠁧󠁢󠁥󠁮󠁧󠁿'=>'gb-eng','🇮🇷'=>'ir','🇸🇰'=>'sk','🇹🇭'=>'th'];
+        '🇮🇹'=>'it','🇶🇦'=>'qa','🇳🇮'=>'ni','🇦🇺'=>'au','🏴󠁧󠁢󠁥󠁮󠁧󠁿'=>'gb-eng','🇮🇷'=>'ir','🇸🇰'=>'sk','🇹🇭'=>'th',
+        // new teams
+        '🇿🇦'=>'za','🇰🇷'=>'kr','🇧🇦'=>'ba','🇨🇭'=>'ch','🏴󠁧󠁢󠁳󠁣󠁴󠁿'=>'gb-sct',
+        '🇨🇼'=>'cw','🇨🇮'=>'ci','🇸🇪'=>'se','🇹🇳'=>'tn','🇪🇬'=>'eg','🇨🇻'=>'cv',
+        '🇮🇶'=>'iq','🇳🇴'=>'no','🇦🇹'=>'at','🇯🇴'=>'jo','🇬🇭'=>'gh',
+    ];
     $fmig=$pdo->prepare("UPDATE copa26_teams SET flag=? WHERE flag=?");
     foreach ($flagMigrate as $emoji=>$code) $fmig->execute([$code,$emoji]);
 } catch(Exception $e){}
@@ -106,18 +113,18 @@ function seedCopa26(PDO $pdo): void {
     $pdo->exec("DELETE FROM copa26_teams");
     $pdo->exec("DELETE FROM copa26_groups");
     $data = [
-        'A'=>[['México','mx'],['Jamaica','jm'],['Venezuela','ve'],['Equador','ec']],
-        'B'=>[['Estados Unidos','us'],['Bolívia','bo'],['Panamá','pa'],['Uruguai','uy']],
-        'C'=>[['Canadá','ca'],['Honduras','hn'],['Colômbia','co'],['Paraguai','py']],
-        'D'=>[['Brasil','br'],['Japão','jp'],['Rep. Tcheca','cz'],['Congo DR','cd']],
-        'E'=>[['Espanha','es'],['Croácia','hr'],['Marrocos','ma'],['Uzbequistão','uz']],
-        'F'=>[['Argentina','ar'],['Chile','cl'],['Turquia','tr'],['Angola','ao']],
-        'G'=>[['França','fr'],['Bélgica','be'],['Argélia','dz'],['Nova Zelândia','nz']],
-        'H'=>[['Portugal','pt'],['Polônia','pl'],['Senegal','sn'],['Guatemala','gt']],
-        'I'=>[['Holanda','nl'],['Peru','pe'],['Haiti','ht'],['Arábia Saudita','sa']],
-        'J'=>[['Alemanha','de'],['Sérvia','rs'],['Costa Rica','cr'],['Camarões','cm']],
-        'K'=>[['Itália','it'],['Catar','qa'],['Nicarágua','ni'],['Austrália','au']],
-        'L'=>[['Inglaterra','gb-eng'],['Irã','ir'],['Eslováquia','sk'],['Tailândia','th']],
+        'A'=>[['México','mx'],['África do Sul','za'],['Coreia do Sul','kr'],['Tchéquia','cz']],
+        'B'=>[['Canadá','ca'],['Bósnia','ba'],['Catar','qa'],['Suíça','ch']],
+        'C'=>[['Brasil','br'],['Marrocos','ma'],['Haiti','ht'],['Escócia','gb-sct']],
+        'D'=>[['EUA','us'],['Paraguai','py'],['Austrália','au'],['Turquia','tr']],
+        'E'=>[['Alemanha','de'],['Curaçau','cw'],['Costa do Marfim','ci'],['Equador','ec']],
+        'F'=>[['Holanda','nl'],['Japão','jp'],['Suécia','se'],['Tunísia','tn']],
+        'G'=>[['Bélgica','be'],['Egito','eg'],['Irã','ir'],['Nova Zelândia','nz']],
+        'H'=>[['Espanha','es'],['Cabo Verde','cv'],['Arábia Saudita','sa'],['Uruguai','uy']],
+        'I'=>[['França','fr'],['Senegal','sn'],['Iraque','iq'],['Noruega','no']],
+        'J'=>[['Argentina','ar'],['Argélia','dz'],['Áustria','at'],['Jordânia','jo']],
+        'K'=>[['Portugal','pt'],['RD do Congo','cd'],['Uzbequistão','uz'],['Colômbia','co']],
+        'L'=>[['Inglaterra','gb-eng'],['Croácia','hr'],['Gana','gh'],['Panamá','pa']],
     ];
     $sg=$pdo->prepare("INSERT INTO copa26_groups (letter) VALUES (?)");
     $st=$pdo->prepare("INSERT INTO copa26_teams (group_id,name,flag) VALUES (?,?,?)");
@@ -1177,9 +1184,46 @@ const ROUND_ORDER=['r32','r16','qf','sf','final'];
 let bracketMatchups={r32:[],r16:[],qf:[],sf:[],final:[]};
 let admBracketMatchups={r32:[],r16:[],qf:[],sf:[],final:[]};
 
+// map group DB id → letter  (used to resolve thirds)
+const GROUP_ID_TO_LETTER = <?=json_encode(array_combine(
+    array_map(fn($g)=>$g['id'], array_values($groups)),
+    array_keys($groups)
+))?>;
+
 function buildR32(orderMap){
-    const f={},s={};GROUP_KEYS.forEach(l=>{f[l]=getTeamById(orderMap[l][0]);s[l]=getTeamById(orderMap[l][1]);});
-    return [[f['A'],s['B']],[f['C'],s['D']],[f['E'],s['F']],[f['G'],s['H']],[f['I'],s['J']],[f['K'],s['L']],[f['B'],s['A']],[f['D'],s['C']],[f['F'],s['E']],[f['H'],s['G']],[f['J'],s['I']],[f['L'],s['K']],[null,null],[null,null],[null,null],[null,null]];
+    const f={},s={},t={};
+    GROUP_KEYS.forEach(l=>{
+        f[l]=getTeamById(orderMap[l][0]);
+        s[l]=getTeamById(orderMap[l][1]);
+        t[l]=getTeamById(orderMap[l][2]);
+    });
+    // distribute selected thirds to the 8 "best-third" slots (in bracket order)
+    const thirdsMap={};
+    selectedThirds.forEach(gid=>{const l=GROUP_ID_TO_LETTER[gid];if(l)thirdsMap[l]=t[l];});
+    const thirdVals=Object.values(thirdsMap).filter(Boolean);
+    let ti=0; const nxt=()=>thirdVals[ti++]||null;
+
+    // Copa 2026 official R32 bracket (index pairs feed R16):
+    // [0,1]→R16[0](J89)  [2,3]→R16[1](J90)  [4,5]→R16[2](J91)  [6,7]→R16[3](J92)
+    // [8,9]→R16[4](J93) [10,11]→R16[5](J94) [12,13]→R16[6](J95) [14,15]→R16[7](J96)
+    return [
+        [f['E'], nxt()],    // J74: 1E vs Melhor-3º(A,B,C,D,F)
+        [f['I'], nxt()],    // J77: 1I vs Melhor-3º(C,D,F,G,H)
+        [s['A'], s['B']],   // J73: 2A vs 2B
+        [f['F'], s['C']],   // J75: 1F vs 2C
+        [f['C'], s['F']],   // J76: 1C vs 2F
+        [s['E'], s['I']],   // J78: 2E vs 2I
+        [f['A'], nxt()],    // J79: 1A vs Melhor-3º(C,E,F,H,I)
+        [f['L'], nxt()],    // J80: 1L vs Melhor-3º(E,H,I,J,K)
+        [s['K'], s['L']],   // J83: 2K vs 2L
+        [f['H'], s['J']],   // J84: 1H vs 2J
+        [f['D'], nxt()],    // J81: 1D vs Melhor-3º(B,E,F,I,J)
+        [f['G'], nxt()],    // J82: 1G vs Melhor-3º(A,E,H,I,J)
+        [f['J'], s['H']],   // J86: 1J vs 2H
+        [s['D'], s['G']],   // J88: 2D vs 2G
+        [f['B'], nxt()],    // J85: 1B vs Melhor-3º(E,F,G,I,J)
+        [f['K'], nxt()],    // J87: 1K vs Melhor-3º(D,E,I,J,L)
+    ];
 }
 
 function buildBracketGeneric(matchupsRef,orderMap,stateRef){
