@@ -564,28 +564,23 @@ const findSelectedPickById = (pickId) => {
     || null;
 };
 
-const getSwapKey = (pick) => `${pick.season_year || ''}-${pick.round || ''}`;
-
 const getSwapCandidateMap = () => {
-  const byKey = (list) => list.reduce((acc, pick) => {
-    if (pick.swap_type) return acc; // picks que já são swap não podem ser re-swappadas
-    const key = getSwapKey(pick);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(pick);
-    return acc;
-  }, {});
-
-  const offerByKey = byKey(pickState.offer.selected);
-  const requestByKey = byKey(pickState.request.selected);
+  const offerPicks  = pickState.offer.selected.filter(p => !p.swap_type);
+  const requestPicks = pickState.request.selected.filter(p => !p.swap_type);
   const map = {};
+  const usedRequest = new Set();
 
-  Object.keys(offerByKey).forEach((key) => {
-    if (!requestByKey[key]) return;
-    if (offerByKey[key].length !== 1 || requestByKey[key].length !== 1) return;
-    const offerPick = offerByKey[key][0];
-    const requestPick = requestByKey[key][0];
-    map[Number(offerPick.id)] = Number(requestPick.id);
-    map[Number(requestPick.id)] = Number(offerPick.id);
+  offerPicks.forEach(op => {
+    const match = requestPicks.find(rp =>
+      !usedRequest.has(Number(rp.id)) &&
+      String(rp.round) === String(op.round) &&
+      String(rp.season_year) !== String(op.season_year)
+    );
+    if (match) {
+      map[Number(op.id)] = Number(match.id);
+      map[Number(match.id)] = Number(op.id);
+      usedRequest.add(Number(match.id));
+    }
   });
 
   return map;
