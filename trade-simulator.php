@@ -316,19 +316,20 @@ body{overflow-x:hidden}
   .cap-row{font-size:10px;margin-bottom:2px}
   .cap-val{font-size:11px}
 
-  /* Bottom bar: fixa na base, linha única */
+  /* Bottom bar: fixa na base, botões centralizados */
   .sim-bottom{
     position:fixed;bottom:0;left:0;right:0;z-index:200;
-    flex-direction:row;flex-wrap:nowrap;align-items:center;
-    gap:8px;padding:10px 14px 14px;
+    flex-direction:column;align-items:stretch;
+    gap:0;padding:10px 14px 14px;
     border-radius:0;border-left:none;border-right:none;border-bottom:none;
     background:var(--panel);
     box-shadow:0 -2px 16px rgba(0,0,0,.4);
+    max-width:100vw;box-sizing:border-box;
   }
-  #validityBadge{flex-shrink:0;padding:6px 10px;font-size:10px}
-  .sim-bottom>div{flex:1;display:flex;gap:8px;justify-content:flex-end}
-  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:11px 12px;font-size:13px}
-  .sim-bottom .btn-r.secondary.sm{white-space:nowrap;padding:11px 12px}
+  #validityBadge{display:none}
+  .sim-bottom>div{display:flex;gap:8px;width:100%}
+  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:13px 12px;font-size:14px}
+  .sim-bottom .btn-r.secondary.sm{white-space:nowrap;padding:13px 14px;font-size:13px}
 
   /* Notes */
   .notes-wrap{margin:10px 12px 0}
