@@ -246,61 +246,103 @@ body{overflow-x:hidden}
   .sidebar.open{transform:translateX(0)}
   .main{margin-left:0;padding-top:54px}
   .topbar{display:flex}
-  .page-hero{padding:12px 16px 0;gap:8px}
-  .page-hero-title{font-size:18px}
-  .content{padding:12px 16px 40px}
-  .sim-panel{min-width:200px}
-  .sim-team-select{font-size:14px;padding:8px 10px}
+  .page-hero{padding:14px 16px 0}
+  .content{padding:14px 16px 100px}
+  .sim-panel{min-width:220px}
+  .sim-team-select{font-size:15px;padding:9px 10px}
 }
-@media(max-width:576px){
-  /* Hero — esconde subtítulo e compacta */
-  .page-hero p{display:none}
-  .page-hero{padding:8px 12px 0}
-  .page-hero-title{font-size:16px}
-  .content{padding:8px 12px 32px}
 
-  /* Panels — largura mínima menor, mas ainda legível */
-  .sim-panel{min-width:160px}
-  .sim-panel-header{padding:10px 12px}
-  .sim-team-name{font-size:12px}
-  .sim-team-cap{font-size:10px}
-  .sim-label{padding:8px 12px 4px;font-size:8px}
-  .sim-items{min-height:100px;padding:0 8px 8px}
+/* ── Mobile: redesign completo ───────────────────────────── */
+@media(max-width:600px){
+  /* Título já aparece na topbar — oculta o hero inteiro */
+  .page-hero{display:none}
 
-  /* Itens dentro dos panels */
-  .sim-item{padding:7px 8px;gap:6px}
-  .sim-item-ovr{width:28px;height:28px;font-size:10px}
-  .sim-item-pick-icon{width:28px;height:28px;font-size:12px}
-  .sim-item-name{font-size:11px}
-  .sim-item-meta,.sim-item-from{font-size:9px}
+  /* Conteúdo ocupa tudo; espaço inferior para bottom bar fixa */
+  .content{padding:10px 0 140px}
 
-  /* Botões de add dentro do panel */
-  .sim-add-bar{padding:4px 8px 8px;gap:4px}
-  .btn-add{padding:6px 8px;font-size:10px;min-height:32px}
+  /* Wrap: empilha verticalmente */
+  .sim-panels-wrap{
+    flex-direction:column;
+    overflow-x:visible;
+    border-radius:0;
+    border-left:none;border-right:none;
+    gap:0;
+  }
 
-  /* Bottom bar empilhada */
-  .sim-bottom{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
-  .validity-badge{justify-content:center;padding:6px 12px;font-size:11px}
-  .sim-bottom>div{display:flex;gap:8px}
-  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:10px 16px}
-  .sim-bottom .btn-r.secondary.sm{white-space:nowrap}
+  /* Cada painel: largura 100% */
+  .sim-panel{
+    min-width:100%;
+    border-right:none;
+    border-bottom:1px solid var(--border);
+  }
+  .sim-panel:last-child{border-bottom:none}
 
-  /* CAP bar */
-  .cap-panel{min-width:130px;padding:8px 10px}
-  .cap-label{font-size:9px}
-  .cap-row{font-size:10px}
+  .sim-panel-header{padding:12px 14px}
+  .sim-team-logo{width:36px;height:36px}
+  .sim-team-name{font-size:14px}
+  .sim-team-cap{font-size:11px}
+  .sim-team-select{font-size:15px;padding:10px 12px;margin-top:10px}
 
-  /* Picker modal — tela cheia no mobile */
-  .modal-dialog{margin:0;max-width:100%!important;width:100%}
-  .modal-content{border-radius:0;height:100vh;display:flex;flex-direction:column}
-  .modal-body{flex:1;overflow-y:auto}
+  .sim-label{padding:10px 14px 5px;font-size:9px}
+  .sim-items{min-height:56px;padding:0 12px 10px}
+  .sim-empty{height:56px;font-size:12px}
+
+  .sim-item{padding:10px 12px;gap:8px}
+  .sim-item-ovr{width:32px;height:32px;font-size:11px}
+  .sim-item-pick-icon{width:32px;height:32px;font-size:13px}
+  .sim-item-name{font-size:13px}
+  .sim-item-meta,.sim-item-from{font-size:10px}
+  .sim-item-del{font-size:15px;padding:6px}
+
+  .sim-add-bar{padding:8px 12px 12px;gap:8px}
+  .btn-add{padding:9px 14px;font-size:12px;min-height:40px;flex:1;justify-content:center}
+
+  /* Botão "+ Time" — linha separada abaixo dos painéis */
+  .sim-add-team-panel{
+    min-width:100%;
+    padding:14px 12px;
+    border-top:1px solid var(--border);
+  }
+  .btn-add-team{
+    width:100%;flex-direction:row;gap:8px;
+    border-radius:8px;padding:12px 16px;
+    font-size:13px;justify-content:center;
+  }
+
+  /* CAP bar: scroll horizontal compacto */
+  .cap-bar{margin:10px 12px 0;border-radius:8px}
+  .cap-panel{min-width:120px;padding:10px 12px}
+  .cap-label{font-size:9px;margin-bottom:4px}
+  .cap-row{font-size:10px;margin-bottom:2px}
+  .cap-val{font-size:11px}
+
+  /* Bottom bar: fixa na base, linha única */
+  .sim-bottom{
+    position:fixed;bottom:0;left:0;right:0;z-index:200;
+    flex-direction:row;flex-wrap:nowrap;align-items:center;
+    gap:8px;padding:10px 14px 14px;
+    border-radius:0;border-left:none;border-right:none;border-bottom:none;
+    background:var(--panel);
+    box-shadow:0 -2px 16px rgba(0,0,0,.4);
+  }
+  #validityBadge{flex-shrink:0;padding:6px 10px;font-size:10px}
+  .sim-bottom>div{flex:1;display:flex;gap:8px;justify-content:flex-end}
+  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:11px 12px;font-size:13px}
+  .sim-bottom .btn-r.secondary.sm{white-space:nowrap;padding:11px 12px}
+
+  /* Notes */
+  .notes-wrap{margin:10px 12px 0}
+
+  /* Picker modal — tela cheia */
+  .modal-dialog{margin:0!important;max-width:100%!important;width:100%!important}
+  .modal-content{border-radius:0!important;height:100dvh;display:flex;flex-direction:column}
+  .modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .picker-list{max-height:none}
-  .picker-row{padding:12px 10px;min-height:48px}
-  .from-chip{padding:7px 14px;min-height:36px}
-
-  /* Botão adicionar time */
-  .sim-add-team-panel{padding:12px}
-  .btn-add-team{width:50px;padding:12px 8px}
+  .picker-row{padding:14px 12px;min-height:52px;gap:12px}
+  .picker-name{font-size:14px}
+  .picker-meta{font-size:12px}
+  .from-chip{padding:9px 16px;min-height:40px;font-size:12px}
+  .form-control{font-size:16px!important} /* evita zoom no iOS */
 }
 </style>
 </head>
@@ -772,7 +814,7 @@ function removeItem(toKey, id, type, fromKey) {
 function addTeamSlot() {
   const used = new Set(activeSlots);
   const next = SLOT_KEYS.find(k => !used.has(k));
-  if (!next || activeSlots.length >= 7) return;
+  if (!next || activeSlots.length >= MAX_TEAMS) return;
   activeSlots.push(next);
   teams[next] = null;
   receives[next] = [];
