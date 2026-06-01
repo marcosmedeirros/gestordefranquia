@@ -40,7 +40,7 @@ if ($action === 'roster') {
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
             WHERE pk.team_id = ?
-            ORDER BY pk.season_year ASC, pk.round ASC
+            ORDER BY pk.round ASC, pk.season_year ASC
         ');
         $stmtPk->execute([$tid]);
         $picks = $stmtPk->fetchAll(PDO::FETCH_ASSOC);
@@ -246,21 +246,61 @@ body{overflow-x:hidden}
   .sidebar.open{transform:translateX(0)}
   .main{margin-left:0;padding-top:54px}
   .topbar{display:flex}
-  .page-hero{padding:16px 16px 0}
-  .content{padding:16px 16px 48px}
-  .sim-panel{min-width:220px}
+  .page-hero{padding:12px 16px 0;gap:8px}
+  .page-hero-title{font-size:18px}
+  .content{padding:12px 16px 40px}
+  .sim-panel{min-width:200px}
+  .sim-team-select{font-size:14px;padding:8px 10px}
 }
 @media(max-width:576px){
-  .sim-panel{min-width:180px}
-  .page-hero-title{font-size:18px}
-  .page-hero{padding:10px 12px 0}
-  .content{padding:10px 12px 36px}
-  .sim-bottom{flex-direction:column;align-items:stretch}
-  .sim-bottom>div{width:100%}
-  .sim-bottom .btn-r.lg{width:100%;justify-content:center}
-  .cap-panel{min-width:140px}
+  /* Hero — esconde subtítulo e compacta */
+  .page-hero p{display:none}
+  .page-hero{padding:8px 12px 0}
+  .page-hero-title{font-size:16px}
+  .content{padding:8px 12px 32px}
+
+  /* Panels — largura mínima menor, mas ainda legível */
+  .sim-panel{min-width:160px}
+  .sim-panel-header{padding:10px 12px}
+  .sim-team-name{font-size:12px}
+  .sim-team-cap{font-size:10px}
+  .sim-label{padding:8px 12px 4px;font-size:8px}
+  .sim-items{min-height:100px;padding:0 8px 8px}
+
+  /* Itens dentro dos panels */
+  .sim-item{padding:7px 8px;gap:6px}
+  .sim-item-ovr{width:28px;height:28px;font-size:10px}
+  .sim-item-pick-icon{width:28px;height:28px;font-size:12px}
   .sim-item-name{font-size:11px}
-  .sim-item-meta{font-size:9px}
+  .sim-item-meta,.sim-item-from{font-size:9px}
+
+  /* Botões de add dentro do panel */
+  .sim-add-bar{padding:4px 8px 8px;gap:4px}
+  .btn-add{padding:6px 8px;font-size:10px;min-height:32px}
+
+  /* Bottom bar empilhada */
+  .sim-bottom{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
+  .validity-badge{justify-content:center;padding:6px 12px;font-size:11px}
+  .sim-bottom>div{display:flex;gap:8px}
+  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:10px 16px}
+  .sim-bottom .btn-r.secondary.sm{white-space:nowrap}
+
+  /* CAP bar */
+  .cap-panel{min-width:130px;padding:8px 10px}
+  .cap-label{font-size:9px}
+  .cap-row{font-size:10px}
+
+  /* Picker modal — tela cheia no mobile */
+  .modal-dialog{margin:0;max-width:100%!important;width:100%}
+  .modal-content{border-radius:0;height:100vh;display:flex;flex-direction:column}
+  .modal-body{flex:1;overflow-y:auto}
+  .picker-list{max-height:none}
+  .picker-row{padding:12px 10px;min-height:48px}
+  .from-chip{padding:7px 14px;min-height:36px}
+
+  /* Botão adicionar time */
+  .sim-add-team-panel{padding:12px}
+  .btn-add-team{width:50px;padding:12px 8px}
 }
 </style>
 </head>
@@ -379,7 +419,7 @@ body{overflow-x:hidden}
 
 <!-- Picker Modal -->
 <div class="modal fade" id="pickerModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:460px">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="pickerTitle">Selecionar</h5>

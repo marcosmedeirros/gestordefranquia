@@ -524,8 +524,12 @@ try {
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn-r secondary" disabled><i class="bi bi-lock-fill"></i>Bloqueadas</button>
           <?php elseif ($tradeCount >= $maxTrades): ?>
+            <button class="btn-r secondary" disabled><i class="bi bi-lightning-fill"></i>Trade Rápida</button>
             <button class="btn-r primary" disabled><i class="bi bi-plus-circle"></i>Nova Trade</button>
           <?php else: ?>
+            <button class="btn-r secondary" data-bs-toggle="modal" data-bs-target="#proposeTradeModal">
+              <i class="bi bi-lightning-fill"></i>Trade Rápida
+            </button>
             <a href="/trade-simulator.php?propose=1" class="btn-r primary" style="text-decoration:none">
               <i class="bi bi-plus-circle"></i>Nova Trade
             </a>
