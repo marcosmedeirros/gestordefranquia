@@ -39,7 +39,7 @@ if ($action === 'roster') {
                    ot.city AS orig_city, ot.name AS orig_name
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
-            WHERE pk.team_id = ?
+            WHERE pk.team_id = ? AND pk.season_year >= YEAR(CURDATE())
             ORDER BY pk.round ASC, pk.season_year ASC
         ');
         $stmtPk->execute([$tid]);

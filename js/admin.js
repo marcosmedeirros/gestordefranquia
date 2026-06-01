@@ -983,8 +983,9 @@ async function runLeaguePickSearch(teamId) {
   results.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:6px 0">Buscando...</div>';
   try {
     const data = await api(`picks.php?team_id=${teamId}&include_away=1`);
-    const owned = (data.picks || []).filter(p => Number(p.round) === 1);
-    const away  = (data.picks_away || []).filter(p => Number(p.round) === 1);
+    const curYear = new Date().getFullYear();
+    const owned = (data.picks || []).filter(p => Number(p.round) === 1 && Number(p.season_year) >= curYear);
+    const away  = (data.picks_away || []).filter(p => Number(p.round) === 1 && Number(p.season_year) >= curYear);
     _leagueSearchCache.ownedPicks = owned;
     _leagueSearchCache.awayPicks  = away;
     if (!owned.length && !away.length) {
