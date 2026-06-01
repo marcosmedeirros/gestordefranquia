@@ -4,7 +4,6 @@ require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
-
 $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis FROM usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -48,7 +47,8 @@ try {
         top_scorer VARCHAR(100) NULL,
         best_player VARCHAR(100) NULL,
         revelation VARCHAR(100) NULL,
-        champion VARCHAR(100) NULL,
+        neymar_goals VARCHAR(10) NULL,
+        points INT NOT NULL DEFAULT 0,
         submitted_at TIMESTAMP NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -63,185 +63,249 @@ try {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_user_match (user_id, match_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS copa26_official (
+        id INT NOT NULL DEFAULT 1 PRIMARY KEY,
+        groups_json TEXT NULL,
+        thirds_json TEXT NULL,
+        bracket_json TEXT NULL,
+        top_scorer VARCHAR(100) NULL,
+        best_player VARCHAR(100) NULL,
+        revelation VARCHAR(100) NULL,
+        neymar_goals VARCHAR(10) NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updated_by INT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
+
+// migrate old tables if needed
+foreach (['neymar_goals VARCHAR(10) NULL AFTER revelation','points INT NOT NULL DEFAULT 0 AFTER neymar_goals'] as $col) {
+    try { $pdo->exec("ALTER TABLE copa26_predictions ADD COLUMN $col"); } catch(Exception $e){}
+}
+
+// migrate emoji flags → ISO codes
+try {
+    $flagMigrate=['🇲🇽'=>'mx','🇯🇲'=>'jm','🇻🇪'=>'ve','🇪🇨'=>'ec','🇺🇸'=>'us','🇧🇴'=>'bo','🇵🇦'=>'pa','🇺🇾'=>'uy',
+        '🇨🇦'=>'ca','🇭🇳'=>'hn','🇨🇴'=>'co','🇵🇾'=>'py','🇧🇷'=>'br','🇯🇵'=>'jp','🇨🇿'=>'cz','🇨🇩'=>'cd',
+        '🇪🇸'=>'es','🇭🇷'=>'hr','🇲🇦'=>'ma','🇺🇿'=>'uz','🇦🇷'=>'ar','🇨🇱'=>'cl','🇹🇷'=>'tr','🇦🇴'=>'ao',
+        '🇫🇷'=>'fr','🇧🇪'=>'be','🇩🇿'=>'dz','🇳🇿'=>'nz','🇵🇹'=>'pt','🇵🇱'=>'pl','🇸🇳'=>'sn','🇬🇹'=>'gt',
+        '🇳🇱'=>'nl','🇵🇪'=>'pe','🇭🇹'=>'ht','🇸🇦'=>'sa','🇩🇪'=>'de','🇷🇸'=>'rs','🇨🇷'=>'cr','🇨🇲'=>'cm',
+        '🇮🇹'=>'it','🇶🇦'=>'qa','🇳🇮'=>'ni','🇦🇺'=>'au','🏴󠁧󠁢󠁥󠁮󠁧󠁿'=>'gb-eng','🇮🇷'=>'ir','🇸🇰'=>'sk','🇹🇭'=>'th'];
+    $fmig=$pdo->prepare("UPDATE copa26_teams SET flag=? WHERE flag=?");
+    foreach ($flagMigrate as $emoji=>$code) $fmig->execute([$code,$emoji]);
+} catch(Exception $e){}
+
+// helper
+function flagImg(string $code, int $w=20): string {
+    if (!$code) return '<span style="opacity:.3;font-size:'.($w-2).'px">🏳</span>';
+    return '<img src="https://flagcdn.com/w'.($w*2).'/'.$code.'.png" width="'.$w.'" height="'.round($w*.75).'" style="border-radius:2px;object-fit:cover" loading="lazy" onerror="this.replaceWith(\'🏳\')" alt="'.$code.'">';
+}
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
 function seedCopa26(PDO $pdo): void {
     $pdo->exec("DELETE FROM copa26_teams");
     $pdo->exec("DELETE FROM copa26_groups");
-
     $data = [
-        'A' => [['México','🇲🇽'],['Jamaica','🇯🇲'],['Venezuela','🇻🇪'],['Equador','🇪🇨']],
-        'B' => [['Estados Unidos','🇺🇸'],['Bolívia','🇧🇴'],['Panamá','🇵🇦'],['Uruguai','🇺🇾']],
-        'C' => [['Canadá','🇨🇦'],['Honduras','🇭🇳'],['Colômbia','🇨🇴'],['Paraguai','🇵🇾']],
-        'D' => [['Brasil','🇧🇷'],['Japão','🇯🇵'],['Rep. Tcheca','🇨🇿'],['Congo DR','🇨🇩']],
-        'E' => [['Espanha','🇪🇸'],['Croácia','🇭🇷'],['Marrocos','🇲🇦'],['Uzbequistão','🇺🇿']],
-        'F' => [['Argentina','🇦🇷'],['Chile','🇨🇱'],['Turquia','🇹🇷'],['Angola','🇦🇴']],
-        'G' => [['França','🇫🇷'],['Bélgica','🇧🇪'],['Argélia','🇩🇿'],['Nova Zelândia','🇳🇿']],
-        'H' => [['Portugal','🇵🇹'],['Polônia','🇵🇱'],['Senegal','🇸🇳'],['Guatemala','🇬🇹']],
-        'I' => [['Holanda','🇳🇱'],['Peru','🇵🇪'],['Haiti','🇭🇹'],['Arábia Saudita','🇸🇦']],
-        'J' => [['Alemanha','🇩🇪'],['Sérvia','🇷🇸'],['Costa Rica','🇨🇷'],['Camarões','🇨🇲']],
-        'K' => [['Itália','🇮🇹'],['Catar','🇶🇦'],['Nicarágua','🇳🇮'],['Austrália','🇦🇺']],
-        'L' => [['Inglaterra','🏴󠁧󠁢󠁥󠁮󠁧󠁿'],['Irã','🇮🇷'],['Eslováquia','🇸🇰'],['Tailândia','🇹🇭']],
+        'A'=>[['México','mx'],['Jamaica','jm'],['Venezuela','ve'],['Equador','ec']],
+        'B'=>[['Estados Unidos','us'],['Bolívia','bo'],['Panamá','pa'],['Uruguai','uy']],
+        'C'=>[['Canadá','ca'],['Honduras','hn'],['Colômbia','co'],['Paraguai','py']],
+        'D'=>[['Brasil','br'],['Japão','jp'],['Rep. Tcheca','cz'],['Congo DR','cd']],
+        'E'=>[['Espanha','es'],['Croácia','hr'],['Marrocos','ma'],['Uzbequistão','uz']],
+        'F'=>[['Argentina','ar'],['Chile','cl'],['Turquia','tr'],['Angola','ao']],
+        'G'=>[['França','fr'],['Bélgica','be'],['Argélia','dz'],['Nova Zelândia','nz']],
+        'H'=>[['Portugal','pt'],['Polônia','pl'],['Senegal','sn'],['Guatemala','gt']],
+        'I'=>[['Holanda','nl'],['Peru','pe'],['Haiti','ht'],['Arábia Saudita','sa']],
+        'J'=>[['Alemanha','de'],['Sérvia','rs'],['Costa Rica','cr'],['Camarões','cm']],
+        'K'=>[['Itália','it'],['Catar','qa'],['Nicarágua','ni'],['Austrália','au']],
+        'L'=>[['Inglaterra','gb-eng'],['Irã','ir'],['Eslováquia','sk'],['Tailândia','th']],
     ];
-
-    $sg = $pdo->prepare("INSERT INTO copa26_groups (letter) VALUES (?)");
-    $st = $pdo->prepare("INSERT INTO copa26_teams (group_id, name, flag) VALUES (?,?,?)");
-    foreach ($data as $letter => $teams) {
-        $sg->execute([$letter]);
-        $gid = $pdo->lastInsertId();
-        foreach ($teams as [$n, $f]) $st->execute([$gid, $n, $f]);
+    $sg=$pdo->prepare("INSERT INTO copa26_groups (letter) VALUES (?)");
+    $st=$pdo->prepare("INSERT INTO copa26_teams (group_id,name,flag) VALUES (?,?,?)");
+    foreach ($data as $letter=>$teams) {
+        $sg->execute([$letter]); $gid=$pdo->lastInsertId();
+        foreach ($teams as [$n,$f]) $st->execute([$gid,$n,$f]);
     }
 }
 
-// ── POST actions ──────────────────────────────────────────────────────────────
-if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'seed') {
-    seedCopa26($pdo);
-    header('Location: copa26.php'); exit;
+// ── Point calculation ─────────────────────────────────────────────────────────
+function calcAllPoints(PDO $pdo, array $off): void {
+    $og  = json_decode($off['groups_json']  ?? '[]', true) ?: [];
+    $ot  = json_decode($off['thirds_json']  ?? '[]', true) ?: [];
+    $ob  = json_decode($off['bracket_json'] ?? '{}', true) ?: [];
+    $rows = $pdo->query("SELECT * FROM copa26_predictions WHERE submitted_at IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC);
+    $upd  = $pdo->prepare("UPDATE copa26_predictions SET points=? WHERE user_id=?");
+    foreach ($rows as $p) {
+        $pts = 0;
+        $ug = json_decode($p['groups_json'] ?? '[]', true) ?: [];
+        foreach ($og as $l => $offOrder) {
+            $uo = $ug[$l] ?? [];
+            if (isset($offOrder[0],$uo[0]) && $offOrder[0]==$uo[0]) $pts++;
+            if (isset($offOrder[1],$uo[1]) && $offOrder[1]==$uo[1]) $pts++;
+            if (isset($offOrder[2],$uo[2]) && $offOrder[2]==$uo[2]) $pts++;
+        }
+        $ut = json_decode($p['thirds_json'] ?? '[]', true) ?: [];
+        foreach ($ot as $gid) if (in_array($gid,$ut)) $pts++;
+        $ub = json_decode($p['bracket_json'] ?? '{}', true) ?: [];
+        foreach ($ob as $key=>$ot2) {
+            if (!$ot2||!is_array($ot2)) continue;
+            $ut2=$ub[$key]??null;
+            if ($ut2&&is_array($ut2)&&($ut2['id']??null)==($ot2['id']??null)) $pts++;
+        }
+        // prizes 3pts each
+        $cmp = fn($a,$b)=>trim(mb_strtolower($a??''))===trim(mb_strtolower($b??''))&&trim($a??'')!=='';
+        if ($cmp($off['top_scorer'],  $p['top_scorer']))  $pts+=3;
+        if ($cmp($off['best_player'], $p['best_player'])) $pts+=3;
+        if ($cmp($off['revelation'],  $p['revelation']))  $pts+=3;
+        if (trim($off['neymar_goals']??'')!==''&&trim($p['neymar_goals']??'')==trim($off['neymar_goals'])) $pts+=3;
+        $upd->execute([$pts,$p['user_id']]);
+    }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $act  = $body['action'] ?? '';
+// ── POST handlers ─────────────────────────────────────────────────────────────
+if ($isAdmin && isset($_GET['action']) && $_GET['action']==='seed') {
+    seedCopa26($pdo); header('Location: copa26.php'); exit;
+}
 
-    if ($act === 'save') {
-        $stmt = $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,champion)
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+    header('Content-Type: application/json');
+    $body = json_decode(file_get_contents('php://input'),true)??[];
+    $act  = $body['action']??'';
+
+    if ($act==='save') {
+        $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals)
             VALUES (?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE groups_json=VALUES(groups_json),thirds_json=VALUES(thirds_json),bracket_json=VALUES(bracket_json),
-            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),champion=VALUES(champion)");
-        $stmt->execute([
-            $user_id,
-            json_encode($body['groups']  ?? []),
-            json_encode($body['thirds']  ?? []),
-            json_encode($body['bracket'] ?? []),
-            $body['top_scorer']  ?? null,
-            $body['best_player'] ?? null,
-            $body['revelation']  ?? null,
-            $body['champion']    ?? null,
-        ]);
-        echo json_encode(['ok' => true]); exit;
+            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals)")
+        ->execute([$user_id,json_encode($body['groups']??[]),json_encode($body['thirds']??[]),
+            json_encode($body['bracket']??[]),$body['top_scorer']??null,$body['best_player']??null,
+            $body['revelation']??null,$body['neymar_goals']??null]);
+        echo json_encode(['ok'=>true]); exit;
     }
-
-    if ($act === 'submit') {
-        $pdo->prepare("UPDATE copa26_predictions SET submitted_at=NOW() WHERE user_id=? AND submitted_at IS NULL")
-            ->execute([$user_id]);
-        echo json_encode(['ok' => true]); exit;
+    if ($act==='submit') {
+        $pdo->prepare("UPDATE copa26_predictions SET submitted_at=NOW() WHERE user_id=? AND submitted_at IS NULL")->execute([$user_id]);
+        echo json_encode(['ok'=>true]); exit;
     }
-
-    if ($act === 'scores') {
-        $scores = $body['scores'] ?? [];
-        $stmt = $pdo->prepare("INSERT INTO copa26_score_preds (user_id,match_id,score_home,score_away) VALUES (?,?,?,?)
+    if ($act==='scores') {
+        $st=$pdo->prepare("INSERT INTO copa26_score_preds (user_id,match_id,score_home,score_away) VALUES (?,?,?,?)
             ON DUPLICATE KEY UPDATE score_home=VALUES(score_home),score_away=VALUES(score_away)");
-        foreach ($scores as $mid => $s)
-            $stmt->execute([$user_id, (int)$mid, (int)($s['h'] ?? 0), (int)($s['a'] ?? 0)]);
-        echo json_encode(['ok' => true]); exit;
+        foreach ($body['scores']??[] as $mid=>$s) $st->execute([$user_id,(int)$mid,(int)($s['h']??0),(int)($s['a']??0)]);
+        echo json_encode(['ok'=>true]); exit;
     }
-
-    if ($act === 'set_result' && $isAdmin) {
+    if ($act==='set_result'&&$isAdmin) {
         $pdo->prepare("UPDATE copa26_matches SET score_home=?,score_away=? WHERE id=?")
-            ->execute([(int)($body['home'] ?? 0), (int)($body['away'] ?? 0), (int)($body['match_id'] ?? 0)]);
-        echo json_encode(['ok' => true]); exit;
+            ->execute([(int)($body['home']??0),(int)($body['away']??0),(int)($body['match_id']??0)]);
+        echo json_encode(['ok'=>true]); exit;
     }
-
-    echo json_encode(['ok' => false]); exit;
+    if ($act==='add_match'&&$isAdmin) {
+        $pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,home_name,away_name,phase) VALUES (?,?,?,?,?,?,?)")
+            ->execute([$body['date'],$body['time']??null,$body['home_id']??null,$body['away_id']??null,
+                $body['home_name']??null,$body['away_name']??null,$body['phase']??'group']);
+        echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='del_match'&&$isAdmin) {
+        $pdo->prepare("DELETE FROM copa26_matches WHERE id=?")->execute([(int)($body['match_id']??0)]);
+        echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='save_official'&&$isAdmin) {
+        $pdo->prepare("INSERT INTO copa26_official (id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,updated_by)
+            VALUES (1,?,?,?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE groups_json=VALUES(groups_json),thirds_json=VALUES(thirds_json),bracket_json=VALUES(bracket_json),
+            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals),updated_by=VALUES(updated_by)")
+        ->execute([json_encode($body['groups']??[]),json_encode($body['thirds']??[]),
+            json_encode($body['bracket']??[]),$body['top_scorer']??null,$body['best_player']??null,
+            $body['revelation']??null,$body['neymar_goals']??null,$user_id]);
+        echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='calc_points'&&$isAdmin) {
+        $off=$pdo->query("SELECT * FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+        if ($off) { calcAllPoints($pdo,$off); echo json_encode(['ok'=>true,'msg'=>'Pontos calculados!']); }
+        else echo json_encode(['ok'=>false,'msg'=>'Configure o resultado oficial primeiro.']);
+        exit;
+    }
+    echo json_encode(['ok'=>false]); exit;
 }
 
-// ── Load groups / teams ───────────────────────────────────────────────────────
-$groups = [];
+// ── Load data ─────────────────────────────────────────────────────────────────
+$groups=[];
 try {
-    $rows = $pdo->query("SELECT g.id gid, g.letter, t.id tid, t.name, t.flag
-        FROM copa26_groups g LEFT JOIN copa26_teams t ON t.group_id=g.id
-        ORDER BY g.letter, t.name")->fetchAll(PDO::FETCH_ASSOC);
+    $rows=$pdo->query("SELECT g.id gid,g.letter,t.id tid,t.name,t.flag FROM copa26_groups g LEFT JOIN copa26_teams t ON t.group_id=g.id ORDER BY g.letter,t.name")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $r) {
-        $l = $r['letter'];
-        if (!isset($groups[$l])) $groups[$l] = ['id' => $r['gid'], 'teams' => []];
-        if ($r['tid']) $groups[$l]['teams'][] = ['id' => $r['tid'], 'name' => $r['name'], 'flag' => $r['flag'] ?? ''];
+        $l=$r['letter'];
+        if (!isset($groups[$l])) $groups[$l]=['id'=>$r['gid'],'teams'=>[]];
+        if ($r['tid']) $groups[$l]['teams'][]=['id'=>$r['tid'],'name'=>$r['name'],'flag'=>$r['flag']??''];
     }
-} catch (Exception $e) {}
+} catch(Exception $e){}
 
-$allTeams = [];
-foreach ($groups as $g) foreach ($g['teams'] as $t) $allTeams[$t['id']] = $t;
+$allTeams=[];
+foreach ($groups as $g) foreach ($g['teams'] as $t) $allTeams[$t['id']]=$t;
 
-$pred = null;
+$pred=null;
+try { $s=$pdo->prepare("SELECT * FROM copa26_predictions WHERE user_id=?"); $s->execute([$user_id]); $pred=$s->fetch(PDO::FETCH_ASSOC)?:null; } catch(Exception $e){}
+
+$submitted    = !empty($pred['submitted_at']);
+$predGroups   = $pred?(json_decode($pred['groups_json']  ??'[]',true)?:[]):[];
+$predThirds   = $pred?(json_decode($pred['thirds_json']  ??'[]',true)?:[]):[];
+$predBracket  = $pred?(json_decode($pred['bracket_json'] ??'{}',true)?:[]):[];
+
+$official=null; $hasOfficial=false;
+try { $official=$pdo->query("SELECT * FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC)?:null; $hasOfficial=$official&&($official['groups_json']||$official['bracket_json']); } catch(Exception $e){}
+
+$offGroups  = $official?(json_decode($official['groups_json']  ??'[]',true)?:[]):[];
+$offThirds  = $official?(json_decode($official['thirds_json']  ??'[]',true)?:[]):[];
+$offBracket = $official?(json_decode($official['bracket_json'] ??'{}',true)?:[]):[];
+
+$ranking=[];
 try {
-    $s = $pdo->prepare("SELECT * FROM copa26_predictions WHERE user_id=?");
-    $s->execute([$user_id]);
-    $pred = $s->fetch(PDO::FETCH_ASSOC) ?: null;
-} catch (Exception $e) {}
+    $ranking=$pdo->query("SELECT u.nome,p.points,p.champion,p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id WHERE p.submitted_at IS NOT NULL ORDER BY p.points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+} catch(Exception $e){}
 
-$submitted   = !empty($pred['submitted_at']);
-$predGroups  = $pred ? (json_decode($pred['groups_json']  ?? '[]', true) ?: []) : [];
-$predThirds  = $pred ? (json_decode($pred['thirds_json']  ?? '[]', true) ?: []) : [];
-$predBracket = $pred ? (json_decode($pred['bracket_json'] ?? '{}', true) ?: []) : [];
-
-// Today's matches
-$todayMatches = [];
+// all matches (for Jogos tab)
+$allMatches=[];
 try {
-    $todayMatches = $pdo->query("SELECT m.*,
-        ht.name hname, ht.flag hflag,
-        at.name aname, at.flag aflag
-        FROM copa26_matches m
-        LEFT JOIN copa26_teams ht ON ht.id=m.home_team_id
-        LEFT JOIN copa26_teams at ON at.id=m.away_team_id
-        WHERE m.match_date=CURDATE() ORDER BY m.match_time")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+    $allMatches=$pdo->query("SELECT m.*,ht.name hname,ht.flag hflag,at.name aname,at.flag aflag FROM copa26_matches m LEFT JOIN copa26_teams ht ON ht.id=m.home_team_id LEFT JOIN copa26_teams at ON at.id=m.away_team_id ORDER BY m.match_date,m.match_time")->fetchAll(PDO::FETCH_ASSOC);
+} catch(Exception $e){}
 
-$myScores = [];
-if ($todayMatches) {
+$matchesByDate=[]; foreach ($allMatches as $m) $matchesByDate[$m['match_date']][]=$m;
+$allScores=[];
+if ($allMatches) {
     try {
-        $ids = array_column($todayMatches, 'id');
-        $ph  = implode(',', array_fill(0, count($ids), '?'));
-        $s   = $pdo->prepare("SELECT * FROM copa26_score_preds WHERE user_id=? AND match_id IN ($ph)");
-        $s->execute(array_merge([$user_id], $ids));
-        foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $r) $myScores[$r['match_id']] = $r;
-    } catch (Exception $e) {}
+        $ids=array_column($allMatches,'id'); $ph=implode(',',array_fill(0,count($ids),'?'));
+        $s=$pdo->prepare("SELECT * FROM copa26_score_preds WHERE user_id=? AND match_id IN ($ph)");
+        $s->execute(array_merge([$user_id],$ids));
+        foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $r) $allScores[$r['match_id']]=$r;
+    } catch(Exception $e){}
 }
 
-$seeded = !empty($groups);
-$nameInitial = mb_strtoupper(mb_substr($usuario['nome'] ?? 'U', 0, 1));
+$seeded=!empty($groups);
+$nameInitial=mb_strtoupper(mb_substr($usuario['nome']??'U',0,1));
+$today=date('Y-m-d');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#fc0025">
 <title>Bolão Copa 2026 · FBA Games</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root{
-  --red:#fc0025;--red-soft:rgba(252,0,37,.10);--red-glow:rgba(252,0,37,.18);
-  --bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;
-  --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);
-  --text:#f0f0f3;--text-2:#868690;--text-3:#48484f;
-  --green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--gold:#f59e0b;
-  --font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);
-  --sw:220px;
-}
+:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--gold:#f59e0b;--purple:#a78bfa;--font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);--sw:220px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
-
-/* Sidebar */
+/* sidebar */
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sw);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:200;overflow-y:auto;scrollbar-width:none}
 .sidebar::-webkit-scrollbar{display:none}
 .sb-header{display:flex;align-items:center;gap:10px;padding:16px 14px 12px;border-bottom:1px solid var(--border)}
 .sb-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
-.sb-brand{font-weight:800;font-size:13px;color:var(--text)}
-.sb-brand span{color:var(--red)}
+.sb-brand{font-weight:800;font-size:13px;color:var(--text)}.sb-brand span{color:var(--red)}
 .sb-close{display:none;background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;margin-left:auto}
 .sb-user{padding:14px;border-bottom:1px solid var(--border)}
 .sb-avatar{width:38px;height:38px;border-radius:50%;background:var(--red-soft);border:2px solid rgba(252,0,37,.2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:var(--red);margin-bottom:7px}
-.sb-user-name{font-size:12px;font-weight:700;color:#fff}
-.sb-user-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+.sb-user-name{font-size:12px;font-weight:700;color:#fff}.sb-user-role{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
 .sb-stats{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:5px}
 .sb-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;background:var(--panel-2);border-radius:8px;border:1px solid var(--border)}
-.sb-stat i{font-size:12px;color:var(--red)}
-.sb-stat-val{font-size:11px;font-weight:700;color:var(--text);line-height:1}
-.sb-stat-label{font-size:9px;color:var(--text-3)}
-.sb-nav{flex:1;padding:8px 0}
-.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
+.sb-stat i{font-size:12px;color:var(--red)}.sb-stat-val{font-size:11px;font-weight:700;color:var(--text);line-height:1}.sb-stat-label{font-size:9px;color:var(--text-3)}
+.sb-nav{flex:1;padding:8px 0}.sb-nav-section{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:8px 14px 4px}
 .sb-link{display:flex;align-items:center;gap:10px;padding:9px 14px;text-decoration:none;font-size:12px;font-weight:500;color:var(--text-2);border-left:3px solid transparent;transition:all var(--t) var(--ease)}
 .sb-link i{width:16px;text-align:center;font-size:13px}
 .sb-link:hover{background:var(--panel-2);color:var(--text);border-left-color:var(--border-md)}
@@ -249,153 +313,160 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .sb-footer{padding:12px 14px;border-top:1px solid var(--border);margin-top:auto}
 .sb-logout{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-2);text-decoration:none;font-size:12px;font-weight:600;transition:all var(--t) var(--ease)}
 .sb-logout:hover{background:var(--red-soft);border-color:rgba(252,0,37,.2);color:var(--red)}
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199}
-.sb-overlay.open{display:block}
-
-/* Page layout */
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199}.sb-overlay.open{display:block}
+/* layout */
 .page{margin-left:var(--sw);min-height:100vh;display:flex;flex-direction:column}
 .mob-bar{display:none;height:52px;background:var(--panel);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:100}
 .mob-ham{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}
-.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}
-.mob-title span{color:var(--red)}
+.mob-title{font-size:14px;font-weight:800;color:var(--text);flex:1}.mob-title span{color:var(--red)}
 .main{flex:1;padding:20px 24px 60px;max-width:1100px;margin:0 auto;width:100%}
-
-/* Generic */
+/* buttons */
 .btn-r{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;border:none;cursor:pointer;transition:opacity var(--t);font-family:var(--font);text-decoration:none}
-.btn-r:hover{opacity:.85}
-.btn-r.primary{background:var(--red);color:#fff}
-.btn-r.secondary{background:var(--panel-3);color:var(--text-2);border:1px solid var(--border)}
-.btn-r.outline{background:transparent;color:var(--red);border:1px solid rgba(252,0,37,.3)}
-.btn-r.gold{background:rgba(245,158,11,.15);color:var(--gold);border:1px solid rgba(245,158,11,.3)}
-.btn-r:disabled{opacity:.35;cursor:not-allowed}
-.btn-r.sm{padding:5px 12px;font-size:12px}
-.btn-r.lg{padding:11px 24px;font-size:14px;font-weight:700}
+.btn-r:hover{opacity:.85}.btn-r.primary{background:var(--red);color:#fff}.btn-r.secondary{background:var(--panel-3);color:var(--text-2);border:1px solid var(--border)}
+.btn-r.outline{background:transparent;color:var(--red);border:1px solid rgba(252,0,37,.3)}.btn-r.gold{background:rgba(245,158,11,.15);color:var(--gold);border:1px solid rgba(245,158,11,.3)}
+.btn-r.purple{background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.3)}.btn-r.green-btn{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-r:disabled{opacity:.35;cursor:not-allowed}.btn-r.sm{padding:5px 12px;font-size:12px}.btn-r.lg{padding:11px 24px;font-size:14px;font-weight:700}
 .tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
-.tag.gray{background:var(--panel-3);color:var(--text-2)}
-.tag.green{background:rgba(34,197,94,.12);color:#22c55e}
-
-/* Copa hero */
-.copa-hero{background:linear-gradient(135deg,#0a1628 0%,#1a0510 100%);border:1px solid rgba(252,0,37,.22);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-.copa-hero::before{content:'⚽';position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:72px;opacity:.05;pointer-events:none}
-.copa-hero-title{font-size:22px;font-weight:800;color:#fff}
-.copa-hero-title span{color:var(--red)}
-.copa-hero-sub{font-size:12px;color:rgba(255,255,255,.45);margin-top:3px}
-
-/* Tabs */
+.tag.gray{background:var(--panel-3);color:var(--text-2)}.tag.green{background:rgba(34,197,94,.12);color:#22c55e}
+/* copa hero */
+.copa-hero{background:linear-gradient(135deg,#0a1628 0%,#1a0510 100%);border:1px solid rgba(252,0,37,.22);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.copa-hero::before{content:'⚽';position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:72px;opacity:.05;pointer-events:none}
+.copa-hero-title{font-size:22px;font-weight:800;color:#fff}.copa-hero-title span{color:var(--red)}
+.copa-hero-sub{font-size:12px;color:rgba(255,255,255,.4);margin-top:2px}
+/* accordion */
+.accordion{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:20px;overflow:hidden}
+.accordion-header{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;cursor:pointer;user-select:none;transition:background var(--t)}
+.accordion-header:hover{background:var(--panel-2)}
+.accordion-title{font-size:14px;font-weight:600;color:var(--text)}
+.accordion-pts{font-size:13px;font-weight:700;color:var(--gold);margin-left:10px}
+.accordion-chevron{font-size:16px;color:var(--text-3);transition:transform var(--t)}.accordion-chevron.open{transform:rotate(180deg)}
+.accordion-body{display:none;border-top:1px solid var(--border)}.accordion-body.open{display:block}
+.pred-summary{padding:16px 18px}
+.pred-section{margin-bottom:16px}.pred-section:last-child{margin-bottom:0}
+.pred-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:9px}
+.pred-groups-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.pred-group-mini{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.pred-group-mini-letter{font-size:10px;font-weight:700;color:var(--red);margin-bottom:4px}
+.pred-team-mini{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-2);margin-bottom:2px}
+.pred-team-mini.first{color:var(--gold);font-weight:600}.pred-team-mini.second{color:var(--blue);font-weight:600}
+.pred-thirds-mini{display:flex;flex-wrap:wrap;gap:5px}
+.pred-third-pill{background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--text-2)}
+.pred-awards{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.pred-award{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:8px}
+.pred-award-icon{font-size:18px}.pred-award-name{font-size:12px;font-weight:600;color:var(--text)}.pred-award-label{font-size:10px;color:var(--text-3)}
+/* tabs */
 .copa-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;scrollbar-width:none}
 .copa-tabs::-webkit-scrollbar{display:none}
-.copa-tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--text-2);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;font-family:var(--font);transition:color var(--t)}
-.copa-tab:hover{color:var(--text)}
-.copa-tab.active{color:var(--red);border-bottom-color:var(--red);font-weight:600}
-.copa-pane{display:none}
-.copa-pane.active{display:block}
-
-/* Daily scores */
-.score-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-.score-team{display:flex;align-items:center;gap:8px;flex:1;min-width:100px}
-.score-team-name{font-size:13px;font-weight:600;color:var(--text)}
-.score-team.right{flex-direction:row-reverse}
-.score-team.right .score-team-name{text-align:right}
-.score-input-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.score-input{width:44px;height:36px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;color:var(--text);font-size:16px;font-weight:700;text-align:center;font-family:var(--font)}
-.score-input:focus{outline:none;border-color:var(--red)}
-.score-sep{color:var(--text-3);font-weight:700}
-.score-result{font-size:18px;font-weight:800;color:var(--green);text-align:center;min-width:54px;flex-shrink:0}
-.score-time{font-size:11px;color:var(--text-3);flex-shrink:0}
-
-/* Groups */
+.copa-tab{padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-2);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;font-family:var(--font);transition:color var(--t)}
+.copa-tab:hover{color:var(--text)}.copa-tab.active{color:var(--red);border-bottom-color:var(--red);font-weight:600}
+.copa-tab.admin-tab{color:var(--purple)}.copa-tab.admin-tab.active{color:var(--purple);border-bottom-color:var(--purple)}
+.copa-pane{display:none}.copa-pane.active{display:block}
+/* groups */
 .groups-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .group-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
 .group-card-header{padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.group-letter{font-size:12px;font-weight:700;color:var(--red)}
-.group-label{font-size:10px;color:var(--text-3);text-transform:uppercase}
+.group-letter{font-size:12px;font-weight:700;color:var(--red)}.group-label{font-size:10px;color:var(--text-3);text-transform:uppercase}
 .group-teams{padding:6px}
-.team-row{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:7px;cursor:pointer;transition:background var(--t);border:1px solid transparent;margin-bottom:3px;user-select:none}
-.team-row:last-child{margin-bottom:0}
-.team-row:hover{background:var(--panel-2)}
+.team-row{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:7px;transition:background var(--t);border:1px solid transparent;margin-bottom:3px;user-select:none}
+.team-row:last-child{margin-bottom:0}.team-row:hover{background:var(--panel-2)}
 .team-row.rank-1{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2)}
 .team-row.rank-2{background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.15)}
 .team-row.rank-3{background:rgba(255,255,255,.02)}
 .team-rank{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
-.rank-1 .team-rank{background:rgba(245,158,11,.2);color:var(--gold)}
-.rank-2 .team-rank{background:rgba(59,130,246,.15);color:var(--blue)}
+.rank-1 .team-rank{background:rgba(245,158,11,.2);color:var(--gold)}.rank-2 .team-rank{background:rgba(59,130,246,.15);color:var(--blue)}
 .rank-3 .team-rank,.rank-4 .team-rank{background:var(--panel-3);color:var(--text-3)}
-.team-flag{font-size:15px;flex-shrink:0}
-.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}.team-flag img{width:20px;height:auto;border-radius:2px;display:block}.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .team-arrows{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
 .arrow-btn{background:none;border:none;color:var(--text-3);cursor:pointer;padding:0 2px;font-size:10px;line-height:1.2;transition:color var(--t)}
-.arrow-btn:hover{color:var(--text)}
-.arrow-btn:disabled{opacity:.2;cursor:default}
+.arrow-btn:hover{color:var(--text)}.arrow-btn:disabled{opacity:.2;cursor:default}
 .advance-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
-.advance-1{background:rgba(245,158,11,.15);color:var(--gold)}
-.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}
-.advance-3{background:rgba(255,255,255,.05);color:var(--text-3)}
-
-/* 3rd place */
+.advance-1{background:rgba(245,158,11,.15);color:var(--gold)}.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}.advance-3{background:rgba(255,255,255,.05);color:var(--text-3)}
+/* thirds */
 .thirds-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 .third-slot{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all var(--t);position:relative}
-.third-slot:hover{border-color:var(--border-md)}
-.third-slot.selected{border-color:var(--blue);background:rgba(59,130,246,.07)}
-.third-slot-flag{font-size:20px;margin-bottom:3px}
-.third-slot-name{font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.third-slot-group{font-size:9px;color:var(--text-3)}
+.third-slot:hover{border-color:var(--border-md)}.third-slot.selected{border-color:var(--blue);background:rgba(59,130,246,.07)}
+.third-slot-flag{height:22px;display:flex;justify-content:center;align-items:center;margin-bottom:3px}.third-slot-flag img{width:28px;height:auto;border-radius:2px}.third-slot-name{font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.third-slot-group{font-size:9px;color:var(--text-3)}
 .third-check{position:absolute;top:3px;right:3px;font-size:10px;color:var(--blue)}
-
-/* Bracket */
+/* bracket */
 .bracket-wrap{overflow-x:auto;padding-bottom:8px}
 .bracket{display:flex;align-items:stretch;min-width:860px}
 .bracket-round{display:flex;flex-direction:column;justify-content:space-around;flex:1;padding:0 3px}
 .bracket-round-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);text-align:center;padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:6px}
 .bracket-match{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:3px 0;cursor:pointer;transition:border-color var(--t)}
 .bracket-match:hover{border-color:var(--border-md)}
-.bracket-slot{padding:5px 9px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--text);min-height:28px;transition:background var(--t)}
-.bracket-slot.winner{background:rgba(34,197,94,.08);color:var(--green);font-weight:700}
-.bracket-slot.tbd{color:var(--text-3)}
-.bracket-slot-flag{font-size:12px;flex-shrink:0}
-.bracket-slot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bracket-slot{padding:5px 9px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--text);min-height:28px}
+.bracket-slot.winner{background:rgba(34,197,94,.08);color:var(--green);font-weight:700}.bracket-slot.tbd{color:var(--text-3)}
+.bracket-slot-flag{width:18px;flex-shrink:0;display:flex;align-items:center}.bracket-slot-flag img{width:18px;height:auto;border-radius:2px}.bracket-slot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bracket-divider{height:1px;background:var(--border);margin:0 7px}
-
-/* Awards */
-.awards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.award-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px}
-.award-icon{font-size:26px;margin-bottom:7px}
-.award-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px}
-.award-sub{font-size:11px;color:var(--text-2);margin-bottom:10px}
-.award-select,.award-input{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-family:var(--font)}
-.award-select:focus,.award-input:focus{outline:none;border-color:var(--red)}
-.award-input::placeholder{color:var(--text-3)}
-
-/* Submit */
+/* prizes */
+.prizes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}
+.prize-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
+.prize-icon{font-size:24px;margin-bottom:6px}.prize-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px}
+.prize-sub{font-size:11px;color:var(--text-2);margin-bottom:8px}
+.prize-input,.prize-select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-family:var(--font)}
+.prize-input:focus,.prize-select:focus{outline:none;border-color:var(--red)}.prize-input::placeholder{color:var(--text-3)}
+.prize-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,.12);color:var(--gold);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;margin-left:8px}
+/* submit bar */
 .submit-bar{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:20px;flex-wrap:wrap}
-.submit-bar-info{font-size:13px;color:var(--text-2)}
-.submit-bar-info strong{color:var(--text)}
-.submitted-banner{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:var(--radius-sm);padding:12px 18px;display:flex;align-items:center;gap:9px;margin-bottom:18px;color:var(--green);font-weight:600;font-size:13px}
+.submit-bar-info{font-size:13px;color:var(--text-2)}.submit-bar-info strong{color:var(--text)}
+.submitted-banner{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:var(--radius-sm);padding:11px 16px;display:flex;align-items:center;gap:9px;margin-bottom:16px;color:var(--green);font-weight:600;font-size:13px}
+/* jogos */
+.date-group{margin-bottom:20px}
+.date-group-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.date-label{font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em}
+.date-today{background:rgba(252,0,37,.12);color:var(--red);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
+.score-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+.score-team{display:flex;align-items:center;gap:7px;flex:1;min-width:80px}
+.score-team-name{font-size:12px;font-weight:600;color:var(--text)}
+.score-team.right{flex-direction:row-reverse}.score-team.right .score-team-name{text-align:right}
+.score-input-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.score-input{width:42px;height:34px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;color:var(--text);font-size:15px;font-weight:700;text-align:center;font-family:var(--font)}
+.score-input:focus{outline:none;border-color:var(--red)}
+.score-sep{color:var(--text-3);font-weight:700;font-size:12px}
+.score-result-display{font-size:17px;font-weight:800;color:var(--green);flex-shrink:0;min-width:46px;text-align:center}
+.score-time{font-size:10px;color:var(--text-3);flex-shrink:0}
+.score-pred-result{font-size:10px;color:var(--text-3);flex-shrink:0}
+.no-matches{text-align:center;padding:40px 0;color:var(--text-3);font-size:13px}
+/* ranking */
+.ranking-table{width:100%;border-collapse:collapse}
+.ranking-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:7px 12px;border-bottom:1px solid var(--border);text-align:left}
+.ranking-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-2)}
+.ranking-table tr:last-child td{border-bottom:none}
+.ranking-table tr.me td{background:rgba(252,0,37,.04);font-weight:600}
+.ranking-name{font-weight:600;color:var(--text)}
+.ranking-pts{font-weight:700;color:var(--gold);font-size:14px}.ranking-pts.zero{color:var(--text-3)}
+/* admin */
+.admin-section{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 18px;margin-bottom:16px}
+.admin-section-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.admin-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;align-items:end}
+.admin-form-group{display:flex;flex-direction:column;gap:4px}
+.admin-form-group label{font-size:11px;font-weight:600;color:var(--text-3)}
+.admin-input,.admin-select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--font);width:100%}
+.admin-input:focus,.admin-select:focus{outline:none;border-color:var(--purple)}
+.match-row{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;flex-wrap:wrap}
+.match-row-info{flex:1;font-size:12px;color:var(--text-2)}
+.match-row-teams{font-weight:600;color:var(--text);font-size:13px}
+.match-row-date{font-size:10px;color:var(--text-3)}
+.scoring-legend{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-2)}
+.scoring-legend li{margin-bottom:4px;list-style:none;padding-left:4px}
+/* no data */
 .no-data{text-align:center;padding:60px 20px}
-.no-data-icon{font-size:48px;margin-bottom:14px}
-.no-data-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px}
-.no-data-sub{font-size:13px;color:var(--text-2)}
-.section-header{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px}
-
+.no-data-icon{font-size:48px;margin-bottom:14px}.no-data-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px}.no-data-sub{font-size:13px;color:var(--text-2)}
+.section-info{font-size:12px;color:var(--text-2);margin-bottom:14px}
 @media(max-width:900px){
-  .sidebar{transform:translateX(-100%);transition:transform var(--t) var(--ease)}
-  .sidebar.open{transform:translateX(0)}
-  .sb-close{display:block}
-  .page{margin-left:0}
-  .mob-bar{display:flex}
-  .groups-grid{grid-template-columns:repeat(2,1fr)}
+  .sidebar{transform:translateX(-100%);transition:transform var(--t) var(--ease)}.sidebar.open{transform:translateX(0)}
+  .sb-close{display:block}.page{margin-left:0}.mob-bar{display:flex}
+  .groups-grid,.admin-groups-grid{grid-template-columns:repeat(2,1fr)}
   .thirds-grid{grid-template-columns:repeat(4,1fr)}
-  .awards-grid{grid-template-columns:1fr}
+  .prizes-grid{grid-template-columns:1fr}
+  .pred-groups-mini{grid-template-columns:repeat(2,1fr)}
+  .pred-awards{grid-template-columns:1fr}
 }
-@media(max-width:540px){
-  .main{padding:14px 14px 40px}
-  .groups-grid{grid-template-columns:repeat(2,1fr)}
-  .thirds-grid{grid-template-columns:repeat(3,1fr)}
-}
+@media(max-width:540px){.main{padding:14px 14px 40px}.groups-grid{grid-template-columns:repeat(2,1fr)}.thirds-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
   <div class="sb-header">
     <div class="sb-logo">FBA</div>
@@ -404,8 +475,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   </div>
   <div class="sb-user">
     <div class="sb-avatar"><?=htmlspecialchars($nameInitial)?></div>
-    <div class="sb-user-name"><?=htmlspecialchars($usuario['nome'] ?? '')?></div>
-    <div class="sb-user-role"><?=$isAdmin ? 'Admin' : 'Jogador'?></div>
+    <div class="sb-user-name"><?=htmlspecialchars($usuario['nome']??'')?></div>
+    <div class="sb-user-role"><?=$isAdmin?'Admin':'Jogador'?></div>
   </div>
   <div class="sb-stats">
     <div class="sb-stat"><i class="bi bi-coin"></i><span class="sb-stat-val"><?=(int)($usuario['pontos']??0)?></span><span class="sb-stat-label">Moedas</span></div>
@@ -418,10 +489,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <a class="sb-link" href="bracket.php"><i class="bi bi-diagram-3-fill"></i>Bracket NBA</a>
     <a class="sb-link active" href="copa26.php"><i class="bi bi-trophy-fill"></i>Bolão Copa 2026</a>
     <a class="sb-link" href="user/ranking.php"><i class="bi bi-bar-chart-fill"></i>Ranking</a>
-    <?php if ($isAdmin): ?>
-    <div class="sb-nav-section">Admin</div>
-    <a class="sb-link" href="admin/dashboard.php"><i class="bi bi-shield-lock-fill"></i>Painel Admin</a>
-    <?php endif; ?>
   </nav>
   <div class="sb-footer">
     <a class="sb-logout" href="auth/logout.php"><i class="bi bi-box-arrow-right"></i>Sair</a>
@@ -430,574 +497,641 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
 
 <div class="page">
-  <!-- Mobile bar -->
-  <div class="mob-bar">
-    <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
-    <div class="mob-title">Bolão <span>Copa 2026</span></div>
-    <?php if ($submitted): ?>
-    <span class="tag green" style="font-size:10px"><i class="bi bi-check-circle-fill"></i>Enviado</span>
-    <?php endif; ?>
+<div class="mob-bar">
+  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+  <div class="mob-title">Bolão <span>Copa 2026</span></div>
+  <?php if ($submitted): ?><span class="tag green" style="font-size:10px"><i class="bi bi-check-circle-fill"></i>Enviado</span><?php endif; ?>
+</div>
+
+<div class="main">
+
+<!-- Copa hero -->
+<div class="copa-hero">
+  <div>
+    <div class="copa-hero-title">Copa do Mundo <span>2026</span></div>
+    <div class="copa-hero-sub">48 seleções · 12 grupos · USA, Canadá, México</div>
   </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <?php if ($submitted): ?><span class="tag green"><i class="bi bi-check-circle-fill"></i>Palpite enviado</span>
+    <?php elseif ($seeded): ?><span class="tag gray">Palpites abertos</span><?php endif; ?>
+  </div>
+</div>
 
-  <div class="main">
+<?php if (!$seeded): ?>
+<div class="no-data">
+  <div class="no-data-icon">⚽</div>
+  <div class="no-data-title">Bolão ainda não configurado</div>
+  <div class="no-data-sub">Aguarde o administrador configurar os grupos.</div>
+  <?php if ($isAdmin): ?><br><a href="copa26.php?action=seed" class="btn-r primary" style="margin-top:12px"><i class="bi bi-database-fill-add"></i>Configurar agora</a><?php endif; ?>
+</div>
+<?php else: ?>
 
-    <!-- Copa hero -->
-    <div class="copa-hero">
-      <div>
-        <div class="copa-hero-title">Copa do Mundo <span>2026</span></div>
-        <div class="copa-hero-sub">48 seleções · 12 grupos · USA, Canadá, México</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <?php if ($submitted): ?>
-        <span class="tag green"><i class="bi bi-check-circle-fill"></i>Palpite enviado</span>
-        <?php elseif ($seeded): ?>
-        <span class="tag gray">Palpites abertos</span>
-        <?php endif; ?>
-        <?php if ($isAdmin): ?>
-        <?php if (!$seeded): ?>
-        <a href="copa26.php?action=seed" class="btn-r outline sm"><i class="bi bi-database-fill-add"></i>Configurar grupos</a>
-        <?php else: ?>
-        <a href="copa26.php?action=seed" class="btn-r secondary sm" onclick="return confirm('Reconfigurar apaga todos os palpites. Confirmar?')"><i class="bi bi-arrow-counterclockwise"></i>Reconfigurar</a>
-        <?php endif; ?>
-        <?php endif; ?>
-      </div>
+<!-- Submitted banner -->
+<?php if ($submitted): ?>
+<div class="submitted-banner">
+  <i class="bi bi-check-circle-fill" style="font-size:18px"></i>
+  Palpite enviado em <?=date('d/m/Y H:i',strtotime($pred['submitted_at']??''))?>!
+  <?php if ($hasOfficial): ?>&nbsp;—&nbsp;Você fez <strong style="color:var(--gold)"><?=(int)($pred['points']??0)?> pontos</strong><?php endif; ?>
+</div>
+
+<!-- Accordion: meu palpite -->
+<div class="accordion" id="myPredAccordion">
+  <div class="accordion-header" onclick="toggleAccordion('myPredAccordion')">
+    <div style="display:flex;align-items:center;gap:8px">
+      <i class="bi bi-person-check-fill" style="color:var(--gold)"></i>
+      <span class="accordion-title">Meu Palpite</span>
+      <?php if ($hasOfficial): ?><span class="accordion-pts"><?=(int)($pred['points']??0)?> pts</span><?php endif; ?>
     </div>
-
-    <?php if (!$seeded): ?>
-    <div class="no-data">
-      <div class="no-data-icon">⚽</div>
-      <div class="no-data-title">Bolão ainda não configurado</div>
-      <div class="no-data-sub">Aguarde o administrador configurar os grupos.</div>
-      <?php if ($isAdmin): ?>
-      <br><a href="copa26.php?action=seed" class="btn-r primary">
-        <i class="bi bi-database-fill-add"></i>Configurar agora
-      </a>
-      <?php endif; ?>
-    </div>
-    <?php else: ?>
-
-    <!-- ── Daily scores ──────────────────────────────────────────────────── -->
-    <?php if ($todayMatches): ?>
-    <div style="margin-bottom:24px">
-      <div class="section-header">
-        <i class="bi bi-calendar-event-fill" style="color:var(--red)"></i>
-        Acerte o Placar — Jogos de Hoje
-      </div>
-      <?php foreach ($todayMatches as $m):
-          $hName = $m['hname'] ?: $m['home_name'] ?: 'Time A';
-          $aName = $m['aname'] ?: $m['away_name'] ?: 'Time B';
-          $hFlag = $m['hflag'] ?? '🏳';
-          $aFlag = $m['aflag'] ?? '🏳';
-          $sp    = $myScores[$m['id']] ?? null;
-          $hasResult = $m['score_home'] !== null;
-      ?>
-      <div class="score-card" data-match="<?=$m['id']?>">
-        <div class="score-team">
-          <span style="font-size:18px"><?=$hFlag?></span>
-          <span class="score-team-name"><?=htmlspecialchars($hName)?></span>
-        </div>
-        <?php if ($hasResult): ?>
-        <div class="score-result"><?=$m['score_home']?> – <?=$m['score_away']?></div>
-        <?php else: ?>
-        <div class="score-input-wrap">
-          <input type="number" min="0" max="30" class="score-input" id="sh_<?=$m['id']?>"
-                 value="<?=$sp ? $sp['score_home'] : ''?>" placeholder="0"
-                 <?=$submitted ? 'readonly' : ''?>>
-          <span class="score-sep">×</span>
-          <input type="number" min="0" max="30" class="score-input" id="sa_<?=$m['id']?>"
-                 value="<?=$sp ? $sp['score_away'] : ''?>" placeholder="0"
-                 <?=$submitted ? 'readonly' : ''?>>
-        </div>
-        <?php endif; ?>
-        <div class="score-team right">
-          <span class="score-team-name"><?=htmlspecialchars($aName)?></span>
-          <span style="font-size:18px"><?=$aFlag?></span>
-        </div>
-        <span class="score-time"><?=htmlspecialchars($m['match_time'] ?? '')?></span>
-        <?php if ($isAdmin && !$hasResult): ?>
-        <button class="btn-r secondary sm" onclick="setResult(<?=$m['id']?>)">
-          <i class="bi bi-check2"></i>Resultado
-        </button>
-        <?php endif; ?>
-      </div>
-      <?php endforeach; ?>
-      <?php if (!$submitted): ?>
-      <button class="btn-r primary" style="margin-top:10px" onclick="saveScores()">
-        <i class="bi bi-check2-circle"></i>Salvar placares
-      </button>
-      <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-    <!-- submitted banner -->
-    <?php if ($submitted): ?>
-    <div class="submitted-banner">
-      <i class="bi bi-check-circle-fill" style="font-size:18px"></i>
-      Palpite enviado em <?=date('d/m/Y H:i', strtotime($pred['submitted_at'] ?? ''))?>! Boa sorte! 🎉
-    </div>
-    <?php endif; ?>
-
-    <!-- Tabs -->
-    <div class="copa-tabs" id="copaTabs">
-      <button class="copa-tab active" data-tab="grupos">⚽ Grupos</button>
-      <button class="copa-tab" data-tab="thirds">🥉 3º Lugar</button>
-      <button class="copa-tab" data-tab="bracket">🏆 Bracket</button>
-      <button class="copa-tab" data-tab="premios">🌟 Prêmios</button>
-    </div>
-
-    <!-- ── Grupos ───────────────────────────────────────────────────────── -->
-    <div class="copa-pane active" id="pane-grupos">
-      <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">
-        <i class="bi bi-info-circle me-1"></i>Use as setas para ordenar. 1º e 2º avançam direto, 3º entra na disputa de melhor terceiro.
-      </p>
-      <div class="groups-grid" id="groupsGrid">
-      <?php foreach ($groups as $letter => $g):
-          $savedOrder = $predGroups[$letter] ?? null;
-          $teams = $g['teams'];
-          if ($savedOrder) {
-              usort($teams, function($a, $b) use ($savedOrder) {
-                  $pa = array_search($a['id'], $savedOrder); $pb = array_search($b['id'], $savedOrder);
-                  return ($pa === false ? 99 : $pa) - ($pb === false ? 99 : $pb);
-              });
-          }
-      ?>
-      <div class="group-card" data-group="<?=$letter?>">
-        <div class="group-card-header">
-          <span class="group-letter">GRUPO <?=$letter?></span>
-          <span class="group-label">Classificação</span>
-        </div>
-        <div class="group-teams" id="gt_<?=$letter?>">
-        <?php foreach ($teams as $idx => $t):
-            $rank = $idx + 1;
-            $badge = $rank===1 ? '<span class="advance-badge advance-1">1º</span>'
-                  : ($rank===2 ? '<span class="advance-badge advance-2">2º</span>'
-                  : ($rank===3 ? '<span class="advance-badge advance-3">3º?</span>' : ''));
+    <i class="bi bi-chevron-down accordion-chevron" id="myPredChevron"></i>
+  </div>
+  <div class="accordion-body" id="myPredBody">
+    <div class="pred-summary">
+      <!-- grupos -->
+      <div class="pred-section">
+        <div class="pred-section-title">Classificação dos Grupos</div>
+        <div class="pred-groups-mini">
+        <?php foreach ($groups as $letter => $g):
+            $savedOrder = $predGroups[$letter] ?? array_column($g['teams'],'id');
+            $ordTeams = array_filter(array_map(fn($id)=>$allTeams[$id]??null,$savedOrder));
         ?>
-        <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'🏳')?>" <?=$submitted?'style="cursor:default"':''?>>
-          <span class="team-rank"><?=$rank?></span>
-          <span class="team-flag"><?=$t['flag']??'🏳'?></span>
-          <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
-          <?=$badge?>
-          <?php if (!$submitted): ?>
-          <div class="team-arrows">
-            <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,-1)" <?=$rank===1?'disabled':''?>>▲</button>
-            <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,1)"  <?=$rank===4?'disabled':''?>>▼</button>
+        <div class="pred-group-mini">
+          <div class="pred-group-mini-letter">Grupo <?=$letter?></div>
+          <?php foreach (array_values($ordTeams) as $i=>$t): ?>
+          <div class="pred-team-mini <?=$i===0?'first':($i===1?'second':'')?>">
+            <?=flagImg($t['flag']??'')?><span><?=htmlspecialchars($t['name'])?></span>
           </div>
-          <?php endif; ?>
+          <?php endforeach; ?>
         </div>
         <?php endforeach; ?>
         </div>
       </div>
-      <?php endforeach; ?>
+      <!-- prêmios -->
+      <div class="pred-section">
+        <div class="pred-section-title">Prêmios</div>
+        <div class="pred-awards">
+          <div class="pred-award"><span class="pred-award-icon">👟</span><div><div class="pred-award-label">Artilheiro</div><div class="pred-award-name"><?=htmlspecialchars($pred['top_scorer']??'—')?></div></div></div>
+          <div class="pred-award"><span class="pred-award-icon">🌟</span><div><div class="pred-award-label">Melhor Jogador</div><div class="pred-award-name"><?=htmlspecialchars($pred['best_player']??'—')?></div></div></div>
+          <div class="pred-award"><span class="pred-award-icon">⭐</span><div><div class="pred-award-label">Revelação</div><div class="pred-award-name"><?=htmlspecialchars($pred['revelation']??'—')?></div></div></div>
+          <div class="pred-award"><span class="pred-award-icon">🇧🇷</span><div><div class="pred-award-label">Gols do Neymar</div><div class="pred-award-name"><?=htmlspecialchars($pred['neymar_goals']??'—')?></div></div></div>
+        </div>
       </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Tabs -->
+<div class="copa-tabs" id="copaTabs">
+  <button class="copa-tab active" data-tab="grupos">⚽ Grupos</button>
+  <button class="copa-tab" data-tab="thirds">🥉 3º Lugar</button>
+  <button class="copa-tab" data-tab="bracket">🏆 Bracket</button>
+  <button class="copa-tab" data-tab="jogos">⚽ Jogos</button>
+  <button class="copa-tab" data-tab="ranking">📊 Ranking</button>
+  <?php if ($isAdmin): ?><button class="copa-tab admin-tab" data-tab="admin">🔧 Admin</button><?php endif; ?>
+</div>
+
+<!-- ── GRUPOS ─────────────────────────────────────────────────────────────── -->
+<div class="copa-pane active" id="pane-grupos">
+  <p class="section-info"><i class="bi bi-info-circle"></i> Use as setas para ordenar. 1º e 2º avançam direto, 3º entra na disputa de melhor terceiro.</p>
+  <div class="groups-grid" id="groupsGrid">
+  <?php foreach ($groups as $letter=>$g):
+      $savedOrder=$predGroups[$letter]??null; $teams=$g['teams'];
+      if ($savedOrder) usort($teams,function($a,$b) use ($savedOrder){$pa=array_search($a['id'],$savedOrder);$pb=array_search($b['id'],$savedOrder);return($pa===false?99:$pa)-($pb===false?99:$pb);});
+  ?>
+  <div class="group-card" data-group="<?=$letter?>">
+    <div class="group-card-header"><span class="group-letter">GRUPO <?=$letter?></span><span class="group-label">Classificação</span></div>
+    <div class="group-teams" id="gt_<?=$letter?>">
+    <?php foreach ($teams as $idx=>$t): $rank=$idx+1;
+        $badge=$rank===1?'<span class="advance-badge advance-1">1º</span>':($rank===2?'<span class="advance-badge advance-2">2º</span>':($rank===3?'<span class="advance-badge advance-3">3º?</span>':''));
+    ?>
+    <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>" <?=$submitted?'style="cursor:default"':''?>>
+      <span class="team-rank"><?=$rank?></span>
+      <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
+      <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
+      <?=$badge?>
       <?php if (!$submitted): ?>
-      <div style="margin-top:14px;text-align:right">
-        <button class="btn-r outline" onclick="nextTab('thirds')">Próximo: 3º Lugar <i class="bi bi-arrow-right"></i></button>
+      <div class="team-arrows">
+        <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,-1)" <?=$rank===1?'disabled':''?>>▲</button>
+        <button class="arrow-btn" onclick="moveTeam('<?=$letter?>',<?=$t['id']?>,1)"  <?=$rank===4?'disabled':''?>>▼</button>
       </div>
       <?php endif; ?>
     </div>
+    <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
+  </div>
+  <?php if (!$submitted): ?>
+  <div style="margin-top:14px;text-align:right">
+    <button class="btn-r outline" onclick="nextTab('thirds')">Próximo: 3º Lugar <i class="bi bi-arrow-right"></i></button>
+  </div>
+  <?php endif; ?>
+</div>
 
-    <!-- ── 3º Lugar ─────────────────────────────────────────────────────── -->
-    <div class="copa-pane" id="pane-thirds">
-      <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Melhores 3ºs Colocados</p>
-      <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">Selecione 8 seleções que avançam como melhores terceiros colocados</p>
-      <div class="thirds-grid" id="thirdsGrid">
-      <?php foreach ($groups as $letter => $g):
-          $teams = $g['teams'];
+<!-- ── THIRDS ─────────────────────────────────────────────────────────────── -->
+<div class="copa-pane" id="pane-thirds">
+  <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Melhores 3ºs Colocados</p>
+  <p class="section-info">Selecione 8 seleções que avançam como melhores terceiros colocados</p>
+  <div class="thirds-grid" id="thirdsGrid">
+  <?php foreach ($groups as $letter=>$g): $teams=$g['teams']; ?>
+  <div class="third-slot <?=in_array($g['id'],$predThirds??[])?'selected':''?>"
+       data-group="<?=$letter?>" data-group-id="<?=$g['id']?>"
+       onclick="<?=$submitted?'':'toggleThird(this)'?>" id="third_<?=$letter?>">
+    <div class="third-check" style="display:<?=in_array($g['id'],$predThirds??[])?'block':'none'?>"><i class="bi bi-check-circle-fill"></i></div>
+    <div class="third-slot-flag" id="t3flag_<?=$letter?>"><?=flagImg($teams[2]['flag']??'')?></div>
+    <div class="third-slot-name" id="t3name_<?=$letter?>"><?=htmlspecialchars($teams[2]['name']??'?')?></div>
+    <div class="third-slot-group">Grupo <?=$letter?></div>
+  </div>
+  <?php endforeach; ?>
+  </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Selecionados: <strong id="thirdsCount"><?=count($predThirds??[])?></strong>/8</div>
+  <?php if (!$submitted): ?>
+  <div style="margin-top:14px;text-align:right">
+    <button class="btn-r outline" onclick="nextTab('bracket')">Próximo: Bracket <i class="bi bi-arrow-right"></i></button>
+  </div>
+  <?php endif; ?>
+</div>
+
+<!-- ── BRACKET ────────────────────────────────────────────────────────────── -->
+<div class="copa-pane" id="pane-bracket">
+  <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo. Gerado dos seus palpites de grupo.</p>
+  <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
+
+  <!-- Prêmios -->
+  <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">
+      Prêmios individuais
+      <span class="prize-badge">3 pts cada</span>
+    </div>
+    <p class="section-info">Acertos exatos valem 3 pontos cada.</p>
+    <div class="prizes-grid">
+      <div class="prize-card">
+        <div class="prize-icon">👟</div><div class="prize-title">Artilheiro</div><div class="prize-sub">Quem vai fazer mais gols?</div>
+        <input class="prize-input" id="award_scorer" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['top_scorer']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+      <div class="prize-card">
+        <div class="prize-icon">🌟</div><div class="prize-title">Melhor Jogador</div><div class="prize-sub">Quem ganha a Bola de Ouro?</div>
+        <input class="prize-input" id="award_player" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['best_player']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+      <div class="prize-card">
+        <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div><div class="prize-sub">Quem vai ser a grande revelação?</div>
+        <input class="prize-input" id="award_revelation" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['revelation']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+      <div class="prize-card">
+        <div class="prize-icon">🇧🇷</div><div class="prize-title">Gols do Neymar</div><div class="prize-sub">Quantos gols o Neymar vai fazer?</div>
+        <input class="prize-input" id="award_neymar" type="number" min="0" max="20" placeholder="Ex: 3" value="<?=htmlspecialchars($pred['neymar_goals']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+    </div>
+  </div>
+
+  <?php if (!$submitted): ?>
+  <div class="submit-bar">
+    <div class="submit-bar-info"><strong>Tudo pronto?</strong> Após enviar não é possível editar.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-r secondary" onclick="saveDraft()"><i class="bi bi-floppy2"></i>Salvar rascunho</button>
+      <button class="btn-r gold lg" onclick="submitPrediction()"><i class="bi bi-send-fill"></i>Enviar palpites</button>
+    </div>
+  </div>
+  <?php endif; ?>
+</div>
+
+<!-- ── JOGOS ──────────────────────────────────────────────────────────────── -->
+<div class="copa-pane" id="pane-jogos">
+  <?php if (empty($allMatches)): ?>
+  <div class="no-matches">Nenhum jogo cadastrado ainda. O administrador adiciona os jogos diariamente.</div>
+  <?php else: ?>
+  <?php
+  $today = date('Y-m-d');
+  $datesSorted = array_keys($matchesByDate);
+  sort($datesSorted);
+  // show today first, then future, then past
+  $todayDates  = array_filter($datesSorted, fn($d)=>$d===$today);
+  $futureDates = array_filter($datesSorted, fn($d)=>$d>$today);
+  $pastDates   = array_reverse(array_filter($datesSorted, fn($d)=>$d<$today));
+  $orderedDates= array_merge($todayDates,$futureDates,$pastDates);
+  ?>
+  <?php foreach ($orderedDates as $date):
+      $matches=$matchesByDate[$date]??[];
+      $isToday=$date===$today;
+      $isPast=$date<$today;
+      $dtObj=DateTime::createFromFormat('Y-m-d',$date);
+      $dateLabel=$dtObj?$dtObj->format('d/m/Y'):'';
+  ?>
+  <div class="date-group">
+    <div class="date-group-header">
+      <span class="date-label"><?=$dateLabel?></span>
+      <?php if ($isToday): ?><span class="date-today">Hoje</span><?php endif; ?>
+    </div>
+    <?php foreach ($matches as $m):
+        $hName=$m['hname']?:$m['home_name']?:'Time A';
+        $aName=$m['aname']?:$m['away_name']?:'Time B';
+        $sp=$allScores[$m['id']]??null;
+        $hasResult=$m['score_home']!==null;
+        $canPredict=!$hasResult;
+    ?>
+    <div class="score-card" data-match="<?=$m['id']?>">
+      <div class="score-team">
+        <?=flagImg($m['hflag']??'',22)?>
+        <span class="score-team-name"><?=htmlspecialchars($hName)?></span>
+      </div>
+      <?php if ($hasResult): ?>
+      <div class="score-result-display"><?=$m['score_home']?> – <?=$m['score_away']?></div>
+      <?php if ($sp): ?>
+      <div class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?></div>
+      <?php endif; ?>
+      <?php else: ?>
+      <div class="score-input-wrap">
+        <input type="number" min="0" max="30" class="score-input" id="sh_<?=$m['id']?>" value="<?=$sp?$sp['score_home']:''?>" placeholder="0">
+        <span class="score-sep">×</span>
+        <input type="number" min="0" max="30" class="score-input" id="sa_<?=$m['id']?>" value="<?=$sp?$sp['score_away']:''?>" placeholder="0">
+      </div>
+      <?php endif; ?>
+      <div class="score-team right">
+        <span class="score-team-name"><?=htmlspecialchars($aName)?></span>
+        <?=flagImg($m['aflag']??'',22)?>
+      </div>
+      <span class="score-time"><?=htmlspecialchars($m['match_time']??'')?></span>
+      <?php if ($isAdmin): ?>
+      <div style="display:flex;gap:5px">
+        <?php if (!$hasResult): ?>
+        <button class="btn-r purple sm" onclick="setResult(<?=$m['id']?>)"><i class="bi bi-check2"></i>Resultado</button>
+        <?php endif; ?>
+        <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash"></i></button>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endforeach; ?>
+  <!-- save scores button -->
+  <button class="btn-r primary" style="margin-top:4px" onclick="saveScores()"><i class="bi bi-check2-circle"></i>Salvar placares</button>
+  <?php endif; ?>
+</div>
+
+<!-- ── RANKING ────────────────────────────────────────────────────────────── -->
+<div class="copa-pane" id="pane-ranking">
+  <?php if (!$hasOfficial): ?>
+  <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius-sm);padding:12px 16px;font-size:12px;color:var(--amber);margin-bottom:16px">
+    <i class="bi bi-info-circle"></i> Pontos serão calculados após o admin definir os resultados oficiais.
+  </div>
+  <?php endif; ?>
+  <div style="margin-bottom:12px;font-size:12px;color:var(--text-3)">
+    <b style="color:var(--text-2)">Pontuação:</b> 1pt — acerto 1º/2º/3º do grupo · 1pt — melhor terceiro correto · 1pt — time correto no mata-mata · <b style="color:var(--gold)">3pts</b> — prêmios individuais
+  </div>
+  <?php if (empty($ranking)): ?>
+  <div class="no-matches">Nenhum palpite enviado ainda.</div>
+  <?php else: ?>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+    <table class="ranking-table">
+      <thead><tr>
+        <th style="width:40px">#</th><th>Jogador</th><th>Campeão apostado</th><th style="text-align:right">Pontos</th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($ranking as $i=>$r):
+          $pos=$i+1; $isMe=strtolower($r['nome'])===strtolower($usuario['nome']??'');
       ?>
-      <div class="third-slot <?=in_array($g['id'], $predThirds ?? []) ? 'selected' : ''?>"
-           data-group="<?=$letter?>" data-group-id="<?=$g['id']?>"
-           onclick="<?=$submitted ? '' : 'toggleThird(this)'?>"
-           id="third_<?=$letter?>">
-        <div class="third-check" style="display:<?=in_array($g['id'], $predThirds ?? []) ? 'block' : 'none'?>">
-          <i class="bi bi-check-circle-fill"></i>
+      <tr <?=$isMe?'class="me"':''?>>
+        <td><?=$pos===1?'🥇':($pos===2?'🥈':($pos===3?'🥉':$pos))?></td>
+        <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span></td>
+        <td style="font-size:11px;color:var(--text-3)"><?=htmlspecialchars($r['champion']??'—')?></td>
+        <td style="text-align:right"><span class="ranking-pts <?=(int)$r['points']===0?'zero':''?>"><?=(int)$r['points']?></span></td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+</div>
+
+<!-- ── ADMIN ──────────────────────────────────────────────────────────────── -->
+<?php if ($isAdmin): ?>
+<div class="copa-pane" id="pane-admin">
+
+  <!-- Grupos -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-gear-fill" style="color:var(--purple)"></i>Configuração dos Grupos</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <a href="copa26.php?action=seed" class="btn-r outline sm" onclick="return confirm('Reconfigurar apaga todos os palpites. Confirmar?')"><i class="bi bi-arrow-counterclockwise"></i>Reconfigurar grupos</a>
+    </div>
+  </div>
+
+  <!-- Resultados oficiais dos grupos -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i>Resultados Oficiais dos Grupos</div>
+    <p class="section-info">Ordene como os times realmente terminaram em cada grupo para calcular os pontos.</p>
+    <div class="groups-grid" id="admGroupsGrid">
+    <?php foreach ($groups as $letter=>$g):
+        $savedOff=$offGroups[$letter]??null; $teams=$g['teams'];
+        if ($savedOff) usort($teams,function($a,$b) use ($savedOff){$pa=array_search($a['id'],$savedOff);$pb=array_search($b['id'],$savedOff);return($pa===false?99:$pa)-($pb===false?99:$pb);});
+    ?>
+    <div class="group-card">
+      <div class="group-card-header"><span class="group-letter">GRUPO <?=$letter?></span><span class="group-label">Oficial</span></div>
+      <div class="group-teams" id="adm_gt_<?=$letter?>">
+      <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
+      <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
+        <span class="team-rank"><?=$rank?></span>
+        <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
+        <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
+        <div class="team-arrows">
+          <button class="arrow-btn" onclick="moveAdmTeam('<?=$letter?>',<?=$t['id']?>,-1)" <?=$rank===1?'disabled':''?>>▲</button>
+          <button class="arrow-btn" onclick="moveAdmTeam('<?=$letter?>',<?=$t['id']?>,1)"  <?=$rank===4?'disabled':''?>>▼</button>
         </div>
-        <div class="third-slot-flag" id="t3flag_<?=$letter?>"><?=$teams[2]['flag'] ?? '🏳'?></div>
-        <div class="third-slot-name" id="t3name_<?=$letter?>"><?=htmlspecialchars($teams[2]['name'] ?? '?')?></div>
-        <div class="third-slot-group">Grupo <?=$letter?></div>
       </div>
       <?php endforeach; ?>
       </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--text-2)">
-        Selecionados: <strong id="thirdsCount"><?=count($predThirds ?? [])?></strong>/8
-      </div>
-      <?php if (!$submitted): ?>
-      <div style="margin-top:14px;text-align:right">
-        <button class="btn-r outline" onclick="nextTab('bracket')">Próximo: Bracket <i class="bi bi-arrow-right"></i></button>
-      </div>
-      <?php endif; ?>
     </div>
-
-    <!-- ── Bracket ──────────────────────────────────────────────────────── -->
-    <div class="copa-pane" id="pane-bracket">
-      <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">
-        <i class="bi bi-info-circle"></i> Clique no time para avançá-lo. O bracket é gerado dos seus palpites de grupo.
-      </p>
-      <div class="bracket-wrap">
-        <div class="bracket" id="bracketEl"></div>
-      </div>
-      <?php if (!$submitted): ?>
-      <div style="margin-top:14px;text-align:right">
-        <button class="btn-r outline" onclick="nextTab('premios')">Próximo: Prêmios <i class="bi bi-arrow-right"></i></button>
-      </div>
-      <?php endif; ?>
+    <?php endforeach; ?>
     </div>
+  </div>
 
-    <!-- ── Prêmios ──────────────────────────────────────────────────────── -->
-    <div class="copa-pane" id="pane-premios">
-      <div class="awards-grid">
-        <div class="award-card">
-          <div class="award-icon">🥇</div>
-          <div class="award-title">Campeão</div>
-          <div class="award-sub">Quem vai ser campeão do mundo?</div>
-          <select class="award-select" id="award_champion" <?=$submitted ? 'disabled' : ''?>>
-            <option value="">Selecione...</option>
-            <?php foreach ($allTeams as $t): ?>
-            <option value="<?=htmlspecialchars($t['name'])?>" <?=($pred['champion'] ?? '') === $t['name'] ? 'selected' : ''?>>
-              <?=$t['flag'] ?? ''?> <?=htmlspecialchars($t['name'])?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="award-card">
-          <div class="award-icon">👟</div>
-          <div class="award-title">Artilheiro</div>
-          <div class="award-sub">Quem vai fazer mais gols?</div>
-          <input class="award-input" id="award_scorer" placeholder="Nome do jogador..."
-                 value="<?=htmlspecialchars($pred['top_scorer'] ?? '')?>"
-                 <?=$submitted ? 'readonly' : ''?>>
-        </div>
-        <div class="award-card">
-          <div class="award-icon">🌟</div>
-          <div class="award-title">Melhor Jogador</div>
-          <div class="award-sub">Quem vai ganhar a Bola de Ouro da Copa?</div>
-          <input class="award-input" id="award_player" placeholder="Nome do jogador..."
-                 value="<?=htmlspecialchars($pred['best_player'] ?? '')?>"
-                 <?=$submitted ? 'readonly' : ''?>>
-        </div>
-        <div class="award-card">
-          <div class="award-icon">⭐</div>
-          <div class="award-title">Revelação</div>
-          <div class="award-sub">Quem vai ser a grande revelação?</div>
-          <input class="award-input" id="award_revelation" placeholder="Nome do jogador..."
-                 value="<?=htmlspecialchars($pred['revelation'] ?? '')?>"
-                 <?=$submitted ? 'readonly' : ''?>>
-        </div>
+  <!-- Bracket oficial -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Bracket Oficial (Mata-Mata)</div>
+    <p class="section-info">Clique no time que avançou em cada confronto.</p>
+    <div class="bracket-wrap"><div class="bracket" id="admBracketEl"></div></div>
+  </div>
+
+  <!-- Prêmios oficiais -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-star-fill" style="color:var(--gold)"></i>Prêmios Oficiais</div>
+    <div class="prizes-grid">
+      <div class="prize-card">
+        <div class="prize-icon">👟</div><div class="prize-title">Artilheiro</div>
+        <input class="prize-input" id="off_scorer" placeholder="Nome do artilheiro..." value="<?=htmlspecialchars($official['top_scorer']??'')?>">
       </div>
-      <?php if (!$submitted): ?>
-      <div class="submit-bar">
-        <div class="submit-bar-info">
-          <strong>Tudo pronto?</strong> Após enviar não é possível editar.
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-r secondary" onclick="saveDraft()"><i class="bi bi-floppy2"></i>Salvar rascunho</button>
-          <button class="btn-r gold lg" onclick="submitPrediction()"><i class="bi bi-send-fill"></i>Enviar palpites</button>
-        </div>
+      <div class="prize-card">
+        <div class="prize-icon">🌟</div><div class="prize-title">Melhor Jogador</div>
+        <input class="prize-input" id="off_player" placeholder="Nome do melhor jogador..." value="<?=htmlspecialchars($official['best_player']??'')?>">
       </div>
-      <?php endif; ?>
+      <div class="prize-card">
+        <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div>
+        <input class="prize-input" id="off_revelation" placeholder="Nome da revelação..." value="<?=htmlspecialchars($official['revelation']??'')?>">
+      </div>
+      <div class="prize-card">
+        <div class="prize-icon">🇧🇷</div><div class="prize-title">Gols do Neymar</div>
+        <input class="prize-input" id="off_neymar" type="number" min="0" placeholder="Nº de gols..." value="<?=htmlspecialchars($official['neymar_goals']??'')?>">
+      </div>
     </div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-r green-btn" onclick="saveOfficial()"><i class="bi bi-cloud-check-fill"></i>Salvar resultados oficiais</button>
+      <button class="btn-r gold" onclick="calcPoints()"><i class="bi bi-calculator-fill"></i>Calcular pontos</button>
+    </div>
+  </div>
 
-    <?php endif; /* seeded */ ?>
-  </div><!-- /main -->
-</div><!-- /page -->
+  <!-- Adicionar jogo -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-calendar-plus-fill" style="color:var(--blue)"></i>Adicionar Jogo do Dia</div>
+    <div class="admin-form" style="margin-bottom:14px">
+      <div class="admin-form-group"><label>Data</label><input type="date" class="admin-input" id="match_date" value="<?=$today?>"></div>
+      <div class="admin-form-group"><label>Horário</label><input type="time" class="admin-input" id="match_time"></div>
+      <div class="admin-form-group"><label>Time da Casa</label>
+        <select class="admin-select" id="match_home">
+          <option value="">Selecione...</option>
+          <?php foreach ($allTeams as $t): ?><option value="<?=$t['id']?>"><?=$t['flag']??''?> <?=htmlspecialchars($t['name'])?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="admin-form-group"><label>Time Visitante</label>
+        <select class="admin-select" id="match_away">
+          <option value="">Selecione...</option>
+          <?php foreach ($allTeams as $t): ?><option value="<?=$t['id']?>"><?=$t['flag']??''?> <?=htmlspecialchars($t['name'])?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="admin-form-group" style="align-self:end">
+        <button class="btn-r primary" onclick="addMatch()"><i class="bi bi-plus-lg"></i>Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<?php endif; ?>
+
+<?php endif; /* seeded */ ?>
+</div>
+</div>
 
 <script>
-const SUBMITTED   = <?=json_encode($submitted)?>;
-const GROUPS_DATA = <?=json_encode(array_map(fn($g) => $g['teams'], $groups))?>;
-const GROUP_KEYS  = <?=json_encode(array_keys($groups))?>;
+const SUBMITTED  = <?=json_encode($submitted)?>;
+const GROUPS_DATA= <?=json_encode(array_map(fn($g)=>$g['teams'],$groups))?>;
+const GROUP_KEYS = <?=json_encode(array_keys($groups))?>;
 
-// groupOrder: letter → [teamId, ...]
-const groupOrder = {};
-<?php foreach ($groups as $letter => $g):
-    $saved = $predGroups[$letter] ?? null;
-    $ids   = $saved ?: array_column($g['teams'], 'id');
-?>
-groupOrder[<?=json_encode($letter)?>] = <?=json_encode(array_map('intval', $ids))?>;
+// user order
+const groupOrder={};
+<?php foreach ($groups as $letter=>$g): $saved=$predGroups[$letter]??null; $ids=$saved??array_column($g['teams'],'id'); ?>
+groupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids))?>;
 <?php endforeach; ?>
 
-let selectedThirds = new Set(<?=json_encode(array_map('intval', $predThirds ?? []))?>);
-const bracketState = <?=json_encode($predBracket ?: (object)[])?>;
+// admin official order
+const admGroupOrder={};
+<?php foreach ($groups as $letter=>$g): $saved=$offGroups[$letter]??null; $ids=$saved??array_column($g['teams'],'id'); ?>
+admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids))?>;
+<?php endforeach; ?>
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let selectedThirds=new Set(<?=json_encode(array_map('intval',$predThirds??[]))?>);
+let admSelectedThirds=new Set(<?=json_encode(array_map('intval',$offThirds??[]))?>);
+const bracketState=<?=json_encode($predBracket?:(object)[])?>;
+const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
-function getTeamById(id) {
-    for (const key of GROUP_KEYS) {
-        const t = (GROUPS_DATA[key]||[]).find(x => x.id == id);
-        if (t) return t;
-    }
-    return null;
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function flagImg(code,w=20){if(!code)return'🏳';const h=Math.round(w*.75);return`<img src="https://flagcdn.com/w${w*2}/${code}.png" width="${w}" height="${h}" style="border-radius:2px;object-fit:cover" loading="lazy" onerror="this.replaceWith('🏳')" alt="${code}">`;}
+function getTeamById(id){for(const k of GROUP_KEYS){const t=(GROUPS_DATA[k]||[]).find(x=>x.id==id);if(t)return t;}return null;}
+
+// ── Generic group render ──────────────────────────────────────────────────────
+function renderGroupEl(letter,prefix,orderMap,editable,moveFn){
+    const c=document.getElementById(prefix+'gt_'+letter);if(!c)return;
+    const o=orderMap[letter];
+    const rc=['rank-1','rank-2','rank-3','rank-4'];
+    const bg=['<span class="advance-badge advance-1">1º</span>','<span class="advance-badge advance-2">2º</span>','<span class="advance-badge advance-3">3º?</span>',''];
+    c.innerHTML='';
+    o.forEach((tid,idx)=>{
+        const t=getTeamById(tid);if(!t)return;
+        const d=document.createElement('div');d.className='team-row '+rc[idx];
+        d.dataset.teamId=t.id;d.dataset.teamName=t.name;d.dataset.teamFlag=t.flag||'🏳';
+        if(!editable)d.style.cursor='default';
+        d.innerHTML=`<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>${bg[idx]}`+
+            (editable?`<div class="team-arrows"><button class="arrow-btn" onclick="${moveFn}('${letter}',${t.id},-1)"${idx===0?' disabled':''}>▲</button><button class="arrow-btn" onclick="${moveFn}('${letter}',${t.id},1)"${idx===3?' disabled':''}>▼</button></div>`:'');
+        c.appendChild(d);
+    });
+}
+function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED,'moveTeam');}
+function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true,'moveAdmTeam');}
+
+function moveTeamGeneric(letter,teamId,dir,orderMap,renderFn,thirdFn){
+    const o=orderMap[letter],idx=o.indexOf(+teamId),ni=idx+dir;
+    if(idx<0||ni<0||ni>=o.length)return;
+    [o[idx],o[ni]]=[o[ni],o[idx]];renderFn(letter);if(thirdFn)thirdFn(letter);
+}
+function moveTeam(l,id,d){if(SUBMITTED)return;moveTeamGeneric(l,id,d,groupOrder,renderGroup,updateThirdsForGroup);}
+function moveAdmTeam(l,id,d){moveTeamGeneric(l,id,d,admGroupOrder,renderAdmGroup,null);}
+
+function updateThirdsForGroup(letter){
+    const t=getTeamById(groupOrder[letter][2]);if(!t)return;
+    const fe=document.getElementById('t3flag_'+letter),ne=document.getElementById('t3name_'+letter);
+    if(fe)fe.innerHTML=flagImg(t.flag,28);if(ne)ne.textContent=t.name;
 }
 
-// ── Groups ───────────────────────────────────────────────────────────────────
-function moveTeam(letter, teamId, dir) {
-    if (SUBMITTED) return;
-    const order = groupOrder[letter];
-    const idx = order.indexOf(+teamId);
-    if (idx < 0) return;
-    const ni = idx + dir;
-    if (ni < 0 || ni >= order.length) return;
-    [order[idx], order[ni]] = [order[ni], order[idx]];
-    renderGroup(letter);
-    updateThirdsForGroup(letter);
+// ── Thirds ────────────────────────────────────────────────────────────────────
+function toggleThird(el){
+    if(SUBMITTED)return;
+    const gid=+el.dataset.groupId,check=el.querySelector('.third-check');
+    if(selectedThirds.has(gid)){selectedThirds.delete(gid);el.classList.remove('selected');if(check)check.style.display='none';}
+    else{if(selectedThirds.size>=8){alert('Máximo 8.');return;}selectedThirds.add(gid);el.classList.add('selected');if(check)check.style.display='block';}
+    document.getElementById('thirdsCount').textContent=selectedThirds.size;
 }
 
-function renderGroup(letter) {
-    const c = document.getElementById('gt_' + letter);
-    if (!c) return;
-    const order = groupOrder[letter];
-    const rankCls = ['rank-1','rank-2','rank-3','rank-4'];
-    const badges  = [
-        '<span class="advance-badge advance-1">1º</span>',
-        '<span class="advance-badge advance-2">2º</span>',
-        '<span class="advance-badge advance-3">3º?</span>',
-        ''
-    ];
-    c.innerHTML = '';
-    order.forEach((tid, idx) => {
-        const t = getTeamById(tid);
-        if (!t) return;
-        const div = document.createElement('div');
-        div.className = 'team-row ' + rankCls[idx];
-        div.dataset.teamId   = t.id;
-        div.dataset.teamName = t.name;
-        div.dataset.teamFlag = t.flag || '🏳';
-        if (SUBMITTED) div.style.cursor = 'default';
-        div.innerHTML =
-            `<span class="team-rank">${idx+1}</span>` +
-            `<span class="team-flag">${t.flag||'🏳'}</span>` +
-            `<span class="team-name-sm">${escH(t.name)}</span>` +
-            badges[idx] +
-            (!SUBMITTED ? `<div class="team-arrows">
-                <button class="arrow-btn" onclick="moveTeam('${letter}',${t.id},-1)" ${idx===0?'disabled':''}>▲</button>
-                <button class="arrow-btn" onclick="moveTeam('${letter}',${t.id},1)"  ${idx===3?'disabled':''}>▼</button>
-            </div>` : '');
-        c.appendChild(div);
+// ── Generic bracket ───────────────────────────────────────────────────────────
+const ROUND_NAMES={r32:'16 avos',r16:'Oitavas',qf:'Quartas',sf:'Semifinal',final:'Final'};
+const ROUND_ORDER=['r32','r16','qf','sf','final'];
+let bracketMatchups={r32:[],r16:[],qf:[],sf:[],final:[]};
+let admBracketMatchups={r32:[],r16:[],qf:[],sf:[],final:[]};
+
+function buildR32(orderMap){
+    const f={},s={};GROUP_KEYS.forEach(l=>{f[l]=getTeamById(orderMap[l][0]);s[l]=getTeamById(orderMap[l][1]);});
+    return [[f['A'],s['B']],[f['C'],s['D']],[f['E'],s['F']],[f['G'],s['H']],[f['I'],s['J']],[f['K'],s['L']],[f['B'],s['A']],[f['D'],s['C']],[f['F'],s['E']],[f['H'],s['G']],[f['J'],s['I']],[f['L'],s['K']],[null,null],[null,null],[null,null],[null,null]];
+}
+
+function buildBracketGeneric(matchupsRef,orderMap,stateRef){
+    matchupsRef.r32=buildR32(orderMap);
+    ['r16','qf','sf','final'].forEach(r=>{const sz={r16:8,qf:4,sf:2,final:1}[r];matchupsRef[r]=Array.from({length:sz},()=>[null,null]);});
+    Object.keys(stateRef).forEach(key=>{
+        const m=key.match(/^([a-z0-9]+)_(\d+)$/);if(!m)return;
+        const [,round,idxStr]=m,idx=+idxStr,team=stateRef[key];
+        if(!team||!matchupsRef[round])return;
+        const nr=ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
+        if(nr&&matchupsRef[nr]){const ni=Math.floor(idx/2),ns=idx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
     });
 }
 
-function updateThirdsForGroup(letter) {
-    const t = getTeamById(groupOrder[letter][2]);
-    if (!t) return;
-    const fe = document.getElementById('t3flag_' + letter);
-    const ne = document.getElementById('t3name_' + letter);
-    if (fe) fe.textContent = t.flag || '🏳';
-    if (ne) ne.textContent = t.name;
-}
-
-// ── Thirds ───────────────────────────────────────────────────────────────────
-function toggleThird(el) {
-    if (SUBMITTED) return;
-    const gid = +el.dataset.groupId;
-    const check = el.querySelector('.third-check');
-    if (selectedThirds.has(gid)) {
-        selectedThirds.delete(gid);
-        el.classList.remove('selected');
-        if (check) check.style.display = 'none';
-    } else {
-        if (selectedThirds.size >= 8) { alert('Máximo 8 terceiros colocados.'); return; }
-        selectedThirds.add(gid);
-        el.classList.add('selected');
-        if (check) check.style.display = 'block';
-    }
-    document.getElementById('thirdsCount').textContent = selectedThirds.size;
-}
-
-// ── Bracket ──────────────────────────────────────────────────────────────────
-const ROUND_NAMES = {r32:'16 avos',r16:'Oitavas',qf:'Quartas',sf:'Semifinal',final:'Final'};
-const ROUND_ORDER = ['r32','r16','qf','sf','final'];
-
-let bracketMatchups = {r32:[],r16:[],qf:[],sf:[],final:[]};
-
-function buildR32() {
-    const f={}, s={};
-    GROUP_KEYS.forEach(l => { f[l]=getTeamById(groupOrder[l][0]); s[l]=getTeamById(groupOrder[l][1]); });
-    return [
-        [f['A'],s['B']],[f['C'],s['D']],[f['E'],s['F']],[f['G'],s['H']],
-        [f['I'],s['J']],[f['K'],s['L']],[f['B'],s['A']],[f['D'],s['C']],
-        [f['F'],s['E']],[f['H'],s['G']],[f['J'],s['I']],[f['L'],s['K']],
-        [null,null],[null,null],[null,null],[null,null],
-    ];
-}
-
-function buildBracket() {
-    bracketMatchups.r32 = buildR32();
-    ['r16','qf','sf','final'].forEach(round => {
-        const size = {r16:8,qf:4,sf:2,final:1}[round];
-        bracketMatchups[round] = Array.from({length:size}, ()=>[null,null]);
-    });
-    // Re-apply saved winners
-    Object.keys(bracketState).forEach(key => {
-        const m = key.match(/^([a-z0-9]+)_(\d+)$/);
-        if (!m) return;
-        const [, round, idxStr] = m;
-        const idx = +idxStr;
-        const team = bracketState[key];
-        if (!team || !bracketMatchups[round]) return;
-        const nextRound = ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
-        if (nextRound && bracketMatchups[nextRound]) {
-            const ni = Math.floor(idx/2), ns = idx%2;
-            if (!bracketMatchups[nextRound][ni]) bracketMatchups[nextRound][ni]=[null,null];
-            bracketMatchups[nextRound][ni][ns] = team;
-        }
-    });
-    renderBracket();
-}
-
-function getWinner(round, idx) {
-    const w = bracketState[round+'_'+idx];
-    return (w && typeof w === 'object') ? w : null;
-}
-
-function setWinner(round, matchIdx, teamJson) {
-    if (SUBMITTED) return;
-    const team = JSON.parse(teamJson);
-    bracketState[round+'_'+matchIdx] = team;
-    const nextRound = ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
-    if (nextRound) {
-        const ni = Math.floor(matchIdx/2), ns = matchIdx%2;
-        if (!bracketMatchups[nextRound][ni]) bracketMatchups[nextRound][ni]=[null,null];
-        bracketMatchups[nextRound][ni][ns] = team;
-    }
-    renderBracket();
-}
-
-function renderBracket() {
-    const el = document.getElementById('bracketEl');
-    if (!el) return;
-    el.innerHTML = '';
-    ROUND_ORDER.forEach(round => {
-        const matches = bracketMatchups[round];
-        if (!matches) return;
-        const col = document.createElement('div');
-        col.className = 'bracket-round';
-        col.innerHTML = `<div class="bracket-round-title">${ROUND_NAMES[round]||round}</div>`;
-        matches.forEach((match, idx) => {
-            const [t1,t2] = match;
-            const w = getWinner(round, idx);
-            const teamJson1 = t1 ? JSON.stringify(t1).replace(/"/g,'&quot;') : '';
-            const teamJson2 = t2 ? JSON.stringify(t2).replace(/"/g,'&quot;') : '';
-            const div = document.createElement('div');
-            div.className = 'bracket-match';
-            div.innerHTML =
-                `<div class="bracket-slot ${w&&t1&&w.id===t1.id?'winner':''} ${!t1?'tbd':''}"
-                      onclick="${t1&&!SUBMITTED?`setWinner('${round}',${idx},'${teamJson1}')`:''}" >
-                    <span class="bracket-slot-flag">${t1?t1.flag||'🏳':''}</span>
-                    <span class="bracket-slot-name">${t1?escH(t1.name):'A definir'}</span>
-                </div>
-                <div class="bracket-divider"></div>
-                <div class="bracket-slot ${w&&t2&&w.id===t2.id?'winner':''} ${!t2?'tbd':''}"
-                      onclick="${t2&&!SUBMITTED?`setWinner('${round}',${idx},'${teamJson2}')`:''}" >
-                    <span class="bracket-slot-flag">${t2?t2.flag||'🏳':''}</span>
-                    <span class="bracket-slot-name">${t2?escH(t2.name):'A definir'}</span>
-                </div>`;
-            col.appendChild(div);
+function renderBracketGeneric(elId,matchupsRef,stateRef,editable,setFn){
+    const el=document.getElementById(elId);if(!el)return;el.innerHTML='';
+    ROUND_ORDER.forEach(round=>{
+        const matches=matchupsRef[round];if(!matches)return;
+        const col=document.createElement('div');col.className='bracket-round';
+        col.innerHTML=`<div class="bracket-round-title">${ROUND_NAMES[round]||round}</div>`;
+        matches.forEach((match,idx)=>{
+            const [t1,t2]=match,w=stateRef[round+'_'+idx];
+            const wId=w&&typeof w==='object'?w.id:null;
+            const tj1=t1?JSON.stringify(t1).replace(/"/g,'&quot;'):'';
+            const tj2=t2?JSON.stringify(t2).replace(/"/g,'&quot;'):'';
+            const d=document.createElement('div');d.className='bracket-match';
+            d.innerHTML=`<div class="bracket-slot${wId&&t1&&wId==t1.id?' winner':''}${!t1?' tbd':''}" onclick="${t1&&editable?`${setFn}('${round}',${idx},'${tj1}')`:''}" ><span class="bracket-slot-flag">${t1?flagImg(t1.flag,18):''}</span><span class="bracket-slot-name">${t1?escH(t1.name):'A definir'}</span></div><div class="bracket-divider"></div><div class="bracket-slot${wId&&t2&&wId==t2.id?' winner':''}${!t2?' tbd':''}" onclick="${t2&&editable?`${setFn}('${round}',${idx},'${tj2}')`:''}" ><span class="bracket-slot-flag">${t2?flagImg(t2.flag,18):''}</span><span class="bracket-slot-name">${t2?escH(t2.name):'A definir'}</span></div>`;
+            col.appendChild(d);
         });
         el.appendChild(col);
     });
 }
 
-// ── Payload ───────────────────────────────────────────────────────────────────
-function buildPayload(action) {
-    const groups = {};
-    GROUP_KEYS.forEach(l => groups[l] = groupOrder[l]);
-    return {
-        action,
-        groups,
-        thirds:   [...selectedThirds],
-        bracket:  bracketState,
-        champion: document.getElementById('award_champion')?.value  || '',
-        top_scorer:  document.getElementById('award_scorer')?.value || '',
-        best_player: document.getElementById('award_player')?.value || '',
-        revelation:  document.getElementById('award_revelation')?.value || '',
-    };
+function setWinnerGeneric(round,matchIdx,teamJson,stateRef,matchupsRef){
+    const team=JSON.parse(teamJson);stateRef[round+'_'+matchIdx]=team;
+    const nr=ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
+    if(nr){const ni=Math.floor(matchIdx/2),ns=matchIdx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
 }
 
-async function saveDraft() {
-    const res = await fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(buildPayload('save'))});
-    const d = await res.json();
-    if (d.ok) showToast('Rascunho salvo!');
-    else showToast('Erro ao salvar.', true);
+function setWinner(r,i,tj){setWinnerGeneric(r,i,tj,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,'setWinner');}
+function admSetWinner(r,i,tj){setWinnerGeneric(r,i,tj,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,'admSetWinner');}
+
+function buildBracket(){buildBracketGeneric(bracketMatchups,groupOrder,bracketState);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,'setWinner');}
+function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,'admSetWinner');}
+
+// ── Save / Submit ─────────────────────────────────────────────────────────────
+function buildPayload(action){
+    const groups={};GROUP_KEYS.forEach(l=>groups[l]=groupOrder[l]);
+    return{action,groups,thirds:[...selectedThirds],bracket:bracketState,
+        top_scorer:document.getElementById('award_scorer')?.value||'',
+        best_player:document.getElementById('award_player')?.value||'',
+        revelation:document.getElementById('award_revelation')?.value||'',
+        neymar_goals:document.getElementById('award_neymar')?.value||''};
+}
+async function saveDraft(){const r=await post(buildPayload('save'));showToast(r.ok?'Rascunho salvo!':'Erro ao salvar.',!r.ok);}
+async function submitPrediction(){
+    if(!confirm('Tem certeza? Após enviar não é possível editar.'))return;
+    await post(buildPayload('save'));
+    const r=await post({action:'submit'});if(r.ok)location.reload();else showToast('Erro.',true);
 }
 
-async function submitPrediction() {
-    if (!confirm('Tem certeza? Após enviar não é possível editar seus palpites.')) return;
-    await fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(buildPayload('save'))});
-    const res = await fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'submit'})});
-    const d = await res.json();
-    if (d.ok) location.reload();
-    else showToast('Erro ao enviar.', true);
-}
-
-// ── Scores ───────────────────────────────────────────────────────────────────
-async function saveScores() {
-    const scores = {};
-    document.querySelectorAll('.score-card[data-match]').forEach(card => {
-        const mid = card.dataset.match;
-        const h = document.getElementById('sh_'+mid)?.value;
-        const a = document.getElementById('sa_'+mid)?.value;
-        if (h !== undefined && a !== undefined) scores[mid] = {h: +h||0, a: +a||0};
+// ── Scores ────────────────────────────────────────────────────────────────────
+async function saveScores(){
+    const scores={};
+    document.querySelectorAll('.score-card[data-match]').forEach(c=>{
+        const mid=c.dataset.match;
+        const h=document.getElementById('sh_'+mid)?.value,a=document.getElementById('sa_'+mid)?.value;
+        if(h!==undefined&&a!==undefined)scores[mid]={h:+h||0,a:+a||0};
     });
-    const res = await fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'scores', scores})});
-    const d = await res.json();
-    showToast(d.ok ? 'Placares salvos!' : 'Erro ao salvar.', !d.ok);
+    const r=await post({action:'scores',scores});showToast(r.ok?'Placares salvos!':'Erro.',!r.ok);
+}
+async function setResult(matchId){
+    const h=prompt('Gols casa:');if(h===null)return;const a=prompt('Gols visitante:');if(a===null)return;
+    const r=await post({action:'set_result',match_id:matchId,home:+h,away:+a});if(r.ok)location.reload();
+}
+async function delMatch(matchId){
+    if(!confirm('Remover jogo?'))return;const r=await post({action:'del_match',match_id:matchId});if(r.ok)location.reload();
+}
+async function addMatch(){
+    const date=document.getElementById('match_date')?.value;
+    const time=document.getElementById('match_time')?.value;
+    const homeId=document.getElementById('match_home')?.value;
+    const awayId=document.getElementById('match_away')?.value;
+    if(!date||!homeId||!awayId){showToast('Preencha data e times.',true);return;}
+    const r=await post({action:'add_match',date,time,home_id:+homeId,away_id:+awayId});
+    if(r.ok){showToast('Jogo adicionado!');setTimeout(()=>location.reload(),800);}else showToast('Erro.',true);
 }
 
-async function setResult(matchId) {
-    const h = prompt('Gols do time da casa:');
-    if (h === null) return;
-    const a = prompt('Gols do time visitante:');
-    if (a === null) return;
-    const res = await fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_result', match_id:matchId, home:+h, away:+a})});
-    const d = await res.json();
-    if (d.ok) location.reload();
+// ── Admin save official ───────────────────────────────────────────────────────
+async function saveOfficial(){
+    const groups={};GROUP_KEYS.forEach(l=>groups[l]=admGroupOrder[l]);
+    const r=await post({action:'save_official',groups,thirds:[...admSelectedThirds],bracket:admBracketState,
+        top_scorer:document.getElementById('off_scorer')?.value||'',
+        best_player:document.getElementById('off_player')?.value||'',
+        revelation:document.getElementById('off_revelation')?.value||'',
+        neymar_goals:document.getElementById('off_neymar')?.value||''});
+    showToast(r.ok?'Resultados oficiais salvos!':'Erro.',!r.ok);
+}
+async function calcPoints(){
+    const r=await post({action:'calc_points'});showToast(r.ok?r.msg||'Pontos calculados!':r.msg||'Erro.',!r.ok);
+    if(r.ok)setTimeout(()=>location.reload(),1200);
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-document.querySelectorAll('.copa-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.copa-tab').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.copa-pane').forEach(p => p.classList.remove('active'));
+document.querySelectorAll('.copa-tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        document.querySelectorAll('.copa-tab').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.copa-pane').forEach(p=>p.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('pane-'+btn.dataset.tab)?.classList.add('active');
-        if (btn.dataset.tab === 'bracket') buildBracket();
+        if(btn.dataset.tab==='bracket')buildBracket();
+        if(btn.dataset.tab==='admin')buildAdmBracket();
     });
 });
-
-function nextTab(tab) {
-    if (!SUBMITTED) {
-        fetch('copa26.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(buildPayload('save'))}).catch(()=>{});
-    }
-    document.querySelectorAll('.copa-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-    document.querySelectorAll('.copa-pane').forEach(p => p.classList.toggle('active', p.id==='pane-'+tab));
-    if (tab === 'bracket') buildBracket();
+function nextTab(tab){
+    if(!SUBMITTED)fetch('copa26.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildPayload('save'))}).catch(()=>{});
+    document.querySelectorAll('.copa-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+    document.querySelectorAll('.copa-pane').forEach(p=>p.classList.toggle('active',p.id==='pane-'+tab));
+    if(tab==='bracket')buildBracket();
+    if(tab==='admin')buildAdmBracket();
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function showToast(msg, err=false) {
-    let t = document.getElementById('fba-toast');
-    if (!t) {
-        t = document.createElement('div');
-        t.id = 'fba-toast';
-        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;transition:opacity .3s;font-family:var(--font)';
-        document.body.appendChild(t);
-    }
-    t.textContent = msg;
-    t.style.background = err ? '#fc0025' : '#22c55e';
-    t.style.color = '#fff';
-    t.style.opacity = '1';
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.style.opacity='0', 2500);
+// ── Accordion ─────────────────────────────────────────────────────────────────
+function toggleAccordion(id){
+    const body=document.getElementById(id.replace('Accordion','Body'));
+    const chev=document.getElementById(id.replace('Accordion','Chevron'));
+    if(body)body.classList.toggle('open');if(chev)chev.classList.toggle('open');
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-function openSidebar()  { document.getElementById('sidebar').classList.add('open');    document.getElementById('sbOverlay').classList.add('open'); }
-function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sbOverlay').classList.remove('open'); }
+// ── Utils ─────────────────────────────────────────────────────────────────────
+async function post(body){
+    try{const r=await fetch('copa26.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return await r.json();}catch(e){return{ok:false};}
+}
+function showToast(msg,err=false){
+    let t=document.getElementById('fba-toast');
+    if(!t){t=document.createElement('div');t.id='fba-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;transition:opacity .3s;font-family:var(--font)';document.body.appendChild(t);}
+    t.textContent=msg;t.style.background=err?'#fc0025':'#22c55e';t.style.color='#fff';t.style.opacity='1';
+    clearTimeout(t._timer);t._timer=setTimeout(()=>t.style.opacity='0',2800);
+}
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sbOverlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sbOverlay').classList.remove('open');}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-<?php if ($seeded): ?>
-GROUP_KEYS.forEach(l => renderGroup(l));
-<?php endif; ?>
+<?php if($seeded&&!$submitted):?>GROUP_KEYS.forEach(l=>renderGroup(l));<?php endif;?>
+<?php if($seeded&&$isAdmin):?>GROUP_KEYS.forEach(l=>renderAdmGroup(l));<?php endif;?>
 </script>
 </body>
 </html>
