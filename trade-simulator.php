@@ -623,7 +623,7 @@ function buildPanel(key) {
     : `<div class="sim-team-logo" style="background:var(--panel-3)"></div>`;
 
   const isMyTeam = t && t.id === MY_TEAM_ID;
-  const singleFixed = false;
+  const singleFixed = isMyTeam;
   const selectDisabled = singleFixed ? 'disabled' : '';
 
   div.innerHTML = `
