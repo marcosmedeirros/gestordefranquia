@@ -254,6 +254,10 @@ body{overflow-x:hidden}
 
 /* ── Mobile: redesign completo ───────────────────────────── */
 @media(max-width:600px){
+  /* Trava largura no viewport */
+  html,body{overflow-x:hidden;max-width:100vw}
+  .app,.main,.content{overflow-x:hidden;max-width:100vw}
+
   /* Título já aparece na topbar — oculta o hero inteiro */
   .page-hero{display:none}
 
@@ -309,9 +313,9 @@ body{overflow-x:hidden}
     font-size:13px;justify-content:center;
   }
 
-  /* CAP bar: scroll horizontal compacto */
-  .cap-bar{margin:10px 12px 0;border-radius:8px}
-  .cap-panel{min-width:120px;padding:10px 12px}
+  /* CAP bar: scroll interno, não estoura a tela */
+  .cap-bar{margin:10px 12px 0;border-radius:8px;max-width:calc(100vw - 24px);overflow-x:auto}
+  .cap-panel{min-width:110px;padding:10px 12px}
   .cap-label{font-size:9px;margin-bottom:4px}
   .cap-row{font-size:10px;margin-bottom:2px}
   .cap-val{font-size:11px}
@@ -324,7 +328,7 @@ body{overflow-x:hidden}
     border-radius:0;border-left:none;border-right:none;border-bottom:none;
     background:var(--panel);
     box-shadow:0 -2px 16px rgba(0,0,0,.4);
-    max-width:100vw;box-sizing:border-box;
+    max-width:100vw;width:100vw;box-sizing:border-box;overflow:hidden;
   }
   #validityBadge{display:none}
   .sim-bottom>div{display:flex;gap:8px;width:100%}
@@ -337,7 +341,20 @@ body{overflow-x:hidden}
   /* Picker modal — tela cheia */
   .modal-dialog{margin:0!important;max-width:100%!important;width:100%!important}
   .modal-content{border-radius:0!important;height:100dvh;display:flex;flex-direction:column}
-  .modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .modal-header{flex-shrink:0;padding:14px 16px}
+  .modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px}
+  .modal-footer{
+    flex-shrink:0;
+    padding:10px 14px 14px;
+    border-top:1px solid var(--border);
+    background:var(--panel);
+    box-shadow:0 -2px 12px rgba(0,0,0,.35);
+    justify-content:stretch!important;
+    gap:8px;
+  }
+  .modal-footer>span{display:none} /* oculta hint no mobile */
+  .modal-footer>div{display:flex;gap:8px;width:100%}
+  .modal-footer .btn-r{flex:1;justify-content:center;padding:13px 12px;font-size:14px}
   .picker-list{max-height:none}
   .picker-row{padding:14px 12px;min-height:52px;gap:12px}
   .picker-name{font-size:14px}
