@@ -263,14 +263,6 @@ body{overflow-x:hidden}
   .sim-item-meta{font-size:9px}
 }
 </style>
-<?php if ($embed): ?>
-<style>
-.sidebar,.topbar,.sb-overlay{display:none!important}
-.main{margin-left:0!important;padding-top:0!important}
-.page-hero{padding:10px 16px 0!important}
-.content{padding:12px 16px 24px!important}
-</style>
-<?php endif; ?>
 </head>
 <body>
 <div class="app">
@@ -527,7 +519,7 @@ function buildPanel(key) {
     : `<div class="sim-team-logo" style="background:var(--panel-3)"></div>`;
 
   const isMyTeam = t && t.id === MY_TEAM_ID;
-  const singleFixed = !IS_MULTI && key === 'A' && isMyTeam;
+  const singleFixed = false;
   const selectDisabled = singleFixed ? 'disabled' : '';
 
   div.innerHTML = `
