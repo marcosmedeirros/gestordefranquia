@@ -180,6 +180,8 @@ body{overflow-x:hidden}
 .sim-item-from{font-size:10px;color:var(--blue);font-weight:600}
 .sim-item-del{background:none;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:3px;flex-shrink:0;transition:color .15s}
 .sim-item-del:hover{color:var(--red)}
+.sim-swap-select{background:var(--panel-2);border:1px solid var(--border-red);border-radius:5px;color:var(--red);font-size:10px;font-weight:700;padding:2px 5px;cursor:pointer;font-family:var(--font);flex-shrink:0}
+.sim-swap-select:focus{outline:none}
 
 /* Add buttons */
 .sim-add-bar{padding:6px 10px 10px;display:flex;gap:6px;flex-wrap:wrap}
@@ -681,13 +683,22 @@ function itemHtml(item, toKey) {
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'player','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
   } else {
+    const pair = findSwapPair(toKey, item);
+    const swapSel = pair
+      ? `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="Swap">
+           <option value="" ${!item.swapRole ? 'selected' : ''}>—</option>
+           <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>SB</option>
+           <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>SW</option>
+         </select>`
+      : '';
     return `<div class="sim-item">
       <div class="sim-item-pick-icon"><i class="bi bi-calendar-event"></i></div>
       <div class="sim-item-info">
-        <div class="sim-item-name">${escH(item.label)}</div>
+        <div class="sim-item-name">${escH(item.label)}${item.swapRole ? ` <span style="color:var(--red);font-size:9px;font-weight:700">${item.swapRole}</span>` : ''}</div>
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
+      ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
   }
@@ -755,8 +766,10 @@ function renderPickerList() {
           </div>`).join('')
       : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores</div>';
   } else {
-    document.getElementById('pickerList').innerHTML = src.picks.length
-      ? src.picks.map(p => {
+    const currentYear = new Date().getFullYear();
+    const visiblePicks = src.picks.filter(p => (Number(p.season_year) || 0) >= currentYear);
+    document.getElementById('pickerList').innerHTML = visiblePicks.length
+      ? visiblePicks.map(p => {
           const label = pickLabel(p);
           return `<div class="picker-row${alreadyIn.has(p.id) ? ' selected' : ''}" data-id="${p.id}" onclick="togglePick(this)">
             <div class="picker-ovr" style="background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.3);color:var(--blue)">
@@ -805,7 +818,7 @@ function confirmPicker() {
     } else {
       const pk = src.picks.find(pk => pk.id === id);
       if (!pk) return;
-      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim() });
+      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, swapRole: null });
     }
   });
 
@@ -978,12 +991,30 @@ async function submitSingleTrade(notes) {
   const requestPlayers = receives[kA].filter(i => i.type === 'player').map(i => i.id);
   const requestPicks   = receives[kA].filter(i => i.type === 'pick').map(i => ({ id: i.id }));
 
+  // Monta swap_pairs: picks de lados opostos, mesma rodada, anos diferentes
+  const swapPairs = [];
+  const usedSwap = new Set();
+  receives[kB].forEach(item => {
+    if (item.type !== 'pick' || !item.swapRole || usedSwap.has(item.id)) return;
+    const pair = findSwapPair(kB, item);
+    if (!pair || !pair.item.swapRole) return;
+    swapPairs.push({
+      offer_pick_id: item.id,
+      request_pick_id: pair.item.id,
+      offer_role: item.swapRole,
+      request_role: pair.item.swapRole,
+    });
+    usedSwap.add(item.id);
+    usedSwap.add(pair.item.id);
+  });
+
   const payload = {
     to_team_id: tB.id,
     offer_players: offerPlayers,
     offer_picks: offerPicks,
     request_players: requestPlayers,
     request_picks: requestPicks,
+    swap_pairs: swapPairs,
     notes,
   };
 
@@ -1044,6 +1075,40 @@ function resetAll() {
     if (teams[k]) { const s = document.getElementById(`sel_${k}`); if (s) s.value = teams[k].id; }
   });
   recalc();
+}
+
+// ── Swap helpers ──────────────────────────────────────────────────────────────
+function findSwapPair(toKey, item) {
+  for (const otherToKey of activeSlots) {
+    if (otherToKey === toKey) continue;
+    for (const other of (receives[otherToKey] || [])) {
+      if (other.type !== 'pick') continue;
+      if (other.fromKey !== toKey) continue;       // vem deste time
+      if (item.fromKey !== otherToKey) continue;   // vai para o outro time
+      if (String(other.round) !== String(item.round)) continue;
+      if (String(other.season_year) === String(item.season_year)) continue;
+      return { toKey: otherToKey, item: other };
+    }
+  }
+  return null;
+}
+
+function setSimSwapRole(toKey, itemId, role) {
+  const item = (receives[toKey] || []).find(i => i.id === itemId && i.type === 'pick');
+  if (!item) return;
+  item.swapRole = role || null;
+  const pair = findSwapPair(toKey, item);
+  if (pair) {
+    pair.item.swapRole = role ? (role === 'SB' ? 'SW' : 'SB') : null;
+  }
+  renderPanel(toKey);
+  if (window._allTeams) populateTeamSelect(toKey, window._allTeams);
+  if (teams[toKey]) { const s = document.getElementById(`sel_${toKey}`); if (s) s.value = teams[toKey].id; }
+  if (pair) {
+    renderPanel(pair.toKey);
+    if (window._allTeams) populateTeamSelect(pair.toKey, window._allTeams);
+    if (teams[pair.toKey]) { const s = document.getElementById(`sel_${pair.toKey}`); if (s) s.value = teams[pair.toKey].id; }
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
