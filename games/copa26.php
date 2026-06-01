@@ -21,6 +21,7 @@ try {
         group_id INT NOT NULL,
         name VARCHAR(100) NOT NULL,
         flag VARCHAR(10) NULL,
+        sort_order TINYINT NOT NULL DEFAULT 0,
         FOREIGN KEY (group_id) REFERENCES copa26_groups(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
@@ -82,6 +83,16 @@ try {
 foreach (['neymar_goals VARCHAR(10) NULL AFTER revelation','points INT NOT NULL DEFAULT 0 AFTER neymar_goals'] as $col) {
     try { $pdo->exec("ALTER TABLE copa26_predictions ADD COLUMN $col"); } catch(Exception $e){}
 }
+try { $pdo->exec("ALTER TABLE copa26_teams ADD COLUMN sort_order TINYINT NOT NULL DEFAULT 0 AFTER flag"); } catch(Exception $e){}
+// migrate sort_order = 0 rows to position based on name (one-time fix)
+try {
+    if ((int)$pdo->query("SELECT COUNT(*) FROM copa26_teams WHERE sort_order=0")->fetchColumn() > 0) {
+        $pdo->exec("SET @rn:=0,@prev:=0");
+        $pdo->exec("UPDATE copa26_teams t JOIN (
+            SELECT id, group_id, ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY id) rn FROM copa26_teams
+        ) ranked ON ranked.id=t.id SET t.sort_order=ranked.rn WHERE t.sort_order=0");
+    }
+} catch(Exception $e){}
 
 // migrate emoji flags → ISO codes
 try {
@@ -127,10 +138,10 @@ function seedCopa26(PDO $pdo): void {
         'L'=>[['Inglaterra','gb-eng'],['Croácia','hr'],['Gana','gh'],['Panamá','pa']],
     ];
     $sg=$pdo->prepare("INSERT INTO copa26_groups (letter) VALUES (?)");
-    $st=$pdo->prepare("INSERT INTO copa26_teams (group_id,name,flag) VALUES (?,?,?)");
+    $st=$pdo->prepare("INSERT INTO copa26_teams (group_id,name,flag,sort_order) VALUES (?,?,?,?)");
     foreach ($data as $letter=>$teams) {
         $sg->execute([$letter]); $gid=$pdo->lastInsertId();
-        foreach ($teams as [$n,$f]) $st->execute([$gid,$n,$f]);
+        foreach ($teams as $i=>[$n,$f]) $st->execute([$gid,$n,$f,$i+1]);
     }
 }
 
@@ -171,7 +182,7 @@ function calcAllPoints(PDO $pdo, array $off): void {
 // ── Fixture seed ─────────────────────────────────────────────────────────────
 function seedCopa26Fixtures(PDO $pdo): int {
     $pdo->exec("DELETE FROM copa26_matches WHERE phase='group'");
-    $rows=$pdo->query("SELECT t.id,t.name,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.name")->fetchAll(PDO::FETCH_ASSOC);
+    $rows=$pdo->query("SELECT t.id,t.name,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.sort_order,t.id")->fetchAll(PDO::FETCH_ASSOC);
     $byGroup=[]; $gids=[];
     foreach ($rows as $r){ $byGroup[$r['letter']][]=$r; $gids[$r['letter']]=$r['gid']; }
     // Dates: groups A-B share days, C-D share days, etc.
@@ -293,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 // ── Load data ─────────────────────────────────────────────────────────────────
 $groups=[];
 try {
-    $rows=$pdo->query("SELECT g.id gid,g.letter,t.id tid,t.name,t.flag FROM copa26_groups g LEFT JOIN copa26_teams t ON t.group_id=g.id ORDER BY g.letter,t.name")->fetchAll(PDO::FETCH_ASSOC);
+    $rows=$pdo->query("SELECT g.id gid,g.letter,t.id tid,t.name,t.flag FROM copa26_groups g LEFT JOIN copa26_teams t ON t.group_id=g.id ORDER BY g.letter,t.sort_order,t.id")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $r) {
         $l=$r['letter'];
         if (!isset($groups[$l])) $groups[$l]=['id'=>$r['gid'],'teams'=>[]];
@@ -912,14 +923,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 <!-- ── ADMIN ──────────────────────────────────────────────────────────────── -->
 <?php if ($isAdmin): ?>
 <div class="copa-pane" id="pane-admin">
-
-  <!-- Grupos -->
-  <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-gear-fill" style="color:var(--purple)"></i>Configuração dos Grupos</div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-      <a href="copa26.php?action=seed" class="btn-r outline sm" onclick="return confirm('Reconfigurar apaga todos os palpites. Confirmar?')"><i class="bi bi-arrow-counterclockwise"></i>Reconfigurar grupos</a>
-    </div>
-  </div>
 
   <!-- Resultados oficiais dos grupos -->
   <div class="admin-section">
