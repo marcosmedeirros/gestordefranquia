@@ -180,33 +180,65 @@ function calcAllPoints(PDO $pdo, array $off): void {
 }
 
 // ── Fixture seed ─────────────────────────────────────────────────────────────
+// [date, time, group_letter, home_pos(0-based), away_pos(0-based)]
+// Positions follow the seed order: 0=1st team, 1=2nd, 2=3rd, 3=4th
+const COPA26_SCHEDULE = [
+    // ── Matchday 1 ──────────────────────────────
+    ['2026-06-11','16:00','A',0,1],['2026-06-11','23:00','A',2,3],
+    ['2026-06-12','16:00','B',0,1],['2026-06-12','22:00','D',0,1],
+    ['2026-06-13','01:00','D',2,3],['2026-06-13','16:00','B',2,3],
+    ['2026-06-13','19:00','C',0,1],['2026-06-13','22:00','C',2,3],
+    ['2026-06-14','14:00','E',0,1],['2026-06-14','17:00','F',0,1],
+    ['2026-06-14','20:00','E',2,3],['2026-06-14','23:00','F',2,3],
+    ['2026-06-15','13:00','H',0,1],['2026-06-15','16:00','G',0,1],
+    ['2026-06-15','19:00','H',2,3],['2026-06-15','22:00','G',2,3],
+    ['2026-06-16','16:00','I',0,1],['2026-06-16','19:00','I',2,3],
+    ['2026-06-16','22:00','J',0,1],
+    ['2026-06-17','01:00','J',2,3],['2026-06-17','14:00','K',0,1],
+    ['2026-06-17','17:00','L',0,1],['2026-06-17','20:00','L',2,3],
+    ['2026-06-17','23:00','K',2,3],
+    // ── Matchday 2 ──────────────────────────────
+    ['2026-06-18','13:00','A',3,1],['2026-06-18','16:00','B',3,1],
+    ['2026-06-18','19:00','B',0,2],['2026-06-18','22:00','A',0,2],
+    ['2026-06-19','01:00','D',3,1],['2026-06-19','16:00','D',0,2],
+    ['2026-06-19','19:00','C',3,1],['2026-06-19','22:00','C',0,2],
+    ['2026-06-20','14:00','F',0,2],['2026-06-20','17:00','E',0,2],
+    ['2026-06-20','21:00','E',3,1],
+    ['2026-06-21','01:00','F',3,1],['2026-06-21','13:00','H',0,2],
+    ['2026-06-21','16:00','G',0,2],['2026-06-21','19:00','H',3,1],
+    ['2026-06-21','22:00','G',3,1],
+    ['2026-06-22','14:00','J',0,2],['2026-06-22','18:00','I',0,2],
+    ['2026-06-22','21:00','I',3,1],
+    ['2026-06-23','00:00','J',3,1],['2026-06-23','14:00','K',0,2],
+    ['2026-06-23','17:00','L',0,2],['2026-06-23','20:00','L',3,1],
+    ['2026-06-23','23:00','K',3,1],
+    // ── Matchday 3 (simultaneous final rounds) ──
+    ['2026-06-24','16:00','B',3,0],['2026-06-24','16:00','B',1,2],
+    ['2026-06-24','19:00','C',3,0],['2026-06-24','19:00','C',1,2],
+    ['2026-06-24','22:00','A',3,0],['2026-06-24','22:00','A',1,2],
+    ['2026-06-25','17:00','E',3,0],['2026-06-25','17:00','E',1,2],
+    ['2026-06-25','20:00','F',3,0],['2026-06-25','20:00','F',1,2],
+    ['2026-06-25','23:00','D',3,0],['2026-06-25','23:00','D',1,2],
+    ['2026-06-26','16:00','I',3,0],['2026-06-26','16:00','I',1,2],
+    ['2026-06-26','21:00','H',3,0],['2026-06-26','21:00','H',1,2],
+    ['2026-06-27','00:00','G',1,2],['2026-06-27','00:00','G',3,0],
+    ['2026-06-27','18:00','L',3,0],['2026-06-27','18:00','L',1,2],
+    ['2026-06-27','20:30','K',3,0],['2026-06-27','20:30','K',1,2],
+    ['2026-06-27','23:00','J',3,0],['2026-06-27','23:00','J',1,2],
+];
+
 function seedCopa26Fixtures(PDO $pdo): int {
     $pdo->exec("DELETE FROM copa26_matches WHERE phase='group'");
-    $rows=$pdo->query("SELECT t.id,t.name,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.sort_order,t.id")->fetchAll(PDO::FETCH_ASSOC);
+    $rows=$pdo->query("SELECT t.id,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.sort_order,t.id")->fetchAll(PDO::FETCH_ASSOC);
     $byGroup=[]; $gids=[];
-    foreach ($rows as $r){ $byGroup[$r['letter']][]=$r; $gids[$r['letter']]=$r['gid']; }
-    // Dates: groups A-B share days, C-D share days, etc.
-    $calDates=[
-        'A'=>['2026-06-11','2026-06-20','2026-06-27'],'B'=>['2026-06-11','2026-06-20','2026-06-27'],
-        'C'=>['2026-06-12','2026-06-21','2026-06-28'],'D'=>['2026-06-12','2026-06-21','2026-06-28'],
-        'E'=>['2026-06-13','2026-06-22','2026-06-29'],'F'=>['2026-06-13','2026-06-22','2026-06-29'],
-        'G'=>['2026-06-14','2026-06-23','2026-06-30'],'H'=>['2026-06-14','2026-06-23','2026-06-30'],
-        'I'=>['2026-06-15','2026-06-24','2026-07-01'],'J'=>['2026-06-15','2026-06-24','2026-07-01'],
-        'K'=>['2026-06-16','2026-06-25','2026-07-02'],'L'=>['2026-06-16','2026-06-25','2026-07-02'],
-    ];
+    foreach ($rows as $r){ $byGroup[$r['letter']][]=$r['id']; $gids[$r['letter']]=$r['gid']; }
+    global $COPA26_SCHEDULE;
     $st=$pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,phase,group_id) VALUES (?,?,?,?,?,?)");
     $cnt=0;
-    foreach ($byGroup as $letter=>$teams){
-        if (count($teams)<4) continue;
-        [$t1,$t2,$t3,$t4]=array_slice($teams,0,4);
-        $gid=$gids[$letter]; $d=$calDates[$letter]??['2026-06-11','2026-06-20','2026-06-27'];
-        $even=(ord($letter)-ord('A'))%2===0;
-        $s1=$even?'15:00':'18:00'; $s2=$even?'18:00':'21:00';
-        foreach ([
-            [$t1['id'],$t2['id'],$d[0],$s1],[$t3['id'],$t4['id'],$d[0],$s2],
-            [$t1['id'],$t3['id'],$d[1],$s1],[$t2['id'],$t4['id'],$d[1],$s2],
-            [$t4['id'],$t1['id'],$d[2],$s1],[$t2['id'],$t3['id'],$d[2],$s2],
-        ] as $f){ $st->execute([$f[2],$f[3],$f[0],$f[1],'group',$gid]); $cnt++; }
+    foreach ($COPA26_SCHEDULE as [$date,$time,$letter,$hi,$ai]){
+        $home=$byGroup[$letter][$hi]??null; $away=$byGroup[$letter][$ai]??null;
+        if (!$home||!$away) continue;
+        $st->execute([$date,$time,$home,$away,'group',$gids[$letter]??null]); $cnt++;
     }
     return $cnt;
 }
@@ -264,9 +296,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='seed_fixtures'&&$isAdmin) {
-        // allTeams needs to be accessible here — re-query
         $cnt=seedCopa26Fixtures($pdo);
         echo json_encode(['ok'=>true,'inserted'=>$cnt]); exit;
+    }
+    if ($act==='del_all_matches'&&$isAdmin) {
+        $pdo->exec("DELETE FROM copa26_matches");
+        $pdo->exec("DELETE FROM copa26_score_preds");
+        echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='csv_import'&&$isAdmin) {
         $rows2=$body['rows']??[];
@@ -990,7 +1026,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-      <button class="btn-r outline" onclick="seedFixtures()"><i class="bi bi-lightning-charge-fill"></i>Pré-definir todos os jogos (fase de grupos)</button>
+      <button class="btn-r outline" onclick="seedFixtures()"><i class="bi bi-lightning-charge-fill"></i>Pré-definir todos os jogos (72 jogos)</button>
+      <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
     <!-- CSV upload -->
@@ -1241,36 +1278,56 @@ function buildBracketGeneric(matchupsRef,orderMap,stateRef){
     });
 }
 
-function renderBracketGeneric(elId,matchupsRef,stateRef,editable,setFn){
+function renderBracketGeneric(elId,matchupsRef,stateRef,editable,onWin){
     const el=document.getElementById(elId);if(!el)return;el.innerHTML='';
     ROUND_ORDER.forEach(round=>{
         const matches=matchupsRef[round];if(!matches)return;
         const col=document.createElement('div');col.className='bracket-round';
-        col.innerHTML=`<div class="bracket-round-title">${ROUND_NAMES[round]||round}</div>`;
+        const titleEl=document.createElement('div');titleEl.className='bracket-round-title';
+        titleEl.textContent=ROUND_NAMES[round]||round;col.appendChild(titleEl);
         matches.forEach((match,idx)=>{
-            const [t1,t2]=match,w=stateRef[round+'_'+idx];
+            const [t1,t2]=match;
+            const w=stateRef[round+'_'+idx];
             const wId=w&&typeof w==='object'?w.id:null;
-            const tj1=t1?JSON.stringify(t1).replace(/"/g,'&quot;'):'';
-            const tj2=t2?JSON.stringify(t2).replace(/"/g,'&quot;'):'';
-            const d=document.createElement('div');d.className='bracket-match';
-            d.innerHTML=`<div class="bracket-slot${wId&&t1&&wId==t1.id?' winner':''}${!t1?' tbd':''}" onclick="${t1&&editable?`${setFn}('${round}',${idx},'${tj1}')`:''}" ><span class="bracket-slot-flag">${t1?flagImg(t1.flag,18):''}</span><span class="bracket-slot-name">${t1?escH(t1.name):'A definir'}</span></div><div class="bracket-divider"></div><div class="bracket-slot${wId&&t2&&wId==t2.id?' winner':''}${!t2?' tbd':''}" onclick="${t2&&editable?`${setFn}('${round}',${idx},'${tj2}')`:''}" ><span class="bracket-slot-flag">${t2?flagImg(t2.flag,18):''}</span><span class="bracket-slot-name">${t2?escH(t2.name):'A definir'}</span></div>`;
-            col.appendChild(d);
+            const wrap=document.createElement('div');wrap.className='bracket-match';
+            const makeSlot=team=>{
+                const slot=document.createElement('div');
+                slot.className='bracket-slot'+(wId&&team&&wId==team.id?' winner':'')+(team?'':' tbd');
+                if(team&&editable){slot.style.cursor='pointer';slot.onclick=()=>onWin(round,idx,team);}
+                const fspan=document.createElement('span');fspan.className='bracket-slot-flag';
+                if(team&&team.flag){
+                    const img=document.createElement('img');
+                    img.src='https://flagcdn.com/w36/'+team.flag+'.png';
+                    img.width=18;img.height=14;
+                    img.style.cssText='border-radius:2px;object-fit:cover;display:block;vertical-align:middle';
+                    img.loading='lazy';img.alt=team.flag;
+                    img.onerror=function(){this.style.display='none';};
+                    fspan.appendChild(img);
+                }
+                const nspan=document.createElement('span');nspan.className='bracket-slot-name';
+                nspan.textContent=team?team.name:'A definir';
+                slot.appendChild(fspan);slot.appendChild(nspan);return slot;
+            };
+            wrap.appendChild(makeSlot(t1));
+            const div=document.createElement('div');div.className='bracket-divider';wrap.appendChild(div);
+            wrap.appendChild(makeSlot(t2));
+            col.appendChild(wrap);
         });
         el.appendChild(col);
     });
 }
 
-function setWinnerGeneric(round,matchIdx,teamJson,stateRef,matchupsRef){
-    const team=JSON.parse(teamJson);stateRef[round+'_'+matchIdx]=team;
+function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
+    stateRef[round+'_'+matchIdx]=team;
     const nr=ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
     if(nr){const ni=Math.floor(matchIdx/2),ns=matchIdx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
 }
 
-function setWinner(r,i,tj){setWinnerGeneric(r,i,tj,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,'setWinner');}
-function admSetWinner(r,i,tj){setWinnerGeneric(r,i,tj,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,'admSetWinner');}
+function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,setWinner);}
+function admSetWinner(r,i,team){setWinnerGeneric(r,i,team,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
-function buildBracket(){buildBracketGeneric(bracketMatchups,groupOrder,bracketState);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,'setWinner');}
-function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,'admSetWinner');}
+function buildBracket(){buildBracketGeneric(bracketMatchups,groupOrder,bracketState);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,!SUBMITTED,setWinner);}
+function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
 // ── Save / Submit ─────────────────────────────────────────────────────────────
 function buildPayload(action){
@@ -1316,9 +1373,15 @@ async function addMatch(){
 }
 
 async function seedFixtures(){
-    if(!confirm('Isso vai apagar todos os jogos da fase de grupos e criar os 72 jogos pré-definidos. Continuar?'))return;
+    if(!confirm('Isso vai apagar os jogos da fase de grupos e criar os 72 jogos com o calendário oficial. Continuar?'))return;
     const r=await post({action:'seed_fixtures'});
     if(r.ok){showToast(`${r.inserted} jogos criados!`);setTimeout(()=>location.reload(),1000);}
+    else showToast('Erro.',true);
+}
+async function delAllMatches(){
+    if(!confirm('Apagar TODOS os jogos e palpites de placar? Isso não pode ser desfeito.'))return;
+    const r=await post({action:'del_all_matches'});
+    if(r.ok){showToast('Todos os jogos apagados.');setTimeout(()=>location.reload(),800);}
     else showToast('Erro.',true);
 }
 
