@@ -1169,6 +1169,9 @@ function getSerasaScore(int $avisos): array {
         .serasa-amarelo  { color: #eab308; border-color: rgba(234,179,8,.35);  background: rgba(234,179,8,.10);  }
         .serasa-laranja  { color: #f97316; border-color: rgba(249,115,22,.35); background: rgba(249,115,22,.10); }
         .serasa-vermelho { color: #ef4444; border-color: rgba(239,68,68,.35);  background: rgba(239,68,68,.10);  }
+        /* badge inline na lista só aparece no mobile */
+        .list-serasa-mobile { display: none; }
+        @media (max-width: 992px) { .list-serasa-mobile { display: inline-flex; } }
     </style>
 </head>
 <body>
@@ -1474,6 +1477,13 @@ function getSerasaScore(int $avisos): array {
                                 <?php if ($listTag && isset($listTagLabels[$listTag])): ?>
                                 <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid <?= $listTagColors[$listTag] ?>;color:<?= $listTagColors[$listTag] ?>;background:<?= $listTagColors[$listTag] ?>22"><?= $listTagLabels[$listTag] ?></span>
                                 <?php endif; ?>
+                                <?php
+                                    $inlineAvisos = (int)($t['avisos_count'] ?? 0);
+                                    $inlineScore  = getSerasaScore($inlineAvisos);
+                                ?>
+                                <span class="serasa-badge <?= $inlineScore['cls'] ?> list-serasa-mobile" style="font-size:9px;padding:1px 5px;margin-top:0">
+                                    <i class="bi bi-shield-check" style="font-size:8px"></i><?= $inlineScore['label'] ?>
+                                </span>
                             </div>
                         </div>
                     </div>
