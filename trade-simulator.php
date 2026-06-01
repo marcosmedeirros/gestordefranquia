@@ -456,12 +456,14 @@ body{overflow-x:hidden}
       <?php if ($propose): ?>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="btn-r secondary sm" onclick="resetAll()"><i class="bi bi-x-lg"></i>Limpar</button>
+        <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
         <button class="btn-r primary lg" id="submitBtn" onclick="submitTrade()" disabled>
           <i class="bi bi-send-fill"></i>Enviar Proposta
         </button>
       </div>
       <?php else: ?>
       <div style="display:flex;gap:8px">
+        <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
         <a href="/trade-simulator.php?propose=1" class="btn-r outline sm" style="text-decoration:none"><i class="bi bi-send"></i>Propor esta trade</a>
       </div>
       <?php endif; ?>
@@ -1115,6 +1117,58 @@ function setSimSwapRole(toKey, itemId, role) {
 function pickLabel(p) { return `${p.season_year ?? '?'} · ${p.round == 1 ? '1ª Round' : '2ª Round'}`; }
 function escH(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escA(s) { return String(s ?? '').replace(/"/g,'&quot;'); }
+
+// ── Copy trade to clipboard ───────────────────────────────────────────────────
+function copyTrade() {
+  const lines = [];
+
+  activeSlots.forEach(key => {
+    const t = teams[key];
+    if (!t) return;
+
+    // Todos os itens que este time ENVIA (fromKey === key em qualquer receives)
+    const sends = [];
+    activeSlots.forEach(toKey => {
+      if (toKey === key) return;
+      (receives[toKey] || []).forEach(item => {
+        if (item.fromKey === key) sends.push(item);
+      });
+    });
+
+    if (!sends.length) return;
+
+    lines.push(`${t.name.toUpperCase()} envia:`);
+    sends.forEach(item => {
+      if (item.type === 'player') {
+        lines.push(`  • ${item.name} (${item.pos}, OVR ${item.ovr}/${item.age}a)`);
+      } else {
+        const swap = item.swapRole ? ` [${item.swapRole}]` : '';
+        lines.push(`  • ${item.label} (${item.orig})${swap}`);
+      }
+    });
+    lines.push('');
+  });
+
+  const text = lines.join('\n').trim();
+  if (!text) { alert('Nenhum item na trade para copiar.'); return; }
+
+  const btn = document.getElementById('copyTradeBtn');
+  const restore = () => { if (btn) btn.innerHTML = '<i class="bi bi-clipboard"></i>Copiar'; };
+
+  navigator.clipboard.writeText(text).then(() => {
+    if (btn) btn.innerHTML = '<i class="bi bi-check2"></i>Copiado!';
+    setTimeout(restore, 2000);
+  }).catch(() => {
+    // fallback para browsers sem clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); if (btn) btn.innerHTML = '<i class="bi bi-check2"></i>Copiado!'; }
+    catch(e) { alert(text); }
+    document.body.removeChild(ta);
+    setTimeout(restore, 2000);
+  });
+}
 
 // ── Sidebar + Theme ───────────────────────────────────────────────────────────
 (function(){
