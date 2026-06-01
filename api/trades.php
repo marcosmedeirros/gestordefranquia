@@ -252,6 +252,40 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     }
 }
 
+function sendMultiTradePush(PDO $pdo, int $tradeId): void
+{
+    $pushFile = dirname(__DIR__) . '/backend/push.php';
+    if (!file_exists($pushFile)) return;
+
+    $stmtTrade = $pdo->prepare('SELECT created_by_team_id FROM multi_trades WHERE id = ?');
+    $stmtTrade->execute([$tradeId]);
+    $creatorTeamId = (int)($stmtTrade->fetchColumn() ?: 0);
+    if (!$creatorTeamId) return;
+
+    $stmtName = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''), ' ', name)) FROM teams WHERE id = ?");
+    $stmtName->execute([$creatorTeamId]);
+    $creatorName = trim($stmtName->fetchColumn() ?: 'Um time');
+
+    $stmtUsers = $pdo->prepare('SELECT t.user_id FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ? AND mtt.team_id != ?');
+    $stmtUsers->execute([$tradeId, $creatorTeamId]);
+    $userIds = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($userIds)) return;
+
+    require_once $pushFile;
+    foreach ($userIds as $userId) {
+        try {
+            sendPushToUser($pdo, (int)$userId, [
+                'title'      => 'Nova Trade Múltipla 🏀',
+                'body'       => "{$creatorName} te incluiu em uma trade múltipla!",
+                'url'        => '/trades.php',
+                'primaryKey' => $tradeId,
+            ]);
+        } catch (Exception $e) {
+            error_log('[multi-trade-push] trade_id=' . $tradeId . ' user=' . $userId . ' ' . $e->getMessage());
+        }
+    }
+}
+
 function sendTradePush(PDO $pdo, int $tradeId, string $event): void
 {
     $pushFile = dirname(__DIR__) . '/backend/push.php';
@@ -1822,6 +1856,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         } catch (Exception $e) {
             error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
         }
+        sendMultiTradePush($pdo, (int)$tradeId);
         echo json_encode(['success' => true, 'trade_id' => $tradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();

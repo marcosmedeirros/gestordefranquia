@@ -413,6 +413,14 @@ try {
       .page-hero { padding: 16px 16px 0; }
       .content { padding: 16px 16px 32px; }
     }
+    @media (max-width: 576px) {
+      .nav-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .nav-tabs::-webkit-scrollbar { display: none; }
+      .nav-tabs .nav-link { white-space: nowrap; padding: 10px 12px; font-size: 12px; }
+      .page-hero-title { font-size: 18px; }
+      .tc { padding: 14px; }
+      .tc-header { gap: 8px; }
+    }
   </style>
 </head>
 <body>
@@ -515,13 +523,12 @@ try {
           <span class="tag gray"><?= $tradeCount ?>/<?= $maxTrades ?> trocas usadas</span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn-r secondary" disabled><i class="bi bi-lock-fill"></i>Bloqueadas</button>
+          <?php elseif ($tradeCount >= $maxTrades): ?>
+            <button class="btn-r primary" disabled><i class="bi bi-plus-circle"></i>Nova Trade</button>
           <?php else: ?>
-            <button class="btn-r outline" data-bs-toggle="modal" data-bs-target="#multiTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
-              <i class="bi bi-people-fill"></i>Trade Múltipla
-            </button>
-            <button class="btn-r primary" data-bs-toggle="modal" data-bs-target="#proposeTradeModal" <?= $tradeCount >= $maxTrades ? 'disabled' : '' ?>>
+            <a href="/trade-simulator.php?propose=1" class="btn-r primary" style="text-decoration:none">
               <i class="bi bi-plus-circle"></i>Nova Trade
-            </button>
+            </a>
           <?php endif; ?>
         </div>
       </div>
