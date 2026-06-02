@@ -232,10 +232,9 @@ function seedCopa26Fixtures(PDO $pdo): int {
     $rows=$pdo->query("SELECT t.id,g.letter,g.id gid FROM copa26_teams t JOIN copa26_groups g ON g.id=t.group_id ORDER BY g.letter,t.sort_order,t.id")->fetchAll(PDO::FETCH_ASSOC);
     $byGroup=[]; $gids=[];
     foreach ($rows as $r){ $byGroup[$r['letter']][]=$r['id']; $gids[$r['letter']]=$r['gid']; }
-    global $COPA26_SCHEDULE;
     $st=$pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,phase,group_id) VALUES (?,?,?,?,?,?)");
     $cnt=0;
-    foreach ($COPA26_SCHEDULE as [$date,$time,$letter,$hi,$ai]){
+    foreach (COPA26_SCHEDULE as [$date,$time,$letter,$hi,$ai]){
         $home=$byGroup[$letter][$hi]??null; $away=$byGroup[$letter][$ai]??null;
         if (!$home||!$away) continue;
         $st->execute([$date,$time,$home,$away,'group',$gids[$letter]??null]); $cnt++;
@@ -375,6 +374,11 @@ try {
 $allMatches=[];
 try {
     $allMatches=$pdo->query("SELECT m.*,ht.name hname,ht.flag hflag,at.name aname,at.flag aflag FROM copa26_matches m LEFT JOIN copa26_teams ht ON ht.id=m.home_team_id LEFT JOIN copa26_teams at ON at.id=m.away_team_id ORDER BY m.match_date,m.match_time")->fetchAll(PDO::FETCH_ASSOC);
+    // auto-seed group matches on first load if groups exist but no matches yet
+    if (empty($allMatches) && !empty($groups)) {
+        seedCopa26Fixtures($pdo);
+        $allMatches=$pdo->query("SELECT m.*,ht.name hname,ht.flag hflag,at.name aname,at.flag aflag FROM copa26_matches m LEFT JOIN copa26_teams ht ON ht.id=m.home_team_id LEFT JOIN copa26_teams at ON at.id=m.away_team_id ORDER BY m.match_date,m.match_time")->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch(Exception $e){}
 
 $matchesByDate=[]; foreach ($allMatches as $m) $matchesByDate[$m['match_date']][]=$m;
@@ -1026,7 +1030,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-      <button class="btn-r outline" onclick="seedFixtures()"><i class="bi bi-lightning-charge-fill"></i>Pré-definir todos os jogos (72 jogos)</button>
       <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
