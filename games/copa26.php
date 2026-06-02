@@ -934,16 +934,24 @@ async function savePendingPopup(){
 
 <!-- ── JOGOS ──────────────────────────────────────────────────────────────── -->
 <div class="copa-pane" id="pane-jogos">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:var(--radius-sm);font-size:12px;color:#7db4f5;margin-bottom:16px">
+    <i class="bi bi-calendar-event" style="font-size:14px;flex-shrink:0"></i>
+    Os jogos são liberados no dia em que acontecem. Volte a cada rodada para preencher seu palpite de placar.
+  </div>
   <?php if (empty($allMatches)): ?>
-  <div class="no-matches">Nenhum jogo cadastrado ainda. O administrador adiciona os jogos diariamente.</div>
+  <div class="no-matches">Nenhum jogo cadastrado ainda.</div>
   <?php else: ?>
   <?php
-  $today = date('Y-m-d');
   $datesSorted = array_keys($matchesByDate);
   sort($datesSorted);
-  // only show today and past dates — future dates are unlocked as the day arrives
   $orderedDates = array_values(array_filter($datesSorted, fn($d)=>$d<=$today));
   ?>
+  <?php if (empty($orderedDates)): ?>
+  <div style="text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px">
+    <i class="bi bi-clock" style="font-size:28px;display:block;margin-bottom:10px;color:var(--text-3)"></i>
+    A competição começa em 11/06/2026. Os jogos aparecerão aqui no dia!
+  </div>
+  <?php else: ?>
   <?php foreach ($orderedDates as $date):
       $matches=$matchesByDate[$date]??[];
       $isToday=$date===$today;
@@ -999,7 +1007,8 @@ async function savePendingPopup(){
   <?php endforeach; ?>
   <!-- save scores button -->
   <button class="btn-r primary" style="margin-top:4px" onclick="saveScores()"><i class="bi bi-check2-circle"></i>Salvar placares</button>
-  <?php endif; ?>
+  <?php endif; // empty orderedDates ?>
+  <?php endif; // empty allMatches ?>
 </div>
 
 <!-- ── RANKING ────────────────────────────────────────────────────────────── -->
