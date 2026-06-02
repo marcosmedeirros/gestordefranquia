@@ -212,6 +212,9 @@ try {
     <a href="controle-financas.php" class="sb-link active">
       <i class="bi bi-cash-coin"></i>Controle Finanças
     </a>
+    <a href="controle-tapas.php" class="sb-link">
+      <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
+    </a>
     <a href="dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
     </a>
@@ -269,7 +272,15 @@ try {
   <div class="panel-card">
     <div class="panel-head">
       <span class="panel-title"><i class="bi bi-people-fill" style="color:var(--red);margin-right:7px"></i>Usuários</span>
-      <span style="font-size:11px;color:var(--text-3)"><?= $total ?> usuários</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="position:relative">
+          <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:12px;pointer-events:none"></i>
+          <input type="text" id="searchNome" placeholder="Buscar por nome..." oninput="filtrarParticipants()"
+            style="background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px;padding:6px 10px 6px 30px;color:var(--text);font-family:var(--font);font-size:12px;width:200px;outline:none"
+            onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border-md)'">
+        </div>
+        <span style="font-size:11px;color:var(--text-3)" id="countLabel"><?= $total ?> usuários</span>
+      </div>
     </div>
     <div style="overflow-x:auto">
       <table class="fin-table">
@@ -370,6 +381,20 @@ async function togglePago(uid, newVal) {
     btn.textContent = orig;
     showToast('Erro ao atualizar.', true);
   }
+}
+
+function filtrarParticipants() {
+  const q = document.getElementById('searchNome').value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#participantsList tr');
+  let visible = 0;
+  rows.forEach(row => {
+    const nome = row.querySelector('td span')?.textContent?.toLowerCase() ?? '';
+    const show = !q || nome.includes(q);
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const lbl = document.getElementById('countLabel');
+  if (lbl) lbl.textContent = visible + ' usuário' + (visible !== 1 ? 's' : '');
 }
 
 function showToast(msg, err = false) {

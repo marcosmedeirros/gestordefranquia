@@ -693,7 +693,6 @@ try {
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome'] ?? 'U', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($usuario['nome'] ?? '') ?></div>
     <div class="sb-user-role"><?= !empty($usuario['is_admin']) ? 'Admin' : 'Jogador' ?></div>
   </div>
@@ -722,6 +721,9 @@ try {
     <a href="games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
+    <a href="copa26.php" class="sb-link">
+      <i class="bi bi-trophy-fill"></i>Copa 2026
+    </a>
     <a href="user/ranking-geral.php" class="sb-link">
       <i class="bi bi-bar-chart-fill"></i>Ranking Geral
     </a>
@@ -733,6 +735,12 @@ try {
     <a href="admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
     </a>
+    <a href="admin/controle-financas.php" class="sb-link">
+      <i class="bi bi-cash-coin"></i>Controle Finanças
+    </a>
+    <a href="admin/controle-tapas.php" class="sb-link">
+      <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
+    </a>
     <?php endif; ?>
     <a href="admin/dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
@@ -740,7 +748,7 @@ try {
   </nav>
   <div class="sb-footer">
     <a href="auth/logout.php" class="sb-logout">
-      <i class="bi bi-box-arrow-right"></i>Sair!!
+      <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>
 </aside>
