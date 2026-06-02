@@ -312,9 +312,14 @@ if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
   <div id="tapa-msg"></div>
 
   <div class="panel-card">
-    <div class="panel-head">
-      <i class="bi bi-list-ul"></i>
-      Usuários com tapas
+    <div class="panel-head" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px"><i class="bi bi-list-ul"></i>Usuários com tapas</span>
+      <div style="position:relative">
+        <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:12px;pointer-events:none"></i>
+        <input type="text" id="searchTapas" placeholder="Buscar por nome..." oninput="filtrarTapas()"
+          style="background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px;padding:6px 10px 6px 30px;color:var(--text);font-family:var(--font);font-size:12px;width:200px;outline:none"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border-md)'">
+      </div>
     </div>
     <div class="panel-body">
       <ul class="tapa-list" id="lista-tapas">
@@ -324,9 +329,14 @@ if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
   </div>
 
   <div class="panel-card" style="margin-top:16px">
-    <div class="panel-head">
-      <i class="bi bi-plus-circle"></i>
-      Adicionar tapa
+    <div class="panel-head" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px"><i class="bi bi-plus-circle"></i>Adicionar tapa</span>
+      <div style="position:relative">
+        <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:12px;pointer-events:none"></i>
+        <input type="text" id="searchAdicionar" placeholder="Filtrar usuário..." oninput="filtrarSelect()"
+          style="background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px;padding:6px 10px 6px 30px;color:var(--text);font-family:var(--font);font-size:12px;width:200px;outline:none"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border-md)'">
+      </div>
     </div>
     <div class="panel-body">
       <form id="form-add-tapa" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -399,6 +409,24 @@ document.getElementById('form-add-tapa').addEventListener('submit', async functi
 });
 
 fetchTapasAdmin();
+
+function filtrarTapas() {
+  const q = document.getElementById('searchTapas').value.toLowerCase().trim();
+  document.querySelectorAll('#lista-tapas .tapa-item').forEach(li => {
+    const nome = li.querySelector('span')?.textContent?.toLowerCase() ?? '';
+    li.style.display = !q || nome.includes(q) ? '' : 'none';
+  });
+}
+
+function filtrarSelect() {
+  const q = document.getElementById('searchAdicionar').value.toLowerCase().trim();
+  const sel = document.getElementById('adicionar_id');
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) return;
+    opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
+  });
+  if (sel.selectedOptions[0]?.hidden) sel.value = '';
+}
 </script>
 </body>
 </html>

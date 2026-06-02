@@ -1,6 +1,7 @@
 <?php
 session_start();
 require '../core/conexao.php';
+/** @var \PDO $pdo */
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
@@ -375,6 +376,7 @@ async function togglePago(uid, newVal) {
     btn.className = 'toggle-btn ' + (pago ? 'on' : 'off');
     btn.innerHTML = `<i class="bi bi-toggle-${pago ? 'on' : 'off'}"></i> ${pago ? 'Revogar' : 'Confirmar pagamento'}`;
     btn.setAttribute('onclick', `togglePago(${uid}, ${pago ? 0 : 1})`);
+    btn.disabled = false;
     showToast(pago ? 'Pagamento confirmado!' : 'Acesso revogado.');
   } else {
     btn.disabled = false;
