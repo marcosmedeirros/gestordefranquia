@@ -4462,27 +4462,52 @@ async function loadTapasData() {
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px"><i class="bi bi-people-fill" style="color:#f97316"></i> Times — ${tapasLeague}</div>
         ${teams.length === 0
           ? '<div style="text-align:center;padding:20px;color:var(--text-3)">Nenhum time encontrado.</div>'
-          : `<div style="display:grid;gap:8px">
-              ${teams.map(t => `
-                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:10px">
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
-                    <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)}</div>
+          : teams.map(t => {
+              const tapped = t.tapped_players || [];
+              const playersHtml = tapped.length === 0
+                ? `<div style="padding:10px 16px;color:var(--text-3);font-size:12px">Nenhum jogador tapado.</div>`
+                : tapped.map(p => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:1px solid rgba(255,255,255,.05)">
+                      <div style="width:32px;height:32px;border-radius:7px;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#f97316;flex-shrink:0">${p.ovr ?? '?'}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.player_name)}</div>
+                        <div style="font-size:11px;color:var(--text-3)">${escapeHtml(p.position ?? '')} · OVR ${p.ovr ?? '?'}</div>
+                      </div>
+                      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.3);border-radius:999px;font-size:10px;font-weight:700;padding:2px 7px"><i class="bi bi-hand-index-thumb"></i> Tapa</span>
+                    </div>`).join('');
+              return `
+                <div style="background:var(--panel-2);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;margin-bottom:8px">
+                  <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;user-select:none" onclick="toggleTapasTeam(${t.id})">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(t.city)} ${escapeHtml(t.name)}</div>
+                      <div style="font-size:11px;color:var(--text-3)">${escapeHtml(t.owner_name)} · <span style="color:#f97316">${tapped.length} tapado(s)</span></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0" onclick="event.stopPropagation()">
+                      <span style="font-size:11px;color:var(--text-3)">Tapas:</span>
+                      <button onclick="quickTapasAdminChange(${t.id},'remove')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button>
+                      <span id="tapas-val-${t.id}" style="font-weight:800;font-size:15px;color:#f97316;min-width:24px;text-align:center">${parseInt(t.tapas || 0)}</span>
+                      <button onclick="quickTapasAdminChange(${t.id},'add')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>
+                      <span style="font-size:11px;color:var(--text-3)">usados: ${parseInt(t.tapas_used || 0)}</span>
+                    </div>
+                    <i id="tapas-chevron-${t.id}" class="bi bi-chevron-down" style="color:var(--text-3);font-size:12px;transition:transform .2s;flex-shrink:0"></i>
                   </div>
-                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                    <span style="font-size:11px;color:var(--text-3)">Tapas:</span>
-                    <button onclick="quickTapasAdminChange(${t.id},'remove')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button>
-                    <span id="tapas-val-${t.id}" style="font-weight:800;font-size:15px;color:#f97316;min-width:24px;text-align:center">${parseInt(t.tapas || 0)}</span>
-                    <button onclick="quickTapasAdminChange(${t.id},'add')" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>
-                    <span style="font-size:11px;color:var(--text-3);margin-left:4px">usados: ${parseInt(t.tapas_used || 0)}</span>
-                  </div>
-                </div>`).join('')}
-             </div>`}
+                  <div id="tapas-acc-${t.id}" style="display:none">${playersHtml}</div>
+                </div>`;
+            }).join('')}
       </div>
     `;
   } catch(e) {
     container.innerHTML = `<div style="color:#ef4444;padding:16px">Erro ao carregar: ${e.error || 'Desconhecido'}</div>`;
   }
+}
+
+function toggleTapasTeam(teamId) {
+  const body    = document.getElementById(`tapas-acc-${teamId}`);
+  const chevron = document.getElementById(`tapas-chevron-${teamId}`);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display    = open ? 'none' : 'block';
+  if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
 }
 
 // keep legacy aliases used by action tile

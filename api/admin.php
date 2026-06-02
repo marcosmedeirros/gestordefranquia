@@ -304,11 +304,20 @@ if ($method === 'GET') {
                 if (!$roster) {
                     $lines[] = '- Sem jogadores';
                 } else {
-                    foreach ($roster as $player) {
+                    $main    = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') !== 'G-League'));
+                    $gleague = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') === 'G-League'));
+                    foreach ($main as $player) {
                         $ovr = $player['ovr'] ?? '-';
                         $age = $player['age'] ?? '-';
-                        $role = $player['role'] ?? '-';
-                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos | %s', $player['position'], $player['name'], $ovr, $age, $role);
+                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $player['position'], $player['name'], $ovr, $age);
+                    }
+                    if ($gleague) {
+                        $lines[] = '*G-League*';
+                        foreach ($gleague as $player) {
+                            $ovr = $player['ovr'] ?? '-';
+                            $age = $player['age'] ?? '-';
+                            $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $player['position'], $player['name'], $ovr, $age);
+                        }
                     }
                 }
                 $lines[] = '';

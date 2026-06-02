@@ -200,6 +200,24 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     $stmtReq->execute([$league]);
     $requests = $stmtReq->fetchAll(PDO::FETCH_ASSOC);
 
+    $stmtTapped = $pdo->prepare("
+        SELECT r.team_id, r.player_id, r.player_name, r.badge_name,
+               p.position, p.ovr
+        FROM tapas_requests r
+        LEFT JOIN players p ON p.id = r.player_id
+        WHERE r.league = ? AND r.status = 'approved' AND r.action_type = 'tapa'
+        ORDER BY r.team_id, r.processed_at DESC
+    ");
+    $stmtTapped->execute([$league]);
+    $tappedByTeam = [];
+    foreach ($stmtTapped->fetchAll(PDO::FETCH_ASSOC) as $tp) {
+        $tappedByTeam[(int)$tp['team_id']][] = $tp;
+    }
+    foreach ($teams as &$team) {
+        $team['tapped_players'] = $tappedByTeam[(int)$team['id']] ?? [];
+    }
+    unset($team);
+
     out(['success' => true, 'teams' => $teams, 'requests' => $requests]);
 }
 
