@@ -218,7 +218,20 @@ if ($method === 'GET' && $action === 'admin_get_all') {
     }
     unset($team);
 
-    out(['success' => true, 'teams' => $teams, 'requests' => $requests]);
+    $stmtHistory = $pdo->prepare("
+        SELECT r.player_name, r.action_type, r.badge_name, r.processed_at,
+               t.city AS team_city, t.name AS team_name,
+               p.position, p.ovr
+        FROM tapas_requests r
+        INNER JOIN teams t ON t.id = r.team_id
+        LEFT JOIN players p ON p.id = r.player_id
+        WHERE r.league = ? AND r.status = 'approved'
+        ORDER BY r.processed_at DESC
+    ");
+    $stmtHistory->execute([$league]);
+    $history = $stmtHistory->fetchAll(PDO::FETCH_ASSOC);
+
+    out(['success' => true, 'teams' => $teams, 'requests' => $requests, 'history' => $history]);
 }
 
 // ── POST admin_set_tapas ──────────────────────────────────────────────────────
