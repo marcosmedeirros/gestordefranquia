@@ -163,7 +163,13 @@ function calcAllPoints(PDO $pdo, array $off): void {
             if (isset($offOrder[2],$uo[2]) && $offOrder[2]==$uo[2]) $pts++;
         }
         $ut = json_decode($p['thirds_json'] ?? '[]', true) ?: [];
-        foreach ($ot as $gid) if (in_array($gid,$ut)) $pts++;
+        // 1pt por cada terceiro que avançou corretamente + 1pt bônus se posição exata
+        foreach ($ot as $pos => $gid) {
+            if (in_array($gid, $ut)) {
+                $pts++;
+                if (isset($ut[$pos]) && $ut[$pos] == $gid) $pts++;
+            }
+        }
         $ub = json_decode($p['bracket_json'] ?? '{}', true) ?: [];
         foreach ($ob as $key=>$ot2) {
             if (!$ot2||!is_array($ot2)) continue;
@@ -511,7 +517,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .third-slot{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all var(--t);position:relative}
 .third-slot:hover{border-color:var(--border-md)}.third-slot.selected{border-color:var(--blue);background:rgba(59,130,246,.07)}
 .third-slot-flag{height:22px;display:flex;justify-content:center;align-items:center;margin-bottom:3px}.third-slot-flag img{width:28px;height:auto;border-radius:2px}.third-slot-name{font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.third-slot-group{font-size:9px;color:var(--text-3)}
-.third-check{position:absolute;top:3px;right:3px;font-size:10px;color:var(--blue)}
+.third-rank{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:var(--blue);color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1}
 /* bracket */
 .bracket-wrap{overflow-x:auto;padding-bottom:8px}
 .bracket{display:flex;align-items:stretch;min-width:860px}
@@ -858,20 +864,24 @@ async function savePendingPopup(){
 <!-- ── THIRDS ─────────────────────────────────────────────────────────────── -->
 <div class="copa-pane" id="pane-thirds">
   <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">Melhores 3ºs Colocados</p>
-  <p class="section-info">Selecione 8 seleções que avançam como melhores terceiros colocados</p>
+  <p class="section-info">Clique nos times em ordem do melhor para o pior. Os 8 primeiros avançam — a ordem define o chaveamento.</p>
   <div class="thirds-grid" id="thirdsGrid">
-  <?php foreach ($groups as $letter=>$g): $teams=$g['teams']; ?>
-  <div class="third-slot <?=in_array($g['id'],$predThirds??[])?'selected':''?>"
+  <?php foreach ($groups as $letter=>$g):
+      $teams=$g['teams'];
+      $rankIdx = array_search($g['id'], $predThirds ?? []);
+      $rank = $rankIdx !== false ? $rankIdx + 1 : 0;
+  ?>
+  <div class="third-slot <?=$rank?'selected':''?>"
        data-group="<?=$letter?>" data-group-id="<?=$g['id']?>"
-       onclick="<?=$submitted?'':'toggleThird(this)'?>" id="third_<?=$letter?>">
-    <div class="third-check" style="display:<?=in_array($g['id'],$predThirds??[])?'block':'none'?>"><i class="bi bi-check-circle-fill"></i></div>
+       onclick="<?=$submitted?'':'rankThird(this)'?>" id="third_<?=$letter?>">
+    <div class="third-rank" style="display:<?=$rank?'flex':'none'?>"><?=$rank?:''?></div>
     <div class="third-slot-flag" id="t3flag_<?=$letter?>"><?=flagImg($teams[2]['flag']??'')?></div>
     <div class="third-slot-name" id="t3name_<?=$letter?>"><?=htmlspecialchars($teams[2]['name']??'?')?></div>
     <div class="third-slot-group">Grupo <?=$letter?></div>
   </div>
   <?php endforeach; ?>
   </div>
-  <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Selecionados: <strong id="thirdsCount"><?=count($predThirds??[])?></strong>/8</div>
+  <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Classificados: <strong id="thirdsCount"><?=count($predThirds??[])?></strong>/8</div>
   <?php if (!$submitted): ?>
   <div style="margin-top:14px;text-align:right">
     <button class="btn-r outline" onclick="nextTab('bracket')">Próximo: Bracket <i class="bi bi-arrow-right"></i></button>
@@ -999,9 +1009,51 @@ async function savePendingPopup(){
     <i class="bi bi-info-circle"></i> Pontos serão calculados após o admin definir os resultados oficiais.
   </div>
   <?php endif; ?>
-  <div style="margin-bottom:12px;font-size:12px;color:var(--text-3)">
-    <b style="color:var(--text-2)">Pontuação:</b> 1pt — acerto 1º/2º/3º do grupo · 1pt — melhor terceiro correto · 1pt — time correto no mata-mata · <b style="color:var(--gold)">3pts</b> — prêmios individuais
-  </div>
+  <!-- Tabela de pontuação -->
+  <details style="margin-bottom:16px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-2);list-style:none;display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <i class="bi bi-info-circle" style="color:var(--blue)"></i> Esquema de Pontuação
+      <i class="bi bi-chevron-down" style="margin-left:auto;font-size:11px"></i>
+    </summary>
+    <div style="background:var(--panel);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);padding:14px 16px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Categoria</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Pts</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Detalhe</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Fase de Grupos</td>
+            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
+            <td style="padding:8px;color:var(--text-2)">Por acerto de posição (1º, 2º ou 3º) em cada grupo. 12 grupos × até 3 acertos = até 36 pts.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Terceiros colocados</td>
+            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1<br><span style="font-size:10px;color:var(--gold)">+1 bônus</span></td>
+            <td style="padding:8px;color:var(--text-2)">1pt se o time avançou. +1pt bônus se a posição exata no ranking dos 8 terceiros também estiver certa.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Bracket (mata-mata)</td>
+            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
+            <td style="padding:8px;color:var(--text-2)">Por time correto avançando em cada confronto — 16 avos, oitavas, quartas, semis e final.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Artilheiro / Melhor jogador / Revelação</td>
+            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
+            <td style="padding:8px;color:var(--text-2)">3pts cada prêmio acertado (texto exato, sem distinção de maiúsculas).</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:var(--text);font-weight:600">Gols do Neymar</td>
+            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
+            <td style="padding:8px;color:var(--text-2)">3pts se acertar o número exato de gols.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
   <?php if (empty($ranking)): ?>
   <div class="no-matches">Nenhum palpite enviado ainda.</div>
   <?php else: ?>
@@ -1055,6 +1107,29 @@ async function savePendingPopup(){
     </div>
     <?php endforeach; ?>
     </div>
+  </div>
+
+  <!-- Terceiros oficiais ordenados -->
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-3-circle-fill" style="color:var(--blue)"></i>Melhores 3ºs Colocados (Oficial)</div>
+    <p class="section-info">Clique em ordem do melhor para o pior. Os 8 primeiros avançam e definem o chaveamento.</p>
+    <div class="thirds-grid" id="admThirdsGrid">
+    <?php foreach ($groups as $letter=>$g):
+        $teams=$g['teams'];
+        $rankIdx = array_search($g['id'], $offThirds ?? []);
+        $rank = $rankIdx !== false ? $rankIdx + 1 : 0;
+    ?>
+    <div class="third-slot <?=$rank?'selected':''?>"
+         data-group="<?=$letter?>" data-group-id="<?=$g['id']?>"
+         onclick="admRankThird(this)" id="adm_third_<?=$letter?>">
+      <div class="third-rank" style="display:<?=$rank?'flex':'none'?>"><?=$rank?:''?></div>
+      <div class="third-slot-flag" id="adm_t3flag_<?=$letter?>"><?=flagImg($teams[2]['flag']??'')?></div>
+      <div class="third-slot-name" id="adm_t3name_<?=$letter?>"><?=htmlspecialchars($teams[2]['name']??'?')?></div>
+      <div class="third-slot-group">Grupo <?=$letter?></div>
+    </div>
+    <?php endforeach; ?>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Classificados: <strong id="admThirdsCount"><?=count($offThirds??[])?></strong>/8</div>
   </div>
 
   <!-- Bracket oficial -->
@@ -1210,8 +1285,8 @@ const admGroupOrder={};
 admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids))?>;
 <?php endforeach; ?>
 
-let selectedThirds=new Set(<?=json_encode(array_map('intval',$predThirds??[]))?>);
-let admSelectedThirds=new Set(<?=json_encode(array_map('intval',$offThirds??[]))?>);
+let selectedThirds=<?=json_encode(array_map('intval',$predThirds??[]))?>;
+let admSelectedThirds=<?=json_encode(array_map('intval',$offThirds??[]))?>;
 const bracketState=<?=json_encode($predBracket?:(object)[])?>;
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
@@ -1280,12 +1355,29 @@ function updateThirdsForGroup(letter){
 }
 
 // ── Thirds ────────────────────────────────────────────────────────────────────
-function toggleThird(el){
+function _applyRank(arr, countElId, gridSelector){
+    document.querySelectorAll(gridSelector+' .third-slot').forEach(el=>{
+        const gid=+el.dataset.groupId, idx=arr.indexOf(gid);
+        const rb=el.querySelector('.third-rank');
+        el.classList.toggle('selected',idx>=0);
+        if(rb){rb.textContent=idx>=0?idx+1:'';rb.style.display=idx>=0?'flex':'none';}
+    });
+    const el=document.getElementById(countElId);if(el)el.textContent=arr.length;
+}
+function _rankIn(arr, gid, maxN){
+    const idx=arr.indexOf(gid);
+    if(idx>=0){arr.splice(idx,1);}
+    else{if(arr.length>=maxN){alert('Máximo '+maxN+'.');return false;}arr.push(gid);}
+    return true;
+}
+function rankThird(el){
     if(SUBMITTED)return;
-    const gid=+el.dataset.groupId,check=el.querySelector('.third-check');
-    if(selectedThirds.has(gid)){selectedThirds.delete(gid);el.classList.remove('selected');if(check)check.style.display='none';}
-    else{if(selectedThirds.size>=8){alert('Máximo 8.');return;}selectedThirds.add(gid);el.classList.add('selected');if(check)check.style.display='block';}
-    document.getElementById('thirdsCount').textContent=selectedThirds.size;
+    if(!_rankIn(selectedThirds,+el.dataset.groupId,8))return;
+    _applyRank(selectedThirds,'thirdsCount','#thirdsGrid');
+}
+function admRankThird(el){
+    if(!_rankIn(admSelectedThirds,+el.dataset.groupId,8))return;
+    _applyRank(admSelectedThirds,'admThirdsCount','#admThirdsGrid');
 }
 
 // ── Generic bracket ───────────────────────────────────────────────────────────
@@ -1307,10 +1399,9 @@ function buildR32(orderMap){
         s[l]=getTeamById(orderMap[l][1]);
         t[l]=getTeamById(orderMap[l][2]);
     });
-    // distribute selected thirds to the 8 "best-third" slots (in bracket order)
-    const thirdsMap={};
-    selectedThirds.forEach(gid=>{const l=GROUP_ID_TO_LETTER[gid];if(l)thirdsMap[l]=t[l];});
-    const thirdVals=Object.values(thirdsMap).filter(Boolean);
+    // distribute thirds in ranked order (index 0 = best 3rd)
+    const thirdsArr=orderMap===groupOrder?selectedThirds:admSelectedThirds;
+    const thirdVals=thirdsArr.map(gid=>{const l=GROUP_ID_TO_LETTER[gid];return l?t[l]:null;}).filter(Boolean);
     let ti=0; const nxt=()=>thirdVals[ti++]||null;
 
     // Copa 2026 official R32 bracket (index pairs feed R16):
@@ -1399,7 +1490,7 @@ function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,
 // ── Save / Submit ─────────────────────────────────────────────────────────────
 function buildPayload(action){
     const groups={};GROUP_KEYS.forEach(l=>groups[l]=groupOrder[l]);
-    return{action,groups,thirds:[...selectedThirds],bracket:bracketState,
+    return{action,groups,thirds:selectedThirds,bracket:bracketState,
         top_scorer:document.getElementById('award_scorer')?.value||'',
         best_player:document.getElementById('award_player')?.value||'',
         revelation:document.getElementById('award_revelation')?.value||'',
@@ -1533,7 +1624,7 @@ async function saveMatch(id){
 // ── Admin save official ───────────────────────────────────────────────────────
 async function saveOfficial(){
     const groups={};GROUP_KEYS.forEach(l=>groups[l]=admGroupOrder[l]);
-    const r=await post({action:'save_official',groups,thirds:[...admSelectedThirds],bracket:admBracketState,
+    const r=await post({action:'save_official',groups,thirds:admSelectedThirds,bracket:admBracketState,
         top_scorer:document.getElementById('off_scorer')?.value||'',
         best_player:document.getElementById('off_player')?.value||'',
         revelation:document.getElementById('off_revelation')?.value||'',
