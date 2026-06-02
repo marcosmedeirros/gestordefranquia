@@ -279,10 +279,12 @@ if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
     <div class="sb-nav-section">Menu</div>
     <a href="../index.php" class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
     <a href="../games.php" class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../copa26.php" class="sb-link"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
     <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
     <div class="sb-nav-section">Admin</div>
     <a href="controlegames.php" class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
     <a href="dashboard.php" class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="controle-financas.php" class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
     <a href="controle-tapas.php" class="sb-link active"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
     <a href="dadosjogadores.php" class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>

@@ -4,10 +4,12 @@ require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
-$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis FROM usuarios WHERE id=?");
+try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
+$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis, COALESCE(copa26_pago,0) as copa26_pago FROM usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 $isAdmin = !empty($usuario['is_admin']);
+$canAccess = $isAdmin || !empty($usuario['copa26_pago']);
 
 // ── DB setup ──────────────────────────────────────────────────────────────────
 try {
@@ -80,8 +82,12 @@ try {
 } catch (Exception $e) {}
 
 // migrate old tables if needed
-foreach (['neymar_goals VARCHAR(10) NULL AFTER revelation','points INT NOT NULL DEFAULT 0 AFTER neymar_goals'] as $col) {
+foreach (['neymar_goals VARCHAR(10) NULL AFTER revelation','points INT NOT NULL DEFAULT 0 AFTER neymar_goals',
+          'champion VARCHAR(100) NULL AFTER points','vice VARCHAR(100) NULL AFTER champion'] as $col) {
     try { $pdo->exec("ALTER TABLE copa26_predictions ADD COLUMN $col"); } catch(Exception $e){}
+}
+foreach (['champion VARCHAR(100) NULL AFTER neymar_goals','vice VARCHAR(100) NULL AFTER champion'] as $col) {
+    try { $pdo->exec("ALTER TABLE copa26_official ADD COLUMN $col"); } catch(Exception $e){}
 }
 try { $pdo->exec("ALTER TABLE copa26_teams ADD COLUMN sort_order TINYINT NOT NULL DEFAULT 0 AFTER flag"); } catch(Exception $e){}
 // migrate sort_order = 0 rows to position based on name (one-time fix)
@@ -178,6 +184,8 @@ function calcAllPoints(PDO $pdo, array $off): void {
         }
         // prizes 3pts each
         $cmp = fn($a,$b)=>trim(mb_strtolower($a??''))===trim(mb_strtolower($b??''))&&trim($a??'')!=='';
+        if ($cmp($off['champion'],    $p['champion']))    $pts+=5;
+        if ($cmp($off['vice'],        $p['vice']))        $pts+=3;
         if ($cmp($off['top_scorer'],  $p['top_scorer']))  $pts+=3;
         if ($cmp($off['best_player'], $p['best_player'])) $pts+=3;
         if ($cmp($off['revelation'],  $p['revelation']))  $pts+=3;
@@ -260,13 +268,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $act  = $body['action']??'';
 
     if ($act==='save') {
-        $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals)
-            VALUES (?,?,?,?,?,?,?,?)
+        $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,champion,vice)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE groups_json=VALUES(groups_json),thirds_json=VALUES(thirds_json),bracket_json=VALUES(bracket_json),
-            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals)")
+            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals),
+            champion=VALUES(champion),vice=VALUES(vice)")
         ->execute([$user_id,json_encode($body['groups']??[]),json_encode($body['thirds']??[]),
             json_encode($body['bracket']??[]),$body['top_scorer']??null,$body['best_player']??null,
-            $body['revelation']??null,$body['neymar_goals']??null]);
+            $body['revelation']??null,$body['neymar_goals']??null,$body['champion']??null,$body['vice']??null]);
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='submit') {
@@ -325,13 +334,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true,'inserted'=>$ok,'failed'=>$fail]); exit;
     }
     if ($act==='save_official'&&$isAdmin) {
-        $pdo->prepare("INSERT INTO copa26_official (id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,updated_by)
-            VALUES (1,?,?,?,?,?,?,?,?)
+        $pdo->prepare("INSERT INTO copa26_official (id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,champion,vice,updated_by)
+            VALUES (1,?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE groups_json=VALUES(groups_json),thirds_json=VALUES(thirds_json),bracket_json=VALUES(bracket_json),
-            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals),updated_by=VALUES(updated_by)")
+            top_scorer=VALUES(top_scorer),best_player=VALUES(best_player),revelation=VALUES(revelation),neymar_goals=VALUES(neymar_goals),
+            champion=VALUES(champion),vice=VALUES(vice),updated_by=VALUES(updated_by)")
         ->execute([json_encode($body['groups']??[]),json_encode($body['thirds']??[]),
             json_encode($body['bracket']??[]),$body['top_scorer']??null,$body['best_player']??null,
-            $body['revelation']??null,$body['neymar_goals']??null,$user_id]);
+            $body['revelation']??null,$body['neymar_goals']??null,$body['champion']??null,$body['vice']??null,$user_id]);
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='calc_points'&&$isAdmin) {
@@ -374,7 +384,7 @@ $offBracket = $official?(json_decode($official['bracket_json'] ??'{}',true)?:[])
 
 $ranking=[];
 try {
-    $ranking=$pdo->query("SELECT u.nome,p.points,p.champion,p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id WHERE p.submitted_at IS NOT NULL ORDER BY p.points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $ranking=$pdo->query("SELECT u.nome,p.points,p.champion,p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id WHERE p.submitted_at IS NOT NULL AND u.copa26_pago=1 ORDER BY p.points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e){}
 
 // all matches (for Jogos tab)
@@ -419,7 +429,7 @@ $pendingToday = array_values(array_filter(
 <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--gold:#f59e0b;--purple:#a78bfa;--font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);--sw:220px}
+:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--border-red:rgba(252,0,37,.22);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--gold:#f59e0b;--purple:#a78bfa;--font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);--sw:240px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
 /* sidebar */
@@ -649,22 +659,51 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <div class="sb-user-role"><?=$isAdmin?'Admin':'Jogador'?></div>
   </div>
   <div class="sb-stats">
-    <div class="sb-stat"><i class="bi bi-hand-index-fill" style="color:var(--green)"></i><span class="sb-stat-val"><?=(int)($usuario['numero_tapas']??0)?></span><span class="sb-stat-label">Tapas</span></div>
-    <div class="sb-stat"><i class="bi bi-coin"></i><span class="sb-stat-val"><?=number_format((int)($usuario['pontos']??0),0,',','.')?></span><span class="sb-stat-label">Moedas</span></div>
-    <div class="sb-stat"><i class="bi bi-star-fill"></i><span class="sb-stat-val"><?=number_format((int)($usuario['fba_points']??0),0,',','.')?></span><span class="sb-stat-label">FBA Pts</span></div>
+    <div class="sb-stat">
+      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
+      <div class="sb-stat-val"><?=number_format((int)($usuario['numero_tapas']??0),0,',','.')?></div>
+      <div class="sb-stat-label">Tapas</div>
+    </div>
+    <div class="sb-stat">
+      <img src="moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
+      <div class="sb-stat-val"><?=number_format((int)($usuario['pontos']??0),0,',','.')?></div>
+      <div class="sb-stat-label">Moedas</div>
+    </div>
+    <div class="sb-stat">
+      <img src="lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
+      <div class="sb-stat-val"><?=number_format((int)($usuario['fba_points']??0),0,',','.')?></div>
+      <div class="sb-stat-label">FBA Pts</div>
+    </div>
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a class="sb-link" href="index.php"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <a class="sb-link" href="games.php"><i class="bi bi-joystick"></i>Games</a>
-    <a class="sb-link active" href="copa26.php"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
-    <a class="sb-link" href="user/ranking-geral.php"><i class="bi bi-bar-chart-fill"></i>Ranking Geral</a>
+    <a href="index.php" class="sb-link">
+      <i class="bi bi-lightning-charge"></i>Apostas
+    </a>
+    <a href="games.php" class="sb-link">
+      <i class="bi bi-joystick"></i>Games
+    </a>
+    <a href="copa26.php" class="sb-link active">
+      <i class="bi bi-trophy-fill"></i>Copa 2026
+    </a>
+    <a href="user/ranking-geral.php" class="sb-link">
+      <i class="bi bi-bar-chart-fill"></i>Ranking Geral
+    </a>
     <?php if ($isAdmin): ?>
     <div class="sb-nav-section">Admin</div>
-    <a class="sb-link" href="admin/controlegames.php"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
-    <a class="sb-link" href="admin/dashboard.php"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="admin/controlegames.php" class="sb-link">
+      <i class="bi bi-gear-fill"></i>Controle de Jogos
+    </a>
+    <a href="admin/dashboard.php" class="sb-link">
+      <i class="bi bi-receipt-cutoff"></i>Controle Apostas
+    </a>
+    <a href="admin/controle-financas.php" class="sb-link">
+      <i class="bi bi-cash-coin"></i>Controle Finanças
+    </a>
     <?php endif; ?>
-    <a class="sb-link" href="admin/dadosjogadores.php"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
+    <a href="admin/dadosjogadores.php" class="sb-link">
+      <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
+    </a>
   </nav>
   <div class="sb-footer">
     <a class="sb-logout" href="auth/logout.php"><i class="bi bi-box-arrow-right"></i>Sair</a>
@@ -743,6 +782,21 @@ async function savePendingPopup(){
 
 <div class="main">
 
+<?php if (!$canAccess): ?>
+<div style="text-align:center;padding:80px 20px;max-width:480px;margin:0 auto">
+  <div style="font-size:56px;margin-bottom:20px">🏆</div>
+  <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:10px">Bolão Copa do Mundo 2026</h2>
+  <p style="font-size:14px;color:var(--text-2);line-height:1.7;margin-bottom:24px">Para participar do bolão, é necessário realizar o pagamento de <strong style="color:var(--gold)">R$ 10,00</strong>. Entre em contato com o administrador para confirmar seu pagamento e ter acesso liberado.</p>
+  <div style="background:var(--panel);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:20px;display:flex;align-items:center;gap:14px;text-align:left">
+    <span style="font-size:32px;flex-shrink:0">💰</span>
+    <div>
+      <div style="font-size:14px;font-weight:700;color:var(--gold)">Taxa de participação: R$ 10,00</div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px">Após o pagamento, aguarde a confirmação do administrador para liberar seu acesso.</div>
+    </div>
+  </div>
+</div>
+<?php else: ?>
+
 <!-- Copa hero -->
 <div class="copa-hero">
   <div>
@@ -807,6 +861,8 @@ async function savePendingPopup(){
       <div class="pred-section">
         <div class="pred-section-title">Prêmios</div>
         <div class="pred-awards">
+          <div class="pred-award" style="border-color:rgba(245,158,11,.25)"><span class="pred-award-icon">🏆</span><div><div class="pred-award-label" style="color:var(--gold)">Campeão (5 pts)</div><div class="pred-award-name"><?=htmlspecialchars($pred['champion']??'—')?></div></div></div>
+          <div class="pred-award"><span class="pred-award-icon">🥈</span><div><div class="pred-award-label">Vice (3 pts)</div><div class="pred-award-name"><?=htmlspecialchars($pred['vice']??'—')?></div></div></div>
           <div class="pred-award"><span class="pred-award-icon">👟</span><div><div class="pred-award-label">Artilheiro</div><div class="pred-award-name"><?=htmlspecialchars($pred['top_scorer']??'—')?></div></div></div>
           <div class="pred-award"><span class="pred-award-icon">🌟</span><div><div class="pred-award-label">Melhor Jogador</div><div class="pred-award-name"><?=htmlspecialchars($pred['best_player']??'—')?></div></div></div>
           <div class="pred-award"><span class="pred-award-icon">⭐</span><div><div class="pred-award-label">Revelação</div><div class="pred-award-name"><?=htmlspecialchars($pred['revelation']??'—')?></div></div></div>
@@ -894,8 +950,28 @@ async function savePendingPopup(){
   <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo. Gerado dos seus palpites de grupo.</p>
   <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
 
-  <!-- Prêmios -->
+  <!-- Campeão / Vice -->
   <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">
+      Campeão &amp; Vice
+    </div>
+    <p class="section-info">Campeão vale 5 pts · Vice vale 3 pts</p>
+    <div class="prizes-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="prize-card" style="border-color:rgba(245,158,11,.3)">
+        <div class="prize-icon">🏆</div><div class="prize-title" style="color:var(--gold)">Campeão <span class="prize-badge" style="background:rgba(245,158,11,.15);color:var(--gold);border-color:rgba(245,158,11,.3)">5 pts</span></div>
+        <div class="prize-sub">Quem vai vencer a Copa 2026?</div>
+        <input class="prize-input" id="award_champion" placeholder="Nome do país..." value="<?=htmlspecialchars($pred['champion']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+      <div class="prize-card" style="border-color:rgba(148,163,184,.2)">
+        <div class="prize-icon">🥈</div><div class="prize-title">Vice-Campeão <span class="prize-badge">3 pts</span></div>
+        <div class="prize-sub">Quem vai perder na final?</div>
+        <input class="prize-input" id="award_vice" placeholder="Nome do país..." value="<?=htmlspecialchars($pred['vice']??'')?>" <?=$submitted?'readonly':''?>>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prêmios -->
+  <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
     <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">
       Prêmios individuais
       <span class="prize-badge">3 pts cada</span>
@@ -1050,6 +1126,16 @@ async function savePendingPopup(){
             <td style="padding:8px;color:var(--text-2)">Por time correto avançando em cada confronto — 16 avos, oitavas, quartas, semis e final.</td>
           </tr>
           <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Campeão</td>
+            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">5</td>
+            <td style="padding:8px;color:var(--text-2)">5pts se acertar o país campeão.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;color:var(--text);font-weight:600">Vice-Campeão</td>
+            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
+            <td style="padding:8px;color:var(--text-2)">3pts se acertar o país vice-campeão.</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:8px;color:var(--text);font-weight:600">Artilheiro / Melhor jogador / Revelação</td>
             <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
             <td style="padding:8px;color:var(--text-2)">3pts cada prêmio acertado (texto exato, sem distinção de maiúsculas).</td>
@@ -1152,6 +1238,14 @@ async function savePendingPopup(){
   <div class="admin-section">
     <div class="admin-section-title"><i class="bi bi-star-fill" style="color:var(--gold)"></i>Prêmios Oficiais</div>
     <div class="prizes-grid">
+      <div class="prize-card" style="border-color:rgba(245,158,11,.3)">
+        <div class="prize-icon">🏆</div><div class="prize-title" style="color:var(--gold)">Campeão (5 pts)</div>
+        <input class="prize-input" id="off_champion" placeholder="País campeão..." value="<?=htmlspecialchars($official['champion']??'')?>">
+      </div>
+      <div class="prize-card">
+        <div class="prize-icon">🥈</div><div class="prize-title">Vice-Campeão (3 pts)</div>
+        <input class="prize-input" id="off_vice" placeholder="País vice..." value="<?=htmlspecialchars($official['vice']??'')?>">
+      </div>
       <div class="prize-card">
         <div class="prize-icon">👟</div><div class="prize-title">Artilheiro</div>
         <input class="prize-input" id="off_scorer" placeholder="Nome do artilheiro..." value="<?=htmlspecialchars($official['top_scorer']??'')?>">
@@ -1274,6 +1368,7 @@ async function savePendingPopup(){
 <?php endif; ?>
 
 <?php endif; /* seeded */ ?>
+<?php endif; /* canAccess */ ?>
 </div>
 </div>
 
@@ -1500,6 +1595,8 @@ function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,
 function buildPayload(action){
     const groups={};GROUP_KEYS.forEach(l=>groups[l]=groupOrder[l]);
     return{action,groups,thirds:selectedThirds,bracket:bracketState,
+        champion:document.getElementById('award_champion')?.value||'',
+        vice:document.getElementById('award_vice')?.value||'',
         top_scorer:document.getElementById('award_scorer')?.value||'',
         best_player:document.getElementById('award_player')?.value||'',
         revelation:document.getElementById('award_revelation')?.value||'',
@@ -1634,6 +1731,8 @@ async function saveMatch(id){
 async function saveOfficial(){
     const groups={};GROUP_KEYS.forEach(l=>groups[l]=admGroupOrder[l]);
     const r=await post({action:'save_official',groups,thirds:admSelectedThirds,bracket:admBracketState,
+        champion:document.getElementById('off_champion')?.value||'',
+        vice:document.getElementById('off_vice')?.value||'',
         top_scorer:document.getElementById('off_scorer')?.value||'',
         best_player:document.getElementById('off_player')?.value||'',
         revelation:document.getElementById('off_revelation')?.value||'',
