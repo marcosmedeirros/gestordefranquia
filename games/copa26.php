@@ -115,8 +115,9 @@ try {
 
 // helper
 function flagImg(string $code, int $w=20): string {
-    if (!$code) return '<span style="opacity:.3;font-size:'.($w-2).'px">🏳</span>';
-    return '<img src="https://flagcdn.com/w'.($w*2).'/'.$code.'.png" width="'.$w.'" height="'.round($w*.75).'" style="border-radius:2px;object-fit:cover" loading="lazy" onerror="this.replaceWith(\'🏳\')" alt="'.$code.'">';
+    $h = round($w * .75);
+    if (!$code) return '<span style="display:inline-block;width:'.$w.'px;height:'.$h.'px;background:rgba(255,255,255,.08);border-radius:2px;vertical-align:middle"></span>';
+    return '<span class="fi fi-'.htmlspecialchars($code).'" style="width:'.$w.'px;height:'.$h.'px;border-radius:2px;vertical-align:middle;display:inline-block;background-size:cover;flex-shrink:0"></span>';
 }
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
@@ -395,6 +396,12 @@ if ($allMatches) {
 $seeded=!empty($groups);
 $nameInitial=mb_strtoupper(mb_substr($usuario['nome']??'U',0,1));
 $today=date('Y-m-d');
+
+// Jogos de hoje sem palpite preenchido
+$pendingToday = array_values(array_filter(
+    $matchesByDate[$today] ?? [],
+    fn($m) => $m['score_home'] === null && !isset($allScores[$m['id']])
+));
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -403,6 +410,7 @@ $today=date('Y-m-d');
 <meta name="theme-color" content="#fc0025">
 <title>Bolão Copa 2026 · FBA Games</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--gold:#f59e0b;--purple:#a78bfa;--font:'Poppins',sans-serif;--radius:14px;--radius-sm:10px;--t:200ms;--ease:cubic-bezier(.2,.8,.2,1);--sw:220px}
@@ -658,6 +666,68 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 </aside>
 <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
 
+<?php if (!empty($pendingToday)): ?>
+<!-- ── Popup: palpites pendentes de hoje ─────────────────── -->
+<div id="pendingOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--panel);border:1px solid rgba(252,0,37,.3);border-radius:16px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)">
+    <div style="background:linear-gradient(135deg,#1a0510,#0a1628);padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">⚽</span>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff">Jogos de hoje!</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:1px">Preencha seu palpite antes do apito</div>
+      </div>
+      <button onclick="document.getElementById('pendingOverlay').style.display='none'" style="margin-left:auto;background:none;border:none;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="padding:14px 16px;max-height:60vh;overflow-y:auto">
+      <?php foreach ($pendingToday as $pm):
+          $hN=$pm['hname']?:$pm['home_name']?:'?';
+          $aN=$pm['aname']?:$pm['away_name']?:'?';
+      ?>
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+        <div style="flex:1;display:flex;align-items:center;gap:7px;min-width:0">
+          <?=flagImg($pm['hflag']??'',22)?>
+          <span style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?=htmlspecialchars($hN)?></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          <input type="number" min="0" max="20" class="score-input" id="pop_sh_<?=$pm['id']?>" placeholder="0" style="width:42px;text-align:center">
+          <span style="color:var(--text-3);font-size:13px">×</span>
+          <input type="number" min="0" max="20" class="score-input" id="pop_sa_<?=$pm['id']?>" placeholder="0" style="width:42px;text-align:center">
+        </div>
+        <div style="flex:1;display:flex;align-items:center;gap:7px;justify-content:flex-end;min-width:0">
+          <span style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl"><?=htmlspecialchars($aN)?></span>
+          <?=flagImg($pm['aflag']??'',22)?>
+        </div>
+        <span style="font-size:10px;color:var(--text-3);flex-shrink:0"><?=htmlspecialchars($pm['match_time']??'')?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('pendingOverlay').style.display='none'" style="padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer">Depois</button>
+      <button onclick="savePendingPopup()" style="padding:9px 18px;border-radius:8px;border:none;background:var(--red);color:#fff;font-size:13px;font-weight:700;cursor:pointer"><i class="bi bi-check-lg"></i> Salvar palpites</button>
+    </div>
+  </div>
+</div>
+<script>
+const PENDING_IDS=<?=json_encode(array_column($pendingToday,'id'))?>;
+async function savePendingPopup(){
+  const scores={};
+  PENDING_IDS.forEach(id=>{
+    const h=document.getElementById('pop_sh_'+id);
+    const a=document.getElementById('pop_sa_'+id);
+    if(h&&a&&(h.value!==''||a.value!=='')){
+      scores[id]={h:parseInt(h.value)||0,a:parseInt(a.value)||0};
+      // sync to main inputs if present
+      const mh=document.getElementById('sh_'+id);const ma=document.getElementById('sa_'+id);
+      if(mh)mh.value=scores[id].h;if(ma)ma.value=scores[id].a;
+    }
+  });
+  if(!Object.keys(scores).length){document.getElementById('pendingOverlay').style.display='none';return;}
+  await fetch(location.href,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'scores',scores})});
+  document.getElementById('pendingOverlay').style.display='none';
+}
+</script>
+<?php endif; ?>
+
 <div class="page">
 <div class="mob-bar">
   <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
@@ -861,11 +931,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   $today = date('Y-m-d');
   $datesSorted = array_keys($matchesByDate);
   sort($datesSorted);
-  // show today first, then future, then past
-  $todayDates  = array_filter($datesSorted, fn($d)=>$d===$today);
-  $futureDates = array_filter($datesSorted, fn($d)=>$d>$today);
-  $pastDates   = array_reverse(array_filter($datesSorted, fn($d)=>$d<$today));
-  $orderedDates= array_merge($todayDates,$futureDates,$pastDates);
+  // only show today and past dates — future dates are unlocked as the day arrives
+  $orderedDates = array_values(array_filter($datesSorted, fn($d)=>$d<=$today));
   ?>
   <?php foreach ($orderedDates as $date):
       $matches=$matchesByDate[$date]??[];
@@ -1149,7 +1216,7 @@ const bracketState=<?=json_encode($predBracket?:(object)[])?>;
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function flagImg(code,w=20){if(!code)return'🏳';const h=Math.round(w*.75);return`<img src="https://flagcdn.com/w${w*2}/${code}.png" width="${w}" height="${h}" style="border-radius:2px;object-fit:cover" loading="lazy" onerror="this.replaceWith('🏳')" alt="${code}">`;}
+function flagImg(code,w=20){const h=Math.round(w*.75);if(!code)return`<span style="display:inline-block;width:${w}px;height:${h}px;background:rgba(255,255,255,.08);border-radius:2px;vertical-align:middle;flex-shrink:0"></span>`;return`<span class="fi fi-${code}" style="width:${w}px;height:${h}px;border-radius:2px;vertical-align:middle;display:inline-block;background-size:cover;flex-shrink:0"></span>`;}
 function getTeamById(id){for(const k of GROUP_KEYS){const t=(GROUPS_DATA[k]||[]).find(x=>x.id==id);if(t)return t;}return null;}
 
 // ── Generic group render ──────────────────────────────────────────────────────
@@ -1299,13 +1366,10 @@ function renderBracketGeneric(elId,matchupsRef,stateRef,editable,onWin){
                 if(team&&editable){slot.style.cursor='pointer';slot.onclick=()=>onWin(round,idx,team);}
                 const fspan=document.createElement('span');fspan.className='bracket-slot-flag';
                 if(team&&team.flag){
-                    const img=document.createElement('img');
-                    img.src='https://flagcdn.com/w36/'+team.flag+'.png';
-                    img.width=18;img.height=14;
-                    img.style.cssText='border-radius:2px;object-fit:cover;display:block;vertical-align:middle';
-                    img.loading='lazy';img.alt=team.flag;
-                    img.onerror=function(){this.style.display='none';};
-                    fspan.appendChild(img);
+                    const fs=document.createElement('span');
+                    fs.className='fi fi-'+team.flag;
+                    fs.style.cssText='width:18px;height:14px;border-radius:2px;display:inline-block;background-size:cover;vertical-align:middle;flex-shrink:0';
+                    fspan.appendChild(fs);
                 }
                 const nspan=document.createElement('span');nspan.className='bracket-slot-name';
                 nspan.textContent=team?team.name:'A definir';
