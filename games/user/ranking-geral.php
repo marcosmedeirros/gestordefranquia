@@ -518,7 +518,6 @@ $tab_labels = [
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($meu_perfil['nome'] ?? 'U', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($meu_perfil['nome'] ?? '') ?></div>
     <div class="sb-user-role"><?= !empty($meu_perfil['is_admin']) ? 'Admin' : 'Jogador' ?></div>
   </div>
@@ -547,6 +546,9 @@ $tab_labels = [
     <a href="../games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
+    <a href="../copa26.php" class="sb-link">
+      <i class="bi bi-trophy-fill"></i>Copa 2026
+    </a>
     <a href="ranking-geral.php" class="sb-link active">
       <i class="bi bi-trophy"></i>Ranking Geral
     </a>
@@ -557,6 +559,9 @@ $tab_labels = [
     </a>
     <a href="../admin/dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
+    </a>
+    <a href="../admin/controle-financas.php" class="sb-link">
+      <i class="bi bi-cash-coin"></i>Controle Finanças
     </a>
     <a href="../admin/controle-tapas.php" class="sb-link">
       <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas

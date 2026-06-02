@@ -813,7 +813,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= $userInitial ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($u['nome'] ?? '') ?></div>
     <div class="sb-user-role">Administrador</div>
   </div>

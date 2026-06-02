@@ -254,7 +254,6 @@ if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($user['nome'] ?? 'A', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
     <div class="sb-user-role">Admin</div>
   </div>

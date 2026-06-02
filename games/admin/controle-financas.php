@@ -168,7 +168,6 @@ try {
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome'] ?? 'U', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($usuario['nome'] ?? '') ?></div>
     <div class="sb-user-role">Admin</div>
   </div>

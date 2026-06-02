@@ -299,7 +299,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 <aside class="sidebar" id="sidebar">
   <div class="sb-header"><div class="sb-logo">FBA</div><span class="sb-brand">FBA <span>Games</span></span><button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button></div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome']??'U',0,1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($usuario['nome']??'') ?></div>
     <div class="sb-user-role"><?= !empty($usuario['is_admin'])?'Admin':'Jogador' ?></div>
   </div>

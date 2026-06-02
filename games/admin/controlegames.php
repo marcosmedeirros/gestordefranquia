@@ -323,7 +323,6 @@ $labelMap = [
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($user['nome'] ?? 'A', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($user['nome'] ?? '') ?></div>
     <div class="sb-user-role">Admin</div>
   </div>
@@ -352,6 +351,9 @@ $labelMap = [
     <a href="../games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
+    <a href="../copa26.php" class="sb-link">
+      <i class="bi bi-trophy-fill"></i>Copa 2026
+    </a>
     <a href="../user/ranking-geral.php" class="sb-link">
       <i class="bi bi-trophy"></i>Ranking Geral
     </a>
@@ -361,6 +363,9 @@ $labelMap = [
     </a>
     <a href="dashboard.php" class="sb-link">
       <i class="bi bi-receipt-cutoff"></i>Controle Apostas
+    </a>
+    <a href="controle-financas.php" class="sb-link">
+      <i class="bi bi-cash-coin"></i>Controle Finanças
     </a>
     <a href="controle-tapas.php" class="sb-link">
       <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas

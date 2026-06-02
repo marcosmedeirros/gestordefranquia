@@ -654,7 +654,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?=htmlspecialchars($nameInitial)?></div>
     <div class="sb-user-name"><?=htmlspecialchars($usuario['nome']??'')?></div>
     <div class="sb-user-role"><?=$isAdmin?'Admin':'Jogador'?></div>
   </div>

@@ -270,7 +270,6 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="sb-user">
-    <div class="sb-avatar"><?= strtoupper(substr($usuario['nome'] ?? 'U', 0, 1)) ?></div>
     <div class="sb-user-name"><?= htmlspecialchars($usuario['nome'] ?? '') ?></div>
     <div class="sb-user-role"><?= !empty($usuario['is_admin']) ? 'Admin' : 'Jogador' ?></div>
   </div>

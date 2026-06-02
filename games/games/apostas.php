@@ -480,6 +480,14 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             <img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($usuario['fba_points'] ?? 0, 0, ',', '.') ?> FBA POINTS
         </span>
         
+        <a href="../copa26.php" class="btn btn-sm btn-outline-warning border-0" title="Copa 2026">
+            <i class="bi bi-trophy-fill"></i>
+        </a>
+        <?php if (!empty($usuario['is_admin'])): ?>
+        <a href="../admin/controle-financas.php" class="btn btn-sm btn-outline-success border-0" title="Controle Finanças">
+            <i class="bi bi-cash-coin"></i>
+        </a>
+        <?php endif; ?>
         <a href="../games.php" class="btn btn-sm btn-outline-light border-0">
             <i class="bi bi-arrow-left"></i>
         </a>
