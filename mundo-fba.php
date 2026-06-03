@@ -1329,24 +1329,20 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
 
                 </div><!-- /sc-grid -->
 
-                <!-- ACORDEÕES -->
-                <div class="sc-accordion">
-
-                    <!-- Projeção por Temporada -->
-                    <?php if (!empty($an['season_projs'])): ?>
-                    <div class="sc-acc-head" onclick="scToggle(this)">
-                        <i class="bi bi-calendar3" style="color:#818cf8;font-size:13px"></i>
-                        <span class="sc-acc-title">Projeção por Temporada Restante &nbsp;<span style="font-size:10px;color:var(--text-3);font-weight:600"><?= count($an['season_projs']) ?> seasons · trajetória de idade</span></span>
-                        <i class="bi bi-chevron-down sc-acc-chevron"></i>
-                    </div>
-                    <div class="sc-acc-body">
+                <!-- Projeção por Temporada (sempre visível) -->
+                <?php if (!empty($an['season_projs'])): ?>
+                <div style="margin-top:14px">
+                    <div class="sc-block-title" style="margin-bottom:10px"><i class="bi bi-calendar3"></i> Projeção por Temporada Restante <span style="font-weight:400;color:var(--text-3)">· trajetória de idade</span></div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
                         <?php foreach ($an['season_projs'] as $sNum => $tops):
                             $baseYear = $d['seasonYear'] ?? 0;
                             $labelSeason = ($an['current_season'] ?? 0) + $sNum;
                             $labelYear = $baseYear ? ($baseYear + $sNum) : '';
                         ?>
-                        <div class="sc-season-block">
-                            <div class="sc-season-title">T<?= $labelSeason ?><?= $labelYear > 2000 ? " · {$labelYear}" : '' ?></div>
+                        <div class="sc-block" style="padding:12px">
+                            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#818cf8;margin-bottom:8px">
+                                T<?= $labelSeason ?><?= $labelYear > 2000 ? " · {$labelYear}" : '' ?>
+                            </div>
                             <?php foreach ($tops as $ti => $t):
                                 $medals = ['🏆','🥈','🥉'];
                                 $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
@@ -1359,23 +1355,24 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                     <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
                                     <?php if ($tc): ?><span style="font-size:10px;font-weight:700;color:<?= $tc ?>"><?= htmlspecialchars($t['ai_tag']) ?></span><?php endif; ?>
                                 </div>
-                                <div class="sc-pct" style="font-size:13px"><?= $t['sp'] ?>%</div>
+                                <div class="sc-pct" style="font-size:12px"><?= $t['sp'] ?>%</div>
                             </div>
                             <?php endforeach; ?>
                         </div>
                         <?php endforeach; ?>
                     </div>
-                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
 
-                    <!-- Tabela de Probabilidades Monte Carlo -->
-                    <?php if (!empty($an['matrix'])): ?>
+                <!-- ACORDEÃO: somente tabela de probabilidades -->
+                <?php if (!empty($an['matrix'])): ?>
+                <div class="sc-accordion">
                     <div class="sc-acc-head" onclick="scToggle(this)">
                         <i class="bi bi-table" style="color:#818cf8;font-size:13px"></i>
-                        <span class="sc-acc-title">Previsão da Tabela de Classificação &nbsp;<span style="font-size:10px;color:var(--text-3);font-weight:600">Monte Carlo · <?= $an['team_count'] ?> times</span></span>
+                        <span class="sc-acc-title">Previsão da Tabela de Classificação <span style="font-size:10px;color:var(--text-3);font-weight:600">· Monte Carlo · <?= $an['team_count'] ?> times · Power 55% · Pontos 30% · Picks 15%</span></span>
                         <i class="bi bi-chevron-down sc-acc-chevron"></i>
                     </div>
                     <div class="sc-acc-body">
-                        <p style="font-size:11px;color:var(--text-2);margin-bottom:12px">Probabilidade (%) de cada time terminar em cada posição · Score composto: Power 55% + Pontos 30% + Picks 15%</p>
                         <div class="sc-matrix-wrap">
                             <table class="sc-matrix">
                                 <thead>
@@ -1414,9 +1411,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                             </table>
                         </div>
                     </div>
-                    <?php endif; ?>
-
                 </div><!-- /sc-accordion -->
+                <?php endif; ?>
+
             </div><!-- /sc-wrap -->
             <?php endif; ?>
 
