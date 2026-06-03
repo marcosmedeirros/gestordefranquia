@@ -318,6 +318,15 @@ function buildLeagueAnalysis(
         }
     }
 
+    // ── Reordenar matrix por proj_pts decrescente ──────────────────────────────
+    // Garante que quem tem mais PROJ está na linha 1, e assim por diante,
+    // alinhando posição projetada com pontuação projetada.
+    usort($matrix, fn($a, $b) => ($b['proj_pts'] ?? 0) <=> ($a['proj_pts'] ?? 0));
+    foreach ($matrix as $i => &$mrow) {
+        $mrow['peak_col'] = $i; // célula destaque = coluna correspondente à posição da linha
+    }
+    unset($mrow);
+
     return [
         'has_data'       => true,
         'champ_proj'     => array_slice($proj, 0, 5),
