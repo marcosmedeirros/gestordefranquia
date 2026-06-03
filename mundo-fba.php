@@ -257,7 +257,7 @@ function buildLeagueAnalysis(
                 $ageFactor = ($age > 30 ? -($age - 30) * 1.5 * $s : ($age < 25 ? (25 - $age) * 0.9 * $s : 0))
                            + $ovrFactor;
 
-                // Tag: times prontos ganham antes, rebuilding ganham depois
+                // Tag: ajuste de força por perfil do time
                 if ($tag === 'Contending')     $tagF = -3.0 * $s; // janela fechando rápido
                 elseif ($tag === 'Buying')     $tagF = -1.2 * $s; // leve declínio
                 elseif ($tag === 'Selling')    $tagF =  1.8 * $s; // vendendo para o futuro
@@ -1431,14 +1431,14 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div>
                 <?php endif; ?>
 
-                <!-- Grid principal -->
-                <div class="sc-grid">
+                <!-- Cards centralizados: Campeão + Finalistas -->
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,380px));gap:12px;justify-content:center;margin-bottom:12px">
 
                     <!-- Projeção Campeão -->
                     <?php if (!empty($an['champ_proj'])):
                         $maxProb = $an['champ_proj'][0]['prob'] ?: 1; ?>
-                    <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Projeção Campeão</div>
+                    <div class="sc-block" style="text-align:center">
+                        <div class="sc-block-title" style="justify-content:center"><i class="bi bi-trophy-fill"></i> Projeção Campeão</div>
                         <?php foreach ($an['champ_proj'] as $i => $cp):
                             $barW = round($cp['prob'] / $maxProb * 100);
                             $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
@@ -1467,60 +1467,56 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
                     <?php endif; ?>
 
-                    <!-- Finalistas + Promoção -->
-                    <div style="display:flex;flex-direction:column;gap:12px">
-
-                        <!-- Finalistas Projetados -->
-                        <?php if (!empty($an['finalists'])): ?>
-                        <div class="sc-block">
-                            <div class="sc-block-title"><i class="bi bi-lightning-charge-fill"></i> Próximos Finalistas Projetados</div>
-                            <?php foreach ($an['finalists'] as $i => $f):
-                                $confLabel = !empty($f['conference']) ? htmlspecialchars($f['conference']) : ($i === 0 ? 'CONF 1' : 'CONF 2');
-                            ?>
-                            <div class="sc-fin-row">
-                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($f['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                                <div class="sc-tinfo">
-                                    <div class="sc-tname"><?= htmlspecialchars($f['team_name']) ?></div>
-                                    <div class="sc-tmeta"><?= htmlspecialchars($f['owner_name']) ?></div>
-                                </div>
-                                <span class="sc-fin-lbl <?= $i === 0 ? 'c1' : 'c2' ?>"><?= $i === 0 ? '🥇' : '🥈' ?> <?= $confLabel ?></span>
-                            </div>
-                            <?php endforeach; ?>
-                            <?php if (!empty($an['nba_cup'])): $cup = $an['nba_cup']; ?>
-                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(245,158,11,.2)">
-                                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#f59e0b;margin-bottom:5px">🏀 NBA Cup · +2pts</div>
-                                <div class="sc-fin-row">
-                                    <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($cup['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                                    <div class="sc-tinfo">
-                                        <div class="sc-tname"><?= htmlspecialchars($cup['team_name']) ?></div>
-                                        <div class="sc-tmeta"><?= htmlspecialchars($cup['owner_name'] ?? '') ?></div>
-                                    </div>
-                                    <span style="font-size:14px">🏆</span>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                        <?php endif; ?>
-
-                        <!-- Zona de Promoção (NEXT/RISE apenas) -->
-                        <?php if (!empty($an['promo_proj'])):
-                            $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
+                    <!-- Finalistas Projetados -->
+                    <?php if (!empty($an['finalists'])): ?>
+                    <div class="sc-block" style="text-align:center">
+                        <div class="sc-block-title" style="justify-content:center"><i class="bi bi-lightning-charge-fill"></i> Próximos Finalistas Projetados</div>
+                        <?php foreach ($an['finalists'] as $i => $f):
+                            $confLabel = !empty($f['conference']) ? htmlspecialchars($f['conference']) : ($i === 0 ? 'CONF 1' : 'CONF 2');
                         ?>
-                        <div class="sc-block">
-                            <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Zona de Promoção — Top 4</span></div>
-                            <?php foreach ($an['promo_proj'] as $gi => $t):
-                                $p = $t['promo_prob'];
-                                $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
-                            ?>
-                            <div class="sc-zone-row">
-                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                                <div class="sc-tinfo"><div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div></div>
-                                <span class="sc-zone-pct" style="color:<?= $gc ?>"><?= $p ?>%</span>
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border-bottom:1px solid rgba(99,102,241,.08)">
+                            <img class="sc-tlogo" style="width:34px;height:34px;border-radius:8px" src="<?= htmlspecialchars(getTeamPhoto($f['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                            <div style="font-size:12px;font-weight:700;color:var(--text)"><?= htmlspecialchars($f['team_name']) ?></div>
+                            <div style="font-size:10px;color:var(--text-2)"><?= htmlspecialchars($f['owner_name']) ?></div>
+                            <span class="sc-fin-lbl <?= $i === 0 ? 'c1' : 'c2' ?>"><?= $i === 0 ? '🥇' : '🥈' ?> <?= $confLabel ?></span>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php if (!empty($an['nba_cup'])): $cup = $an['nba_cup']; ?>
+                        <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(245,158,11,.2)">
+                            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#f59e0b;margin-bottom:6px">🏀 NBA Cup · +2pts</div>
+                            <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                                <img class="sc-tlogo" style="width:30px;height:30px;border-radius:7px" src="<?= htmlspecialchars(getTeamPhoto($cup['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                <div style="font-size:11px;font-weight:700;color:var(--text)"><?= htmlspecialchars($cup['team_name']) ?></div>
+                                <span style="font-size:14px">🏆</span>
                             </div>
-                            <?php endforeach; ?>
                         </div>
                         <?php endif; ?>
                     </div>
+                    <?php endif; ?>
+
+                </div><!-- /cards centralizados -->
+
+                <!-- Grid: Promoção + Rebaixamento -->
+                <div class="sc-grid" style="grid-template-columns:1fr 1fr">
+
+                    <!-- Zona de Promoção (NEXT/RISE apenas) -->
+                    <?php if (!empty($an['promo_proj'])):
+                        $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
+                    ?>
+                    <div class="sc-block">
+                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Zona de Promoção — Top 4</span></div>
+                        <?php foreach ($an['promo_proj'] as $gi => $t):
+                            $p = $t['promo_prob'];
+                            $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
+                        ?>
+                        <div class="sc-zone-row">
+                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                            <div class="sc-tinfo"><div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div></div>
+                            <span class="sc-zone-pct" style="color:<?= $gc ?>"><?= $p ?>%</span>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
 
                     <!-- Zona de Rebaixamento -->
                     <?php if (!empty($an['rele_proj'])):
@@ -1551,7 +1547,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <div style="margin-top:14px">
                     <div class="sc-block-title" style="margin-bottom:8px">
                         <i class="bi bi-calendar3"></i> Projeção por Temporada
-                        <span style="font-weight:400;color:var(--text-3)">· prontos ganham antes · rebuilding ganham depois</span>
                     </div>
                     <div class="sc-season-row">
                         <?php foreach ($an['season_projs'] as $sNum => $sp):
