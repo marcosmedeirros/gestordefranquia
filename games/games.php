@@ -421,6 +421,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
 
   <div class="section-label" style="margin-top:28px"><i class="bi bi-joystick"></i>Minigames</div>
   <div class="games-grid">
+    <a href="games/penalti.php"               class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">⚽</span><div class="game-title">Pênalti</div><div class="game-sub">Copa do Mundo</div></a>
     <a href="games/index.php?game=flappy"      class="game-card"><span class="game-icon">🐦</span><div class="game-title">Flappy Bird</div><div class="game-sub">Desvie dos canos</div></a>
     <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
@@ -435,6 +436,11 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
       <span class="game-icon">🏀</span>
       <div class="game-title">82-0</div>
       <div class="game-sub">Simulador NBA</div>
+    </a>
+    <a href="https://hoopgrids.com/" target="_blank" rel="noopener noreferrer" class="game-card" style="border-color:rgba(245,158,11,.2)">
+      <span class="game-icon">🔢</span>
+      <div class="game-title">HoopGrids</div>
+      <div class="game-sub">Grid NBA</div>
     </a>
   </div>
 

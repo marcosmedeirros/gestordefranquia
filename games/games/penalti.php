@@ -73,6 +73,10 @@ try {
         conquistado_em DATETIME DEFAULT NOW(),
         UNIQUE KEY uk_pc (id_usuario, team_slug)
     ) DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS penalti_fba_bonus (
+        id_usuario INT PRIMARY KEY,
+        dado_em DATETIME DEFAULT NOW()
+    ) DEFAULT CHARSET=utf8mb4");
 } catch(PDOException $e) {}
 
 // AJAX
@@ -107,14 +111,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtChk->execute([$user_id, $slug]);
         $jaConquistou = (bool)$stmtChk->fetch();
         $pdo->prepare("INSERT IGNORE INTO penalti_conquistas (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
-        $newMoedas = null;
+        $newMoedas = null; $newFba = null;
         if (!$jaConquistou) {
             $pdo->prepare("UPDATE usuarios SET pontos=pontos+500 WHERE id=?")->execute([$user_id]);
-            $s = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+            $s = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id=?");
             $s->execute([$user_id]);
-            $newMoedas = (int)($s->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
+            $uRow = $s->fetch(PDO::FETCH_ASSOC);
+            $newMoedas = (int)($uRow['pontos'] ?? 0);
+
+            // Verifica se agora tem todas as 16 seleções
+            $stmtCnt = $pdo->prepare("SELECT COUNT(*) FROM penalti_conquistas WHERE id_usuario=?");
+            $stmtCnt->execute([$user_id]);
+            if ((int)$stmtCnt->fetchColumn() >= 16) {
+                // Bônus único: +500 FBA Points (conquista secreta)
+                $stmtBonus = $pdo->prepare("INSERT IGNORE INTO penalti_fba_bonus (id_usuario) VALUES (?)");
+                $stmtBonus->execute([$user_id]);
+                if ($stmtBonus->rowCount() > 0) {
+                    $pdo->prepare("UPDATE usuarios SET fba_points=fba_points+500 WHERE id=?")->execute([$user_id]);
+                    $sf = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id=?");
+                    $sf->execute([$user_id]);
+                    $newFba = (int)($sf->fetch(PDO::FETCH_ASSOC)['fba_points'] ?? 0);
+                }
+            }
         }
-        echo json_encode(['ok'=>true,'moedas'=>$newMoedas,'primeira_vez'=>!$jaConquistou]); exit;
+        echo json_encode(['ok'=>true,'moedas'=>$newMoedas,'fba'=>$newFba,'primeira_vez'=>!$jaConquistou]); exit;
     }
 
     echo json_encode(['ok'=>false,'msg'=>'Ação inválida']); exit;
@@ -142,18 +162,24 @@ try {
     $usuario = $s->fetch(PDO::FETCH_ASSOC) ?: [];
     $moedas  = (int)($usuario['pontos'] ?? 0);
 } catch(PDOException $e) { $usuario = []; }
+$slugToName  = array_column($TIMES, 'name',  'slug');
+$slugToColor = array_column($TIMES, 'color', 'slug');
 try {
     $s = $pdo->query(
-        "SELECT u.nome, MAX(pc.conquistado_em) AS completado_em
+        "SELECT u.nome,
+                COUNT(pc.team_slug) AS total,
+                MAX(pc.conquistado_em) AS completado_em,
+                (SELECT team_slug FROM penalti_conquistas p2
+                 WHERE p2.id_usuario = pc.id_usuario
+                 ORDER BY p2.conquistado_em DESC LIMIT 1) AS ultimo_slug
          FROM penalti_conquistas pc
          JOIN usuarios u ON u.id = pc.id_usuario
          GROUP BY pc.id_usuario, u.nome
-         HAVING COUNT(*) >= 16
-         ORDER BY completado_em ASC
-         LIMIT 5"
+         ORDER BY total DESC, completado_em ASC
+         LIMIT 10"
     );
     $hall_fama = $s ? $s->fetchAll(PDO::FETCH_ASSOC) : [];
-} catch(PDOException $e) {}
+} catch(PDOException $e) { $hall_fama = []; }
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -425,11 +451,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
   <div class="camp-grid" id="camp-grid"></div>
 
   <!-- Recompensa misteriosa -->
-  <div class="mystery-card">
-    <div class="mystery-q">?</div>
-    <div class="mystery-title">Conquista Secreta</div>
-    <div class="mystery-sub">Vença o campeonato com todas as 16 seleções<br>para descobrir o que te aguarda...</div>
-    <div class="mystery-locks">🔒 🔒 🔒</div>
+  <?php $conquistouTudo = count($conquistas_arr) >= 16; ?>
+  <div class="mystery-card" style="<?= $conquistouTudo ? 'border-color:rgba(167,139,250,.4);background:linear-gradient(135deg,#0d1a3a,#1a0d3a,#1a0a2a)' : '' ?>">
+    <?php if ($conquistouTudo): ?>
+      <div style="font-size:42px;margin-bottom:6px">🏆</div>
+      <div class="mystery-title" style="color:#a78bfa;font-size:15px">Conquista Secreta Desbloqueada!</div>
+      <div class="mystery-sub" style="color:rgba(167,139,250,.7);margin-top:6px">+500 FBA Points recebidos!<br>Você conquistou todas as 16 seleções!</div>
+      <div style="margin-top:10px;font-size:20px">🎉✨🎉</div>
+    <?php else: ?>
+      <div class="mystery-q">?</div>
+      <div class="mystery-title">Conquista Secreta</div>
+      <div class="mystery-sub">Vença o campeonato com todas as 16 seleções<br>para ganhar um bônus especial...</div>
+      <div class="mystery-locks" style="margin-top:6px">🔒 🔒 🔒</div>
+      <div style="font-size:10px;color:rgba(255,215,0,.35);margin-top:6px;font-weight:700"><?= count($conquistas_arr) ?>/16 seleções</div>
+    <?php endif; ?>
   </div>
 
   <!-- Hall da Fama -->
@@ -437,17 +472,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
     <div class="hall-hdr">
       <span class="hall-hdr-icon">👑</span>
       <span class="hall-hdr-title">Hall da Fama</span>
-      <span class="hall-hdr-sub">Primeiros a conquistar os 16 times</span>
+      <span class="hall-hdr-sub">Maiores progresso</span>
     </div>
     <?php if (empty($hall_fama)): ?>
-      <div class="hall-empty">Nenhum campeão ainda — seja o primeiro!</div>
+      <div class="hall-empty">Nenhum jogador ainda — seja o primeiro!</div>
     <?php else: ?>
-      <?php $medals = ['🥇','🥈','🥉','🏅','🏅']; ?>
-      <?php foreach ($hall_fama as $i => $row): ?>
-        <div class="hall-row">
-          <span class="hall-pos"><?= $medals[$i] ?></span>
-          <span class="hall-name"><?= htmlspecialchars($row['nome']) ?></span>
-          <span class="hall-date"><?= date('d/m/Y', strtotime($row['completado_em'])) ?></span>
+      <?php $medals = ['🥇','🥈','🥉','4','5','6','7','8','9','10']; ?>
+      <?php foreach ($hall_fama as $i => $row):
+        $total      = (int)$row['total'];
+        $pct        = round($total / 16 * 100);
+        $lastSlug   = $row['ultimo_slug'] ?? '';
+        $lastName   = $slugToName[$lastSlug]  ?? $lastSlug;
+        $lastColor  = $slugToColor[$lastSlug] ?? '#ffd700';
+        $numStr     = str_pad($total, 2, '0', STR_PAD_LEFT);
+        $isChamp    = $total >= 16;
+        $medal      = $i < 3 ? $medals[$i] : ($i + 1);
+      ?>
+        <div class="hall-row" style="align-items:flex-start;padding:10px 16px">
+          <span class="hall-pos" style="margin-top:3px"><?= $medal ?></span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+              <span class="hall-name" style="font-size:12px"><?= htmlspecialchars($row['nome']) ?></span>
+              <span style="font-size:11px;font-weight:800;color:var(--gold);flex-shrink:0;margin-left:8px"><?= $numStr ?>/16</span>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;display:flex;align-items:center;gap:5px">
+              <?php if ($lastSlug): ?>
+                <span style="color:<?= htmlspecialchars($lastColor) ?>;font-weight:600"><?= htmlspecialchars($lastName) ?></span>
+                <?php if ($isChamp): ?><span style="color:var(--gold)">🏆 Completo!</span><?php endif; ?>
+              <?php endif; ?>
+            </div>
+            <div style="background:var(--panel3);border-radius:99px;height:5px;overflow:hidden">
+              <div style="height:100%;width:<?= $pct ?>%;background:linear-gradient(90deg,<?= htmlspecialchars($lastColor) ?>,var(--gold));border-radius:99px;transition:width .4s ease"></div>
+            </div>
+          </div>
         </div>
       <?php endforeach; ?>
     <?php endif; ?>
@@ -680,16 +737,16 @@ function sector(z) { return z % 3; }
 
 // Goleiro adversário defende: stat do GK inimigo vs stat de chute do user
 function keeperDive(shootZone, shooterShot, gkDef, koBoost = 0) {
-  const base      = 0.04 + (gkDef - 5) * 0.06;          // def7→16% def8→22% def9→28% def10→34%
-  const reduction = (shooterShot - 5) * 0.03;            // shot10→15% menos
-  const readChance = Math.min(0.50, Math.max(0.04, base - reduction + koBoost * 0.04));
+  const base      = 0.02 + (gkDef - 5) * 0.04;          // def7→10% def8→14% def9→18% def10→22%
+  const reduction = (shooterShot - 5) * 0.02;            // shot10→10% menos
+  const readChance = Math.min(0.40, Math.max(0.02, base - reduction + koBoost * 0.03));
   const sec = Math.random() < readChance ? sector(shootZone) : Math.floor(Math.random() * 3);
   return sec + (Math.random() < 0.5 ? 0 : 3);
 }
 
 // Adversário chuta: stat de chute determina preferência por cantos
 function aiShootZone(playerShot, koBoost = 0) {
-  const cornerBias = Math.min(0.85, 0.28 + (playerShot - 5) * 0.09 + koBoost * 0.05);
+  const cornerBias = Math.min(0.65, 0.20 + (playerShot - 5) * 0.06 + koBoost * 0.03);
   const side = Math.random() < cornerBias ? (Math.random() < 0.5 ? 0 : 2) : 1;
   return side + (Math.random() < 0.5 ? 0 : 3);
 }
@@ -999,7 +1056,7 @@ function handleZone(zone) {
     const oppZone=aiShootZone(m.opp.player_shot, m.koBoost);
     const sectorMatch=sector(zone)===sector(oppZone);
     // Bônus do goleiro: chance de defesa milagrosa mesmo no setor errado
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.06);
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10);
     const saved=sectorMatch||(Math.random()<gkBonus);
     result=saved?'save':'goal';
     keepZone=saved?oppZone:zone;
@@ -1117,7 +1174,7 @@ function handleSD(zone) {
   } else {
     const oppZone=aiShootZone(m.opp.player_shot,m.koBoost);
     const sectorMatch=sector(zone)===sector(oppZone);
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.06);
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10);
     const saved=sectorMatch||(Math.random()<gkBonus);
     const scored=!saved;
     animateShoot(oppZone,saved?oppZone:zone,scored?'goal':'save',false);
@@ -1263,6 +1320,10 @@ async function registrarConquista(slug) {
       updateCoinDisplay(userMoedas);
       const sub = document.getElementById('champ-sub');
       if (sub) sub.innerHTML += '<br><span style="color:var(--amber);font-weight:700">+500 🪙 moedas ganhas!</span>';
+    }
+    if (d.fba !== null && d.fba !== undefined) {
+      const sub = document.getElementById('champ-sub');
+      if (sub) sub.innerHTML += '<br><span style="color:#a78bfa;font-weight:700">🏆 +500 FBA Points! Conquista Secreta desbloqueada!</span>';
     }
   } catch(e) {}
 }
