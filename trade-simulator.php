@@ -34,15 +34,16 @@ if ($action === 'roster') {
 
     $picks = [];
     try {
+        $currentYear = (int)date('Y');
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round,
                    ot.city AS orig_city, ot.name AS orig_name
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
-            WHERE pk.team_id = ? AND pk.season_year >= YEAR(CURDATE())
+            WHERE pk.team_id = ? AND CAST(pk.season_year AS UNSIGNED) >= ?
             ORDER BY pk.round ASC, pk.season_year ASC
         ');
-        $stmtPk->execute([$tid]);
+        $stmtPk->execute([$tid, $currentYear]);
         $picks = $stmtPk->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
 

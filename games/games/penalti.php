@@ -735,18 +735,20 @@ const AUTO_NEXT    = 2000;
 // ── SETOR ────────────────────────────────────────────────────────────────────
 function sector(z) { return z % 3; }
 
-// Goleiro adversário defende: stat do GK inimigo vs stat de chute do user
-function keeperDive(shootZone, shooterShot, gkDef, koBoost = 0) {
-  const base      = 0.02 + (gkDef - 5) * 0.04;          // def7→10% def8→14% def9→18% def10→22%
-  const reduction = (shooterShot - 5) * 0.02;            // shot10→10% menos
-  const readChance = Math.min(0.40, Math.max(0.02, base - reduction + koBoost * 0.03));
+// Goleiro adversário defende — oppDiff reduz a leitura para times mais fáceis
+function keeperDive(shootZone, shooterShot, gkDef, koBoost = 0, oppDiff = 3) {
+  const diffMod   = Math.max(0, (3 - oppDiff)) * 0.025; // diff1→-0.05  diff2→-0.025  diff3+→0
+  const base      = Math.max(0.01, 0.02 + (gkDef - 5) * 0.04 - diffMod);
+  const reduction = (shooterShot - 5) * 0.02;
+  const readChance = Math.min(0.40, Math.max(0.01, base - reduction + koBoost * 0.03));
   const sec = Math.random() < readChance ? sector(shootZone) : Math.floor(Math.random() * 3);
   return sec + (Math.random() < 0.5 ? 0 : 3);
 }
 
-// Adversário chuta: stat de chute determina preferência por cantos
-function aiShootZone(playerShot, koBoost = 0) {
-  const cornerBias = Math.min(0.65, 0.20 + (playerShot - 5) * 0.06 + koBoost * 0.03);
+// Adversário chuta — oppDiff reduz viés para cantos em times mais fáceis
+function aiShootZone(playerShot, koBoost = 0, oppDiff = 3) {
+  const diffMod   = Math.max(0, (3 - oppDiff)) * 0.08;  // diff1→-0.16  diff2→-0.08  diff3+→0
+  const cornerBias = Math.min(0.65, Math.max(0.05, 0.20 + (playerShot - 5) * 0.06 - diffMod + koBoost * 0.03));
   const side = Math.random() < cornerBias ? (Math.random() < 0.5 ? 0 : 2) : 1;
   return side + (Math.random() < 0.5 ? 0 : 3);
 }
@@ -1049,14 +1051,15 @@ function handleZone(zone) {
   let result, keepZone;
 
   if (userShooting) {
-    keepZone=keeperDive(zone, state.userTeam.player_shot, m.opp.gk_def, m.koBoost);
+    keepZone=keeperDive(zone, state.userTeam.player_shot, m.opp.gk_def, m.koBoost, m.opp.diff);
     result=sector(zone)===sector(keepZone)?'save':'goal';
     animateShoot(zone,keepZone,result,true);
   } else {
-    const oppZone=aiShootZone(m.opp.player_shot, m.koBoost);
+    const oppZone=aiShootZone(m.opp.player_shot, m.koBoost, m.opp.diff);
     const sectorMatch=sector(zone)===sector(oppZone);
-    // Bônus do goleiro: chance de defesa milagrosa mesmo no setor errado
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10);
+    // Bônus do goleiro: inclui bônus extra contra times de menor dificuldade
+    const oppDiffBonus=Math.max(0,(3-m.opp.diff))*0.07;
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10)+oppDiffBonus;
     const saved=sectorMatch||(Math.random()<gkBonus);
     result=saved?'save':'goal';
     keepZone=saved?oppZone:zone;
@@ -1162,7 +1165,7 @@ function startSD() {
 function handleSD(zone) {
   const m=state.cur;
   if (m.sdPhase===0) {
-    const keepZone=keeperDive(zone,state.userTeam.player_shot,m.opp.gk_def,m.koBoost);
+    const keepZone=keeperDive(zone,state.userTeam.player_shot,m.opp.gk_def,m.koBoost,m.opp.diff);
     const saved=sector(zone)===sector(keepZone); m.sdUserScored=!saved;
     animateShoot(zone,keepZone,saved?'save':'goal',true);
     setTimeout(()=>{
@@ -1172,9 +1175,10 @@ function handleSD(zone) {
     m.sdPhase=1;
     setTimeout(()=>{resetZoneBtns();moveKeeper(4);prepKick();m.locked=false;},RESULT_DELAY+900);
   } else {
-    const oppZone=aiShootZone(m.opp.player_shot,m.koBoost);
+    const oppZone=aiShootZone(m.opp.player_shot,m.koBoost,m.opp.diff);
     const sectorMatch=sector(zone)===sector(oppZone);
-    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10);
+    const oppDiffBonus=Math.max(0,(3-m.opp.diff))*0.07;
+    const gkBonus=Math.max(0,(state.userTeam.gk_def-5)*0.10)+oppDiffBonus;
     const saved=sectorMatch||(Math.random()<gkBonus);
     const scored=!saved;
     animateShoot(oppZone,saved?oppZone:zone,scored?'goal':'save',false);
