@@ -69,7 +69,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     return 'Selling';
 }
 
-function simulatePositionMatrix(array $teams, int $iterations = 600): array {
+function simulatePositionMatrix(array $teams, int $iterations = 1200): array {
     $n = count($teams);
     if ($n === 0) return [];
     $counts = array_fill(0, $n, array_fill(0, $n, 0));
@@ -174,9 +174,14 @@ function buildLeagueAnalysis(
                 $maxOvr = (float)($t['max_ovr']    ?? 80);
                 $tag    = $t['ai_tag'] ?? '';
 
-                // Idade: times velhos caem, jovens sobem
-                $ageFactor = $age > 30 ? -($age - 30) * 1.5 * $s
-                           : ($age < 25 ? (25 - $age) * 0.9 * $s : 0);
+                // OVR growth: NBA2K sem lesões/fadiga → 1-4 OVR/temp por faixa etária
+                // <22: +3.5 | <25: +2.5 | <28: +1.5 | <31: +0.5 | 31+: declínio
+                $ovrGrowth = $age < 22 ? 3.5 : ($age < 25 ? 2.5 : ($age < 28 ? 1.5 : ($age < 31 ? 0.5 : -0.8)));
+                $ovrFactor = $ovrGrowth * $s * 0.7;
+
+                // Idade: velhos caem, jovens sobem (amplificado pelo crescimento de OVR)
+                $ageFactor = ($age > 30 ? -($age - 30) * 1.5 * $s : ($age < 25 ? (25 - $age) * 0.9 * $s : 0))
+                           + $ovrFactor;
 
                 // Tag: times prontos ganham antes, rebuilding ganham depois
                 if ($tag === 'Contending')     $tagF = -3.0 * $s; // janela fechando rápido
@@ -188,8 +193,8 @@ function buildLeagueAnalysis(
                 // Picks: mais picks = mais ativos futuros = crescimento
                 $picksFactor = min($picks * 0.6, 9) * (1 + $s * 0.2);
 
-                // Franquia: estrela (max OVR >= 92) é mais volátil com o tempo
-                $ovrFactor = $maxOvr >= 92 ? -0.5 * $s : ($maxOvr <= 78 ? 0.4 * $s : 0);
+                // Franquia: estrela (max OVR >= 92) mais volátil com o tempo (já inclusa no ovrFactor)
+                $franqFactor = $maxOvr >= 92 ? -0.5 * $s : ($maxOvr <= 78 ? 0.4 * $s : 0);
 
                 // Variância Box-Muller (aumenta com a distância no tempo)
                 $u1 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
@@ -197,7 +202,7 @@ function buildLeagueAnalysis(
                 $variance = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 3.0;
 
                 return array_merge($t, [
-                    'adj' => max(0.01, $t['composite'] + $ageFactor + $tagF + $picksFactor + $ovrFactor + $variance)
+                    'adj' => max(0.01, $t['composite'] + $ageFactor + $tagF + $picksFactor + $franqFactor + $variance)
                 ]);
             }, $proj);
 
@@ -229,12 +234,88 @@ function buildLeagueAnalysis(
     }
 
     // Matriz Monte Carlo de probabilidades por posição
-    $rawMx = simulatePositionMatrix($teams);
+    $rawMx   = simulatePositionMatrix($teams);
     $nameIdx = array_column($teams, 'team_name');
-    $matrix = [];
+    $matrixRaw = [];
     foreach ($proj as $t) {
         $oi = array_search($t['team_name'], $nameIdx);
-        $matrix[] = ['team' => $t, 'probs' => ($oi !== false && isset($rawMx[$oi])) ? $rawMx[$oi] : array_fill(0, $n, 0)];
+        $matrixRaw[] = ['team' => $t, 'probs' => ($oi !== false && isset($rawMx[$oi])) ? $rawMx[$oi] : array_fill(0, $n, 0)];
+    }
+
+    // Greedy assignment: para cada posição, aloca o time com maior prob naquela coluna
+    // Garante que o 1º mais provável fica na linha 1, o 2º na linha 2, etc.
+    $assigned     = [];
+    $matrix       = [];
+    $peakCols     = []; // qual coluna destacar para cada linha final
+    for ($pos = 0; $pos < $n; $pos++) {
+        $bestIdx  = -1;
+        $bestProb = -1;
+        foreach ($matrixRaw as $i => $row) {
+            if (isset($assigned[$i])) continue;
+            $p = $row['probs'][$pos] ?? 0;
+            if ($p > $bestProb) { $bestProb = $p; $bestIdx = $i; }
+        }
+        if ($bestIdx >= 0) {
+            $assigned[$bestIdx] = true;
+            $matrix[] = array_merge($matrixRaw[$bestIdx], ['peak_col' => $pos]);
+        }
+    }
+
+    // ── Pontos esperados por posição (playoff + seed + prêmios individuais) ──
+    // Mapeamento: pos 0=campeão, 1=vice, 2-3=conf final, 4-7=conf semi, 8-15=R1, 16+=fora
+    $totalComp = max(array_sum(array_column($teams, 'composite')), 0.01);
+    foreach ($matrix as &$mrow) {
+        $probs = $mrow['probs'];
+        $expPts = 0.0;
+        foreach ($probs as $pos => $pct) {
+            $playoff = 0;
+            if ($pos === 0)      $playoff = 11;
+            elseif ($pos === 1)  $playoff = 8;
+            elseif ($pos <= 3)   $playoff = 6;
+            elseif ($pos <= 7)   $playoff = 3;
+            elseif ($pos <= 15)  $playoff = 1;
+            $seed = 0;
+            if ($pos === 0)      $seed = 4;
+            elseif ($pos <= 3)   $seed = 3;
+            elseif ($pos <= 7)   $seed = 2;
+            $expPts += ($pct / 100) * ($playoff + $seed);
+        }
+        // Prêmios individuais (MVP, DPOY, MIP, ROY, 6th Man = 5 × 1pt) por peso composite
+        $expAwards = (($mrow['team']['composite'] ?? 0) / $totalComp) * 5;
+        $currentPts = $mrow['team']['ranking_pts'] ?? 0;
+        $mrow['exp_pts']  = round($expPts + $expAwards, 1);
+        $mrow['proj_pts'] = $currentPts + (int)round($expPts + $expAwards);
+    }
+    unset($mrow);
+
+    // ── NBA Cup (ELITE only): 2pts, geralmente vence time ≠ campeão ──
+    $nbaCupWinner = null;
+    if ($league === 'ELITE' && !empty($proj)) {
+        $cupArr = array_map(function($t) {
+            $tag = $t['ai_tag'] ?? '';
+            if ($tag === 'Buying')         $mod = 1.5;
+            elseif ($tag === 'Selling')    $mod = 1.3;
+            elseif ($tag === 'Contending') $mod = 0.55;
+            elseif ($tag === 'Rebuilding') $mod = 0.75;
+            else                           $mod = 1.0;
+            return array_merge($t, ['cup_s' => $t['composite'] * $mod]);
+        }, $proj);
+        usort($cupArr, fn($a, $b) => $b['cup_s'] <=> $a['cup_s']);
+        foreach ($cupArr as $t) {
+            if ($t['team_name'] !== ($proj[0]['team_name'] ?? '')) {
+                $nbaCupWinner = $t; break;
+            }
+        }
+        if (!$nbaCupWinner) $nbaCupWinner = $cupArr[0] ?? null;
+        // Adiciona 2pts ao proj_pts do vencedor da Cup
+        if ($nbaCupWinner) {
+            foreach ($matrix as &$mrow) {
+                if ($mrow['team']['team_name'] === $nbaCupWinner['team_name']) {
+                    $mrow['proj_pts'] += 2; break;
+                }
+            }
+            unset($mrow);
+        }
     }
 
     return [
@@ -249,6 +330,8 @@ function buildLeagueAnalysis(
         'seasons_left'   => $seasonsLeft,
         'total_seasons'  => $totalSeasons,
         'current_season' => $currentSeasonNum,
+        'nba_cup'        => $nbaCupWinner,
+        'league'         => $league,
     ];
 }
 
@@ -1003,10 +1086,15 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-matrix tbody tr:hover td.tc { background:var(--panel-2); }
         .sc-matrix tbody tr:last-child td { border-bottom:none; }
         .sc-pcell { border-radius:5px; padding:2px 5px; font-size:11px; font-weight:700; display:inline-block; min-width:36px; }
-        .sc-pcell.hi  { background:rgba(34,197,94,.18);  color:#22c55e; }
-        .sc-pcell.md  { background:rgba(245,158,11,.15); color:#f59e0b; }
-        .sc-pcell.lo  { background:rgba(99,102,241,.12); color:#818cf8; }
-        .sc-pcell.vlo { color:var(--text-3); }
+        .sc-pcell.hi   { background:rgba(34,197,94,.18);  color:#22c55e; }
+        .sc-pcell.md   { background:rgba(245,158,11,.15); color:#f59e0b; }
+        .sc-pcell.lo   { background:rgba(99,102,241,.12); color:#818cf8; }
+        .sc-pcell.vlo  { color:var(--text-3); }
+        .sc-pcell.peak { outline:2px solid rgba(99,102,241,.6); background:rgba(99,102,241,.22) !important; color:#a5b4fc !important; font-weight:900; }
+        .sc-matrix th.promo { color:#22c55e; }
+        .sc-matrix th.rele  { color:#f87171; }
+        .sc-proj-cell { font-size:12px; font-weight:800; color:#f59e0b; white-space:nowrap; }
+        .sc-proj-delta { font-size:9px; font-weight:700; color:#818cf8; margin-left:2px; }
 
         /* ── Responsive ─────────────────────────────────────── */
         @media (max-width: 992px) {
@@ -1324,21 +1412,32 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                         <!-- Finalistas Projetados -->
                         <?php if (!empty($an['finalists'])): ?>
                         <div class="sc-block">
-                            <div class="sc-block-title"><i class="bi bi-lightning-charge-fill"></i> Finalistas Projetados</div>
-                            <?php foreach ($an['finalists'] as $i => $f): ?>
+                            <div class="sc-block-title"><i class="bi bi-lightning-charge-fill"></i> Próximos Finalistas Projetados</div>
+                            <?php foreach ($an['finalists'] as $i => $f):
+                                $confLabel = !empty($f['conference']) ? htmlspecialchars($f['conference']) : ($i === 0 ? 'CONF 1' : 'CONF 2');
+                            ?>
                             <div class="sc-fin-row">
-                                <img class="sc-tlogo"
-                                     src="<?= htmlspecialchars(getTeamPhoto($f['team_photo'] ?? null)) ?>"
-                                     alt="" onerror="this.src='/img/default-team.png'">
+                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($f['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
                                 <div class="sc-tinfo">
                                     <div class="sc-tname"><?= htmlspecialchars($f['team_name']) ?></div>
                                     <div class="sc-tmeta"><?= htmlspecialchars($f['owner_name']) ?></div>
                                 </div>
-                                <span class="sc-fin-lbl <?= $i === 0 ? 'c1' : 'c2' ?>">
-                                    <?= $i === 0 ? '🥇 CONF 1' : '🥈 CONF 2' ?>
-                                </span>
+                                <span class="sc-fin-lbl <?= $i === 0 ? 'c1' : 'c2' ?>"><?= $i === 0 ? '🥇' : '🥈' ?> <?= $confLabel ?></span>
                             </div>
                             <?php endforeach; ?>
+                            <?php if (!empty($an['nba_cup'])): $cup = $an['nba_cup']; ?>
+                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(245,158,11,.2)">
+                                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#f59e0b;margin-bottom:5px">🏀 NBA Cup · +2pts</div>
+                                <div class="sc-fin-row">
+                                    <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($cup['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                    <div class="sc-tinfo">
+                                        <div class="sc-tname"><?= htmlspecialchars($cup['team_name']) ?></div>
+                                        <div class="sc-tmeta"><?= htmlspecialchars($cup['owner_name'] ?? '') ?></div>
+                                    </div>
+                                    <span style="font-size:14px">🏆</span>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
 
@@ -1451,37 +1550,85 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                         <i class="bi bi-chevron-down sc-acc-chevron"></i>
                     </div>
                     <div class="sc-acc-body">
+                        <?php
+                            // Define zonas de cor por coluna
+                            $isEliteLeague = ($an['league'] ?? '') === 'ELITE';
+                            $tc = $an['team_count'];
+                            $promoLimit = $isEliteLeague ? 0 : 3; // pos 0 only for ELITE, 0-3 for others
+                            $releStart  = max($tc - 4, 4);        // últimas 4 posições
+                            // Paleta verde (índice por posição dentro da zona de promoção)
+                            $gPal = ['#16a34a','#22c55e','#4ade80','#86efac'];
+                            // Paleta vermelha
+                            $rPal = ['#dc2626','#ef4444','#f87171','#fca5a5'];
+                        ?>
                         <div class="sc-matrix-wrap">
                             <table class="sc-matrix">
                                 <thead>
                                     <tr>
                                         <th class="tc">Time</th>
                                         <th class="pc" title="Pontos ranking">PTS</th>
-                                        <?php for ($pos = 1; $pos <= $an['team_count']; $pos++): ?>
-                                        <th><?= $pos ?>º</th>
+                                        <th class="pc" title="Projeção de pontos ao final da temporada" style="color:#f59e0b">PROJ</th>
+                                        <?php for ($pos = 1; $pos <= $tc; $pos++):
+                                            $isP = ($pos - 1) <= $promoLimit;
+                                            $isR = ($pos - 1) >= $releStart;
+                                            $thCls = $isP ? 'promo' : ($isR ? 'rele' : '');
+                                        ?>
+                                        <th class="<?= $thCls ?>"><?= $pos ?>º</th>
                                         <?php endfor; ?>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($an['matrix'] as $mrow):
-                                        $mt = $mrow['team'];
-                                        $mprobs = $mrow['probs'];
+                                    <?php foreach ($an['matrix'] as $mIdx => $mrow):
+                                        $mt      = $mrow['team'];
+                                        $mprobs  = $mrow['probs'];
+                                        $peakCol = $mrow['peak_col'] ?? $mIdx;
+                                        $projPts = $mrow['proj_pts'] ?? ($mt['ranking_pts'] ?? 0);
+                                        $curPts  = $mt['ranking_pts'] ?? 0;
+                                        $delta   = $projPts - $curPts;
                                     ?>
                                     <tr>
                                         <td class="tc">
                                             <div style="display:flex;align-items:center;gap:7px">
+                                                <span style="font-size:10px;font-weight:800;color:var(--text-3);flex-shrink:0;width:16px;text-align:right"><?= $mIdx+1 ?>º</span>
                                                 <img style="width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0;border:1px solid rgba(99,102,241,.2)"
                                                      src="<?= htmlspecialchars(getTeamPhoto($mt['team_photo'] ?? null)) ?>"
                                                      alt="" onerror="this.src='/img/default-team.png'">
-                                                <span style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px"><?= htmlspecialchars($mt['team_name']) ?></span>
+                                                <span style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px"><?= htmlspecialchars($mt['team_name']) ?></span>
                                             </div>
                                         </td>
-                                        <td style="font-weight:700;color:#818cf8;font-size:12px"><?= $mt['ranking_pts'] ?? 0 ?></td>
-                                        <?php for ($pos = 0; $pos < $an['team_count']; $pos++):
-                                            $p = $mprobs[$pos] ?? 0;
-                                            $cls = $p >= 25 ? 'hi' : ($p >= 10 ? 'md' : ($p >= 3 ? 'lo' : 'vlo'));
+                                        <td style="font-weight:700;color:#818cf8;font-size:12px"><?= $curPts ?></td>
+                                        <td>
+                                            <span class="sc-proj-cell"><?= $projPts ?></span>
+                                            <?php if ($delta > 0): ?>
+                                            <span class="sc-proj-delta">+<?= $delta ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <?php for ($pos = 0; $pos < $tc; $pos++):
+                                            $p    = $mprobs[$pos] ?? 0;
+                                            $peak = ($pos === $peakCol) ? ' peak' : '';
+                                            // Cor por zona da coluna
+                                            if ($pos <= $promoLimit) {
+                                                // Verde: intensidade baseada no valor
+                                                $gi = $p >= 20 ? 0 : ($p >= 10 ? 1 : ($p >= 5 ? 2 : 3));
+                                                $gc = $p >= 2 ? $gPal[$gi] : 'var(--text-3)';
+                                                $cellStyle = "color:{$gc}";
+                                            } elseif ($pos >= $releStart) {
+                                                // Vermelho: intensidade baseada no valor
+                                                $ri = $p >= 20 ? 0 : ($p >= 10 ? 1 : ($p >= 5 ? 2 : 3));
+                                                $rc = $p >= 2 ? $rPal[$ri] : 'var(--text-3)';
+                                                $cellStyle = "color:{$rc}";
+                                            } else {
+                                                $cls = $p >= 15 ? 'md' : ($p >= 5 ? 'lo' : 'vlo');
+                                                $cellStyle = '';
+                                            }
                                         ?>
-                                        <td><span class="sc-pcell <?= $cls ?>"><?= $p ?>%</span></td>
+                                        <td>
+                                            <?php if ($cellStyle): ?>
+                                            <span class="sc-pcell<?= $peak ?>" style="<?= $cellStyle ?>;font-weight:800;font-size:11px"><?= $p ?>%</span>
+                                            <?php else: ?>
+                                            <span class="sc-pcell <?= $cls ?><?= $peak ?>"><?= $p ?>%</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <?php endfor; ?>
                                     </tr>
                                     <?php endforeach; ?>
