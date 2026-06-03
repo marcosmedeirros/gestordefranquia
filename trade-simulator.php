@@ -34,7 +34,19 @@ if ($action === 'roster') {
 
     $picks = [];
     try {
+        $league = $team['league'] ?? ($user['league'] ?? '');
         $currentYear = (int)date('Y');
+        if ($league) {
+            $sY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
+            $sY->execute([$league]);
+            $row = $sY->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $y = isset($row['start_year'], $row['season_number'])
+                    ? (int)$row['start_year'] + (int)$row['season_number'] - 1
+                    : (int)($row['year'] ?? 0);
+                if ($y > 0) $currentYear = $y;
+            }
+        }
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round,
                    ot.city AS orig_city, ot.name AS orig_name
