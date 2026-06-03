@@ -69,22 +69,96 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     return 'Selling';
 }
 
-function simulatePositionMatrix(array $teams, int $iterations = 1200): array {
+// Simula TODAS as temporadas restantes do sprint, acumula pontos e retorna:
+// - matrix: probabilidade de cada time terminar em cada posição no RANKING FINAL do sprint
+// - avg_expected_pts: média de pontos extras esperados sobre todas as seasons restantes
+function simulateSprintMatrix(array $teams, int $seasonsLeft, string $league, int $iterations = 350): array {
     $n = count($teams);
-    if ($n === 0) return [];
-    $counts = array_fill(0, $n, array_fill(0, $n, 0));
-    $strengths = array_map(fn($t) => max(0.01, (float)($t['composite'] ?? 1.0)), $teams);
+    if ($n === 0) return ['matrix' => [], 'avg_expected_pts' => []];
+    if ($seasonsLeft < 1) $seasonsLeft = 1;
+
+    $counts      = array_fill(0, $n, array_fill(0, $n, 0));
+    $totalPts    = array_fill(0, $n, 0.0);
+    $baseStr     = array_map(fn($t) => max(0.01, (float)($t['composite'] ?? 1.0)), $teams);
+
     for ($iter = 0; $iter < $iterations; $iter++) {
-        $perfs = [];
-        foreach ($strengths as $i => $s) {
-            $u = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
-            $perfs[$i] = $s * (-log($u));
+        $cumPts = array_fill(0, $n, 0.0);
+
+        for ($s = 1; $s <= $seasonsLeft; $s++) {
+            // Ajusta força de cada time para a season s (OVR growth + tag + picks + variância)
+            $adjS = [];
+            foreach ($teams as $i => $t) {
+                $age    = (float)($t['avg_age']    ?? 26);
+                $tag    = $t['ai_tag'] ?? '';
+                $picks  = (int)  ($t['picks_count'] ?? 0);
+                $maxOvr = (float)($t['max_ovr']    ?? 80);
+
+                $ovrG  = $age < 22 ? 3.5 : ($age < 25 ? 2.5 : ($age < 28 ? 1.5 : ($age < 31 ? 0.5 : -0.8)));
+                $ovrF  = $ovrG * $s * 0.7;
+                $ageF  = ($age > 30 ? -($age - 30) * 1.5 * $s : ($age < 25 ? (25 - $age) * 0.9 * $s : 0)) + $ovrF;
+
+                if ($tag === 'Contending')     $tagF = -3.0 * $s;
+                elseif ($tag === 'Buying')     $tagF = -1.2 * $s;
+                elseif ($tag === 'Selling')    $tagF =  1.8 * $s;
+                elseif ($tag === 'Rebuilding') $tagF =  3.5 * $s;
+                else                           $tagF = 0;
+
+                $picksF = min($picks * 0.6, 9) * (1 + $s * 0.2);
+                $franqF = $maxOvr >= 92 ? -0.5 * $s : ($maxOvr <= 78 ? 0.4 * $s : 0);
+
+                $u1 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+                $u2 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+                $var = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 2.5;
+
+                $adjS[$i] = max(0.01, $baseStr[$i] + $ageF + $tagF + $picksF + $franqF + $var);
+            }
+
+            // Simula a season: performance exponencial
+            $perfs = [];
+            foreach ($adjS as $i => $str) {
+                $u = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+                $perfs[$i] = $str * (-log($u));
+            }
+            $order = range(0, $n - 1);
+            usort($order, fn($a, $b) => $perfs[$b] <=> $perfs[$a]);
+
+            // Acumula pontos (playoff + seed)
+            foreach ($order as $pos => $idx) {
+                if ($pos === 0)     $pts = 11 + 4;
+                elseif ($pos === 1) $pts = 8  + 3;
+                elseif ($pos <= 3)  $pts = 6  + 3;
+                elseif ($pos <= 7)  $pts = 3  + 2;
+                elseif ($pos <= 15) $pts = 1;
+                else                $pts = 0;
+                $cumPts[$idx] += $pts;
+            }
+
+            // Prêmios individuais (5 × 1pt por season, distribuídos por força)
+            $adjSum = array_sum($adjS) ?: 1;
+            foreach ($adjS as $i => $str) $cumPts[$i] += ($str / $adjSum) * 5;
+
+            // NBA Cup (ELITE only): +2pts para time ≠ campeão
+            if ($league === 'ELITE') {
+                $champIdx = $order[0];
+                $cupAdj   = $adjS;
+                $cupAdj[$champIdx] *= 0.3;
+                $cupOrd = range(0, $n - 1);
+                usort($cupOrd, fn($a, $b) => $cupAdj[$b] <=> $cupAdj[$a]);
+                $cumPts[$cupOrd[0]] += 2;
+            }
         }
-        $order = range(0, $n - 1);
-        usort($order, fn($a, $b) => $perfs[$b] <=> $perfs[$a]);
-        foreach ($order as $pos => $idx) $counts[$idx][$pos]++;
+
+        // Ranking final do sprint por pontos acumulados
+        $finalOrd = range(0, $n - 1);
+        usort($finalOrd, fn($a, $b) => $cumPts[$b] <=> $cumPts[$a]);
+        foreach ($finalOrd as $pos => $idx) $counts[$idx][$pos]++;
+        foreach ($cumPts as $i => $pts) $totalPts[$i] += $pts;
     }
-    return array_map(fn($row) => array_map(fn($c) => round($c / $iterations * 100, 1), $row), $counts);
+
+    return [
+        'matrix'           => array_map(fn($row) => array_map(fn($c) => round($c / $iterations * 100, 1), $row), $counts),
+        'avg_expected_pts' => array_map(fn($t) => round($t / $iterations, 1), $totalPts),
+    ];
 }
 
 function buildLeagueAnalysis(
@@ -233,23 +307,27 @@ function buildLeagueAnalysis(
         }
     }
 
-    // Matriz Monte Carlo de probabilidades por posição
-    $rawMx   = simulatePositionMatrix($teams);
-    $nameIdx = array_column($teams, 'team_name');
+    // ── Simulação do sprint completo (todas as temporadas restantes) ──────────
+    // Cada iteração simula N seasons, acumula pontos e registra ranking final do sprint.
+    $sprintSim  = simulateSprintMatrix($teams, $seasonsLeft ?? 1, $league);
+    $rawMx      = $sprintSim['matrix'];        // prob de cada time no ranking final do sprint
+    $avgExpPts  = $sprintSim['avg_expected_pts']; // pts médios esperados de todas as seasons
+
+    $nameIdx   = array_column($teams, 'team_name');
     $matrixRaw = [];
     foreach ($proj as $t) {
         $oi = array_search($t['team_name'], $nameIdx);
-        $matrixRaw[] = ['team' => $t, 'probs' => ($oi !== false && isset($rawMx[$oi])) ? $rawMx[$oi] : array_fill(0, $n, 0)];
+        $matrixRaw[] = [
+            'team'  => $t,
+            'probs' => ($oi !== false && isset($rawMx[$oi])) ? $rawMx[$oi] : array_fill(0, $n, 0),
+            'avg_exp' => $oi !== false ? ($avgExpPts[$oi] ?? 0) : 0,
+        ];
     }
 
-    // Greedy assignment: para cada posição, aloca o time com maior prob naquela coluna
-    // Garante que o 1º mais provável fica na linha 1, o 2º na linha 2, etc.
-    $assigned     = [];
-    $matrix       = [];
-    $peakCols     = []; // qual coluna destacar para cada linha final
+    // Greedy assignment: para cada posição do sprint, aloca o time com maior prob
+    $assigned = []; $matrix = [];
     for ($pos = 0; $pos < $n; $pos++) {
-        $bestIdx  = -1;
-        $bestProb = -1;
+        $bestIdx = -1; $bestProb = -1;
         foreach ($matrixRaw as $i => $row) {
             if (isset($assigned[$i])) continue;
             $p = $row['probs'][$pos] ?? 0;
@@ -261,30 +339,12 @@ function buildLeagueAnalysis(
         }
     }
 
-    // ── Pontos esperados por posição (playoff + seed + prêmios individuais) ──
-    // Mapeamento: pos 0=campeão, 1=vice, 2-3=conf final, 4-7=conf semi, 8-15=R1, 16+=fora
-    $totalComp = max(array_sum(array_column($teams, 'composite')), 0.01);
+    // PROJ = pontos atuais + pontos esperados acumulados de TODAS as seasons restantes
     foreach ($matrix as &$mrow) {
-        $probs = $mrow['probs'];
-        $expPts = 0.0;
-        foreach ($probs as $pos => $pct) {
-            $playoff = 0;
-            if ($pos === 0)      $playoff = 11;
-            elseif ($pos === 1)  $playoff = 8;
-            elseif ($pos <= 3)   $playoff = 6;
-            elseif ($pos <= 7)   $playoff = 3;
-            elseif ($pos <= 15)  $playoff = 1;
-            $seed = 0;
-            if ($pos === 0)      $seed = 4;
-            elseif ($pos <= 3)   $seed = 3;
-            elseif ($pos <= 7)   $seed = 2;
-            $expPts += ($pct / 100) * ($playoff + $seed);
-        }
-        // Prêmios individuais (MVP, DPOY, MIP, ROY, 6th Man = 5 × 1pt) por peso composite
-        $expAwards = (($mrow['team']['composite'] ?? 0) / $totalComp) * 5;
-        $currentPts = $mrow['team']['ranking_pts'] ?? 0;
-        $mrow['exp_pts']  = round($expPts + $expAwards, 1);
-        $mrow['proj_pts'] = $currentPts + (int)round($expPts + $expAwards);
+        $currentPts       = $mrow['team']['ranking_pts'] ?? 0;
+        $exp              = $mrow['avg_exp'] ?? 0;
+        $mrow['exp_pts']  = round($exp, 1);
+        $mrow['proj_pts'] = $currentPts + (int)round($exp);
     }
     unset($mrow);
 
@@ -307,15 +367,7 @@ function buildLeagueAnalysis(
             }
         }
         if (!$nbaCupWinner) $nbaCupWinner = $cupArr[0] ?? null;
-        // Adiciona 2pts ao proj_pts do vencedor da Cup
-        if ($nbaCupWinner) {
-            foreach ($matrix as &$mrow) {
-                if ($mrow['team']['team_name'] === $nbaCupWinner['team_name']) {
-                    $mrow['proj_pts'] += 2; break;
-                }
-            }
-            unset($mrow);
-        }
+        // NBA Cup pts já estão embutidos na simulateSprintMatrix — apenas guardamos o vencedor para exibição
     }
 
     // ── Reordenar matrix por proj_pts decrescente ──────────────────────────────
@@ -1555,7 +1607,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <div class="sc-accordion">
                     <div class="sc-acc-head" onclick="scToggle(this)">
                         <i class="bi bi-table" style="color:#818cf8;font-size:13px"></i>
-                        <span class="sc-acc-title">Previsão da Tabela de Classificação <span style="font-size:10px;color:var(--text-3);font-weight:600">· Monte Carlo · <?= $an['team_count'] ?> times · Power 55% · Pontos 30% · Picks 15%</span></span>
+                        <span class="sc-acc-title">Previsão do Sprint Completo <span style="font-size:10px;color:var(--text-3);font-weight:600">· Monte Carlo · <?= $an['team_count'] ?> times · <?= $an['seasons_left'] ?? '?' ?> seasons · PROJ = pts atuais + todas as seasons restantes</span></span>
                         <i class="bi bi-chevron-down sc-acc-chevron"></i>
                     </div>
                     <div class="sc-acc-body">
