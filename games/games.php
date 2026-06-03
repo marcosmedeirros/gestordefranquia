@@ -429,6 +429,15 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
 <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 
+  <div class="section-label" style="margin-top:28px"><i class="bi bi-box-arrow-up-right"></i>Jogos Externos</div>
+  <div class="games-grid">
+    <a href="https://www.82-0.com/" target="_blank" rel="noopener noreferrer" class="game-card" style="border-color:rgba(59,130,246,.2)">
+      <span class="game-icon">🏀</span>
+      <div class="game-title">82-0</div>
+      <div class="game-sub">Simulador NBA</div>
+    </a>
+  </div>
+
   <div class="section-label"><i class="bi bi-trophy"></i>Ranking · Moedas</div>
   <div class="panel-card">
     <div class="panel-head">
