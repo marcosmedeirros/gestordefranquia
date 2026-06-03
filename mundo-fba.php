@@ -163,23 +163,68 @@ function buildLeagueAnalysis(
     }
     $releProj = array_slice($releProj, 0, 6);
 
-    // Projeção por temporada restante (até 5 seasons, ajuste por idade)
+    // Projeção por temporada restante — análise completa: tag, idade, picks, OVR, variância
     $seasonProjs = [];
     if ($seasonsLeft && $seasonsLeft > 0) {
+        mt_srand(crc32($league . ($currentSeasonNum ?? 0))); // estável por temporada
         for ($s = 1; $s <= min($seasonsLeft, 5); $s++) {
             $adj = array_map(function($t) use ($s) {
-                $age = (float)($t['avg_age'] ?? 26);
-                $f   = $age > 30 ? -($age - 30) * 0.9 * $s : ($age < 25 ? (25 - $age) * 0.5 * $s : 0);
-                return array_merge($t, ['adj' => max(0.01, $t['composite'] + $f)]);
+                $age    = (float)($t['avg_age']    ?? 26);
+                $picks  = (int)  ($t['picks_count'] ?? 0);
+                $maxOvr = (float)($t['max_ovr']    ?? 80);
+                $tag    = $t['ai_tag'] ?? '';
+
+                // Idade: times velhos caem, jovens sobem
+                $ageFactor = $age > 30 ? -($age - 30) * 1.5 * $s
+                           : ($age < 25 ? (25 - $age) * 0.9 * $s : 0);
+
+                // Tag: times prontos ganham antes, rebuilding ganham depois
+                if ($tag === 'Contending')     $tagF = -3.0 * $s; // janela fechando rápido
+                elseif ($tag === 'Buying')     $tagF = -1.2 * $s; // leve declínio
+                elseif ($tag === 'Selling')    $tagF =  1.8 * $s; // vendendo para o futuro
+                elseif ($tag === 'Rebuilding') $tagF =  3.5 * $s; // ascensão forte
+                else                           $tagF =  0;
+
+                // Picks: mais picks = mais ativos futuros = crescimento
+                $picksFactor = min($picks * 0.6, 9) * (1 + $s * 0.2);
+
+                // Franquia: estrela (max OVR >= 92) é mais volátil com o tempo
+                $ovrFactor = $maxOvr >= 92 ? -0.5 * $s : ($maxOvr <= 78 ? 0.4 * $s : 0);
+
+                // Variância Box-Muller (aumenta com a distância no tempo)
+                $u1 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+                $u2 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+                $variance = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 3.0;
+
+                return array_merge($t, [
+                    'adj' => max(0.01, $t['composite'] + $ageFactor + $tagF + $picksFactor + $ovrFactor + $variance)
+                ]);
             }, $proj);
+
             $adjC  = array_column($adj, 'adj');
             $adjMx = max($adjC ?: [0]);
             $adjEx = array_map(fn($c) => exp(($c - $adjMx) / 10.0), $adjC);
             $adjSm = array_sum($adjEx) ?: 1;
-            $sp = [];
+            $sp    = [];
             foreach ($adj as $i => $t) $sp[] = array_merge($t, ['sp' => round($adjEx[$i] / $adjSm * 100, 1)]);
             usort($sp, fn($a, $b) => $b['sp'] <=> $a['sp']);
-            $seasonProjs[$s] = array_slice($sp, 0, 3);
+
+            // Finalistas cientes de conferência para esta season
+            $sF = []; $sCF = [];
+            foreach ($sp as $t) {
+                $conf = trim((string)($t['conference'] ?? ''));
+                if ($conf !== '' && in_array($conf, $sCF, true)) continue;
+                $sF[] = $t;
+                if ($conf !== '') $sCF[] = $conf;
+                if (count($sF) >= 2) break;
+            }
+            if (count($sF) < 2) $sF = array_slice($sp, 0, 2);
+
+            $seasonProjs[$s] = [
+                'finalist1' => $sF[0] ?? null, // conf 1 champ
+                'finalist2' => $sF[1] ?? null, // conf 2 champ
+                'champion'  => $sF[0] ?? null, // maior sp = campeão geral
+            ];
         }
     }
 
@@ -891,7 +936,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
         .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); white-space:nowrap; }
         .sc-sprint-info strong { color:var(--text); }
-        .sc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+        .sc-grid { display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; }
+        @media(max-width:900px){ .sc-grid{ grid-template-columns:1fr 1fr; } }
+        @media(max-width:580px){ .sc-grid{ grid-template-columns:1fr; } }
         .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:14px; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
         .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px; }
@@ -914,9 +961,19 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-zone-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
         .sc-zone-row:last-child { border-bottom:none; }
         .sc-zone-pct { font-size:13px; font-weight:800; margin-left:auto; flex-shrink:0; }
-        .sc-zone-pct.safe   { color:#22c55e; }
-        .sc-zone-pct.warn   { color:#f59e0b; }
-        .sc-zone-pct.danger { color:#ef4444; }
+        /* Season projection grid */
+        .sc-season-row { display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px; margin-top:14px; }
+        .sc-season-row::-webkit-scrollbar{ height:3px; }
+        .sc-season-row::-webkit-scrollbar-thumb{ background:rgba(99,102,241,.3); border-radius:2px; }
+        .sc-season-card { flex:1; min-width:160px; max-width:210px; background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:11px 12px; flex-shrink:0; }
+        :root[data-theme="light"] .sc-season-card { background:rgba(99,102,241,.04); }
+        .sc-season-label { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; margin-bottom:8px; }
+        .sc-sf-row { display:flex; align-items:center; gap:7px; padding:4px 0; border-bottom:1px solid rgba(99,102,241,.07); }
+        .sc-sf-row:last-child { border-bottom:none; }
+        .sc-sf-icon { font-size:13px; flex-shrink:0; width:18px; text-align:center; }
+        @media(max-width:580px){
+            .sc-season-card{ min-width:145px; }
+        }
         /* Acordeão */
         .sc-accordion { border:1px solid rgba(99,102,241,.18); border-radius:var(--radius-sm); overflow:hidden; margin-top:14px; }
         .sc-acc-head { display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; background:rgba(99,102,241,.07); border-bottom:1px solid rgba(99,102,241,.12); user-select:none; transition:background .15s; }
@@ -1286,21 +1343,19 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                         <?php endif; ?>
 
                         <!-- Zona de Promoção (NEXT/RISE apenas) -->
-                        <?php if (!empty($an['promo_proj'])): ?>
+                        <?php if (!empty($an['promo_proj'])):
+                            $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
+                        ?>
                         <div class="sc-block">
                             <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Zona de Promoção — Top 4</span></div>
-                            <?php foreach ($an['promo_proj'] as $t):
+                            <?php foreach ($an['promo_proj'] as $gi => $t):
                                 $p = $t['promo_prob'];
-                                $cls = $p >= 70 ? 'safe' : ($p >= 40 ? 'warn' : 'danger');
+                                $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
                             ?>
                             <div class="sc-zone-row">
-                                <img class="sc-tlogo"
-                                     src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
-                                     alt="" onerror="this.src='/img/default-team.png'">
-                                <div class="sc-tinfo">
-                                    <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
-                                </div>
-                                <span class="sc-zone-pct <?= $cls ?>"><?= $p ?>%</span>
+                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="sc-tinfo"><div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div></div>
+                                <span class="sc-zone-pct" style="color:<?= $gc ?>"><?= $p ?>%</span>
                             </div>
                             <?php endforeach; ?>
                         </div>
@@ -1308,12 +1363,14 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     </div>
 
                     <!-- Zona de Rebaixamento -->
-                    <?php if (!empty($an['rele_proj'])): ?>
+                    <?php if (!empty($an['rele_proj'])):
+                        $rC = ['#dc2626','#ef4444','#f87171','#fca5a5','#fecaca','var(--text-3)'];
+                    ?>
                     <div class="sc-block">
                         <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Rebaixamento — Bottom 4</span></div>
-                        <?php foreach ($an['rele_proj'] as $t):
+                        <?php foreach ($an['rele_proj'] as $ri => $t):
                             $p = $t['rele_prob'];
-                            $cls = $p >= 70 ? 'danger' : ($p >= 40 ? 'warn' : 'safe');
+                            $rc = $p >= 5 ? ($rC[min($ri,5)]) : 'var(--text-3)';
                         ?>
                         <div class="sc-zone-row">
                             <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
@@ -1321,7 +1378,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                 <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
                                 <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · <?= $t['picks_count'] ?> picks · <?= $t['ranking_pts'] ?>pts</div>
                             </div>
-                            <span class="sc-zone-pct <?= $cls ?>"><?= $p ?>%</span>
+                            <span class="sc-zone-pct" style="color:<?= $rc ?>"><?= $p ?>%</span>
                         </div>
                         <?php endforeach; ?>
                     </div>
@@ -1332,32 +1389,53 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <!-- Projeção por Temporada (sempre visível) -->
                 <?php if (!empty($an['season_projs'])): ?>
                 <div style="margin-top:14px">
-                    <div class="sc-block-title" style="margin-bottom:10px"><i class="bi bi-calendar3"></i> Projeção por Temporada Restante <span style="font-weight:400;color:var(--text-3)">· trajetória de idade</span></div>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
-                        <?php foreach ($an['season_projs'] as $sNum => $tops):
-                            $baseYear = $d['seasonYear'] ?? 0;
-                            $labelSeason = ($an['current_season'] ?? 0) + $sNum;
-                            $labelYear = $baseYear ? ($baseYear + $sNum) : '';
+                    <div class="sc-block-title" style="margin-bottom:8px">
+                        <i class="bi bi-calendar3"></i> Projeção por Temporada
+                        <span style="font-weight:400;color:var(--text-3)">· prontos ganham antes · rebuilding ganham depois</span>
+                    </div>
+                    <div class="sc-season-row">
+                        <?php foreach ($an['season_projs'] as $sNum => $sp):
+                            $baseYear   = $d['seasonYear'] ?? 0;
+                            $labelS     = ($an['current_season'] ?? 0) + $sNum;
+                            $labelY     = $baseYear > 2000 ? ($baseYear + $sNum) : '';
+                            $f1 = $sp['finalist1'] ?? null;
+                            $f2 = $sp['finalist2'] ?? null;
+                            $champ = $sp['champion'] ?? null;
+                            $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
                         ?>
-                        <div class="sc-block" style="padding:12px">
-                            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#818cf8;margin-bottom:8px">
-                                T<?= $labelSeason ?><?= $labelYear > 2000 ? " · {$labelYear}" : '' ?>
-                            </div>
-                            <?php foreach ($tops as $ti => $t):
-                                $medals = ['🏆','🥈','🥉'];
-                                $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
-                                $tc = $tagColors[$t['ai_tag'] ?? ''] ?? '';
-                            ?>
-                            <div class="sc-season-line">
-                                <div class="sc-medal"><?= $medals[$ti] ?? '' ?></div>
-                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                        <div class="sc-season-card">
+                            <div class="sc-season-label">T<?= $labelS ?><?= $labelY ? " · {$labelY}" : '' ?></div>
+
+                            <?php if ($f1): $tc1 = $tagColors[$f1['ai_tag'] ?? ''] ?? '#818cf8'; ?>
+                            <div class="sc-sf-row">
+                                <div class="sc-sf-icon"><?= ($champ && $champ['team_name'] === $f1['team_name']) ? '🏆' : '🥇' ?></div>
+                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($f1['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
                                 <div class="sc-tinfo">
-                                    <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
-                                    <?php if ($tc): ?><span style="font-size:10px;font-weight:700;color:<?= $tc ?>"><?= htmlspecialchars($t['ai_tag']) ?></span><?php endif; ?>
+                                    <div class="sc-tname" style="font-size:11px"><?= htmlspecialchars($f1['team_name']) ?></div>
+                                    <span style="font-size:9px;font-weight:700;color:<?= $tc1 ?>"><?= htmlspecialchars($f1['ai_tag'] ?? '') ?></span>
                                 </div>
-                                <div class="sc-pct" style="font-size:12px"><?= $t['sp'] ?>%</div>
+                                <div style="font-size:11px;font-weight:800;color:#818cf8;flex-shrink:0"><?= $f1['sp'] ?>%</div>
                             </div>
-                            <?php endforeach; ?>
+                            <?php endif; ?>
+
+                            <?php if ($f2): $tc2 = $tagColors[$f2['ai_tag'] ?? ''] ?? '#818cf8'; ?>
+                            <div class="sc-sf-row">
+                                <div class="sc-sf-icon" style="color:#94a3b8">🥈</div>
+                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($f2['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="sc-tinfo">
+                                    <div class="sc-tname" style="font-size:11px"><?= htmlspecialchars($f2['team_name']) ?></div>
+                                    <span style="font-size:9px;font-weight:700;color:<?= $tc2 ?>"><?= htmlspecialchars($f2['ai_tag'] ?? '') ?></span>
+                                </div>
+                                <div style="font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0"><?= $f2['sp'] ?>%</div>
+                            </div>
+                            <?php endif; ?>
+
+                            <?php if ($champ): ?>
+                            <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(245,158,11,.2);display:flex;align-items:center;gap:5px">
+                                <span style="font-size:9px;color:#f59e0b;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Campeão</span>
+                                <span style="font-size:10px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= htmlspecialchars($champ['team_name']) ?></span>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
                     </div>
