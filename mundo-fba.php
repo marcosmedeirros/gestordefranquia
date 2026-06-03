@@ -69,6 +69,68 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     return 'Selling';
 }
 
+function buildLeagueAnalysis(array $powerRanking, ?int $currentSeasonNum, ?int $totalSeasons, string $league): array {
+    if (empty($powerRanking)) return ['has_data' => false];
+    $n = count($powerRanking);
+    $seasonsLeft = ($totalSeasons !== null && $currentSeasonNum !== null)
+        ? max(0, $totalSeasons - $currentSeasonNum) : null;
+
+    // Softmax com temperatura 8 sobre power scores
+    $scores = array_column($powerRanking, 'score');
+    $maxS   = max($scores);
+    $exps   = array_map(fn($s) => exp(($s - $maxS) / 8.0), $scores);
+    $sumExp = array_sum($exps) ?: 1;
+
+    $proj = [];
+    foreach ($powerRanking as $i => $pr) {
+        $proj[] = [
+            'team_name'    => $pr['team_name'],
+            'team_photo'   => $pr['team_photo'],
+            'owner_name'   => $pr['owner_name'] ?? '',
+            'prob'         => round($exps[$i] / $sumExp * 100, 1),
+            'ai_tag'       => $pr['ai_tag'],
+            'avg_ovr'      => $pr['avg_ovr'],
+            'max_ovr'      => $pr['max_ovr'],
+            'is_champion'  => !empty($pr['is_champion']),
+            'is_runner_up' => !empty($pr['is_runner_up']),
+        ];
+    }
+    usort($proj, fn($a, $b) => $b['prob'] <=> $a['prob']);
+
+    // Promoção (somente NEXT/RISE): probabilidade de terminar top 4
+    $promoProj = null;
+    if ($league !== 'ELITE' && $n > 0) {
+        $promoProj = [];
+        foreach ($proj as $i => $t) {
+            $x    = ($n > 1) ? $i / ($n - 1) : 0;
+            $prob = round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1);
+            $promoProj[] = array_merge($t, ['promo_prob' => $prob]);
+        }
+        $promoProj = array_slice($promoProj, 0, 6);
+    }
+
+    // Rebaixamento: probabilidade de terminar nos últimos 4
+    $releProj = [];
+    $reversed = array_reverse($proj);
+    foreach ($reversed as $i => $t) {
+        $x    = ($n > 1) ? $i / ($n - 1) : 0;
+        $prob = round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1);
+        $releProj[] = array_merge($t, ['rele_prob' => $prob]);
+    }
+    $releProj = array_slice($releProj, 0, 6);
+
+    return [
+        'has_data'       => true,
+        'champ_proj'     => array_slice($proj, 0, 5),
+        'finalists'      => array_slice($proj, 0, 2),
+        'promo_proj'     => $promoProj,
+        'rele_proj'      => $releProj,
+        'seasons_left'   => $seasonsLeft,
+        'total_seasons'  => $totalSeasons,
+        'current_season' => $currentSeasonNum,
+    ];
+}
+
 function buildTop5Stats(array $starters): array {
     $list = array_values(array_filter($starters));
     if (!$list) {
@@ -351,7 +413,8 @@ foreach ($leagueOrder as $league) {
 
     $powerSummary = null;
 
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary');
+    $analysis = buildLeagueAnalysis($powerRanking, $currentSeasonNum, $totalSeasons, $league);
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary','analysis');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -713,6 +776,81 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .empty-state i { font-size:28px; display:block; margin-bottom:10px; }
         .empty-state p { font-size:13px; margin:0; }
 
+        /* ── SuperComputador FBA ────────────────────────────── */
+        .sc-wrap {
+            background: linear-gradient(135deg, rgba(99,102,241,.07) 0%, rgba(139,92,246,.05) 100%);
+            border: 1px solid rgba(99,102,241,.22);
+            border-radius: var(--radius); padding: 20px;
+        }
+        .sc-header { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+        .sc-icon {
+            width:40px; height:40px; border-radius:10px; flex-shrink:0;
+            background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3);
+            display:flex; align-items:center; justify-content:center; font-size:20px;
+        }
+        .sc-ttl { font-size:14px; font-weight:800; color:var(--text); }
+        .sc-sub { font-size:11px; color:var(--text-2); margin-top:1px; }
+        .sc-badges { margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .sc-ia-tag {
+            font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
+            padding:3px 10px; border-radius:999px;
+            background:rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); color:#818cf8;
+        }
+        .sc-season-tag {
+            font-size:10px; font-weight:700; padding:3px 10px; border-radius:999px;
+            background:var(--panel-3); border:1px solid var(--border-md); color:var(--text-2);
+        }
+        .sc-sprint-bar {
+            display:flex; align-items:center; gap:8px; margin-bottom:18px;
+            background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12);
+            border-radius:8px; padding:10px 14px;
+        }
+        :root[data-theme="light"] .sc-sprint-bar { background:rgba(99,102,241,.04); }
+        .sc-sprint-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
+        .sc-sprint-track { flex:1; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
+        .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
+        .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); white-space:nowrap; }
+        .sc-sprint-info strong { color:var(--text); }
+        .sc-grid {
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap:12px;
+        }
+        .sc-block {
+            background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13);
+            border-radius:var(--radius-sm); padding:14px;
+        }
+        :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
+        .sc-block-title {
+            font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+            color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px;
+        }
+        /* Champion projection rows */
+        .sc-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+        .sc-row:last-child { margin-bottom:0; }
+        .sc-num { width:18px; font-size:11px; font-weight:800; color:#818cf8; flex-shrink:0; text-align:center; }
+        .sc-tlogo { width:28px; height:28px; border-radius:6px; object-fit:cover; flex-shrink:0; border:1px solid rgba(99,102,241,.18); background:var(--panel-3); }
+        .sc-tinfo { flex:1; min-width:0; }
+        .sc-tname { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sc-tmeta { font-size:10px; color:var(--text-2); }
+        .sc-prob-col { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; }
+        .sc-pct { font-size:14px; font-weight:800; color:#818cf8; line-height:1; }
+        .sc-bar { width:52px; height:4px; background:rgba(99,102,241,.15); border-radius:2px; overflow:hidden; }
+        .sc-bar-fill { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:2px; }
+        /* Finalist rows */
+        .sc-fin-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(99,102,241,.08); }
+        .sc-fin-row:last-child { border-bottom:none; }
+        .sc-fin-lbl { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+        .sc-fin-lbl.c1 { color:#f59e0b; }
+        .sc-fin-lbl.c2 { color:#3b82f6; }
+        /* Promo / Rele rows */
+        .sc-zone-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
+        .sc-zone-row:last-child { border-bottom:none; }
+        .sc-zone-pct { font-size:13px; font-weight:800; margin-left:auto; flex-shrink:0; }
+        .sc-zone-pct.safe   { color:#22c55e; }
+        .sc-zone-pct.warn   { color:#f59e0b; }
+        .sc-zone-pct.danger { color:#ef4444; }
+
         /* ── Responsive ─────────────────────────────────────── */
         @media (max-width: 992px) {
             :root { --sidebar-w: 0px; }
@@ -947,6 +1085,152 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div>
                 <?php endforeach; ?>
             </div>
+            <?php endif; ?>
+
+            <?php /* ── SuperComputador FBA ── */ ?>
+            <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])): ?>
+            <div class="sec-hd" style="color:#818cf8;margin-top:24px">
+                <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
+                SUPERCOMPUTADOR FBA
+            </div>
+            <div class="sc-wrap">
+                <!-- Header -->
+                <div class="sc-header">
+                    <div class="sc-icon">🤖</div>
+                    <div>
+                        <div class="sc-ttl">SuperComputador FBA</div>
+                        <div class="sc-sub">Análise preditiva · Power Ranking · Elenco · Histórico</div>
+                    </div>
+                    <div class="sc-badges">
+                        <?php if ($an['current_season'] !== null && $an['total_seasons'] !== null): ?>
+                        <span class="sc-season-tag">T<?= $an['current_season'] ?>/<?= $an['total_seasons'] ?></span>
+                        <?php endif; ?>
+                        <span class="sc-ia-tag"><i class="bi bi-stars me-1"></i>IA</span>
+                    </div>
+                </div>
+
+                <!-- Sprint timeline -->
+                <?php if ($an['current_season'] !== null && $an['total_seasons'] !== null): ?>
+                <?php
+                    $sl  = $an['seasons_left'] ?? 0;
+                    $cur = $an['current_season'];
+                    $tot = $an['total_seasons'];
+                    $pct = $tot > 0 ? round($cur / $tot * 100) : 0;
+                    $slMsg = $sl === 0 ? '⚠️ Última temporada do sprint!' : ($sl === 1 ? '1 temporada restante' : "{$sl} temporadas restantes");
+                ?>
+                <div class="sc-sprint-bar">
+                    <span class="sc-sprint-label"><i class="bi bi-hourglass-split me-1"></i>Sprint</span>
+                    <div class="sc-sprint-track"><div class="sc-sprint-fill" style="width:<?= $pct ?>%"></div></div>
+                    <span class="sc-sprint-info"><strong>T<?= $cur ?></strong>/<?= $tot ?> · <?= $slMsg ?></span>
+                </div>
+                <?php endif; ?>
+
+                <!-- Grid principal -->
+                <div class="sc-grid">
+
+                    <!-- Projeção Campeão -->
+                    <?php if (!empty($an['champ_proj'])):
+                        $maxProb = $an['champ_proj'][0]['prob'] ?: 1; ?>
+                    <div class="sc-block">
+                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Projeção Campeão</div>
+                        <?php foreach ($an['champ_proj'] as $i => $cp):
+                            $barW = round($cp['prob'] / $maxProb * 100);
+                            $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
+                            $tagC = $tagColors[($cp['ai_tag'] ?? '')] ?? '#64748b';
+                        ?>
+                        <div class="sc-row">
+                            <div class="sc-num"><?= $i + 1 ?></div>
+                            <img class="sc-tlogo"
+                                 src="<?= htmlspecialchars(getTeamPhoto($cp['team_photo'] ?? null)) ?>"
+                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <div class="sc-tinfo">
+                                <div class="sc-tname"><?= htmlspecialchars($cp['team_name']) ?></div>
+                                <div class="sc-tmeta">
+                                    OVR <?= $cp['avg_ovr'] ?> · max <?= $cp['max_ovr'] ?>
+                                    <?php if ($cp['ai_tag']): ?>
+                                    <span style="color:<?= $tagC ?>;font-weight:700"> · <?= htmlspecialchars($cp['ai_tag']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="sc-prob-col">
+                                <div class="sc-pct"><?= $cp['prob'] ?>%</div>
+                                <div class="sc-bar"><div class="sc-bar-fill" style="width:<?= $barW ?>%"></div></div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Finalistas + Promoção -->
+                    <div style="display:flex;flex-direction:column;gap:12px">
+
+                        <!-- Finalistas Projetados -->
+                        <?php if (!empty($an['finalists'])): ?>
+                        <div class="sc-block">
+                            <div class="sc-block-title"><i class="bi bi-lightning-charge-fill"></i> Finalistas Projetados</div>
+                            <?php foreach ($an['finalists'] as $i => $f): ?>
+                            <div class="sc-fin-row">
+                                <img class="sc-tlogo"
+                                     src="<?= htmlspecialchars(getTeamPhoto($f['team_photo'] ?? null)) ?>"
+                                     alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="sc-tinfo">
+                                    <div class="sc-tname"><?= htmlspecialchars($f['team_name']) ?></div>
+                                    <div class="sc-tmeta"><?= htmlspecialchars($f['owner_name']) ?></div>
+                                </div>
+                                <span class="sc-fin-lbl <?= $i === 0 ? 'c1' : 'c2' ?>">
+                                    <?= $i === 0 ? '🥇 CONF 1' : '🥈 CONF 2' ?>
+                                </span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Zona de Promoção (NEXT/RISE apenas) -->
+                        <?php if (!empty($an['promo_proj'])): ?>
+                        <div class="sc-block">
+                            <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Zona de Promoção — Top 4</span></div>
+                            <?php foreach ($an['promo_proj'] as $t):
+                                $p = $t['promo_prob'];
+                                $cls = $p >= 70 ? 'safe' : ($p >= 40 ? 'warn' : 'danger');
+                            ?>
+                            <div class="sc-zone-row">
+                                <img class="sc-tlogo"
+                                     src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
+                                     alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="sc-tinfo">
+                                    <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
+                                </div>
+                                <span class="sc-zone-pct <?= $cls ?>"><?= $p ?>%</span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Zona de Rebaixamento -->
+                    <?php if (!empty($an['rele_proj'])): ?>
+                    <div class="sc-block">
+                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Risco de Rebaixamento — Bottom 4</span></div>
+                        <?php foreach ($an['rele_proj'] as $t):
+                            $p = $t['rele_prob'];
+                            $cls = $p >= 70 ? 'danger' : ($p >= 40 ? 'warn' : 'safe');
+                        ?>
+                        <div class="sc-zone-row">
+                            <img class="sc-tlogo"
+                                 src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
+                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <div class="sc-tinfo">
+                                <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
+                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · max <?= $t['max_ovr'] ?></div>
+                            </div>
+                            <span class="sc-zone-pct <?= $cls ?>"><?= $p ?>%</span>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+
+                </div><!-- /sc-grid -->
+            </div><!-- /sc-wrap -->
             <?php endif; ?>
 
             <?php /* ── Times ── */ ?>
