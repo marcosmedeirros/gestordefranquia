@@ -510,18 +510,10 @@ async function _saveReviewedPoints(seasonId, league) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
 
     try {
-        let currentPointsByTeam = {};
-        try {
-            const current = await api(`history-points.php?action=get_teams_for_points&season_id=${seasonId}&league=${encodeURIComponent(league)}`);
-            (current.teams || []).forEach(t => {
-                currentPointsByTeam[String(t.id)] = parseInt(t.current_points || '0', 10) || 0;
-            });
-        } catch (_) {}
-
         const team_points = Array.from(inputs)
             .map(inp => ({
                 team_id: parseInt(inp.dataset.teamId, 10),
-                points: (currentPointsByTeam[inp.dataset.teamId] || 0) + (parseInt(inp.value, 10) || 0)
+                points: parseInt(inp.value, 10) || 0
             }))
             .filter(r => r.team_id);
 
