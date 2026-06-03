@@ -69,62 +69,138 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     return 'Selling';
 }
 
-function buildLeagueAnalysis(array $powerRanking, ?int $currentSeasonNum, ?int $totalSeasons, string $league): array {
+function simulatePositionMatrix(array $teams, int $iterations = 600): array {
+    $n = count($teams);
+    if ($n === 0) return [];
+    $counts = array_fill(0, $n, array_fill(0, $n, 0));
+    $strengths = array_map(fn($t) => max(0.01, (float)($t['composite'] ?? 1.0)), $teams);
+    for ($iter = 0; $iter < $iterations; $iter++) {
+        $perfs = [];
+        foreach ($strengths as $i => $s) {
+            $u = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
+            $perfs[$i] = $s * (-log($u));
+        }
+        $order = range(0, $n - 1);
+        usort($order, fn($a, $b) => $perfs[$b] <=> $perfs[$a]);
+        foreach ($order as $pos => $idx) $counts[$idx][$pos]++;
+    }
+    return array_map(fn($row) => array_map(fn($c) => round($c / $iterations * 100, 1), $row), $counts);
+}
+
+function buildLeagueAnalysis(
+    array $powerRanking, array $ranking, array $picksPerTeam,
+    ?int $currentSeasonNum, ?int $totalSeasons, string $league
+): array {
     if (empty($powerRanking)) return ['has_data' => false];
     $n = count($powerRanking);
     $seasonsLeft = ($totalSeasons !== null && $currentSeasonNum !== null)
         ? max(0, $totalSeasons - $currentSeasonNum) : null;
 
-    // Softmax com temperatura 8 sobre power scores
-    $scores = array_column($powerRanking, 'score');
-    $maxS   = max($scores);
-    $exps   = array_map(fn($s) => exp(($s - $maxS) / 8.0), $scores);
+    // Mapa ranking_pts por nome de time
+    $rankPtsMap = [];
+    foreach ($ranking as $r) $rankPtsMap[$r['team_name']] = (int)($r['total_points'] ?? 0);
+
+    // Normalização dos fatores
+    $maxPow   = max(array_column($powerRanking, 'score') ?: [1]) ?: 1;
+    $maxPts   = max(array_values($rankPtsMap) ?: [1]) ?: 1;
+    $maxPicks = max(array_values($picksPerTeam) ?: [1]) ?: 1;
+
+    // Score composto: power 55% + pontos 30% + picks 15%
+    $teams = [];
+    foreach ($powerRanking as $pr) {
+        $tid   = (int)($pr['team_id'] ?? 0);
+        $pts   = $rankPtsMap[$pr['team_name']] ?? 0;
+        $picks = $picksPerTeam[$tid] ?? 0;
+        $composite = ($pr['score'] / $maxPow) * 0.55
+                   + ($pts / $maxPts)          * 0.30
+                   + ($picks / $maxPicks)       * 0.15;
+        $teams[] = array_merge($pr, [
+            'ranking_pts' => $pts,
+            'picks_count' => $picks,
+            'composite'   => round($composite * 100, 3),
+        ]);
+    }
+
+    // Softmax sobre composite para probabilidade de campeão
+    $comps  = array_column($teams, 'composite');
+    $maxC   = max($comps ?: [0]);
+    $exps   = array_map(fn($c) => exp(($c - $maxC) / 10.0), $comps);
     $sumExp = array_sum($exps) ?: 1;
 
     $proj = [];
-    foreach ($powerRanking as $i => $pr) {
-        $proj[] = [
-            'team_name'    => $pr['team_name'],
-            'team_photo'   => $pr['team_photo'],
-            'owner_name'   => $pr['owner_name'] ?? '',
-            'prob'         => round($exps[$i] / $sumExp * 100, 1),
-            'ai_tag'       => $pr['ai_tag'],
-            'avg_ovr'      => $pr['avg_ovr'],
-            'max_ovr'      => $pr['max_ovr'],
-            'is_champion'  => !empty($pr['is_champion']),
-            'is_runner_up' => !empty($pr['is_runner_up']),
-        ];
+    foreach ($teams as $i => $t) {
+        $proj[] = array_merge($t, ['prob' => round($exps[$i] / $sumExp * 100, 1)]);
     }
     usort($proj, fn($a, $b) => $b['prob'] <=> $a['prob']);
 
-    // Promoção (somente NEXT/RISE): probabilidade de terminar top 4
+    // Finalistas cientes de conferência
+    $finalists = []; $usedConf = [];
+    foreach ($proj as $t) {
+        $conf = trim((string)($t['conference'] ?? ''));
+        if ($conf !== '' && in_array($conf, $usedConf, true)) continue;
+        $finalists[] = $t;
+        if ($conf !== '') $usedConf[] = $conf;
+        if (count($finalists) >= 2) break;
+    }
+    if (count($finalists) < 2) $finalists = array_slice($proj, 0, 2);
+
+    // Promoção (NEXT/RISE)
     $promoProj = null;
-    if ($league !== 'ELITE' && $n > 0) {
+    if ($league !== 'ELITE') {
         $promoProj = [];
         foreach ($proj as $i => $t) {
-            $x    = ($n > 1) ? $i / ($n - 1) : 0;
-            $prob = round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1);
-            $promoProj[] = array_merge($t, ['promo_prob' => $prob]);
+            $x = ($n > 1) ? $i / ($n - 1) : 0;
+            $promoProj[] = array_merge($t, ['promo_prob' => round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1)]);
         }
         $promoProj = array_slice($promoProj, 0, 6);
     }
 
-    // Rebaixamento: probabilidade de terminar nos últimos 4
+    // Rebaixamento
     $releProj = [];
-    $reversed = array_reverse($proj);
-    foreach ($reversed as $i => $t) {
-        $x    = ($n > 1) ? $i / ($n - 1) : 0;
-        $prob = round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1);
-        $releProj[] = array_merge($t, ['rele_prob' => $prob]);
+    foreach (array_reverse($proj) as $i => $t) {
+        $x = ($n > 1) ? $i / ($n - 1) : 0;
+        $releProj[] = array_merge($t, ['rele_prob' => round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1)]);
     }
     $releProj = array_slice($releProj, 0, 6);
+
+    // Projeção por temporada restante (até 5 seasons, ajuste por idade)
+    $seasonProjs = [];
+    if ($seasonsLeft && $seasonsLeft > 0) {
+        for ($s = 1; $s <= min($seasonsLeft, 5); $s++) {
+            $adj = array_map(function($t) use ($s) {
+                $age = (float)($t['avg_age'] ?? 26);
+                $f   = $age > 30 ? -($age - 30) * 0.9 * $s : ($age < 25 ? (25 - $age) * 0.5 * $s : 0);
+                return array_merge($t, ['adj' => max(0.01, $t['composite'] + $f)]);
+            }, $proj);
+            $adjC  = array_column($adj, 'adj');
+            $adjMx = max($adjC ?: [0]);
+            $adjEx = array_map(fn($c) => exp(($c - $adjMx) / 10.0), $adjC);
+            $adjSm = array_sum($adjEx) ?: 1;
+            $sp = [];
+            foreach ($adj as $i => $t) $sp[] = array_merge($t, ['sp' => round($adjEx[$i] / $adjSm * 100, 1)]);
+            usort($sp, fn($a, $b) => $b['sp'] <=> $a['sp']);
+            $seasonProjs[$s] = array_slice($sp, 0, 3);
+        }
+    }
+
+    // Matriz Monte Carlo de probabilidades por posição
+    $rawMx = simulatePositionMatrix($teams);
+    $nameIdx = array_column($teams, 'team_name');
+    $matrix = [];
+    foreach ($proj as $t) {
+        $oi = array_search($t['team_name'], $nameIdx);
+        $matrix[] = ['team' => $t, 'probs' => ($oi !== false && isset($rawMx[$oi])) ? $rawMx[$oi] : array_fill(0, $n, 0)];
+    }
 
     return [
         'has_data'       => true,
         'champ_proj'     => array_slice($proj, 0, 5),
-        'finalists'      => array_slice($proj, 0, 2),
+        'finalists'      => $finalists,
         'promo_proj'     => $promoProj,
         'rele_proj'      => $releProj,
+        'season_projs'   => $seasonProjs,
+        'matrix'         => $matrix,
+        'team_count'     => $n,
         'seasons_left'   => $seasonsLeft,
         'total_seasons'  => $totalSeasons,
         'current_season' => $currentSeasonNum,
@@ -413,7 +489,26 @@ foreach ($leagueOrder as $league) {
 
     $powerSummary = null;
 
-    $analysis = buildLeagueAnalysis($powerRanking, $currentSeasonNum, $totalSeasons, $league);
+    // Conferência de cada time
+    $confMap = [];
+    try {
+        $sc = $pdo->prepare("SELECT id, COALESCE(conference,'') AS conference FROM teams WHERE league = ?");
+        $sc->execute([$league]);
+        foreach ($sc->fetchAll(PDO::FETCH_ASSOC) as $cr) $confMap[(int)$cr['id']] = (string)$cr['conference'];
+    } catch (Exception $e) {}
+    foreach ($powerRanking as &$pr) $pr['conference'] = $confMap[$pr['team_id']] ?? '';
+    unset($pr);
+
+    // Picks futuros por time
+    $picksPerTeam = [];
+    try {
+        $pickYear = $seasonYear ?? (int)date('Y');
+        $sp2 = $pdo->prepare("SELECT p.team_id, COUNT(*) AS cnt FROM picks p JOIN teams t ON p.team_id = t.id WHERE t.league = ? AND CAST(p.season_year AS UNSIGNED) >= ? GROUP BY p.team_id");
+        $sp2->execute([$league, $pickYear]);
+        foreach ($sp2->fetchAll(PDO::FETCH_ASSOC) as $r) $picksPerTeam[(int)$r['team_id']] = (int)$r['cnt'];
+    } catch (Exception $e) {}
+
+    $analysis = buildLeagueAnalysis($powerRanking, $ranking, $picksPerTeam, $currentSeasonNum, $totalSeasons, $league);
     $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary','analysis');
 }
 
@@ -783,49 +878,23 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             border-radius: var(--radius); padding: 20px;
         }
         .sc-header { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
-        .sc-icon {
-            width:40px; height:40px; border-radius:10px; flex-shrink:0;
-            background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3);
-            display:flex; align-items:center; justify-content:center; font-size:20px;
-        }
+        .sc-icon { width:40px; height:40px; border-radius:10px; flex-shrink:0; background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3); display:flex; align-items:center; justify-content:center; font-size:20px; }
         .sc-ttl { font-size:14px; font-weight:800; color:var(--text); }
         .sc-sub { font-size:11px; color:var(--text-2); margin-top:1px; }
         .sc-badges { margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-        .sc-ia-tag {
-            font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
-            padding:3px 10px; border-radius:999px;
-            background:rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); color:#818cf8;
-        }
-        .sc-season-tag {
-            font-size:10px; font-weight:700; padding:3px 10px; border-radius:999px;
-            background:var(--panel-3); border:1px solid var(--border-md); color:var(--text-2);
-        }
-        .sc-sprint-bar {
-            display:flex; align-items:center; gap:8px; margin-bottom:18px;
-            background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12);
-            border-radius:8px; padding:10px 14px;
-        }
+        .sc-ia-tag { font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:3px 10px; border-radius:999px; background:rgba(99,102,241,.18); border:1px solid rgba(99,102,241,.35); color:#818cf8; }
+        .sc-season-tag { font-size:10px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--panel-3); border:1px solid var(--border-md); color:var(--text-2); }
+        .sc-sprint-bar { display:flex; align-items:center; gap:8px; margin-bottom:18px; background:rgba(0,0,0,.15); border:1px solid rgba(99,102,241,.12); border-radius:8px; padding:10px 14px; }
         :root[data-theme="light"] .sc-sprint-bar { background:rgba(99,102,241,.04); }
         .sc-sprint-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; white-space:nowrap; }
         .sc-sprint-track { flex:1; height:6px; background:rgba(99,102,241,.15); border-radius:3px; overflow:hidden; }
         .sc-sprint-fill  { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:3px; }
         .sc-sprint-info  { font-size:11px; font-weight:700; color:var(--text-2); white-space:nowrap; }
         .sc-sprint-info strong { color:var(--text); }
-        .sc-grid {
-            display:grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap:12px;
-        }
-        .sc-block {
-            background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13);
-            border-radius:var(--radius-sm); padding:14px;
-        }
+        .sc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+        .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:14px; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
-        .sc-block-title {
-            font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
-            color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px;
-        }
-        /* Champion projection rows */
+        .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px; }
         .sc-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
         .sc-row:last-child { margin-bottom:0; }
         .sc-num { width:18px; font-size:11px; font-weight:800; color:#818cf8; flex-shrink:0; text-align:center; }
@@ -837,19 +906,50 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-pct { font-size:14px; font-weight:800; color:#818cf8; line-height:1; }
         .sc-bar { width:52px; height:4px; background:rgba(99,102,241,.15); border-radius:2px; overflow:hidden; }
         .sc-bar-fill { height:100%; background:linear-gradient(90deg,#6366f1,#a78bfa); border-radius:2px; }
-        /* Finalist rows */
         .sc-fin-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(99,102,241,.08); }
         .sc-fin-row:last-child { border-bottom:none; }
         .sc-fin-lbl { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
         .sc-fin-lbl.c1 { color:#f59e0b; }
         .sc-fin-lbl.c2 { color:#3b82f6; }
-        /* Promo / Rele rows */
         .sc-zone-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.08); }
         .sc-zone-row:last-child { border-bottom:none; }
         .sc-zone-pct { font-size:13px; font-weight:800; margin-left:auto; flex-shrink:0; }
         .sc-zone-pct.safe   { color:#22c55e; }
         .sc-zone-pct.warn   { color:#f59e0b; }
         .sc-zone-pct.danger { color:#ef4444; }
+        /* Acordeão */
+        .sc-accordion { border:1px solid rgba(99,102,241,.18); border-radius:var(--radius-sm); overflow:hidden; margin-top:14px; }
+        .sc-acc-head { display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; background:rgba(99,102,241,.07); border-bottom:1px solid rgba(99,102,241,.12); user-select:none; transition:background .15s; }
+        .sc-acc-head:hover { background:rgba(99,102,241,.12); }
+        .sc-acc-head:last-of-type { border-bottom:none; }
+        .sc-acc-title { font-size:12px; font-weight:700; color:var(--text); flex:1; }
+        .sc-acc-chevron { font-size:12px; color:#818cf8; transition:transform .2s; flex-shrink:0; }
+        .sc-acc-chevron.open { transform:rotate(180deg); }
+        .sc-acc-body { display:none; padding:16px; border-bottom:1px solid rgba(99,102,241,.1); }
+        .sc-acc-body.open { display:block; }
+        /* Projeção por temporada */
+        .sc-season-block { margin-bottom:16px; }
+        .sc-season-block:last-child { margin-bottom:0; }
+        .sc-season-title { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#818cf8; margin-bottom:8px; }
+        .sc-season-line { display:flex; align-items:center; gap:9px; padding:6px 0; border-bottom:1px solid rgba(99,102,241,.07); }
+        .sc-season-line:last-child { border-bottom:none; }
+        .sc-medal { font-size:14px; flex-shrink:0; width:20px; text-align:center; }
+        /* Tabela de probabilidades */
+        .sc-matrix-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:4px; }
+        .sc-matrix { width:100%; border-collapse:collapse; font-size:12px; }
+        .sc-matrix th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#818cf8; padding:8px 6px; text-align:center; border-bottom:1px solid rgba(99,102,241,.2); white-space:nowrap; background:rgba(99,102,241,.06); }
+        .sc-matrix th.tc { text-align:left; padding-left:10px; min-width:170px; position:sticky; left:0; z-index:2; background:var(--panel-2); }
+        .sc-matrix th.pc { min-width:46px; }
+        .sc-matrix td { padding:7px 5px; text-align:center; border-bottom:1px solid rgba(99,102,241,.07); vertical-align:middle; }
+        .sc-matrix td.tc { text-align:left; padding-left:10px; position:sticky; left:0; z-index:1; background:var(--panel); }
+        .sc-matrix tbody tr:hover td { background:rgba(99,102,241,.04); }
+        .sc-matrix tbody tr:hover td.tc { background:var(--panel-2); }
+        .sc-matrix tbody tr:last-child td { border-bottom:none; }
+        .sc-pcell { border-radius:5px; padding:2px 5px; font-size:11px; font-weight:700; display:inline-block; min-width:36px; }
+        .sc-pcell.hi  { background:rgba(34,197,94,.18);  color:#22c55e; }
+        .sc-pcell.md  { background:rgba(245,158,11,.15); color:#f59e0b; }
+        .sc-pcell.lo  { background:rgba(99,102,241,.12); color:#818cf8; }
+        .sc-pcell.vlo { color:var(--text-3); }
 
         /* ── Responsive ─────────────────────────────────────── */
         @media (max-width: 992px) {
@@ -1091,7 +1191,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])): ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
-                SUPERCOMPUTADOR FBA
+                SUPERCOMPUTADOR FBA · Análise Preditiva
             </div>
             <div class="sc-wrap">
                 <!-- Header -->
@@ -1210,18 +1310,16 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <!-- Zona de Rebaixamento -->
                     <?php if (!empty($an['rele_proj'])): ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Risco de Rebaixamento — Bottom 4</span></div>
+                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Rebaixamento — Bottom 4</span></div>
                         <?php foreach ($an['rele_proj'] as $t):
                             $p = $t['rele_prob'];
                             $cls = $p >= 70 ? 'danger' : ($p >= 40 ? 'warn' : 'safe');
                         ?>
                         <div class="sc-zone-row">
-                            <img class="sc-tlogo"
-                                 src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
-                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
                             <div class="sc-tinfo">
                                 <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
-                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · max <?= $t['max_ovr'] ?></div>
+                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · <?= $t['picks_count'] ?> picks · <?= $t['ranking_pts'] ?>pts</div>
                             </div>
                             <span class="sc-zone-pct <?= $cls ?>"><?= $p ?>%</span>
                         </div>
@@ -1230,6 +1328,95 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <?php endif; ?>
 
                 </div><!-- /sc-grid -->
+
+                <!-- ACORDEÕES -->
+                <div class="sc-accordion">
+
+                    <!-- Projeção por Temporada -->
+                    <?php if (!empty($an['season_projs'])): ?>
+                    <div class="sc-acc-head" onclick="scToggle(this)">
+                        <i class="bi bi-calendar3" style="color:#818cf8;font-size:13px"></i>
+                        <span class="sc-acc-title">Projeção por Temporada Restante &nbsp;<span style="font-size:10px;color:var(--text-3);font-weight:600"><?= count($an['season_projs']) ?> seasons · trajetória de idade</span></span>
+                        <i class="bi bi-chevron-down sc-acc-chevron"></i>
+                    </div>
+                    <div class="sc-acc-body">
+                        <?php foreach ($an['season_projs'] as $sNum => $tops):
+                            $baseYear = $d['seasonYear'] ?? 0;
+                            $labelSeason = ($an['current_season'] ?? 0) + $sNum;
+                            $labelYear = $baseYear ? ($baseYear + $sNum) : '';
+                        ?>
+                        <div class="sc-season-block">
+                            <div class="sc-season-title">T<?= $labelSeason ?><?= $labelYear > 2000 ? " · {$labelYear}" : '' ?></div>
+                            <?php foreach ($tops as $ti => $t):
+                                $medals = ['🏆','🥈','🥉'];
+                                $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
+                                $tc = $tagColors[$t['ai_tag'] ?? ''] ?? '';
+                            ?>
+                            <div class="sc-season-line">
+                                <div class="sc-medal"><?= $medals[$ti] ?? '' ?></div>
+                                <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                <div class="sc-tinfo">
+                                    <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
+                                    <?php if ($tc): ?><span style="font-size:10px;font-weight:700;color:<?= $tc ?>"><?= htmlspecialchars($t['ai_tag']) ?></span><?php endif; ?>
+                                </div>
+                                <div class="sc-pct" style="font-size:13px"><?= $t['sp'] ?>%</div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Tabela de Probabilidades Monte Carlo -->
+                    <?php if (!empty($an['matrix'])): ?>
+                    <div class="sc-acc-head" onclick="scToggle(this)">
+                        <i class="bi bi-table" style="color:#818cf8;font-size:13px"></i>
+                        <span class="sc-acc-title">Previsão da Tabela de Classificação &nbsp;<span style="font-size:10px;color:var(--text-3);font-weight:600">Monte Carlo · <?= $an['team_count'] ?> times</span></span>
+                        <i class="bi bi-chevron-down sc-acc-chevron"></i>
+                    </div>
+                    <div class="sc-acc-body">
+                        <p style="font-size:11px;color:var(--text-2);margin-bottom:12px">Probabilidade (%) de cada time terminar em cada posição · Score composto: Power 55% + Pontos 30% + Picks 15%</p>
+                        <div class="sc-matrix-wrap">
+                            <table class="sc-matrix">
+                                <thead>
+                                    <tr>
+                                        <th class="tc">Time</th>
+                                        <th class="pc" title="Pontos ranking">PTS</th>
+                                        <?php for ($pos = 1; $pos <= $an['team_count']; $pos++): ?>
+                                        <th><?= $pos ?>º</th>
+                                        <?php endfor; ?>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($an['matrix'] as $mrow):
+                                        $mt = $mrow['team'];
+                                        $mprobs = $mrow['probs'];
+                                    ?>
+                                    <tr>
+                                        <td class="tc">
+                                            <div style="display:flex;align-items:center;gap:7px">
+                                                <img style="width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0;border:1px solid rgba(99,102,241,.2)"
+                                                     src="<?= htmlspecialchars(getTeamPhoto($mt['team_photo'] ?? null)) ?>"
+                                                     alt="" onerror="this.src='/img/default-team.png'">
+                                                <span style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px"><?= htmlspecialchars($mt['team_name']) ?></span>
+                                            </div>
+                                        </td>
+                                        <td style="font-weight:700;color:#818cf8;font-size:12px"><?= $mt['ranking_pts'] ?? 0 ?></td>
+                                        <?php for ($pos = 0; $pos < $an['team_count']; $pos++):
+                                            $p = $mprobs[$pos] ?? 0;
+                                            $cls = $p >= 25 ? 'hi' : ($p >= 10 ? 'md' : ($p >= 3 ? 'lo' : 'vlo'));
+                                        ?>
+                                        <td><span class="sc-pcell <?= $cls ?>"><?= $p ?>%</span></td>
+                                        <?php endfor; ?>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                </div><!-- /sc-accordion -->
             </div><!-- /sc-wrap -->
             <?php endif; ?>
 
@@ -1515,6 +1702,15 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
     function toggleTeam(rowId) {
         const row = document.getElementById(rowId);
         if (row) row.classList.toggle('open');
+    }
+
+    // SuperComputador accordion
+    function scToggle(head) {
+        const body = head.nextElementSibling;
+        const icon = head.querySelector('.sc-acc-chevron');
+        if (!body) return;
+        const open = body.classList.toggle('open');
+        if (icon) icon.classList.toggle('open', open);
     }
 </script>
 </body>
