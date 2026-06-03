@@ -23,8 +23,10 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_players (
     eras TEXT NOT NULL DEFAULT '[]',
     nba_person_id INT NULL,
     ativo TINYINT(1) DEFAULT 1,
+    stats TEXT NULL,
     UNIQUE KEY uk_nome (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN stats TEXT NULL"); } catch (Exception $e) {}
 
 // ── Mapeamento abreviaturas NBA ──────────────────────────────────────────────
 $TEAM_MAP = [
@@ -677,6 +679,127 @@ if ($action === 'import_json' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── IMPORTAR STATS DE CARREIRA (chunked + curl_multi) ────────────────────────
+if ($action === 'import_stats') {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('X-Accel-Buffering: no');
+    header('Cache-Control: no-cache');
+    @ini_set('zlib.output_compression', 0);
+    set_time_limit(90);
+    if (ob_get_level()) ob_end_clean();
+
+    $offset    = max(0, (int)($_GET['offset'] ?? 0));
+    $chunkSize = 50;
+    $parallel  = 5;
+
+    $allPids = $pdo->query("SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL AND ativo=1 ORDER BY id")
+                   ->fetchAll(PDO::FETCH_COLUMN);
+    $total = count($allPids);
+
+    if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
+
+    $chunk      = array_slice($allPids, $offset, $chunkSize);
+    $nextOffset = $offset + count($chunk);
+
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET stats=? WHERE nba_person_id=?");
+
+    $hdrs_curl = [
+        'Accept: application/json, text/plain, */*',
+        'Accept-Language: en-US,en;q=0.9',
+        'Cache-Control: no-cache',
+        'Connection: keep-alive',
+        'DNT: 1',
+        'Host: stats.nba.com',
+        'Origin: https://www.nba.com',
+        'Pragma: no-cache',
+        'Referer: https://www.nba.com/',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: same-site',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'x-nba-stats-origin: stats',
+        'x-nba-stats-token: true',
+    ];
+
+    $updated = 0; $errors = 0; $batchNum = 0;
+    $batches = array_chunk($chunk, $parallel);
+
+    foreach ($batches as $batch) {
+        $batchNum++;
+        $mh = curl_multi_init();
+        $handles = [];
+
+        foreach ($batch as $pid) {
+            $pid = (int)$pid;
+            $ch = curl_init("https://stats.nba.com/stats/playercareerstats?PlayerID={$pid}&PerMode=PerGame");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 25,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_HTTPHEADER     => $hdrs_curl,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$pid] = $ch;
+        }
+
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running > 0) curl_multi_select($mh, 1.0);
+        } while ($running > 0);
+
+        $statusCodes = [];
+        foreach ($handles as $pid => $ch) {
+            $raw  = curl_multi_getcontent($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $statusCodes[] = $code;
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+
+            if ($code !== 200 || !$raw) { $errors++; continue; }
+
+            $data = json_decode($raw, true);
+            $career = null;
+            foreach ($data['resultSets'] ?? [] as $rs) {
+                if ($rs['name'] === 'CareerTotalsRegularSeason') { $career = $rs; break; }
+            }
+            if (!$career || empty($career['rowSet'])) { $errors++; continue; }
+
+            $ix  = array_flip($career['headers']);
+            $row = $career['rowSet'][0];
+
+            $stats = [
+                'pts' => round((float)($row[$ix['PTS']]  ?? 0), 1),
+                'reb' => round((float)($row[$ix['REB']]  ?? 0), 1),
+                'ast' => round((float)($row[$ix['AST']]  ?? 0), 1),
+                'stl' => round((float)($row[$ix['STL']]  ?? 0), 1),
+                'blk' => round((float)($row[$ix['BLK']]  ?? 0), 1),
+                'gp'  => (int)($row[$ix['GP']] ?? 0),
+            ];
+
+            $stmtU->execute([json_encode($stats), $pid]);
+            $updated++;
+        }
+
+        curl_multi_close($mh);
+        echo "Lote {$batchNum}/" . count($batches) . " | HTTP: [" . implode(',', $statusCodes) . "] | atualizados: {$updated} | erros: {$errors}\n";
+        flush();
+        usleep(400000);
+    }
+
+    if ($nextOffset >= $total) {
+        echo "DONE:{$total}:{$updated}\n";
+    } else {
+        echo "NEXT:{$nextOffset}:{$total}:{$updated}\n";
+    }
+    flush();
+    exit;
+}
+
 // ── UI ────────────────────────────────────────────────────────────────────────
 $totalPlayers = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players WHERE ativo=1")->fetchColumn();
 $totalAll     = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players")->fetchColumn();
@@ -822,6 +945,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <button class="btn btn-sm fw-bold" id="btnImportAll" style="background:rgba(252,0,37,.15);border:1px solid rgba(252,0,37,.4);color:#fc0025;font-weight:800"><i class="bi bi-stars me-1"></i>Importar Tudo (Estático + Wikidata)</button>
         <button class="btn btn-sm fw-bold" id="btnImportWikidata" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8"><i class="bi bi-globe me-1"></i>Prêmios via Wikidata</button>
         <button class="btn btn-sm fw-bold" id="btnImportStatic" style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24"><i class="bi bi-file-earmark-code me-1"></i>Prêmios Estáticos (JSON)</button>
+        <button class="btn btn-sm fw-bold" id="btnImportStats" style="background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#c084fc"><i class="bi bi-bar-chart-line me-1"></i>Stats de Carreira</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -871,6 +995,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <th>País</th>
           <th>Prêmios</th>
           <th>Eras</th>
+          <th class="mob-hide">Stats</th>
           <th>Status</th>
           <th style="text-align:right">Ações</th>
         </tr>
@@ -986,12 +1111,22 @@ function renderTable(d) {
     const ativo   = p.ativo == 1
       ? '<span class="tag green">ativo</span>'
       : '<span class="tag red">inativo</span>';
+    let statsHtml = '<span style="color:#555">—</span>';
+    if (p.stats) {
+      try {
+        const s = JSON.parse(p.stats);
+        statsHtml = `<span style="font-size:11px;color:#c084fc;white-space:nowrap">`
+          + `${s.pts}pts · ${s.reb}reb · ${s.ast}ast`
+          + `<span style="color:#555"> (${s.gp}G)</span></span>`;
+      } catch(e) {}
+    }
     return `<tr>
       <td><strong>${esc(p.nome)}</strong></td>
       <td>${times || '<span style="color:#555">—</span>'}</td>
       <td><span class="tag gray">${esc(p.pais)}</span></td>
       <td>${premios || '<span style="color:#555">—</span>'}</td>
       <td>${eras || '<span style="color:#555">—</span>'}</td>
+      <td class="mob-hide">${statsHtml}</td>
       <td>${ativo}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn-ic" onclick="openModal(${JSON.stringify(p).replace(/"/g,'&quot;')})" title="Editar"><i class="bi bi-pencil"></i></button>
@@ -1296,6 +1431,52 @@ qs('btnImportStatic').addEventListener('click', async () => {
     log.textContent += `❌ Falha: ${e.message}\n`;
   }
   btn.disabled = false;
+});
+
+// ── IMPORT STATS (chunked, auto-chain) ───────────────────────────────────────
+async function importStatsChunk(offset) {
+  const log = qs('log');
+  try {
+    const r = await fetch(`?action=import_stats&offset=${offset}`);
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const txt = dec.decode(value);
+      buf += txt;
+      log.textContent += txt;
+      log.scrollTop = log.scrollHeight;
+    }
+    const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+    const mDone = buf.match(/DONE:(\d+)/);
+    if (mNext) {
+      const pct = Math.round((parseInt(mNext[1]) / parseInt(mNext[2])) * 100);
+      log.textContent += `--- ${pct}% (${mNext[1]}/${mNext[2]}) ---\n`;
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => importStatsChunk(parseInt(mNext[1])), 200);
+    } else if (mDone) {
+      log.textContent += `\n✅ Stats importadas! ${mDone[1]} jogadores verificados.\n`;
+      log.scrollTop = log.scrollHeight;
+      qs('btnImportStats').disabled = false;
+      loadPlayers(1);
+    } else {
+      log.textContent += '\n⚠️ Resposta inesperada.\n';
+      qs('btnImportStats').disabled = false;
+    }
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message} — tentando novamente...\n`;
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => importStatsChunk(offset), 3000);
+  }
+}
+
+qs('btnImportStats').addEventListener('click', () => {
+  const log = qs('log');
+  qs('btnImportStats').disabled = true;
+  log.textContent = 'Importando médias de carreira (PTS, REB, AST, STL, BLK).\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
+  importStatsChunk(0);
 });
 
 // Carregar ao abrir
