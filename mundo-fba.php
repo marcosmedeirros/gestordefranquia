@@ -1083,6 +1083,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-grid { display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; }
         @media(max-width:900px){ .sc-grid{ grid-template-columns:1fr 1fr; } }
         @media(max-width:580px){ .sc-grid{ grid-template-columns:1fr; } }
+        .sc-hero-grid { display:grid; grid-template-columns:repeat(2,minmax(0,380px)); gap:12px; justify-content:center; margin-bottom:12px; }
+        @media(max-width:700px){ .sc-hero-grid{ grid-template-columns:1fr; } }
+        .sc-grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        @media(max-width:580px){ .sc-grid-2col{ grid-template-columns:1fr; } }
         .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:14px; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
         .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px; }
@@ -1432,7 +1436,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <?php endif; ?>
 
                 <!-- Cards centralizados: Campeão + Finalistas -->
-                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,380px));gap:12px;justify-content:center;margin-bottom:12px">
+                <div class="sc-hero-grid">
 
                     <!-- Projeção Campeão -->
                     <?php if (!empty($an['champ_proj'])):
@@ -1497,7 +1501,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 </div><!-- /cards centralizados -->
 
                 <!-- Grid: Promoção + Rebaixamento -->
-                <div class="sc-grid" style="grid-template-columns:1fr 1fr">
+                <div class="sc-grid-2col">
 
                     <!-- Zona de Promoção (NEXT/RISE apenas) -->
                     <?php if (!empty($an['promo_proj'])):
