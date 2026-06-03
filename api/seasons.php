@@ -1594,9 +1594,10 @@ try {
             $awardsMap2 = [];
             foreach (['mvp', 'dpoy', 'mip', 'sixth_man', 'roy'] as $atype) {
                 $tKey = $atype . '_team_id';
-                if (!empty($input[$atype]) && !empty($input[$tKey])) {
+                if (!empty($input[$tKey])) {
                     $tId2 = (int)$input[$tKey];
-                    $stmtAw2->execute([$seasonId, $tId2, ($atype === 'sixth_man' ? '6th_man' : $atype), $input[$atype]]);
+                    $playerName = !empty($input[$atype]) ? $input[$atype] : null;
+                    $stmtAw2->execute([$seasonId, $tId2, ($atype === 'sixth_man' ? '6th_man' : $atype), $playerName]);
                     $awardsMap2[$tId2] = ($awardsMap2[$tId2] ?? 0) + 1;
                 }
             }

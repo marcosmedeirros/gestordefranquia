@@ -856,6 +856,8 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         return s ? (s.value || null) : null;
     }).filter(Boolean);
 
+    const fv = name => form.querySelector(`[name="${name}"]`)?.value || null;
+
     const payload = {
         season_id: seasonId,
         champion: playoff.champion,
@@ -865,17 +867,17 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         conference_final_losses: playoff.conference_final_losses,
         standings_leste: getRankList('leste'),
         standings_oeste: getRankList('oeste'),
-        mvp: form.mvp_player_name?.value || null,
-        mvp_team_id: form.mvp_team_id?.value || null,
-        dpoy: form.dpoy_player_name?.value || null,
-        dpoy_team_id: form.dpoy_team_id?.value || null,
-        mip: form.mip_player_name?.value || null,
-        mip_team_id: form.mip_team_id?.value || null,
-        sixth_man: form.sixth_man_player_name?.value || null,
-        sixth_man_team_id: form.sixth_man_team_id?.value || null,
-        roy: form.roy_player_name?.value || null,
-        roy_team_id: form.roy_team_id?.value || null,
-        nba_cup_team_id: form.nba_cup_team_id?.value || null
+        mvp: fv('mvp_player_name'),
+        mvp_team_id: fv('mvp_team_id'),
+        dpoy: fv('dpoy_player_name'),
+        dpoy_team_id: fv('dpoy_team_id'),
+        mip: fv('mip_player_name'),
+        mip_team_id: fv('mip_team_id'),
+        sixth_man: fv('sixth_man_player_name'),
+        sixth_man_team_id: fv('sixth_man_team_id'),
+        roy: fv('roy_player_name'),
+        roy_team_id: fv('roy_team_id'),
+        nba_cup_team_id: fv('nba_cup_team_id')
     };
 
     const btn = form.querySelector('button[type="submit"]');
