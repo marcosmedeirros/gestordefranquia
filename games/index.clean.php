@@ -15,6 +15,12 @@ $user_id = $_SESSION['user_id'];
 $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
 $erro = isset($_GET['erro']) ? htmlspecialchars($_GET['erro']) : "";
 
+// Registra acesso diário para retrospectiva (uma entrada por dia, silencioso)
+try {
+    $pdo->prepare("INSERT IGNORE INTO usuario_acessos (user_id, data_acesso) VALUES (?, CURDATE())")
+        ->execute([$user_id]);
+} catch (PDOException $e) {}
+
 $nowBrt = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
 $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 $yesterdayBrtStr = (clone $nowBrt)->modify('-1 day')->format('Y-m-d H:i:s');

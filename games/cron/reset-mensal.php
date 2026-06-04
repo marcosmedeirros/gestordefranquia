@@ -57,6 +57,22 @@ if ((int)date('j') !== 1) {
     exit(0);
 }
 
+// ── Acumula na retrospectiva ANTES do reset ────────────────────────────────────
+try {
+    $ano = (int)date('Y');
+    $pdo->exec("
+        INSERT INTO retrospectiva_anual (user_id, ano, total_fba_points, total_moedas)
+        SELECT id, {$ano}, COALESCE(fba_points, 0), COALESCE(pontos, 0)
+        FROM usuarios
+        ON DUPLICATE KEY UPDATE
+            total_fba_points = total_fba_points + VALUES(total_fba_points),
+            total_moedas     = total_moedas     + VALUES(total_moedas)
+    ");
+    log_msg("RETROSPECTIVA: pontos/moedas do mês acumulados para o ano {$ano}.");
+} catch (PDOException $e) {
+    log_msg("AVISO retrospectiva (crie as tabelas primeiro): " . $e->getMessage());
+}
+
 // ── Reset ──────────────────────────────────────────────────────────────────────
 try {
     $pdo->beginTransaction();

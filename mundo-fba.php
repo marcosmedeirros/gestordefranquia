@@ -419,6 +419,159 @@ function buildTop5Stats(array $starters): array {
     return ['count' => $count, 'avg_ovr' => $avgOvr, 'avg_age' => $avgAge, 'max_ovr' => $maxOvr];
 }
 
+function simulateConferenceBracket(array $teams): array {
+    $playoff = array_slice($teams, 0, min(8, count($teams)));
+    $n = count($playoff);
+    if ($n === 0) return ['rounds' => [], 'winner' => null];
+    if ($n === 1) return ['rounds' => [], 'winner' => $playoff[0]];
+
+    $current = $playoff;
+    $rawRounds = [];
+    while (count($current) > 1) {
+        $nc   = count($current);
+        $half = (int)floor($nc / 2);
+        $matchups = []; $next = [];
+        for ($i = 0; $i < $half; $i++) {
+            $a = $current[$i]; $b = $current[$nc - 1 - $i];
+            $sA = max(0.01, (float)($a['score'] ?? 1));
+            $sB = max(0.01, (float)($b['score'] ?? 1));
+            $probA  = round($sA / ($sA + $sB) * 100);
+            $winner = $sA >= $sB ? $a : $b;
+            $matchups[] = ['a' => $a, 'b' => $b, 'winner' => $winner, 'prob_a' => $probA];
+            $next[] = $winner;
+        }
+        if ($nc % 2 !== 0) array_unshift($next, $current[0]);
+        $rawRounds[] = $matchups;
+        $current = $next;
+    }
+    $total = count($rawRounds);
+    $named = [];
+    foreach ($rawRounds as $i => $matchups) {
+        $fromEnd = $total - 1 - $i;
+        if ($fromEnd === 0)      $name = 'Final de Conferência';
+        elseif ($fromEnd === 1)  $name = 'Semifinais';
+        elseif ($fromEnd === 2)  $name = '1ª Rodada';
+        else                     $name = ($i + 1) . 'ª Rodada';
+        $named[] = ['name' => $name, 'matchups' => $matchups];
+    }
+    return ['rounds' => $named, 'winner' => $current[0] ?? null];
+}
+
+function buildSeasonPreview(array $powerRanking, array $teams): array {
+    if (empty($powerRanking)) return [];
+
+    $allPlayers = [];
+    foreach ($teams as $t) {
+        $tid   = (int)$t['id'];
+        $tname = trim(($t['city'] ?? '') . ' ' . ($t['name'] ?? ''));
+        foreach (($t['starters'] ?? []) as $pos => $p) {
+            if (!$p) continue;
+            $allPlayers[] = [
+                'name'       => $p['name'],
+                'position'   => $pos,
+                'ovr'        => (int)$p['ovr'],
+                'age'        => (int)($p['age'] ?? 25),
+                'team_id'    => $tid,
+                'team_name'  => $tname,
+                'team_photo' => $t['team_photo'] ?? null,
+            ];
+        }
+    }
+
+    $powerMap = [];
+    foreach ($powerRanking as $pr) {
+        $powerMap[(int)($pr['team_id'] ?? 0)] = [
+            'score'  => (float)($pr['score'] ?? 0),
+            'ai_tag' => strtolower((string)($pr['ai_tag'] ?? '')),
+        ];
+    }
+
+    // MVP: maior OVR ponderado pela força do time
+    $mvp = null; $mvpS = -1;
+    foreach ($allPlayers as $p) {
+        $ts = $powerMap[$p['team_id']]['score'] ?? 50;
+        $s  = $p['ovr'] * 1.5 + $ts * 0.3;
+        if ($s > $mvpS) { $mvpS = $s; $mvp = $p; }
+    }
+    // DPOY: melhor C/PF
+    $dpoy = null; $dpoyS = -1;
+    foreach ($allPlayers as $p) {
+        if (!in_array($p['position'], ['C','PF'])) continue;
+        if ($p['ovr'] > $dpoyS) { $dpoyS = $p['ovr']; $dpoy = $p; }
+    }
+    // ROY: mais jovem ≤22 com bom OVR
+    $roy = null; $royS = -1;
+    foreach ($allPlayers as $p) {
+        if ($p['age'] > 22) continue;
+        $s = $p['ovr'] + (23 - $p['age']) * 3;
+        if ($s > $royS) { $royS = $s; $roy = $p; }
+    }
+    if (!$roy) {
+        $tmp = $allPlayers;
+        usort($tmp, fn($a,$b) => $a['age'] - $b['age']);
+        $roy = $tmp[0] ?? null;
+    }
+    // MIP: jovem 21-28 em time Rebuilding/Selling
+    $mip = null; $mipS = -1;
+    foreach ($allPlayers as $p) {
+        if ($p['age'] < 21 || $p['age'] > 28) continue;
+        $tag   = $powerMap[$p['team_id']]['ai_tag'] ?? '';
+        $bonus = in_array($tag, ['rebuilding','selling']) ? 12 : 0;
+        $s     = $p['ovr'] * 0.7 + (29 - $p['age']) * 2.5 + $bonus;
+        if ($s > $mipS) { $mipS = $s; $mip = $p; }
+    }
+    if (!$mip && !empty($allPlayers)) $mip = $allPlayers[0];
+    // SMOY (6H): bom jogador de time Contending/Buying, mas não o melhor do time
+    $teamMaxOvr = [];
+    foreach ($allPlayers as $p) {
+        if (!isset($teamMaxOvr[$p['team_id']]) || $p['ovr'] > $teamMaxOvr[$p['team_id']]) $teamMaxOvr[$p['team_id']] = $p['ovr'];
+    }
+    $smoy = null; $smoyS = -1;
+    foreach ($allPlayers as $p) {
+        $tag = $powerMap[$p['team_id']]['ai_tag'] ?? '';
+        if (!in_array($tag, ['contending','buying'])) continue;
+        if ($p['ovr'] >= ($teamMaxOvr[$p['team_id']] ?? 0)) continue;
+        if ($p['ovr'] > $smoyS) { $smoyS = $p['ovr']; $smoy = $p; }
+    }
+    if (!$smoy) {
+        $tmp = $allPlayers;
+        usort($tmp, fn($a,$b) => $b['ovr'] - $a['ovr']);
+        $smoy = $tmp[1] ?? ($tmp[0] ?? null);
+    }
+
+    // Brackets por conferência
+    $confGroups = [];
+    foreach ($powerRanking as $pr) {
+        $conf = trim((string)($pr['conference'] ?? '')) ?: 'GERAL';
+        $confGroups[$conf][] = $pr;
+    }
+    foreach ($confGroups as &$cg) usort($cg, fn($a,$b) => $b['score'] <=> $a['score']);
+    unset($cg);
+
+    $brackets = []; $confChamps = [];
+    foreach ($confGroups as $confName => $confTeams) {
+        $res = simulateConferenceBracket($confTeams);
+        $brackets[$confName] = ['name' => $confName, 'seeds' => $confTeams, 'rounds' => $res['rounds'], 'winner' => $res['winner']];
+        if ($res['winner']) $confChamps[] = $res['winner'];
+    }
+
+    $finalistA = $confChamps[0] ?? null;
+    $finalistB = $confChamps[1] ?? null;
+    if ($finalistA && $finalistB) {
+        $finalChamp = ((float)($finalistA['score'] ?? 0) >= (float)($finalistB['score'] ?? 0)) ? $finalistA : $finalistB;
+    } else {
+        $finalChamp = $finalistA ?? $finalistB;
+    }
+
+    return [
+        'brackets'   => $brackets,
+        'finalist_a' => $finalistA,
+        'finalist_b' => $finalistB,
+        'champ'      => $finalChamp,
+        'awards'     => compact('mvp','dpoy','roy','mip','smoy'),
+    ];
+}
+
 $leagueOrder = ['ELITE', 'NEXT', 'RISE'];
 $leagueMeta  = [
     'ELITE' => ['color' => '#f59e0b', 'icon' => 'bi-trophy-fill',       'label' => 'Liga Elite'],
@@ -697,8 +850,9 @@ foreach ($leagueOrder as $league) {
         foreach ($sp2->fetchAll(PDO::FETCH_ASSOC) as $r) $picksPerTeam[(int)$r['team_id']] = (int)$r['cnt'];
     } catch (Exception $e) {}
 
-    $analysis = buildLeagueAnalysis($powerRanking, $ranking, $picksPerTeam, $currentSeasonNum, $totalSeasons, $league);
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary','analysis');
+    $analysis      = buildLeagueAnalysis($powerRanking, $ranking, $picksPerTeam, $currentSeasonNum, $totalSeasons, $league);
+    $seasonPreview = buildSeasonPreview($powerRanking, $teams);
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary','analysis','seasonPreview');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -1161,6 +1315,18 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-proj-cell { font-size:12px; font-weight:800; color:#f59e0b; white-space:nowrap; }
         .sc-proj-delta { font-size:9px; font-weight:700; color:#818cf8; margin-left:2px; }
 
+        /* ── Previsão da Temporada accordion ───────────────── */
+        .sc-preview-confs { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+        @media(max-width:580px){ .sc-preview-confs { grid-template-columns:1fr; } }
+        .sc-matchup-card { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:8px; padding:7px 9px; margin-bottom:4px; }
+        .sc-matchup-side { display:flex; align-items:center; gap:6px; }
+        .sc-matchup-logo { width:18px; height:18px; border-radius:4px; flex-shrink:0; object-fit:cover; }
+        .sc-matchup-name { font-size:11px; color:var(--text); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sc-matchup-pct  { font-size:10px; font-weight:700; flex-shrink:0; }
+        .sc-matchup-div  { height:1px; background:rgba(99,102,241,.1); margin:3px 0; }
+        .sc-award-grid   { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:7px; }
+        .sc-award-cell   { background:rgba(0,0,0,.2); border:1px solid rgba(99,102,241,.15); border-radius:10px; padding:10px 8px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:3px; }
+
         /* ── Responsive ─────────────────────────────────────── */
         @media (max-width: 992px) {
             :root { --sidebar-w: 0px; }
@@ -1597,6 +1763,141 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                             <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- ACORDEÃO: Previsão da Temporada -->
+                <?php $sp = $d['seasonPreview'] ?? []; if (!empty($sp)): ?>
+                <div class="sc-accordion" style="margin-top:8px">
+                    <div class="sc-acc-head" onclick="scToggle(this)">
+                        <i class="bi bi-calendar3-event" style="color:#818cf8;font-size:13px"></i>
+                        <span class="sc-acc-title">Previsão da Temporada <span style="font-size:10px;color:var(--text-3);font-weight:600">· Playoff · Campeão · Prêmios</span></span>
+                        <i class="bi bi-chevron-down sc-acc-chevron"></i>
+                    </div>
+                    <div class="sc-acc-body">
+
+                        <?php
+                        $confList  = array_values($sp['brackets'] ?? []);
+                        $multiConf = count($confList) > 1;
+                        ?>
+
+                        <!-- Brackets de conferência -->
+                        <div class="sc-preview-confs<?= !$multiConf ? '" style="grid-template-columns:1fr;margin-bottom:0' : '' ?>">
+                        <?php foreach ($confList as $bracket): ?>
+                            <div>
+                                <?php if ($multiConf): ?>
+                                <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#818cf8;margin-bottom:8px;display:flex;align-items:center;gap:5px">
+                                    <i class="bi bi-lightning-charge-fill"></i> <?= htmlspecialchars($bracket['name']) ?>
+                                </div>
+                                <?php endif; ?>
+
+                                <?php foreach ($bracket['rounds'] as $round): ?>
+                                <div style="margin-bottom:8px">
+                                    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-3);margin-bottom:5px"><?= htmlspecialchars($round['name']) ?></div>
+                                    <?php foreach ($round['matchups'] as $m):
+                                        $wIsA  = $m['winner']['team_name'] === $m['a']['team_name'];
+                                        $probA = (int)$m['prob_a'];
+                                        $probB = 100 - $probA;
+                                    ?>
+                                    <div class="sc-matchup-card">
+                                        <div class="sc-matchup-side" style="<?= !$wIsA ? 'opacity:.42' : '' ?>">
+                                            <img class="sc-matchup-logo" src="<?= htmlspecialchars(getTeamPhoto($m['a']['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                            <span class="sc-matchup-name" style="font-weight:<?= $wIsA ? '800' : '500' ?>"><?= htmlspecialchars($m['a']['team_name']) ?></span>
+                                            <span class="sc-matchup-pct" style="color:<?= $wIsA ? '#22c55e' : 'var(--text-3)' ?>"><?= $probA ?>%</span>
+                                        </div>
+                                        <div class="sc-matchup-div"></div>
+                                        <div class="sc-matchup-side" style="<?= $wIsA ? 'opacity:.42' : '' ?>">
+                                            <img class="sc-matchup-logo" src="<?= htmlspecialchars(getTeamPhoto($m['b']['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                            <span class="sc-matchup-name" style="font-weight:<?= !$wIsA ? '800' : '500' ?>"><?= htmlspecialchars($m['b']['team_name']) ?></span>
+                                            <span class="sc-matchup-pct" style="color:<?= !$wIsA ? '#22c55e' : 'var(--text-3)' ?>"><?= $probB ?>%</span>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endforeach; ?>
+
+                                <?php if (!empty($bracket['winner'])): $bw = $bracket['winner']; ?>
+                                <div style="display:flex;align-items:center;gap:7px;padding:7px 9px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);border-radius:8px">
+                                    <span style="font-size:14px">🏆</span>
+                                    <img style="width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0" src="<?= htmlspecialchars(getTeamPhoto($bw['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                    <div style="flex:1;min-width:0">
+                                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#f59e0b"><?= $multiConf ? 'Campeão ' . htmlspecialchars($bracket['name']) : 'Campeão' ?></div>
+                                        <div style="font-size:12px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($bw['team_name']) ?></div>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                        </div>
+
+                        <!-- Finais (somente com 2+ conferências) -->
+                        <?php if ($multiConf && !empty($sp['finalist_a']) && !empty($sp['finalist_b'])):
+                            $fa = $sp['finalist_a']; $fb = $sp['finalist_b']; $fc = $sp['champ'];
+                            $sA = max(0.01, (float)($fa['score'] ?? 1));
+                            $sB = max(0.01, (float)($fb['score'] ?? 1));
+                            $pA = round($sA / ($sA + $sB) * 100); $pB = 100 - $pA;
+                        ?>
+                        <div style="border-top:1px solid rgba(99,102,241,.15);padding-top:12px;margin-bottom:12px">
+                            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:8px;display:flex;align-items:center;gap:5px">
+                                <i class="bi bi-trophy-fill"></i> FINAIS
+                            </div>
+                            <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px">
+                                <?php foreach ([[$fa,$pA],[$fb,$pB]] as $fi => $fs):
+                                    $tf   = $fs[0]; $pF = $fs[1];
+                                    $isWin = $fc && $tf['team_name'] === $fc['team_name'];
+                                ?>
+                                <?php if ($fi === 1): ?><div style="text-align:center;font-size:10px;color:var(--text-3);padding:3px 0">vs</div><?php endif; ?>
+                                <div style="display:flex;align-items:center;gap:8px;<?= !$isWin ? 'opacity:.5' : '' ?>">
+                                    <img style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0" src="<?= htmlspecialchars(getTeamPhoto($tf['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                    <span style="font-size:12px;font-weight:<?= $isWin ? '800' : '600' ?>;color:var(--text);flex:1"><?= htmlspecialchars($tf['team_name']) ?></span>
+                                    <span style="font-size:11px;font-weight:700;color:<?= $isWin ? '#f59e0b' : 'var(--text-3)' ?>"><?= $pF ?>%</span>
+                                </div>
+                                <?php endforeach; ?>
+                                <?php if ($fc): ?>
+                                <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(245,158,11,.2);display:flex;align-items:center;gap:8px">
+                                    <span style="font-size:18px">🏆</span>
+                                    <div>
+                                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#f59e0b">Campeão Projetado</div>
+                                        <div style="font-size:13px;font-weight:800;color:var(--text)"><?= htmlspecialchars($fc['team_name']) ?></div>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Prêmios projetados -->
+                        <?php if (!empty($sp['awards'])): $aw = $sp['awards'];
+                            $awDefs = [
+                                'mvp'  => ['label'=>'MVP',  'icon'=>'⭐', 'desc'=>'Mais Valioso',    'color'=>'#f59e0b'],
+                                'dpoy' => ['label'=>'DPOY', 'icon'=>'🛡️', 'desc'=>'Melhor Defensor', 'color'=>'#3b82f6'],
+                                'roy'  => ['label'=>'ROY',  'icon'=>'🌟', 'desc'=>'Calouro do Ano',  'color'=>'#fc6680'],
+                                'mip'  => ['label'=>'MIP',  'icon'=>'📈', 'desc'=>'Mais Melhorado',  'color'=>'#22c55e'],
+                                'smoy' => ['label'=>'6H',   'icon'=>'👤', 'desc'=>'6º Homem',        'color'=>'#a78bfa'],
+                            ];
+                        ?>
+                        <div style="border-top:1px solid rgba(99,102,241,.15);padding-top:12px">
+                            <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#818cf8;margin-bottom:8px;display:flex;align-items:center;gap:5px">
+                                <i class="bi bi-award-fill"></i> PRÊMIOS PROJETADOS
+                            </div>
+                            <div class="sc-award-grid">
+                                <?php foreach ($awDefs as $akey => $adef):
+                                    $ap = $aw[$akey] ?? null; if (!$ap) continue;
+                                ?>
+                                <div class="sc-award-cell">
+                                    <span style="font-size:18px;line-height:1.2"><?= $adef['icon'] ?></span>
+                                    <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:<?= $adef['color'] ?>"><?= $adef['label'] ?></div>
+                                    <div style="font-size:9px;color:var(--text-3)"><?= $adef['desc'] ?></div>
+                                    <div style="font-size:12px;font-weight:800;color:var(--text);line-height:1.2"><?= htmlspecialchars($ap['name']) ?></div>
+                                    <div style="font-size:10px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%"><?= htmlspecialchars($ap['team_name']) ?></div>
+                                    <div style="font-size:9px;color:var(--text-3)"><?= $ap['position'] ?> · OVR <?= $ap['ovr'] ?> · <?= $ap['age'] ?>a</div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
                     </div>
                 </div>
                 <?php endif; ?>
