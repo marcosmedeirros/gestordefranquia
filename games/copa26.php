@@ -699,6 +699,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <a href="admin/controle-financas.php" class="sb-link">
       <i class="bi bi-cash-coin"></i>Controle Finanças
     </a>
+    <a href="admin/controle-tapas.php" class="sb-link">
+      <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
+    </a>
     <a href="admin/controle-pontuacao.php" class="sb-link">
       <i class="bi bi-coin"></i>Controle Pontuação
     </a>
