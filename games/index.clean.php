@@ -747,6 +747,9 @@ try {
     <a href="admin/controle-tapas.php" class="sb-link">
       <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
     </a>
+    <a href="admin/controle-pontuacao.php" class="sb-link">
+      <i class="bi bi-coin"></i>Controle Pontuação
+    </a>
     <?php endif; ?>
     <a href="admin/dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores

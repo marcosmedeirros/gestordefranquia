@@ -216,6 +216,9 @@ try {
     <a href="controle-tapas.php" class="sb-link">
       <i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas
     </a>
+    <a href="controle-pontuacao.php" class="sb-link">
+      <i class="bi bi-coin"></i>Controle Pontuação
+    </a>
     <a href="dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores
     </a>

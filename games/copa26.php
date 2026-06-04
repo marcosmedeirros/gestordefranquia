@@ -699,6 +699,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <a href="admin/controle-financas.php" class="sb-link">
       <i class="bi bi-cash-coin"></i>Controle Finanças
     </a>
+    <a href="admin/controle-pontuacao.php" class="sb-link">
+      <i class="bi bi-coin"></i>Controle Pontuação
+    </a>
     <?php endif; ?>
     <a href="admin/dadosjogadores.php" class="sb-link">
       <i class="bi bi-person-lines-fill"></i>Dados dos Jogadores

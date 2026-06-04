@@ -839,6 +839,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <a href="dashboard.php"             class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
     <a href="controle-financas.php"     class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
     <a href="hoopgrid-seeder.php"       class="sb-link active"><i class="bi bi-person-lines-fill"></i>Controle Jogadores</a>
+    <a href="controle-pontuacao.php"    class="sb-link"><i class="bi bi-coin"></i>Controle Pontuação</a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
