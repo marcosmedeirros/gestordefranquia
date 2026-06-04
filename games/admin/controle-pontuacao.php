@@ -5,7 +5,7 @@ require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$admin || $admin['is_admin'] != 1) die("Acesso negado.");
@@ -90,27 +90,54 @@ $usuarios = $pdo->query(
       --sb-w:       220px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; display: flex; min-height: 100vh; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-    /* ── Sidebar ── */
-    .sidebar { width: var(--sb-w); background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; scrollbar-width: none; z-index: 200; }
-    .sidebar::-webkit-scrollbar { display: none; }
-    .sb-brand { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-    .sb-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #fff; flex-shrink: 0; }
-    .sb-brand-name { font-weight: 800; font-size: 14px; line-height: 1.1; }
-    .sb-brand-name span { color: var(--red); }
-    .sb-nav { flex: 1; padding: 10px 10px 8px; }
-    .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text-3); padding: 14px 10px 5px; }
-    .sb-link { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
-    .sb-link i { font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; }
-    .sb-link:hover { background: var(--panel-2); color: var(--text); }
-    .sb-link.active { background: var(--red-soft); color: var(--red); font-weight: 700; }
+    /* ── Sidebar (igual games.php) ── */
+    .page-layout { display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; overflow-y: auto; }
+    .page-content { flex: 1; margin-left: 240px; min-width: 0; }
+    .sb-header { display: flex; align-items: center; gap: 10px; padding: 16px 14px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sb-logo { width: 30px; height: 30px; border-radius: 8px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; color: #fff; flex-shrink: 0; }
+    .sb-brand { font-weight: 800; font-size: 13px; color: var(--text); flex: 1; }
+    .sb-brand span { color: var(--red); }
+    .sb-close { display: none; background: none; border: none; color: var(--text-2); font-size: 18px; cursor: pointer; padding: 4px; }
+    .sb-user { padding: 14px; border-bottom: 1px solid var(--border); }
+    .sb-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--red-soft); border: 2px solid var(--border-red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: var(--red); margin-bottom: 8px; }
+    .sb-user-name { font-size: 13px; font-weight: 700; color: #fff; }
+    .sb-user-role { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .sb-stats { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: row; gap: 6px; }
+    .sb-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 4px; padding: 8px 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+    .sb-stat i { font-size: 13px; color: var(--red); }
+    .sb-stat-val { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
+    .sb-stat-label { font-size: 9px; color: var(--text-3); }
+    .sb-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+    .sb-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 8px 14px 4px; }
+    .sb-link { display: flex; align-items: center; gap: 10px; padding: 9px 14px; text-decoration: none; font-size: 12px; font-weight: 500; color: var(--text-2); transition: all var(--t) var(--ease); border-left: 3px solid transparent; }
+    .sb-link i { width: 16px; text-align: center; font-size: 13px; }
+    .sb-link:hover { background: var(--panel-2); color: var(--text); border-left-color: var(--border-md); }
+    .sb-link.active { background: var(--red-soft); color: var(--red); border-left-color: var(--red); font-weight: 700; }
     .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
-    .sb-logout { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12px; font-weight: 500; text-decoration: none; padding: 8px 10px; border-radius: var(--radius-sm); transition: all var(--t) var(--ease); }
-    .sb-logout:hover { background: var(--red-soft); color: var(--red); }
+    .sb-logout { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-2); text-decoration: none; font-family: var(--font); font-size: 12px; font-weight: 600; transition: all var(--t) var(--ease); }
+    .sb-logout:hover { background: rgba(252,0,37,.1); border-color: var(--border-red); color: var(--red); }
+    .mob-bar { display: none; align-items: center; gap: 12px; height: 52px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+    .mob-ham { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; flex-shrink: 0; }
+    .mob-title { font-size: 14px; font-weight: 800; color: var(--text); flex: 1; }
+    .mob-title span { color: var(--red); }
+    .mob-chips { display: flex; align-items: center; gap: 6px; }
+    .mob-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 199; backdrop-filter: blur(2px); }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 280ms var(--ease); }
+      .sidebar.open { transform: translateX(0); }
+      .page-content { margin-left: 0; }
+      .mob-bar { display: flex; }
+      .sb-close { display: flex; align-items: center; justify-content: center; }
+      .sb-overlay.open { display: block; }
+    }
 
     /* ── Content ── */
-    .page-content { margin-left: var(--sb-w); flex: 1; padding: 28px 28px 60px; max-width: calc(100% - var(--sb-w)); }
+    .page-content-inner { padding: 28px 28px 60px; max-width: 960px; }
+    @media (max-width: 768px) { .page-content-inner { padding: 16px 16px 48px; } }
     .page-header { margin-bottom: 28px; }
     .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
     .page-title { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
@@ -196,8 +223,6 @@ $usuarios = $pdo->query(
     .saved-flash.show { opacity: 1; }
 
     @media (max-width: 768px) {
-      .sidebar { display: none; }
-      .page-content { margin-left: 0; max-width: 100%; padding: 16px 16px 48px; }
       .adder-row { flex-direction: column; }
       .adder-select, .adder-input { min-width: 0; width: 100%; }
       .users-table thead { display: none; }
@@ -208,24 +233,48 @@ $usuarios = $pdo->query(
 </head>
 <body>
 
-<aside class="sidebar">
-  <div class="sb-brand">
+<div class="page-layout">
+<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-header">
     <div class="sb-logo">FBA</div>
-    <div class="sb-brand-name">FBA <span>Admin</span></div>
+    <span class="sb-brand">FBA <span>Admin</span></span>
+    <button class="sb-close" onclick="closeSidebar()"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="sb-user">
+    <div class="sb-user-name"><?= htmlspecialchars($admin['nome'] ?? '') ?></div>
+    <div class="sb-user-role">Admin</div>
+  </div>
+  <div class="sb-stats">
+    <div class="sb-stat">
+      <i class="bi bi-hand-index-fill" style="color:var(--green)"></i>
+      <div class="sb-stat-val"><?= number_format($admin['numero_tapas'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Tapas</div>
+    </div>
+    <div class="sb-stat">
+      <img src="../moeda.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
+      <div class="sb-stat-val"><?= number_format($admin['pontos'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">Moedas</div>
+    </div>
+    <div class="sb-stat">
+      <img src="../lebron.png" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">
+      <div class="sb-stat-val"><?= number_format($admin['fba_points'] ?? 0, 0, ',', '.') ?></div>
+      <div class="sb-stat-label">FBA Pts</div>
+    </div>
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="../index.php"            class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <a href="../games.php"            class="sb-link"><i class="bi bi-joystick"></i>Games</a>
-    <a href="../copa26.php"           class="sb-link"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
+    <a href="../index.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="../games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="../copa26.php"             class="sb-link"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
     <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-bar-chart-fill"></i>Ranking Geral</a>
     <div class="sb-nav-section">Admin</div>
-    <a href="controlegames.php"       class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
-    <a href="dashboard.php"           class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
-    <a href="controle-financas.php"   class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
-    <a href="controle-tapas.php"      class="sb-link"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
-    <a href="controle-pontuacao.php"  class="sb-link active"><i class="bi bi-coin"></i>Controle Pontuação</a>
-    <a href="dadosjogadores.php"      class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
+    <a href="controlegames.php"         class="sb-link"><i class="bi bi-gear-fill"></i>Controle de Jogos</a>
+    <a href="dashboard.php"             class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
+    <a href="controle-financas.php"     class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
+    <a href="controle-tapas.php"        class="sb-link"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
+    <a href="controle-pontuacao.php"    class="sb-link active"><i class="bi bi-coin"></i>Controle Pontuação</a>
+    <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
     <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
@@ -233,6 +282,16 @@ $usuarios = $pdo->query(
 </aside>
 
 <div class="page-content">
+<div class="mob-bar">
+  <button class="mob-ham" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+  <span class="mob-title">FBA <span>Admin</span></span>
+  <div class="mob-chips">
+    <span class="mob-chip"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($admin['pontos'] ?? 0, 0, ',', '.') ?></span>
+    <span class="mob-chip"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($admin['fba_points'] ?? 0, 0, ',', '.') ?></span>
+  </div>
+</div>
+
+<div class="page-content-inner">
   <div class="page-header">
     <div class="page-eyebrow">Admin</div>
     <h1 class="page-title"><i class="bi bi-coin"></i> Controle de Pontuação</h1>
@@ -316,10 +375,22 @@ $usuarios = $pdo->query(
         <?php endforeach; ?>
       </tbody>
     </table>
-  </div>
-</div>
+  </div><!-- /page-content-inner -->
+</div><!-- /page-content -->
+</div><!-- /page-layout -->
 
 <script>
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sbOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 let tipoAtual = 'fba';
 
 function setTipo(t) {
