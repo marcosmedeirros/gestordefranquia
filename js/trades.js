@@ -683,34 +683,24 @@ function setupPickSelectorHandlers() {
     if (selectedEl) {
       selectedEl.addEventListener('click', (event) => {
         const removeBtn = event.target.closest('[data-action="remove-pick"]');
-        if (!removeBtn) return;
-        removePickFromSelection(side, Number(removeBtn.dataset.pickId));
-      });
-
-      selectedEl.addEventListener('change', (event) => {
-        const toggle = event.target.closest('[data-action="toggle-swap"]');
-        if (toggle) {
-          const pickId = Number(toggle.dataset.pickId);
-          if (toggle.checked) {
-            setSwapRole(pickId, 'SB');
-          } else {
-            clearSwapRole(pickId);
-          }
+        if (removeBtn) {
+          removePickFromSelection(side, Number(removeBtn.dataset.pickId));
+          return;
+        }
+        const setRoleBtn = event.target.closest('[data-action="set-swap-role"]');
+        if (setRoleBtn) {
+          setSwapRole(Number(setRoleBtn.dataset.pickId), setRoleBtn.dataset.role);
           renderSelectedPicks('offer');
           renderSelectedPicks('request');
           return;
         }
-
-        const roleSelect = event.target.closest('[data-action="swap-role"]');
-        if (roleSelect) {
-          const pickId = Number(roleSelect.dataset.pickId);
-          const role = roleSelect.value;
-          setSwapRole(pickId, role);
+        const clearBtn = event.target.closest('[data-action="clear-swap"]');
+        if (clearBtn) {
+          clearSwapRole(Number(clearBtn.dataset.pickId));
           renderSelectedPicks('offer');
           renderSelectedPicks('request');
         }
       });
-
     }
   });
 
@@ -861,15 +851,13 @@ function renderSelectedPicks(side) {
     const hasPair = Boolean(pairId);
     const swapChecked = Boolean(pick.swapRole);
     const swapControls = hasPair ? `
-        <div class="d-flex align-items-center gap-2">
-          <div class="form-check form-switch m-0">
-            <input class="form-check-input" type="checkbox" data-action="toggle-swap" data-pick-id="${pick.id}" ${swapChecked ? 'checked' : ''}>
-            <label class="form-check-label text-light-gray" style="font-size:12px">Swap</label>
-          </div>
-          <select class="form-select form-select-sm bg-dark text-white border-secondary" data-action="swap-role" data-pick-id="${pick.id}" ${swapChecked ? '' : 'disabled'}>
-            <option value="SB" ${pick.swapRole === 'SB' ? 'selected' : ''}>SB</option>
-            <option value="SW" ${pick.swapRole === 'SW' ? 'selected' : ''}>SW</option>
-          </select>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <button type="button" data-action="set-swap-role" data-pick-id="${pick.id}" data-role="SB"
+            style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;min-height:30px;border:1px solid ${pick.swapRole === 'SB' ? '#e74c3c' : 'rgba(255,255,255,0.2)'};background:${pick.swapRole === 'SB' ? 'rgba(231,76,60,0.2)' : 'transparent'};color:${pick.swapRole === 'SB' ? '#e74c3c' : 'rgba(255,255,255,0.5)'}">SB</button>
+          <button type="button" data-action="set-swap-role" data-pick-id="${pick.id}" data-role="SW"
+            style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;min-height:30px;border:1px solid ${pick.swapRole === 'SW' ? '#e74c3c' : 'rgba(255,255,255,0.2)'};background:${pick.swapRole === 'SW' ? 'rgba(231,76,60,0.2)' : 'transparent'};color:${pick.swapRole === 'SW' ? '#e74c3c' : 'rgba(255,255,255,0.5)'}">SW</button>
+          ${pick.swapRole ? `<button type="button" data-action="clear-swap" data-pick-id="${pick.id}"
+            style="padding:4px 7px;border-radius:6px;font-size:11px;cursor:pointer;min-height:30px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.4)"><i class="bi bi-x-lg"></i></button>` : ''}
         </div>
       ` : '';
     return `

@@ -1873,8 +1873,10 @@ function getSerasaScore(int $avisos): array {
 
             const getSwapTags = (pick) => {
                 const swapType = String(pick?.swap_type || '').toUpperCase().trim();
+                const partner = [pick?.swap_partner_city, pick?.swap_partner_name].filter(Boolean).join(' ').trim();
+                const partnerHtml = partner ? `<span style="font-size:11px;color:var(--text-2);margin-left:3px">c/ ${partner}</span>` : '';
                 if (swapType === 'SB' || swapType === 'SW') {
-                    return `<span class="badge-pill gray" style="margin-left:6px">${swapType}</span>`;
+                    return `<span class="badge-pill gray" style="margin-left:6px">${swapType}</span>${partnerHtml}`;
                 }
                 const text = String(pick?.notes || '');
                 const tags = [];
@@ -1882,7 +1884,7 @@ function getSerasaScore(int $avisos): array {
                 if (/\bSW\b/i.test(text)) tags.push('SW');
                 if (/swap/i.test(text) && tags.length === 0) tags.push('SB', 'SW');
                 if (!tags.length) return '';
-                return tags.map(tag => `<span class="badge-pill gray" style="margin-left:6px">${tag}</span>`).join('');
+                return tags.map(tag => `<span class="badge-pill gray" style="margin-left:6px">${tag}</span>`).join('') + partnerHtml;
             };
 
             const renderPickWithTeam = (pk) => {

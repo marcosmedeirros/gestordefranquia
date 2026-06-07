@@ -468,7 +468,7 @@ body{overflow-x:hidden}
       </div>
       <?php if ($propose): ?>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <button class="btn-r secondary sm" onclick="resetAll()"><i class="bi bi-x-lg"></i>Limpar</button>
+        <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
         <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
         <button class="btn-r primary lg" id="submitBtn" onclick="submitTrade()" disabled>
           <i class="bi bi-send-fill"></i>Enviar Proposta
@@ -476,6 +476,7 @@ body{overflow-x:hidden}
       </div>
       <?php else: ?>
       <div style="display:flex;gap:8px">
+        <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
         <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
         <a href="/trade-simulator.php?propose=1" class="btn-r outline sm" style="text-decoration:none"><i class="bi bi-send"></i>Propor esta trade</a>
       </div>

@@ -3,7 +3,15 @@
     "allow": [
       "Bash(node -e ' *)",
       "Bash(php -l \"c:/Users/marco/IdeaProjects/gestordefranquia/games/games/penalti.php\")",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(python3)",
+      "Bash(sed \"s/',.*//g\")",
+      "Bash(sed \"s/^\\([0-9]*, [0-9]*, 'ELITE', [0-9]*, [0-9]*, [0-9]*, [^,]*, [^,]*, [^,]*, [^,]*, '[^']*', '//g\")",
+      "Bash(awk \"NR>=26418 && NR<=45500\" \"c:/Users/marco/IdeaProjects/gestordefranquia/bancos_local_test/u289267434_fbabrasilbanco.sql\")",
+      "Bash(awk -F\"'ELITE'\" '{print $2}')",
+      "Bash(grep -n \"INSERT INTO \\\\`seasons\\\\`\" \"c:/Users/marco/IdeaProjects/gestordefranquia/bancos_local_test/u289267434_fbabrasilbanco.sql\")",
+      "PowerShell(php --version 2>&1)",
+      "PowerShell(mysql --version 2>&1)"
     ]
   }
 }
