@@ -569,7 +569,12 @@ function populateTeamSelect(key, teamsList) {
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">Selecionar time...</option>';
-  teamsList.forEach(t => {
+  const sorted = [...teamsList].sort((a, b) => {
+    const na = `${a.city ?? ''} ${a.name ?? ''}`.trim().toLowerCase();
+    const nb = `${b.city ?? ''} ${b.name ?? ''}`.trim().toLowerCase();
+    return na.localeCompare(nb, 'pt-BR');
+  });
+  sorted.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id;
     opt.textContent = `${t.city ?? ''} ${t.name ?? ''}`.trim();
