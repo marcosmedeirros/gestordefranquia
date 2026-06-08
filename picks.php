@@ -38,12 +38,13 @@ $currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
            last_owner.city AS last_owner_city, last_owner.name AS last_owner_name,
+           swap_team.id AS swap_partner_team_id,
            swap_team.city AS swap_partner_city, swap_team.name AS swap_partner_name
     FROM picks p
     LEFT JOIN teams orig ON p.original_team_id = orig.id
     LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
     LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
-    LEFT JOIN teams swap_team ON swap_pick.team_id = swap_team.id
+    LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
     WHERE p.team_id = ? AND p.season_year > ?
     ORDER BY p.season_year, p.round
 ');
@@ -56,7 +57,7 @@ $stmtPicksAway = $pdo->prepare('
     FROM picks p
     LEFT JOIN teams current_owner ON p.team_id = current_owner.id
     LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
-    LEFT JOIN teams swap_team ON swap_pick.team_id = swap_team.id
+    LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
     WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year > ?
     ORDER BY p.season_year, p.round
 ');
@@ -439,7 +440,8 @@ $tradedAway   = count($picksAway);
                     <?php foreach ($picksByRound['1'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $isAuto = !empty($pick['auto_generated']);
-                        $swapTags = extractSwapTags($pick['notes'] ?? '');
+                        $st = $pick['swap_type'] ?? null;
+                        $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? '');
                     ?>
                     <div class="pick-row">
                         <div class="pick-year"><?= (int)$pick['season_year'] ?></div>
@@ -455,8 +457,8 @@ $tradedAway   = count($picksAway);
                                     <?php foreach ($swapTags as $tag): ?>
                                         <span class="tag gray" style="margin-left:6px"><?= htmlspecialchars($tag) ?></span>
                                     <?php endforeach; ?>
-                                    <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); ?>
-                                    <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:3px">c/ <?= htmlspecialchars($swapPartner) ?></span><?php endif; ?>
+                                    <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); $isOwnSwap = !empty($pick['swap_partner_team_id']) && (int)$pick['swap_partner_team_id'] === (int)$team['id']; ?>
+                                    <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:3px"><?= $isOwnSwap ? 'c/ própria' : 'c/ ' . htmlspecialchars($swapPartner) ?></span><?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -488,7 +490,8 @@ $tradedAway   = count($picksAway);
                     <?php foreach ($picksByRound['2'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $isAuto = !empty($pick['auto_generated']);
-                        $swapTags = extractSwapTags($pick['notes'] ?? '');
+                        $st = $pick['swap_type'] ?? null;
+                        $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? '');
                     ?>
                     <div class="pick-row">
                         <div class="pick-year blue"><?= (int)$pick['season_year'] ?></div>
@@ -504,8 +507,8 @@ $tradedAway   = count($picksAway);
                                     <?php foreach ($swapTags as $tag): ?>
                                         <span class="tag gray" style="margin-left:6px"><?= htmlspecialchars($tag) ?></span>
                                     <?php endforeach; ?>
-                                    <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); ?>
-                                    <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:3px">c/ <?= htmlspecialchars($swapPartner) ?></span><?php endif; ?>
+                                    <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); $isOwnSwap = !empty($pick['swap_partner_team_id']) && (int)$pick['swap_partner_team_id'] === (int)$team['id']; ?>
+                                    <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:3px"><?= $isOwnSwap ? 'c/ própria' : 'c/ ' . htmlspecialchars($swapPartner) ?></span><?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -570,7 +573,7 @@ $tradedAway   = count($picksAway);
                 </div>
                 <?php else: ?>
                 <?php foreach ($picksAway as $pick): ?>
-                <?php $swapTags = extractSwapTags($pick['notes'] ?? ''); ?>
+                <?php $st = $pick['swap_type'] ?? null; $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? ''); ?>
                 <div class="away-row">
                     <div class="away-year"><?= (int)$pick['season_year'] ?></div>
                     <div class="away-mid">

@@ -183,12 +183,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         SELECT p.*,
                orig.city as original_team_city, orig.name as original_team_name,
                last_t.city as last_owner_city, last_t.name as last_owner_name,
+               swap_team.id as swap_partner_team_id,
                swap_team.city as swap_partner_city, swap_team.name as swap_partner_name
         FROM picks p
         LEFT JOIN teams orig ON p.original_team_id = orig.id
         LEFT JOIN teams last_t ON p.last_owner_team_id = last_t.id
         LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
-        LEFT JOIN teams swap_team ON swap_pick.team_id = swap_team.id
+        LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
         WHERE p.team_id = ?
           AND (p.season_year IS NULL OR p.season_year >= ?)
         ORDER BY p.season_year, p.round
@@ -245,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             FROM picks p
             LEFT JOIN teams current_owner ON p.team_id = current_owner.id
             LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
-            LEFT JOIN teams swap_team ON swap_pick.team_id = swap_team.id
+            LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
             WHERE p.original_team_id = ? AND p.team_id <> ?
             ORDER BY p.season_year, p.round
         ');

@@ -1874,7 +1874,9 @@ function getSerasaScore(int $avisos): array {
             const getSwapTags = (pick) => {
                 const swapType = String(pick?.swap_type || '').toUpperCase().trim();
                 const partner = [pick?.swap_partner_city, pick?.swap_partner_name].filter(Boolean).join(' ').trim();
-                const partnerHtml = partner ? `<span style="font-size:11px;color:var(--text-2);margin-left:3px">c/ ${partner}</span>` : '';
+                const isOwnSwap = pick?.swap_partner_team_id && Number(pick.swap_partner_team_id) === Number(pick.team_id);
+                const partnerLabel = isOwnSwap ? 'c/ própria' : (partner ? `c/ ${partner}` : '');
+                const partnerHtml = partnerLabel ? `<span style="font-size:11px;color:var(--text-2);margin-left:3px">${partnerLabel}</span>` : '';
                 if (swapType === 'SB' || swapType === 'SW') {
                     return `<span class="badge-pill gray" style="margin-left:6px">${swapType}</span>${partnerHtml}`;
                 }
