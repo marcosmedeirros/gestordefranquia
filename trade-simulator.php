@@ -594,6 +594,7 @@ async function loadTeam(key, teamId) {
   teams[key] = {
     id: +teamId,
     name: `${d.team.city ?? ''} ${d.team.name ?? ''}`.trim(),
+    shortName: d.team.name ?? '',
     photo_url: d.team.photo_url || '',
     players: d.players,
     picks:   d.picks,
@@ -1135,29 +1136,25 @@ function escA(s) { return String(s ?? '').replace(/"/g,'&quot;'); }
 // ── Copy trade to clipboard ───────────────────────────────────────────────────
 function copyTrade() {
   const lines = [];
+  const loadedCount = activeSlots.filter(k => teams[k]).length;
+  const isMulti = loadedCount > 2;
 
   activeSlots.forEach(key => {
     const t = teams[key];
     if (!t) return;
 
-    // Todos os itens que este time ENVIA (fromKey === key em qualquer receives)
-    const sends = [];
-    activeSlots.forEach(toKey => {
-      if (toKey === key) return;
-      (receives[toKey] || []).forEach(item => {
-        if (item.fromKey === key) sends.push(item);
-      });
-    });
+    const items = receives[key] || [];
+    if (!items.length) return;
 
-    if (!sends.length) return;
-
-    lines.push(`${t.name.toUpperCase()} envia:`);
-    sends.forEach(item => {
+    lines.push(`${t.name.toUpperCase()} recebe:`);
+    items.forEach(item => {
+      const fromTeam = teams[item.fromKey];
+      const prefix = isMulti && fromTeam ? `${fromTeam.shortName} → ` : '';
       if (item.type === 'player') {
-        lines.push(`  • ${item.name} (${item.pos}, OVR ${item.ovr}/${item.age}a)`);
+        lines.push(`  • ${prefix}${item.name} (${item.pos}, OVR ${item.ovr}/${item.age}a)`);
       } else {
         const swap = item.swapRole ? ` [${item.swapRole}]` : '';
-        lines.push(`  • ${item.label} (${item.orig})${swap}`);
+        lines.push(`  • ${prefix}${item.label} (${item.orig})${swap}`);
       }
     });
     lines.push('');
