@@ -90,6 +90,7 @@ foreach (['champion VARCHAR(100) NULL AFTER neymar_goals','vice VARCHAR(100) NUL
     try { $pdo->exec("ALTER TABLE copa26_official ADD COLUMN $col"); } catch(Exception $e){}
 }
 try { $pdo->exec("ALTER TABLE copa26_official ADD COLUMN bracket_open TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
+try { $pdo->exec("ALTER TABLE copa26_official ADD COLUMN groups_open TINYINT(1) NOT NULL DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->exec("ALTER TABLE copa26_predictions ADD COLUMN bracket_submitted_at TIMESTAMP NULL DEFAULT NULL"); } catch(Exception $e){}
 try { $pdo->exec("ALTER TABLE copa26_teams ADD COLUMN sort_order TINYINT NOT NULL DEFAULT 0 AFTER flag"); } catch(Exception $e){}
 // migrate sort_order = 0 rows to position based on name (one-time fix)
@@ -269,6 +270,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $body = json_decode(file_get_contents('php://input'),true)??[];
     $act  = $body['action']??'';
 
+    if (($act==='save'||$act==='submit')&&!$groupsOpen&&!$submitted) {
+        echo json_encode(['ok'=>false,'msg'=>'Fase de grupos encerrada.']); exit;
+    }
     if ($act==='save') {
         $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,champion,vice)
             VALUES (?,?,?,?,?,?,?,?,?,?)
@@ -366,6 +370,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $pdo->prepare("INSERT INTO copa26_official (id,bracket_open) VALUES (1,?) ON DUPLICATE KEY UPDATE bracket_open=?")->execute([$val,$val]);
         echo json_encode(['ok'=>true,'open'=>$val]); exit;
     }
+    if ($act==='toggle_groups_open'&&$isAdmin) {
+        $val=(int)($body['open']??0);
+        $pdo->prepare("INSERT INTO copa26_official (id,groups_open) VALUES (1,?) ON DUPLICATE KEY UPDATE groups_open=?")->execute([$val,$val]);
+        echo json_encode(['ok'=>true,'open'=>$val]); exit;
+    }
     if ($act==='reset_brackets'&&$isAdmin) {
         $pdo->exec("UPDATE copa26_predictions SET bracket_json=NULL, bracket_submitted_at=NULL");
         echo json_encode(['ok'=>true]); exit;
@@ -406,7 +415,8 @@ $predBracket  = $pred?(json_decode($pred['bracket_json'] ??'{}',true)?:[]):[];
 
 $official=null; $hasOfficial=false;
 try { $official=$pdo->query("SELECT * FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC)?:null; $hasOfficial=$official&&($official['groups_json']||$official['bracket_json']); } catch(Exception $e){}
-$bracketOpen = (int)($official['bracket_open'] ?? 0);
+$bracketOpen  = (int)($official['bracket_open']  ?? 0);
+$groupsOpen   = (int)($official['groups_open']   ?? 1); // 1 = aberto por padrão
 $bracketSubmitted = !empty($pred['bracket_submitted_at']);
 
 $offGroups  = $official?(json_decode($official['groups_json']  ??'[]',true)?:[]):[];
@@ -918,17 +928,24 @@ async function savePendingPopup(){
 </div>
 <?php endif; ?>
 
+<?php
+// Visibilidade das abas para não-admins:
+// grupos_open=1 → todos veem; grupos_open=0 → só quem submeteu vê grupos+bracket
+$showGruposTab  = $isAdmin || $groupsOpen || $submitted;
+$showBracketTab = ($isAdmin || $submitted) && $bracketOpen;
+$defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
+?>
 <!-- Tabs -->
 <div class="copa-tabs" id="copaTabs">
-  <button class="copa-tab active" data-tab="grupos">⚽ Grupos</button>
-  <button class="copa-tab" data-tab="bracket" <?= $bracketOpen ? '' : 'style="display:none"' ?>>🏆 Bracket</button>
-  <button class="copa-tab" data-tab="jogos">⚽ Jogos</button>
+  <button class="copa-tab <?= $defaultTab==='grupos'?'active':'' ?>" data-tab="grupos" <?= $showGruposTab ? '' : 'style="display:none"' ?>>⚽ Grupos</button>
+  <button class="copa-tab" data-tab="bracket" <?= $showBracketTab ? '' : 'style="display:none"' ?>>🏆 Bracket</button>
+  <button class="copa-tab <?= $defaultTab==='jogos'?'active':'' ?>" data-tab="jogos">⚽ Jogos</button>
   <button class="copa-tab" data-tab="ranking">📊 Ranking</button>
   <?php if ($isAdmin): ?><button class="copa-tab admin-tab" data-tab="admin">🔧 Admin</button><?php endif; ?>
 </div>
 
 <!-- ── GRUPOS ─────────────────────────────────────────────────────────────── -->
-<div class="copa-pane active" id="pane-grupos">
+<div class="copa-pane <?= $defaultTab==='grupos'?'active':'' ?>" id="pane-grupos">
   <p class="section-info"><i class="bi bi-info-circle"></i> Clique em <strong>1</strong>, <strong>2</strong> ou <strong>3</strong> ao lado de cada time para definir sua posição no grupo. O <strong>3</strong> marca o terceiro que avança (máx. 8).</p>
   <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Terceiros marcados: <strong id="thirdsSelectedCount"><?=count($predThirds??[])?></strong>/8</div>
   <div class="groups-grid" id="groupsGrid">
@@ -963,9 +980,13 @@ async function savePendingPopup(){
   </div>
   <?php endforeach; ?>
   </div>
-  <?php if (!$submitted): ?>
+  <?php if (!$submitted && $groupsOpen): ?>
   <div style="margin-top:14px;text-align:right">
     <button class="btn-r outline" onclick="saveDraft()"><i class="bi bi-floppy"></i>Salvar</button>
+  </div>
+  <?php elseif (!$submitted && !$groupsOpen): ?>
+  <div style="margin-top:14px;padding:10px 14px;background:rgba(252,0,37,.06);border:1px solid rgba(252,0,37,.2);border-radius:8px;font-size:12px;color:var(--red)">
+    <i class="bi bi-lock-fill"></i> Fase de grupos encerrada. Você não enviou seu palpite a tempo.
   </div>
   <?php endif; ?>
 </div>
@@ -1062,7 +1083,7 @@ async function savePendingPopup(){
     </div>
   </div>
 
-  <?php if (!$submitted): ?>
+  <?php if (!$submitted && $groupsOpen): ?>
   <div class="submit-bar">
     <div class="submit-bar-info"><strong>Tudo pronto?</strong> Após enviar não é possível editar.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1074,7 +1095,7 @@ async function savePendingPopup(){
 </div>
 
 <!-- ── JOGOS ──────────────────────────────────────────────────────────────── -->
-<div class="copa-pane" id="pane-jogos">
+<div class="copa-pane <?= $defaultTab==='jogos'?'active':'' ?>" id="pane-jogos">
   <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:var(--radius-sm);font-size:12px;color:#7db4f5;margin-bottom:16px">
     <i class="bi bi-calendar-event" style="font-size:14px;flex-shrink:0"></i>
     Os jogos são liberados no dia em que acontecem. Volte a cada rodada para preencher seu palpite de placar.
@@ -1254,6 +1275,9 @@ async function savePendingPopup(){
   <div class="admin-section">
     <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Controle do Bracket (Mata-Mata)</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-r <?= $groupsOpen ? 'secondary' : 'outline' ?>" id="btnToggleGroups" onclick="toggleGroupsOpen()">
+        <i class="bi bi-<?= $groupsOpen ? 'lock-fill' : 'unlock' ?>"></i><?= $groupsOpen ? 'Fechar Fase de Grupos' : 'Abrir Fase de Grupos' ?>
+      </button>
       <button class="btn-r <?= $bracketOpen ? 'primary' : 'outline' ?>" id="btnToggleBracket" onclick="toggleBracketOpen()">
         <i class="bi bi-<?= $bracketOpen ? 'lock-fill' : 'unlock' ?>"></i><?= $bracketOpen ? 'Fechar Bracket' : 'Abrir Bracket para palpites' ?>
       </button>
@@ -1442,6 +1466,7 @@ async function savePendingPopup(){
 const SUBMITTED          = <?=json_encode($submitted)?>;
 const BRACKET_OPEN       = <?=json_encode((bool)$bracketOpen)?>;
 const BRACKET_SUBMITTED  = <?=json_encode($bracketSubmitted)?>;
+const GROUPS_OPEN_INIT   = <?=json_encode((bool)$groupsOpen)?>;
 const GROUPS_DATA= <?=json_encode(array_map(fn($g)=>$g['teams'],$groups))?>;
 const GROUP_KEYS = <?=json_encode(array_keys($groups))?>;
 
@@ -1695,7 +1720,7 @@ function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
     if(nr){const ni=Math.floor(matchIdx/2),ns=matchIdx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
 }
 
-const BRACKET_EDITABLE = BRACKET_OPEN && !BRACKET_SUBMITTED;
+let BRACKET_EDITABLE = BRACKET_OPEN && !BRACKET_SUBMITTED;
 function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);}
 function admSetWinner(r,i,team){setWinnerGeneric(r,i,team,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
@@ -1865,6 +1890,25 @@ async function calcPoints(){
     if(r.ok)setTimeout(()=>location.reload(),1200);
 }
 let _bracketOpen = <?=json_encode((bool)$bracketOpen)?>;
+let _groupsOpen  = <?=json_encode((bool)$groupsOpen)?>;
+async function toggleGroupsOpen(){
+    const newVal = _groupsOpen ? 0 : 1;
+    const r=await post({action:'toggle_groups_open',open:newVal});
+    if(!r.ok){showToast('Erro.',true);return;}
+    _groupsOpen = !!newVal;
+    const btn=document.getElementById('btnToggleGroups');
+    if(btn){
+        btn.innerHTML=_groupsOpen
+            ?'<i class="bi bi-lock-fill"></i>Fechar Fase de Grupos'
+            :'<i class="bi bi-unlock"></i>Abrir Fase de Grupos';
+        btn.className='btn-r '+(_groupsOpen?'secondary':'outline');
+    }
+    // mostrar/ocultar aba de grupos para não-admins (sem reload — apenas reflecte estado)
+    document.querySelectorAll('[data-tab="grupos"]').forEach(t=>{
+        if(!SUBMITTED) t.style.display=_groupsOpen?'':'none';
+    });
+    showToast(_groupsOpen?'Fase de grupos aberta!':'Fase de grupos encerrada.');
+}
 async function toggleBracketOpen(){
     const newVal = _bracketOpen ? 0 : 1;
     const r=await post({action:'toggle_bracket_open',open:newVal});
@@ -1879,6 +1923,9 @@ async function toggleBracketOpen(){
     }
     // show/hide bracket tab
     document.querySelectorAll('[data-tab="bracket"]').forEach(t=>t.style.display=_bracketOpen?'':'none');
+    // atualiza editabilidade e re-renderiza bracket se já construído
+    BRACKET_EDITABLE = _bracketOpen && !BRACKET_SUBMITTED;
+    if(bracketMatchups.r32&&bracketMatchups.r32.length) renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
     showToast(_bracketOpen?'Bracket aberto para palpites!':'Bracket fechado.');
 }
 async function resetBrackets(){
