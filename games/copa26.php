@@ -883,7 +883,7 @@ async function savePendingPopup(){
 <div class="copa-tabs" id="copaTabs">
   <button class="copa-tab active" data-tab="grupos">⚽ Grupos</button>
   <button class="copa-tab" data-tab="thirds">🥉 3º Lugar</button>
-  <button class="copa-tab" data-tab="bracket">🏆 Bracket</button>
+  <button class="copa-tab" data-tab="bracket" style="display:none">🏆 Bracket</button>
   <button class="copa-tab" data-tab="jogos">⚽ Jogos</button>
   <button class="copa-tab" data-tab="ranking">📊 Ranking</button>
   <?php if ($isAdmin): ?><button class="copa-tab admin-tab" data-tab="admin">🔧 Admin</button><?php endif; ?>
@@ -945,7 +945,7 @@ async function savePendingPopup(){
   <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Classificados: <strong id="thirdsCount"><?=count($predThirds??[])?></strong>/8</div>
   <?php if (!$submitted): ?>
   <div style="margin-top:14px;text-align:right">
-    <button class="btn-r outline" onclick="nextTab('bracket')">Próximo: Bracket <i class="bi bi-arrow-right"></i></button>
+    <button class="btn-r outline" onclick="nextTab('bracket')" style="display:none">Próximo: Bracket <i class="bi bi-arrow-right"></i></button>
   </div>
   <?php endif; ?>
 </div>
@@ -1125,7 +1125,7 @@ async function savePendingPopup(){
             <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1<br><span style="font-size:10px;color:var(--gold)">+1 bônus</span></td>
             <td style="padding:8px;color:var(--text-2)">1pt se o time avançou. +1pt bônus se a posição exata no ranking dos 8 terceiros também estiver certa.</td>
           </tr>
-          <tr style="border-bottom:1px solid var(--border)">
+          <tr style="border-bottom:1px solid var(--border);display:none">
             <td style="padding:8px;color:var(--text);font-weight:600">Bracket (mata-mata)</td>
             <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
             <td style="padding:8px;color:var(--text-2)">Por time correto avançando em cada confronto — 16 avos, oitavas, quartas, semis e final.</td>
@@ -1233,7 +1233,7 @@ async function savePendingPopup(){
   </div>
 
   <!-- Bracket oficial -->
-  <div class="admin-section">
+  <div class="admin-section" style="display:none">
     <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Bracket Oficial (Mata-Mata)</div>
     <p class="section-info">Clique no time que avançou em cada confronto.</p>
     <div class="bracket-wrap"><div class="bracket" id="admBracketEl"></div></div>
