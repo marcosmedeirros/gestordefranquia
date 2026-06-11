@@ -172,12 +172,9 @@ function calcAllPoints(PDO $pdo, array $off): void {
             if (isset($offOrder[2],$uo[2]) && $offOrder[2]==$uo[2]) $pts++;
         }
         $ut = json_decode($p['thirds_json'] ?? '[]', true) ?: [];
-        // 1pt por cada terceiro que avançou corretamente + 1pt bônus se posição exata
+        // 1pt por cada terceiro que avançou corretamente
         foreach ($ot as $pos => $gid) {
-            if (in_array($gid, $ut)) {
-                $pts++;
-                if (isset($ut[$pos]) && $ut[$pos] == $gid) $pts++;
-            }
+            if (in_array($gid, $ut)) $pts++;
         }
         $ub = json_decode($p['bracket_json'] ?? '{}', true) ?: [];
         foreach ($ob as $key=>$ot2) {
@@ -1251,8 +1248,8 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
           </tr>
           <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:8px;color:var(--text);font-weight:600">Terceiros colocados</td>
-            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1<br><span style="font-size:10px;color:var(--gold)">+1 bônus</span></td>
-            <td style="padding:8px;color:var(--text-2)">1pt se o time avançou. +1pt bônus se a posição exata no ranking dos 8 terceiros também estiver certa.</td>
+            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
+            <td style="padding:8px;color:var(--text-2)">1pt se o time avançou para as oitavas de final.</td>
           </tr>
           <tr style="border-bottom:1px solid var(--border);display:none">
             <td style="padding:8px;color:var(--text);font-weight:600">Bracket (mata-mata)</td>
@@ -1642,13 +1639,13 @@ const LETTER_TO_GROUP_ID = <?=json_encode(array_combine(
 // Constraint: a 3rd from group X cannot face Winner X (same-group rematch).
 const THIRD_SLOT_ELIGIBLE = {
     1:  ['A','B','C','D','F'],   // J74 idx1: vs 1E
-    4:  ['C','D','F','G','H'],   // J77 idx4: vs 1I
+    5:  ['C','D','F','G','H'],   // J77 idx5: vs 1I
     6:  ['C','E','F','H','I'],   // J79 idx6: vs 1A
     7:  ['E','H','I','J','K'],   // J80 idx7: vs 1L
-    8:  ['B','E','F','I','J'],   // J81 idx8: vs 1D
-    9:  ['A','E','H','I','J'],   // J82 idx9: vs 1G
-    12: ['E','F','G','I','J'],   // J85 idx12: vs 1B
-    14: ['D','E','I','J','L'],   // J87 idx14: vs 1K
+    10: ['A','E','H','I','J'],   // J82 idx10: vs 1G
+    11: ['B','E','F','I','J'],   // J81 idx11: vs 1D
+    13: ['D','E','I','J','L'],   // J87 idx13: vs 1K
+    14: ['E','F','G','I','J'],   // J85 idx14: vs 1B
 };
 
 function assignThirdsToSlots(thirdsArr, tMap) {
@@ -1692,25 +1689,26 @@ function buildR32(orderMap){
     const nth=assignThirdsToSlots(thirdsArr,t);
 
     // R32 ordenado em pares que alimentam cada jogo do R16:
-    // [0,1]→R16[0]  [2,3]→R16[1]  [4,5]→R16[2]  [6,7]→R16[3]
-    // [8,9]→R16[4] [10,11]→R16[5] [12,13]→R16[6] [14,15]→R16[7]
+    // Adjacent pairs feed oitavas: [0,1]→Oitavas[0],[2,3]→[1],[4,5]→[2],[6,7]→[3]
+    // [8,9]→[4],[10,11]→[5],[12,13]→[6],[14,15]→[7]
+    // Oitavas→Quartas: [0,1]→QF0(J97), [2,3]→QF1(J99), [4,5]→QF2(J98), [6,7]→QF3(J100)
     return [
-        [s['A'], s['B']],   // J73 idx0: 2A vs 2B       → R16[0]
-        [f['E'], nth(1)],   // J74 idx1: 1E vs 3º(A/B/C/D/F)→ R16[0]
-        [f['F'], s['C']],   // J75 idx2: 1F vs 2C        → R16[1]
-        [f['C'], s['F']],   // J76 idx3: 1C vs 2F        → R16[1]
-        [f['I'], nth(4)],   // J77 idx4: 1I vs 3º(C/D/F/G/H)→R16[2]
-        [s['E'], s['I']],   // J78 idx5: 2E vs 2I        → R16[2]
-        [f['A'], nth(6)],   // J79 idx6: 1A vs 3º(C/E/F/H/I)→R16[3]
-        [f['L'], nth(7)],   // J80 idx7: 1L vs 3º(E/H/I/J/K)→R16[3]
-        [f['D'], nth(8)],   // J81 idx8: 1D vs 3º(B/E/F/I/J)→R16[4]
-        [f['G'], nth(9)],   // J82 idx9: 1G vs 3º(A/E/H/I/J)→R16[4]
-        [s['K'], s['L']],   // J83 idx10: 2K vs 2L       → R16[5]
-        [f['H'], s['J']],   // J84 idx11: 1H vs 2J       → R16[5]
-        [f['B'], nth(12)],  // J85 idx12: 1B vs 3º(E/F/G/I/J)→R16[6]
-        [f['J'], s['H']],   // J86 idx13: 1J vs 2H       → R16[6]
-        [f['K'], nth(14)],  // J87 idx14: 1K vs 3º(D/E/I/J/L)→R16[7]
-        [s['D'], s['G']],   // J88 idx15: 2D vs 2G       → R16[7]
+        [s['A'], s['B']],    // idx0  J73: 2A vs 2B
+        [f['E'], nth(1)],    // idx1  J74: 1E vs 3º(A/B/C/D/F)
+        [f['C'], s['F']],    // idx2  J76: 1C vs 2F
+        [s['E'], s['I']],    // idx3  J78: 2E vs 2I
+        [f['F'], s['C']],    // idx4  J75: 1F vs 2C
+        [f['I'], nth(5)],    // idx5  J77: 1I vs 3º(C/D/F/G/H)
+        [f['A'], nth(6)],    // idx6  J79: 1A vs 3º(C/E/F/H/I)
+        [f['L'], nth(7)],    // idx7  J80: 1L vs 3º(E/H/I/J/K)
+        [f['H'], s['J']],    // idx8  J84: 1H vs 2J
+        [s['K'], s['L']],    // idx9  J83: 2K vs 2L
+        [f['G'], nth(10)],   // idx10 J82: 1G vs 3º(A/E/H/I/J)
+        [f['D'], nth(11)],   // idx11 J81: 1D vs 3º(B/E/F/I/J)
+        [s['D'], s['G']],    // idx12 J88: 2D vs 2G
+        [f['K'], nth(13)],   // idx13 J87: 1K vs 3º(D/E/I/J/L)
+        [f['B'], nth(14)],   // idx14 J85: 1B vs 3º(E/F/G/I/J)
+        [f['J'], s['H']],    // idx15 J86: 1J vs 2H
     ];
 }
 

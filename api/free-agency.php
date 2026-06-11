@@ -937,7 +937,7 @@ function listWaivers(PDO $pdo, string $league): void
         $params[] = $teamFilter;
     }
 
-    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, {$seasonSelect}
+    $stmt = $pdo->prepare("SELECT fa.id, fa.name, fa.original_team_name, fa.waived_at, {$seasonSelect}
         FROM free_agents fa
         {$seasonJoin}
         WHERE {$where}

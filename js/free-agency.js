@@ -891,7 +891,7 @@ function renderWaiversList(waivers) {
     );
 
     let html = '<div class="table-responsive"><table class="table table-dark table-hover mb-0">';
-    html += '<thead><tr><th>Jogador</th><th>Temporada</th><th><button type="button" class="btn btn-link p-0 text-white" onclick="toggleFaWaiversTeamSort()">Time' + sortIndicator(faWaiversTeamSort) + '</button></th></tr></thead><tbody>';
+    html += '<thead><tr><th>Jogador</th><th>Temporada</th><th><button type="button" class="btn btn-link p-0 text-white" onclick="toggleFaWaiversTeamSort()">Time' + sortIndicator(faWaiversTeamSort) + '</button></th><th>Dispensado em</th></tr></thead><tbody>';
     sorted.forEach(item => {
         const teamName = item.original_team_name || '-';
         let seasonLabel = '-';
@@ -903,10 +903,16 @@ function renderWaiversList(waivers) {
         } else if (item.season_year) {
             seasonLabel = `Temp ${item.season_year}`;
         }
+        let waivedLabel = '-';
+        if (item.waived_at) {
+            const d = new Date(item.waived_at.replace(' ', 'T'));
+            waivedLabel = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        }
         html += `<tr>
             <td><strong class="text-orange">${item.name}</strong></td>
             <td>${seasonLabel}</td>
             <td>${teamName}</td>
+            <td style="white-space:nowrap;color:var(--text-2);font-size:12px">${waivedLabel}</td>
         </tr>`;
     });
     html += '</tbody></table></div>';
