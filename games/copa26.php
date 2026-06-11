@@ -260,6 +260,12 @@ function seedCopa26Fixtures(PDO $pdo): int {
     return $cnt;
 }
 
+// ── Early fetch needed by POST guard ─────────────────────────────────────────
+$_pEarly=null; try{$s=$pdo->prepare("SELECT submitted_at FROM copa26_predictions WHERE user_id=?");$s->execute([$user_id]);$_pEarly=$s->fetch(PDO::FETCH_ASSOC)?:null;}catch(Exception $e){}
+$_oEarly=null; try{$_oEarly=$pdo->query("SELECT groups_open FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC)?:null;}catch(Exception $e){}
+$submitted  = !empty($_pEarly['submitted_at']);
+$groupsOpen = (int)($_oEarly['groups_open'] ?? 1);
+
 // ── POST handlers ─────────────────────────────────────────────────────────────
 if ($isAdmin && isset($_GET['action']) && $_GET['action']==='seed') {
     seedCopa26($pdo); header('Location: copa26.php'); exit;
@@ -553,24 +559,41 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .group-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
 .group-card-header{padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .group-letter{font-size:12px;font-weight:700;color:var(--red)}.group-label{font-size:10px;color:var(--text-3);text-transform:uppercase}
-.group-teams{padding:6px}
-.team-row{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:7px;transition:background var(--t);border:1px solid transparent;margin-bottom:3px;user-select:none}
-.team-row:last-child{margin-bottom:0}.team-row:hover{background:var(--panel-2)}
-.team-row.rank-1{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2)}
-.team-row.rank-2{background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.15)}
-.team-row.rank-3{background:rgba(255,255,255,.02)}
-.team-rank{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
-.rank-1 .team-rank{background:rgba(245,158,11,.2);color:var(--gold)}.rank-2 .team-rank{background:rgba(59,130,246,.15);color:var(--blue)}
-.rank-3 .team-rank,.rank-4 .team-rank{background:var(--panel-3);color:var(--text-3)}
-.team-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}.team-flag img{width:20px;height:auto;border-radius:2px;display:block}.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-col-header{display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid var(--border);background:var(--panel-2)}
+.group-col-sel{font-size:9px;font-weight:600;color:var(--text-3);text-transform:uppercase;flex:1;letter-spacing:.4px}
+.group-col-pos{display:flex;gap:5px;font-size:9px;font-weight:600;color:var(--text-3)}
+.group-col-pos span{width:22px;text-align:center}
+.group-teams{padding:0}
+.team-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border:none;border-radius:0;margin:0;transition:background .12s;user-select:none;border-bottom:1px solid rgba(0,0,0,.12)}
+.team-row:last-child{border-bottom:none}
+.team-row.rank-1{background:rgba(109,40,217,.78)}
+.team-row.rank-2{background:rgba(161,107,13,.72)}
+.team-row.rank-3.qthird{background:rgba(190,24,93,.62)}
+.team-rank{display:none}
+.team-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}.team-flag img{width:20px;height:auto;border-radius:2px;display:block}
+.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team-row.rank-1 .team-name-sm,.team-row.rank-2 .team-name-sm,.team-row.rank-3.qthird .team-name-sm{color:#fff}
 .advance-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
-.advance-1{background:rgba(245,158,11,.15);color:var(--gold)}.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}
-.pos-btns{display:flex;gap:3px;flex-shrink:0;margin-left:auto}
-.pos-btn{width:20px;height:20px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--text-3);font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--t);font-family:var(--font);line-height:1;flex-shrink:0}
-.pos-btn:hover{border-color:var(--border-md);color:var(--text)}
-.pos-btn.p1.on{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:var(--gold)}
-.pos-btn.p2.on{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:var(--blue)}
-.pos-btn.p3.on{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35);color:var(--green)}
+.advance-1{background:rgba(255,255,255,.22);color:#fff}.advance-2{background:rgba(255,255,255,.22);color:#fff}
+/* pos radio buttons */
+.pos-btns{display:flex;gap:5px;flex-shrink:0;margin-left:auto}
+.pos-btn{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-md);background:transparent;padding:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0;transition:border-color .12s;position:relative}
+.team-row.rank-1 .pos-btn,.team-row.rank-2 .pos-btn,.team-row.rank-3.qthird .pos-btn{border-color:rgba(255,255,255,.35)}
+.team-row.rank-1 .pos-btn:hover,.team-row.rank-2 .pos-btn:hover,.team-row.rank-3.qthird .pos-btn:hover{border-color:rgba(255,255,255,.7)}
+.pos-btn.on{border-color:rgba(255,255,255,.95)}
+.pos-btn.on::after{content:'';width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.95);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+/* neutral rows colored buttons */
+.team-row.rank-3:not(.qthird) .pos-btn,.team-row.rank-4 .pos-btn{border-color:var(--border)}
+.team-row.rank-3:not(.qthird) .pos-btn:hover,.team-row.rank-4 .pos-btn:hover{border-color:var(--text-3)}
+.team-row.rank-3:not(.qthird) .pos-btn.p1.on,.team-row.rank-4 .pos-btn.p1.on{border-color:rgba(109,40,217,.85)}
+.team-row.rank-3:not(.qthird) .pos-btn.p1.on::after,.team-row.rank-4 .pos-btn.p1.on::after{background:#7c3aed}
+.team-row.rank-3:not(.qthird) .pos-btn.p2.on,.team-row.rank-4 .pos-btn.p2.on{border-color:rgba(161,107,13,.85)}
+.team-row.rank-3:not(.qthird) .pos-btn.p2.on::after,.team-row.rank-4 .pos-btn.p2.on::after{background:#b45309}
+.team-row.rank-3:not(.qthird) .pos-btn.p3.on,.team-row.rank-4 .pos-btn.p3.on{border-color:rgba(190,24,93,.85)}
+.team-row.rank-3:not(.qthird) .pos-btn.p3.on::after,.team-row.rank-4 .pos-btn.p3.on::after{background:#be185d}
+/* shuffle button */
+.shuffle-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px;background:rgba(34,197,94,.08);border:none;border-top:1px solid rgba(34,197,94,.15);color:var(--green);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;transition:background .15s;font-family:var(--font)}
+.shuffle-btn:hover{background:rgba(34,197,94,.16)}
 /* thirds */
 .thirds-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 .third-slot{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all var(--t);position:relative}
@@ -578,30 +601,37 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .third-slot-flag{height:22px;display:flex;justify-content:center;align-items:center;margin-bottom:3px}.third-slot-flag img{width:28px;height:auto;border-radius:2px}.third-slot-name{font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.third-slot-group{font-size:9px;color:var(--text-3)}
 .third-rank{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;line-height:1}
 /* bracket */
-.bracket-wrap{overflow-x:auto;padding-bottom:12px}
-.bracket{display:flex;align-items:flex-start;gap:0;padding:4px 0 8px}
-.bracket-round{flex-shrink:0;width:185px;display:flex;flex-direction:column}
-.bracket-round+.bracket-round{margin-left:36px;position:relative}
-.bracket-round-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-3);text-align:center;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.bracket-pair{display:flex;flex-direction:column;gap:5px;position:relative;margin-bottom:14px}
+.bracket-wrap{overflow-x:auto;padding-bottom:16px;-webkit-overflow-scrolling:touch}
+.bracket{display:flex;align-items:flex-start;gap:0;padding:8px 4px 12px;min-width:max-content}
+.bracket-round{flex-shrink:0;width:190px;display:flex;flex-direction:column}
+.bracket-round+.bracket-round{margin-left:42px;position:relative}
+.bracket-round-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);text-align:center;padding:0 0 10px;border-bottom:2px solid var(--border);margin-bottom:12px}
+.bracket-pair{display:flex;flex-direction:column;gap:4px;position:relative;margin-bottom:16px}
 .bracket-pair:last-child{margin-bottom:0}
-/* right connector: horizontal from each match + vertical joining them */
-.bracket-pair::after{content:'';position:absolute;right:-20px;top:calc(50% - 1px);width:20px;height:1px;background:var(--border-md);pointer-events:none}
-.bracket-pair::before{content:'';position:absolute;right:-20px;top:calc(25%);bottom:calc(25%);width:1px;background:var(--border-md);pointer-events:none}
-.bracket-round:last-child .bracket-pair::after,.bracket-round:last-child .bracket-pair::before{display:none}
+.bracket-pair::before{content:'';position:absolute;right:-23px;top:calc(25%);bottom:calc(25%);width:1px;background:var(--border-md);pointer-events:none}
+.bracket-pair::after{content:'';position:absolute;right:-23px;top:calc(50% - 1px);width:23px;height:1px;background:var(--border-md);pointer-events:none}
+.bracket-round:last-child .bracket-pair::before,.bracket-round:last-child .bracket-pair::after{display:none}
 .bracket-match-wrap{position:relative}
-.bracket-match-wrap::after{content:'';position:absolute;right:-36px;top:50%;width:16px;height:1px;background:var(--border-md);pointer-events:none}
-.bracket-round:last-child .bracket-match-wrap::after{display:none}
-.bracket-match{background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden;transition:border-color .2s;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-.bracket-match.has-winner{border-color:rgba(34,197,94,.3);box-shadow:0 1px 8px rgba(34,197,94,.08)}
-.bracket-slot{padding:7px 10px;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--text-2);min-height:32px;transition:background .15s,color .15s;cursor:default}
+.bracket-match{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s,box-shadow .2s;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.bracket-match:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
+.bracket-match.has-winner{border-color:rgba(34,197,94,.28);box-shadow:0 2px 10px rgba(34,197,94,.1)}
+.bracket-slot{padding:8px 11px;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:500;color:var(--text-2);min-height:34px;transition:background .15s,color .15s;cursor:default}
 .bracket-slot.clickable{cursor:pointer}
 .bracket-slot.clickable:hover{background:var(--panel-2);color:var(--text)}
-.bracket-slot.winner{background:rgba(34,197,94,.1);color:var(--green);font-weight:700;border-left:2px solid rgba(34,197,94,.5)}
-.bracket-slot.tbd .bracket-slot-name{color:var(--text-3);font-style:italic;font-size:11px;font-weight:400}
-.bracket-slot-flag{width:18px;height:14px;flex-shrink:0;display:flex;align-items:center}
+.bracket-slot.winner{background:linear-gradient(90deg,rgba(34,197,94,.13),rgba(34,197,94,.03));color:var(--green);font-weight:700;border-left:3px solid rgba(34,197,94,.55)}
+.bracket-slot.tbd .bracket-slot-name{color:var(--text-3);font-style:italic;font-size:10px;font-weight:400}
+.bracket-slot-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}
 .bracket-slot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bracket-divider{height:1px;background:var(--border);margin:0 8px}
+.bracket-divider{height:1px;background:var(--border)}
+/* champion column */
+.bracket-champion-col{flex-shrink:0;display:flex;flex-direction:column;justify-content:center;margin-left:42px;position:relative}
+.bracket-champion-col::before{content:'';position:absolute;left:0;top:50%;width:1px;height:0}
+.bracket-champion{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px 14px;background:linear-gradient(135deg,rgba(245,158,11,.1),rgba(245,158,11,.04));border:2px solid rgba(245,158,11,.3);border-radius:14px;position:relative;min-width:110px}
+.bracket-champion::before{content:'';position:absolute;left:-23px;top:50%;width:23px;height:1px;background:rgba(245,158,11,.35);pointer-events:none}
+.bracket-champion-icon{font-size:26px;line-height:1}
+.bracket-champion-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--gold);opacity:.75}
+.bracket-champion-name{font-size:12px;font-weight:700;color:var(--gold);text-align:center;max-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bracket-champion-flag{display:flex;align-items:center;justify-content:center}
 /* prizes */
 .prizes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}
 .prize-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
@@ -688,8 +718,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   .copa-hero{padding:12px 14px;flex-direction:column;gap:8px}.copa-hero-title{font-size:16px}
   .copa-tabs{gap:0}.copa-tab{padding:9px 11px;font-size:12px}
   .groups-grid{grid-template-columns:repeat(2,1fr);gap:6px}
-  .group-card-header{padding:6px 10px}.group-teams{padding:4px}
-  .team-row{padding:5px 5px;gap:5px}
+  .group-card-header{padding:6px 10px}.group-col-header{padding:4px 8px}
+  .team-row{padding:5px 8px;gap:6px}.pos-btn{width:20px;height:20px}.pos-btn.on::after{width:8px;height:8px}
   .team-name-sm{font-size:10px}
   .thirds-grid{grid-template-columns:repeat(3,1fr)}
   .bracket-slot{padding:5px 8px;font-size:11px}
@@ -968,28 +998,26 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       $thirdSel = in_array($g['id'], $predThirds??[]);
   ?>
   <div class="group-card" data-group="<?=$letter?>">
-    <div class="group-card-header"><span class="group-letter">GRUPO <?=$letter?></span><span class="group-label">Classificação</span></div>
+    <div class="group-card-header"><span class="group-letter">GRUPO <?=$letter?></span></div>
+    <div class="group-col-header"><span class="group-col-sel">Seleção</span><div class="group-col-pos"><span>1°</span><span>2°</span><span>3°</span></div></div>
     <div class="group-teams" id="gt_<?=$letter?>">
-    <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
-    <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
-      <span class="team-rank"><?=$rank?></span>
+    <?php foreach ($teams as $idx=>$t): $rank=$idx+1; $isQ3=($rank===3&&$thirdSel); ?>
+    <div class="team-row rank-<?=$rank?><?=$isQ3?' qthird':''?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
       <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
       <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
-      <?php if ($submitted): ?>
-        <?php if ($rank===1): ?><span class="advance-badge advance-1">1º</span>
-        <?php elseif ($rank===2): ?><span class="advance-badge advance-2">2º</span>
-        <?php elseif ($rank===3 && $thirdSel): ?><span class="advance-badge" style="background:rgba(34,197,94,.15);color:var(--green)">✓ 3º</span>
-        <?php endif; ?>
-      <?php else: ?>
+      <?php if (!$submitted): ?>
       <div class="pos-btns">
-        <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,false)">1</button>
-        <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,false)">2</button>
-        <button type="button" class="pos-btn p3<?=($rank===3&&$thirdSel)?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,false)">3</button>
+        <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,false)"></button>
+        <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,false)"></button>
+        <button type="button" class="pos-btn p3<?=$isQ3?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,false)"></button>
       </div>
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
     </div>
+    <?php if (!$submitted && $groupsOpen): ?>
+    <button class="shuffle-btn" onclick="shuffleGroup('<?=$letter?>',false)"><i class="bi bi-shuffle"></i>Sorteio Aleatório</button>
+    <?php endif; ?>
   </div>
   <?php endforeach; ?>
   </div>
@@ -1309,21 +1337,21 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     ?>
     <div class="group-card">
       <div class="group-card-header"><span class="group-letter">GRUPO <?=$letter?></span><span class="group-label">Oficial</span></div>
+      <div class="group-col-header"><span class="group-col-sel">Seleção</span><div class="group-col-pos"><span>1°</span><span>2°</span><span>3°</span></div></div>
       <div class="group-teams" id="adm_gt_<?=$letter?>">
-      <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
-      <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
-        <span class="team-rank"><?=$rank?></span>
+      <?php foreach ($teams as $idx=>$t): $rank=$idx+1; $thirdSelAdm=in_array($g['id'],$offThirds??[]); $isQ3adm=($rank===3&&$thirdSelAdm); ?>
+      <div class="team-row rank-<?=$rank?><?=$isQ3adm?' qthird':''?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
         <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
         <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
-        <?php $thirdSelAdm = in_array($g['id'], $offThirds??[]); ?>
         <div class="pos-btns">
-          <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,true)">1</button>
-          <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,true)">2</button>
-          <button type="button" class="pos-btn p3<?=($rank===3&&$thirdSelAdm)?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,true)">3</button>
+          <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,true)"></button>
+          <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,true)"></button>
+          <button type="button" class="pos-btn p3<?=$isQ3adm?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,true)"></button>
         </div>
       </div>
       <?php endforeach; ?>
       </div>
+      <button class="shuffle-btn" onclick="shuffleGroup('<?=$letter?>',true)"><i class="bi bi-shuffle"></i>Sorteio Aleatório</button>
     </div>
     <?php endforeach; ?>
     </div>
@@ -1508,7 +1536,6 @@ function getTeamById(id){for(const k of GROUP_KEYS){const t=(GROUPS_DATA[k]||[])
 function renderGroupEl(letter,prefix,orderMap,editable){
     const c=document.getElementById(prefix+'gt_'+letter);if(!c)return;
     const o=orderMap[letter];
-    const rc=['rank-1','rank-2','rank-3','rank-4'];
     const isAdm=(prefix==='adm_');
     const thirdsArr=isAdm?admSelectedThirds:selectedThirds;
     const gid=LETTER_TO_GROUP_ID[letter];
@@ -1516,21 +1543,20 @@ function renderGroupEl(letter,prefix,orderMap,editable){
     c.innerHTML='';
     o.forEach((tid,idx)=>{
         const t=getTeamById(tid);if(!t)return;
-        const d=document.createElement('div');d.className='team-row '+rc[idx];
+        const d=document.createElement('div');
+        let cls='team-row ';
+        if(idx===0) cls+='rank-1';
+        else if(idx===1) cls+='rank-2';
+        else if(idx===2&&isQ) cls+='rank-3 qthird';
+        else if(idx===2) cls+='rank-3';
+        else cls+='rank-4';
+        d.className=cls;
         d.dataset.teamId=t.id;
-        let inner=`<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>`;
+        let inner=`<span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>`;
         if(editable){
             const fn=isAdm?`setGroupPos('${letter}',${t.id},%p,true)`:`setGroupPos('${letter}',${t.id},%p,false)`;
             const on1=idx===0?' on':'', on2=idx===1?' on':'', on3=(idx===2&&isQ)?' on':'';
-            inner+=`<div class="pos-btns">
-<button type="button" class="pos-btn p1${on1}" onclick="${fn.replace('%p',1)}">1</button>
-<button type="button" class="pos-btn p2${on2}" onclick="${fn.replace('%p',2)}">2</button>
-<button type="button" class="pos-btn p3${on3}" onclick="${fn.replace('%p',3)}">3</button>
-</div>`;
-        } else {
-            if(idx===0) inner+='<span class="advance-badge advance-1">1º</span>';
-            else if(idx===1) inner+='<span class="advance-badge advance-2">2º</span>';
-            else if(idx===2&&isQ) inner+='<span class="advance-badge" style="background:rgba(34,197,94,.15);color:var(--green)">✓ 3º</span>';
+            inner+=`<div class="pos-btns"><button type="button" class="pos-btn p1${on1}" onclick="${fn.replace('%p',1)}"></button><button type="button" class="pos-btn p2${on2}" onclick="${fn.replace('%p',2)}"></button><button type="button" class="pos-btn p3${on3}" onclick="${fn.replace('%p',3)}"></button></div>`;
         }
         d.innerHTML=inner;
         c.appendChild(d);
@@ -1538,6 +1564,15 @@ function renderGroupEl(letter,prefix,orderMap,editable){
 }
 function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED);}
 function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true);}
+
+function shuffleGroup(letter,isAdm){
+    if(!isAdm&&SUBMITTED)return;
+    const orderMap=isAdm?admGroupOrder:groupOrder;
+    const arr=orderMap[letter];
+    for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+    if(isAdm)renderAdmGroup(letter);
+    else renderGroup(letter);
+}
 
 // ── Group position click handler ──────────────────────────────────────────────
 function setGroupPos(letter, teamId, posBtn, isAdm){
@@ -1718,7 +1753,7 @@ function renderBracketGeneric(elId,matchupsRef,stateRef,editable,onWin){
                     if(team&&team.flag){
                         const fs=document.createElement('span');
                         fs.className='fi fi-'+team.flag;
-                        fs.style.cssText='width:18px;height:13px;border-radius:2px;display:inline-block;background-size:cover;vertical-align:middle;flex-shrink:0';
+                        fs.style.cssText='width:20px;height:15px;border-radius:2px;display:inline-block;background-size:cover;flex-shrink:0';
                         fspan.appendChild(fs);
                     }
                     const nspan=document.createElement('span');nspan.className='bracket-slot-name';
@@ -1734,6 +1769,21 @@ function renderBracketGeneric(elId,matchupsRef,stateRef,editable,onWin){
         }
         el.appendChild(col);
     });
+    // champion display column
+    const finalW=stateRef['final_0'];
+    const champCol=document.createElement('div');champCol.className='bracket-champion-col';
+    const champDiv=document.createElement('div');champDiv.className='bracket-champion';
+    let champInner=`<div class="bracket-champion-icon">🏆</div><div class="bracket-champion-label">Campeão</div>`;
+    if(finalW&&finalW.flag){
+        const fs=document.createElement('span');
+        champInner+=`<div class="bracket-champion-flag">${flagImg(finalW.flag,30)}</div>`;
+    }
+    champInner+=finalW
+        ?`<div class="bracket-champion-name">${escH(finalW.name)}</div>`
+        :`<div class="bracket-champion-name" style="color:var(--text-3);font-style:italic;font-size:10px;font-weight:400">A definir</div>`;
+    champDiv.innerHTML=champInner;
+    champCol.appendChild(champDiv);
+    el.appendChild(champCol);
 }
 
 function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
