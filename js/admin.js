@@ -4843,7 +4843,7 @@ function renderDispensasTable() {
           ${players.map(w => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
               <span style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(w.name || '-')}</span>
-              <span style="font-size:11px;color:var(--text)">${w.waived_at ? w.waived_at.slice(0,16) : (w.season_year || '-')}</span>
+              <span style="font-size:11px;color:var(--text)">${w.season_year || '-'} | ${w.waived_at ? w.waived_at.slice(0,16) : '-'}</span>
             </div>`).join('')}
         </div>
       </div>
