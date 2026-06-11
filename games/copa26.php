@@ -287,7 +287,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if ($act==='scores') {
         $st=$pdo->prepare("INSERT INTO copa26_score_preds (user_id,match_id,score_home,score_away) VALUES (?,?,?,?)
             ON DUPLICATE KEY UPDATE score_home=VALUES(score_home),score_away=VALUES(score_away)");
-        foreach ($body['scores']??[] as $mid=>$s) $st->execute([$user_id,(int)$mid,(int)($s['h']??0),(int)($s['a']??0)]);
+        $nowTs=time();
+        foreach ($body['scores']??[] as $mid=>$s) {
+            $mrow=$pdo->prepare("SELECT match_date,match_time FROM copa26_matches WHERE id=?");
+            $mrow->execute([(int)$mid]);
+            $mr=$mrow->fetch(PDO::FETCH_ASSOC);
+            if(!$mr) continue;
+            $matchTs=strtotime($mr['match_date'].' '.($mr['match_time']??'23:59'));
+            if($nowTs>=$matchTs) continue; // jogo já começou, ignora
+            $st->execute([$user_id,(int)$mid,(int)($s['h']??0),(int)($s['a']??0)]);
+        }
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='set_result'&&$isAdmin) {
@@ -435,10 +444,16 @@ $seeded=!empty($groups);
 $nameInitial=mb_strtoupper(mb_substr($usuario['nome']??'U',0,1));
 $today=date('Y-m-d');
 
-// Jogos de hoje sem palpite preenchido
+// Jogos de hoje sem palpite preenchido e que ainda não começaram
+$nowTs = time();
 $pendingToday = array_values(array_filter(
     $matchesByDate[$today] ?? [],
-    fn($m) => $m['score_home'] === null && !isset($allScores[$m['id']])
+    function($m) use ($today, $nowTs, $allScores) {
+        if ($m['score_home'] !== null) return false;
+        if (isset($allScores[$m['id']])) return false;
+        $matchTs = strtotime($today . ' ' . ($m['match_time'] ?? '23:59'));
+        return $nowTs < $matchTs;
+    }
 ));
 ?>
 <!DOCTYPE html>
@@ -538,15 +553,14 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .rank-1 .team-rank{background:rgba(245,158,11,.2);color:var(--gold)}.rank-2 .team-rank{background:rgba(59,130,246,.15);color:var(--blue)}
 .rank-3 .team-rank,.rank-4 .team-rank{background:var(--panel-3);color:var(--text-3)}
 .team-flag{width:20px;height:15px;flex-shrink:0;display:flex;align-items:center}.team-flag img{width:20px;height:auto;border-radius:2px;display:block}.team-name-sm{font-size:11px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.drag-handle{color:var(--text-3);cursor:grab;font-size:13px;flex-shrink:0;padding:0 1px;touch-action:none;line-height:1}
-.drag-handle:active{cursor:grabbing;color:var(--text-2)}
-.sortable-ghost{opacity:.35;background:rgba(252,0,37,.07)!important;border-color:rgba(252,0,37,.2)!important}
-.sortable-chosen{background:var(--panel-2)!important;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .advance-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
-.advance-1{background:rgba(245,158,11,.15);color:var(--gold)}.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}.advance-3{background:rgba(255,255,255,.05);color:var(--text-3)}
-.third-check-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-size:12px;cursor:pointer;padding:2px 6px;transition:all var(--t);flex-shrink:0;line-height:1;font-family:var(--font)}
-.third-check-btn:hover{border-color:rgba(34,197,94,.4);color:var(--green)}
-.third-check-btn.on{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35);color:var(--green)}
+.advance-1{background:rgba(245,158,11,.15);color:var(--gold)}.advance-2{background:rgba(59,130,246,.12);color:var(--blue)}
+.pos-btns{display:flex;gap:3px;flex-shrink:0;margin-left:auto}
+.pos-btn{width:20px;height:20px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--text-3);font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--t);font-family:var(--font);line-height:1;flex-shrink:0}
+.pos-btn:hover{border-color:var(--border-md);color:var(--text)}
+.pos-btn.p1.on{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:var(--gold)}
+.pos-btn.p2.on{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:var(--blue)}
+.pos-btn.p3.on{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35);color:var(--green)}
 /* thirds */
 .thirds-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 .third-slot{background:var(--panel);border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all var(--t);position:relative}
@@ -915,7 +929,7 @@ async function savePendingPopup(){
 
 <!-- ── GRUPOS ─────────────────────────────────────────────────────────────── -->
 <div class="copa-pane active" id="pane-grupos">
-  <p class="section-info"><i class="bi bi-info-circle"></i> Use as setas para ordenar. 1º e 2º avançam direto. Marque o ✓ no 3º para indicar que ele avança.</p>
+  <p class="section-info"><i class="bi bi-info-circle"></i> Clique em <strong>1</strong>, <strong>2</strong> ou <strong>3</strong> ao lado de cada time para definir sua posição no grupo. O <strong>3</strong> marca o terceiro que avança (máx. 8).</p>
   <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Terceiros marcados: <strong id="thirdsSelectedCount"><?=count($predThirds??[])?></strong>/8</div>
   <div class="groups-grid" id="groupsGrid">
   <?php foreach ($groups as $letter=>$g):
@@ -928,21 +942,20 @@ async function savePendingPopup(){
     <div class="group-teams" id="gt_<?=$letter?>">
     <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
     <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
-      <?php if (!$submitted): ?><span class="drag-handle"><i class="bi bi-grip-vertical"></i></span><?php endif; ?>
       <span class="team-rank"><?=$rank?></span>
       <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
       <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
-      <?php if ($rank===1): ?><span class="advance-badge advance-1">1º</span>
-      <?php elseif ($rank===2): ?><span class="advance-badge advance-2">2º</span>
-      <?php elseif ($rank===3): ?>
-        <?php if (!$submitted): ?>
-        <button type="button" class="third-check-btn<?=$thirdSel?' on':''?>" id="tcheck_<?=$letter?>"
-                onclick="toggleThirdFromGroup('<?=$letter?>')" title="Marcar 3º como classificado">
-          <i class="bi bi-check-lg"></i>
-        </button>
-        <?php else: ?>
-        <span class="advance-badge" style="<?=$thirdSel?'background:rgba(34,197,94,.15);color:var(--green)':'background:rgba(255,255,255,.05);color:var(--text-3)'?>"><?=$thirdSel?'✓ 3º':'3º'?></span>
+      <?php if ($submitted): ?>
+        <?php if ($rank===1): ?><span class="advance-badge advance-1">1º</span>
+        <?php elseif ($rank===2): ?><span class="advance-badge advance-2">2º</span>
+        <?php elseif ($rank===3 && $thirdSel): ?><span class="advance-badge" style="background:rgba(34,197,94,.15);color:var(--green)">✓ 3º</span>
         <?php endif; ?>
+      <?php else: ?>
+      <div class="pos-btns">
+        <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,false)">1</button>
+        <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,false)">2</button>
+        <button type="button" class="pos-btn p3<?=($rank===3&&$thirdSel)?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,false)">3</button>
+      </div>
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
@@ -1097,7 +1110,9 @@ async function savePendingPopup(){
         $aName=$m['aname']?:$m['away_name']?:'Time B';
         $sp=$allScores[$m['id']]??null;
         $hasResult=$m['score_home']!==null;
-        $canPredict=!$hasResult;
+        $matchTs=strtotime($m['match_date'].' '.($m['match_time']??'23:59'));
+        $started=$nowTs>=$matchTs;
+        $canPredict=!$hasResult&&!$started;
     ?>
     <div class="score-card" data-match="<?=$m['id']?>">
       <div class="score-team">
@@ -1109,12 +1124,17 @@ async function savePendingPopup(){
       <?php if ($sp): ?>
       <div class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?></div>
       <?php endif; ?>
-      <?php else: ?>
+      <?php elseif ($canPredict): ?>
       <div class="score-input-wrap">
         <input type="number" min="0" max="30" class="score-input" id="sh_<?=$m['id']?>" value="<?=$sp?$sp['score_home']:''?>" placeholder="0">
         <span class="score-sep">×</span>
         <input type="number" min="0" max="30" class="score-input" id="sa_<?=$m['id']?>" value="<?=$sp?$sp['score_away']:''?>" placeholder="0">
       </div>
+      <?php else: /* started, no result yet */ ?>
+      <div class="score-result-display" style="font-size:12px;color:var(--text-3)">Em andamento</div>
+      <?php if ($sp): ?>
+      <div class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?></div>
+      <?php endif; ?>
       <?php endif; ?>
       <div class="score-team right">
         <span class="score-team-name"><?=htmlspecialchars($aName)?></span>
@@ -1237,17 +1257,14 @@ async function savePendingPopup(){
       <button class="btn-r <?= $bracketOpen ? 'primary' : 'outline' ?>" id="btnToggleBracket" onclick="toggleBracketOpen()">
         <i class="bi bi-<?= $bracketOpen ? 'lock-fill' : 'unlock' ?>"></i><?= $bracketOpen ? 'Fechar Bracket' : 'Abrir Bracket para palpites' ?>
       </button>
-      <button class="btn-r secondary" onclick="resetBrackets()">
-        <i class="bi bi-arrow-counterclockwise"></i>Resetar Brackets de Todos
-      </button>
     </div>
-    <p class="section-info" style="margin-top:10px">Ao resetar, apenas o bracket de cada usuário é apagado — palpites da fase de grupos são mantidos.</p>
   </div>
 
   <!-- Resultados oficiais dos grupos -->
   <div class="admin-section">
     <div class="admin-section-title"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i>Resultados Oficiais dos Grupos</div>
-    <p class="section-info">Ordene como os times realmente terminaram em cada grupo para calcular os pontos.</p>
+    <p class="section-info">Ordene como os times realmente terminaram em cada grupo. Marque ✓ no 3º para indicar que avança.</p>
+    <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Terceiros marcados: <strong id="admThirdsCount"><?=count($offThirds??[])?></strong>/8</div>
     <div class="groups-grid" id="admGroupsGrid">
     <?php foreach ($groups as $letter=>$g):
         $savedOff=$offGroups[$letter]??null; $teams=$g['teams'];
@@ -1258,10 +1275,15 @@ async function savePendingPopup(){
       <div class="group-teams" id="adm_gt_<?=$letter?>">
       <?php foreach ($teams as $idx=>$t): $rank=$idx+1; ?>
       <div class="team-row rank-<?=$rank?>" data-team-id="<?=$t['id']?>" data-team-name="<?=htmlspecialchars($t['name'])?>" data-team-flag="<?=htmlspecialchars($t['flag']??'')?>">
-        <span class="drag-handle"><i class="bi bi-grip-vertical"></i></span>
         <span class="team-rank"><?=$rank?></span>
         <span class="team-flag"><?=flagImg($t['flag']??'')?></span>
         <span class="team-name-sm"><?=htmlspecialchars($t['name'])?></span>
+        <?php $thirdSelAdm = in_array($g['id'], $offThirds??[]); ?>
+        <div class="pos-btns">
+          <button type="button" class="pos-btn p1<?=$rank===1?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,1,true)">1</button>
+          <button type="button" class="pos-btn p2<?=$rank===2?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,2,true)">2</button>
+          <button type="button" class="pos-btn p3<?=($rank===3&&$thirdSelAdm)?' on':''?>" onclick="setGroupPos('<?=$letter?>',<?=$t['id']?>,3,true)">3</button>
+        </div>
       </div>
       <?php endforeach; ?>
       </div>
@@ -1270,28 +1292,6 @@ async function savePendingPopup(){
     </div>
   </div>
 
-  <!-- Terceiros oficiais ordenados -->
-  <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-3-circle-fill" style="color:var(--blue)"></i>Melhores 3ºs Colocados (Oficial)</div>
-    <p class="section-info">Clique em ordem do melhor para o pior. Os 8 primeiros avançam e definem o chaveamento.</p>
-    <div class="thirds-grid" id="admThirdsGrid">
-    <?php foreach ($groups as $letter=>$g):
-        $teams=$g['teams'];
-        $rankIdx = array_search($g['id'], $offThirds ?? []);
-        $rank = $rankIdx !== false ? $rankIdx + 1 : 0;
-    ?>
-    <div class="third-slot <?=$rank?'selected':''?>"
-         data-group="<?=$letter?>" data-group-id="<?=$g['id']?>"
-         onclick="admRankThird(this)" id="adm_third_<?=$letter?>">
-      <div class="third-rank" style="display:<?=$rank?'flex':'none'?>"><i class="bi bi-check-lg"></i></div>
-      <div class="third-slot-flag" id="adm_t3flag_<?=$letter?>"><?=flagImg($teams[2]['flag']??'')?></div>
-      <div class="third-slot-name" id="adm_t3name_<?=$letter?>"><?=htmlspecialchars($teams[2]['name']??'?')?></div>
-      <div class="third-slot-group">Grupo <?=$letter?></div>
-    </div>
-    <?php endforeach; ?>
-    </div>
-    <div style="margin-top:8px;font-size:12px;color:var(--text-2)">Classificados: <strong id="admThirdsCount"><?=count($offThirds??[])?></strong>/8</div>
-  </div>
 
   <!-- Bracket oficial -->
   <div class="admin-section" style="display:none">
@@ -1467,124 +1467,84 @@ function flagImg(code,w=20){const h=Math.round(w*.75);if(!code)return`<span styl
 function getTeamById(id){for(const k of GROUP_KEYS){const t=(GROUPS_DATA[k]||[]).find(x=>x.id==id);if(t)return t;}return null;}
 
 // ── Generic group render ──────────────────────────────────────────────────────
-function renderGroupEl(letter,prefix,orderMap,editable,moveFn){
+function renderGroupEl(letter,prefix,orderMap,editable){
     const c=document.getElementById(prefix+'gt_'+letter);if(!c)return;
     const o=orderMap[letter];
     const rc=['rank-1','rank-2','rank-3','rank-4'];
-    const bg=['<span class="advance-badge advance-1">1º</span>','<span class="advance-badge advance-2">2º</span>','',''];
-    const isUserGroups = (prefix==='');
+    const isAdm=(prefix==='adm_');
+    const thirdsArr=isAdm?admSelectedThirds:selectedThirds;
+    const gid=LETTER_TO_GROUP_ID[letter];
+    const isQ=gid&&thirdsArr.indexOf(gid)>=0;
     c.innerHTML='';
     o.forEach((tid,idx)=>{
         const t=getTeamById(tid);if(!t)return;
         const d=document.createElement('div');d.className='team-row '+rc[idx];
-        d.dataset.teamId=t.id;d.dataset.teamName=t.name;d.dataset.teamFlag=t.flag||'🏳';
-        if(!editable)d.style.cursor='default';
-        let badge='';
-        if(idx===2&&isUserGroups){
-            const gid=LETTER_TO_GROUP_ID[letter];
-            const isOn=gid&&selectedThirds.indexOf(gid)>=0;
-            badge=`<button type="button" class="third-check-btn${isOn?' on':''}" id="tcheck_${letter}" onclick="toggleThirdFromGroup('${letter}')" title="Marcar 3º como classificado"><i class="bi bi-check-lg"></i></button>`;
+        d.dataset.teamId=t.id;
+        let inner=`<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>`;
+        if(editable){
+            const fn=isAdm?`setGroupPos('${letter}',${t.id},%p,true)`:`setGroupPos('${letter}',${t.id},%p,false)`;
+            const on1=idx===0?' on':'', on2=idx===1?' on':'', on3=(idx===2&&isQ)?' on':'';
+            inner+=`<div class="pos-btns">
+<button type="button" class="pos-btn p1${on1}" onclick="${fn.replace('%p',1)}">1</button>
+<button type="button" class="pos-btn p2${on2}" onclick="${fn.replace('%p',2)}">2</button>
+<button type="button" class="pos-btn p3${on3}" onclick="${fn.replace('%p',3)}">3</button>
+</div>`;
         } else {
-            badge=bg[idx]||'';
+            if(idx===0) inner+='<span class="advance-badge advance-1">1º</span>';
+            else if(idx===1) inner+='<span class="advance-badge advance-2">2º</span>';
+            else if(idx===2&&isQ) inner+='<span class="advance-badge" style="background:rgba(34,197,94,.15);color:var(--green)">✓ 3º</span>';
         }
-        d.innerHTML=(editable?'<span class="drag-handle"><i class="bi bi-grip-vertical"></i></span>':'')+
-            `<span class="team-rank">${idx+1}</span><span class="team-flag">${flagImg(t.flag,20)}</span><span class="team-name-sm">${escH(t.name)}</span>${badge}`;
+        d.innerHTML=inner;
         c.appendChild(d);
     });
 }
-function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED,'');}
-function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true,'');}
+function renderGroup(l){renderGroupEl(l,'',groupOrder,!SUBMITTED);}
+function renderAdmGroup(l){renderGroupEl(l,'adm_',admGroupOrder,true);}
 
-// update rank badges after drag without re-rendering the list
-function updateGroupRanks(container,orderMap,letter,updateThirds){
-    const rc=['rank-1','rank-2','rank-3','rank-4'];
-    const bg=['<span class="advance-badge advance-1">1º</span>','<span class="advance-badge advance-2">2º</span>','',''];
-    const newOrder=[];
-    container.querySelectorAll('.team-row').forEach((row,idx)=>{
-        newOrder.push(+row.dataset.teamId);
-        rc.forEach(c=>row.classList.remove(c));row.classList.add(rc[idx]);
-        const rk=row.querySelector('.team-rank');if(rk)rk.textContent=idx+1;
-        // remove old badge/check
-        row.querySelector('.advance-badge')?.remove();
-        row.querySelector('.third-check-btn')?.remove();
-        if(idx===2){
-            const gid=LETTER_TO_GROUP_ID[letter];
-            const isOn=selectedThirds.indexOf(gid)>=0;
-            row.querySelector('.team-name-sm')?.insertAdjacentHTML('afterend',
-                `<button type="button" class="third-check-btn${isOn?' on':''}" id="tcheck_${letter}" onclick="toggleThirdFromGroup('${letter}')" title="Marcar 3º como classificado"><i class="bi bi-check-lg"></i></button>`);
-        } else if(bg[idx]){
-            row.querySelector('.team-name-sm')?.insertAdjacentHTML('afterend',bg[idx]);
+// ── Group position click handler ──────────────────────────────────────────────
+function setGroupPos(letter, teamId, posBtn, isAdm){
+    if(!isAdm&&SUBMITTED)return;
+    const orderMap=isAdm?admGroupOrder:groupOrder;
+    const thirdsArr=isAdm?admSelectedThirds:selectedThirds;
+    const gid=LETTER_TO_GROUP_ID[letter];
+    const arr=orderMap[letter];
+    const tid=+teamId;
+    const targetIdx=posBtn-1;
+    const currentIdx=arr.indexOf(tid);
+
+    if(posBtn===3){
+        const isQ=thirdsArr.indexOf(gid)>=0;
+        if(currentIdx===2&&isQ){
+            // toggle off: un-qualify this group
+            thirdsArr.splice(thirdsArr.indexOf(gid),1);
+        } else {
+            // qualify this group (check max 8)
+            if(!isQ){
+                if(thirdsArr.length>=8){showToast('Máximo de 8 terceiros colocados.',true);return;}
+                thirdsArr.push(gid);
+            }
+            // move team to idx 2
+            if(currentIdx!==2){[arr[2],arr[currentIdx]]=[arr[currentIdx],arr[2]];}
         }
-    });
-    orderMap[letter]=newOrder;
-    if(updateThirds)updateThirdsForGroup(letter);
+    } else {
+        // pos 1 or 2: swap teams
+        if(currentIdx!==targetIdx){[arr[targetIdx],arr[currentIdx]]=[arr[currentIdx],arr[targetIdx]];}
+    }
+
+    const countEl=document.getElementById(isAdm?'admThirdsCount':'thirdsSelectedCount');
+    if(countEl)countEl.textContent=(isAdm?admSelectedThirds:selectedThirds).length;
+    if(isAdm)renderAdmGroup(letter);
+    else renderGroup(letter);
 }
 
-// SortableJS init
-function initSortables(){
-    if(typeof Sortable==='undefined')return;
-    GROUP_KEYS.forEach(l=>{
-        const c=document.getElementById('gt_'+l);if(!c)return;
-        Sortable.create(c,{handle:'.drag-handle',animation:160,ghostClass:'sortable-ghost',chosenClass:'sortable-chosen',
-            onEnd:()=>updateGroupRanks(c,groupOrder,l,true)});
-    });
-}
-function initAdmSortables(){
-    if(typeof Sortable==='undefined')return;
-    GROUP_KEYS.forEach(l=>{
-        const c=document.getElementById('adm_gt_'+l);if(!c)return;
-        Sortable.create(c,{handle:'.drag-handle',animation:160,ghostClass:'sortable-ghost',chosenClass:'sortable-chosen',
-            onEnd:()=>updateGroupRanks(c,admGroupOrder,l,false)});
-    });
-}
-
-function updateThirdsForGroup(letter){
-    const t=getTeamById(groupOrder[letter][2]);if(!t)return;
-    const fe=document.getElementById('t3flag_'+letter),ne=document.getElementById('t3name_'+letter);
-    if(fe)fe.innerHTML=flagImg(t.flag,28);if(ne)ne.textContent=t.name;
-}
-
-// ── Thirds ────────────────────────────────────────────────────────────────────
-function _applyRank(arr, countElId, gridSelector){
-    document.querySelectorAll(gridSelector+' .third-slot').forEach(el=>{
-        const gid=+el.dataset.groupId, sel=arr.indexOf(gid)>=0;
-        const rb=el.querySelector('.third-rank');
-        el.classList.toggle('selected',sel);
-        if(rb) rb.style.display=sel?'flex':'none';
-    });
-    const el=document.getElementById(countElId);if(el)el.textContent=arr.length;
-}
-function _rankIn(arr, gid, maxN){
-    const idx=arr.indexOf(gid);
-    if(idx>=0){arr.splice(idx,1);}
-    else{if(arr.length>=maxN){alert('Máximo '+maxN+'.');return false;}arr.push(gid);}
-    return true;
-}
-function rankThird(el){
-    if(SUBMITTED)return;
-    if(!_rankIn(selectedThirds,+el.dataset.groupId,8))return;
-    _applyRank(selectedThirds,'thirdsCount','#thirdsGrid');
-}
-function admRankThird(el){
-    if(!_rankIn(admSelectedThirds,+el.dataset.groupId,8))return;
-    _applyRank(admSelectedThirds,'admThirdsCount','#admThirdsGrid');
-}
+// ── Thirds count refresh (counters only) ─────────────────────────────────────
 function refreshGroupThirdBtns(){
-    GROUP_KEYS.forEach(letter=>{
-        const btn=document.getElementById('tcheck_'+letter);
-        if(!btn)return;
-        const gid=LETTER_TO_GROUP_ID[letter];
-        btn.classList.toggle('on', selectedThirds.indexOf(gid)>=0);
-    });
     const el=document.getElementById('thirdsSelectedCount');
     if(el)el.textContent=selectedThirds.length;
 }
-function toggleThirdFromGroup(letter){
-    if(SUBMITTED)return;
-    const gid=LETTER_TO_GROUP_ID[letter];
-    if(!gid)return;
-    if(!_rankIn(selectedThirds,gid,8))return;
-    refreshGroupThirdBtns();
+function refreshAdmGroupThirdBtns(){
+    const el=document.getElementById('admThirdsCount');
+    if(el)el.textContent=admSelectedThirds.length;
 }
 
 // ── Generic bracket ───────────────────────────────────────────────────────────
@@ -1968,11 +1928,7 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 <?php if($seeded&&!$submitted):?>GROUP_KEYS.forEach(l=>renderGroup(l));refreshGroupThirdBtns();<?php endif;?>
-<?php if($seeded&&$isAdmin):?>GROUP_KEYS.forEach(l=>renderAdmGroup(l));<?php endif;?>
+<?php if($seeded&&$isAdmin):?>GROUP_KEYS.forEach(l=>renderAdmGroup(l));refreshAdmGroupThirdBtns();<?php endif;?>
 </script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" onload="
-<?php if($seeded&&!$submitted):?>initSortables();<?php endif;?>
-<?php if($seeded&&$isAdmin):?>initAdmSortables();<?php endif;?>
-"></script>
 </body>
 </html>
