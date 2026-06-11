@@ -903,11 +903,7 @@ function renderWaiversList(waivers) {
         } else if (item.season_year) {
             seasonLabel = `Temp ${item.season_year}`;
         }
-        let waivedLabel = '-';
-        if (item.waived_at) {
-            const d = new Date(item.waived_at.replace(' ', 'T'));
-            waivedLabel = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-        }
+        const waivedLabel = item.waived_at ? item.waived_at.slice(0, 16) : '-';
         html += `<tr>
             <td><strong class="text-orange">${item.name}</strong></td>
             <td>${seasonLabel}</td>
