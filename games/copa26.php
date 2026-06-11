@@ -578,16 +578,30 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .third-slot-flag{height:22px;display:flex;justify-content:center;align-items:center;margin-bottom:3px}.third-slot-flag img{width:28px;height:auto;border-radius:2px}.third-slot-name{font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.third-slot-group{font-size:9px;color:var(--text-3)}
 .third-rank{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;line-height:1}
 /* bracket */
-.bracket-wrap{overflow-x:auto;padding-bottom:8px}
-.bracket{display:flex;align-items:stretch;min-width:860px}
-.bracket-round{display:flex;flex-direction:column;justify-content:space-around;flex:1;padding:0 3px}
-.bracket-round-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);text-align:center;padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:6px}
-.bracket-match{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:3px 0;cursor:pointer;transition:border-color var(--t)}
-.bracket-match:hover{border-color:var(--border-md)}
-.bracket-slot{padding:5px 9px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--text);min-height:28px}
-.bracket-slot.winner{background:rgba(34,197,94,.08);color:var(--green);font-weight:700}.bracket-slot.tbd{color:var(--text-3)}
-.bracket-slot-flag{width:18px;flex-shrink:0;display:flex;align-items:center}.bracket-slot-flag img{width:18px;height:auto;border-radius:2px}.bracket-slot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bracket-divider{height:1px;background:var(--border);margin:0 7px}
+.bracket-wrap{overflow-x:auto;padding-bottom:12px}
+.bracket{display:flex;align-items:flex-start;gap:0;padding:4px 0 8px}
+.bracket-round{flex-shrink:0;width:185px;display:flex;flex-direction:column}
+.bracket-round+.bracket-round{margin-left:36px;position:relative}
+.bracket-round-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-3);text-align:center;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px}
+.bracket-pair{display:flex;flex-direction:column;gap:5px;position:relative;margin-bottom:14px}
+.bracket-pair:last-child{margin-bottom:0}
+/* right connector: horizontal from each match + vertical joining them */
+.bracket-pair::after{content:'';position:absolute;right:-20px;top:calc(50% - 1px);width:20px;height:1px;background:var(--border-md);pointer-events:none}
+.bracket-pair::before{content:'';position:absolute;right:-20px;top:calc(25%);bottom:calc(25%);width:1px;background:var(--border-md);pointer-events:none}
+.bracket-round:last-child .bracket-pair::after,.bracket-round:last-child .bracket-pair::before{display:none}
+.bracket-match-wrap{position:relative}
+.bracket-match-wrap::after{content:'';position:absolute;right:-36px;top:50%;width:16px;height:1px;background:var(--border-md);pointer-events:none}
+.bracket-round:last-child .bracket-match-wrap::after{display:none}
+.bracket-match{background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden;transition:border-color .2s;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.bracket-match.has-winner{border-color:rgba(34,197,94,.3);box-shadow:0 1px 8px rgba(34,197,94,.08)}
+.bracket-slot{padding:7px 10px;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--text-2);min-height:32px;transition:background .15s,color .15s;cursor:default}
+.bracket-slot.clickable{cursor:pointer}
+.bracket-slot.clickable:hover{background:var(--panel-2);color:var(--text)}
+.bracket-slot.winner{background:rgba(34,197,94,.1);color:var(--green);font-weight:700;border-left:2px solid rgba(34,197,94,.5)}
+.bracket-slot.tbd .bracket-slot-name{color:var(--text-3);font-style:italic;font-size:11px;font-weight:400}
+.bracket-slot-flag{width:18px;height:14px;flex-shrink:0;display:flex;align-items:center}
+.bracket-slot-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bracket-divider{height:1px;background:var(--border);margin:0 8px}
 /* prizes */
 .prizes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}
 .prize-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
@@ -667,8 +681,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   .pred-groups-mini{grid-template-columns:repeat(2,1fr)}
   .pred-awards{grid-template-columns:1fr}
   .admin-form{grid-template-columns:1fr 1fr}
-  .bracket{min-width:700px}
 }
+
 @media(max-width:540px){
   .main{padding:12px 12px 40px}
   .copa-hero{padding:12px 14px;flex-direction:column;gap:8px}.copa-hero-title{font-size:16px}
@@ -678,8 +692,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
   .team-row{padding:5px 5px;gap:5px}
   .team-name-sm{font-size:10px}
   .thirds-grid{grid-template-columns:repeat(3,1fr)}
-  .bracket{min-width:560px}
-  .bracket-slot{padding:4px 7px;font-size:10px}
+  .bracket-slot{padding:5px 8px;font-size:11px}
   .prizes-grid{gap:8px}
   .prize-card{padding:12px}
   .submit-bar{flex-direction:column;align-items:stretch;gap:10px}
@@ -1593,14 +1606,14 @@ const LETTER_TO_GROUP_ID = <?=json_encode(array_combine(
 // Each R32 slot (by array index in buildR32) lists which groups' 3rd can fill it.
 // Constraint: a 3rd from group X cannot face Winner X (same-group rematch).
 const THIRD_SLOT_ELIGIBLE = {
-    0:  ['A','B','C','D','F'],   // J74: vs 1E
-    1:  ['C','D','F','G','H'],   // J77: vs 1I
-    6:  ['C','E','F','H','I'],   // J79: vs 1A
-    7:  ['E','H','I','J','K'],   // J80: vs 1L
-    10: ['B','E','F','I','J'],   // J81: vs 1D
-    11: ['A','E','H','I','J'],   // J82: vs 1G
-    14: ['E','F','G','I','J'],   // J85: vs 1B
-    15: ['D','E','I','J','L'],   // J87: vs 1K
+    1:  ['A','B','C','D','F'],   // J74 idx1: vs 1E
+    4:  ['C','D','F','G','H'],   // J77 idx4: vs 1I
+    6:  ['C','E','F','H','I'],   // J79 idx6: vs 1A
+    7:  ['E','H','I','J','K'],   // J80 idx7: vs 1L
+    8:  ['B','E','F','I','J'],   // J81 idx8: vs 1D
+    9:  ['A','E','H','I','J'],   // J82 idx9: vs 1G
+    12: ['E','F','G','I','J'],   // J85 idx12: vs 1B
+    14: ['D','E','I','J','L'],   // J87 idx14: vs 1K
 };
 
 function assignThirdsToSlots(thirdsArr, tMap) {
@@ -1643,26 +1656,26 @@ function buildR32(orderMap){
     const thirdsArr=orderMap===groupOrder?selectedThirds:admSelectedThirds;
     const nth=assignThirdsToSlots(thirdsArr,t);
 
-    // Copa 2026 official R32 bracket — pairs feed R16:
+    // R32 ordenado em pares que alimentam cada jogo do R16:
     // [0,1]→R16[0]  [2,3]→R16[1]  [4,5]→R16[2]  [6,7]→R16[3]
     // [8,9]→R16[4] [10,11]→R16[5] [12,13]→R16[6] [14,15]→R16[7]
     return [
-        [f['E'], nth(0)],   // J74: 1E vs 3º(A/B/C/D/F)
-        [f['I'], nth(1)],   // J77: 1I vs 3º(C/D/F/G/H)
-        [s['A'], s['B']],   // J73: 2A vs 2B
-        [f['F'], s['C']],   // J75: 1F vs 2C
-        [f['C'], s['F']],   // J76: 1C vs 2F
-        [s['E'], s['I']],   // J78: 2E vs 2I
-        [f['A'], nth(6)],   // J79: 1A vs 3º(C/E/F/H/I)
-        [f['L'], nth(7)],   // J80: 1L vs 3º(E/H/I/J/K)
-        [s['K'], s['L']],   // J83: 2K vs 2L
-        [f['H'], s['J']],   // J84: 1H vs 2J
-        [f['D'], nth(10)],  // J81: 1D vs 3º(B/E/F/I/J)
-        [f['G'], nth(11)],  // J82: 1G vs 3º(A/E/H/I/J)
-        [f['J'], s['H']],   // J86: 1J vs 2H
-        [s['D'], s['G']],   // J88: 2D vs 2G
-        [f['B'], nth(14)],  // J85: 1B vs 3º(E/F/G/I/J)
-        [f['K'], nth(15)],  // J87: 1K vs 3º(D/E/I/J/L)
+        [s['A'], s['B']],   // J73 idx0: 2A vs 2B       → R16[0]
+        [f['E'], nth(1)],   // J74 idx1: 1E vs 3º(A/B/C/D/F)→ R16[0]
+        [f['F'], s['C']],   // J75 idx2: 1F vs 2C        → R16[1]
+        [f['C'], s['F']],   // J76 idx3: 1C vs 2F        → R16[1]
+        [f['I'], nth(4)],   // J77 idx4: 1I vs 3º(C/D/F/G/H)→R16[2]
+        [s['E'], s['I']],   // J78 idx5: 2E vs 2I        → R16[2]
+        [f['A'], nth(6)],   // J79 idx6: 1A vs 3º(C/E/F/H/I)→R16[3]
+        [f['L'], nth(7)],   // J80 idx7: 1L vs 3º(E/H/I/J/K)→R16[3]
+        [f['D'], nth(8)],   // J81 idx8: 1D vs 3º(B/E/F/I/J)→R16[4]
+        [f['G'], nth(9)],   // J82 idx9: 1G vs 3º(A/E/H/I/J)→R16[4]
+        [s['K'], s['L']],   // J83 idx10: 2K vs 2L       → R16[5]
+        [f['H'], s['J']],   // J84 idx11: 1H vs 2J       → R16[5]
+        [f['B'], nth(12)],  // J85 idx12: 1B vs 3º(E/F/G/I/J)→R16[6]
+        [f['J'], s['H']],   // J86 idx13: 1J vs 2H       → R16[6]
+        [f['K'], nth(14)],  // J87 idx14: 1K vs 3º(D/E/I/J/L)→R16[7]
+        [s['D'], s['G']],   // J88 idx15: 2D vs 2G       → R16[7]
     ];
 }
 
@@ -1685,31 +1698,40 @@ function renderBracketGeneric(elId,matchupsRef,stateRef,editable,onWin){
         const col=document.createElement('div');col.className='bracket-round';
         const titleEl=document.createElement('div');titleEl.className='bracket-round-title';
         titleEl.textContent=ROUND_NAMES[round]||round;col.appendChild(titleEl);
-        matches.forEach((match,idx)=>{
-            const [t1,t2]=match;
-            const w=stateRef[round+'_'+idx];
-            const wId=w&&typeof w==='object'?w.id:null;
-            const wrap=document.createElement('div');wrap.className='bracket-match';
-            const makeSlot=team=>{
-                const slot=document.createElement('div');
-                slot.className='bracket-slot'+(wId&&team&&wId==team.id?' winner':'')+(team?'':' tbd');
-                if(team&&editable){slot.style.cursor='pointer';slot.onclick=()=>onWin(round,idx,team);}
-                const fspan=document.createElement('span');fspan.className='bracket-slot-flag';
-                if(team&&team.flag){
-                    const fs=document.createElement('span');
-                    fs.className='fi fi-'+team.flag;
-                    fs.style.cssText='width:18px;height:14px;border-radius:2px;display:inline-block;background-size:cover;vertical-align:middle;flex-shrink:0';
-                    fspan.appendChild(fs);
-                }
-                const nspan=document.createElement('span');nspan.className='bracket-slot-name';
-                nspan.textContent=team?team.name:'A definir';
-                slot.appendChild(fspan);slot.appendChild(nspan);return slot;
-            };
-            wrap.appendChild(makeSlot(t1));
-            const div=document.createElement('div');div.className='bracket-divider';wrap.appendChild(div);
-            wrap.appendChild(makeSlot(t2));
-            col.appendChild(wrap);
-        });
+
+        const pairSize=matches.length>1?2:1;
+        for(let pi=0;pi<matches.length;pi+=pairSize){
+            const pair=document.createElement('div');pair.className='bracket-pair';
+            for(let mi=pi;mi<Math.min(pi+pairSize,matches.length);mi++){
+                const [t1,t2]=matches[mi];
+                const w=stateRef[round+'_'+mi];
+                const wId=w&&typeof w==='object'?w.id:null;
+                const mwrap=document.createElement('div');mwrap.className='bracket-match-wrap';
+                const card=document.createElement('div');
+                card.className='bracket-match'+(wId?' has-winner':'');
+                const makeSlot=team=>{
+                    const slot=document.createElement('div');
+                    const isW=wId&&team&&wId==team.id;
+                    slot.className='bracket-slot'+(isW?' winner':'')+(team?'':' tbd')+(team&&editable?' clickable':'');
+                    if(team&&editable)slot.onclick=()=>onWin(round,mi,team);
+                    const fspan=document.createElement('span');fspan.className='bracket-slot-flag';
+                    if(team&&team.flag){
+                        const fs=document.createElement('span');
+                        fs.className='fi fi-'+team.flag;
+                        fs.style.cssText='width:18px;height:13px;border-radius:2px;display:inline-block;background-size:cover;vertical-align:middle;flex-shrink:0';
+                        fspan.appendChild(fs);
+                    }
+                    const nspan=document.createElement('span');nspan.className='bracket-slot-name';
+                    nspan.textContent=team?team.name:'A definir';
+                    slot.appendChild(fspan);slot.appendChild(nspan);return slot;
+                };
+                card.appendChild(makeSlot(t1));
+                const divEl=document.createElement('div');divEl.className='bracket-divider';card.appendChild(divEl);
+                card.appendChild(makeSlot(t2));
+                mwrap.appendChild(card);pair.appendChild(mwrap);
+            }
+            col.appendChild(pair);
+        }
         el.appendChild(col);
     });
 }
