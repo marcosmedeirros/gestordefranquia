@@ -1665,14 +1665,14 @@ const LETTER_TO_GROUP_ID = <?=json_encode(array_combine(
 // Each R32 slot (by array index in buildR32) lists which groups' 3rd can fill it.
 // Constraint: a 3rd from group X cannot face Winner X (same-group rematch).
 const THIRD_SLOT_ELIGIBLE = {
-    1:  ['A','B','C','D','F'],   // J74 idx1:  vs 1E
-    6:  ['A','E','H','I','J'],   // J82 idx6:  vs 1G
-    7:  ['B','E','F','I','J'],   // J81 idx7:  vs 1D
-    9:  ['C','D','F','G','H'],   // J77 idx9:  vs 1I
+    0:  ['A','B','C','D','F'],   // J74 idx0:  vs 1E
+    1:  ['C','D','F','G','H'],   // J77 idx1:  vs 1I
+    6:  ['B','E','F','I','J'],   // J81 idx6:  vs 1D
+    7:  ['A','E','H','I','J'],   // J82 idx7:  vs 1G
     10: ['C','E','F','H','I'],   // J79 idx10: vs 1A
     11: ['E','H','I','J','K'],   // J80 idx11: vs 1L
-    13: ['D','E','I','J','L'],   // J87 idx13: vs 1K
     14: ['E','F','G','I','J'],   // J85 idx14: vs 1B
+    15: ['D','E','I','J','L'],   // J87 idx15: vs 1K
 };
 
 function assignThirdsToSlots(thirdsArr, tMap) {
@@ -1716,27 +1716,27 @@ function buildR32(orderMap){
     const nth=assignThirdsToSlots(thirdsArr,t);
 
     // R32 ordenado em pares que alimentam cada jogo do R16:
-    // Adjacent pairs feed oitavas: [0,1]→R16[0],[2,3]→R16[1],[4,5]→R16[2],[6,7]→R16[3]
-    // [8,9]→R16[4],[10,11]→R16[5],[12,13]→R16[6],[14,15]→R16[7]
-    // Oitavas→Quartas: R16[0+1]→QF0(J97), R16[2+3]→QF1(J98), R16[4+5]→QF2(J99), R16[6+7]→QF3(J100)
-    // Semifinal: SF0 = J97 vs J98, SF1 = J99 vs J100
+    // [0,1]→R16[0]=J89, [2,3]→R16[1]=J90  → QF0=J97 → SF0=J101
+    // [4,5]→R16[2]=J93, [6,7]→R16[3]=J94  → QF1=J98 → SF0=J101
+    // [8,9]→R16[4]=J91, [10,11]→R16[5]=J92 → QF2=J99 → SF1=J102
+    // [12,13]→R16[6]=J95,[14,15]→R16[7]=J96→ QF3=J100→ SF1=J102
     return [
-        [s['A'], s['B']],    // idx0  J73: 2A vs 2B           → R16[0]=J90 → QF0(J97)
-        [f['E'], nth(1)],    // idx1  J74: 1E vs 3º(A/B/C/D/F)→ R16[0]=J90 → QF0(J97)
-        [f['C'], s['F']],    // idx2  J76: 1C vs 2F           → R16[1]=J89 → QF0(J97)
-        [s['E'], s['I']],    // idx3  J78: 2E vs 2I           → R16[1]=J89 → QF0(J97)
-        [f['H'], s['J']],    // idx4  J84: 1H vs 2J           → R16[2]=J93 → QF1(J98)
-        [s['K'], s['L']],    // idx5  J83: 2K vs 2L           → R16[2]=J93 → QF1(J98)
-        [f['G'], nth(6)],    // idx6  J82: 1G vs 3º(A/E/H/I/J)→ R16[3]=J94 → QF1(J98)
-        [f['D'], nth(7)],    // idx7  J81: 1D vs 3º(B/E/F/I/J)→ R16[3]=J94 → QF1(J98)
-        [f['F'], s['C']],    // idx8  J75: 1F vs 2C           → R16[4]=J91 → QF2(J99)
-        [f['I'], nth(9)],    // idx9  J77: 1I vs 3º(C/D/F/G/H)→ R16[4]=J91 → QF2(J99)
-        [f['A'], nth(10)],   // idx10 J79: 1A vs 3º(C/E/F/H/I)→ R16[5]=J92 → QF2(J99)
-        [f['L'], nth(11)],   // idx11 J80: 1L vs 3º(E/H/I/J/K)→ R16[5]=J92 → QF2(J99)
-        [s['D'], s['G']],    // idx12 J88: 2D vs 2G           → R16[6]=J95 → QF3(J100)
-        [f['K'], nth(13)],   // idx13 J87: 1K vs 3º(D/E/I/J/L)→ R16[6]=J95 → QF3(J100)
-        [f['B'], nth(14)],   // idx14 J85: 1B vs 3º(E/F/G/I/J)→ R16[7]=J96 → QF3(J100)
-        [f['J'], s['H']],    // idx15 J86: 1J vs 2H           → R16[7]=J96 → QF3(J100)
+        [f['E'], nth(0)],    // idx0  J74: 1E vs 3º(A/B/C/D/F) → R16[0]=J89 → QF0(J97)
+        [f['I'], nth(1)],    // idx1  J77: 1I vs 3º(C/D/F/G/H) → R16[0]=J89 → QF0(J97)
+        [s['A'], s['B']],    // idx2  J73: 2A vs 2B             → R16[1]=J90 → QF0(J97)
+        [f['F'], s['C']],    // idx3  J75: 1F vs 2C             → R16[1]=J90 → QF0(J97)
+        [s['K'], s['L']],    // idx4  J83: 2K vs 2L             → R16[2]=J93 → QF1(J98)
+        [f['H'], s['J']],    // idx5  J84: 1H vs 2J             → R16[2]=J93 → QF1(J98)
+        [f['D'], nth(6)],    // idx6  J81: 1D vs 3º(B/E/F/I/J)  → R16[3]=J94 → QF1(J98)
+        [f['G'], nth(7)],    // idx7  J82: 1G vs 3º(A/E/H/I/J)  → R16[3]=J94 → QF1(J98)
+        [f['C'], s['F']],    // idx8  J76: 1C vs 2F             → R16[4]=J91 → QF2(J99)
+        [s['E'], s['I']],    // idx9  J78: 2E vs 2I             → R16[4]=J91 → QF2(J99)
+        [f['A'], nth(10)],   // idx10 J79: 1A vs 3º(C/E/F/H/I)  → R16[5]=J92 → QF2(J99)
+        [f['L'], nth(11)],   // idx11 J80: 1L vs 3º(E/H/I/J/K)  → R16[5]=J92 → QF2(J99)
+        [f['J'], s['H']],    // idx12 J86: 1J vs 2H             → R16[6]=J95 → QF3(J100)
+        [s['D'], s['G']],    // idx13 J88: 2D vs 2G             → R16[6]=J95 → QF3(J100)
+        [f['B'], nth(14)],   // idx14 J85: 1B vs 3º(E/F/G/I/J)  → R16[7]=J96 → QF3(J100)
+        [f['K'], nth(15)],   // idx15 J87: 1K vs 3º(D/E/I/J/L)  → R16[7]=J96 → QF3(J100)
     ];
 }
 
