@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
@@ -10,7 +10,8 @@ $isAdmin = !empty($_SESSION['bracket_admin_ok']);
 
 if (!$isAdmin) {
     http_response_code(403);
-    echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso negado</title></head><body style="font-family:Arial,sans-serif;background:#0a0b0f;color:#fff;padding:24px;">';
+    echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso negado</title>
+	<link rel="icon" type="image/png" href="/img/fbagames.png"></head><body style="font-family:Arial,sans-serif;background:#0a0b0f;color:#fff;padding:24px;">';
     echo '<h2>Acesso negado</h2><p>Use o link de admin para acessar esta pagina.</p>';
     echo '<p><a style="color:#7cc3ff;" href="bracketadmin.php?admin=' . urlencode($adminKey) . '">Abrir com chave de admin</a></p>';
     echo '</body></html>';
@@ -299,6 +300,7 @@ function matchupCardAdmin($id, $t1key, $t2key, $teams, $singleGame = false) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bracket Admin - NBA 2026</title>
+	<link rel="icon" type="image/png" href="/img/fbagames.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>

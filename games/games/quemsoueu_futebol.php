@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require '../core/conexao.php';
 
@@ -194,6 +194,7 @@ $jsPlayers = array_map(fn($p) => ['id'=>$p['id'],'n'=>$p['n']], $QSE_PLAYERS);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Quem Sou Eu? Futebol — FBA Games</title>
+	<link rel="icon" type="image/png" href="/img/fbagames.png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
