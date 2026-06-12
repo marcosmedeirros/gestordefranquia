@@ -1250,9 +1250,15 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       </div>
       <div class="sc-footer">
         <span class="score-time"><?=htmlspecialchars($m['match_time']??'')?></span>
-        <?php if ($sp): ?>
-        <span class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?><?php if ($hasResult && $sp['points_earned']!==null): ?> · <span style="color:var(--<?=$sp['points_earned']>0?'green':'text-3']?);font-weight:700"><?=$sp['points_earned']?>pt<?=$sp['points_earned']!=1?'s':''?></span><?php endif; ?></span>
-        <?php endif; ?>
+        <?php if ($sp) {
+            $sh_p=$sp['score_home']; $sa_p=$sp['score_away']; $pe=$sp['points_earned'];
+            if ($hasResult && $pe!==null) {
+                $pts=(int)$pe; $col=$pts>0?'#22c55e':'#ef4444';
+                echo '<span class="score-pred-result" style="color:'.$col.';font-weight:600">Palpite: '.$sh_p.'×'.$sa_p.' · '.$pts.'pt'.($pts!=1?'s':'').'</span>';
+            } else {
+                echo '<span class="score-pred-result">Palpite: '.$sh_p.'×'.$sa_p.'</span>';
+            }
+        } ?>
         <?php if ($isAdmin): ?>
         <button class="btn-r secondary sm" style="margin-left:auto;padding:3px 8px" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash"></i></button>
         <?php endif; ?>
