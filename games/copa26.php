@@ -155,6 +155,20 @@ function seedCopa26(PDO $pdo): void {
     }
 }
 
+// ── Score-pred point calculation ──────────────────────────────────────────────
+function calcMatchScorePreds(PDO $pdo, int $matchId, int $sh, int $sa): void {
+    $rows = $pdo->prepare("SELECT id,score_home,score_away FROM copa26_score_preds WHERE match_id=?");
+    $rows->execute([$matchId]);
+    $upd  = $pdo->prepare("UPDATE copa26_score_preds SET points_earned=? WHERE id=?");
+    foreach ($rows->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $ph=(int)$p['score_home']; $pa=(int)$p['score_away'];
+        if ($ph===$sh && $pa===$sa) { $pts=3; }
+        elseif (($ph>$pa&&$sh>$sa)||($ph<$pa&&$sh<$sa)||($ph===$pa&&$sh===$sa)) { $pts=1; }
+        else { $pts=0; }
+        $upd->execute([$pts,$p['id']]);
+    }
+}
+
 // ── Point calculation ─────────────────────────────────────────────────────────
 function calcAllPoints(PDO $pdo, array $off): void {
     $og  = json_decode($off['groups_json']  ?? '[]', true) ?: [];
@@ -307,9 +321,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='set_result'&&$isAdmin) {
-        $pdo->prepare("UPDATE copa26_matches SET score_home=?,score_away=? WHERE id=?")
-            ->execute([(int)($body['home']??0),(int)($body['away']??0),(int)($body['match_id']??0)]);
+        $mid=(int)($body['match_id']??0);
+        $sh=(int)($body['home']??0); $sa=(int)($body['away']??0);
+        $pdo->prepare("UPDATE copa26_matches SET score_home=?,score_away=? WHERE id=?")->execute([$sh,$sa,$mid]);
+        calcMatchScorePreds($pdo,$mid,$sh,$sa);
         echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='calc_score_preds'&&$isAdmin) {
+        $matches=$pdo->query("SELECT id,score_home,score_away FROM copa26_matches WHERE score_home IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($matches as $m) calcMatchScorePreds($pdo,(int)$m['id'],(int)$m['score_home'],(int)$m['score_away']);
+        echo json_encode(['ok'=>true,'msg'=>count($matches).' jogo(s) recalculado(s)']); exit;
     }
     if ($act==='add_match'&&$isAdmin) {
         $pdo->prepare("INSERT INTO copa26_matches (match_date,match_time,home_team_id,away_team_id,home_name,away_name,phase) VALUES (?,?,?,?,?,?,?)")
@@ -1201,10 +1222,15 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       </div>
       <span class="score-time"><?=htmlspecialchars($m['match_time']??'')?></span>
       <?php if ($isAdmin): ?>
-      <div style="display:flex;gap:5px">
-        <?php if (!$hasResult): ?>
-        <button class="btn-r purple sm" onclick="setResult(<?=$m['id']?>)"><i class="bi bi-check2"></i>Resultado</button>
-        <?php endif; ?>
+      <div id="res_form_<?=$m['id']?>" style="display:none;align-items:center;gap:5px">
+        <input type="number" min="0" max="30" id="rh_<?=$m['id']?>" class="score-input" placeholder="0" value="<?=$m['score_home']??''?>">
+        <span class="score-sep">×</span>
+        <input type="number" min="0" max="30" id="ra_<?=$m['id']?>" class="score-input" placeholder="0" value="<?=$m['score_away']??''?>">
+        <button class="btn-r green-btn sm" onclick="confirmResult(<?=$m['id']?>)"><i class="bi bi-check-lg"></i></button>
+        <button class="btn-r secondary sm" onclick="document.getElementById('res_form_<?=$m['id']?>').style.display='none'"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div id="res_btns_<?=$m['id']?>" style="display:flex;gap:5px">
+        <button class="btn-r purple sm" onclick="showResultForm(<?=$m['id']?>)"><i class="bi bi-check2"></i><?=$hasResult?'Editar':'Resultado'?></button>
         <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash"></i></button>
       </div>
       <?php endif; ?>
@@ -1403,6 +1429,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <button class="btn-r gold" onclick="calcScorePreds()"><i class="bi bi-calculator-fill"></i>Conferir Pontos</button>
       <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
@@ -1638,12 +1665,12 @@ const LETTER_TO_GROUP_ID = <?=json_encode(array_combine(
 // Each R32 slot (by array index in buildR32) lists which groups' 3rd can fill it.
 // Constraint: a 3rd from group X cannot face Winner X (same-group rematch).
 const THIRD_SLOT_ELIGIBLE = {
-    1:  ['A','B','C','D','F'],   // J74 idx1: vs 1E
-    5:  ['C','D','F','G','H'],   // J77 idx5: vs 1I
-    6:  ['C','E','F','H','I'],   // J79 idx6: vs 1A
-    7:  ['E','H','I','J','K'],   // J80 idx7: vs 1L
-    10: ['A','E','H','I','J'],   // J82 idx10: vs 1G
-    11: ['B','E','F','I','J'],   // J81 idx11: vs 1D
+    1:  ['A','B','C','D','F'],   // J74 idx1:  vs 1E
+    6:  ['A','E','H','I','J'],   // J82 idx6:  vs 1G
+    7:  ['B','E','F','I','J'],   // J81 idx7:  vs 1D
+    9:  ['C','D','F','G','H'],   // J77 idx9:  vs 1I
+    10: ['C','E','F','H','I'],   // J79 idx10: vs 1A
+    11: ['E','H','I','J','K'],   // J80 idx11: vs 1L
     13: ['D','E','I','J','L'],   // J87 idx13: vs 1K
     14: ['E','F','G','I','J'],   // J85 idx14: vs 1B
 };
@@ -1689,26 +1716,27 @@ function buildR32(orderMap){
     const nth=assignThirdsToSlots(thirdsArr,t);
 
     // R32 ordenado em pares que alimentam cada jogo do R16:
-    // Adjacent pairs feed oitavas: [0,1]→Oitavas[0],[2,3]→[1],[4,5]→[2],[6,7]→[3]
-    // [8,9]→[4],[10,11]→[5],[12,13]→[6],[14,15]→[7]
-    // Oitavas→Quartas: [0,1]→QF0(J97), [2,3]→QF1(J99), [4,5]→QF2(J98), [6,7]→QF3(J100)
+    // Adjacent pairs feed oitavas: [0,1]→R16[0],[2,3]→R16[1],[4,5]→R16[2],[6,7]→R16[3]
+    // [8,9]→R16[4],[10,11]→R16[5],[12,13]→R16[6],[14,15]→R16[7]
+    // Oitavas→Quartas: R16[0+1]→QF0(J97), R16[2+3]→QF1(J98), R16[4+5]→QF2(J99), R16[6+7]→QF3(J100)
+    // Semifinal: SF0 = J97 vs J98, SF1 = J99 vs J100
     return [
-        [s['A'], s['B']],    // idx0  J73: 2A vs 2B
-        [f['E'], nth(1)],    // idx1  J74: 1E vs 3º(A/B/C/D/F)
-        [f['C'], s['F']],    // idx2  J76: 1C vs 2F
-        [s['E'], s['I']],    // idx3  J78: 2E vs 2I
-        [f['F'], s['C']],    // idx4  J75: 1F vs 2C
-        [f['I'], nth(5)],    // idx5  J77: 1I vs 3º(C/D/F/G/H)
-        [f['A'], nth(6)],    // idx6  J79: 1A vs 3º(C/E/F/H/I)
-        [f['L'], nth(7)],    // idx7  J80: 1L vs 3º(E/H/I/J/K)
-        [f['H'], s['J']],    // idx8  J84: 1H vs 2J
-        [s['K'], s['L']],    // idx9  J83: 2K vs 2L
-        [f['G'], nth(10)],   // idx10 J82: 1G vs 3º(A/E/H/I/J)
-        [f['D'], nth(11)],   // idx11 J81: 1D vs 3º(B/E/F/I/J)
-        [s['D'], s['G']],    // idx12 J88: 2D vs 2G
-        [f['K'], nth(13)],   // idx13 J87: 1K vs 3º(D/E/I/J/L)
-        [f['B'], nth(14)],   // idx14 J85: 1B vs 3º(E/F/G/I/J)
-        [f['J'], s['H']],    // idx15 J86: 1J vs 2H
+        [s['A'], s['B']],    // idx0  J73: 2A vs 2B           → R16[0]=J90 → QF0(J97)
+        [f['E'], nth(1)],    // idx1  J74: 1E vs 3º(A/B/C/D/F)→ R16[0]=J90 → QF0(J97)
+        [f['C'], s['F']],    // idx2  J76: 1C vs 2F           → R16[1]=J89 → QF0(J97)
+        [s['E'], s['I']],    // idx3  J78: 2E vs 2I           → R16[1]=J89 → QF0(J97)
+        [f['H'], s['J']],    // idx4  J84: 1H vs 2J           → R16[2]=J93 → QF1(J98)
+        [s['K'], s['L']],    // idx5  J83: 2K vs 2L           → R16[2]=J93 → QF1(J98)
+        [f['G'], nth(6)],    // idx6  J82: 1G vs 3º(A/E/H/I/J)→ R16[3]=J94 → QF1(J98)
+        [f['D'], nth(7)],    // idx7  J81: 1D vs 3º(B/E/F/I/J)→ R16[3]=J94 → QF1(J98)
+        [f['F'], s['C']],    // idx8  J75: 1F vs 2C           → R16[4]=J91 → QF2(J99)
+        [f['I'], nth(9)],    // idx9  J77: 1I vs 3º(C/D/F/G/H)→ R16[4]=J91 → QF2(J99)
+        [f['A'], nth(10)],   // idx10 J79: 1A vs 3º(C/E/F/H/I)→ R16[5]=J92 → QF2(J99)
+        [f['L'], nth(11)],   // idx11 J80: 1L vs 3º(E/H/I/J/K)→ R16[5]=J92 → QF2(J99)
+        [s['D'], s['G']],    // idx12 J88: 2D vs 2G           → R16[6]=J95 → QF3(J100)
+        [f['K'], nth(13)],   // idx13 J87: 1K vs 3º(D/E/I/J/L)→ R16[6]=J95 → QF3(J100)
+        [f['B'], nth(14)],   // idx14 J85: 1B vs 3º(E/F/G/I/J)→ R16[7]=J96 → QF3(J100)
+        [f['J'], s['H']],    // idx15 J86: 1J vs 2H           → R16[7]=J96 → QF3(J100)
     ];
 }
 
@@ -1835,9 +1863,21 @@ async function saveScores(){
     });
     const r=await post({action:'scores',scores});showToast(r.ok?'Placares salvos!':'Erro.',!r.ok);
 }
-async function setResult(matchId){
-    const h=prompt('Gols casa:');if(h===null)return;const a=prompt('Gols visitante:');if(a===null)return;
-    const r=await post({action:'set_result',match_id:matchId,home:+h,away:+a});if(r.ok)location.reload();
+function showResultForm(matchId){
+    document.getElementById('res_form_'+matchId).style.display='flex';
+    document.getElementById('res_btns_'+matchId).style.display='none';
+    document.getElementById('rh_'+matchId).focus();
+}
+async function confirmResult(matchId){
+    const h=document.getElementById('rh_'+matchId)?.value;
+    const a=document.getElementById('ra_'+matchId)?.value;
+    if(h===''||h===undefined||a===''||a===undefined){showToast('Informe os gols.',true);return;}
+    const r=await post({action:'set_result',match_id:matchId,home:+h,away:+a});
+    if(r.ok)location.reload();else showToast('Erro ao salvar.',true);
+}
+async function calcScorePreds(){
+    const r=await post({action:'calc_score_preds'});
+    showToast(r.ok?r.msg||'Pontos recalculados!':r.msg||'Erro.',!r.ok);
 }
 async function delMatch(matchId){
     if(!confirm('Remover jogo?'))return;const r=await post({action:'del_match',match_id:matchId});if(r.ok)location.reload();
