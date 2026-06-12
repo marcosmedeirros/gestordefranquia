@@ -1372,7 +1372,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 
   <!-- Controle do bracket -->
   <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Controle do Bracket (Mata-Mata)</div>
+    <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Controle do Bracket</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn-r <?= $groupsOpen ? 'secondary' : 'outline' ?>" id="btnToggleGroups" onclick="toggleGroupsOpen()">
         <i class="bi bi-<?= $groupsOpen ? 'lock-fill' : 'unlock' ?>"></i><?= $groupsOpen ? 'Fechar Fase de Grupos' : 'Abrir Fase de Grupos' ?>
@@ -1465,6 +1465,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
       <button class="btn-r gold" onclick="calcScorePreds()"><i class="bi bi-calculator-fill"></i>Conferir Pontos</button>
+      <button class="btn-r secondary" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
       <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
