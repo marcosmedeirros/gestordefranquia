@@ -11,6 +11,7 @@
 	<link rel="manifest" href="/manifest.json">
 	<link rel="apple-touch-icon" href="/img/fba-logo.png">
 	<title>FBA Manager - Login</title>
+	<link rel="icon" type="image/png" href="/img/fbagames.png">
 
 	<?php
 	$headPwaPath = __DIR__ . '/includes/head-pwa.php';
