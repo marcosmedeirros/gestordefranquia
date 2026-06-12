@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - FBA Games</title>
-	<link rel="icon" type="image/png" href="/img/fbagames.png">
+	<link rel="icon" type="image/png" href="/games/fbagames.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
   <div class="auth-left">
     <div class="auth-logo">
-      <div class="auth-logo-box"><img src="../../img/fbagames.png" alt="FBA"></div>
+      <div class="auth-logo-box"><img src="../../games/fbagames.png" alt="FBA"></div>
       <span class="auth-logo-name">FBA <span>Games</span></span>
     </div>
     <h1 class="auth-headline">Bem-vindo de<br>volta ao <em>FBA</em></h1>
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <div class="auth-right">
     <div class="auth-card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
-        <img src="../../img/fbagames.png" alt="FBA" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
+        <img src="../../games/fbagames.png" alt="FBA" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
         <span style="font-size:18px;font-weight:800;color:var(--text)">FBA <span style="color:var(--red)">Games</span></span>
       </div>
       <h2 class="auth-card-title">Entrar na conta</h2>

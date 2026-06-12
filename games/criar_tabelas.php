@@ -10,7 +10,7 @@ echo "<!DOCTYPE html>
 <head>
     <meta charset='UTF-8'>
     <title>Criar Tabelas</title>
-	<link rel="icon" type="image/png" href="/img/fbagames.png">
+	<link rel="icon" type="image/png" href="/games/fbagames.png">
     <style>
         body { font-family: monospace; background: #1a1a1a; color: #00ff00; padding: 20px; }
         pre { background: #000; padding: 10px; border: 1px solid #00ff00; overflow: auto; }

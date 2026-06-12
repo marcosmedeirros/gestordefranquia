@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "FBA Games",
   "short_name": "FBA Games",
   "description": "Central de games da FBA",
@@ -10,8 +10,8 @@
   "scope": "/games/",
   "lang": "pt-BR",
   "icons": [
-    { "src": "/img/fbagames.png", "sizes": "any", "type": "image/png", "purpose": "any" },
-    { "src": "/img/fbagames.png", "sizes": "any", "type": "image/png", "purpose": "maskable" },
+    { "src": "/games/fbagames.png", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/games/fbagames.png", "sizes": "any", "type": "image/png", "purpose": "maskable" },
     { "src": "/img/icons/icon-72.png?v=6",  "sizes": "72x72",  "type": "image/png", "purpose": "any" },
     { "src": "/img/icons/icon-96.png?v=6",  "sizes": "96x96",  "type": "image/png", "purpose": "any" },
     { "src": "/img/icons/icon-128.png?v=6", "sizes": "128x128", "type": "image/png", "purpose": "any" },

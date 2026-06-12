@@ -18,7 +18,7 @@ if (!isset($_GET['k']) || $_GET['k'] !== $secret) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Álbum FBA – Protótipo</title>
-	<link rel="icon" type="image/png" href="/img/fbagames.png">
+	<link rel="icon" type="image/png" href="/games/fbagames.png">
     <meta name="robots" content="noindex,nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

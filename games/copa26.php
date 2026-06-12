@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
@@ -496,7 +496,7 @@ $pendingToday = array_values(array_filter(
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#fc0025">
 <title>Bolão Copa 2026 · FBA Games</title>
-<link rel="icon" type="image/png" href="../img/fbagames.png">
+<link rel="icon" type="image/png" href="../games/fbagames.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1339,11 +1339,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <?php if (empty($ranking)): ?>
   <div class="no-matches">Nenhum palpite enviado ainda.</div>
   <?php else: ?>
-  <?php if ($isAdmin): ?>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-    <button class="btn-r secondary" style="font-size:12px;gap:6px" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
-  </div>
-  <?php endif; ?>
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
     <table class="ranking-table" id="rankingTable">
       <thead><tr>
@@ -1380,6 +1375,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <button class="btn-r <?= $bracketOpen ? 'primary' : 'outline' ?>" id="btnToggleBracket" onclick="toggleBracketOpen()">
         <i class="bi bi-<?= $bracketOpen ? 'lock-fill' : 'unlock' ?>"></i><?= $bracketOpen ? 'Fechar Bracket' : 'Abrir Bracket para palpites' ?>
       </button>
+      <button class="btn-r secondary" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
     </div>
   </div>
 
@@ -1465,7 +1461,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
       <button class="btn-r gold" onclick="calcScorePreds()"><i class="bi bi-calculator-fill"></i>Conferir Pontos</button>
-      <button class="btn-r secondary" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
       <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
@@ -2083,7 +2078,8 @@ function copyTop5(){
         lines.push((i+1)+' - '+name+' | '+pts+' pts');
     });
     if(!lines.length){showToast('Nenhum dado no ranking.',true);return;}
-    navigator.clipboard.writeText(lines.join('\n')).then(()=>showToast('Top 5 copiado!')).catch(()=>showToast('Erro ao copiar.',true));
+    const header='TOP 5 BOLÃO COPA\n1 ponto: vencedor | 3 pontos: placar exato\n\n';
+    navigator.clipboard.writeText(header+lines.join('\n')).then(()=>showToast('Top 5 copiado!')).catch(()=>showToast('Erro ao copiar.',true));
 }
 let _bracketOpen = <?=json_encode((bool)$bracketOpen)?>;
 let _groupsOpen  = <?=json_encode((bool)$groupsOpen)?>;

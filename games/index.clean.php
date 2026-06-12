@@ -238,7 +238,7 @@ try {
   <link rel="manifest" href="/games/manifest.json?v=1">
   <link rel="apple-touch-icon" href="/img/icons/icon-180.png?v=6">
   <title>FBA Games</title>
-	<link rel="icon" type="image/png" href="/img/fbagames.png">
+	<link rel="icon" type="image/png" href="/games/fbagames.png">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
