@@ -89,8 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     .auth-logo-box {
       width: 44px; height: 44px; border-radius: 12px; background: var(--red);
       display: flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: 16px; color: #fff;
+      font-weight: 900; font-size: 16px; color: #fff; overflow: hidden;
     }
+    .auth-logo-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
     .auth-logo-name { font-size: 20px; font-weight: 800; color: var(--text); }
     .auth-logo-name span { color: var(--red); }
     .auth-headline { font-size: 32px; font-weight: 900; line-height: 1.2; color: var(--text); margin-bottom: 16px; position: relative; }
@@ -171,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
   <div class="auth-left">
     <div class="auth-logo">
-      <div class="auth-logo-box">FBA</div>
+      <div class="auth-logo-box"><img src="../../img/fbagames.png" alt="FBA"></div>
       <span class="auth-logo-name">FBA <span>Games</span></span>
     </div>
     <h1 class="auth-headline">Bem-vindo de<br>volta ao <em>FBA</em></h1>
@@ -186,6 +187,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
   <div class="auth-right">
     <div class="auth-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
+        <img src="../../img/fbagames.png" alt="FBA" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
+        <span style="font-size:18px;font-weight:800;color:var(--text)">FBA <span style="color:var(--red)">Games</span></span>
+      </div>
       <h2 class="auth-card-title">Entrar na conta</h2>
       <p class="auth-card-sub">Coloque suas credenciais para continuar</p>
 

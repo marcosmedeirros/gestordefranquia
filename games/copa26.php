@@ -496,6 +496,7 @@ $pendingToday = array_values(array_filter(
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#fc0025">
 <title>Bolão Copa 2026 · FBA Games</title>
+<link rel="icon" type="image/png" href="../img/fbagames.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1338,8 +1339,13 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <?php if (empty($ranking)): ?>
   <div class="no-matches">Nenhum palpite enviado ainda.</div>
   <?php else: ?>
+  <?php if ($isAdmin): ?>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <button class="btn-r secondary" style="font-size:12px;gap:6px" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
+  </div>
+  <?php endif; ?>
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
-    <table class="ranking-table">
+    <table class="ranking-table" id="rankingTable">
       <thead><tr>
         <th style="width:40px">#</th><th>Jogador</th><th>Campeão apostado</th><th style="text-align:right">Pontos</th>
       </tr></thead>
@@ -1546,7 +1552,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
           </td>
           <td>
             <div style="display:flex;gap:4px">
-              <button class="btn-r purple sm" onclick="editMatch(<?=$m['id']?>,<?=json_encode((object)['date'=>$m['match_date'],'time'=>$m['match_time']??'','home_id'=>(int)($m['home_team_id']??0),'away_id'=>(int)($m['away_team_id']??0)])?>)"><i class="bi bi-pencil-fill"></i></button>
+              <button class="btn-r purple sm" onclick="editMatch(<?=$m['id']?>,<?=htmlspecialchars(json_encode(['date'=>$m['match_date'],'time'=>$m['match_time']??'','home_id'=>(int)($m['home_team_id']??0),'away_id'=>(int)($m['away_team_id']??0)]),ENT_QUOTES)?>)"><i class="bi bi-pencil-fill"></i></button>
               <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash-fill"></i></button>
             </div>
           </td>
@@ -2065,6 +2071,18 @@ async function saveOfficial(){
 async function calcPoints(){
     const r=await post({action:'calc_points'});showToast(r.ok?r.msg||'Pontos calculados!':r.msg||'Erro.',!r.ok);
     if(r.ok)setTimeout(()=>location.reload(),1200);
+}
+function copyTop5(){
+    const rows=document.querySelectorAll('#rankingTable tbody tr');
+    let lines=[];
+    rows.forEach((tr,i)=>{
+        if(i>=5)return;
+        const name=tr.querySelector('.ranking-name')?.textContent?.replace(/\(você\)/,'').trim()||'';
+        const pts=tr.querySelector('.ranking-pts')?.textContent?.trim()||'0';
+        lines.push((i+1)+' - '+name+' | '+pts+' pts');
+    });
+    if(!lines.length){showToast('Nenhum dado no ranking.',true);return;}
+    navigator.clipboard.writeText(lines.join('\n')).then(()=>showToast('Top 5 copiado!')).catch(()=>showToast('Erro ao copiar.',true));
 }
 let _bracketOpen = <?=json_encode((bool)$bracketOpen)?>;
 let _groupsOpen  = <?=json_encode((bool)$groupsOpen)?>;
