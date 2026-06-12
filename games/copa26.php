@@ -667,18 +667,23 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 .date-group-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .date-label{font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em}
 .date-today{background:rgba(252,0,37,.12);color:var(--red);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
-.score-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
-.score-team{display:flex;align-items:center;gap:7px;flex:1;min-width:80px}
-.score-team-name{font-size:12px;font-weight:600;color:var(--text)}
+.score-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:7px;display:flex;flex-direction:column;gap:7px}
+.sc-main{display:flex;align-items:center;gap:8px}
+.score-team{display:flex;align-items:center;gap:7px;flex:1;min-width:0}
+.score-team-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .score-team.right{flex-direction:row-reverse}.score-team.right .score-team-name{text-align:right}
-.score-input-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.sc-middle{flex-shrink:0;display:flex;align-items:center;justify-content:center;min-width:72px}
+.score-input-wrap{display:flex;align-items:center;gap:5px}
 .score-input{width:42px;height:34px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;color:var(--text);font-size:15px;font-weight:700;text-align:center;font-family:var(--font)}
 .score-input:focus{outline:none;border-color:var(--red)}
 .score-sep{color:var(--text-3);font-weight:700;font-size:12px}
-.score-result-display{font-size:17px;font-weight:800;color:var(--green);flex-shrink:0;min-width:46px;text-align:center}
-.score-time{font-size:10px;color:var(--text-3);flex-shrink:0}
-.score-pred-result{font-size:10px;color:var(--text-3);flex-shrink:0}
+.score-result-display{font-size:17px;font-weight:800;color:var(--green);text-align:center;line-height:1}
+.sc-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.score-time{font-size:10px;color:var(--text-3)}
+.score-pred-result{font-size:10px;color:var(--text-3)}
 .no-matches{text-align:center;padding:40px 0;color:var(--text-3);font-size:13px}
+/* admin result lock */
+.score-input.locked{opacity:.5;pointer-events:none}
 /* ranking */
 .ranking-table{width:100%;border-collapse:collapse}
 .ranking-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:7px 12px;border-bottom:1px solid var(--border);text-align:left}
@@ -720,39 +725,64 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
 @media(max-width:900px){
   .sidebar{transform:translateX(-100%);transition:transform var(--t) var(--ease)}.sidebar.open{transform:translateX(0)}
   .sb-close{display:block}.page{margin-left:0}.mob-bar{display:flex}
-  .main{padding:16px 16px 50px}
+  .main{padding:14px 14px 56px}
   .copa-hero{padding:14px 16px}.copa-hero-title{font-size:18px}
   .groups-grid{grid-template-columns:repeat(2,1fr);gap:8px}
-  .thirds-grid{grid-template-columns:repeat(4,1fr)}
+  .thirds-grid{grid-template-columns:repeat(4,1fr);gap:7px}
   .prizes-grid{grid-template-columns:1fr}
-  .awards-grid{grid-template-columns:1fr}
   .pred-groups-mini{grid-template-columns:repeat(2,1fr)}
   .pred-awards{grid-template-columns:1fr}
   .admin-form{grid-template-columns:1fr 1fr}
+  .bracket-round{width:160px}
 }
-
-@media(max-width:540px){
-  .main{padding:12px 12px 40px}
-  .copa-hero{padding:12px 14px;flex-direction:column;gap:8px}.copa-hero-title{font-size:16px}
-  .copa-tabs{gap:0}.copa-tab{padding:9px 11px;font-size:12px}
+@media(max-width:600px){
+  .main{padding:12px 10px 52px}
+  .copa-hero{padding:12px 13px;flex-direction:column;align-items:flex-start;gap:6px}
+  .copa-hero-title{font-size:16px}
+  .copa-hero::before{display:none}
+  .copa-tabs{gap:0}.copa-tab{padding:9px 10px;font-size:12px}
   .groups-grid{grid-template-columns:repeat(2,1fr);gap:6px}
-  .group-card-header{padding:6px 10px}.group-col-header{padding:4px 8px}
-  .team-row{padding:5px 8px;gap:6px}.pos-btn{width:20px;height:20px}.pos-btn.on::after{width:8px;height:8px}
+  .group-card-header{padding:5px 9px}.group-col-header{padding:3px 7px}
+  .team-row{padding:5px 8px;gap:5px}.pos-btn{width:20px;height:20px}.pos-btn.on::after{width:8px;height:8px}
   .team-name-sm{font-size:10px}
-  .thirds-grid{grid-template-columns:repeat(3,1fr)}
-  .bracket-slot{padding:5px 8px;font-size:11px}
-  .prizes-grid{gap:8px}
-  .prize-card{padding:12px}
-  .submit-bar{flex-direction:column;align-items:stretch;gap:10px}
-  .submit-bar > div:last-child{display:flex;gap:8px}
-  .submit-bar > div:last-child > button{flex:1}
+  .thirds-grid{grid-template-columns:repeat(3,1fr);gap:6px}
+  .third-slot{padding:7px 4px}
+  .third-slot-name{font-size:9px}
+  .prizes-grid{gap:8px}.prize-card{padding:11px}
+  .submit-bar{flex-direction:column;align-items:stretch;gap:8px}
+  .submit-bar>div:last-child{display:flex;gap:8px}
+  .submit-bar>div:last-child>button{flex:1}
   .admin-form{grid-template-columns:1fr}
-  .score-card{gap:6px}
+  .admin-section{padding:13px 12px}
   .accordion-title{font-size:13px}
+  .accordion-header{padding:11px 14px}
   .pred-groups-mini{grid-template-columns:repeat(2,1fr);gap:5px}
   .pred-group-mini{padding:6px 8px}
+  .bracket-round{width:150px}
+  .bracket-slot{padding:5px 8px;font-size:10px;min-height:30px}
+  .bracket-round-title{font-size:9px}
+  .ranking-table td,.ranking-table th{padding:8px 8px}
+  /* admin matches table → cards */
+  .matches-table{display:block}
+  .matches-table thead{display:none}
+  .matches-table tbody{display:flex;flex-direction:column;gap:8px}
+  .matches-table tr{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:4px 8px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+  .matches-table td{display:flex;align-items:center;padding:0;border:none;font-size:12px}
+  .matches-table td:nth-child(1),.matches-table td:nth-child(2){color:var(--text-3);font-size:11px}
+  .matches-table td:nth-child(3){grid-column:1;font-weight:600;color:var(--text)}
+  .matches-table td:nth-child(4){grid-column:2;font-weight:600;color:var(--text);justify-content:flex-end}
+  .matches-table td:nth-child(5){grid-column:1}
+  .matches-table td:nth-child(6){grid-column:2;justify-content:flex-end}
 }
-@media(max-width:540px){.main{padding:14px 14px 40px}.groups-grid{grid-template-columns:repeat(2,1fr)}.thirds-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:400px){
+  .main{padding:10px 8px 48px}
+  .copa-tab{padding:8px 8px;font-size:11px}
+  .groups-grid{grid-template-columns:repeat(2,1fr);gap:5px}
+  .thirds-grid{grid-template-columns:repeat(2,1fr)}
+  .score-input{width:38px;height:30px;font-size:14px}
+  .score-result-display{font-size:15px}
+  .bracket-round{width:136px}
+}
 </style>
 </head>
 <body>
@@ -1195,45 +1225,38 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
         $canPredict=!$hasResult&&!$started;
     ?>
     <div class="score-card" data-match="<?=$m['id']?>">
-      <div class="score-team">
-        <?=flagImg($m['hflag']??'',22)?>
-        <span class="score-team-name"><?=htmlspecialchars($hName)?></span>
+      <div class="sc-main">
+        <div class="score-team">
+          <?=flagImg($m['hflag']??'',22)?>
+          <span class="score-team-name"><?=htmlspecialchars($hName)?></span>
+        </div>
+        <div class="sc-middle">
+          <?php if ($hasResult): ?>
+          <div class="score-result-display"><?=$m['score_home']?> – <?=$m['score_away']?></div>
+          <?php elseif ($canPredict): ?>
+          <div class="score-input-wrap">
+            <input type="number" min="0" max="30" class="score-input" id="sh_<?=$m['id']?>" value="<?=$sp?$sp['score_home']:''?>" placeholder="0">
+            <span class="score-sep">×</span>
+            <input type="number" min="0" max="30" class="score-input" id="sa_<?=$m['id']?>" value="<?=$sp?$sp['score_away']:''?>" placeholder="0">
+          </div>
+          <?php else: ?>
+          <div class="score-result-display" style="font-size:11px;color:var(--text-3);font-weight:600">Em<br>andamento</div>
+          <?php endif; ?>
+        </div>
+        <div class="score-team right">
+          <span class="score-team-name"><?=htmlspecialchars($aName)?></span>
+          <?=flagImg($m['aflag']??'',22)?>
+        </div>
       </div>
-      <?php if ($hasResult): ?>
-      <div class="score-result-display"><?=$m['score_home']?> – <?=$m['score_away']?></div>
-      <?php if ($sp): ?>
-      <div class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?></div>
-      <?php endif; ?>
-      <?php elseif ($canPredict): ?>
-      <div class="score-input-wrap">
-        <input type="number" min="0" max="30" class="score-input" id="sh_<?=$m['id']?>" value="<?=$sp?$sp['score_home']:''?>" placeholder="0">
-        <span class="score-sep">×</span>
-        <input type="number" min="0" max="30" class="score-input" id="sa_<?=$m['id']?>" value="<?=$sp?$sp['score_away']:''?>" placeholder="0">
+      <div class="sc-footer">
+        <span class="score-time"><?=htmlspecialchars($m['match_time']??'')?></span>
+        <?php if ($sp): ?>
+        <span class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?><?php if ($hasResult && $sp['points_earned']!==null): ?> · <span style="color:var(--<?=$sp['points_earned']>0?'green':'text-3']?);font-weight:700"><?=$sp['points_earned']?>pt<?=$sp['points_earned']!=1?'s':''?></span><?php endif; ?></span>
+        <?php endif; ?>
+        <?php if ($isAdmin): ?>
+        <button class="btn-r secondary sm" style="margin-left:auto;padding:3px 8px" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash"></i></button>
+        <?php endif; ?>
       </div>
-      <?php else: /* started, no result yet */ ?>
-      <div class="score-result-display" style="font-size:12px;color:var(--text-3)">Em andamento</div>
-      <?php if ($sp): ?>
-      <div class="score-pred-result">Seu palpite: <?=$sp['score_home']?>×<?=$sp['score_away']?></div>
-      <?php endif; ?>
-      <?php endif; ?>
-      <div class="score-team right">
-        <span class="score-team-name"><?=htmlspecialchars($aName)?></span>
-        <?=flagImg($m['aflag']??'',22)?>
-      </div>
-      <span class="score-time"><?=htmlspecialchars($m['match_time']??'')?></span>
-      <?php if ($isAdmin): ?>
-      <div id="res_form_<?=$m['id']?>" style="display:none;align-items:center;gap:5px">
-        <input type="number" min="0" max="30" id="rh_<?=$m['id']?>" class="score-input" placeholder="0" value="<?=$m['score_home']??''?>">
-        <span class="score-sep">×</span>
-        <input type="number" min="0" max="30" id="ra_<?=$m['id']?>" class="score-input" placeholder="0" value="<?=$m['score_away']??''?>">
-        <button class="btn-r green-btn sm" onclick="confirmResult(<?=$m['id']?>)"><i class="bi bi-check-lg"></i></button>
-        <button class="btn-r secondary sm" onclick="document.getElementById('res_form_<?=$m['id']?>').style.display='none'"><i class="bi bi-x-lg"></i></button>
-      </div>
-      <div id="res_btns_<?=$m['id']?>" style="display:flex;gap:5px">
-        <button class="btn-r purple sm" onclick="showResultForm(<?=$m['id']?>)"><i class="bi bi-check2"></i><?=$hasResult?'Editar':'Resultado'?></button>
-        <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash"></i></button>
-      </div>
-      <?php endif; ?>
     </div>
     <?php endforeach; ?>
   </div>
@@ -1486,29 +1509,39 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
       <table class="matches-table">
         <thead><tr>
-          <th>Data</th><th>Hora</th><th>Casa</th><th>Visitante</th><th>Resultado</th><th style="width:90px">Ações</th>
+          <th>Data</th><th>Hora</th><th>Casa</th><th>Visitante</th><th>Placar</th><th style="width:60px">Ações</th>
         </tr></thead>
         <tbody id="adminMatchList">
         <?php
-        // group by date for display
         $sortedMatches = $allMatches;
         usort($sortedMatches, fn($a,$b)=>strcmp($a['match_date'].$a['match_time'],$b['match_date'].$b['match_time']));
         foreach ($sortedMatches as $m):
             $hName=$m['hname']?:$m['home_name']?:'?';
             $aName=$m['aname']?:$m['away_name']?:'?';
             $hF=$m['hflag']??''; $aF=$m['aflag']??'';
-            $res=$m['score_home']!==null?"{$m['score_home']}–{$m['score_away']}":'—';
         ?>
         <tr id="aml_<?=$m['id']?>">
           <td><?=htmlspecialchars($m['match_date']??'')?></td>
           <td><?=htmlspecialchars($m['match_time']??'—')?></td>
           <td><?=$hF?flagImg($hF,16):''?> <?=htmlspecialchars($hName)?></td>
           <td><?=$aF?flagImg($aF,16):''?> <?=htmlspecialchars($aName)?></td>
-          <td><?=$res?></td>
+          <?php $locked=$m['score_home']!==null; ?>
+          <td>
+            <div style="display:flex;align-items:center;gap:3px" id="adm_score_wrap_<?=$m['id']?>">
+              <input type="number" min="0" max="30" id="adm_sh_<?=$m['id']?>" class="score-input<?=$locked?' locked':''?>" style="width:36px;height:28px;font-size:13px" placeholder="—" value="<?=$m['score_home']??''?>"<?=$locked?' readonly':''?>>
+              <span style="color:var(--text-3);font-size:11px;flex-shrink:0">×</span>
+              <input type="number" min="0" max="30" id="adm_sa_<?=$m['id']?>" class="score-input<?=$locked?' locked':''?>" style="width:36px;height:28px;font-size:13px" placeholder="—" value="<?=$m['score_away']??''?>"<?=$locked?' readonly':''?>>
+              <?php if ($locked): ?>
+              <button class="btn-r secondary sm" style="padding:3px 7px" title="Editar resultado" onclick="unlockResult(<?=$m['id']?>)"><i class="bi bi-lock-fill"></i></button>
+              <?php else: ?>
+              <button class="btn-r green-btn sm" style="padding:3px 7px" id="adm_save_<?=$m['id']?>" onclick="adminSaveResult(<?=$m['id']?>)"><i class="bi bi-check-lg"></i></button>
+              <?php endif; ?>
+            </div>
+          </td>
           <td>
             <div style="display:flex;gap:4px">
-              <button class="btn-r purple sm" onclick="editMatch(<?=$m['id']?>,<?=json_encode(['date'=>$m['match_date'],'time'=>$m['match_time']??'','home_id'=>$m['home_team_id'],'home_name'=>$hName,'away_id'=>$m['away_team_id'],'away_name'=>$aName,'sh'=>$m['score_home'],'sa'=>$m['score_away']])?> )">✏️</button>
-              <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)">🗑</button>
+              <button class="btn-r purple sm" onclick="editMatch(<?=$m['id']?>,<?=json_encode((object)['date'=>$m['match_date'],'time'=>$m['match_time']??'','home_id'=>(int)($m['home_team_id']??0),'away_id'=>(int)($m['away_team_id']??0)])?>)"><i class="bi bi-pencil-fill"></i></button>
+              <button class="btn-r secondary sm" onclick="delMatch(<?=$m['id']?>)"><i class="bi bi-trash-fill"></i></button>
             </div>
           </td>
         </tr>
@@ -1953,23 +1986,24 @@ function cancelCSV(){document.getElementById('csvPreview').style.display='none';
 })();
 
 // ── Match inline edit ─────────────────────────────────────────────────────────
-const ALL_TEAMS_SEL = `<?php echo implode('', array_map(fn($t)=>'<option value="'.$t['id'].'">'.(htmlspecialchars($t['flag']??'')).' '.htmlspecialchars($t['name']).'</option>', $allTeams)); ?>`;
+const ALL_TEAMS_DATA = <?=json_encode(array_map(fn($t)=>['id'=>(int)$t['id'],'name'=>$t['name'],'flag'=>$t['flag']??''], $allTeams))?>;
 
+function buildTeamOpts(selectedId){
+    return ALL_TEAMS_DATA.map(t=>`<option value="${t.id}"${t.id==selectedId?' selected':''}>${escH(t.flag)} ${escH(t.name)}</option>`).join('');
+}
 function editMatch(id, data){
     const row=document.getElementById('aml_'+id);if(!row)return;
-    row.innerHTML=`
-        <td><input class="match-edit-input" id="ei_date_${id}" type="date" value="${escH(data.date||'')}"></td>
-        <td><input class="match-edit-input" id="ei_time_${id}" type="time" value="${escH(data.time||'')}"></td>
-        <td><select class="match-edit-select" id="ei_home_${id}">${ALL_TEAMS_SEL}</select></td>
-        <td><select class="match-edit-select" id="ei_away_${id}">${ALL_TEAMS_SEL}</select></td>
-        <td><input class="match-edit-input" style="width:32px" id="ei_sh_${id}" type="number" min="0" value="${data.sh??''}"> – <input class="match-edit-input" style="width:32px" id="ei_sa_${id}" type="number" min="0" value="${data.sa??''}"></td>
-        <td><div style="display:flex;gap:4px">
-            <button class="btn-r green-btn sm" onclick="saveMatch(${id})">✓</button>
-            <button class="btn-r secondary sm" onclick="location.reload()">✕</button>
-        </div></td>`;
-    // set selected values
-    document.getElementById('ei_home_'+id).value=data.home_id||'';
-    document.getElementById('ei_away_'+id).value=data.away_id||'';
+    const hOpts=buildTeamOpts(data.home_id||0);
+    const aOpts=buildTeamOpts(data.away_id||0);
+    row.innerHTML=
+        `<td><input class="match-edit-input" id="ei_date_${id}" type="date" value="${escH(data.date||'')}"></td>`+
+        `<td><input class="match-edit-input" id="ei_time_${id}" type="time" value="${escH(data.time||'')}"></td>`+
+        `<td><select class="match-edit-select" id="ei_home_${id}">${hOpts}</select></td>`+
+        `<td><select class="match-edit-select" id="ei_away_${id}">${aOpts}</select></td>`+
+        `<td colspan="2"><div style="display:flex;gap:4px">`+
+        `<button class="btn-r green-btn sm" onclick="saveMatch(${id})"><i class="bi bi-check-lg"></i></button>`+
+        `<button class="btn-r secondary sm" onclick="location.reload()"><i class="bi bi-x-lg"></i></button>`+
+        `</div></td>`;
 }
 async function saveMatch(id){
     const r=await post({action:'update_match',match_id:id,
@@ -1977,10 +2011,37 @@ async function saveMatch(id){
         time:document.getElementById('ei_time_'+id)?.value||'',
         home_id:+document.getElementById('ei_home_'+id)?.value||0,
         away_id:+document.getElementById('ei_away_'+id)?.value||0,
-        score_home:document.getElementById('ei_sh_'+id)?.value,
-        score_away:document.getElementById('ei_sa_'+id)?.value});
+        score_home:null,score_away:null});
     if(r.ok){showToast('Jogo atualizado!');setTimeout(()=>location.reload(),700);}
     else showToast('Erro.',true);
+}
+function unlockResult(id){
+    const sh=document.getElementById('adm_sh_'+id);
+    const sa=document.getElementById('adm_sa_'+id);
+    if(!sh||!sa)return;
+    sh.removeAttribute('readonly'); sh.classList.remove('locked'); sh.focus();
+    sa.removeAttribute('readonly'); sa.classList.remove('locked');
+    // swap lock btn → save btn
+    const wrap=document.getElementById('adm_score_wrap_'+id);
+    const btn=wrap?.querySelector('button');
+    if(btn){btn.className='btn-r green-btn sm';btn.style.padding='3px 7px';btn.innerHTML='<i class="bi bi-check-lg"></i>';btn.onclick=()=>adminSaveResult(id);}
+}
+async function adminSaveResult(id){
+    const sh=document.getElementById('adm_sh_'+id)?.value;
+    const sa=document.getElementById('adm_sa_'+id)?.value;
+    if(sh===''||sa===''){showToast('Informe os dois placares.',true);return;}
+    const r=await post({action:'set_result',match_id:id,home:+sh,away:+sa});
+    if(r.ok){
+        showToast('Resultado salvo! Pontos calculados.');
+        // re-lock inputs
+        const shi=document.getElementById('adm_sh_'+id);
+        const sai=document.getElementById('adm_sa_'+id);
+        if(shi){shi.setAttribute('readonly','');shi.classList.add('locked');}
+        if(sai){sai.setAttribute('readonly','');sai.classList.add('locked');}
+        const wrap=document.getElementById('adm_score_wrap_'+id);
+        const btn=wrap?.querySelector('button');
+        if(btn){btn.className='btn-r secondary sm';btn.style.padding='3px 7px';btn.innerHTML='<i class="bi bi-lock-fill"></i>';btn.onclick=()=>unlockResult(id);}
+    } else showToast('Erro.',true);
 }
 
 // ── Admin save official ───────────────────────────────────────────────────────
