@@ -187,7 +187,7 @@ function calcAllPoints(PDO $pdo, array $off): void {
         }
         $ut = json_decode($p['thirds_json'] ?? '[]', true) ?: [];
         // 1pt por cada terceiro que avançou corretamente
-        foreach ($ot as $pos => $gid) {
+        foreach ($ot as $gid) {
             if (in_array($gid, $ut)) $pts++;
         }
         $ub = json_decode($p['bracket_json'] ?? '{}', true) ?: [];
@@ -449,7 +449,7 @@ $offBracket = $official?(json_decode($official['bracket_json'] ??'{}',true)?:[])
 
 $ranking=[];
 try {
-    $ranking=$pdo->query("SELECT u.nome,p.points,p.champion,p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id WHERE p.submitted_at IS NOT NULL AND u.copa26_pago=1 ORDER BY p.points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE p.submitted_at IS NOT NULL AND u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e){}
 
 // all matches (for Jogos tab)
