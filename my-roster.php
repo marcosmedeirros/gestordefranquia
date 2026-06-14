@@ -76,6 +76,46 @@ if ($teamId) {
 $canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
 $isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
 $is_admin = hasAdminAccess($pdo, (int)$user['id']);
+
+// ── Dados para copiar time ────────────────────────────────
+$allPlayersCopy = [];
+$teamPicksCopy  = [];
+$tradesCountCopy = 0;
+$maxTradesCopy   = 3;
+$teamCapCopy     = 0;
+if ($teamId) {
+    try {
+        $s = $pdo->prepare("SELECT id,name,position,role,ovr,age,player_tag,player_tag_color,player_tag_copy FROM players WHERE team_id=? ORDER BY ovr DESC,name ASC");
+        $s->execute([$teamId]);
+        $allPlayersCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+    } catch(Exception $e) {
+        $s = $pdo->prepare("SELECT id,name,position,role,ovr,age FROM players WHERE team_id=? ORDER BY ovr DESC,name ASC");
+        $s->execute([$teamId]);
+        $allPlayersCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+    try {
+        $s = $pdo->prepare("SELECT p.season_year,p.round,orig.city,orig.name AS team_name,p.original_team_id,p.team_id FROM picks p JOIN teams orig ON p.original_team_id=orig.id WHERE p.team_id=? ORDER BY p.season_year ASC,p.round ASC");
+        $s->execute([$teamId]);
+        $allPicksCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+        $teamPicksCopy = array_values(array_filter($allPicksCopy, fn($p) => (int)($p['season_year']??0) > (int)$currentSeasonYear));
+    } catch(Exception $e) {}
+    try {
+        $row = $pdo->prepare("SELECT trades_used,trades_cycle,current_cycle FROM teams WHERE id=?");
+        $row->execute([$teamId]);
+        $tr = $row->fetch(PDO::FETCH_ASSOC);
+        $tradesCountCopy = (int)($tr['trades_used']??0);
+    } catch(Exception $e) {}
+    try {
+        $ls = $pdo->prepare("SELECT max_trades FROM league_settings WHERE league=?");
+        $ls->execute([$team['league']??'']);
+        $lsr = $ls->fetch(); if ($lsr) $maxTradesCopy = (int)$lsr['max_trades'];
+    } catch(Exception $e) {}
+    try {
+        $cap8 = $pdo->prepare("SELECT COALESCE(SUM(ovr),0) AS cap FROM (SELECT ovr FROM players WHERE team_id=? ORDER BY ovr DESC LIMIT 8) t");
+        $cap8->execute([$teamId]);
+        $teamCapCopy = (int)($cap8->fetchColumn());
+    } catch(Exception $e) {}
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -516,6 +556,12 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
                 <h1 class="page-title">Meu Elenco</h1>
                 <p class="page-sub"><?= $team ? htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) : 'Sem time' ?></p>
             </div>
+            <?php if ($teamId): ?>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button id="btn-copy-team" class="btn-ghost" type="button"><i class="bi bi-clipboard-check"></i> Copiar Time</button>
+                <button id="btn-copy-roster" class="btn-ghost" type="button"><i class="bi bi-clipboard"></i> Copiar Elenco</button>
+            </div>
+            <?php endif; ?>
         </div>
 
         <?php if (!$teamId): ?>
@@ -1013,6 +1059,71 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
         btn.addEventListener('shown.bs.collapse', () => btn.setAttribute('aria-expanded', 'true'));
         btn.addEventListener('hidden.bs.collapse', () => btn.setAttribute('aria-expanded', 'false'));
     });
+
+    /* ── Copiar Time / Copiar Elenco ─── */
+    const _rosterData = <?= json_encode($allPlayersCopy) ?>;
+    const _picksData  = <?= json_encode($teamPicksCopy) ?>;
+    const _teamMeta   = {
+        name: <?= json_encode(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>,
+        userName: <?= json_encode($user['name']) ?>,
+        cap: <?= (int)$teamCapCopy ?>,
+        capMin: <?= (int)$capMin ?>,
+        capMax: <?= (int)$capMax ?>,
+        trades: <?= (int)$tradesCountCopy ?>,
+        maxTrades: <?= (int)$maxTradesCopy ?>,
+        customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
+        useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>
+    };
+
+    function _buildSummary(withPicks) {
+        const positions = ['PG','SG','SF','PF','C'];
+        const startersMap = {};
+        positions.forEach(p => startersMap[p] = null);
+        const fmt    = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
+        const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
+        const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
+
+        _rosterData.filter(p => p.role === 'Titular').forEach(p => {
+            if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p;
+        });
+        const bench   = _rosterData.filter(p => p.role === 'Banco');
+        const others  = _rosterData.filter(p => p.role === 'Outro');
+        const gleague = _rosterData.filter(p => (p.role||'').toLowerCase() === 'g-league');
+
+        const headerLines = (_teamMeta.useCustomHeader && _teamMeta.customHeader.trim())
+            ? _teamMeta.customHeader.trim().split('\n')
+            : [`*${_teamMeta.name}*`, _teamMeta.userName];
+
+        const lines = [
+            ...headerLines, '',
+            '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '',
+            '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), '',
+            '_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '',
+            '_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '',
+        ];
+
+        if (withPicks) {
+            const r1 = _picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
+            const r2 = _picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
+            lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '');
+            lines.push('_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
+        }
+
+        lines.push(
+            `_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`,
+            `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`
+        );
+        return lines.join('\n');
+    }
+
+    async function _doCopy(text, label) {
+        try { await navigator.clipboard.writeText(text); alert(label + ' copiado!'); }
+        catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); alert(label + ' copiado!'); }
+    }
+
+    document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary(true), 'Time'));
+    document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary(false), 'Elenco'));
 </script>
 <script src="/js/my-roster-v2.js?v=20260519-2"></script>
 <script>
