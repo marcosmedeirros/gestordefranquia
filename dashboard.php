@@ -1425,7 +1425,8 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         trades: <?= (int)$tradesCount ?>,
         maxTrades: <?= (int)$maxTrades ?>,
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
-        useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>
+        useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
+        league: <?= json_encode($team['league'] ?? '') ?>
     };
 
     function buildTeamSummary() {
@@ -1441,6 +1442,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         const bench   = rosterData.filter(p => p.role === 'Banco');
         const others  = rosterData.filter(p => p.role === 'Outro');
         const gleague = rosterData.filter(p => (p.role||'').toLowerCase() === 'g-league');
+        const isElite = (teamMeta.league||'').toUpperCase() === 'ELITE';
         const r1 = picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
         const r2 = picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
 
@@ -1448,17 +1450,20 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             ? teamMeta.customHeader.trim().split('\n')
             : [`*${teamMeta.name}*`, teamMeta.userName];
 
-        return [
+        const lines = [
             ...headerLines, '',
             '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '',
             '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), '',
             '_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '',
-            '_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '',
+        ];
+        if (isElite) lines.push('_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '');
+        lines.push(
             '_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '',
             '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '',
             `_CAP_: ${teamMeta.capMin} / *${teamMeta.cap}* / ${teamMeta.capMax}`,
             `_Trades_: ${teamMeta.trades} / ${teamMeta.maxTrades}`
-        ].join('\n');
+        );
+        return lines.join('\n');
     }
 
     document.getElementById('copyTeamBtn')?.addEventListener('click', async () => {

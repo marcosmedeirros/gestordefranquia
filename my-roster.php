@@ -1072,10 +1072,12 @@ if ($teamId) {
         trades: <?= (int)$tradesCountCopy ?>,
         maxTrades: <?= (int)$maxTradesCopy ?>,
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
-        useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>
+        useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
+        league: <?= json_encode($team['league'] ?? '') ?>
     };
 
-    function _buildSummary(withPicks) {
+    function _buildSummary(mode) {
+        // mode: 'team' = completo com picks | 'roster' = só titular+banco+CAP
         const positions = ['PG','SG','SF','PF','C'];
         const startersMap = {};
         positions.forEach(p => startersMap[p] = null);
@@ -1083,6 +1085,7 @@ if ($teamId) {
         const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
         const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
         const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
+        const isElite   = (_teamMeta.league||'').toUpperCase() === 'ELITE';
 
         _rosterData.filter(p => p.role === 'Titular').forEach(p => {
             if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p;
@@ -1095,25 +1098,18 @@ if ($teamId) {
             ? _teamMeta.customHeader.trim().split('\n')
             : [`*${_teamMeta.name}*`, _teamMeta.userName];
 
-        const lines = [
-            ...headerLines, '',
-            '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '',
-            '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), '',
-            '_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '',
-            '_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '',
-        ];
+        const lines = [...headerLines, '', '_Starters_', ...positions.map(p => fmtLine(p, startersMap[p])), '', '_Bench_', ...(bench.length ? bench.map(fmtPlayer) : ['-']), ''];
 
-        if (withPicks) {
+        if (mode === 'team') {
+            lines.push('_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '');
+            if (isElite) lines.push('_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '');
             const r1 = _picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
             const r2 = _picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
-            lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '');
-            lines.push('_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
+            lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '', '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
+            lines.push(`_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`, `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`);
+        } else {
+            lines.push(`_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`);
         }
-
-        lines.push(
-            `_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`,
-            `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`
-        );
         return lines.join('\n');
     }
 
@@ -1122,8 +1118,8 @@ if ($teamId) {
         catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); alert(label + ' copiado!'); }
     }
 
-    document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary(true), 'Time'));
-    document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary(false), 'Elenco'));
+    document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary('team'), 'Time'));
+    document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary('roster'), 'Elenco'));
 </script>
 <script src="/js/my-roster-v2.js?v=20260519-2"></script>
 <script>
