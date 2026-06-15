@@ -533,9 +533,12 @@ if ($method === 'GET') {
 
             // Buscar picks
             $stmtPicks = $pdo->prepare("
-                SELECT p.*, t.city, t.name as team_name 
+                SELECT p.*, t.city, t.name as team_name,
+                       tp.city as swap_partner_city, tp.name as swap_partner_name
                 FROM picks p
                 JOIN teams t ON p.original_team_id = t.id
+                LEFT JOIN picks pp ON pp.id = p.swap_pair_pick_id
+                LEFT JOIN teams tp ON tp.id = pp.original_team_id
                 WHERE p.team_id = ?
                 ORDER BY p.season_year, p.round
             ");

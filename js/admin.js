@@ -1295,12 +1295,14 @@ async function showTeam(teamId) {
 ${(() => {
     const curYear = new Date().getFullYear();
     const picks = (t.picks || []).filter(p => Number(p.season_year) >= curYear);
-    const swapLabel = type => type === 'SW' ? '(SW) Worst' : type === 'SB' ? '(SB) Best' : escapeHtml(type);
+    const swapLabel = type => type === 'SW' ? 'SW · Pior' : type === 'SB' ? 'SB · Melhor' : escapeHtml(type);
     const pickRows = !picks.length
       ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum pick</div>'
-      : picks.map(p => `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
+      : picks.map(p => {
+        const swapPartner = p.swap_type && p.swap_partner_name ? ` <span style="font-size:11px;color:var(--text-3)">c/ ${escapeHtml(p.swap_partner_city||'')} ${escapeHtml(p.swap_partner_name)}</span>` : '';
+        return `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
   <div style="flex:1;min-width:0">
-    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${swapLabel(p.swap_type)}</span>` : ''}
+    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${swapLabel(p.swap_type)}</span>${swapPartner}` : ''}
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.city)} ${escapeHtml(p.team_name)}</div>
   </div>
   <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
@@ -1309,7 +1311,8 @@ ${(() => {
     <button class="btn-ghost" style="padding:5px 7px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
     <button class="btn-ghost" style="padding:5px 7px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
   </div>
-</div>`).join('');
+</div>`;
+      }).join('');
     return `<div class="panel mb-3">
   <div class="panel-header">
     <div class="panel-title"><i class="bi bi-calendar-check-fill"></i> Picks <span style="font-size:12px;color:var(--text-3);font-weight:400">(${picks.length})</span></div>
