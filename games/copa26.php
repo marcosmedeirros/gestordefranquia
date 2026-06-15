@@ -1021,8 +1021,8 @@ async function savePendingPopup(){
 <?php
 // Visibilidade das abas para não-admins:
 // grupos_open=1 → todos veem; grupos_open=0 → só quem submeteu vê grupos+bracket
-$showGruposTab  = $isAdmin || $groupsOpen || $submitted;
-$showBracketTab = ($isAdmin || $submitted) && $bracketOpen;
+$showGruposTab  = $isAdmin || $groupsOpen || $submitted || $pred;
+$showBracketTab = ($isAdmin || $submitted || $pred) && $bracketOpen;
 $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 ?>
 <!-- Tabs -->
