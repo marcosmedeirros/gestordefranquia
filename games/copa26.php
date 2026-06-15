@@ -458,7 +458,7 @@ $offBracket = $official?(json_decode($official['bracket_json'] ??'{}',true)?:[])
 
 $ranking=[];
 try {
-    $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE p.submitted_at IS NOT NULL AND u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e){}
 
 // diagnóstico admin: usuários pagos e seu status no bolão
@@ -1377,7 +1377,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       ?>
       <tr <?=$isMe?'class="me"':''?>>
         <td><?=$pos===1?'🥇':($pos===2?'🥈':($pos===3?'🥉':$pos))?></td>
-        <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span></td>
+        <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span><?=empty($r['submitted_at'])?' <span style="font-size:9px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px;vertical-align:middle">rascunho</span>':''?></td>
         <td style="font-size:11px;color:var(--text-3)"><?=htmlspecialchars($r['champion']??'—')?></td>
         <td style="text-align:right"><span class="ranking-pts <?=(int)$r['points']===0?'zero':''?>"><?=(int)$r['points']?></span></td>
       </tr>
