@@ -1150,48 +1150,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   </div>
   <?php endif; ?>
 
-  <!-- Campeão / Vice -->
-  <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
-    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">
-      Campeão &amp; Vice
-    </div>
-    <p class="section-info">Campeão vale 5 pts · Vice vale 3 pts</p>
-    <div class="prizes-grid" style="grid-template-columns:repeat(2,1fr)">
-      <div class="prize-card" style="border-color:rgba(245,158,11,.3)">
-        <div class="prize-icon">🏆</div><div class="prize-title" style="color:var(--gold)">Campeão <span class="prize-badge" style="background:rgba(245,158,11,.15);color:var(--gold);border-color:rgba(245,158,11,.3)">5 pts</span></div>
-        <div class="prize-sub">Quem vai vencer a Copa 2026?</div>
-        <input class="prize-input" id="award_champion" placeholder="Nome do país..." value="<?=htmlspecialchars($pred['champion']??'')?>" <?=trim($pred['champion']??'')?'readonly':''?>>
-      </div>
-      <div class="prize-card" style="border-color:rgba(148,163,184,.2)">
-        <div class="prize-icon">🥈</div><div class="prize-title">Vice-Campeão <span class="prize-badge">3 pts</span></div>
-        <div class="prize-sub">Quem vai perder na final?</div>
-        <input class="prize-input" id="award_vice" placeholder="Nome do país..." value="<?=htmlspecialchars($pred['vice']??'')?>" <?=trim($pred['vice']??'')?'readonly':''?>>
-      </div>
-    </div>
-  </div>
-
-  <!-- Prêmios -->
-  <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
-    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">
-      Prêmios individuais
-      <span class="prize-badge">3 pts cada</span>
-    </div>
-    <p class="section-info">Acertos exatos valem 3 pontos cada.</p>
-    <div class="prizes-grid">
-      <div class="prize-card">
-        <div class="prize-icon">👟</div><div class="prize-title">Artilheiro</div><div class="prize-sub">Quem vai fazer mais gols?</div>
-        <input class="prize-input" id="award_scorer" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['top_scorer']??'')?>" <?=trim($pred['top_scorer']??'')?'readonly':''?>>
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">🌟</div><div class="prize-title">Melhor Jogador</div><div class="prize-sub">Quem ganha a Bola de Ouro?</div>
-        <input class="prize-input" id="award_player" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['best_player']??'')?>" <?=trim($pred['best_player']??'')?'readonly':''?>>
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div><div class="prize-sub">Quem vai ser a grande revelação?</div>
-        <input class="prize-input" id="award_revelation" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['revelation']??'')?>" <?=trim($pred['revelation']??'')?'readonly':''?>>
-      </div>
-    </div>
-  </div>
 
   <?php if (!$submitted && $groupsOpen): ?>
   <div class="submit-bar">
@@ -1479,36 +1437,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <div class="bracket-wrap"><div class="bracket" id="admBracketEl"></div></div>
   </div>
 
-  <!-- Prêmios oficiais -->
-  <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-star-fill" style="color:var(--gold)"></i>Prêmios Oficiais</div>
-    <div class="prizes-grid">
-      <div class="prize-card" style="border-color:rgba(245,158,11,.3)">
-        <div class="prize-icon">🏆</div><div class="prize-title" style="color:var(--gold)">Campeão (5 pts)</div>
-        <input class="prize-input" id="off_champion" placeholder="País campeão..." value="<?=htmlspecialchars($official['champion']??'')?>">
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">🥈</div><div class="prize-title">Vice-Campeão (3 pts)</div>
-        <input class="prize-input" id="off_vice" placeholder="País vice..." value="<?=htmlspecialchars($official['vice']??'')?>">
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">👟</div><div class="prize-title">Artilheiro</div>
-        <input class="prize-input" id="off_scorer" placeholder="Nome do artilheiro..." value="<?=htmlspecialchars($official['top_scorer']??'')?>">
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">🌟</div><div class="prize-title">Melhor Jogador</div>
-        <input class="prize-input" id="off_player" placeholder="Nome do melhor jogador..." value="<?=htmlspecialchars($official['best_player']??'')?>">
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div>
-        <input class="prize-input" id="off_revelation" placeholder="Nome da revelação..." value="<?=htmlspecialchars($official['revelation']??'')?>">
-      </div>
-    </div>
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn-r green-btn" onclick="saveOfficial()"><i class="bi bi-cloud-check-fill"></i>Salvar resultados oficiais</button>
-      <button class="btn-r gold" onclick="calcPoints()"><i class="bi bi-calculator-fill"></i>Calcular pontos</button>
-    </div>
-  </div>
 
   <!-- Jogos: seed + CSV + manual + lista -->
   <div class="admin-section">
