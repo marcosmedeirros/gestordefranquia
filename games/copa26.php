@@ -288,8 +288,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $body = json_decode(file_get_contents('php://input'),true)??[];
     $act  = $body['action']??'';
 
-    if (($act==='save'||$act==='submit')&&!$groupsOpen&&!$submitted) {
+    if ($act==='save'&&!$groupsOpen&&!$submitted) {
         echo json_encode(['ok'=>false,'msg'=>'Fase de grupos encerrada.']); exit;
+    }
+    // submit permitido mesmo com grupos fechados, desde que tenha rascunho
+    if ($act==='submit'&&!$submitted) {
+        $hasDraft=$pdo->prepare("SELECT id FROM copa26_predictions WHERE user_id=? AND submitted_at IS NULL");
+        $hasDraft->execute([$user_id]);
+        if(!$hasDraft->fetch()&&!$groupsOpen){
+            echo json_encode(['ok'=>false,'msg'=>'Nenhum rascunho encontrado.']); exit;
+        }
     }
     if ($act==='save') {
         $pdo->prepare("INSERT INTO copa26_predictions (user_id,groups_json,thirds_json,bracket_json,top_scorer,best_player,revelation,neymar_goals,champion,vice)
@@ -1083,6 +1091,11 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <div style="margin-top:14px;text-align:right">
     <button class="btn-r outline" onclick="saveDraft()"><i class="bi bi-floppy"></i>Salvar</button>
   </div>
+  <?php elseif (!$submitted && !$groupsOpen && $pred): ?>
+  <div style="margin-top:14px;padding:12px 16px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <span style="font-size:13px;color:#f59e0b"><i class="bi bi-exclamation-triangle-fill"></i> Você tem um rascunho salvo. A fase de grupos está encerrada, mas ainda pode enviar.</span>
+    <button class="btn-r gold" onclick="submitPrediction()"><i class="bi bi-send-fill"></i>Enviar agora</button>
+  </div>
   <?php elseif (!$submitted && !$groupsOpen): ?>
   <div style="margin-top:14px;padding:10px 14px;background:rgba(252,0,37,.06);border:1px solid rgba(252,0,37,.2);border-radius:8px;font-size:12px;color:var(--red)">
     <i class="bi bi-lock-fill"></i> Fase de grupos encerrada. Você não enviou seu palpite a tempo.
@@ -1189,6 +1202,11 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <button class="btn-r secondary" onclick="saveDraft()"><i class="bi bi-floppy2"></i>Salvar rascunho</button>
       <button class="btn-r gold lg" onclick="submitPrediction()"><i class="bi bi-send-fill"></i>Enviar palpites</button>
     </div>
+  </div>
+  <?php elseif (!$submitted && !$groupsOpen && $pred): ?>
+  <div class="submit-bar">
+    <div class="submit-bar-info"><strong>Rascunho salvo.</strong> A fase de grupos encerrou — envie agora para participar do ranking.</div>
+    <button class="btn-r gold lg" onclick="submitPrediction()"><i class="bi bi-send-fill"></i>Enviar palpites</button>
   </div>
   <?php endif; ?>
 </div>
