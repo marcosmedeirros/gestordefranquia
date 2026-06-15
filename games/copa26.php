@@ -1029,7 +1029,6 @@ async function savePendingPopup(){
           <div class="pred-award"><span class="pred-award-icon">👟</span><div><div class="pred-award-label">Artilheiro</div><div class="pred-award-name"><?=htmlspecialchars($pred['top_scorer']??'—')?></div></div></div>
           <div class="pred-award"><span class="pred-award-icon">🌟</span><div><div class="pred-award-label">Melhor Jogador</div><div class="pred-award-name"><?=htmlspecialchars($pred['best_player']??'—')?></div></div></div>
           <div class="pred-award"><span class="pred-award-icon">⭐</span><div><div class="pred-award-label">Revelação</div><div class="pred-award-name"><?=htmlspecialchars($pred['revelation']??'—')?></div></div></div>
-          <div class="pred-award"><span class="pred-award-icon">🇧🇷</span><div><div class="pred-award-label">Gols do Neymar</div><div class="pred-award-name"><?=htmlspecialchars($pred['neymar_goals']??'—')?></div></div></div>
         </div>
       </div>
     </div>
@@ -1142,9 +1141,12 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <?php endif; ?>
   <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
   <?php if (!$bracketSubmitted): ?>
-  <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
-    <button class="btn-r secondary sm" onclick="saveBracketDraft()"><i class="bi bi-floppy"></i>Salvar rascunho</button>
-    <button class="btn-r primary sm" onclick="submitBracket()"><i class="bi bi-send-fill"></i>Enviar Palpite do Bracket</button>
+  <div class="submit-bar" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06);margin-top:14px">
+    <div class="submit-bar-info"><strong style="color:var(--gold)">Envie seu Bracket!</strong> Após enviar não será possível editar.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-r secondary" onclick="saveBracketDraft()"><i class="bi bi-floppy"></i>Salvar rascunho</button>
+      <button class="btn-r gold lg" onclick="submitBracket()"><i class="bi bi-send-fill"></i>ENVIAR</button>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -1187,10 +1189,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <div class="prize-card">
         <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div><div class="prize-sub">Quem vai ser a grande revelação?</div>
         <input class="prize-input" id="award_revelation" placeholder="Nome do jogador..." value="<?=htmlspecialchars($pred['revelation']??'')?>" <?=trim($pred['revelation']??'')?'readonly':''?>>
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">🇧🇷</div><div class="prize-title">Gols do Neymar</div><div class="prize-sub">Quantos gols o Neymar vai fazer?</div>
-        <input class="prize-input" id="award_neymar" type="number" min="0" max="20" placeholder="Ex: 3" value="<?=htmlspecialchars($pred['neymar_goals']??'')?>" <?=trim($pred['neymar_goals']??'')?'readonly':''?>>
       </div>
     </div>
   </div>
@@ -1504,10 +1502,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <div class="prize-card">
         <div class="prize-icon">⭐</div><div class="prize-title">Revelação</div>
         <input class="prize-input" id="off_revelation" placeholder="Nome da revelação..." value="<?=htmlspecialchars($official['revelation']??'')?>">
-      </div>
-      <div class="prize-card">
-        <div class="prize-icon">🇧🇷</div><div class="prize-title">Gols do Neymar</div>
-        <input class="prize-input" id="off_neymar" type="number" min="0" placeholder="Nº de gols..." value="<?=htmlspecialchars($official['neymar_goals']??'')?>">
       </div>
     </div>
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
