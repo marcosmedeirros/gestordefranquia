@@ -453,6 +453,14 @@ try {
     $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE p.submitted_at IS NOT NULL AND u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC,p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e){}
 
+// diagnóstico admin: usuários pagos e seu status no bolão
+$debugPagos=[];
+if($isAdmin){
+    try {
+        $debugPagos=$pdo->query("SELECT u.id,u.nome,u.email,u.copa26_pago,p.submitted_at,p.points FROM usuarios u LEFT JOIN copa26_predictions p ON p.user_id=u.id WHERE u.copa26_pago=1 ORDER BY u.nome")->fetchAll(PDO::FETCH_ASSOC);
+    } catch(Exception $e){}
+}
+
 // all matches (for Jogos tab)
 $allMatches=[];
 try {
@@ -1379,6 +1387,41 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <button class="btn-r secondary" onclick="copyTop5()"><i class="bi bi-clipboard-fill"></i>Copiar Top 5</button>
     </div>
   </div>
+
+  <!-- Diagnóstico: usuários pagos -->
+  <?php if ($isAdmin && !empty($debugPagos)): ?>
+  <div class="admin-section">
+    <div class="admin-section-title"><i class="bi bi-bug-fill" style="color:#f59e0b"></i>Diagnóstico — Usuários Pagos</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="color:var(--text-3);border-bottom:1px solid var(--border)">
+          <th style="padding:6px 10px;text-align:left">Nome</th>
+          <th style="padding:6px 10px;text-align:left">E-mail</th>
+          <th style="padding:6px 10px;text-align:center">Pago</th>
+          <th style="padding:6px 10px;text-align:center">submitted_at</th>
+          <th style="padding:6px 10px;text-align:center">points</th>
+          <th style="padding:6px 10px;text-align:center">No ranking?</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($debugPagos as $dp):
+            $noRanking = $dp['submitted_at'] === null;
+            $cor = $noRanking ? '#ef4444' : '#22c55e';
+        ?>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px;color:var(--text)"><?=htmlspecialchars($dp['nome'])?></td>
+          <td style="padding:6px 10px;color:var(--text-2)"><?=htmlspecialchars($dp['email'])?></td>
+          <td style="padding:6px 10px;text-align:center;color:#22c55e"><?=$dp['copa26_pago']?'✓':'✗'?></td>
+          <td style="padding:6px 10px;text-align:center;color:<?=$noRanking?'#ef4444':'var(--text-2)'?>"><?=$dp['submitted_at']??'NULL — não enviou'?></td>
+          <td style="padding:6px 10px;text-align:center;color:var(--text-2)"><?=$dp['points']??'—'?></td>
+          <td style="padding:6px 10px;text-align:center;color:<?=$cor?>"><?=$noRanking?'NÃO':'SIM'?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin-top:8px">Usuários com <strong style="color:#ef4444">submitted_at NULL</strong> salvaram rascunho mas não enviaram o palpite — não aparecem no ranking.</p>
+  </div>
+  <?php endif; ?>
 
   <!-- Resultados oficiais dos grupos -->
   <div class="admin-section">
