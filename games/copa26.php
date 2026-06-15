@@ -1377,7 +1377,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       ?>
       <tr <?=$isMe?'class="me"':''?>>
         <td><?=$pos===1?'🥇':($pos===2?'🥈':($pos===3?'🥉':$pos))?></td>
-        <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span><?=empty($r['submitted_at'])?' <span style="font-size:9px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px;vertical-align:middle">rascunho</span>':''?></td>
+        <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span></td>
         <td style="font-size:11px;color:var(--text-3)"><?=htmlspecialchars($r['champion']??'—')?></td>
         <td style="text-align:right"><span class="ranking-pts <?=(int)$r['points']===0?'zero':''?>"><?=(int)$r['points']?></span></td>
       </tr>
