@@ -328,7 +328,7 @@ const loadMultiAssets = async (teamId, type) => {
       if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
       const year = Number(pick.season_year || 0);
       if (!Number.isFinite(year) || year <= 0) return false;
-      return year > currentSeasonYear || isCurrentDraftPick(pick);
+      return (year >= currentSeasonYear && year <= currentSeasonYear + 1) || isCurrentDraftPick(pick);
     });
   }
   multiTradeState.assets[type][teamId] = list;
@@ -546,14 +546,16 @@ const buildPickSummary = (pick) => {
     metaParts.push(`${year} R${round}`);
     metaParts.push('Draft atual');
   }
-  if (pick.swap_type) {
-    metaParts.push(pick.swap_type);
+  const activeSwap = pick.swapRole || pick.swap_type;
+  if (activeSwap) {
+    const swapLabel = activeSwap === 'SB' ? 'SWAP · Melhor' : activeSwap === 'SW' ? 'SWAP · Pior' : activeSwap;
+    metaParts.push(`<span style="background:rgba(252,0,37,.15);color:#fc0025;border:1px solid rgba(252,0,37,.3);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">${swapLabel}</span>`);
   }
   return {
     title: (pickNumber && isCurrentDraft) ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
     via,
-    meta: metaParts.join(' - ')
+    meta: metaParts.join(' ')
   };
 };
 
@@ -570,11 +572,13 @@ const getSwapCandidateMap = () => {
   const map = {};
   const usedRequest = new Set();
 
+  // Swap = mesma rodada, mesmo ano, times originais diferentes
   offerPicks.forEach(op => {
     const match = requestPicks.find(rp =>
       !usedRequest.has(Number(rp.id)) &&
       String(rp.round) === String(op.round) &&
-      String(rp.season_year) !== String(op.season_year)
+      String(rp.season_year) === String(op.season_year) &&
+      Number(rp.original_team_id || 0) !== Number(op.original_team_id || 0)
     );
     if (match) {
       map[Number(op.id)] = Number(match.id);
@@ -744,8 +748,8 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
     if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
-    // Picks futuras (ano > temporada atual) OU pick do draft ativo (mesmo ano com draft_session_id)
-    return year > currentSeasonYear || isCurrentDraftPick(pick);
+    // Ano atual ou próximo ano, ou pick do draft ativo
+    return (year >= currentSeasonYear && year <= currentSeasonYear + 1) || isCurrentDraftPick(pick);
   }).sort((a, b) => {
     const aCurrent = isCurrentDraftPick(a);
     const bCurrent = isCurrentDraftPick(b);
