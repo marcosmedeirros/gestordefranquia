@@ -1130,6 +1130,8 @@ if ($teamId) {
 
   let _visionDetected = [];
   let _visionRoster   = [];
+  let _visionUsed     = parseInt(sessionStorage.getItem('_visionUsed') || '0', 10);
+  const VISION_HARD_LIMIT = 980;
 
   const modal       = document.getElementById('importSkillsModal');
   const step1       = document.getElementById('skill-import-step1');
@@ -1147,6 +1149,7 @@ if ($teamId) {
   document.getElementById('btn-import-skills')?.addEventListener('click', () => {
     resetImportModal();
     new bootstrap.Modal(modal).show();
+    if (_visionUsed >= VISION_HARD_LIMIT) applyLimitLock();
   });
 
   dropZone?.addEventListener('click', () => fileInput?.click());
@@ -1194,6 +1197,7 @@ if ($teamId) {
   }
 
   async function analyzeImage() {
+    if (_visionUsed >= VISION_HARD_LIMIT) { applyLimitLock(); return; }
     const src = previewImg.src;
     if (!src) return;
     analyzing.style.display = '';
@@ -1210,7 +1214,12 @@ if ($teamId) {
       analyzing.style.display = 'none';
       _visionDetected = data.detected || [];
       _visionRoster   = data.roster   || [];
+      if (data.used != null) {
+        _visionUsed = data.used;
+        sessionStorage.setItem('_visionUsed', String(data.used));
+      }
       showUsage(data.used, data.limit);
+      if (_visionUsed >= VISION_HARD_LIMIT) { applyLimitLock(); return; }
       if (_visionDetected.length === 0) {
         showError('Nenhum jogador com notas detectado. Verifique se a imagem mostra a tabela de skills completa.');
         previewWrap.style.display = '';
@@ -1337,10 +1346,32 @@ if ($teamId) {
     }
   }
 
+  function applyLimitLock() {
+    const btnAnalyze = document.getElementById('btn-skill-analyze');
+    if (btnAnalyze) {
+      btnAnalyze.disabled = true;
+      btnAnalyze.style.display = 'none';
+    }
+    dropZone.style.display = 'none';
+    analyzing.style.display = 'none';
+    errBox.style.display = 'none';
+    usageInfo.style.display = 'none';
+    const limitMsg = document.getElementById('skill-limit-msg');
+    if (!limitMsg) {
+      const msg = document.createElement('div');
+      msg.id = 'skill-limit-msg';
+      msg.style.cssText = 'text-align:center;padding:32px 20px;background:rgba(252,0,37,.08);border:1px solid rgba(252,0,37,.35);border-radius:12px;margin-top:12px';
+      msg.innerHTML = '<i class="bi bi-slash-circle" style="font-size:36px;color:var(--red);display:block;margin-bottom:12px"></i>'
+        + '<div style="font-size:16px;font-weight:800;color:var(--red);letter-spacing:.05em">LIMITE DO SISTEMA ATINGIDO</div>'
+        + '<div style="font-size:13px;color:var(--text-2);margin-top:8px">O limite de 980 análises foi atingido. Não é possível enviar mais imagens.</div>';
+      step1.appendChild(msg);
+    }
+  }
+
   function showUsage(used, limit) {
     if (used == null || limit == null) return;
     const remaining = limit - used;
-    const color = remaining === 0 ? 'var(--red)' : remaining === 1 ? '#f59e0b' : 'var(--text-3)';
+    const color = remaining <= 0 ? 'var(--red)' : remaining <= 5 ? '#f59e0b' : 'var(--text-3)';
     usageInfo.innerHTML = `<span style="color:${color}">Análises esta temporada: ${used}/${limit}</span>`;
     usageInfo.style.display = '';
   }
