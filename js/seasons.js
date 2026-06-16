@@ -739,10 +739,21 @@ async function showRegistroPontuacao(league) {
         : '';
 
     const selStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
-    const inpStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px';
     const lblStyle = 'font-size:12px;color:var(--text-2);margin-bottom:6px;display:block';
+    const playerSelStyle = 'width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;opacity:.6';
     const awardTeamOpts = '<option value="">Selecione...</option>' +
         allTeams.map(t => `<option value="${t.id}">${escapeHtml(t.city + ' ' + t.name)}</option>`).join('');
+    const mkAwardRow = (label, teamName, playerName, nbaCup = false) => `
+        <div class="col-md-6">
+            <label style="${lblStyle}">${label} (Time)</label>
+            <select name="${teamName}" style="${selStyle}" onchange="_loadAwardPlayers('${playerName}', this.value); _regPtsSaveCache();">${awardTeamOpts}</select>
+        </div>
+        <div class="col-md-6">
+            <label style="${lblStyle}">${label} (Jogador)</label>
+            <select name="${playerName}" style="${playerSelStyle}" onchange="_regPtsSaveCache();">
+                <option value="">— Selecione o time primeiro —</option>
+            </select>
+        </div>`;
 
     container.innerHTML = `
         <div class="mb-3">
@@ -772,20 +783,16 @@ async function showRegistroPontuacao(league) {
                 <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#f59e0b"></i> 1. Premiações</div>
                 <div style="font-size:12px;color:var(--text-3);margin-top:4px">MVP, DPOY, MIP, 6º Homem e ROY valem 1 ponto cada.${league === 'ELITE' ? ' NBA Cup vale 2 pontos.' : ''}</div>
                 <div class="row g-3" style="margin-top:8px">
-                    <div class="col-md-6"><label style="${lblStyle}">MVP (Time)</label><select name="mvp_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MVP (Jogador)</label><input type="text" name="mvp_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Time)</label><select name="dpoy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">DPOY (Jogador)</label><input type="text" name="dpoy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MIP (Time)</label><select name="mip_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">MIP (Jogador)</label><input type="text" name="mip_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">6º Homem (Time)</label><select name="sixth_man_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">6º Homem (Jogador)</label><input type="text" name="sixth_man_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
-                    <div class="col-md-6"><label style="${lblStyle}">ROY (Time)</label><select name="roy_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">ROY (Jogador)</label><input type="text" name="roy_player_name" placeholder="Nome do jogador" style="${inpStyle}"></div>
+                    ${mkAwardRow('MVP',      'mvp_team_id',       'mvp_player_name')}
+                    ${mkAwardRow('DPOY',     'dpoy_team_id',      'dpoy_player_name')}
+                    ${mkAwardRow('MIP',      'mip_team_id',       'mip_player_name')}
+                    ${mkAwardRow('6º Homem', 'sixth_man_team_id', 'sixth_man_player_name')}
+                    ${mkAwardRow('ROY',      'roy_team_id',       'roy_player_name')}
                     ${league === 'ELITE' ? `
-                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Campeão)</label><select name="nba_cup_team_id" style="${selStyle}">${awardTeamOpts}</select></div>
-                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Pontos)</label><input type="text" value="2" readonly style="${inpStyle}"></div>
-                    ` : ''}
+                    <div class="col-md-6"><label style="${lblStyle}">NBA Cup (Campeão)</label>
+                        <select name="nba_cup_team_id" style="${selStyle}" onchange="_regPtsSaveCache();">${awardTeamOpts}</select>
+                    </div>
+                    <div class="col-md-6"></div>` : ''}
                 </div>
             </div>
 
@@ -824,10 +831,22 @@ async function showRegistroPontuacao(league) {
     if (cached?.form) {
         const form = document.getElementById('formRegistroPontuacao');
         if (form) {
+            // Restaura campos simples (team_ids, etc)
             Object.entries(cached.form).forEach(([name, value]) => {
                 const el = form.querySelector(`[name="${name}"]`);
-                if (el) el.value = value;
+                if (el && el.tagName === 'SELECT' && !name.endsWith('_player_name')) el.value = value;
             });
+            // Para cada prêmio com time selecionado, carrega jogadores e restaura o nome
+            const awardNames = ['mvp','dpoy','mip','sixth_man','roy'];
+            const restorePromises = awardNames.map(async a => {
+                const teamSel = form.querySelector(`[name="${a}_team_id"]`);
+                if (!teamSel?.value) return;
+                await _loadAwardPlayers(`${a}_player_name`, teamSel.value);
+                const playerSel = form.querySelector(`[name="${a}_player_name"]`);
+                const cachedPlayer = cached.form[`${a}_player_name`];
+                if (playerSel && cachedPlayer) playerSel.value = cachedPlayer;
+            });
+            Promise.all(restorePromises).catch(() => {});
         }
     }
 
@@ -1223,6 +1242,39 @@ function renderHistoryForm(seasonId, league) {
     `;
 }
 
+function _updateStandingsUnique(conf) {
+    const slots = Array.from(document.querySelectorAll(`select[name^="${conf}_rank_"]`));
+    const selected = new Set(slots.map(s => s.value).filter(v => v));
+    slots.forEach(slot => {
+        const myVal = slot.value;
+        slot.querySelectorAll('option').forEach(opt => {
+            if (!opt.value) return;
+            opt.disabled = selected.has(opt.value) && opt.value !== myVal;
+        });
+    });
+}
+
+async function _loadAwardPlayers(playerSelectName, teamId) {
+    const sel = document.querySelector(`[name="${playerSelectName}"]`);
+    if (!sel) return;
+    if (!teamId) {
+        sel.innerHTML = '<option value="">— Selecione o time primeiro —</option>';
+        sel.style.opacity = '.6';
+        return;
+    }
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    sel.style.opacity = '.6';
+    try {
+        const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
+        const players = (data.players || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
+        sel.innerHTML = '<option value="">— Selecione o jogador —</option>' +
+            players.map(p => `<option value="${escapeHtml(p.name || '')}">${escapeHtml(p.name || '')} · ${p.position || ''} · ${p.ovr || '—'} OVR</option>`).join('');
+        sel.style.opacity = '1';
+    } catch(e) {
+        sel.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
+    }
+}
+
 async function loadTeamsForStandings(league) {
     try {
         const data = await api(`admin.php?action=teams&league=${league}`);
@@ -1239,7 +1291,8 @@ async function loadTeamsForStandings(league) {
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="text-light-gray fw-bold" style="width:28px;text-align:right">${i + 1}°</span>
                     <select class="form-select form-select-sm bg-dark text-white border-orange"
-                            name="${conf}_rank_${i + 1}" style="border-radius:10px">${opts}</select>
+                            name="${conf}_rank_${i + 1}" style="border-radius:10px"
+                            onchange="_updateStandingsUnique('${conf}'); _regPtsSaveCache();">${opts}</select>
                 </div>`).join('');
         };
 

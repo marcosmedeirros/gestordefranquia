@@ -5216,89 +5216,6 @@ async function showRegistroPontuacao(league) {
     s.year          ? String(s.year)                 : ''
   ].filter(Boolean).join(' · ');
 
-  const sel = (cls, tid, opts) => `
-    <select class="${cls}" data-team-id="${tid}" onchange="_regPtsRecalc()"
-      style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text)">
-      ${opts}
-    </select>`;
-
-  const regularOpts = `
-    <option value="0" selected>— Nenhum —</option>
-    <option value="4">1º Lugar (+4 pts)</option>
-    <option value="3">2º ao 4º (+3 pts)</option>
-    <option value="2">5º ao 8º (+2 pts)</option>`;
-
-  // valores CUMULATIVOS: 1ªRod+1 / Semi+2=3 / FinConf+3=6 / Vice+2=8 / Camp+3=11
-  const playoffOpts = `
-    <option value="0" selected>Não participou (+0)</option>
-    <option value="1">1ª Rodada (+1 pt)</option>
-    <option value="3">Semifinalista (+3 pts)</option>
-    <option value="6">Finalista de Conferência (+6 pts)</option>
-    <option value="8">Vice-Campeão (+8 pts)</option>
-    <option value="11">Campeão (+11 pts)</option>`;
-
-  const teamOpts = `<option value="">— Nenhum —</option>` +
-    leagueTeams.map(t => `<option value="${t.team_id}">${escapeHtml(t.team_name || '')}</option>`).join('');
-
-  const awards = [
-    { key: 'mvp',   label: 'MVP'      },
-    { key: 'dpoy',  label: 'DPOY'     },
-    { key: 'mip',   label: 'MIP'      },
-    { key: 'sexto', label: '6º Homem' },
-    { key: 'roy',   label: 'ROY'      },
-  ];
-
-  const teamsHtml = leagueTeams.map(t => `
-    <div class="pun-card mb-2" style="padding:12px 14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:700;color:var(--text);min-width:130px">${escapeHtml(t.team_name || '')}</span>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
-          <div>
-            <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Temporada Regular</div>
-            ${sel('reg-season-sel', t.team_id, regularOpts)}
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Playoffs</div>
-            ${sel('playoff-sel', t.team_id, playoffOpts)}
-          </div>
-        </div>
-        <div style="min-width:60px;text-align:right">
-          <div style="font-size:10px;color:var(--text-3);margin-bottom:3px;text-transform:uppercase">Total</div>
-          <span id="rpt-${t.team_id}" style="font-size:20px;font-weight:800;color:var(--red)">2</span>
-          <span style="font-size:11px;color:var(--text-3)"> pts</span>
-        </div>
-      </div>
-    </div>`).join('');
-
-  const awardsHtml = awards.map(a => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:13px;color:var(--text);font-weight:600">${a.label}
-        <span style="color:#22c55e;font-weight:400;font-size:11px"> +1 pt</span>
-      </span>
-      <select class="award-sel" data-award="${a.key}" onchange="_regPtsRecalc()"
-        style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);min-width:180px">
-        ${teamOpts}
-      </select>
-    </div>`).join('');
-
-  const nbaCupHtml = league === 'ELITE' ? `
-    <div class="mt-3">
-      <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
-        <i class="bi bi-trophy-fill" style="color:#f59e0b;margin-right:5px"></i>NBA Cup <span style="font-size:10px;font-weight:400;color:var(--text-3)">(Somente ELITE)</span>
-      </div>
-      <div class="pun-card" style="padding:4px 14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0">
-          <span style="font-size:13px;color:var(--text);font-weight:600">Campeão NBA Cup
-            <span style="color:#f59e0b;font-weight:400;font-size:11px"> +2 pts</span>
-          </span>
-          <select id="nbaCupWinner" onchange="_regPtsRecalc()"
-            style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--text);min-width:180px">
-            ${teamOpts}
-          </select>
-        </div>
-      </div>
-    </div>` : '';
-
   let html = '';
 
   if (pending) {
@@ -5308,17 +5225,9 @@ async function showRegistroPontuacao(league) {
           <div class="panel-title"><i class="bi bi-clipboard-data-fill" style="color:#10b981"></i> ${escapeHtml(fmtTitle(pending))}</div>
           <span class="pun-badge pun-badge-off">Pendente</span>
         </div>
-        <div style="margin-bottom:20px">
-          <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Times</div>
-          ${teamsHtml}
+        <div id="pts-form-${pending.season_id}">
+          ${buildPtsForm(pending.season_id, league, leagueTeams, 'reg-save-pts-input')}
         </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
-            <i class="bi bi-award-fill" style="color:#22c55e;margin-right:5px"></i>Prêmios Individuais
-          </div>
-          <div class="pun-card" style="padding:4px 14px">${awardsHtml}</div>
-        </div>
-        ${nbaCupHtml}
         <div class="mt-4">
           <button class="btn-orange" onclick="_regPtsSave(${pending.season_id}, '${league}')">
             <i class="bi bi-save me-2"></i>Registrar Pontuação
@@ -5370,7 +5279,7 @@ async function showRegistroPontuacao(league) {
     </div>`;
 
   document.getElementById('regPtsContent').innerHTML = html;
-  _regPtsRecalc();
+  if (pending) calcPtsPreview(String(pending.season_id));
 }
 
 function _regPtsRecalcForTeam(teamId) {
@@ -5394,16 +5303,24 @@ function _regPtsRecalc() {
 }
 
 async function _regPtsSave(seasonId, league) {
-  const teamPoints = [];
-  document.querySelectorAll('.reg-season-sel').forEach(s => {
-    const tid = parseInt(s.dataset.teamId, 10);
-    teamPoints.push({ team_id: tid, points: _regPtsRecalcForTeam(tid) });
-  });
+  // Garante que os totais (incluindo prêmios individuais) estejam atualizados nos hidden inputs
+  calcPtsPreview(String(seasonId));
 
-  const summary = teamPoints.map(tp => {
-    const name = document.querySelector(`.reg-season-sel[data-team-id="${tp.team_id}"]`)?.closest('.pun-card')?.querySelector('span')?.textContent || tp.team_id;
-    return `${name}: ${tp.points} pts`;
-  }).join('\n');
+  const card = document.getElementById(`pts-form-${seasonId}`);
+  if (!card) return;
+
+  const teamPoints = Array.from(card.querySelectorAll('.reg-save-pts-input')).map(inp => ({
+    team_id: parseInt(inp.dataset.teamId, 10),
+    points:  parseInt(inp.value || '0', 10)
+  }));
+
+  const summary = teamPoints
+    .filter(tp => tp.points > 0)
+    .map(tp => {
+      const nameEl = card.querySelector(`.pts-pv-val[data-tid="${tp.team_id}"]`);
+      const name = nameEl ? nameEl.closest('div')?.querySelector('span:first-child')?.textContent?.trim() || tp.team_id : tp.team_id;
+      return `${name}: ${tp.points} pts`;
+    }).join('\n') || '(todos com 0 pontos)';
 
   if (!confirm(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
 
