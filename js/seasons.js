@@ -1266,7 +1266,7 @@ async function _loadAwardPlayers(playerSelectName, teamId) {
     sel.style.opacity = '.6';
     try {
         const data = await api(`admin.php?action=team_details&team_id=${teamId}`);
-        const players = (data.players || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
+        const players = ((data.team || data).players || []).sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
         sel.innerHTML = '<option value="">— Selecione o jogador —</option>' +
             players.map(p => `<option value="${escapeHtml(p.name || '')}">${escapeHtml(p.name || '')} · ${p.position || ''} · ${p.ovr || '—'} OVR</option>`).join('');
         sel.style.opacity = '1';
