@@ -381,6 +381,7 @@ let _regPtsAllTeams = [];
 let _regPtsCacheKey = '';
 let _regPtsLeague = '';
 let _regPtsSeasonId = null;
+let _regPtsPendingPayload = null;
 
 function _regPtsSaveCache() {
     if (!_regPtsCacheKey) return;
@@ -510,6 +511,16 @@ async function _saveReviewedPoints(seasonId, league) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
 
     try {
+        // 1. Registrar dados da temporada (campeão, classificação, prêmios)
+        if (_regPtsPendingPayload) {
+            await api('seasons.php?action=register_pontuacao', {
+                method: 'POST',
+                body: JSON.stringify(_regPtsPendingPayload)
+            });
+            _regPtsPendingPayload = null;
+        }
+
+        // 2. Salvar pontuação revisada por time
         const team_points = Array.from(inputs)
             .map(inp => ({
                 team_id: parseInt(inp.dataset.teamId, 10),
@@ -525,8 +536,13 @@ async function _saveReviewedPoints(seasonId, league) {
         showAlert('success', 'Pontuação salva com sucesso!');
         setTimeout(() => showHome(), 1200);
     } catch (e) {
+        _regPtsPendingPayload = null;
         if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
-        alert('Erro ao salvar pontuação: ' + (e?.error || 'Desconhecido'));
+        if (e?.already_locked) {
+            alert('Esta temporada já teve a pontuação registrada. Não é permitido registrar novamente.');
+        } else {
+            alert('Erro ao salvar pontuação: ' + (e?.error || 'Desconhecido'));
+        }
     }
 }
 
@@ -899,31 +915,14 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         nba_cup_team_id: fv('nba_cup_team_id')
     };
 
-    const btn = form.querySelector('button[type="submit"]');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
-
-    try {
-        await api('seasons.php?action=register_pontuacao', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        // Clear caches
-        if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
-        _clearFormCache(league, seasonId);
-        _clearBracketCache(league, seasonId);
-        // Mostrar painel de revisão com pontos auto-calculados
-        _showReviewPanel(seasonId, league, payload);
-    } catch (e) {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        if (e?.already_locked) {
-            alert('Esta temporada já teve a pontuação registrada. Não é permitido registrar novamente.');
-        } else {
-            alert('Erro ao salvar: ' + (e?.error || 'Desconhecido'));
-        }
-    }
+    // Guardar payload para ser enviado ao confirmar na revisão
+    _regPtsPendingPayload = payload;
+    // Limpar caches locais (ainda não salva na API)
+    if (_regPtsCacheKey) localStorage.removeItem(_regPtsCacheKey);
+    _clearFormCache(league, seasonId);
+    _clearBracketCache(league, seasonId);
+    // Mostrar painel de revisão com pontos auto-calculados
+    _showReviewPanel(seasonId, league, payload);
 }
 
 async function saveAndAdvanceSeason(event, seasonId, league) {
@@ -1315,6 +1314,14 @@ async function loadTeamsForStandings(league) {
             select.innerHTML = '<option value="">Selecione...</option>' +
                 teams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
         });
+        // Restaurar valores selecionados antes do rebuild
+        const regCache = _regPtsLoadCache();
+        if (regCache?.form) {
+            selects.forEach(select => {
+                const cached = regCache.form[select.name];
+                if (cached) select.value = cached;
+            });
+        }
 
         // Popular multi-selects de eliminados por fase
         ['first_round_losses', 'second_round_losses', 'conference_final_losses'].forEach(name => {
