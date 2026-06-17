@@ -1286,6 +1286,9 @@ function getSerasaScore(int $avisos): array {
                 <button class="view-btn active" id="btnGrid" title="Grade"><i class="bi bi-grid-3x3-gap"></i></button>
                 <button class="view-btn" id="btnList" title="Lista"><i class="bi bi-list-ul"></i></button>
             </div>
+            <button class="sort-btn" onclick="copiarElencoLiga()" title="Copiar todos os elencos da liga">
+                <i class="bi bi-clipboard-check"></i> Elencos
+            </button>
         </div>
 
         <!-- Content Area -->
@@ -1628,6 +1631,28 @@ function getSerasaScore(int $avisos): array {
                 <textarea id="copyTeamTextarea" rows="8" readonly></textarea>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn-action" data-bs-dismiss="modal" style="flex:initial;padding:8px 18px;">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Elencos da Liga -->
+<div class="modal fade" id="copyRosterLeagueModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clipboard-check me-2" style="color:var(--red)"></i>Elencos da Liga</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px;color:var(--text-2);margin-bottom:10px">Toque e segure para copiar o texto.</p>
+                <textarea id="copyRosterLeagueTextarea" rows="18" readonly style="width:100%;background:#111;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:12px;font-family:monospace;resize:vertical"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-action" id="copyRosterLeagueClipboardBtn" style="flex:initial;padding:8px 18px;">
+                    <i class="bi bi-clipboard me-1"></i>Copiar tudo
+                </button>
                 <button type="button" class="btn-action" data-bs-dismiss="modal" style="flex:initial;padding:8px 18px;">Fechar</button>
             </div>
         </div>
@@ -2181,6 +2206,35 @@ function getSerasaScore(int $avisos): array {
             if (content) content.innerHTML = `<div class="alert alert-danger m-3">${err.message || 'Erro ao carregar informações.'}</div>`;
         }
     }
+
+    /* ── Copiar Elencos da Liga ─────────────────────────── */
+    async function copiarElencoLiga() {
+        const modalEl = document.getElementById('copyRosterLeagueModal');
+        const textarea = document.getElementById('copyRosterLeagueTextarea');
+        if (!modalEl || !textarea) return;
+        textarea.value = 'Carregando...';
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        try {
+            const res = await fetch(`/api/admin.php?action=copy_rosters&league=<?= htmlspecialchars($user['league']) ?>`);
+            const data = await res.json();
+            textarea.value = data.text || 'Nenhum elenco encontrado.';
+        } catch (e) {
+            textarea.value = 'Erro ao carregar elencos.';
+        }
+    }
+
+    document.getElementById('copyRosterLeagueClipboardBtn')?.addEventListener('click', async () => {
+        const textarea = document.getElementById('copyRosterLeagueTextarea');
+        if (!textarea) return;
+        try {
+            await navigator.clipboard.writeText(textarea.value);
+            alert('Elencos copiados para a área de transferência!');
+        } catch {
+            textarea.focus();
+            textarea.select();
+        }
+    });
 </script>
 </body>
 </html>
