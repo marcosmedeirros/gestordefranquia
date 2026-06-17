@@ -323,7 +323,10 @@ $teams = [
           <select id="trade-premium-1" class="fba-input"></select>
           <select id="trade-premium-2" class="fba-input"></select>
           <select id="trade-premium-3" class="fba-input"></select>
-          <button id="trade-premium-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+          <button type="button" onclick="autoFillTrade('premium',3)" class="btn-ghost" style="width:100%;padding:9px;font-size:12px">
+            <i class="bi bi-magic" style="margin-right:5px"></i>Preencher automático
+          </button>
+          <button id="trade-premium-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:2px">
             <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por Premium
           </button>
         </div>
@@ -345,7 +348,10 @@ $teams = [
           <select id="trade-ultra-3" class="fba-input"></select>
           <select id="trade-ultra-4" class="fba-input"></select>
           <select id="trade-ultra-5" class="fba-input"></select>
-          <button id="trade-ultra-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+          <button type="button" onclick="autoFillTrade('ultra',5)" class="btn-ghost" style="width:100%;padding:9px;font-size:12px">
+            <i class="bi bi-magic" style="margin-right:5px"></i>Preencher automático
+          </button>
+          <button id="trade-ultra-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:2px">
             <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por Ultra
           </button>
         </div>
@@ -367,7 +373,10 @@ $teams = [
             <select id="trade-missing-<?= $i ?>" class="fba-input" style="font-size:11px;padding:7px 8px"></select>
             <?php endfor; ?>
           </div>
-          <button id="trade-missing-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:6px">
+          <button type="button" onclick="autoFillTrade('missing',10)" class="btn-ghost" style="width:100%;padding:9px;font-size:12px;margin-top:6px">
+            <i class="bi bi-magic" style="margin-right:5px"></i>Preencher automático
+          </button>
+          <button id="trade-missing-btn" class="btn-primary" style="width:100%;padding:11px;margin-top:2px">
             <i class="bi bi-arrow-repeat" style="margin-right:5px"></i>Trocar por nova
           </button>
         </div>
@@ -654,6 +663,34 @@ function adminCollToggle() {
   const body = document.getElementById('admin-coll-body');
   btn.classList.toggle('open');
   body.classList.toggle('open');
+}
+
+function autoFillTrade(type, count) {
+  const prefix = type === 'missing' ? 'trade-missing-' : `trade-${type}-`;
+  const selects = Array.from({length: count}, (_, i) => document.getElementById(prefix + (i + 1)));
+  if (!selects[0]) return;
+
+  // Pegar opções válidas do primeiro select (todas as duplicadas disponíveis)
+  const available = Array.from(selects[0].options)
+    .filter(o => o.value)
+    .map(o => o.value);
+
+  if (available.length < count) {
+    document.getElementById('trade-feedback').textContent =
+      `Você precisa de pelo menos ${count} duplicadas para esta troca.`;
+    return;
+  }
+
+  // Preencher cada select com uma carta diferente
+  const chosen = [];
+  for (let i = 0; i < count; i++) {
+    // Pegar próxima disponível que ainda não foi escolhida nesta rodada
+    const next = available.find(v => !chosen.includes(v)) || available[i % available.length];
+    chosen.push(next);
+    selects[i].value = next;
+  }
+
+  document.getElementById('trade-feedback').textContent = '';
 }
 </script>
 <script src="album-fba.js"></script>
