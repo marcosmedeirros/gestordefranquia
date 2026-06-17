@@ -1400,6 +1400,9 @@ function getSerasaScore(int $avisos): array {
                     <?php endif; ?>
 
                     <div class="team-actions">
+                        <a class="btn-action info" href="/team-history.php?team_id=<?= $t['id'] ?>">
+                            <i class="bi bi-clock-history"></i> Histórico
+                        </a>
                         <button class="btn-action info" onclick="openTeamDetail(<?= $t['id'] ?>)">
                             <i class="bi bi-info-circle-fill"></i> Infos
                         </button>
