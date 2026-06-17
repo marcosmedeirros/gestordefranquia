@@ -31,20 +31,22 @@ $stmtPlayoffs = $pdo->prepare("SELECT COUNT(*) AS playoff_appearances FROM team_
 $stmtPlayoffs->execute([$teamId]);
 $playoffData = $stmtPlayoffs->fetch(PDO::FETCH_ASSOC);
 
-// ── 3. Temporada regular — contagem por posição de classificação ──────────────
+// ── 3. Temporada regular — temporadas com pontos de temporada regular ─────────
+// regular_season_points > 0 = chegou ao playoff (top 8 da liga)
+// Usa os campos bool de playoff para derivar as fases
 $stmtStandings = $pdo->prepare("
-    SELECT regular_season_position, COUNT(*) AS total
+    SELECT regular_season_points, playoff_champion, playoff_runner_up,
+           playoff_conference_finals, playoff_second_round, playoff_first_round
     FROM team_ranking_points
-    WHERE team_id = ?
-    GROUP BY regular_season_position");
+    WHERE team_id = ?");
 $stmtStandings->execute([$teamId]);
 $standingsRaw = $stmtStandings->fetchAll(PDO::FETCH_ASSOC);
 $top1Regular = 0; $top4Regular = 0; $top8Regular = 0;
 foreach ($standingsRaw as $r) {
-    $pos = (int)$r['regular_season_position'];
-    if ($pos === 1) $top1Regular += (int)$r['total'];
-    if ($pos <= 4)  $top4Regular += (int)$r['total'];
-    if ($pos <= 8)  $top8Regular += (int)$r['total'];
+    // Considera que pontos de reg season > 0 equivale a top 8
+    if ((int)$r['regular_season_points'] > 0) $top8Regular++;
+    if ((int)$r['regular_season_points'] >= 4) $top4Regular++;
+    if ((int)$r['regular_season_points'] >= 8) $top1Regular++;
 }
 
 // ── 4. Títulos e resultados nos playoffs ─────────────────────────────────────
@@ -56,10 +58,17 @@ $stmtChampSeasons = $pdo->prepare("SELECT season_id, year, season_number, sprint
 $stmtChampSeasons->execute([$teamId]);
 $champSeasons = $stmtChampSeasons->fetchAll(PDO::FETCH_ASSOC);
 
-$stmtPlayoffResults = $pdo->prepare("SELECT position, COUNT(*) AS total FROM playoff_results WHERE team_id = ? GROUP BY position");
-$stmtPlayoffResults->execute([$teamId]);
-$playoffResults = [];
-foreach ($stmtPlayoffResults->fetchAll(PDO::FETCH_ASSOC) as $r) $playoffResults[$r['position']] = (int)$r['total'];
+// Usa team_ranking_points para contagem por fase (mais confiável)
+$playoffResults = [
+    'conference_final' => 0,
+    'second_round'     => 0,
+    'first_round'      => 0,
+];
+foreach ($standingsRaw as $r) {
+    if ((int)$r['playoff_conference_finals']) $playoffResults['conference_final']++;
+    if ((int)$r['playoff_second_round'])      $playoffResults['second_round']++;
+    if ((int)$r['playoff_first_round'])       $playoffResults['first_round']++;
+}
 
 // ── 5. Picks ──────────────────────────────────────────────────────────────────
 $stmtPicks = $pdo->prepare("SELECT SUM(round=1) AS picks_r1, SUM(round=2) AS picks_r2 FROM picks WHERE original_team_id = ? AND auto_generated = 1");
