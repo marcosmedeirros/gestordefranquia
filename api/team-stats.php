@@ -12,7 +12,7 @@ $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
 if (!$teamId) { echo json_encode(['error' => 'team_id obrigatório']); exit; }
 
 // Verificar se o time pertence à mesma liga do usuário (ou é admin)
-$stmtTeam = $pdo->prepare("SELECT t.*, CONCAT(t.city,' ',t.name) AS full_name, u.nome AS owner_name FROM teams t LEFT JOIN usuarios u ON u.id = t.user_id WHERE t.id = ?");
+$stmtTeam = $pdo->prepare("SELECT t.*, CONCAT(t.city,' ',t.name) AS full_name, u.name AS owner_name FROM teams t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?");
 $stmtTeam->execute([$teamId]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 if (!$team) { echo json_encode(['error' => 'Time não encontrado']); exit; }
