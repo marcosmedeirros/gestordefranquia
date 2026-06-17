@@ -155,9 +155,9 @@ function ensureLeagueSprintDefaults(PDO $pdo): void
             INSERT INTO league_sprint_config (league, max_seasons) VALUES
             ('ELITE', 20),
             ('NEXT', 20),
-            ('RISE', 15),
-            ('ROOKIE', 15)
-            ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons)
+            ('RISE', 16),
+            ('ROOKIE', 10)
+            ON DUPLICATE KEY UPDATE max_seasons = GREATEST(VALUES(max_seasons), max_seasons)
         ");
     } catch (Exception $e) {
         error_log('Erro ao garantir league_sprint_config: ' . $e->getMessage());
