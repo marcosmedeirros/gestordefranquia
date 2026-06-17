@@ -836,7 +836,7 @@ async function showRegistroPontuacao(league) {
             <!-- Submit -->
             <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <button type="submit" class="btn btn-orange" style="border-radius:15px">
-                    <i class="bi bi-save me-1"></i> Registrar Pontuação
+                    <i class="bi bi-eye me-1"></i> Revisar Pontuação
                 </button>
                 <button type="button" class="btn-ghost" onclick="${backFn}">Cancelar</button>
             </div>

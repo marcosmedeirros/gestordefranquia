@@ -473,7 +473,19 @@ try {
     }
 } catch(Exception $e){}
 
-$matchesByDate=[]; foreach ($allMatches as $m) $matchesByDate[$m['match_date']][]=$m;
+// Jogos entre 00h–05h são exibidos no dia anterior (madrugada pertence à rodada da noite anterior)
+$matchesByDate=[];
+foreach ($allMatches as $m) {
+    $displayDate = $m['match_date'];
+    $hour = (int)substr($m['match_time'] ?? '12:00', 0, 2);
+    if ($hour < 5) {
+        $dt = new DateTime($m['match_date']);
+        $dt->modify('-1 day');
+        $displayDate = $dt->format('Y-m-d');
+    }
+    $m['display_date'] = $displayDate;
+    $matchesByDate[$displayDate][] = $m;
+}
 $allScores=[];
 if ($allMatches) {
     try {
@@ -489,13 +501,14 @@ $nameInitial=mb_strtoupper(mb_substr($usuario['nome']??'U',0,1));
 $today=date('Y-m-d');
 
 // Jogos de hoje sem palpite preenchido e que ainda não começaram
+// Inclui jogos do dia seguinte que são na madrugada (display_date = hoje)
 $nowTs = time();
 $pendingToday = array_values(array_filter(
     $matchesByDate[$today] ?? [],
-    function($m) use ($today, $nowTs, $allScores) {
+    function($m) use ($nowTs, $allScores) {
         if ($m['score_home'] !== null) return false;
         if (isset($allScores[$m['id']])) return false;
-        $matchTs = strtotime($today . ' ' . ($m['match_time'] ?? '23:59'));
+        $matchTs = strtotime($m['match_date'] . ' ' . ($m['match_time'] ?? '23:59'));
         return $nowTs < $matchTs;
     }
 ));
