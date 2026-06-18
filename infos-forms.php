@@ -108,10 +108,20 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
       $top5 = array_slice($arr, 0, 5);
       $bot5 = array_reverse(array_slice(array_reverse($arr), 0, 5));
     ?>
+    <?php
+      $copyText  = "🔥 *Mais trades — {$lg}*\n";
+      foreach ($top5 as $i => $t) $copyText .= ($i+1).". {$t['name']} — {$t['count']}\n";
+      $copyText .= "\n🧊 *Menos trades — {$lg}*\n";
+      foreach ($bot5 as $i => $t) $copyText .= ($i+1).". {$t['name']} — {$t['count']}\n";
+      $copyText = htmlspecialchars($copyText, ENT_QUOTES);
+    ?>
     <div class="league-card">
       <div class="league-header">
         <span class="league-badge badge-<?= $lg ?>"><?= $lg ?></span>
-        <span style="font-size:12px;color:var(--text-2)"><?= count($arr) ?> times</span>
+        <span style="font-size:12px;color:var(--text-2);flex:1"><?= count($arr) ?> times</span>
+        <button onclick="copyLeague(this, '<?= $copyText ?>')" style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border-md)';this.style.color='var(--text-2)'">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
       </div>
       <div class="card-section-title">🔥 Mais trades</div>
       <?php foreach ($top5 as $i => $t): ?>
@@ -134,5 +144,21 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
     <?php endforeach; ?>
   </div>
 </main>
+<script>
+function copyLeague(btn, text) {
+  const decoded = text.replace(/&#039;/g,"'").replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  navigator.clipboard.writeText(decoded).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copiado!';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.style.color = 'var(--text-2)';
+      btn.style.borderColor = 'var(--border-md)';
+    }, 2000);
+  });
+}
+</script>
 </body>
 </html>
