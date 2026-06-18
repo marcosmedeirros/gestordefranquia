@@ -121,7 +121,7 @@ $ovrMap = queryByLeague($pdo, "
     JOIN (
         SELECT p.team_id, COALESCE(p.ovr, 0) AS ovr
         FROM players p
-        WHERE p.status='rostered' AND COALESCE(p.ovr, 0) > 0
+        WHERE p.team_id IS NOT NULL AND COALESCE(p.ovr, 0) > 0
     ) ovr_top ON ovr_top.team_id = t.id
     GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
 ");
