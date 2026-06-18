@@ -688,29 +688,25 @@ renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 
         'copy_hi' => 'Mais escolhas no top 5 do draft',
     ]);
 
-<?php if (!empty(array_filter($neverTop5Map))): ?>
-<div class="section-block" id="never-top5">
-  <div class="section-head">
-    <div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>
-    <div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div>
-  </div>
-  <div class="leagues-grid">
-    <?php foreach ($leagues as $lg): $arr = $neverTop5Map[$lg] ?? []; ?>
-    <div class="league-card">
-      <div class="league-header">
-        <span class="league-badge badge-<?= $lg ?>"><?= $lg ?></span>
-        <span style="font-size:11px;color:var(--text-3);flex:1"><?= count($arr) ?> time(s)</span>
-      </div>
-      <?php if (empty($arr)): ?>
-        <div class="empty-state">Todos já escolheram no top 5</div>
-      <?php else: foreach ($arr as $nm): ?>
-        <div class="rank-row"><span class="rname"><?= htmlspecialchars($nm) ?></span></div>
-      <?php endforeach; endif; ?>
-    </div>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endif; ?>
+if (!empty(array_filter($neverTop5Map))) {
+    echo '<div class="section-block" id="never-top5">';
+    echo '<div class="section-head"><div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>';
+    echo '<div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div></div>';
+    echo '<div class="leagues-grid">';
+    foreach ($leagues as $lg) {
+        $arr = $neverTop5Map[$lg] ?? [];
+        echo '<div class="league-card">';
+        echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
+        echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span></div>';
+        if (empty($arr)) {
+            echo '<div class="empty-state">Todos já escolheram no top 5</div>';
+        } else {
+            foreach ($arr as $nm) echo '<div class="rank-row"><span class="rname">'.htmlspecialchars($nm).'</span></div>';
+        }
+        echo '</div>';
+    }
+    echo '</div></div>';
+}
 
 renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloados',
     'Jogadores que mais apareceram em processos de FA/leilão',
