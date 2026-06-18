@@ -5703,14 +5703,23 @@ async function showAdminDraft(league) {
       const draftSid = draft.id;
       const draftSeasonId = draft.season_id;
       const importBtns = `
-        <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="d-flex gap-2 align-items-center flex-wrap" id="draftPoolBtns_${draftSid}">
+          <select id="draftClassBankSelect_${draftSid}"
+            style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:180px"
+            onchange="">
+            <option value="">Carregando classes…</option>
+          </select>
+          <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#a855f7"
+            onclick="_adminDraftUseClassBank(${draftSid}, ${draftSeasonId}, '${league}')">
+            <i class="bi bi-archive me-1"></i>Usar classe
+          </button>
           <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#94a3b8"
             onclick="_adminDraftDownloadTemplate()">
             <i class="bi bi-download me-1"></i>Modelo CSV
           </button>
-          <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#a855f7"
+          <button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#94a3b8"
             onclick="_adminDraftImportModal(${draftSid}, ${draftSeasonId}, '${league}')">
-            <i class="bi bi-upload me-1"></i>Importar CSV
+            <i class="bi bi-upload me-1"></i>CSV
           </button>
           ${availablePlayers.length > 0 ? `<button class="btn-ghost" style="padding:5px 11px;font-size:12px;color:#ef4444"
             onclick="_adminDraftClearPool(${draftSeasonId}, '${league}')">
@@ -5759,6 +5768,18 @@ async function showAdminDraft(league) {
       ${sessionPanel}
       ${orderPanel}
       ${playersPanel}`;
+
+    // Carrega banco de classes no select da pool
+    if (draftSid) {
+      api('admin.php?action=draft_class_bank&sub=list').then(d => {
+        const sel = document.getElementById(`draftClassBankSelect_${draftSid}`);
+        if (!sel) return;
+        const tpls = d.templates || [];
+        sel.innerHTML = tpls.length
+          ? '<option value="">Selecione uma classe…</option>' + tpls.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.player_count})</option>`).join('')
+          : '<option value="">Nenhuma classe salva</option>';
+      }).catch(() => {});
+    }
 
     if (draftStatus === 'in_progress' && draft?.pick_deadline_ts) {
       _startAdminDraftTimer(Number(draft.pick_deadline_ts), 'admin-draft-detail-timer');
@@ -6291,6 +6312,30 @@ async function _adminDraftConfirmImport(draftSessionId, league) {
   } catch(e) {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Importar todos'; }
     showAlert('danger', e.error || 'Erro ao importar jogadores');
+  }
+}
+
+// ── Usar classe do banco direto na pool do draft ──────────────────
+async function _adminDraftUseClassBank(draftSid, seasonId, league) {
+  const sel = document.getElementById(`draftClassBankSelect_${draftSid}`);
+  const tplId = sel?.value;
+  if (!tplId) { showAlert('warning', 'Selecione uma classe antes'); return; }
+
+  try {
+    const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
+    const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age }));
+    if (!players.length) { showAlert('warning', 'Classe sem jogadores'); return; }
+
+    if (!confirm(`Importar ${players.length} jogadores da classe para o pool? Os jogadores já existentes no pool serão mantidos.`)) return;
+
+    const res = await api('draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'import_draft_players', draft_session_id: draftSid, players })
+    });
+    showAlert('success', res.message || `${res.inserted ?? players.length} jogadores adicionados ao pool!`);
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao importar classe');
   }
 }
 
