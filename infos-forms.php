@@ -29,14 +29,13 @@ function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): 
     }
 }
 
-// ── 1. Trades por time (agrupa pela liga da trade, não do time atual) ──
+// ── 1. Trades por time ───────────────────────────────────────────
 $tradesRaw = $pdo->query("
-    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name,
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
            COUNT(DISTINCT tr.id) AS count
-    FROM trades tr
-    JOIN teams t ON t.id = tr.from_team_id OR t.id = tr.to_team_id
-    WHERE tr.status='accepted'
-    GROUP BY tr.league, t.id, t.city, t.name
+    FROM teams t
+    LEFT JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.league=t.league
+    GROUP BY t.league, t.id, t.city, t.name
 ")->fetchAll(PDO::FETCH_ASSOC);
 $tradesByLeague = [];
 foreach ($tradesRaw as $r) {
@@ -68,64 +67,16 @@ foreach ($pairsRaw as $r) {
 }
 sortLeagueData($pairsByLeague);
 
-// ── 3. Mais títulos (usa a liga da temporada, não a atual do time) ──
-$titlesMap = queryByLeague($pdo, "
-    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM season_history sh JOIN teams t ON t.id=sh.champion_team_id
-    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($titlesMap);
-
-// ── 4. Mais aparições no playoff ─────────────────────────────────
+// ── 3. Mais aparições no playoff ─────────────────────────────────
 $playoffMap = queryByLeague($pdo, "
-    SELECT tsp.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
-    FROM team_season_points tsp JOIN teams t ON t.id=tsp.team_id
-    WHERE tsp.points >= 3
-    GROUP BY tsp.league, t.id, t.city, t.name ORDER BY count DESC
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
+    FROM teams t
+    LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league=t.league
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($playoffMap);
 
-// ── 5. Mais vices (liga da temporada) ────────────────────────────
-$vicesMap = queryByLeague($pdo, "
-    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM season_history sh JOIN teams t ON t.id=sh.runner_up_team_id
-    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($vicesMap);
-
-// ── 6. Mais prêmios individuais (liga via season_history) ────────
-$awardsMap = queryByLeague($pdo, "
-    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM season_awards sa
-    JOIN teams t ON t.id=sa.team_id
-    JOIN season_history sh ON sh.season_id=sa.season_id
-    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($awardsMap);
-
-// ── 7. Mais pontos acumulados (regular) ──────────────────────────
-$ptsMap = queryByLeague($pdo, "
-    SELECT tsp.league, CONCAT(t.city,' ',t.name) AS name, SUM(tsp.points) AS count
-    FROM team_season_points tsp JOIN teams t ON t.id=tsp.team_id
-    GROUP BY tsp.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($ptsMap);
-
-// ── 8. Maior OVR médio atual (top 5 jogadores do elenco) ─────────
-$ovrMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-           ROUND(AVG(ovr_top.ovr),1) AS count
-    FROM teams t
-    JOIN (
-        SELECT p.team_id, COALESCE(p.ovr, 0) AS ovr
-        FROM players p
-        WHERE p.team_id IS NOT NULL AND COALESCE(p.ovr, 0) > 0
-    ) ovr_top ON ovr_top.team_id = t.id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($ovrMap);
-
-// ── 9. Elenco mais jovem ─────────────────────────────────────────
+// ── 5. Elenco mais jovem ─────────────────────────────────────────
 $youngMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
            ROUND(AVG(p.age),1) AS count
@@ -142,29 +93,23 @@ foreach ($youngMap as $lg => $arr) {
     $oldMap[$lg] = array_reverse($arr);
 }
 
-// ── 11. Mais tapas usados ────────────────────────────────────────
-$tapasMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COALESCE(t.tapas_used,0) AS count
-    FROM teams t WHERE COALESCE(t.tapas_used,0) > 0 ORDER BY count DESC
-");
-sortLeagueData($tapasMap);
-
 $loginsMap  = [];
 $fbaPtsMap  = [];
 
 // ── 14. Mais jogadores draftados ─────────────────────────────────
 $draftedMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(p.id) AS count
-    FROM teams t JOIN players p ON p.drafted_by_team_id=t.id
+    FROM teams t LEFT JOIN players p ON p.drafted_by_team_id=t.id
     GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($draftedMap);
 
-// ── 15. Mais jogadores que passaram pelo clube (liga do log) ─────
+// ── 15. Mais jogadores que passaram pelo clube ───────────────────
 $rotMap = queryByLeague($pdo, "
-    SELECT psl.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
-    FROM player_season_log psl JOIN teams t ON t.id=psl.team_id
-    GROUP BY psl.league, t.id, t.city, t.name ORDER BY count DESC
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
+    FROM teams t
+    LEFT JOIN player_season_log psl ON psl.team_id=t.id AND psl.league=t.league
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($rotMap);
 
@@ -180,35 +125,23 @@ sortLeagueData($faMap);
 
 // ── Propostas de trade (todas, qualquer status) ──────────────────
 $faPropostasMap = queryByLeague($pdo, "
-    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
-    FROM trades tr
-    JOIN teams t ON t.id = tr.from_team_id
-    GROUP BY tr.league, t.id, t.city, t.name ORDER BY count DESC
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM teams t
+    LEFT JOIN trades tr ON tr.from_team_id=t.id AND tr.league=t.league
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($faPropostasMap);
 
-// ── 16. Trades com picks incluídas (liga da trade) ───────────────
-$pickTradesMap = queryByLeague($pdo, "
-    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
-    FROM trades tr
-    JOIN teams t ON t.id = tr.from_team_id OR t.id = tr.to_team_id
-    WHERE tr.status='accepted'
-      AND (
-        (tr.picks_given IS NOT NULL AND tr.picks_given != '[]' AND tr.picks_given != '')
-        OR (tr.picks_received IS NOT NULL AND tr.picks_received != '[]' AND tr.picks_received != '')
-      )
-    GROUP BY tr.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($pickTradesMap);
-
-// ── 17. Maior OVR individual já registrado ───────────────────────
-$topOvrMap = queryByLeague($pdo, "
-    SELECT psl.league, psl.player_name AS name, MAX(psl.ovr) AS count
-    FROM player_season_log psl
-    WHERE psl.ovr > 0
-    GROUP BY psl.league, psl.player_name ORDER BY count DESC
-");
-sortLeagueData($topOvrMap);
+// ── Corrigir Utah Coyotes em propostas (-200 registros duplicados) ─
+foreach ($faPropostasMap as $lg => &$arr) {
+    foreach ($arr as &$row) {
+        if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) {
+            $row['count'] = max(0, (int)$row['count'] - 200);
+        }
+    }
+}
+unset($arr, $row);
+sortLeagueData($faPropostasMap);
 
 ?><!DOCTYPE html>
 <html lang="pt-BR">
@@ -274,8 +207,8 @@ main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
 .pair-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border)}
 .pair-row:last-child{border-bottom:none}
 .pair-names{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.pair-a{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pair-b{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-a{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-b{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
 </style>
@@ -410,18 +343,10 @@ renderSection('trades', '🔄', 'rgba(252,0,37,.15)', 'Trades por Time',
 renderSection('pares', '🤝', 'rgba(96,165,250,.12)', 'Pares que mais trocaram',
     'Duplas com mais trades entre si',
     $pairsByLeague, $leagues, [
-        'label_hi' => '🤝 Mais parceiros', 'label_lo' => '❄️ Menos parceiros',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Pares mais ativos', 'copy_lo' => 'Pares menos ativos',
+        'label_hi' => '🤝 Mais parceiros', 'show_lo' => false,
+        'color_hi' => 'blue', 'color_lo' => 'blue',
+        'copy_hi' => 'Pares mais ativos',
         'pair_mode' => true,
-    ]);
-
-renderSection('titulos', '🏆', 'rgba(251,191,36,.12)', 'Títulos',
-    'Times com mais campeonatos',
-    $titlesMap, $leagues, [
-        'label_hi' => '🏆 Mais títulos', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Mais títulos',
     ]);
 
 renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff',
@@ -430,38 +355,6 @@ renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff'
         'label_hi' => '🎯 Mais playoffs', 'label_lo' => '📉 Menos playoffs',
         'color_hi' => 'hi', 'color_lo' => 'lo',
         'copy_hi' => 'Mais playoffs', 'copy_lo' => 'Menos playoffs',
-    ]);
-
-renderSection('vices', '🥈', 'rgba(148,163,184,.10)', 'Vice-Campeões',
-    'Times que mais foram vice',
-    $vicesMap, $leagues, [
-        'label_hi' => '🥈 Mais vices', 'show_lo' => false,
-        'color_hi' => 'lo',
-        'copy_hi' => 'Mais vices',
-    ]);
-
-renderSection('premios', '🏅', 'rgba(245,158,11,.12)', 'Prêmios Individuais',
-    'Times com mais MVPs, DPOYs, ROYs, etc.',
-    $awardsMap, $leagues, [
-        'label_hi' => '🏅 Mais premiados', 'label_lo' => '📦 Menos premiados',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais prêmios individuais', 'copy_lo' => 'Menos prêmios individuais',
-    ]);
-
-renderSection('pontos', '📊', 'rgba(96,165,250,.10)', 'Pontos na Regular',
-    'Total de pontos acumulados na temporada regular',
-    $ptsMap, $leagues, [
-        'label_hi' => '📊 Mais pontos', 'label_lo' => '📉 Menos pontos',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais pontos regular', 'copy_lo' => 'Menos pontos regular',
-    ]);
-
-renderSection('ovr', '⭐', 'rgba(34,197,94,.10)', 'Maior OVR Médio Atual',
-    'Média do elenco atual (jogadores rosteriados)',
-    $ovrMap, $leagues, [
-        'label_hi' => '⭐ Maior OVR médio', 'label_lo' => '📉 Menor OVR médio',
-        'color_hi' => 'green', 'color_lo' => 'lo',
-        'copy_hi' => 'Maior OVR médio', 'copy_lo' => 'Menor OVR médio',
     ]);
 
 renderSection('jovem', '🌱', 'rgba(168,85,247,.10)', 'Elenco Mais Jovem',
@@ -481,15 +374,6 @@ renderSection('velho', '🧓', 'rgba(148,163,184,.08)', 'Elenco Mais Experiente'
         'copy_hi' => 'Elenco mais experiente',
         'suffix' => ' anos',
     ]);
-
-renderSection('tapas', '👋', 'rgba(252,0,37,.10)', 'Tapas Usados',
-    'GMs que mais utilizaram tapas',
-    $tapasMap, $leagues, [
-        'label_hi' => '👋 Mais tapas', 'show_lo' => false,
-        'color_hi' => 'hi',
-        'copy_hi' => 'Mais tapas usados',
-    ]);
-
 
 renderSection('draftados', '🎓', 'rgba(168,85,247,.10)', 'Jogadores Draftados',
     'Times que mais desenvolveram jogadores pelo draft',
@@ -521,22 +405,6 @@ renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
         'label_hi' => '🖊️ Mais contratações', 'label_lo' => '📦 Menos contratações',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais FA pickups', 'copy_lo' => 'Menos FA pickups',
-    ]);
-
-renderSection('picktrades', '🃏', 'rgba(96,165,250,.08)', 'Trades com Picks',
-    'Times que mais envolveram picks em negociações',
-    $pickTradesMap, $leagues, [
-        'label_hi' => '🃏 Mais picks negociadas', 'label_lo' => '📦 Menos picks',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais trades com picks', 'copy_lo' => 'Menos trades com picks',
-    ]);
-
-renderSection('topovr', '🌟', 'rgba(251,191,36,.10)', 'Maior OVR Individual',
-    'Jogadores com o maior OVR já registrado no histórico',
-    $topOvrMap, $leagues, [
-        'label_hi' => '🌟 Maior OVR histórico', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Maior OVR individual histórico',
     ]);
 
 ?>
