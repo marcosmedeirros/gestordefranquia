@@ -168,6 +168,16 @@ $rotMap = queryByLeague($pdo, "
 ");
 sortLeagueData($rotMap);
 
+// ── FA. Free Agency pickups ──────────────────────────────────────
+$faMap = queryByLeague($pdo, "
+    SELECT fa.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    FROM free_agents fa
+    JOIN teams t ON t.id = fa.winner_team_id
+    WHERE fa.status = 'signed' AND fa.winner_team_id IS NOT NULL
+    GROUP BY fa.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($faMap);
+
 // ── 16. Trades com picks incluídas (liga da trade) ───────────────
 $pickTradesMap = queryByLeague($pdo, "
     SELECT tr.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
@@ -486,6 +496,14 @@ renderSection('rotatividade', '🔁', 'rgba(34,197,94,.08)', 'Rotatividade de El
         'label_hi' => '🔁 Mais rotatividade', 'label_lo' => '🏠 Menos rotatividade',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais rotatividade', 'copy_lo' => 'Menos rotatividade',
+    ]);
+
+renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
+    'Times que mais e menos assinaram jogadores na FA',
+    $faMap, $leagues, [
+        'label_hi' => '🖊️ Mais contratações', 'label_lo' => '📦 Menos contratações',
+        'color_hi' => 'green', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais FA pickups', 'copy_lo' => 'Menos FA pickups',
     ]);
 
 renderSection('picktrades', '🃏', 'rgba(96,165,250,.08)', 'Trades com Picks',
