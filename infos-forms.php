@@ -168,25 +168,25 @@ $rotMap = queryByLeague($pdo, "
 ");
 sortLeagueData($rotMap);
 
-// ── FA Propostas ────────────────────────────────────────────────
-$faPropostasMap = queryByLeague($pdo, "
-    SELECT fa.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+// ── FA pickups (free_agent_offers aceitas = jogador pego) ────────
+$faMap = queryByLeague($pdo, "
+    SELECT far.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
     FROM free_agent_offers fao
     JOIN teams t ON t.id = fao.team_id
-    JOIN free_agents fa ON fa.id = fao.free_agent_id
-    GROUP BY fa.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($faPropostasMap);
-
-// ── FA. Free Agency pickups ──────────────────────────────────────
-$faMap = queryByLeague($pdo, "
-    SELECT fa.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM free_agents fa
-    JOIN teams t ON t.id = fa.winner_team_id
-    WHERE fa.status = 'signed' AND fa.winner_team_id IS NOT NULL
-    GROUP BY fa.league, t.id, t.city, t.name ORDER BY count DESC
+    JOIN fa_requests far ON far.id = fao.free_agent_id
+    WHERE fao.status = 'accepted'
+    GROUP BY far.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($faMap);
+
+// ── Propostas de trade (todas, qualquer status) ──────────────────
+$faPropostasMap = queryByLeague($pdo, "
+    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM trades tr
+    JOIN teams t ON t.id = tr.from_team_id
+    GROUP BY tr.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($faPropostasMap);
 
 // ── 16. Trades com picks incluídas (liga da trade) ───────────────
 $pickTradesMap = queryByLeague($pdo, "
@@ -508,12 +508,12 @@ renderSection('rotatividade', '🔁', 'rgba(34,197,94,.08)', 'Rotatividade de El
         'copy_hi' => 'Mais rotatividade', 'copy_lo' => 'Menos rotatividade',
     ]);
 
-renderSection('fapropostas', '📋', 'rgba(96,165,250,.10)', 'Propostas na FA',
-    'Times que mais e menos fizeram propostas (qualquer status)',
+renderSection('fapropostas', '📋', 'rgba(96,165,250,.10)', 'Propostas de Trade Enviadas',
+    'Times que mais e menos iniciaram negociações (qualquer status)',
     $faPropostasMap, $leagues, [
         'label_hi' => '📋 Mais propostas', 'label_lo' => '📦 Menos propostas',
         'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais propostas FA', 'copy_lo' => 'Menos propostas FA',
+        'copy_hi' => 'Mais propostas de trade', 'copy_lo' => 'Menos propostas de trade',
     ]);
 
 renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
