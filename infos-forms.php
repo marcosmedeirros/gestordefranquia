@@ -156,57 +156,49 @@ $rejectedMap = queryByLeague($pdo, "
 ");
 sortLeagueData($rejectedMap);
 
-// ── Pick origem no top5 (original_team_id com pick_position <= 5) ─
+// ── Pick origem no top5 (draft_order, original_team_id, pos <= 5) ─
 $origTop5Map = [];
 try {
     $ot5Raw = $pdo->query("
-        SELECT ids.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-        FROM initdraft_order ido
-        JOIN initdraft_sessions ids ON ids.id=ido.initdraft_session_id
-        JOIN teams t ON t.id=ido.original_team_id
-        WHERE ido.pick_position <= 5 AND ido.round = 1 AND ido.picked_player_id IS NOT NULL
-        GROUP BY ids.league, t.id, t.city, t.name ORDER BY count DESC
+        SELECT ds.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM draft_order do_
+        JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+        JOIN teams t ON t.id=do_.original_team_id
+        WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ot5Raw as $r) $origTop5Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($origTop5Map);
 } catch (Exception $e) {}
 
-// ── Quem mais escolheu no top5 (team_id com pick_position <= 5) ───
+// ── Quem mais escolheu no top5 (draft_order, team_id, pos <= 5) ───
 $top5PicksMap = [];
 try {
     $tp5Raw = $pdo->query("
-        SELECT ids.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-        FROM initdraft_order ido
-        JOIN initdraft_sessions ids ON ids.id=ido.initdraft_session_id
-        JOIN teams t ON t.id=ido.team_id
-        WHERE ido.pick_position <= 5 AND ido.round = 1 AND ido.picked_player_id IS NOT NULL
-        GROUP BY ids.league, t.id, t.city, t.name ORDER BY count DESC
+        SELECT ds.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM draft_order do_
+        JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+        JOIN teams t ON t.id=do_.team_id
+        WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($top5PicksMap);
 } catch (Exception $e) {}
 
-// ── Jogadores que mais foram a leilão (fa_requests) ───────────────
+// ── Jogadores que mais foram a leilão (leilao_jogadores) ──────────
 $leilaoMap = [];
 try {
     $lRaw = $pdo->query("
-        SELECT league, player_name AS name, COUNT(*) AS count
-        FROM fa_requests
-        GROUP BY league, player_name ORDER BY count DESC
+        SELECT lg.name AS league, p.name AS name, COUNT(lj.id) AS count
+        FROM leilao_jogadores lj
+        JOIN players p ON p.id=lj.player_id
+        JOIN leagues lg ON lg.id=lj.league_id
+        GROUP BY lg.name, p.id, p.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($leilaoMap);
 } catch (Exception $e) {}
-
-// ── Vitórias no playoff (soma de rounds vencidos por temporada) ───
-$playoffWinsMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-           COALESCE(SUM(trp.playoff_second_round + trp.playoff_conference_finals + trp.playoff_runner_up + trp.playoff_champion), 0) AS count
-    FROM teams t
-    LEFT JOIN team_ranking_points trp ON trp.team_id=t.id AND trp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
-    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-");
-sortLeagueData($playoffWinsMap);
 
 // ── Mais vezes seed 1 (maior pts regular na temporada) ───────────
 $seed1Map = [];
@@ -259,18 +251,6 @@ try {
     sortLeagueData($streakMap);
 } catch (Exception $e) {}
 
-// ── Times que nunca foram ao playoff ─────────────────────────────
-$neverPlayoffMap = [];
-try {
-    $nvRows = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name
-        FROM teams t
-        WHERE t.id NOT IN (SELECT DISTINCT tsp.team_id FROM team_season_points tsp WHERE tsp.points >= 3)
-        ORDER BY t.league, t.name
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($nvRows as $r) $neverPlayoffMap[$r['league']][] = $r['name'];
-} catch (Exception $e) {}
-
 // ── Jogadores que passaram por mais times ─────────────────────────
 $playerTeamsMap = [];
 try {
@@ -312,18 +292,6 @@ try {
     sortLeagueData($draftOvrMap);
 } catch (Exception $e) {}
 
-// ── Mais picks de 1ª rodada originais ────────────────────────────
-$round1Map = [];
-try {
-    $r1Raw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(pk.id) AS count
-        FROM teams t LEFT JOIN picks pk ON pk.original_team_id=t.id AND pk.round='1'
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($r1Raw as $r) $round1Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
-    sortLeagueData($round1Map);
-} catch (Exception $e) {}
-
 // ── Jogadores mais requisitados na FA (mais ofertas por player) ───
 $faHotMap = [];
 try {
@@ -337,46 +305,6 @@ try {
     sortLeagueData($faHotMap);
 } catch (Exception $e) {}
 
-// ── GMs mais antigos (data de cadastro do usuário) ────────────────
-$gmAgeMap = [];
-try {
-    $gaRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-               FLOOR(DATEDIFF(NOW(), u.created_at)/365) AS count
-        FROM teams t LEFT JOIN users u ON u.id=t.user_id
-        ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($gaRaw as $r) $gmAgeMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
-    sortLeagueData($gmAgeMap);
-} catch (Exception $e) {}
-
-// ── Maior variação de posição na tabela (PHP ranking) ────────────
-$variacaoMap = [];
-try {
-    $vrRaw = $pdo->query("
-        SELECT trp.team_id, trp.league, trp.season_id, trp.regular_season_points,
-               CONCAT(t.city,' ',t.name) AS name
-        FROM team_ranking_points trp JOIN teams t ON t.id=trp.team_id
-        ORDER BY trp.league, trp.season_id, trp.regular_season_points DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    $byLgSeason = [];
-    foreach ($vrRaw as $r) $byLgSeason[$r['league']][$r['season_id']][] = $r;
-    $teamRanks = [];
-    foreach ($byLgSeason as $lg => $seasons) {
-        foreach ($seasons as $sid => $teams) {
-            foreach ($teams as $idx => $r) {
-                $teamRanks[$r['team_id']]['league'] = $lg;
-                $teamRanks[$r['team_id']]['name']   = $r['name'];
-                $teamRanks[$r['team_id']]['ranks'][] = $idx + 1;
-            }
-        }
-    }
-    foreach ($teamRanks as $data) {
-        if (count($data['ranks']) < 2) continue;
-        $variacaoMap[$data['league']][] = ['name'=>$data['name'], 'count'=>max($data['ranks'])-min($data['ranks'])];
-    }
-    sortLeagueData($variacaoMap);
-} catch (Exception $e) {}
 
 ?><!DOCTYPE html>
 <html lang="pt-BR">
@@ -645,14 +573,6 @@ renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
 
 // ─── Novas seções ─────────────────────────────────────────────────
 
-renderSection('playoff-wins', '🏅', 'rgba(252,0,37,.15)', 'Vitórias no Playoff',
-    'Estimativa de séries vencidas nos playoffs (soma de rounds)',
-    $playoffWinsMap, $leagues, [
-        'label_hi' => '🏆 Mais vitórias', 'label_lo' => '📉 Menos vitórias',
-        'color_hi' => 'hi', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais vitórias no playoff', 'copy_lo' => 'Menos vitórias no playoff',
-    ]);
-
 renderSection('seed1', '1️⃣', 'rgba(251,191,36,.12)', 'Mais vezes Seed 1',
     'Times que terminaram com mais pontos na regular em cada temporada',
     $seed1Map, $leagues, [
@@ -669,31 +589,6 @@ renderSection('streak', '🔥', 'rgba(251,191,36,.10)', 'Maior Sequência de Pla
         'copy_hi' => 'Maior sequência de playoffs', 'copy_lo' => 'Menor sequência',
         'suffix' => ' temp',
     ]);
-
-// Seção especial: times que nunca foram ao playoff
-if (!empty(array_filter($neverPlayoffMap))) {
-    echo "<div class=\"section-block\" id=\"never-playoff\">";
-    echo "<div class=\"section-head\">";
-    echo "<div class=\"section-icon\" style=\"background:rgba(148,163,184,.10)\">❌</div>";
-    echo "<div><h2>Nunca Foram ao Playoff</h2><div class=\"section-sub\">Times sem nenhuma aparição nos playoffs</div></div>";
-    echo "</div>";
-    echo "<div class=\"leagues-grid\">";
-    foreach ($leagues as $lg) {
-        $arr = $neverPlayoffMap[$lg] ?? [];
-        echo "<div class=\"league-card\">";
-        echo "<div class=\"league-header\"><span class=\"league-badge badge-{$lg}\">{$lg}</span>";
-        echo "<span style=\"font-size:11px;color:var(--text-3);flex:1\">".count($arr)." time(s)</span></div>";
-        if (empty($arr)) {
-            echo "<div class=\"empty-state\">Todos foram ao playoff</div>";
-        } else {
-            foreach ($arr as $nm) {
-                echo "<div class=\"rank-row\"><span class=\"rname\">".htmlspecialchars($nm)."</span></div>";
-            }
-        }
-        echo "</div>";
-    }
-    echo "</div></div>";
-}
 
 renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais Itinerantes',
     'Jogadores que passaram por mais times diferentes',
@@ -721,14 +616,6 @@ renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Dr
         'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
     ]);
 
-renderSection('round1picks', '🎯', 'rgba(245,158,11,.10)', 'Picks de 1ª Rodada',
-    'Times que geraram mais picks na 1ª rodada (original_team)',
-    $round1Map, $leagues, [
-        'label_hi' => '🎯 Mais picks R1', 'label_lo' => '📦 Menos picks R1',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais picks 1ª rodada', 'copy_lo' => 'Menos picks 1ª rodada',
-    ]);
-
 renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados na FA',
     'Jogadores com mais times diferentes fazendo ofertas',
     $faHotMap, $leagues, [
@@ -736,15 +623,6 @@ renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados
         'color_hi' => 'hi',
         'copy_hi' => 'Jogadores mais disputados na FA',
         'suffix' => ' ofertas',
-    ]);
-
-renderSection('gm-age', '👴', 'rgba(148,163,184,.08)', 'GMs mais Antigos',
-    'Tempo de cadastro na plataforma',
-    $gmAgeMap, $leagues, [
-        'label_hi' => '👴 Mais antigos', 'label_lo' => '🆕 Mais novos',
-        'color_hi' => 'lo', 'color_lo' => 'blue',
-        'copy_hi' => 'GMs mais antigos', 'copy_lo' => 'GMs mais novos',
-        'suffix' => ' anos',
     ]);
 
 renderSection('rejected', '❌', 'rgba(252,0,37,.10)', 'Trades Rejeitadas',
@@ -780,14 +658,6 @@ renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloado
         'suffix' => 'x',
     ]);
 
-renderSection('variacao', '📊', 'rgba(252,0,37,.08)', 'Maior Variação na Tabela',
-    'Times com maior diferença entre melhor e pior colocação na regular',
-    $variacaoMap, $leagues, [
-        'label_hi' => '📊 Mais inconsistentes', 'label_lo' => '🎯 Mais consistentes',
-        'color_hi' => 'hi', 'color_lo' => 'green',
-        'copy_hi' => 'Maior variação na tabela', 'copy_lo' => 'Menor variação na tabela',
-        'suffix' => ' pos',
-    ]);
 
 ?>
 </main>
