@@ -119,9 +119,9 @@ $ovrMap = queryByLeague($pdo, "
            ROUND(AVG(ovr_top.ovr),1) AS count
     FROM teams t
     JOIN (
-        SELECT p.team_id, COALESCE(p.ovr_current, p.ovr, 0) AS ovr
+        SELECT p.team_id, COALESCE(p.ovr, 0) AS ovr
         FROM players p
-        WHERE p.status='rostered' AND COALESCE(p.ovr_current, p.ovr, 0) > 0
+        WHERE p.status='rostered' AND COALESCE(p.ovr, 0) > 0
     ) ovr_top ON ovr_top.team_id = t.id
     GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
 ");
