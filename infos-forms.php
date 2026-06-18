@@ -132,7 +132,7 @@ $youngMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
            ROUND(AVG(p.age),1) AS count
     FROM teams t
-    JOIN players p ON p.team_id=t.id AND p.status='rostered' AND p.age > 0
+    JOIN players p ON p.team_id=t.id AND p.age > 0
     GROUP BY t.id, t.league, t.city, t.name ORDER BY count ASC
 ");
 foreach ($youngMap as &$arr) usort($arr, fn($a,$b) => $a['count'] <=> $b['count']);
