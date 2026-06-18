@@ -6361,9 +6361,6 @@ async function showDraftClassBank() {
   <button class="btn-ghost" style="color:#a855f7;margin-left:auto" onclick="_draftClassNewModal()">
     <i class="bi bi-plus-circle me-1"></i>Nova Classe
   </button>
-  <button class="btn-ghost" onclick="_draftClassImportModal()">
-    <i class="bi bi-upload me-1"></i>Importar CSV
-  </button>
 </div>
 <div class="panel">
   <div class="panel-header">
@@ -6439,7 +6436,10 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
 
         ${!templateId ? `
         <div style="border-top:1px solid var(--border);padding-top:14px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Ou crie com CSV</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Ou crie com CSV</div>
+            <button class="btn-ghost" style="padding:2px 8px;font-size:11px" onclick="_adminDraftDownloadTemplate()"><i class="bi bi-download me-1"></i>Baixar modelo</button>
+          </div>
           <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
           <div id="_dcNewClassDropzone"
             style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:20px;text-align:center;cursor:pointer;transition:border-color .2s"
