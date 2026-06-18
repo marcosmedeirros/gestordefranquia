@@ -781,6 +781,142 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'trades' => $trades]);
             break;
 
+        // ── Draft Class Bank ─────────────────────────────────────────────────────
+        case 'draft_class_bank':
+            // Garantir tabelas
+            $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_dct_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                template_id INT NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                position VARCHAR(20) NOT NULL,
+                ovr INT NOT NULL,
+                age INT NOT NULL,
+                INDEX idx_dctp_tpl (template_id),
+                CONSTRAINT fk_dctp_tpl FOREIGN KEY (template_id) REFERENCES draft_class_templates(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            if ($method === 'GET') {
+                $subAction = $_GET['sub'] ?? 'list';
+                if ($subAction === 'list') {
+                    $rows = $pdo->query("SELECT id, name, created_at,
+                        (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
+                        FROM draft_class_templates dct ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+                    echo json_encode(['success' => true, 'templates' => $rows]);
+                } elseif ($subAction === 'players') {
+                    $tplId = (int)($_GET['template_id'] ?? 0);
+                    if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
+                    $stmt = $pdo->prepare("SELECT id, name, position, ovr, age FROM draft_class_template_players WHERE template_id=? ORDER BY ovr DESC");
+                    $stmt->execute([$tplId]);
+                    echo json_encode(['success' => true, 'players' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+                }
+                break;
+            }
+
+            if ($method === 'POST') {
+                $body = json_decode(file_get_contents('php://input'), true) ?? [];
+                $subAction = $body['sub'] ?? '';
+
+                if ($subAction === 'save') {
+                    $name = trim($body['name'] ?? '');
+                    $players = $body['players'] ?? [];
+                    if (!$name) { echo json_encode(['success' => false, 'error' => 'Nome obrigatório']); break; }
+                    if (empty($players)) { echo json_encode(['success' => false, 'error' => 'Lista de jogadores vazia']); break; }
+                    $pdo->beginTransaction();
+                    try {
+                        $s = $pdo->prepare("INSERT INTO draft_class_templates (name, created_by) VALUES (?, ?)");
+                        $s->execute([$name, (int)$user['id']]);
+                        $tplId = (int)$pdo->lastInsertId();
+                        $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
+                        foreach ($players as $p) {
+                            $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
+                        }
+                        $pdo->commit();
+                        echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                    }
+                    break;
+                }
+
+                if ($subAction === 'rename') {
+                    $tplId = (int)($body['template_id'] ?? 0);
+                    $name  = trim($body['name'] ?? '');
+                    if (!$tplId || !$name) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
+                    $pdo->prepare("UPDATE draft_class_templates SET name=? WHERE id=?")->execute([$name, $tplId]);
+                    echo json_encode(['success' => true]);
+                    break;
+                }
+
+                if ($subAction === 'add_player') {
+                    $tplId = (int)($body['template_id'] ?? 0);
+                    $p = $body['player'] ?? [];
+                    if (!$tplId || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
+                    $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
+                    echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
+                    break;
+                }
+
+                if ($subAction === 'update_player') {
+                    $pid = (int)($body['player_id'] ?? 0);
+                    $p = $body['player'] ?? [];
+                    if (!$pid || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
+                    $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=? WHERE id=?")
+                        ->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $pid]);
+                    echo json_encode(['success' => true]);
+                    break;
+                }
+
+                if ($subAction === 'delete_player') {
+                    $pid = (int)($body['player_id'] ?? 0);
+                    if (!$pid) { echo json_encode(['success' => false, 'error' => 'player_id obrigatório']); break; }
+                    $pdo->prepare("DELETE FROM draft_class_template_players WHERE id=?")->execute([$pid]);
+                    echo json_encode(['success' => true]);
+                    break;
+                }
+
+                if ($subAction === 'delete') {
+                    $tplId = (int)($body['template_id'] ?? 0);
+                    if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
+                    $pdo->prepare("DELETE FROM draft_class_templates WHERE id=?")->execute([$tplId]);
+                    echo json_encode(['success' => true, 'message' => 'Classe excluída.']);
+                    break;
+                }
+
+                if ($subAction === 'replace_players') {
+                    $tplId = (int)($body['template_id'] ?? 0);
+                    $players = $body['players'] ?? [];
+                    if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
+                    $pdo->beginTransaction();
+                    try {
+                        $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id=?")->execute([$tplId]);
+                        $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
+                        foreach ($players as $p) {
+                            $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
+                        }
+                        $pdo->commit();
+                        echo json_encode(['success' => true, 'inserted' => count($players)]);
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                    }
+                    break;
+                }
+
+                echo json_encode(['success' => false, 'error' => 'Ação desconhecida']);
+                break;
+            }
+            break;
+
         case 'hall_of_fame':
             ensureHallOfFameTable($pdo);
             if ($method === 'GET') {

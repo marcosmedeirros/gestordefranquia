@@ -685,6 +685,7 @@ async function showLeague(league) {
       { icon: 'bi-clipboard-check',         label: 'Diretrizes',                fn: 'showDirectives()',          color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
     ];
 
@@ -6078,8 +6079,20 @@ function _adminDraftImportModal(draftSessionId, seasonId, league) {
         <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('adminDraftImportModal').remove()"><i class="bi bi-x-lg"></i></button>
       </div>
       <div style="padding:16px 18px">
+        <div id="draftImportBankSection" style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px">Usar classe do banco</div>
+          <div class="d-flex gap-2 align-items-center">
+            <select id="draftImportBankSelect" class="form-select form-select-sm" style="flex:1">
+              <option value="">Carregando…</option>
+            </select>
+            <button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_adminDraftUseClassFromBank(${draftSessionId},'${league}')">
+              <i class="bi bi-archive me-1"></i>Usar esta
+            </button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;text-align:center">— ou importe um novo CSV —</div>
         <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">
-          O CSV deve ter as colunas: <strong style="color:var(--text)">name, position, ovr, age</strong>. A primeira linha é o cabeçalho e será ignorada.
+          CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong>.
           <button class="btn-ghost" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="_adminDraftDownloadTemplate()">
             <i class="bi bi-download me-1"></i>Baixar modelo
           </button>
@@ -6114,6 +6127,54 @@ function _adminDraftImportModal(draftSessionId, seasonId, league) {
       </div>
     </div>`;
   document.body.appendChild(modal);
+
+  // Carregar banco de classes no select
+  api('admin.php?action=draft_class_bank&sub=list').then(d => {
+    const sel = document.getElementById('draftImportBankSelect');
+    if (!sel) return;
+    const templates = d.templates || [];
+    if (!templates.length) {
+      sel.innerHTML = '<option value="">Nenhuma classe salva</option>';
+    } else {
+      sel.innerHTML = '<option value="">Selecione uma classe…</option>' +
+        templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.player_count} jogadores)</option>`).join('');
+    }
+  }).catch(() => {
+    const sel = document.getElementById('draftImportBankSelect');
+    if (sel) sel.innerHTML = '<option value="">Banco indisponível</option>';
+  });
+}
+
+async function _adminDraftUseClassFromBank(draftSessionId, league) {
+  const sel = document.getElementById('draftImportBankSelect');
+  const tplId = sel?.value;
+  if (!tplId) { showAlert('warning', 'Selecione uma classe do banco'); return; }
+  try {
+    const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
+    _draftImportRows = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age }));
+    if (!_draftImportRows.length) { showAlert('warning', 'Classe sem jogadores'); return; }
+    document.getElementById('draftImportCount').textContent = _draftImportRows.length;
+    document.getElementById('draftImportTable').innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--panel-2)">
+          <th style="padding:6px 10px;text-align:left;color:var(--text-3)">Nome</th>
+          <th style="padding:6px 8px;color:var(--text-3);text-align:center">Pos</th>
+          <th style="padding:6px 8px;color:var(--text-3);text-align:center">OVR</th>
+          <th style="padding:6px 8px;color:var(--text-3);text-align:center">Idade</th>
+        </tr></thead>
+        <tbody>${_draftImportRows.slice(0,50).map(p=>`
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:5px 10px;color:var(--text)">${escapeHtml(p.name)}</td>
+            <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.position}</td>
+            <td style="padding:5px 8px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
+            <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.age}</td>
+          </tr>`).join('')}
+        ${_draftImportRows.length>50?`<tr><td colspan="4" style="padding:5px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length-50} mais…</td></tr>`:''}
+        </tbody></table>`;
+    document.getElementById('draftImportPreview').style.display = 'block';
+    document.getElementById('draftImportDropzone').style.display = 'none';
+    document.getElementById('draftImportBankSection').style.display = 'none';
+  } catch(e) { showAlert('danger', e.error || 'Erro ao carregar classe'); }
 }
 
 let _draftImportRows = [];
@@ -6233,4 +6294,427 @@ async function _adminDraftConfirmImport(draftSessionId, league) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  BANCO DE CLASSES DE DRAFT
+// ══════════════════════════════════════════════════════════════════
+
+async function showDraftClassBank() {
+  appState.view = 'draft_class_bank';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+
+  try {
+    const data = await api('admin.php?action=draft_class_bank&sub=list');
+    const templates = data.templates || [];
+    const _back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+
+    container.innerHTML = `
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  <button class="btn btn-back" onclick="${_back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+  <button class="btn-ghost" style="color:#a855f7;margin-left:auto" onclick="_draftClassNewModal()">
+    <i class="bi bi-plus-circle me-1"></i>Nova Classe
+  </button>
+  <button class="btn-ghost" onclick="_draftClassImportModal()">
+    <i class="bi bi-upload me-1"></i>Importar CSV
+  </button>
+</div>
+<div class="panel">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-archive-fill" style="color:#a855f7"></i> Banco de Classes de Draft</div>
+    <div style="font-size:12px;color:var(--text-3)">${templates.length} classe(s) salva(s)</div>
+  </div>
+  <div id="draftClassList">
+    ${templates.length === 0
+      ? '<div class="empty-state">Nenhuma classe salva. Importe um CSV ou crie manualmente.</div>'
+      : templates.map(t => `
+        <div class="pun-card" id="draftClassCard_${t.id}">
+          <div class="pun-card-head">
+            <div>
+              <div class="pun-card-title">${escapeHtml(t.name)}</div>
+              <div class="pun-card-sub">${t.player_count} jogadores · criada em ${new Date(t.created_at).toLocaleDateString('pt-BR')}</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#a855f7" onclick="_draftClassEdit(${t.id}, '${escapeHtml(t.name).replace(/'/g,"\\'")}')">
+                <i class="bi bi-pencil me-1"></i>Editar
+              </button>
+              <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444" onclick="_draftClassDelete(${t.id}, '${escapeHtml(t.name).replace(/'/g,"\\'")}')">
+                <i class="bi bi-trash me-1"></i>Excluir
+              </button>
+            </div>
+          </div>
+        </div>`).join('')}
+  </div>
+</div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="alert alert-danger">Erro: ${e.error || e.message}</div>`;
+  }
+}
+
+// ── Modal: criar nova classe manualmente ──────────────────────────
+function _draftClassNewModal() {
+  _draftClassOpenEditModal(null, '');
+}
+
+// ── Modal de edição / criação ─────────────────────────────────────
+let _dcEditPlayers = [];
+let _dcEditTemplateId = null;
+
+async function _draftClassEdit(templateId, name) {
+  const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${templateId}`);
+  _dcEditPlayers = data.players || [];
+  _dcEditTemplateId = templateId;
+  _draftClassOpenEditModal(templateId, name, _dcEditPlayers);
+}
+
+function _draftClassOpenEditModal(templateId, name, players = []) {
+  _dcEditTemplateId = templateId;
+  _dcEditPlayers = [...players];
+
+  const existing = document.getElementById('_dcEditModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_dcEditModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1100;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:700px;padding:0;margin-top:24px">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-archive-fill" style="color:#a855f7"></i> ${templateId ? 'Editar Classe' : 'Nova Classe'}</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_dcEditModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <div class="mb-3 d-flex gap-2 align-items-center">
+          <input type="text" id="_dcNameInput" class="form-control" value="${escapeHtml(name)}" placeholder="Nome da classe (ex: Draft 2040)" style="flex:1">
+          ${!templateId ? `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcSaveNewClass()"><i class="bi bi-check-lg me-1"></i>Criar</button>` : `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcRenameClass()"><i class="bi bi-check-lg me-1"></i>Renomear</button>`}
+        </div>
+
+        ${templateId ? `
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">
+            Jogadores (${players.length})
+          </div>
+          <div id="_dcPlayerList" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+            ${_dcRenderPlayerList()}
+          </div>
+          <div style="margin-top:12px;padding:12px;background:var(--panel-2);border-radius:var(--radius-sm)">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Adicionar jogador</div>
+            <div class="d-flex gap-2 flex-wrap">
+              <input type="text" id="_dcNewName" class="form-control form-control-sm" placeholder="Nome" style="flex:2;min-width:120px">
+              <select id="_dcNewPos" class="form-select form-select-sm" style="flex:1;min-width:80px">
+                ${['PG','SG','SF','PF','C'].map(p=>`<option>${p}</option>`).join('')}
+              </select>
+              <input type="number" id="_dcNewOvr" class="form-control form-control-sm" placeholder="OVR" min="1" max="99" style="flex:1;min-width:60px">
+              <input type="number" id="_dcNewAge" class="form-control form-control-sm" placeholder="Idade" min="18" max="45" style="flex:1;min-width:60px">
+              <button class="btn-ghost" style="color:#22c55e;white-space:nowrap" onclick="_dcAddPlayer()"><i class="bi bi-plus-lg me-1"></i>Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Ou substitua todos via CSV:</div>
+          <button class="btn-ghost" onclick="_draftClassReplaceCSVModal(${templateId})"><i class="bi bi-upload me-1"></i>Importar CSV (substituir tudo)</button>
+        </div>
+        ` : `<div style="color:var(--text-3);font-size:12px;padding:12px 0">Crie a classe primeiro, depois edite para adicionar jogadores.</div>`}
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _dcRenderPlayerList() {
+  if (!_dcEditPlayers.length) return '<div class="empty-state" style="padding:16px">Nenhum jogador</div>';
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--panel-2)">
+      <th style="padding:7px 10px;text-align:left;color:var(--text-3);font-weight:500">Nome</th>
+      <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Pos</th>
+      <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">OVR</th>
+      <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Idade</th>
+      <th style="padding:7px;width:60px"></th>
+    </tr></thead>
+    <tbody>
+      ${_dcEditPlayers.map((p, i) => `
+        <tr style="border-top:1px solid var(--border)" id="_dcRow_${p.id || i}">
+          <td style="padding:5px 10px">
+            <input type="text" value="${escapeHtml(p.name)}" class="form-control form-control-sm" style="font-size:11px" onchange="_dcEditPlayerField(${p.id || i}, 'name', this.value)">
+          </td>
+          <td style="padding:5px 7px;text-align:center">
+            <select class="form-select form-select-sm" style="font-size:11px;padding:2px 4px" onchange="_dcEditPlayerField(${p.id || i}, 'position', this.value)">
+              ${['PG','SG','SF','PF','C'].map(pos=>`<option ${pos===p.position?'selected':''}>${pos}</option>`).join('')}
+            </select>
+          </td>
+          <td style="padding:5px 7px;text-align:center">
+            <input type="number" value="${p.ovr}" min="1" max="99" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'ovr', this.value)">
+          </td>
+          <td style="padding:5px 7px;text-align:center">
+            <input type="number" value="${p.age}" min="18" max="45" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'age', this.value)">
+          </td>
+          <td style="padding:5px 7px;text-align:center">
+            <button class="btn-ghost" style="padding:2px 6px;color:#ef4444" onclick="_dcDeletePlayer(${p.id})"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function _dcEditPlayerField(playerId, field, value) {
+  const p = _dcEditPlayers.find(x => x.id == playerId);
+  if (!p) return;
+  p[field] = field === 'ovr' || field === 'age' ? parseInt(value, 10) : value;
+  // Salva no backend
+  api('admin.php?action=draft_class_bank', {
+    method: 'POST',
+    body: JSON.stringify({ sub: 'update_player', player_id: playerId, player: { name: p.name, position: p.position, ovr: p.ovr, age: p.age } })
+  }).catch(e => showAlert('danger', e.error || 'Erro ao atualizar'));
+}
+
+async function _dcAddPlayer() {
+  const name = document.getElementById('_dcNewName')?.value.trim();
+  const pos  = document.getElementById('_dcNewPos')?.value;
+  const ovr  = parseInt(document.getElementById('_dcNewOvr')?.value, 10);
+  const age  = parseInt(document.getElementById('_dcNewAge')?.value, 10);
+  if (!name || !pos || isNaN(ovr) || isNaN(age)) { showAlert('warning', 'Preencha todos os campos'); return; }
+  try {
+    const res = await api('admin.php?action=draft_class_bank', {
+      method: 'POST',
+      body: JSON.stringify({ sub: 'add_player', template_id: _dcEditTemplateId, player: { name, position: pos, ovr, age } })
+    });
+    _dcEditPlayers.push({ id: res.id, name, position: pos, ovr, age });
+    document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
+    document.getElementById('_dcNewName').value = '';
+    document.getElementById('_dcNewOvr').value = '';
+    document.getElementById('_dcNewAge').value = '';
+    showAlert('success', 'Jogador adicionado!');
+  } catch(e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _dcDeletePlayer(playerId) {
+  if (!confirm('Remover este jogador da classe?')) return;
+  try {
+    await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete_player', player_id: playerId }) });
+    _dcEditPlayers = _dcEditPlayers.filter(p => p.id !== playerId);
+    document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
+  } catch(e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _dcRenameClass() {
+  const name = document.getElementById('_dcNameInput')?.value.trim();
+  if (!name) return;
+  await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'rename', template_id: _dcEditTemplateId, name }) });
+  showAlert('success', 'Renomeada!');
+  showDraftClassBank();
+}
+
+async function _dcSaveNewClass() {
+  const name = document.getElementById('_dcNameInput')?.value.trim();
+  if (!name) { showAlert('warning', 'Digite um nome'); return; }
+  try {
+    const res = await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'save', name, players: [] }) });
+    document.getElementById('_dcEditModal').remove();
+    showAlert('success', 'Classe criada! Edite para adicionar jogadores.');
+    showDraftClassBank();
+  } catch(e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _draftClassDelete(templateId, name) {
+  if (!confirm(`Excluir a classe "${name}"? Esta ação não pode ser desfeita.`)) return;
+  try {
+    await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete', template_id: templateId }) });
+    showAlert('success', 'Classe excluída.');
+    showDraftClassBank();
+  } catch(e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+// ── Modal: importar CSV para o banco (nova classe) ────────────────
+let _dcImportRows = [];
+
+function _draftClassImportModal() {
+  _dcImportRows = [];
+  const existing = document.getElementById('_dcImportModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_dcImportModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:560px;padding:0">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-upload" style="color:#a855f7"></i> Importar CSV — Nova Classe</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_dcImportModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <div class="mb-3">
+          <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:4px">Nome da classe</label>
+          <input type="text" id="_dcImportName" class="form-control" placeholder="Ex: Draft 2040">
+        </div>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+        <div id="_dcImportDropzone"
+          style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:12px"
+          onclick="document.getElementById('_dcImportFile').click()"
+          ondragover="event.preventDefault();this.style.borderColor='#a855f7'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="_dcImportDrop(event)">
+          <i class="bi bi-file-earmark-text" style="font-size:28px;color:var(--text-3)"></i>
+          <p style="font-size:13px;color:var(--text-2);margin-top:8px;margin-bottom:0">Arraste o CSV ou clique para selecionar</p>
+        </div>
+        <input type="file" id="_dcImportFile" accept=".csv,text/csv" style="display:none" onchange="_dcImportFileSelected(this)">
+        <div id="_dcImportPreview" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+            Preview — <span id="_dcImportCount">0</span> jogadores
+          </div>
+          <div id="_dcImportTable" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+          <div class="d-flex gap-2 justify-content-end mt-3">
+            <button class="btn-ghost" onclick="document.getElementById('_dcImportModal').remove()">Cancelar</button>
+            <button class="btn-ghost" style="color:#a855f7" onclick="_dcImportConfirm()"><i class="bi bi-check-lg me-1"></i>Salvar Classe</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _draftClassReplaceCSVModal(templateId) {
+  _dcImportRows = [];
+  _dcEditTemplateId = templateId;
+  const existing = document.getElementById('_dcReplaceModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_dcReplaceModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:520px;padding:0">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-upload" style="color:#f59e0b"></i> Substituir via CSV</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_dcReplaceModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <div class="alert alert-warning mb-3" style="font-size:12px"><i class="bi bi-exclamation-triangle me-1"></i>Isso <strong>apagará todos os jogadores</strong> da classe e substituirá pelo CSV.</div>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+        <div id="_dcReplaceDropzone"
+          style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:24px;text-align:center;cursor:pointer;transition:border-color .2s"
+          onclick="document.getElementById('_dcReplaceFile').click()"
+          ondragover="event.preventDefault();this.style.borderColor='#f59e0b'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="_dcReplaceFileDrop(event)">
+          <i class="bi bi-file-earmark-text" style="font-size:28px;color:var(--text-3)"></i>
+          <p style="font-size:13px;color:var(--text-2);margin-top:8px;margin-bottom:0">Arraste ou clique</p>
+        </div>
+        <input type="file" id="_dcReplaceFile" accept=".csv,text/csv" style="display:none" onchange="_dcReplaceFileSelected(this)">
+        <div id="_dcReplacePreview" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">
+            <span id="_dcReplaceCount">0</span> jogadores
+          </div>
+          <div id="_dcReplaceTable" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+          <div class="d-flex gap-2 justify-content-end mt-3">
+            <button class="btn-ghost" onclick="document.getElementById('_dcReplaceModal').remove()">Cancelar</button>
+            <button class="btn-ghost" style="color:#f59e0b" onclick="_dcReplaceConfirm()"><i class="bi bi-check-lg me-1"></i>Substituir tudo</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _dcParseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return null;
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g,''));
+  const ni = headers.indexOf('name'), pi = headers.indexOf('position'), oi = headers.indexOf('ovr'), ai = headers.indexOf('age');
+  if (ni<0||pi<0||oi<0||ai<0) return null;
+  const rows = [];
+  for (let i=1;i<lines.length;i++) {
+    const cols = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g,''));
+    const name = cols[ni]||'', pos = (cols[pi]||'').toUpperCase(), ovr=parseInt(cols[oi],10), age=parseInt(cols[ai],10);
+    if (!name||!pos||isNaN(ovr)||isNaN(age)||ovr<=0||age<=0) continue;
+    rows.push({ name, position:pos, ovr, age });
+  }
+  return rows;
+}
+
+function _dcPreviewTable(rows) {
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--panel-2)">
+      <th style="padding:6px 10px;text-align:left;color:var(--text-3)">Nome</th>
+      <th style="padding:6px 8px;color:var(--text-3);text-align:center">Pos</th>
+      <th style="padding:6px 8px;color:var(--text-3);text-align:center">OVR</th>
+      <th style="padding:6px 8px;color:var(--text-3);text-align:center">Idade</th>
+    </tr></thead>
+    <tbody>${rows.slice(0,50).map(p=>`
+      <tr style="border-top:1px solid var(--border)">
+        <td style="padding:5px 10px;color:var(--text)">${escapeHtml(p.name)}</td>
+        <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.position}</td>
+        <td style="padding:5px 8px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
+        <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.age}</td>
+      </tr>`).join('')}
+    ${rows.length>50?`<tr><td colspan="4" style="padding:5px 10px;color:var(--text-3);text-align:center">+${rows.length-50} mais…</td></tr>`:''}
+    </tbody></table>`;
+}
+
+function _dcImportDrop(e) { e.preventDefault(); document.getElementById('_dcImportDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcImportParseFile(f); }
+function _dcImportFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcImportParseFile(f); }
+function _dcImportParseFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = _dcParseCSV(e.target.result);
+    if (!rows) { showAlert('danger','Cabeçalho inválido. Esperado: name, position, ovr, age'); return; }
+    _dcImportRows = rows;
+    document.getElementById('_dcImportCount').textContent = rows.length;
+    document.getElementById('_dcImportTable').innerHTML = _dcPreviewTable(rows);
+    document.getElementById('_dcImportPreview').style.display = 'block';
+    document.getElementById('_dcImportDropzone').style.display = 'none';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+async function _dcImportConfirm() {
+  const name = document.getElementById('_dcImportName')?.value.trim();
+  if (!name) { showAlert('warning','Digite o nome da classe'); return; }
+  if (!_dcImportRows.length) { showAlert('warning','Nenhum jogador'); return; }
+  try {
+    const res = await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'save', name, players: _dcImportRows }) });
+    document.getElementById('_dcImportModal').remove();
+    showAlert('success', res.message || 'Classe salva!');
+    showDraftClassBank();
+  } catch(e) { showAlert('danger', e.error||'Erro'); }
+}
+
+function _dcReplaceFileDrop(e) { e.preventDefault(); document.getElementById('_dcReplaceDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcReplaceParseFile(f); }
+function _dcReplaceFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcReplaceParseFile(f); }
+function _dcReplaceParseFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = _dcParseCSV(e.target.result);
+    if (!rows) { showAlert('danger','Cabeçalho inválido'); return; }
+    _dcImportRows = rows;
+    document.getElementById('_dcReplaceCount').textContent = rows.length;
+    document.getElementById('_dcReplaceTable').innerHTML = _dcPreviewTable(rows);
+    document.getElementById('_dcReplacePreview').style.display = 'block';
+    document.getElementById('_dcReplaceDropzone').style.display = 'none';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+async function _dcReplaceConfirm() {
+  if (!_dcImportRows.length) { showAlert('warning','Nenhum jogador'); return; }
+  const tplId = _dcEditTemplateId;
+  if (!tplId) { showAlert('danger','Template não identificado'); return; }
+  try {
+    // Deleta todos jogadores atuais e recria via save + delete antigo
+    // Abordagem: deletar o template e recriar não é viável (mudaria id)
+    // Fazemos: limpar jogadores via sub=replace_players (novo sub)
+    await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'replace_players', template_id: tplId, players: _dcImportRows }) });
+    document.getElementById('_dcReplaceModal').remove();
+    // Recarrega lista de jogadores no modal de edição
+    _dcEditPlayers = _dcImportRows;
+    const listEl = document.getElementById('_dcPlayerList');
+    if (listEl) {
+      // Recarrega do servidor para ter os IDs corretos
+      const d = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
+      _dcEditPlayers = d.players || [];
+      listEl.innerHTML = _dcRenderPlayerList();
+    }
+    showAlert('success',`${_dcImportRows.length} jogadores importados!`);
+  } catch(e) { showAlert('danger', e.error||'Erro'); }
+}
 
