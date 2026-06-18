@@ -47,6 +47,39 @@ foreach ($byLeague as $lg => &$arr) {
 unset($arr);
 
 $leagues = ['ELITE','NEXT','RISE','ROOKIE'];
+
+// ── Pares que mais trocaram entre si ────────────────────────────
+$pairsRaw = $pdo->query("
+    SELECT tr.league,
+           LEAST(tr.from_team_id, tr.to_team_id)    AS t1,
+           GREATEST(tr.from_team_id, tr.to_team_id) AS t2,
+           COUNT(*) AS c
+    FROM trades tr
+    WHERE tr.status = 'accepted'
+      AND tr.from_team_id IS NOT NULL
+      AND tr.to_team_id   IS NOT NULL
+    GROUP BY tr.league, t1, t2
+")->fetchAll(PDO::FETCH_ASSOC);
+
+// Resolve team names
+$teamNames = [];
+foreach ($pdo->query("SELECT id, CONCAT(city,' ',name) AS n FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $teamNames[$r['id']] = $r['n'];
+}
+
+$pairsByLeague = [];
+foreach ($pairsRaw as $r) {
+    $name1 = $teamNames[$r['t1']] ?? "Time #{$r['t1']}";
+    $name2 = $teamNames[$r['t2']] ?? "Time #{$r['t2']}";
+    $pairsByLeague[$r['league']][] = [
+        'label' => $name1 . ' × ' . $name2,
+        'count' => (int)$r['c'],
+    ];
+}
+foreach ($pairsByLeague as $lg => &$arr) {
+    usort($arr, fn($a,$b) => $b['count'] - $a['count']);
+}
+unset($arr);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -144,6 +177,49 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
     <?php endforeach; ?>
   </div>
 </main>
+  <h1 style="margin-top:16px"><i class="bi bi-arrow-left-right" style="color:var(--red)"></i> Pares que mais trocaram</h1>
+  <p class="subtitle">Top 5 duplas com mais e menos trades aceitas entre si por liga</p>
+
+  <div class="leagues-grid">
+    <?php foreach ($leagues as $lg):
+      $arr   = $pairsByLeague[$lg] ?? [];
+      $top5p = array_slice($arr, 0, 5);
+      $bot5p = array_reverse(array_slice(array_reverse($arr), 0, 5));
+      $copyP  = "🤝 *Pares mais ativos — {$lg}*\n";
+      foreach ($top5p as $i => $p) $copyP .= ($i+1).". {$p['label']} — {$p['count']}\n";
+      $copyP .= "\n❄️ *Pares menos ativos — {$lg}*\n";
+      foreach ($bot5p as $i => $p) $copyP .= ($i+1).". {$p['label']} — {$p['count']}\n";
+      $copyP = htmlspecialchars($copyP, ENT_QUOTES);
+    ?>
+    <div class="league-card">
+      <div class="league-header">
+        <span class="league-badge badge-<?= $lg ?>"><?= $lg ?></span>
+        <span style="font-size:12px;color:var(--text-2);flex:1"><?= count($arr) ?> pares</span>
+        <button class="copy-btn" data-text="<?= $copyP ?>" style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s">
+          <i class="bi bi-clipboard"></i> Copiar
+        </button>
+      </div>
+      <div class="card-section-title">🤝 Mais parceiros</div>
+      <?php foreach ($top5p as $i => $p): ?>
+      <div class="rank-row">
+        <span class="rank-num <?= $i===0?'gold':'' ?>"><?= $i+1 ?></span>
+        <span class="rank-name" title="<?= htmlspecialchars($p['label']) ?>"><?= htmlspecialchars($p['label']) ?></span>
+        <span class="rank-val hi"><?= $p['count'] ?></span>
+      </div>
+      <?php endforeach; ?>
+      <div class="divider"></div>
+      <div class="card-section-title">❄️ Menos parceiros</div>
+      <?php foreach ($bot5p as $i => $p): ?>
+      <div class="rank-row">
+        <span class="rank-num"><?= $i+1 ?></span>
+        <span class="rank-name" title="<?= htmlspecialchars($p['label']) ?>"><?= htmlspecialchars($p['label']) ?></span>
+        <span class="rank-val lo"><?= $p['count'] ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+
 <script>
 document.querySelectorAll('.copy-btn').forEach(btn => {
   btn.addEventListener('mouseover', () => { btn.style.borderColor='var(--red)'; btn.style.color='var(--red)'; });
