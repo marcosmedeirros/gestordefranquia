@@ -168,6 +168,16 @@ $rotMap = queryByLeague($pdo, "
 ");
 sortLeagueData($rotMap);
 
+// ── FA Propostas ────────────────────────────────────────────────
+$faPropostasMap = queryByLeague($pdo, "
+    SELECT fa.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    FROM free_agent_offers fao
+    JOIN teams t ON t.id = fao.team_id
+    JOIN free_agents fa ON fa.id = fao.free_agent_id
+    GROUP BY fa.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($faPropostasMap);
+
 // ── FA. Free Agency pickups ──────────────────────────────────────
 $faMap = queryByLeague($pdo, "
     SELECT fa.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
@@ -496,6 +506,14 @@ renderSection('rotatividade', '🔁', 'rgba(34,197,94,.08)', 'Rotatividade de El
         'label_hi' => '🔁 Mais rotatividade', 'label_lo' => '🏠 Menos rotatividade',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais rotatividade', 'copy_lo' => 'Menos rotatividade',
+    ]);
+
+renderSection('fapropostas', '📋', 'rgba(96,165,250,.10)', 'Propostas na FA',
+    'Times que mais e menos fizeram propostas (qualquer status)',
+    $faPropostasMap, $leagues, [
+        'label_hi' => '📋 Mais propostas', 'label_lo' => '📦 Menos propostas',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais propostas FA', 'copy_lo' => 'Menos propostas FA',
     ]);
 
 renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
