@@ -168,6 +168,15 @@ try {
         GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ot5Raw as $r) $origTop5Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    // Correção: 1 pick atribuída ao Utah Coyotes pertencia ao St. Louis Musketeers
+    foreach ($origTop5Map as $lg => &$arr) {
+        $hasMusk = false;
+        foreach ($arr as &$row) {
+            if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) $row['count'] = max(0, $row['count'] - 1);
+            if (str_contains($row['name'], 'Musketeers') || str_contains($row['name'], 'Musketters')) { $row['count']++; $hasMusk = true; }
+        } unset($row);
+        if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
+    } unset($arr);
     sortLeagueData($origTop5Map);
 } catch (Exception $e) {}
 
@@ -183,6 +192,15 @@ try {
         GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    // Correção: 1 escolha atribuída ao Utah Coyotes pertencia ao St. Louis Musketeers
+    foreach ($top5PicksMap as $lg => &$arr) {
+        $hasMusk = false;
+        foreach ($arr as &$row) {
+            if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) $row['count'] = max(0, $row['count'] - 1);
+            if (str_contains($row['name'], 'Musketeers') || str_contains($row['name'], 'Musketters')) { $row['count']++; $hasMusk = true; }
+        } unset($row);
+        if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
+    } unset($arr);
     sortLeagueData($top5PicksMap);
 } catch (Exception $e) {}
 
